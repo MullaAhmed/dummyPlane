@@ -87,6 +87,9 @@ pub struct StatusLine {
     pub url: String,
     /// The curl config file that carries the token (`write_curl_config`).
     pub config: PathBuf,
+    /// The bash that runs the script: Git Bash's own on Windows. A bare `bash`
+    /// on the PATH is often WSL's launcher, which cannot read `C:/` paths.
+    pub bash: PathBuf,
     /// The user's `statusLine` setting, when it runs a command.
     pub user: Option<Value>,
 }
@@ -126,8 +129,10 @@ pub fn status_line_json(status: &StatusLine) -> Value {
     // bash reads Windows paths with forward slashes.
     let script = status.script.to_string_lossy().replace('\\', "/");
     let config = status.config.to_string_lossy().replace('\\', "/");
+    let bash = status.bash.to_string_lossy().replace('\\', "/");
     let mut command = format!(
-        "bash {} {} {}",
+        "{} {} {} {}",
+        bash_quote(&bash),
         bash_quote(&script),
         bash_quote(&status.url),
         bash_quote(&config)
@@ -350,6 +355,7 @@ mod tests {
             script: PathBuf::from(r"C:\data\hooks\statusline.sh"),
             url: STATUS_URL.into(),
             config: PathBuf::from(r"C:\data\Jean O'Brien\hooks\curl.cfg"),
+            bash: PathBuf::from(r"C:\Program Files\Git\bin\bash.exe"),
             user,
         }
     }
@@ -357,20 +363,33 @@ mod tests {
     #[test]
     fn its_status_line_tells_openvibe_then_shows_the_user_s_own() {
         let config = "'C:/data/Jean O'\\''Brien/hooks/curl.cfg'";
+        let bash = "'C:/Program Files/Git/bin/bash.exe'";
         assert_eq!(
             status_line_json(&status(None)),
-            json!({ "type": "command", "command": format!("bash 'C:/data/hooks/statusline.sh' '{STATUS_URL}' {config}") })
+            json!({ "type": "command", "command": format!("{bash} 'C:/data/hooks/statusline.sh' '{STATUS_URL}' {config}") })
         );
         let user = json!({ "type": "command", "command": "~/bin/it's.sh --x", "padding": 0, "refreshInterval": 5 });
         assert_eq!(
             status_line_json(&status(Some(user))),
             json!({
                 "type": "command",
-                "command": format!("bash 'C:/data/hooks/statusline.sh' '{STATUS_URL}' {config} '~/bin/it'\\''s.sh --x'"),
+                "command": format!("{bash} 'C:/data/hooks/statusline.sh' '{STATUS_URL}' {config} '~/bin/it'\\''s.sh --x'"),
                 "padding": 0,
                 "refreshInterval": 5
             })
         );
+    }
+
+    /// Regression: on Windows a plain `bash` on the PATH resolves to WSL's launcher,
+    /// which reads `C:/` paths as missing, so the script never ran and the meter stayed empty.
+    #[test]
+    fn the_status_line_names_git_bash_not_a_bash_found_on_the_path() {
+        let command = status_line_json(&status(None))["command"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        assert!(!command.starts_with("bash "), "{command}");
+        assert!(command.starts_with("'C:/Program Files/Git/bin/bash.exe' "), "{command}");
     }
 
     #[test]
@@ -474,6 +493,7 @@ mod tests {
             script: dir.path().join("missing").join("statusline.sh"),
             url: STATUS_URL.into(),
             config: dir.path().join("curl.cfg"),
+            bash: PathBuf::from("bash"),
             user: None,
         };
         let path = write(dir.path(), "n1", URL, Role::Agent, Some(&line), None).unwrap();
@@ -490,6 +510,7 @@ mod tests {
             script: dir.path().join("statusline.sh"),
             url: STATUS_URL.into(),
             config: dir.path().join("curl.cfg"),
+            bash: PathBuf::from("bash"),
             user: None,
         };
         let path = write(dir.path(), "n1", URL, Role::Agent, Some(&line), None).unwrap();
