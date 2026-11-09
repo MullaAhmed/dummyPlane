@@ -2,7 +2,10 @@ import { CaptureUpdateAction, newElementWith } from "@excalidraw/excalidraw";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { currentPalette } from "@/app/theme";
-import { orphanWires, outdatedWires, revivableWires, unmarkedWires, wireColor } from "./wires";
+import { isSpawnWire, orphanWires, outdatedWires, revivableWires, unmarkedWires, wireColor } from "./wires";
+
+/** A wire's mark without the orphan flag: a spawn wire keeps `spawn`. */
+const wireMark = (e: ExcalidrawElement) => (isSpawnWire(e) ? { kind: "wire", spawn: true } : { kind: "wire" });
 
 /** An upkeep is already programmed for the next frame: further changes wait for it, not queue behind it. */
 let pending = false;
@@ -34,9 +37,9 @@ export function scheduleWireUpkeep(api: ExcalidrawImperativeAPI, elements: reado
     if (marked.size === 0 && orphans.size === 0 && revived.size === 0 && outdated.size === 0) return;
     api.updateScene({
       elements: current.map((e) => {
-        // Marked, so that an undo bringing its ends back brings the wire back too.
-        if (orphans.has(e.id)) return newElementWith(e, { isDeleted: true, customData: { ...e.customData, dummyplane: { kind: "wire", orphaned: true } } });
-        if (revived.has(e.id)) return newElementWith(e, { isDeleted: false, customData: { ...e.customData, dummyplane: { kind: "wire" } } });
+        // Marked, so that an undo bringing its ends back brings the wire back too; a spawn wire stays one.
+        if (orphans.has(e.id)) return newElementWith(e, { isDeleted: true, customData: { ...e.customData, dummyplane: { ...wireMark(e), orphaned: true } } });
+        if (revived.has(e.id)) return newElementWith(e, { isDeleted: false, customData: { ...e.customData, dummyplane: wireMark(e) } });
         if (marked.has(e.id)) return newElementWith(e, { customData: { ...e.customData, dummyplane: { kind: "wire" } } });
         if (outdated.has(e.id)) return newElementWith(e, { strokeColor: wireColor(palette) });
         return e;
