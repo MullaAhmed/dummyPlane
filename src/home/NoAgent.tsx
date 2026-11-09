@@ -55,7 +55,7 @@ export function NoAgent() {
         <div className="flex items-center gap-2">
           <claude.Icon className="size-4" style={{ color: agentInk(claude.tint) }} />
           <span className="text-[13px] font-semibold text-dp-text">Claude Code</span>
-          <span className="rounded-full bg-dp-accent-soft px-2 py-0.5 text-[11px] font-semibold text-dp-accent-ink">{t.recommended}</span>
+          <span className="rounded-md bg-dp-accent-soft px-2 py-0.5 text-[11px] font-semibold text-dp-accent-ink">{t.recommended}</span>
         </div>
         <p className="mt-1 text-xs text-dp-text-2">{t.claudeWhy}</p>
         <p className="mt-3 text-xs text-dp-text-2">{t.claudeHow}</p>
@@ -88,7 +88,7 @@ export function NoAgent() {
                 data-install={id}
                 aria-label={t.installAgent(agent.label)}
                 onClick={() => setAsked(id)}
-                className="rounded-full bg-dp-accent-soft px-2 py-0.5 text-[11px] font-semibold text-dp-accent-ink transition-[color,background-color] duration-150 ease-out hover:bg-dp-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] motion-reduce:transition-none"
+                className="rounded-[9px] bg-dp-accent-soft px-2 py-0.5 text-[11px] font-semibold text-dp-accent-ink transition-[color,background-color] duration-150 ease-out hover:bg-dp-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] motion-reduce:transition-none"
               >
                 {t.install}
               </button>
