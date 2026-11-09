@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { focusTerminal } from "@/nodes/terminal/registry";
+import { activeTerminalStore } from "./activeTerminal";
 import { arrivalStore } from "./arrivalSignal";
 import { arrivalView, arrive, FOCUS_FRAMES, arrivingNode, needsMove, revealNode, showNode } from "./arrive";
 import { canvasStore } from "./canvasStore";
@@ -67,6 +68,16 @@ describe("arrive", () => {
       appState: { activeEmbeddable: { element: isis, state: "active" }, selectedElementIds: {}, selectedGroupIds: {} },
     });
     expect(arrivalStore.getState()).toEqual({ nodeId: "isis", seq: before + 1 });
+  });
+
+  it("makes the terminal the one Send goes to, but not an orchestrator", () => {
+    withScene(at100);
+    activeTerminalStore.setState({ id: null });
+    arrive("isis");
+    expect(activeTerminalStore.getState().id).toBe("isis");
+    arrive("chef");
+    expect(activeTerminalStore.getState().id).toBe("isis");
+    activeTerminalStore.setState({ id: null });
   });
 
   describe("under the waiting notice (spec notification §4)", () => {

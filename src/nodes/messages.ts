@@ -74,6 +74,11 @@ export const nodesMessages = defineMessages(
       remoteOff: "Turn off Remote Control",
       close: "Close the orchestrator",
       doubleClickRename: "Double-click to rename",
+      input: {
+        toggle: "Message agents…",
+        placeholder: (agents: string) => `Message ${agents} · @ to target · / command`,
+        emptyHint: "Link agents to this orchestrator",
+      },
       session: {
         starting: "starting",
         toolsUnavailable: "tools unavailable",

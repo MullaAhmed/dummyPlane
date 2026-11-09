@@ -1,5 +1,6 @@
 import { expect, it, vi } from "vitest";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
+import { activeTerminalStore } from "./activeTerminal";
 import { canvasStore } from "./canvasStore";
 import { focusNode } from "./focusNode";
 
@@ -35,4 +36,40 @@ it("unfolds the folded group of the agent first (spec replier un groupe §2)", a
   focusNode("t1");
   await vi.waitFor(() => expect(setGroupFolded).toHaveBeenCalledWith("g", false));
   canvasStore.setState({ frames: [] });
+});
+
+it("replaces the old selection with the terminal it opens, so Send goes to that one", () => {
+  const element = { id: "t1", type: "embeddable", customData: { kind: "terminal" }, x: 0, y: 0, width: 400, height: 300 };
+  const updateScene = vi.fn();
+  activeTerminalStore.setState({ id: "t9" });
+  canvasStore.setState({
+    frames: [],
+    api: {
+      getSceneElements: () => [element],
+      getAppState: () => ({ width: 1000, height: 800, zoom: { value: 1 }, scrollX: 0, scrollY: 0, selectedElementIds: { t9: true } }),
+      updateScene,
+    } as unknown as ExcalidrawImperativeAPI,
+  });
+  focusNode("t1");
+  const appState = updateScene.mock.calls[0][0].appState;
+  expect(appState.selectedElementIds).toEqual({});
+  expect(appState.selectedGroupIds).toEqual({});
+  expect(activeTerminalStore.getState().id).toBe("t1");
+  activeTerminalStore.setState({ id: null });
+});
+
+it("does not make an orchestrator the active terminal", () => {
+  const element = { id: "o1", type: "embeddable", customData: { kind: "orchestrator" }, x: 0, y: 0, width: 400, height: 300 };
+  activeTerminalStore.setState({ id: "t1" });
+  canvasStore.setState({
+    frames: [],
+    api: {
+      getSceneElements: () => [element],
+      getAppState: () => ({ width: 1000, height: 800, zoom: { value: 1 }, scrollX: 0, scrollY: 0 }),
+      updateScene: vi.fn(),
+    } as unknown as ExcalidrawImperativeAPI,
+  });
+  focusNode("o1");
+  expect(activeTerminalStore.getState().id).toBe("t1");
+  activeTerminalStore.setState({ id: null });
 });

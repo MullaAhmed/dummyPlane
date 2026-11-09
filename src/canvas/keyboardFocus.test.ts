@@ -3,6 +3,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, expect, it } from "vitest";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { nodesStore } from "@/store/nodes";
 import { readSource } from "@/theme/cssBlocks";
+import { activeTerminalStore } from "./activeTerminal";
 import { lastTerminalOf, terminalWithKeyboard, trackTerminalFocus } from "./keyboardFocus";
 
 let untrack: () => void;
@@ -49,6 +50,19 @@ it("knows the terminal whose xterm has the keyboard, and none elsewhere", () => 
   expect(terminalWithKeyboard()).toBe("isis");
   isis.button.focus();
   expect(terminalWithKeyboard()).toBeNull();
+});
+
+it("makes the terminal whose xterm takes the keyboard the one Send goes to, and keeps it when the keyboard leaves", () => {
+  activeTerminalStore.setState({ id: null });
+  const isis = terminalNode("isis");
+  const thot = terminalNode("thot");
+  isis.input.focus();
+  expect(activeTerminalStore.getState().id).toBe("isis");
+  thot.input.focus();
+  expect(activeTerminalStore.getState().id).toBe("thot");
+  thot.button.focus();
+  expect(activeTerminalStore.getState().id).toBe("thot");
+  activeTerminalStore.setState({ id: null });
 });
 
 it("remembers the last terminal of each workspace to have had the keyboard (spec fenêtre §6.3)", () => {

@@ -31,6 +31,7 @@ import { ResumeCard } from "../terminal/ResumeCard";
 import { keepFieldWheel } from "./keepWheel";
 import { HeaderButton } from "../terminal/TerminalHeader";
 import { useTerminalHost } from "../terminal/useTerminalHost";
+import { OrchestratorInput } from "./OrchestratorInput";
 import { ToolsUnavailable } from "./ToolsUnavailable";
 import { useMessages } from "@/i18n";
 import { nodesMessages } from "@/nodes/messages";
@@ -108,6 +109,7 @@ export function OrchestratorNode({ nodeId }: { nodeId: string }) {
         {status.state === "error" && status.kind === "toolsUnavailable" && <ToolsUnavailable nodeId={nodeId} message={status.message} />}
       </div>
       <MissionPanel nodeId={nodeId} />
+      <OrchestratorInput nodeId={nodeId} open={record.payload.inputOpen === true} />
       {waiting && <div className="pointer-events-none absolute inset-0 z-20 rounded-xl" style={{ boxShadow: WAITING_GLOW }} />}
     </div>
   );
