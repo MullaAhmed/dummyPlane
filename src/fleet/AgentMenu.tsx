@@ -107,7 +107,7 @@ export function AgentMenu({
                       disabled={!usable}
                       title={usable ? undefined : t.agentMenu.notFound(meta.binary)}
                       onClick={() => pick(id)}
-                      className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left hover:bg-dp-hover disabled:cursor-not-allowed disabled:opacity-40"
+                      className="flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left transition-[background-color,transform] duration-150 ease-out hover:bg-dp-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none"
                     >
                       <span
                         className="grid size-7 place-items-center rounded-md"
@@ -119,7 +119,7 @@ export function AgentMenu({
                         <span className="block text-[13px] font-medium text-dp-text">{meta.label}</span>
                         <span className="block text-[11px] text-dp-text-2">{meta.vendor}</span>
                       </span>
-                      {id === fallback && <Check className="size-3.5 text-dp-accent" />}
+                      {id === fallback && <Check className="size-3.5 text-dp-accent-ink" />}
                     </button>
                     {/* Beside the row and not inside it: the row is disabled, this button is not. */}
                     {missing(id) && (
@@ -128,7 +128,7 @@ export function AgentMenu({
                         data-install={id}
                         aria-label={t.install.installAgent(meta.label)}
                         onClick={() => setView({ install: id })}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 rounded-[9px] bg-dp-accent-soft px-2 py-0.5 text-[11px] font-semibold text-dp-accent hover:underline"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-dp-accent-soft px-2 py-0.5 text-[11px] font-semibold text-dp-accent-ink transition-[background-color,transform] duration-150 ease-out hover:bg-dp-accent/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] motion-reduce:transition-none"
                       >
                         {t.install.button}
                       </button>
@@ -142,7 +142,7 @@ export function AgentMenu({
                   setOpen(false);
                   newConsole(placeAt ?? undefined);
                 }}
-                className="mt-1 flex items-center gap-2.5 rounded-lg border-t border-dp-line px-2 py-1.5 text-left hover:bg-dp-hover"
+                className="mt-1 flex items-center gap-2.5 rounded-md border-t border-dp-line px-2 py-1.5 text-left transition-[background-color,transform] duration-150 ease-out hover:bg-dp-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] motion-reduce:transition-none"
               >
                 <span className="grid size-7 place-items-center rounded-md bg-dp-field text-dp-text-2">
                   <SquareTerminal className="size-4" />
@@ -155,7 +155,7 @@ export function AgentMenu({
                   setOpen(false);
                   launchFour(placeAt ?? undefined);
                 }}
-                className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-left hover:bg-dp-hover"
+                className="flex items-center gap-2.5 rounded-md px-2 py-1.5 text-left transition-[background-color,transform] duration-150 ease-out hover:bg-dp-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] motion-reduce:transition-none"
               >
                 <span className="grid size-7 place-items-center rounded-md bg-dp-field text-dp-text-2">
                   <Layers className="size-4" />
@@ -170,9 +170,9 @@ export function AgentMenu({
                   if (placeAt) placeOrchestrator(placeAt);
                   else uiStore.getState().setPlacing({ orchestrator: true });
                 }}
-                className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-left hover:bg-dp-hover"
+                className="flex items-center gap-2.5 rounded-md px-2 py-1.5 text-left transition-[background-color,transform] duration-150 ease-out hover:bg-dp-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] motion-reduce:transition-none"
               >
-                <span className="grid size-7 place-items-center rounded-md bg-dp-accent-soft text-dp-accent">
+                <span className="grid size-7 place-items-center rounded-md bg-dp-accent-soft text-dp-accent-ink">
                   <Network className="size-4" />
                 </span>
                 <span className="min-w-0 flex-1">
@@ -186,7 +186,7 @@ export function AgentMenu({
                   setOpen(false);
                   placeKanban(placeAt ?? undefined);
                 }}
-                className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-left hover:bg-dp-hover"
+                className="flex items-center gap-2.5 rounded-md px-2 py-1.5 text-left transition-[background-color,transform] duration-150 ease-out hover:bg-dp-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] motion-reduce:transition-none"
               >
                 <span className="grid size-7 place-items-center rounded-md bg-dp-field text-dp-text-2">
                   <Kanban className="size-4" />
@@ -199,7 +199,11 @@ export function AgentMenu({
             </div>
             <div className="mt-1 flex items-center justify-between border-t border-dp-line px-2 pt-2 text-[11px] text-dp-text-2">
               <span>{placeAt ? t.agentMenu.placedWhereClicked : t.agentMenu.thenClickCanvas}</span>
-              <button type="button" className="text-dp-accent hover:underline" onClick={() => setView("options")}>
+              <button
+                type="button"
+                className="rounded-md px-1 text-dp-accent-ink underline-offset-4 transition-[color] duration-150 ease-out hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none"
+                onClick={() => setView("options")}
+              >
                 {t.agentMenu.options}
               </button>
             </div>

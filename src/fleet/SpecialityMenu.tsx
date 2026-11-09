@@ -58,7 +58,7 @@ export function SpecialityMenu({ groupId, speciality, onDone }: { groupId: strin
           aria-label={t.groupMenu.specialityLabel}
           placeholder={t.groupMenu.specialityCustom}
           onKeyDown={onKeyDown}
-          className="m-1 w-[calc(100%-0.5rem)] rounded bg-dp-field px-2 py-1 text-xs text-dp-text outline-none"
+          className="m-1 w-[calc(100%-0.5rem)] rounded-md bg-dp-field px-2 py-1 text-xs text-dp-text outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50"
         />
         <DropdownMenuSeparator />
         {ROLE_ORDER.filter((id) => id !== "general").map((id) => item(t.roles[id], t.roles[id]))}

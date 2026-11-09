@@ -34,25 +34,25 @@ export function InstallPrompt({ agent, onBack, onRun }: { agent: AgentId; onBack
   if (!install) return null;
   return (
     <div data-install-prompt={agent} className="grid gap-2 p-1">
-      <button type="button" onClick={onBack} className="flex items-center gap-1.5 text-xs text-dp-text-2 hover:text-dp-text">
+      <button type="button" onClick={onBack} className="flex items-center gap-1.5 self-start rounded-md text-xs text-dp-text-2 transition-[color] duration-150 ease-out hover:text-dp-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none">
         <ArrowLeft className="size-3.5" /> {t.installAgent(AGENTS[agent].label)}
       </button>
       <p className="text-xs text-dp-text-2">{t.runsIn(SHELL_LABELS[install.shell])}</p>
-      <code className="block break-all rounded-md bg-dp-hover px-2 py-1.5 font-mono text-xs text-dp-text">{install.command}</code>
+      <code className="block break-all rounded-md bg-dp-field px-2 py-1.5 font-mono text-xs text-dp-text">{install.command}</code>
       {needsNode && !npmMissing && <p className="text-xs text-dp-text-2">{t.needsNode}</p>}
       {npmMissing && (
         <div className="grid justify-items-start gap-1">
           <p className="text-xs text-dp-danger">{t.npmMissing}</p>
-          <button type="button" data-link onClick={() => void openUrl(NODE_DOWNLOAD)} className="flex items-center gap-1 text-xs text-dp-accent hover:underline">
-            {t.getNode} <ExternalLink className="size-3" />
+          <button type="button" data-link onClick={() => void openUrl(NODE_DOWNLOAD)} className="flex items-center gap-1 rounded-md text-xs text-dp-accent-ink underline-offset-4 transition-[color] duration-150 ease-out hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none">
+            {t.getNode} <ExternalLink className="size-3.5" />
           </button>
-          <button type="button" onClick={() => void lookForNpm()} className="text-xs text-dp-accent hover:underline">
+          <button type="button" onClick={() => void lookForNpm()} className="rounded-md text-xs text-dp-accent-ink underline-offset-4 transition-[color] duration-150 ease-out hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none">
             {t.recheck}
           </button>
         </div>
       )}
-      <button type="button" data-link onClick={() => void openUrl(install.docs)} className="flex items-center gap-1 text-xs text-dp-accent hover:underline">
-        {t.officialPage} <ExternalLink className="size-3" />
+      <button type="button" data-link onClick={() => void openUrl(install.docs)} className="flex items-center gap-1 rounded-md text-xs text-dp-accent-ink underline-offset-4 transition-[color] duration-150 ease-out hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none">
+        {t.officialPage} <ExternalLink className="size-3.5" />
       </button>
       <AccentButton onClick={onRun} disabled={npmMissing} className="justify-center text-xs">
         {t.run}

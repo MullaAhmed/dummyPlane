@@ -49,8 +49,8 @@ export function OllamaPicker(props: { aiderAvailable: boolean; onBack: () => voi
       title={disabled ? t.aiderNotFound : undefined}
       onClick={() => setMode(value)}
       className={cn(
-        "flex-1 rounded-lg border border-transparent bg-dp-card py-1.5 text-xs disabled:opacity-40",
-        mode === value && "border-dp-accent bg-dp-accent-soft",
+        "flex-1 rounded-md border border-transparent bg-dp-card py-1.5 text-xs transition-[background-color,border-color,transform] duration-150 ease-out hover:bg-dp-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none",
+        mode === value && "border-dp-accent bg-dp-accent-soft text-dp-accent-ink",
       )}
     >
       {label}
@@ -59,7 +59,7 @@ export function OllamaPicker(props: { aiderAvailable: boolean; onBack: () => voi
 
   return (
     <div className="grid gap-3 p-1">
-      <button type="button" onClick={onBack} className="flex items-center gap-1.5 text-xs text-dp-text-2 hover:text-dp-text">
+      <button type="button" onClick={onBack} className="flex items-center gap-1.5 self-start rounded-md text-xs text-dp-text-2 transition-[color] duration-150 ease-out hover:text-dp-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none">
         <ArrowLeft className="size-3.5" /> {t.title}
       </button>
       <div className="flex gap-1.5">
@@ -73,7 +73,7 @@ export function OllamaPicker(props: { aiderAvailable: boolean; onBack: () => voi
             <p title={models.error} className="text-xs text-dp-danger">
               {t.serverDown}
             </p>
-            <button type="button" onClick={() => void read()} className="text-xs text-dp-accent hover:underline">
+            <button type="button" onClick={() => void read()} className="rounded-md text-xs text-dp-accent-ink underline-offset-4 transition-[color] duration-150 ease-out hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none">
               {t.retry}
             </button>
           </div>
@@ -85,7 +85,7 @@ export function OllamaPicker(props: { aiderAvailable: boolean; onBack: () => voi
             type="button"
             data-model={model}
             onClick={() => onPick({ model, mode })}
-            className="rounded-lg px-2 py-1.5 text-left font-mono text-xs text-dp-text hover:bg-dp-hover"
+            className="rounded-md px-2 py-1.5 text-left font-mono text-xs text-dp-text transition-[background-color,transform] duration-150 ease-out hover:bg-dp-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] motion-reduce:transition-none"
           >
             {model}
           </button>
@@ -120,9 +120,9 @@ export function OllamaPicker(props: { aiderAvailable: boolean; onBack: () => voi
               type="button"
               data-suggestion={model}
               onClick={() => onPull(model)}
-              className="flex items-center gap-2 rounded-lg px-2 py-1 text-left hover:bg-dp-hover"
+              className="flex items-center gap-2 rounded-md px-2 py-1 text-left transition-[background-color,transform] duration-150 ease-out hover:bg-dp-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] motion-reduce:transition-none"
             >
-              <Download className="size-3 shrink-0 text-dp-text-2" />
+              <Download className="size-3.5 shrink-0 text-dp-text-2" />
               <span className="min-w-0 flex-1">
                 <span className="block truncate font-mono text-xs text-dp-text">{model}</span>
                 <span className="block text-[11px] text-dp-text-2">{t.uses[use]}</span>
