@@ -32,6 +32,7 @@ const TOOLS: Record<string, string> = {
   tickets: "tickets",
   notes: "notes",
   board: "board",
+  spawn_agent: "spawn_agent",
 };
 
 /** The former names, for the agent that still calls one: what it is called now. */
