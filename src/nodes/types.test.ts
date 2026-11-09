@@ -42,6 +42,12 @@ describe("readOrchestratorPayload", () => {
     expect(readOrchestratorPayload({})).toEqual({ name: "Orchestrateur" });
     expect(readOrchestratorPayload(null)).toEqual({ name: "Orchestrateur" });
   });
+
+  it("keeps its message field open only when it was opened", () => {
+    expect(readOrchestratorPayload({ name: "Chef", inputOpen: true })).toEqual({ name: "Chef", inputOpen: true });
+    expect(readOrchestratorPayload({ name: "Chef", inputOpen: false })).toEqual({ name: "Chef" });
+    expect(readOrchestratorPayload({ name: "Chef", inputOpen: "yes" })).toEqual({ name: "Chef" });
+  });
 });
 
 describe("an orchestrator's session (spec orchestrateur §6)", () => {
