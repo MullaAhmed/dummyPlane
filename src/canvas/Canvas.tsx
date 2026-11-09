@@ -33,6 +33,8 @@ import { DotGrid } from "./overlay/DotGrid";
 import { GroupBackdrops } from "./overlay/GroupBackdrops";
 import { GroupLabels } from "./overlay/GroupLabels";
 import { StepTimelines } from "./overlay/StepTimelines";
+import { WireActivity } from "./overlay/WireActivity";
+import { wirePaths } from "./overlay/wirePaths";
 import { loadScene, rememberScene, type LoadedScene } from "./sceneCache";
 import { EXCALIDRAW_UI_OPTIONS, withSceneDefaults } from "./sceneDefaults";
 import { sceneGone, sceneReady } from "./sceneReady";
@@ -107,6 +109,7 @@ function LoadedCanvas({ workspaceId, scene }: { workspaceId: string; scene: Load
       canvasStore.getState().setNodeIds([]);
       canvasStore.getState().setNodeRects({});
       canvasStore.getState().setLinks({});
+      canvasStore.getState().setWires([]);
       canvasStore.getState().setDrawnSelection([]);
     },
     [],
@@ -175,6 +178,7 @@ function LoadedCanvas({ workspaceId, scene }: { workspaceId: string; scene: Load
       canvasStore.getState().setNodeIds(liveNodeIds(elements));
       canvasStore.getState().setNodeRects(liveNodeRects(elements));
       canvasStore.getState().setLinks(orchestratorLinks(elements));
+      canvasStore.getState().setWires(wirePaths(elements));
       if (api) scheduleWireUpkeep(api, elements);
       const activated = trackActivation(appState.activeEmbeddable);
       if (activated) setActiveTerminal(activated);
@@ -201,6 +205,7 @@ function LoadedCanvas({ workspaceId, scene }: { workspaceId: string; scene: Load
           renderEmbeddable={(element) => <NodeHost element={element} />}
         />
       </div>
+      <WireActivity />
       <SelectionPanel />
     </div>
   );

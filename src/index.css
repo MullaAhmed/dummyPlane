@@ -250,3 +250,68 @@
     animation: none;
   }
 }
+
+/* A message on a wire (WireActivity): the wire glows, a light runs along it the way the message goes, then all fades. */
+@keyframes dp-wire-glow {
+  0% {
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.4;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* The path is one unit long (pathLength="1"): a short dash runs from before its start to past its end. */
+@keyframes dp-wire-packet {
+  from {
+    stroke-dashoffset: 0.1;
+    opacity: 1;
+  }
+  75% {
+    opacity: 1;
+  }
+  to {
+    stroke-dashoffset: -1;
+    opacity: 0;
+  }
+}
+
+.dp-wire-pulse {
+  fill: none;
+  stroke: var(--dp-accent);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.dp-wire-glow {
+  stroke-width: 7;
+  opacity: 0;
+  animation: dp-wire-glow 1500ms var(--dp-ease-out) forwards;
+}
+
+.dp-wire-packet {
+  stroke-width: 4;
+  stroke-dasharray: 0.1 1.1;
+  stroke-dashoffset: 0.1;
+  animation: dp-wire-packet 1100ms ease-out both;
+}
+
+.dp-wire-packet--late {
+  stroke-width: 3;
+  animation-delay: 350ms;
+}
+
+/* Reduced motion: no light running, the wire is only lit while the message passes. */
+@media (prefers-reduced-motion: reduce) {
+  .dp-wire-glow {
+    animation: none;
+    opacity: 0.45;
+  }
+
+  .dp-wire-packet {
+    display: none;
+  }
+}

@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { beforeEach, expect, it, vi } from "vitest";
 import { mockIPC } from "@tauri-apps/api/mocks";
+import { clearWirePulses, wireActivityStore } from "@/canvas/wireActivity";
 import { nodesStore } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
 import type { Member } from "@/mission/mission";
@@ -62,4 +63,14 @@ it("remote_control refuses a first name two agents share instead of taking the f
   const result = await orchestratorTool("chef", "remote_control", { actif: true, agents: ["Isis"] });
   expect(result.isError).toBe(true);
   expect(result.content[0].text).toContain("Several agents");
+});
+
+it("ecrire lights the wire from the orchestrator down to the agent it wrote to", async () => {
+  clearWirePulses();
+  await setup([member("a", "Isis")]);
+  terminalStatusStore.getState().set("a", { state: "running" });
+  const result = await orchestratorTool("chef", "ecrire", { agent: "Isis", texte: "go on" });
+  expect(result.isError).not.toBe(true);
+  expect(wireActivityStore.getState().pulses).toEqual({ a: { direction: "toAgent", at: expect.any(Number), orchestratorId: "chef" } });
+  clearWirePulses();
 });

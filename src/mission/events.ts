@@ -1,3 +1,4 @@
+import { signalWire } from "@/canvas/wireActivity";
 import { messages } from "@/i18n";
 import { ptySendText } from "@/ipc/pty";
 import { agentMessages } from "@/mcp/messages";
@@ -87,7 +88,9 @@ export function installMissionEvents(): () => void {
     for (const [nodeId, now] of Object.entries(state.activities)) {
       if (now.activity !== "waiting" || previous.activities[nodeId]?.activity === "waiting") continue;
       const found = memberOf(nodeId);
-      if (found) notify(found.orchestratorId, messages(agentMessages).lines.waiting(found.member.name));
+      if (!found) continue;
+      signalWire(nodeId, "toOrchestrator", found.orchestratorId);
+      notify(found.orchestratorId, messages(agentMessages).lines.waiting(found.member.name));
     }
     flushAll();
   });
@@ -98,7 +101,9 @@ export function installMissionEvents(): () => void {
       if (started && nodesStore.getState().nodes[nodeId]?.kind === "orchestrator") awaitPrompt(nodeId);
       if (previous.statuses[nodeId]?.state !== "running" || state.statuses[nodeId]?.state === "running") continue;
       const found = memberOf(nodeId);
-      if (found) notify(found.orchestratorId, messages(agentMessages).lines.stopped(found.member.name));
+      if (!found) continue;
+      signalWire(nodeId, "toOrchestrator", found.orchestratorId);
+      notify(found.orchestratorId, messages(agentMessages).lines.stopped(found.member.name));
     }
     flushAll();
   });

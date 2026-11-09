@@ -4,6 +4,7 @@ import type { AppState, ExcalidrawImperativeAPI, NormalizedZoomValue } from "@ex
 import { sameLinks, type Links } from "@/fleet/wires";
 import { sameFrames, type Rect, type SceneFrame } from "./groups";
 import { sameDrawn } from "./drawnSelection";
+import { sameWirePaths, type WirePath } from "./overlay/wirePaths";
 
 /** The part of Excalidraw's state that the shell around the canvas shows. */
 export interface CanvasView {
@@ -103,6 +104,9 @@ interface CanvasState {
   /** What each orchestrator of the scene is wired to (spec habillage §13). */
   links: Record<string, Links>;
   setLinks: (links: Record<string, Links>) => void;
+  /** The route of each wire, from its orchestrator: where WireActivity shows the messages. */
+  wires: WirePath[];
+  setWires: (wires: WirePath[]) => void;
   /** The scene rectangle of each node: where the overlays anchor (spec orchestrateur §5.1). */
   nodeRects: Record<string, Rect>;
   setNodeRects: (rects: Record<string, Rect>) => void;
@@ -147,6 +151,10 @@ export const canvasStore = createStore<CanvasState>()((set, get) => ({
   links: {},
   setLinks: (links) => {
     if (!sameLinks(get().links, links)) set({ links });
+  },
+  wires: [],
+  setWires: (wires) => {
+    if (!sameWirePaths(get().wires, wires)) set({ wires });
   },
 }));
 
