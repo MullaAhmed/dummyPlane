@@ -66,13 +66,24 @@ function resize(nodeId: string, workspaceId: string, height: number) {
   if (next !== stored) editStoredScene(workspaceId, next);
 }
 
+/** Whether the terminal belongs to a spawn tree (spawn_agent): it was spawned, or spawned others. */
+function inSpawnTree(nodeId: string): boolean {
+  const nodes = nodesStore.getState().nodes;
+  if (terminalOf(nodes[nodeId])?.spawnedBy) return true;
+  return Object.values(nodes).some((record) => record.kind === "terminal" && record.payload.spawnedBy === nodeId);
+}
+
 /**
- * Where the spawn tree's layout moves its terminals again around one whose
- * height changed (Horus's `reflowSpawnTree`, src/fleet/flowLayout.ts, for a
- * terminal with `spawnedBy` or with children). It is not on the mission's
- * branch yet: nothing moves until it lands here.
+ * A terminal of a spawn tree changed height: the tree is laid out again around
+ * it (`reflowSpawnTree`), its siblings below moving up when it shrinks, down
+ * when it grows. Loaded when needed, as the layout brings Excalidraw's runtime.
  */
-function reflowAround(_nodeId: string) {}
+function reflowAround(nodeId: string, workspaceId: string) {
+  if (!inSpawnTree(nodeId)) return;
+  void import("@/fleet/spawnTree")
+    .then(({ reflowSpawnTree }) => reflowSpawnTree(workspaceId, nodeId))
+    .catch((error: unknown) => console.warn(`terminal ${nodeId}: spawn tree not laid out again`, error));
+}
 
 export function isMinimized(nodeId: string): boolean {
   return terminalOf(nodesStore.getState().nodes[nodeId])?.minimized === true;
@@ -86,7 +97,7 @@ export function minimizeTerminal(nodeId: string): boolean {
   const height = elementOf(nodeId, record.workspaceId)?.height;
   nodesStore.getState().update(nodeId, { minimized: true, ...(height && height > MINIMIZED_HEIGHT ? { expandedHeight: height } : {}) });
   resize(nodeId, record.workspaceId, MINIMIZED_HEIGHT);
-  reflowAround(nodeId);
+  reflowAround(nodeId, record.workspaceId);
   return true;
 }
 
@@ -98,7 +109,7 @@ export function expandTerminal(nodeId: string): boolean {
   const height = payload.expandedHeight ?? NODE_SIZE.terminal.height;
   nodesStore.getState().update(nodeId, { minimized: undefined, expandedHeight: undefined });
   resize(nodeId, record.workspaceId, height);
-  reflowAround(nodeId);
+  reflowAround(nodeId, record.workspaceId);
   return true;
 }
 
@@ -118,6 +129,7 @@ export function settleMinimizedSize(nodeId: string) {
   if (height === undefined || height === MINIMIZED_HEIGHT) return;
   if (height > MINIMIZED_HEIGHT && payload.expandedHeight === undefined) nodesStore.getState().update(nodeId, { expandedHeight: height });
   resize(nodeId, record.workspaceId, MINIMIZED_HEIGHT);
+  reflowAround(nodeId, record.workspaceId);
 }
 
 /** The statuses `report` accepts (internal names, `../../mcp/protocol.ts`), as the card shows them. */
