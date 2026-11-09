@@ -27,7 +27,7 @@ export function IconsMenu() {
         </ToolButton>
       </PopoverTrigger>
       {/* The keyboard goes to the icon just put on the canvas, not back to this button (final review maj §4). */}
-      <PopoverContent side="right" className="w-[400px]" onCloseAutoFocus={(e) => e.preventDefault()}>
+      <PopoverContent side="right" className="w-[400px] rounded-lg" onCloseAutoFocus={(e) => e.preventDefault()}>
         {/* Kept while it closes: the content must not empty during the animation. */}
         <IconsPanel
           onPick={(item) => {
@@ -78,7 +78,7 @@ export function IconsPanel({ onPick }: { onPick: (item: IconItem) => void }) {
         placeholder={t.searchPlaceholder}
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        className="h-8 rounded-[8px] bg-dp-field px-2.5 text-[13px] text-dp-text outline-none placeholder:text-dp-text-3"
+        className="h-8 rounded-md bg-dp-field px-2.5 text-[13px] text-dp-text outline-none transition-[color,background-color,box-shadow] duration-150 ease-out placeholder:text-dp-text-3 focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none"
       />
       <div role="tablist" className="flex gap-1">
         {ICON_CATEGORIES.map((c) => (
@@ -92,8 +92,8 @@ export function IconsPanel({ onPick }: { onPick: (item: IconItem) => void }) {
               setQuery("");
             }}
             className={cn(
-              "rounded-full px-2.5 py-0.5 text-[11.5px] text-dp-text-2 hover:text-dp-text",
-              !searching && c.id === category && "bg-dp-accent-soft text-dp-text",
+              "rounded-md px-2 py-1 text-[11px] text-dp-text-2 transition-[color,background-color,transform] duration-150 ease-out hover:text-dp-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] motion-reduce:transition-none",
+              !searching && c.id === category ? "bg-dp-accent-soft text-dp-text" : "hover:bg-dp-hover",
             )}
           >
             {c.label}
@@ -111,7 +111,7 @@ export function IconsPanel({ onPick }: { onPick: (item: IconItem) => void }) {
           shown.map((item) => <IconTile key={item.id} item={item} dark={dark} onPick={onPick} />)
         )}
       </div>
-      <p className="text-[10.5px] text-dp-text-3" title={CREDITS}>
+      <p className="text-[11px] text-dp-text-3" title={CREDITS}>
         {t.credits}
       </p>
     </div>
@@ -157,7 +157,7 @@ function IconTile({ item, dark, onPick }: { item: IconItem; dark: boolean; onPic
       aria-label={item.name}
       title={`${item.name} — ${item.library}`}
       onClick={() => onPick(item)}
-      className="flex min-w-0 flex-col items-center gap-1 rounded-lg border border-transparent bg-dp-card p-1.5 text-[10.5px] text-dp-text-2 hover:border-dp-line hover:text-dp-text"
+      className="flex min-w-0 flex-col items-center gap-1 rounded-md border border-transparent bg-dp-card p-1.5 text-[11px] text-dp-text-2 transition-[color,background-color,border-color,transform] duration-150 ease-out hover:border-dp-line hover:bg-dp-hover hover:text-dp-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] motion-reduce:transition-none"
     >
       <div ref={box} className="grid h-12 w-full place-items-center" />
       <span className="w-full truncate text-center">{item.name}</span>

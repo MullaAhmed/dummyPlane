@@ -53,7 +53,7 @@ it("minimizes, maximizes and asks to close the window", async () => {
 it("closes from a Windows-style corner button that turns red on hover", () => {
   const close = button("Close dummyPlane")!;
   expect(close.className).toContain("w-[46px]");
-  expect(close.className).toContain("hover:bg-[#C42B1C]");
+  expect(close.className).toContain("hover:bg-dp-danger");
 });
 
 it("follows the maximized state, however it changed", async () => {
