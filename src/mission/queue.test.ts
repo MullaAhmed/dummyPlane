@@ -2,8 +2,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { mockIPC } from "@tauri-apps/api/mocks";
 import { canvasStore } from "@/canvas/canvasStore";
+import { launchGroup } from "@/fleet/groups";
 import { addTerminal } from "@/fleet/terminals";
-import { missionAddAgent, missionMerge } from "@/ipc/mission";
+import { missionAddAgent, missionMerge, missionPrepare } from "@/ipc/mission";
 import { ptySendText } from "@/ipc/pty";
 import { buildSpawnSpec } from "@/nodes/terminal/launch";
 import { relaunchTerminal } from "@/nodes/terminal/registry";
@@ -651,6 +652,16 @@ describe("Max agents caps the agents at work, not the team", () => {
     await setup({ frameId: "f1", router: true, queue: [{ ...next, level: "eleve" }], members: [member("isis", "Isis", { report: stuck })] });
     await afterReport("chef", "isis");
     expect(created()[0].model).toBe("claude-opus-5-5");
+  });
+
+  it("fills the seats a short plan leaves at the go-ahead: Max agents 2, one sub-task, three queued", async () => {
+    vi.mocked(missionPrepare).mockResolvedValue({ slug: "auth", branch: "dummyplane/auth", path: "C:/w/auth" });
+    vi.mocked(launchGroup).mockResolvedValue({ frameId: "f1", nodeIds: ["n0"] } as never);
+    await setup({ state: "plan", maxAgents: 2, plan: [{ title: "Login", brief: "Fais le login", agent: "nouveau", budgetMin: 20 }], queue: queued("Docs", "Tests", "Lint"), members: [] });
+    await launchMission("chef");
+    await vi.waitFor(() => expect(missionNow().members.map((m) => m.task)).toEqual(["Login", "Docs"]));
+    expect(missionNow().queue?.map((t) => t.title)).toEqual(["Tests", "Lint"]);
+    expect(lines()).toContainEqual(expect.stringContaining('a new agent, takes "Docs". Still waiting: 2.'));
   });
 
   it("starts a new agent for the queue when a seat is free and nobody has finished (after a launch)", async () => {
