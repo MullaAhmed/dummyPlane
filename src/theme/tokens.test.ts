@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { PALETTES } from "@/app/theme";
 import { cssBlock, readSource } from "./cssBlocks";
 
 const tokens = readSource("theme/tokens.css");
@@ -49,6 +50,12 @@ describe("design tokens (spec identité §4.2)", () => {
   it("keeps the user's main hexes exactly in each palette", () => {
     for (const palette of Object.keys(MAIN) as PaletteId[]) {
       expect(cssBlock(tokens, PALETTE_SELECTORS[palette])).toMatchObject(MAIN[palette]);
+    }
+  });
+
+  it("keeps the accent PALETTES carries (what the wires are drawn in) the same as --dp-accent", () => {
+    for (const palette of Object.keys(MAIN) as PaletteId[]) {
+      expect(PALETTES[palette].accent, palette).toBe(MAIN[palette]["--dp-accent"]);
     }
   });
 

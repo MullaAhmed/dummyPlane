@@ -14,11 +14,16 @@ export const THEME_KEY = "ui.theme";
 export const TRANSPARENCY_KEY = "ui.transparency";
 export const DEFAULT_THEME: ThemeChoice = "expressive";
 
-/** English names and schemes, as the Theme radio group shows them. `canvas` is the palette's 60%. */
-export const PALETTES: Record<ThemeChoice, { name: string; scheme: Theme; canvas: string }> = {
-  calm: { name: "Calm and Playful", scheme: "light", canvas: "#EDE3CC" },
-  electric: { name: "Electric and Energetic", scheme: "dark", canvas: "#263CF5" },
-  expressive: { name: "Dark and Expressive", scheme: "dark", canvas: "#101014" },
+/**
+ * English names and schemes, as the Theme radio group shows them. `canvas` is
+ * the palette's 60%, `accent` its 10% (`--dp-accent` of tokens.css, kept in
+ * step by tokens.test.ts): what scene elements that follow the palette, the
+ * wires, are drawn in.
+ */
+export const PALETTES: Record<ThemeChoice, { name: string; scheme: Theme; canvas: string; accent: string }> = {
+  calm: { name: "Calm and Playful", scheme: "light", canvas: "#EDE3CC", accent: "#F52B94" },
+  electric: { name: "Electric and Energetic", scheme: "dark", canvas: "#263CF5", accent: "#B6F52B" },
+  expressive: { name: "Dark and Expressive", scheme: "dark", canvas: "#101014", accent: "#FF781B" },
 };
 
 /** What public/first-paint.js reads before the first paint (the settings live in SQLite, read later). */
@@ -55,6 +60,10 @@ export function currentPalette(): ThemeChoice {
 
 export function currentTheme(): Theme {
   return PALETTES[currentPalette()].scheme;
+}
+
+export function usePalette(): ThemeChoice {
+  return useStore(themeStore, (s) => s.choice);
 }
 
 export function useTheme(): Theme {

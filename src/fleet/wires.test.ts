@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { ExcalidrawArrowElement, ExcalidrawElbowArrowElement, ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { createGroupFrame, framesFromScene } from "@/canvas/groups";
 import { createNodeElement } from "@/canvas/nodeElement";
-import { toSceneColor } from "@/theme/sceneColors";
+import { PALETTES, type ThemeChoice } from "@/app/theme";
+import { displayColorFor, toDisplayColor, toSceneColor } from "@/theme/sceneColors";
 import {
   createWire,
   elbowWires,
@@ -12,11 +13,20 @@ import {
   orchestratorLinks,
   orchestratorTargets,
   orphanWires,
+  outdatedWires,
   revivableWires,
   unmarkedWires,
-  WIRE_COLOR,
+  wireColor,
   withWire,
 } from "./wires";
+
+const PALETTE_IDS = Object.keys(PALETTES) as ThemeChoice[];
+
+/** Squared RGB distance between two #rrggbb colors. */
+function distance(a: string, b: string): number {
+  const channels = (hex: string) => [0, 2, 4].map((i) => parseInt(hex.slice(i + 1, i + 3), 16));
+  return channels(a).reduce((sum, c, i) => sum + (c - channels(b)[i]) ** 2, 0);
+}
 
 const orchestrator = createNodeElement("orchestrator", { x: 0, y: 0 }) as unknown as ExcalidrawElement;
 const frame = createGroupFrame({ x: 600, y: -300, width: 900, height: 600 }, "Backend", { role: "backend", pantheon: "greek" }) as ExcalidrawElement;
@@ -75,7 +85,7 @@ describe("withWire / createWire", () => {
     const wire = elements[elements.length - 1] as ExcalidrawElbowArrowElement;
     expect(wire).toMatchObject({
       type: "arrow",
-      strokeColor: WIRE_COLOR,
+      strokeColor: wireColor("expressive"),
       strokeWidth: 2,
       strokeStyle: "solid",
       roughness: 0,
@@ -102,7 +112,35 @@ describe("withWire / createWire", () => {
   });
 
   it("is drawn in the default palette's accent as the dark filter shows it", () => {
-    expect(WIRE_COLOR.toLowerCase()).toBe(toSceneColor("#FF781B"));
+    expect(wireColor("expressive")).toBe(toSceneColor("#FF781B"));
+    expect(wireColor("expressive")).toBe("#f25500");
+  });
+
+  it("is drawn in the accent of the palette it is created under", () => {
+    expect(wireColor("calm")).toBe("#F52B94");
+    expect(wireColor("electric")).toBe("#546100");
+    for (const palette of PALETTE_IDS) {
+      expect(createWire(orchestrator, lone, palette).strokeColor, palette).toBe(wireColor(palette));
+      const elements = withWire(base, orchestrator.id, lone.id, palette);
+      expect(elements[elements.length - 1].strokeColor, palette).toBe(wireColor(palette));
+    }
+  });
+
+  it("shows each palette's accent as close as its scheme allows: the light one as is, the dark ones through the filter", () => {
+    expect(displayColorFor(wireColor("calm"), "light")).toBe(PALETTES.calm.accent);
+    expect(displayColorFor(wireColor("expressive"), "dark")).toBe("#fc752c");
+    expect(displayColorFor(wireColor("electric"), "dark")).toBe("#9fab57");
+  });
+
+  it("stores electric's lime where the filter shows it nearer than the plain inverse does", () => {
+    const accent = PALETTES.electric.accent;
+    const plain = toDisplayColor(toSceneColor(accent));
+    expect(plain).toBe("#a8d8a8");
+    expect(distance(toDisplayColor(wireColor("electric")), accent)).toBeLessThan(distance(plain, accent));
+  });
+
+  it("gives each palette its own color", () => {
+    expect(new Set(PALETTE_IDS.map((palette) => wireColor(palette).toLowerCase())).size).toBe(PALETTE_IDS.length);
   });
 
   it("goes out across, down half way, and in across to a target aside, from the facing sides", () => {
@@ -185,7 +223,7 @@ describe("elbowWires (wires saved before they were elbowed)", () => {
       roundness: null,
       roughness: 0,
       fixedSegments: null,
-      strokeColor: WIRE_COLOR,
+      strokeColor: wireColor("expressive"),
       version: 4,
       startBinding: { elementId: orchestrator.id, fixedPoint: [1 + 5 / orchestrator.width, 0.5001] },
       endBinding: { elementId: member.id, fixedPoint: [-5 / member.width, 0.5001] },
@@ -198,6 +236,14 @@ describe("elbowWires (wires saved before they were elbowed)", () => {
     base.forEach((e, i) => expect(migrated[i]).toBe(e));
     // Still the same link.
     expect(orchestratorTargets(migrated, orchestrator.id)).toEqual(orchestratorTargets(elements, orchestrator.id));
+  });
+
+  it("gives a former terracotta wire the color of the palette it is elbowed under", () => {
+    const curved = curvedWire(orchestrator, lone);
+    for (const palette of PALETTE_IDS) {
+      const wire = elbowWires(scene(curved), palette).find((e) => e.id === curved.id);
+      expect(wire?.strokeColor, palette).toBe(wireColor(palette));
+    }
   });
 
   it("keeps a colour picked for the wire, and its heads", () => {
@@ -229,6 +275,40 @@ describe("elbowWires (wires saved before they were elbowed)", () => {
     const gone = { ...curvedWire(orchestrator, lone), id: "gone", endBinding: { elementId: "nowhere", focus: 0, gap: 8 } } as ExcalidrawElement;
     const elements = scene(plainArrow, elbowed, endless, gone);
     expect(elbowWires(elements)).toBe(elements);
+  });
+});
+
+describe("outdatedWires (a palette change recolors the wires, not the user's colors)", () => {
+  const wireIn = (color: string, id = "w"): ExcalidrawElement => ({ ...createWire(orchestrator, lone, "expressive"), id, strokeColor: color });
+
+  it("finds the wires in another palette's color, whichever palette they came from", () => {
+    for (const to of PALETTE_IDS) {
+      for (const from of PALETTE_IDS.filter((p) => p !== to)) {
+        expect(outdatedWires([wireIn(wireColor(from))], to), `${from} to ${to}`).toEqual(["w"]);
+      }
+    }
+  });
+
+  it("leaves a wire already in the palette's color alone", () => {
+    for (const palette of PALETTE_IDS) expect(outdatedWires([wireIn(wireColor(palette))], palette), palette).toEqual([]);
+  });
+
+  it("matches colors whatever their case", () => {
+    expect(outdatedWires([wireIn(wireColor("calm").toLowerCase())], "expressive")).toEqual(["w"]);
+    expect(outdatedWires([wireIn(wireColor("expressive").toUpperCase())], "expressive")).toEqual([]);
+  });
+
+  it("keeps a color the user picked, in any palette", () => {
+    for (const palette of PALETTE_IDS) {
+      expect(outdatedWires([wireIn("#3F74A8"), wireIn("#1e1e1e", "w2")], palette), palette).toEqual([]);
+    }
+  });
+
+  it("looks at live wires only: not deleted ones, not plain arrows", () => {
+    const old = wireColor("calm");
+    const deleted = { ...wireIn(old, "gone"), isDeleted: true } as ExcalidrawElement;
+    const plainArrow = { ...wireIn(old, "plain-arrow"), customData: undefined } as ExcalidrawElement;
+    expect(outdatedWires([deleted, plainArrow, wireIn(old)], "expressive")).toEqual(["w"]);
   });
 });
 
