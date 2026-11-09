@@ -48,14 +48,14 @@ export function AccountsDialog() {
               <Button size="sm" variant="ghost" title={t.loginHint} onClick={guarded(() => launchLogin(p.id).then((placed) => !placed && toast(t.noProject)))}>
                 {t.login}
               </Button>
-              <Button size="sm" variant="ghost" title={t.removeHint} onClick={guarded(() => removeProfile(p.id))}>
+              <Button size="sm" variant="ghost" title={t.removeHint} className="text-dp-danger hover:text-dp-danger" onClick={guarded(() => removeProfile(p.id))}>
                 {t.remove}
               </Button>
             </Row>
           ))}
         </ul>
         <form
-          className="grid gap-2 border-t border-dp-line pt-3"
+          className="grid gap-2 border-t border-dp-line pt-4"
           onSubmit={(e) => {
             e.preventDefault();
             void add();
@@ -77,11 +77,11 @@ export function AccountsDialog() {
 
 function Row(props: { name: string; folder: string; active: boolean; activeLabel: string; children?: React.ReactNode }) {
   return (
-    <li data-profile={props.name} className="flex items-center gap-2 rounded-md bg-dp-card px-2.5 py-1.5">
+    <li data-profile={props.name} className="flex items-center gap-2 rounded-md bg-dp-card px-2.5 py-2">
       <div className="min-w-0 flex-1">
         <p className="truncate text-dp-text">
           {props.name}
-          {props.active && <span className="ml-2 rounded-full bg-dp-accent-soft px-1.5 py-0.5 text-[10px] text-dp-accent">{props.activeLabel}</span>}
+          {props.active && <span className="ml-2 rounded-full bg-dp-accent-soft px-2 py-0.5 text-[11px] text-dp-accent-ink">{props.activeLabel}</span>}
         </p>
         <p className="truncate font-mono text-[11px] text-dp-text-2">{props.folder}</p>
       </div>

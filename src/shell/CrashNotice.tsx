@@ -11,7 +11,7 @@ function PlainButton({ onClick, children }: { onClick: () => void; children: Rea
     <button
       type="button"
       onClick={onClick}
-      className="h-7 shrink-0 rounded-[8px] border border-dp-line px-2.5 text-[12px] text-dp-text transition-colors hover:bg-dp-hover"
+      className="h-7 shrink-0 rounded-md border border-dp-line px-2.5 text-xs text-dp-text transition-[color,background-color,transform] duration-150 ease-out motion-reduce:transition-none hover:bg-dp-hover active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50"
     >
       {children}
     </button>
@@ -25,7 +25,7 @@ export function CrashNotice({ error, retry, compact = false }: { error: Error; r
     <div
       role="alert"
       className={cn(
-        "flex h-full w-full flex-col items-start justify-center gap-2 overflow-hidden rounded-[10px] border border-dp-line bg-dp-card text-dp-text",
+        "flex h-full w-full flex-col items-start justify-center gap-2 overflow-hidden rounded-lg border border-dp-line bg-dp-surface text-dp-text",
         compact ? "p-2.5" : "p-4",
       )}
     >
@@ -47,8 +47,8 @@ export function AppCrash({ error }: { error: Error }) {
       <TitleBar leading={<span className="text-[13px] font-semibold text-dp-text">dummyPlane</span>} />
       <div role="alert" className="grid flex-1 place-items-center">
         <div className="flex max-w-md flex-col items-center gap-3 text-center">
-          <p className="text-[15px] font-semibold text-dp-text">{t.app}</p>
-          <p className="font-mono text-[12px] text-dp-text-2">{error.message}</p>
+          <p className="text-base font-semibold text-dp-text">{t.app}</p>
+          <p className="font-mono text-xs text-dp-text-2">{error.message}</p>
           <p className="text-[13px] text-dp-text-2">{t.agentsKeepRunning}</p>
           <div className="flex gap-2">
             <AccentButton onClick={() => location.reload()}>{t.reload}</AccentButton>

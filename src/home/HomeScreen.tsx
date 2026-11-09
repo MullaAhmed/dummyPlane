@@ -57,7 +57,7 @@ export function HomeScreen() {
           <button
             type="button"
             onClick={() => void showTroubleshooting()}
-            className="mx-auto mt-10 flex items-center gap-1.5 text-xs text-dp-text-2 hover:text-dp-text [&_svg]:size-3.5"
+            className="mx-auto mt-10 flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-dp-text-2 transition-[color,background-color] duration-150 ease-out hover:bg-dp-hover hover:text-dp-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] motion-reduce:transition-none [&_svg]:size-3.5"
           >
             <LifeBuoy /> {t.troubleshoot}
           </button>

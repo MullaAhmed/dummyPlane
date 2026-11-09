@@ -13,6 +13,10 @@ import { cn } from "@/lib/utils";
 import { shellMessages } from "./messages";
 import { checkAgain, troubleshootStore, useTroubleshoot } from "./troubleshoot";
 
+const buttonBase =
+  "rounded-md transition-[color,background-color,border-color,opacity,transform] duration-150 ease-out motion-reduce:transition-none active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50";
+const secondaryButton = cn(buttonBase, "border-dp-line bg-transparent text-dp-text hover:bg-dp-hover");
+
 /** One check of the dialog: its state, what was found, and why it matters when missing. */
 function Check({ id, ok, label, value, hint, plain = false }: { id: string; ok: boolean; label: string; value: ReactNode; hint?: string; plain?: boolean }) {
   const Icon = ok ? CircleCheck : CircleAlert;
@@ -51,10 +55,10 @@ export function TroubleshootingDialog() {
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && troubleshootStore.setState({ open: false })}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="rounded-xl bg-dp-surface text-dp-text ring-dp-line sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{t.title}</DialogTitle>
-          <DialogDescription>{t.description}</DialogDescription>
+          <DialogDescription className="text-dp-text-2">{t.description}</DialogDescription>
         </DialogHeader>
         {error && <p className="text-sm text-dp-danger">{t.failed(error)}</p>}
         {!d && !error && <p className="text-sm text-dp-text-2">{t.loading}</p>}
@@ -86,24 +90,28 @@ export function TroubleshootingDialog() {
           </div>
         )}
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" size="sm" onClick={() => void recheck()} disabled={checking}>
+          <Button variant="outline" onClick={() => void recheck()} disabled={checking} className={secondaryButton}>
             <RefreshCw className={checking ? "animate-spin" : undefined} /> {t.checkAgain}
           </Button>
-          <Button variant="outline" size="sm" onClick={copy} disabled={!d}>
+          <Button variant="outline" onClick={copy} disabled={!d} className={secondaryButton}>
             <Copy /> {t.copy}
           </Button>
-          <Button variant="outline" size="sm" onClick={() => void openLogDir()}>
+          <Button variant="outline" onClick={() => void openLogDir()} className={secondaryButton}>
             <FileText /> {t.openLogs}
           </Button>
-          <Button variant="outline" size="sm" onClick={() => void openDataDir()}>
+          <Button variant="outline" onClick={() => void openDataDir()} className={secondaryButton}>
             <FolderOpen /> {t.openData}
           </Button>
         </div>
-        <DialogFooter>
-          <Button variant="ghost" onClick={() => void openUrl(guideUrl())}>
+        <DialogFooter className="border-dp-line bg-dp-hover">
+          <Button
+            variant="ghost"
+            onClick={() => void openUrl(guideUrl())}
+            className={cn(buttonBase, "text-dp-text-2 hover:bg-dp-hover hover:text-dp-text")}
+          >
             <BookOpen /> {t.guide}
           </Button>
-          <Button onClick={() => void report()}>
+          <Button onClick={() => void report()} className={cn(buttonBase, "bg-dp-accent text-dp-on-accent hover:brightness-110")}>
             <Bug /> {t.report}
           </Button>
         </DialogFooter>
