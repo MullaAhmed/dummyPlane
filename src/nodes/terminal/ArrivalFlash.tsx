@@ -4,5 +4,5 @@ import { useArrivalSignal } from "@/canvas/arrivalSignal";
 export function ArrivalFlash({ nodeId }: { nodeId: string }) {
   const arrival = useArrivalSignal(nodeId);
   if (arrival === null) return null;
-  return <div key={arrival} data-arrival className="dp-arrival pointer-events-none absolute inset-0 z-30 rounded-xl" />;
+  return <div key={arrival} data-arrival className="dp-arrival pointer-events-none absolute inset-0 z-30 rounded-lg" />;
 }

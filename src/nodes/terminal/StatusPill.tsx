@@ -10,22 +10,22 @@ import { nodesMessages } from "@/nodes/messages";
 const TONES: Record<PillTone, string> = {
   live: "bg-dp-card text-dp-text",
   ready: "bg-dp-card text-dp-text",
-  working: "border border-dp-working/70 text-dp-working",
-  workingIndigo: "border border-[#707de3]/70 text-[#707de3]",
-  waiting: "border border-dp-waiting/70 text-dp-waiting",
+  working: "border border-dp-accent/70 text-dp-accent-ink",
+  workingIndigo: "border border-dp-accent/70 text-dp-accent-ink",
+  waiting: "border border-dp-wait/70 text-dp-wait",
   stopped: "bg-dp-card text-dp-text-2",
-  done: "border border-dp-done/60 text-dp-done",
+  done: "border border-dp-ok/60 text-dp-ok",
   failed: "border border-dp-danger/60 text-dp-danger",
 };
 
 const DOTS: Record<PillTone, string> = {
-  live: "bg-dp-live",
+  live: "bg-dp-ok",
   ready: "bg-dp-text-2",
-  working: "bg-dp-working",
-  workingIndigo: "bg-[#707de3]",
-  waiting: "bg-dp-waiting animate-pulse",
+  working: "bg-dp-accent",
+  workingIndigo: "bg-dp-accent",
+  waiting: "bg-dp-wait animate-pulse motion-reduce:animate-none",
   stopped: "bg-dp-text-2/60",
-  done: "bg-dp-done",
+  done: "bg-dp-ok",
   failed: "bg-dp-danger",
 };
 
