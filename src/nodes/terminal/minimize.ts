@@ -120,15 +120,12 @@ export function settleMinimizedSize(nodeId: string) {
   resize(nodeId, record.workspaceId, MINIMIZED_HEIGHT);
 }
 
-/** `report`'s statuses, internal (`./protocol`) and as the agents write them. */
-const REPORTED: Record<string, TerminalReportStatus> = {
-  termine: "done",
-  bloque: "blocked",
-  echec: "failed",
-  done: "done",
-  blocked: "blocked",
-  failed: "failed",
-};
+/** The statuses `report` accepts (internal names, `../../mcp/protocol.ts`), as the card shows them. */
+const REPORTED = new Map<unknown, TerminalReportStatus>([
+  ["termine", "done"],
+  ["bloque", "blocked"],
+  ["echec", "failed"],
+]);
 
 /**
  * An agent's `report` (mission member or not): its card shows it, and a
@@ -136,11 +133,11 @@ const REPORTED: Record<string, TerminalReportStatus> = {
  * has to look. A report `report` refuses (no summary, unknown status) changes
  * nothing. Never throws: the report must reach its orchestrator whatever happens here.
  */
-export function onAgentReported(nodeId: string, status: unknown, summary?: unknown) {
+export function onAgentReported(nodeId: string, status: unknown, summary: unknown) {
   try {
-    const reported = typeof status === "string" ? REPORTED[status] : undefined;
+    const reported = REPORTED.get(status);
     const text = typeof summary === "string" ? summary.trim() : "";
-    if (!reported || (summary !== undefined && !text)) return;
+    if (!reported || !text) return;
     if (!terminalOf(nodesStore.getState().nodes[nodeId])) return;
     nodesStore.getState().update(nodeId, { lastReport: { status: reported, summary: text } });
     if (reported === "done") minimizeTerminal(nodeId);
