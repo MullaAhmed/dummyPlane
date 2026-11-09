@@ -291,7 +291,7 @@ export function CommandInput(props: {
         onClick={send}
         className={cn(
           "flex shrink-0 items-center justify-center gap-1.5 font-semibold transition-[background-color,filter,transform] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] disabled:pointer-events-none motion-reduce:transition-none",
-          compact ? "size-7 rounded-md" : "h-8 rounded-md px-3 text-[13px]",
+          compact ? "size-7 rounded-[8px]" : "h-8 rounded-[10px] px-3 text-[13px]",
           canSend ? "bg-dp-accent text-dp-on-accent hover:brightness-110" : "bg-dp-field text-dp-text-3",
         )}
       >

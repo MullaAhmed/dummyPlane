@@ -128,7 +128,7 @@ export function AgentMenu({
                         data-install={id}
                         aria-label={t.install.installAgent(meta.label)}
                         onClick={() => setView({ install: id })}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-dp-accent-soft px-2 py-0.5 text-[11px] font-semibold text-dp-accent-ink transition-[background-color,transform] duration-150 ease-out hover:bg-dp-accent/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] motion-reduce:transition-none"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 rounded-[9px] bg-dp-accent-soft px-2 py-0.5 text-[11px] font-semibold text-dp-accent-ink transition-[background-color,transform] duration-150 ease-out hover:bg-dp-accent/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] motion-reduce:transition-none"
                       >
                         {t.install.button}
                       </button>
