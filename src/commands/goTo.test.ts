@@ -37,8 +37,8 @@ const input = (fields: Partial<GoToInput> = {}): GoToInput => ({
   },
   nodes: {
     isis: node("w1", "Isis"),
-    thot: node("w2", "Thot", "codex"),
-    hermes: node("w2", "Hermès"),
+    thot: node("w2", "Thoth", "codex"),
+    hermes: node("w2", "Hermes"),
     chef: { workspaceId: "w1", kind: "orchestrator", payload: { name: "chef de backend" } } as NodeRecord,
   },
   live: { w1: 1, w2: 2 },
@@ -48,21 +48,21 @@ const input = (fields: Partial<GoToInput> = {}): GoToInput => ({
 describe("goToItems (spec fenêtre §7.2)", () => {
   it("lists the workspace on screen first, then the others in tab order, terminals in Ctrl+Tab order", () => {
     const items = goToItems(input());
-    expect(items.filter((i) => i.kind === "terminal").map((i) => i.label)).toEqual(["Hermès", "Thot", "Isis"]);
+    expect(items.filter((i) => i.kind === "terminal").map((i) => i.label)).toEqual(["Hermes", "Thoth", "Isis"]);
     expect(items.map((i) => i.kind)).toEqual(["terminal", "terminal", "terminal", "group", "orchestrator", "workspace", "workspace", "project", "project"]);
   });
 
   it("names the workspace of an item only when it is not the one on screen", () => {
     const items = goToItems(input());
-    expect(items.find((i) => i.label === "Thot")!.elsewhere).toBeUndefined();
+    expect(items.find((i) => i.label === "Thoth")!.elsewhere).toBeUndefined();
     expect(items.find((i) => i.label === "Isis")!.elsewhere).toBe("Workspace 1");
     expect(items.find((i) => i.kind === "orchestrator")!).toMatchObject({ label: "chef de backend", elsewhere: "Workspace 1", targetId: "chef", workspaceId: "w1" });
   });
 
   it("tells a terminal's agent and group, a group's members, a workspace's live agents and whether it is on screen", () => {
     const items = goToItems(input());
-    expect(items.find((i) => i.label === "Thot")).toMatchObject({ agent: "codex", group: { name: "Serveurs" }, targetId: "thot", workspaceId: "w2" });
-    expect(items.find((i) => i.label === "Thot")!.keywords).toEqual(expect.arrayContaining(["Codex", "Serveurs", "Backend"]));
+    expect(items.find((i) => i.label === "Thoth")).toMatchObject({ agent: "codex", group: { name: "Serveurs" }, targetId: "thot", workspaceId: "w2" });
+    expect(items.find((i) => i.label === "Thoth")!.keywords).toEqual(expect.arrayContaining(["Codex", "Serveurs", "Backend"]));
     expect(items.find((i) => i.kind === "group")).toMatchObject({ label: "Serveurs", members: 2, targetId: "g" });
     expect(items.filter((i) => i.kind === "workspace").map((i) => [i.label, i.live, i.current])).toEqual([
       ["Workspace 1", 1, false],
@@ -99,7 +99,7 @@ describe("goToSections", () => {
   });
 
   it("puts the section of the best match first while searching", () => {
-    // Thot and Hermès are found by their group's name, the group by its own.
+    // Thoth and Hermes are found by their group's name, the group by its own.
     expect(goToSections(goToItems(input()), "servers").map((s) => s.label)).toEqual(["Terminals", "Groups"]);
   });
 });

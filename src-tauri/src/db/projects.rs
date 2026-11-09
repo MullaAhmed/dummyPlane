@@ -469,7 +469,7 @@ mod tests {
                 nodes::NodeKind::Orchestrator,
                 r#"{"name":"Chef","session":{"cwd":"C:/code/api","agent":"claude"},
                     "mission":{"project":"C:/code/api","worktree":"C:/code/api/w","state":"en_cours",
-                    "members":[{"name":"Isis","worktree":"C:/code/api/w/isis"},{"name":"Thot","worktree":"D:/x"}]}}"#,
+                    "members":[{"name":"Isis","worktree":"C:/code/api/w/isis"},{"name":"Thoth","worktree":"D:/x"}]}}"#,
             )?;
             relocate(conn, &project.id, "D:\\api")?;
             let json: String = conn.query_row(

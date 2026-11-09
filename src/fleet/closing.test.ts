@@ -56,7 +56,7 @@ describe("closing running agents, confirmed (spec habillage §7.5, retours J8b)"
     expect(check([element("thot")], ["isis"]).ask).toEqual({ agents: ["isis"], remove: ["isis"] });
   });
 
-  it("« Fermer le groupe », confirmed, lets the frame and its agents go", () => {
+  it("Close group, confirmed, lets the frame and its agents go", () => {
     scene = [element("g", { type: "frame", customData: undefined }), element("ra", { frameId: "g" }), element("thot", { frameId: "g" })];
     const check = createRemovalGuard(isRunning, scene);
     closeGroup("g");

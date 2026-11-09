@@ -20,7 +20,7 @@ import { terminalStatusStore } from "@/store/terminalStatus";
 vi.mock("@/ipc/pty", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/ipc/pty")>()), ptySendText: vi.fn(() => Promise.resolve()) }));
 vi.mock("@/nodes/terminal/registry", () => ({ terminalText: vi.fn(() => "ligne 1\nligne 2") }));
 vi.mock("@/mission/launch", () => ({
-  mergeMission: vi.fn(() => Promise.resolve("Branche dummyplane/auth :\nIsis : fusionné")),
+  mergeMission: vi.fn(() => Promise.resolve("Branch dummyplane/auth :\nIsis : merged")),
   endMission: vi.fn(),
   reassignTask: vi.fn(() => Promise.resolve({ name: "Horus" })),
 }));
@@ -255,7 +255,7 @@ describe("the orchestrator's tools (spec orchestrateur §7.2)", () => {
     expect(textOf(await call("chef", "remote_control", { on: false, agents: ["isis"] }))).toBe("Isis: off");
     vi.mocked(setRemoteControl).mockResolvedValueOnce({ error: "Remote Control requires a claude.ai subscription" });
     expect(textOf(await call("chef", "remote_control", { on: true, agents: ["Isis"] }))).toBe("Isis: failed — Remote Control requires a claude.ai subscription");
-    // In a turn, it is typed at the end of it: « moi » is always in its own turn (final review maj §2).
+    // In a turn, it is typed at the end of it: "me" is always in its own turn (final review maj §2).
     vi.mocked(setRemoteControl).mockResolvedValue({ later: true });
     expect(textOf(await call("chef", "remote_control", { on: true, agents: ["Isis", "moi"] }))).toBe(
       "Isis: at the end of its turn\nYou: at the end of your turn — the link will show in your header",
@@ -390,7 +390,7 @@ describe("the orchestrator's tools (spec orchestrateur §7.2)", () => {
     });
 
     it("merges and ends the mission through dummyPlane; no new plan meanwhile", async () => {
-      expect(textOf(await call("chef", "merge", {}))).toBe("Branche dummyplane/auth :\nIsis : fusionné");
+      expect(textOf(await call("chef", "merge", {}))).toBe("Branch dummyplane/auth :\nIsis : merged");
       expect(await call("chef", "propose_plan", plan)).toMatchObject({ isError: true });
       expect(await call("chef", "finish", {})).toMatchObject({ isError: true });
       expect(textOf(await call("chef", "finish", { summary: "Fini" }))).toContain("Mission finished");

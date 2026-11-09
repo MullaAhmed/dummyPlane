@@ -125,7 +125,7 @@ describe("the palette (spec fenêtre §7.1, §7.2)", () => {
   });
 
   it("lists every project at home, the one just left included", async () => {
-    // « Tous les projets… » keeps the last project's id: it is no longer open.
+    // All projects… keeps the last project's id: it is no longer open.
     projectsStore.setState({ view: "home", activeId: "p1" } as never);
     await act(async () => openPalette("goTo", home));
     expect(items().map((i) => i.textContent)).toEqual(["apiC:/code/api", "mk-webappC:/code/mk-webapp"]);

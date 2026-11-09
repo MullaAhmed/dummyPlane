@@ -54,17 +54,17 @@ async function agent(id: string, agentId: AgentId, state: "running" | "stopped" 
 describe("sendToAgents", () => {
   it("types the command into the running agents and names the stopped ones", async () => {
     await agent("isis", "claude", "running", "idle");
-    await agent("thot", "claude", "stopped");
+    await agent("thoth", "claude", "stopped");
     await agent("anubis", "codex", "stopped");
-    expect(await sendToAgents(["isis", "thot", "anubis"], "lance les tests")).toEqual({ sent: 1, skipped: ["Thot", "Anubis"], waiting: [], unsuited: [], starting: [] });
+    expect(await sendToAgents(["isis", "thoth", "anubis"], "lance les tests")).toEqual({ sent: 1, skipped: ["Thoth", "Anubis"], waiting: [], unsuited: [], starting: [] });
     expect(calls).toEqual([{ cmd: "pty_send_text", nodeId: "isis", text: "lance les tests" }]);
   });
 
   it("names an agent still in its staggered start apart from the stopped ones (plan B3)", async () => {
     await agent("isis", "claude", "running", "idle");
-    await agent("thot", "claude", "starting");
-    expect(await sendToAgents(["isis", "thot"], "go")).toEqual({ sent: 1, skipped: [], waiting: [], unsuited: [], starting: ["Thot"] });
-    expect(startingText(["Thot"])).toBe("1 agent still starting ignored: Thot — try again in a moment");
+    await agent("thoth", "claude", "starting");
+    expect(await sendToAgents(["isis", "thoth"], "go")).toEqual({ sent: 1, skipped: [], waiting: [], unsuited: [], starting: ["Thoth"] });
+    expect(startingText(["Thoth"])).toBe("1 agent still starting ignored: Thoth — try again in a moment");
     expect(startingText([])).toBeNull();
   });
 
@@ -83,23 +83,23 @@ describe("sendToAgents", () => {
 
   it("types a /command to the agents only: a shell would run it as a program", async () => {
     await agent("isis", "claude", "running", "idle");
-    await agent("thot", "shell", "running");
+    await agent("thoth", "shell", "running");
     await agent("anubis", "codex", "running", "idle");
-    expect(await sendToAgents(["isis", "thot", "anubis"], "/effort ultracode")).toEqual({ sent: 2, skipped: [], waiting: [], unsuited: ["Thot"], starting: [] });
+    expect(await sendToAgents(["isis", "thoth", "anubis"], "/effort ultracode")).toEqual({ sent: 2, skipped: [], waiting: [], unsuited: ["Thoth"], starting: [] });
     expect(calls.map((c) => c.nodeId)).toEqual(["isis", "anubis"]);
     calls = [];
-    expect((await sendToAgents(["thot"], "npm test")).sent).toBe(1);
+    expect((await sendToAgents(["thoth"], "npm test")).sent).toBe(1);
   });
 });
 
 describe("skippedText / pausedText / resumedText", () => {
   it("says who was ignored and how many were paused or resumed", () => {
     expect(skippedText([])).toBeNull();
-    expect(skippedText(["Thot"])).toBe("1 stopped agent ignored: Thot");
-    expect(skippedText(["Thot", "Anubis"])).toBe("2 stopped agents ignored: Thot, Anubis");
+    expect(skippedText(["Thoth"])).toBe("1 stopped agent ignored: Thoth");
+    expect(skippedText(["Thoth", "Anubis"])).toBe("2 stopped agents ignored: Thoth, Anubis");
     expect(unsuitedText([])).toBeNull();
-    expect(unsuitedText(["Thot"])).toBe("1 terminal without an agent ignored: Thot — a / command only goes to agents");
-    expect(unsuitedText(["Thot", "Rê"])).toBe("2 terminals without an agent ignored: Thot, Rê — a / command only goes to agents");
+    expect(unsuitedText(["Thoth"])).toBe("1 terminal without an agent ignored: Thoth — a / command only goes to agents");
+    expect(unsuitedText(["Thoth", "Ra"])).toBe("2 terminals without an agent ignored: Thoth, Ra — a / command only goes to agents");
     expect(waitingText([])).toBeNull();
     expect(waitingText(["Horus"])).toBe("1 waiting agent ignored: Horus — answer it in its terminal");
     expect(waitingText(["Horus", "Isis"])).toBe("2 waiting agents ignored: Horus, Isis — answer them in their terminals");
@@ -186,12 +186,12 @@ describe("sendCommand and agents still starting (plan B3)", () => {
   it("warns about them apart from the stopped ones", async () => {
     const warning = vi.spyOn(toast, "warning").mockImplementation(() => "");
     await agent("isis", "claude", "running", "idle");
-    await agent("thot", "claude", "starting");
+    await agent("thoth", "claude", "starting");
     await agent("anubis", "claude", "stopped");
-    await sendCommand(["isis", "thot", "anubis"], "go");
+    await sendCommand(["isis", "thoth", "anubis"], "go");
     expect(warning.mock.calls.map(([text]) => text)).toEqual([
       "1 stopped agent ignored: Anubis",
-      "1 agent still starting ignored: Thot — try again in a moment",
+      "1 agent still starting ignored: Thoth — try again in a moment",
     ]);
     warning.mockRestore();
   });

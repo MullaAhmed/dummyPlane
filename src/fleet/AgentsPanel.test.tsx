@@ -56,7 +56,7 @@ it("floats under the tabs, down to the command bar at most, with the chips' acti
   }
 });
 
-it("starts « Nouvelle console » at the center of the view, the click not taken for a point", async () => {
+it("starts New console at the center of the view, the click not taken for a point", async () => {
   await act(async () => byLabel("New console")!.click());
   expect(newConsole).toHaveBeenCalledWith();
 });
@@ -80,7 +80,7 @@ it("wraps its filters rather than clipping one, and says when a filter hides eve
   expect(host.textContent).not.toContain("dans ce filtre");
 });
 
-it("offers a group's menu on its header, on hover; « Hors groupe » has none (spec identité §5.6)", async () => {
+it("offers a group's menu on its header, on hover; No group has none (spec identité §5.6)", async () => {
   expect(host.querySelector('[aria-label="Group menu"]')).toBeNull();
   await act(async () =>
     canvasStore.setState({
@@ -102,7 +102,7 @@ it("folds a group and closes", async () => {
   expect(agentsPanelStore.getState().open).toBe(false);
 });
 
-it("opens « Composer un groupe » and a group's menu on request", async () => {
+it("opens Compose a group and a group's menu on request", async () => {
   await act(async () => requestUi({ kind: "composeGroup" }));
   expect(document.querySelector('[data-slot="popover-content"]')).not.toBeNull();
   await act(async () => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
@@ -115,7 +115,7 @@ it("opens « Composer un groupe » and a group's menu on request", async () => {
   expect([...document.querySelectorAll('[role="menuitem"]')].map((i) => i.textContent)).toContain("Rename");
 });
 
-it("stops above the « Reprendre » offer instead of sitting under it", async () => {
+it("stops above the Resume offer instead of sitting under it", async () => {
   const panel = host.firstElementChild as HTMLElement;
   const before = panel.style.maxHeight;
   await act(async () => resumeOfferStore.setState({ open: true }));

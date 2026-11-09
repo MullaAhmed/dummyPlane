@@ -18,7 +18,7 @@ let root: Root;
 
 beforeAll(async () => {
   mockIPC(() => undefined);
-  for (const [id, name] of [["isis", "Isis"], ["thot", "Thot"]]) {
+  for (const [id, name] of [["isis", "Isis"], ["thot", "Thoth"]]) {
     await nodesStore.getState().create(id, {
       workspaceId: "w1",
       kind: "terminal",
@@ -51,7 +51,7 @@ it("lists the agents an undo or Delete would end together, and removes all that 
   await act(async () => uiStore.getState().setClosing({ agents: ["isis", "thot"], remove: ["isis", "thot", "g"] }));
   const dialog = document.querySelector('[role="dialog"]')!;
   expect(dialog.textContent).toContain("Close 2 agents?");
-  expect(dialog.textContent).toContain("Isis, Thot");
+  expect(dialog.textContent).toContain("Isis, Thoth");
   await act(async () => button("Close the agents").click());
   expect(removeNodes).toHaveBeenLastCalledWith(["isis", "thot", "g"]);
 });

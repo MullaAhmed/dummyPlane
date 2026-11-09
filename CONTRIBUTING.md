@@ -63,7 +63,7 @@ The front-end tests live next to the code (`*.test.ts`, `*.test.tsx`); those tha
 
 ### Code style
 
-- **Language.** The interface speaks English and French. A new label, message or tooltip goes into both languages of its domain's `messages.ts` (`defineMessages(fr, en)`: a missing translation does not compile). Tests run in French; add an English test for what you add. Code, comments, test names and commit messages are in English.
+- **Language.** The interface is English only. A new label, message or tooltip goes into its domain's `messages.ts` (`defineMessages(en)`). Code, comments, test names and commit messages are in English.
 - **Comments** explain why rather than what, and match the density of the code around them.
 - **TypeScript** is strict, with no unused locals or parameters; there is no ESLint or Prettier, so follow the formatting of the surrounding code. Import from `src/` with the `@/` alias.
 - **Rust** follows `rustfmt`, and clippy must pass with `-D warnings`.

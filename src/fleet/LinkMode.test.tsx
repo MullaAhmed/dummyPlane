@@ -29,7 +29,7 @@ afterEach(async () => {
   document.body.replaceChildren();
 });
 
-it("passes a click on « Terminer » through the layer that covers it (plan B3)", async () => {
+it("passes a click on Finish through the layer that covers it (plan B3)", async () => {
   Object.defineProperty(document, "elementsFromPoint", { value: () => [document.getElementById("finish")], configurable: true });
   const layer = host.ownerDocument.querySelector<HTMLElement>(".cursor-crosshair")!;
   await act(async () => layer.dispatchEvent(new MouseEvent("click", { bubbles: true, clientX: 5, clientY: 5 })));

@@ -28,35 +28,35 @@ export const PANTHEONS: readonly Pantheon[] = [
     get label() {
       return messages(fleetMessages).pantheons.egyptian;
     },
-    names: ["Isis", "Osiris", "Horus", "Anubis", "Thot", "Rê", "Bastet", "Sekhmet", "Ptah", "Hathor", "Nout", "Seth", "Maât", "Amon", "Khnoum", "Sobek"],
+    names: ["Isis", "Osiris", "Horus", "Anubis", "Thoth", "Ra", "Bastet", "Sekhmet", "Ptah", "Hathor", "Nut", "Seth", "Maat", "Amon", "Khnum", "Sobek"],
   },
   {
     id: "greek",
     get label() {
       return messages(fleetMessages).pantheons.greek;
     },
-    names: ["Athéna", "Apollon", "Artémis", "Hermès", "Héra", "Zeus", "Poséidon", "Déméter", "Héphaïstos", "Arès", "Aphrodite", "Dionysos", "Hestia", "Perséphone", "Hadès", "Éos"],
+    names: ["Athena", "Apollo", "Artemis", "Hermes", "Hera", "Zeus", "Poseidon", "Demeter", "Hephaestus", "Ares", "Aphrodite", "Dionysos", "Hestia", "Persephone", "Hades", "Eos"],
   },
   {
     id: "norse",
     get label() {
       return messages(fleetMessages).pantheons.norse;
     },
-    names: ["Odin", "Thor", "Freyja", "Loki", "Frigg", "Baldr", "Týr", "Heimdall", "Idunn", "Njörd", "Freyr", "Skadi", "Bragi", "Sif", "Vidar", "Hel"],
+    names: ["Odin", "Thor", "Freyja", "Loki", "Frigg", "Baldr", "Tyr", "Heimdall", "Idunn", "Njord", "Freyr", "Skadi", "Bragi", "Sif", "Vidar", "Hel"],
   },
   {
     id: "japanese",
     get label() {
       return messages(fleetMessages).pantheons.japanese;
     },
-    names: ["Amaterasu", "Susanoo", "Tsukuyomi", "Inari", "Raijin", "Fūjin", "Hachiman", "Benzaiten", "Izanagi", "Izanami", "Ebisu", "Kannon", "Daikoku", "Ryūjin", "Sarutahiko", "Ōkuninushi"],
+    names: ["Amaterasu", "Susanoo", "Tsukuyomi", "Inari", "Raijin", "Fujin", "Hachiman", "Benzaiten", "Izanagi", "Izanami", "Ebisu", "Kannon", "Daikoku", "Ryujin", "Sarutahiko", "Okuninushi"],
   },
   {
     id: "celtic",
     get label() {
       return messages(fleetMessages).pantheons.celtic;
     },
-    names: ["Lugh", "Brigid", "Dagda", "Morrigan", "Cernunnos", "Epona", "Ogma", "Nuada", "Belenos", "Danu", "Taranis", "Rhiannon", "Arawn", "Manannán", "Aengus", "Boann"],
+    names: ["Lugh", "Brigid", "Dagda", "Morrigan", "Cernunnos", "Epona", "Ogma", "Nuada", "Belenos", "Danu", "Taranis", "Rhiannon", "Arawn", "Manannan", "Aengus", "Boann"],
   },
   {
     id: "hindu",
@@ -91,14 +91,14 @@ export const PANTHEONS: readonly Pantheon[] = [
     get label() {
       return messages(fleetMessages).pantheons.chinese;
     },
-    names: ["Guanyin", "Nüwa", "Fuxi", "Pangu", "Houyi", "Nezha", "Erlang", "Mazu", "Shennong", "Zhurong", "Gonggong", "Leigong", "Caishen", "Xiwangmu", "Yandi", "Huangdi"],
+    names: ["Guanyin", "Nuwa", "Fuxi", "Pangu", "Houyi", "Nezha", "Erlang", "Mazu", "Shennong", "Zhurong", "Gonggong", "Leigong", "Caishen", "Xiwangmu", "Yandi", "Huangdi"],
   },
   {
     id: "roman",
     get label() {
       return messages(fleetMessages).pantheons.roman;
     },
-    names: ["Jupiter", "Junon", "Minerve", "Mars", "Vénus", "Mercure", "Neptune", "Vulcain", "Diane", "Cérès", "Janus", "Vesta", "Bacchus", "Pluton", "Aurore", "Faunus"],
+    names: ["Jupiter", "Juno", "Minerva", "Mars", "Venus", "Mercury", "Neptune", "Vulcan", "Diana", "Ceres", "Janus", "Vesta", "Bacchus", "Pluto", "Aurora", "Faunus"],
   },
   {
     id: "yoruba",

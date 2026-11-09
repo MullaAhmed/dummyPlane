@@ -5,7 +5,7 @@ import { linkedClaudeAgents } from "@/mission/store";
 import { notesTool, notesToolSpec } from "./agentTool";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
-vi.mock("@/mission/store", () => ({ linkedClaudeAgents: vi.fn(() => [{ nodeId: "isis", name: "Isis" }, { nodeId: "thot", name: "Thot" }]) }));
+vi.mock("@/mission/store", () => ({ linkedClaudeAgents: vi.fn(() => [{ nodeId: "isis", name: "Isis" }, { nodeId: "thot", name: "Thoth" }]) }));
 
 const textOf = (result: { content: { text: string }[] }) => result.content[0].text;
 let asked: { command: string; args: unknown }[];

@@ -1,6 +1,5 @@
 # Troubleshooting
 
-[Version française](troubleshooting.fr.md)
 
 Start with the **Troubleshooting** dialog: the settings menu (the gear), the command palette (`Ctrl+K`, then type "troubleshooting"), or the link at the bottom of the home screen. It shows dummyPlane's version, the agents it finds and where, Git, Git Bash and the local server, and gives you the diagnostics to copy into a bug report.
 

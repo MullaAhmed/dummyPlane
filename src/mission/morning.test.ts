@@ -9,7 +9,7 @@ const report = (status: "termine" | "bloque" | "echec", at = 30 * min) => ({ sum
 
 describe("what the morning report gathers (spec mission de nuit §6.2)", () => {
   it("sorts the tasks: done, then failed or blocked, each with its agent, time and branch", () => {
-    const result = morningReport(night({ members: [member("n1", "Isis", { report: report("termine"), merged: true }), member("n2", "Horus", { task: "API", report: report("echec", 25 * min) }), member("n3", "Thot", { task: "Docs", report: report("bloque") })] }), 400 * min);
+    const result = morningReport(night({ members: [member("n1", "Isis", { report: report("termine"), merged: true }), member("n2", "Horus", { task: "API", report: report("echec", 25 * min) }), member("n3", "Thoth", { task: "Docs", report: report("bloque") })] }), 400 * min);
     expect(result.done).toEqual([{ task: "Login", agent: "Isis", minutes: 30, budgetMin: 20, branch: "b-Isis", summary: "Résumé termine", merged: true, status: "termine" }]);
     expect(result.failed.map((r) => [r.task, r.status])).toEqual([["API", "echec"], ["Docs", "bloque"]]);
     expect(result.unfinished).toEqual([]);

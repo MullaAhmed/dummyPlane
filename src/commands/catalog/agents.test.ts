@@ -121,7 +121,7 @@ describe("Agents (spec fenêtre §7.3)", () => {
     expect(pendingUiRequest()).toEqual({ kind: "agentMenu", view: "ollama", at });
   });
 
-  it("opens the Agent menu on its catalog, the chosen agent launched at the radial menu's point (« Autre agent… »)", async () => {
+  it("opens the Agent menu on its catalog, the chosen agent launched at the radial menu's point (Other agent…)", async () => {
     await find("agent.other").run({ ...busy, at: { x: 1, y: 2 } });
     expect(pendingUiRequest()).toEqual({ kind: "agentMenu", view: "agents", at: { x: 1, y: 2 } });
   });

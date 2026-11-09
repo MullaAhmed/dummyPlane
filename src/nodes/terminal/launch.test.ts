@@ -14,10 +14,10 @@ describe("defaultTitle", () => {
 
 describe("newTerminalPayload", () => {
   it("fills a blank title, trims the custom command and keeps the given name", () => {
-    const payload = newTerminalPayload({ ...base, agent: "custom", command: "  npm run dev " }, "Thot");
+    const payload = newTerminalPayload({ ...base, agent: "custom", command: "  npm run dev " }, "Thoth");
     expect(payload.title).toBe("Custom · dummyplane");
     expect(payload.command).toBe("npm run dev");
-    expect(payload.name).toBe("Thot");
+    expect(payload.name).toBe("Thoth");
     expect(payload.claudeSessionId).toBeUndefined();
   });
 

@@ -22,7 +22,7 @@ async function menuOf(missing: boolean) {
   return items;
 }
 
-it("offers « Renommer » for a project that exists, not for a missing one", async () => {
+it("offers Rename for a project that exists, not for a missing one", async () => {
   expect(await menuOf(false)).toContain("Rename");
   expect(await menuOf(true)).not.toContain("Rename");
 });

@@ -273,7 +273,7 @@ describe("who takes what", () => {
     expect(lines()).toEqual(["2 tasks wait that no free agent can take: next_task, reassign, or finish."]);
   });
 
-  it("creates no agent: the team stays as it is, within « Agents max »", async () => {
+  it("creates no agent: the team stays as it is, within Max agents", async () => {
     await setup({ maxAgents: 1, queue: [next, { ...next, title: "Docs" }, { ...next, title: "Tests" }] });
     await afterReport("chef", "isis");
     expect(missionNow().members).toHaveLength(1);

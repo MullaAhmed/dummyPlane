@@ -37,7 +37,7 @@ beforeEach(async () => {
     ],
   });
   nodesStore.setState({
-    nodes: { isis: terminal("w1", "Isis"), thot: terminal("w2", "Thot"), ra: terminal("w1", "Ra"), nout: terminal("w1", "Nout"), seth: terminal("w1", "Seth") },
+    nodes: { isis: terminal("w1", "Isis"), thot: terminal("w2", "Thoth"), ra: terminal("w1", "Ra"), nout: terminal("w1", "Nut"), seth: terminal("w1", "Seth") },
   });
   terminalStatusStore.setState({ statuses: Object.fromEntries(IDS.map((id) => [id, { state: "running" }])) });
   agentActivityStore.setState({ activities: {} });
@@ -79,7 +79,7 @@ describe("WaitingNotice (spec notification §4)", () => {
 
   it("names the workspace of an agent that is not on screen", async () => {
     await wait("thot");
-    expect(rows()).toEqual(["Thot has a questionBackend"]);
+    expect(rows()).toEqual(["Thoth has a questionBackend"]);
   });
 
   describe("the preview of the question (spec notification §7)", () => {
@@ -128,7 +128,7 @@ describe("WaitingNotice (spec notification §4)", () => {
     await wait("ra", 3);
     await wait("isis", 1);
     await wait("nout", 2);
-    expect(rows()).toEqual(["Isis has a question", "Nout has a question", "Ra has a question"]);
+    expect(rows()).toEqual(["Isis has a question", "Nut has a question", "Ra has a question"]);
   });
 
   it("counts the others past three, and its line goes to the first of them", async () => {

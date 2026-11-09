@@ -13,9 +13,9 @@ vi.mock("./broadcast", () => ({ sendCommand: vi.fn(() => Promise.resolve()) }));
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 const agents: TargetAgent[] = [
-  { id: "b", name: "Thot", groupName: null },
+  { id: "b", name: "Thoth", groupName: null },
   { id: "d", name: "Zeus", groupName: null },
-  { id: "h", name: "Héra", groupName: null },
+  { id: "h", name: "Hera", groupName: null },
 ];
 
 let root: Root;
@@ -55,37 +55,37 @@ async function press(key: string) {
 }
 
 it("suggests Claude Code's commands after the targets, and Tab completes one", async () => {
-  await type("@thot /ef");
+  await type("@thoth /ef");
   expect(options()).toEqual([expect.stringContaining("/effort")]);
   await press("Tab");
-  expect(field().value).toBe("@thot /effort ");
+  expect(field().value).toBe("@thoth /effort ");
   expect(options()).toEqual([]);
 });
 
-it("completes the last name of @thot/ze, the names before it becoming targets too", async () => {
-  await type("@thot/ze");
+it("completes the last name of @thoth/ze, the names before it becoming targets too", async () => {
+  await type("@thoth/ze");
   expect(options()).toEqual([expect.stringContaining("@zeus")]);
   await press("Tab");
-  expect(chips()).toEqual(["@thot", "@zeus"]);
+  expect(chips()).toEqual(["@thoth", "@zeus"]);
   expect(field().value).toBe("");
 });
 
-it("sends a /command to every agent of @thot/zeus/héra", async () => {
-  await type("@thot/zeus/héra /effort ultracode");
+it("sends a /command to every agent of @thoth/zeus/hera", async () => {
+  await type("@thoth/zeus/hera /effort ultracode");
   await press("Enter");
   expect(sendCommand).toHaveBeenCalledWith(["b", "d", "h"], "/effort ultracode");
 });
 
 it("sends a command typed in full on Enter, instead of completing it (final review maj §1)", async () => {
-  await type("@thot /clear");
+  await type("@thoth /clear");
   await press("Enter");
   expect(sendCommand).toHaveBeenCalledWith(["b"], "/clear");
 });
 
 it("goes on through the history past a command, its list closed (final review maj §1)", async () => {
-  await act(async () => historyStore.setState({ entries: ["@zeus lance les tests", "@thot/zeus /compact"] }));
+  await act(async () => historyStore.setState({ entries: ["@zeus lance les tests", "@thoth/zeus /compact"] }));
   await press("ArrowUp");
-  expect(field().value).toBe("@thot/zeus /compact");
+  expect(field().value).toBe("@thoth/zeus /compact");
   expect(options()).toEqual([]);
   await press("ArrowUp");
   expect(field().value).toBe("@zeus lance les tests");
@@ -93,10 +93,10 @@ it("goes on through the history past a command, its list closed (final review ma
 
 it("does not send a /command whose target is unknown to the selection instead (final review maj §1)", async () => {
   await act(async () => root.render(<CommandInput agents={agents} groups={[]} fallback={["d"]} placeholder="Consigne" emptyHint="Tape @" />));
-  await type("/clear @thot/zues");
+  await type("/clear @thoth/zues");
   await press("Enter");
   expect(sendCommand).not.toHaveBeenCalled();
-  expect(host.textContent).toContain("Unknown target: @thot/zues");
+  expect(host.textContent).toContain("Unknown target: @thoth/zues");
 });
 
 
@@ -125,9 +125,9 @@ it("leaves one space when a command is completed before the text (backlog 27 oct
   expect(field().value).toBe("/effort lance");
 });
 
-it("does not send a command after an unfinished mention (@thot/ /clear, backlog 27 oct)", async () => {
+it("does not send a command after an unfinished mention (@thoth/ /clear, backlog 27 oct)", async () => {
   await act(async () => root.render(<CommandInput agents={agents} groups={[]} fallback={["d"]} placeholder="Consigne" emptyHint="Tape @" />));
-  await type("@thot/ /clear");
+  await type("@thoth/ /clear");
   await press("Enter");
   expect(sendCommand).not.toHaveBeenCalled();
 });
@@ -147,7 +147,7 @@ it("starts the highlight again at the top when the caret moves (backlog 27 oct)"
 });
 
 it("does not send on the Enter that ends an IME composition (plan B3)", async () => {
-  await type("@thot lance");
+  await type("@thoth lance");
   await act(async () => {
     field().dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true, isComposing: true }));
   });

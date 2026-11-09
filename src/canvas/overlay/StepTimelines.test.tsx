@@ -19,7 +19,7 @@ it("draws each terminal's steps under it, following the view, with its running s
     kind: "terminal",
     payload: { title: "", name: "Isis", agent: "claude", cwd: "C:/code", shell: "default", command: "", steps: [{ title: "Plan", state: "fait" }, { title: "Code", state: "en_cours" }] },
   });
-  await nodesStore.getState().create("thot", { workspaceId: "w1", kind: "terminal", payload: { title: "", name: "Thot", agent: "claude", cwd: "C:/code", shell: "default", command: "" } });
+  await nodesStore.getState().create("thot", { workspaceId: "w1", kind: "terminal", payload: { title: "", name: "Thoth", agent: "claude", cwd: "C:/code", shell: "default", command: "" } });
   canvasStore.setState({
     view: { ...EMPTY_VIEW, zoom: 0.5, scrollX: 100, scrollY: 0 },
     nodeRects: { isis: { x: 0, y: 0, width: 800, height: 400 }, thot: { x: 900, y: 0, width: 800, height: 400 } },

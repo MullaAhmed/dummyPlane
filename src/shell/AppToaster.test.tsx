@@ -14,7 +14,7 @@ it("keeps every toast in the bottom-right corner, above the zoom control (spec i
   const root = createRoot(host);
   await act(async () => root.render(<AppToaster />));
   await act(async () => {
-    toast.custom(() => <div>Reprendre toutes les conversations ?</div>, { duration: Infinity });
+    toast.custom(() => <div>Resume all conversations?</div>, { duration: Infinity });
     await new Promise<void>((resolve) => setTimeout(resolve, 0));
   });
   const toaster = host.querySelector<HTMLElement>('[data-sonner-toaster][data-y-position="bottom"][data-x-position="right"]');
