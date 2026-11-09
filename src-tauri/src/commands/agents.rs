@@ -461,6 +461,13 @@ pub async fn subagent_snapshot(state: State<'_, AgentState>) -> AppResult<Vec<Su
     Ok(lock(&state.subagents).snapshot())
 }
 
+/// The "Sub-agents open as terminals" setting, at boot and on each change: the
+/// hook server reads it at each call, so running sessions follow it too.
+#[tauri::command]
+pub fn set_subagent_terminals(on: bool) {
+    hooks_server::set_subagent_terminals(on);
+}
+
 #[cfg(test)]
 mod tests {
     use std::time::{Duration, Instant};

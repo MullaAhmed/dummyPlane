@@ -27,7 +27,7 @@ describe("proposedPlan (spec orchestrateur §7.2)", () => {
     // Past Max agents, sub-tasks wait in the queue at the go-ahead: only "new" ones, the queue names no agent.
     expect(proposedPlan(args({ ...task("nouveau"), titre: "A" }, { ...task("nouveau"), titre: "B" }, { ...task("nouveau"), titre: "C" }), budgeted, [])).toMatchObject({ name: "Auth" });
     expect(proposedPlan(args({ ...task("nouveau"), titre: "A" }, { ...task("nouveau"), titre: "B" }, task("Athena")), budgeted, ["Athena"])).toBe(
-      'Sub-task 3: only the first 2 sub-tasks start at the go-ahead (Max agents), the rest wait in the queue for a free or new agent: give it agent "new".',
+      'Sub-task 3: only the first 2 sub-tasks start at the go-ahead (Max agents), the rest wait in the queue for a new agent: give it agent "new".',
     );
     expect(proposedPlan(args(task("nouveau", 0)), NEW_MISSION, [])).toContain("budget");
     expect(proposedPlan({ tache: "x", sous_taches: [task("nouveau")] }, NEW_MISSION, [])).toContain("name");

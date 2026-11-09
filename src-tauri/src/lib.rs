@@ -87,9 +87,7 @@ pub fn run() {
                     // Spec §10: a blocking dialog with the file path, then stop.
                     let shown = path.display();
                     app.dialog()
-                        .message(format!(
-                            "Cannot open the database {shown}:\n{err}"
-                        ))
+                        .message(format!("Cannot open the database {shown}:\n{err}"))
                         .kind(MessageDialogKind::Error)
                         .title("dummyPlane")
                         .blocking_show();
@@ -184,6 +182,7 @@ pub fn run() {
             commands::agents::agent_activity_snapshot,
             commands::agents::subagent_snapshot,
             commands::agents::mcp_reply,
+            commands::agents::set_subagent_terminals,
         ])
         .build(tauri::generate_context!())
         .expect("error while building the dummyPlane application");

@@ -1,5 +1,5 @@
 import type { ExcalidrawArrowElement, ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
-import { isWire } from "@/fleet/wires";
+import { isSpawnWire, isWire } from "@/fleet/wires";
 import type { Point } from "@/fleet/terminals";
 import type { WireDirection, WirePulse } from "../wireActivity";
 import { nodeKindOf } from "../nodeElement";
@@ -8,6 +8,7 @@ import type { SceneFrame } from "../groups";
 /** A wire of the scene on screen, read from the orchestrator's end to the other one. */
 export interface WirePath {
   id: string;
+  /** The orchestrator, or for a spawn wire the agent that spawned `targetId`. */
   orchestratorId: string;
   /** A group's frame or a terminal. */
   targetId: string;
@@ -15,7 +16,7 @@ export interface WirePath {
   points: Point[];
 }
 
-/** The wires of the scene that join an orchestrator to something, with their route. */
+/** The wires of the scene that join an orchestrator to something, or an agent to its spawned sub-agent, with their route. */
 export function wirePaths(elements: readonly ExcalidrawElement[]): WirePath[] {
   const orchestrators = new Set(elements.filter((e) => !e.isDeleted && nodeKindOf(e) === "orchestrator").map((e) => e.id));
   const paths: WirePath[] = [];
@@ -29,6 +30,8 @@ export function wirePaths(elements: readonly ExcalidrawElement[]): WirePath[] {
     // A wire drawn by hand from the target to the orchestrator reads the other way.
     if (orchestrators.has(start)) paths.push({ id: arrow.id, orchestratorId: start, targetId: end, points });
     else if (orchestrators.has(end)) paths.push({ id: arrow.id, orchestratorId: end, targetId: start, points: points.reverse() });
+    // spawn_agent drew it from the parent: a pulse naming the parent lights it.
+    else if (isSpawnWire(arrow)) paths.push({ id: arrow.id, orchestratorId: start, targetId: end, points });
   }
   return paths;
 }

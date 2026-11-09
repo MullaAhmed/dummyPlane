@@ -1,5 +1,6 @@
 //! The settings file given to Claude with `--settings` (spec habillage §8.2,
-//! §10.3): http hooks that report its state, none that could block a decision.
+//! §10.3): http hooks that report its state, and, for an agent, one that asks
+//! dummyPlane before Claude starts a built-in sub-agent (the hook server decides).
 
 use std::io;
 use std::path::{Path, PathBuf};
@@ -12,6 +13,9 @@ use crate::pty::shell::{Permission, Role};
 const NOTIFICATIONS: &str =
     "permission_prompt|elicitation_dialog|elicitation_url_dialog|agent_needs_input|idle_prompt";
 
+/// Claude's built-in sub-agent tool, under its old name and its current one.
+const BUILTIN_SUBAGENTS: &str = "Task|Agent";
+
 pub fn settings_json(url: &str, role: Role) -> Value {
     let hook = json!({ "type": "http", "url": url, "timeout": 2 });
     let every = json!([{ "hooks": [hook] }]);
@@ -21,7 +25,7 @@ pub fn settings_json(url: &str, role: Role) -> Value {
         // A manager does not code itself, nor run commands in the user's folder.
         permissions["deny"] = json!(["Edit", "Write", "NotebookEdit", "Bash"]);
     }
-    json!({
+    let mut settings = json!({
         "hooks": {
             "UserPromptSubmit": every,
             "PostToolUse": every,
@@ -33,7 +37,15 @@ pub fn settings_json(url: &str, role: Role) -> Value {
             "Notification": [{ "matcher": NOTIFICATIONS, "hooks": [hook] }],
         },
         "permissions": permissions,
-    })
+    });
+    if role == Role::Agent {
+        // Always asked, decided at each call: the user's "Sub-agents open as
+        // terminals" reaches the sessions already running. An orchestrator has no
+        // spawn_agent to send its sub-agents to.
+        settings["hooks"]["PreToolUse"] =
+            json!([{ "matcher": BUILTIN_SUBAGENTS, "hooks": [hook] }]);
+    }
+    settings
 }
 
 /// What needs a yes in Claude, for an agent nobody watches. Read-only tools ask nothing.
@@ -255,7 +267,7 @@ mod tests {
     const URL: &str = "http://127.0.0.1:4242/hook/claude/n1?t=tok";
 
     #[test]
-    fn reports_the_tracked_events_to_the_url_without_blocking_hooks() {
+    fn reports_the_tracked_events_to_the_url() {
         let json = settings_json(URL, Role::Agent);
         let hooks = json["hooks"].as_object().unwrap();
         let mut events: Vec<_> = hooks.keys().map(String::as_str).collect();
@@ -265,6 +277,7 @@ mod tests {
             [
                 "Notification",
                 "PostToolUse",
+                "PreToolUse",
                 "SessionEnd",
                 "Stop",
                 "StopFailure",
@@ -281,6 +294,22 @@ mod tests {
             json["hooks"]["Notification"][0]["matcher"],
             "permission_prompt|elicitation_dialog|elicitation_url_dialog|agent_needs_input|idle_prompt"
         );
+    }
+
+    #[test]
+    fn only_an_agent_asks_dummyplane_before_starting_a_built_in_subagent() {
+        let hook = json!({ "type": "http", "url": URL, "timeout": 2 });
+        let agent = settings_json(URL, Role::Agent);
+        assert_eq!(
+            agent["hooks"]["PreToolUse"],
+            json!([{ "matcher": "Task|Agent", "hooks": [hook] }])
+        );
+        // An orchestrator has no spawn_agent: its hooks only report.
+        let manager = settings_json(URL, Role::Orchestrator);
+        assert!(manager["hooks"].get("PreToolUse").is_none());
+        let mut reporting = agent["hooks"].clone();
+        reporting.as_object_mut().unwrap().remove("PreToolUse");
+        assert_eq!(manager["hooks"], reporting);
     }
 
     #[test]
@@ -323,9 +352,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         assert!(write(dir.path(), "../evil", URL, Role::Agent, None, None).is_err());
         assert!(!dir.path().join("../evil.json").exists());
-        let english = {
-            write(dir.path(), "../evil", URL, Role::Agent, None, None).unwrap_err()
-        };
+        let english = { write(dir.path(), "../evil", URL, Role::Agent, None, None).unwrap_err() };
         assert_eq!(english.to_string(), "invalid node id: ../evil");
     }
 
@@ -385,7 +412,10 @@ mod tests {
             .unwrap()
             .to_string();
         assert!(!command.starts_with("bash "), "{command}");
-        assert!(command.starts_with("'C:/Program Files/Git/bin/bash.exe' "), "{command}");
+        assert!(
+            command.starts_with("'C:/Program Files/Git/bin/bash.exe' "),
+            "{command}"
+        );
     }
 
     #[test]

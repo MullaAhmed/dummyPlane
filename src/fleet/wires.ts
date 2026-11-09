@@ -70,6 +70,16 @@ export function isWire(element: ExcalidrawElement): boolean {
   return data?.kind === "wire";
 }
 
+/**
+ * A wire from an agent to the sub-agent it opened with spawn_agent, its start
+ * bound to the parent: no orchestrator at either end, and the upkeep keeps the
+ * mark through an orphaning and its undo.
+ */
+export function isSpawnWire(element: ExcalidrawElement): boolean {
+  const data = element.customData?.dummyplane as { kind?: unknown; spawn?: unknown } | undefined;
+  return data?.kind === "wire" && data.spawn === true;
+}
+
 /** What an orchestrator can be wired to: a group's frame or a terminal (not a plain frame). */
 function isWireTarget(element: ExcalidrawElement | undefined): element is ExcalidrawElement {
   return element !== undefined && !element.isDeleted && (groupInfoOf(element) !== null || nodeKindOf(element) === "terminal");
@@ -240,12 +250,14 @@ function elbowForm(from: ExcalidrawElement, to: ExcalidrawElement): ElbowForm {
  * A complete elbow arrow from the side of `orchestrator` facing `target` to the
  * side of `target` facing it, without heads, in the color of `palette` (spec §13). Every base field is set
  * here, as for the nodes (Excalidraw's skeletons cannot bind to existing
- * elements).
+ * elements). With `spawn`, `orchestrator` is an agent and `target` the
+ * sub-agent it spawned (`isSpawnWire`).
  */
 export function createWire(
   orchestrator: ExcalidrawElement,
   target: ExcalidrawElement,
   palette: ThemeChoice = currentPalette(),
+  spawn = false,
 ): ExcalidrawElbowArrowElement {
   return {
     id: crypto.randomUUID(),
@@ -269,7 +281,7 @@ export function createWire(
     locked: false,
     startArrowhead: null,
     endArrowhead: null,
-    customData: { dummyplane: { kind: "wire" } },
+    customData: { dummyplane: spawn ? { kind: "wire", spawn: true } : { kind: "wire" } },
     ...elbowForm(orchestrator, target),
   };
 }
@@ -309,7 +321,8 @@ export function elbowWires(elements: readonly ExcalidrawElement[], palette: Them
 /**
  * The wires bound to one of `nodeIds` routed again between their ends as they
  * stand: Excalidraw only reroutes an elbow when the user moves or resizes an
- * end, not when the app changes its size. The scene itself when no wire moves.
+ * end, not when the app changes its size. A spawn wire keeps its mark and its
+ * color. The scene itself when no wire moves.
  */
 export function rerouteWires(elements: readonly ExcalidrawElement[], nodeIds: ReadonlySet<string>): readonly ExcalidrawElement[] {
   const byId = new Map(elements.map((e) => [e.id, e]));
@@ -330,19 +343,20 @@ export function rerouteWires(elements: readonly ExcalidrawElement[], nodeIds: Re
   return changed ? next : elements;
 }
 
-/** `elements` with a new wire, recorded on both ends, unless one already joins them (spec §13). */
+/** `elements` with a new wire, recorded on both ends, unless one already joins them (spec §13); `spawn` as for `createWire`. */
 export function withWire(
   elements: readonly ExcalidrawElement[],
   orchestratorId: string,
   targetId: string,
   palette: ThemeChoice = currentPalette(),
+  spawn = false,
 ): ExcalidrawElement[] {
   const orchestrator = elements.find((e) => e.id === orchestratorId && !e.isDeleted);
   const target = elements.find((e) => e.id === targetId && !e.isDeleted);
   if (!orchestrator || !target) return [...elements];
   const links = orchestratorTargets(elements, orchestratorId);
   if (links.groupIds.includes(targetId) || links.nodeIds.includes(targetId)) return [...elements];
-  const wire = createWire(orchestrator, target, palette);
+  const wire = createWire(orchestrator, target, palette, spawn);
   const bind = (e: ExcalidrawElement): ExcalidrawElement => ({
     ...e,
     boundElements: [...(e.boundElements ?? []), { id: wire.id, type: "arrow" }],

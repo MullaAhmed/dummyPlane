@@ -10,6 +10,8 @@ export function cloneTerminalPayload(source: TerminalPayload, name: string): Ter
   delete copy.model;
   delete copy.remoteControl;
   delete copy.permission;
+  // A copy reports to nobody and counts toward no sub-agent tree.
+  delete copy.spawnedBy;
   // A copy is a new agent: it starts open, with no report of its own yet.
   delete copy.minimized;
   delete copy.expandedHeight;

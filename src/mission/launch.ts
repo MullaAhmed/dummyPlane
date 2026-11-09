@@ -321,7 +321,12 @@ export async function cleanMission(orchestratorId: string): Promise<Cleanup | st
   }
 }
 
-/** A new agent for a sub-task (handed over, or from the queue): its worktree, its terminal in the sub-task's group or the mission's, started now. */
+/**
+ * A new agent for a sub-task (handed over, or from the queue): its worktree,
+ * cut from the mission's branch, its terminal in the sub-task's group or the
+ * mission's, started now. A member of the mission from then on, so that
+ * `endMission` closes it and `cleanMission` removes its worktree.
+ */
 export async function newMember(orchestratorId: string, workspaceId: string, mission: Mission, task: SubTask): Promise<Member | string> {
   if (!mission.project || !mission.slug) return t().launch.noFolder;
   const { frames } = workspaceCanvas(workspaceId);
@@ -379,7 +384,8 @@ export async function reassignTask(orchestratorId: string, fromNodeId: string, t
   const record = nodesStore.getState().nodes[orchestratorId];
   const mission = missionOf(record);
   if (!record || mission?.state !== "en_cours") return r.noMission;
-  const from = mission.members.find((m) => m.nodeId === fromNodeId && !m.handedTo);
+  // A task `next_task` abandoned stays with its agent's report: nobody takes it over.
+  const from = mission.members.find((m) => m.nodeId === fromNodeId && !m.handedTo && !m.abandoned);
   const task = mission.plan?.find((s) => s.title === from?.task);
   if (!from || !task) return r.notFound;
   let to: Member;
@@ -415,6 +421,8 @@ export async function reassignTask(orchestratorId: string, fromNodeId: string, t
       report: undefined,
       sentAt: undefined,
       merged: undefined,
+      // Given a task again, it is no longer the one that left its own.
+      abandoned: undefined,
       done: finished ? [...(found.done ?? []), found.task] : found.done,
       past: [...(found.past ?? []), pastTask(found, found.report)],
     };

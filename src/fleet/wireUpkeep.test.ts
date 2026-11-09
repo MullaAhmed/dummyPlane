@@ -80,6 +80,42 @@ it("brings a dropped wire back when its ends come back, as an undo does (plan B3
   expect(revived.customData.dummyplane.orphaned).toBeUndefined();
 });
 
+it("keeps a spawn wire one through its orphaning and the undo that brings it back", () => {
+  const child = createNodeElement("terminal", { x: 1200, y: 900 }) as unknown as ExcalidrawElement;
+  const wired = withWire([orchestrator, lone, child], lone.id, child.id, "expressive", true);
+  const wire = wired[wired.length - 1];
+  // The sub-agent is closed: the wire goes, still a spawn wire.
+  const gone = wired.map((e) => (e.id === child.id ? ({ ...e, isDeleted: true } as ExcalidrawElement) : e));
+  scheduleWireUpkeep(api(gone), gone);
+  frames.shift()!(0);
+  const dropped = updateScene.mock.calls[0][0].elements.find((e: ExcalidrawElement) => e.id === wire.id);
+  expect(dropped.isDeleted).toBe(true);
+  expect(dropped.customData.dummyplane).toEqual({ kind: "wire", spawn: true, orphaned: true });
+  // Undo: the sub-agent is back, its wire with it.
+  updateScene.mockClear();
+  const undone = [...wired.filter((e) => e.id !== wire.id), dropped];
+  scheduleWireUpkeep(api(undone), undone);
+  frames.shift()!(0);
+  const revived = updateScene.mock.calls[0][0].elements.find((e: ExcalidrawElement) => e.id === wire.id);
+  expect(revived.isDeleted).toBe(false);
+  expect(revived.customData.dummyplane).toEqual({ kind: "wire", spawn: true });
+});
+
+it("revives a plain wire without the spawn mark", () => {
+  const wired = withWire([orchestrator, frame, lone], orchestrator.id, frame.id);
+  const wire = wired[wired.length - 1];
+  const gone = wired.filter((e) => e.id !== frame.id);
+  scheduleWireUpkeep(api(gone), gone);
+  frames.shift()!(0);
+  const dropped = updateScene.mock.calls[0][0].elements.find((e: ExcalidrawElement) => e.id === wire.id);
+  expect(dropped.customData.dummyplane).toEqual({ kind: "wire", orphaned: true });
+  updateScene.mockClear();
+  const undone = [...wired.filter((e) => e.id !== wire.id), dropped];
+  scheduleWireUpkeep(api(undone), undone);
+  frames.shift()!(0);
+  expect(updateScene.mock.calls[0][0].elements.find((e: ExcalidrawElement) => e.id === wire.id).customData.dummyplane).toEqual({ kind: "wire" });
+});
+
 const PALETTES_TO_TRY: ThemeChoice[] = ["calm", "electric", "expressive"];
 
 /** Runs one upkeep and returns the scene it wrote, or null when it wrote nothing. */

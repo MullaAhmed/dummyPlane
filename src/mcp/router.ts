@@ -2,7 +2,7 @@ import { messages } from "@/i18n";
 import { mcpReply, onMcpCall, type McpCall } from "@/ipc/mcp";
 import { notesTool, notesToolSpec } from "@/notes/agentTool";
 import { nodesStore, terminalOf } from "@/store/nodes";
-import { AGENT_ONLY, agentTools, declareSteps, markStep, refused, report } from "./agentTools";
+import { AGENT_ONLY, agentTools, declareSteps, markStep, refused, report, spawnAgentTool } from "./agentTools";
 import { agentMessages } from "./messages";
 import { ORCHESTRATOR_ONLY, orchestratorTool, orchestratorTools } from "./orchestratorTools";
 import { internalCall, RENAMED } from "./protocol";
@@ -30,6 +30,8 @@ export async function answer(call: McpCall): Promise<unknown> {
       return markStep(call.nodeId, args);
     case "rendre_compte":
       return report(call.nodeId, args);
+    case "spawn_agent":
+      return spawnAgentTool(call.nodeId, args);
     default:
       return refused(t().unknown(asked));
   }

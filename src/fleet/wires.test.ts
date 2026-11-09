@@ -7,6 +7,7 @@ import { displayColorFor, toDisplayColor, toSceneColor } from "@/theme/sceneColo
 import {
   createWire,
   elbowWires,
+  isSpawnWire,
   isWire,
   linkedAgents,
   linkTargetAt,
@@ -448,5 +449,75 @@ describe("rerouteWires (a node the app resizes: Excalidraw reroutes only what th
     // Its other end is gone.
     const alone = [shrunk, wire];
     expect(rerouteWires(alone, new Set([member.id]))).toBe(alone);
+  });
+});
+
+describe("spawn wires (spawn_agent)", () => {
+  /** A sub-agent its terminal `lone` spawned, on its right. */
+  const child = createNodeElement("terminal", { x: 1200, y: 900 }) as unknown as ExcalidrawElement;
+  const spawned = () => {
+    const elements = withWire([...base, child], lone.id, child.id, "expressive", true);
+    return { elements, wire: elements[elements.length - 1] as ExcalidrawElbowArrowElement };
+  };
+  const withoutIds = (elements: ExcalidrawElement[], ...ids: string[]) =>
+    elements.map((e) => (ids.includes(e.id) ? ({ ...e, isDeleted: true } as ExcalidrawElement) : e));
+
+  it("joins the parent terminal to the sub-agent it spawned, marked as a spawn wire", () => {
+    const { elements, wire } = spawned();
+    expect(wire).toMatchObject({
+      type: "arrow",
+      elbowed: true,
+      strokeColor: wireColor("expressive"),
+      startBinding: { elementId: lone.id },
+      endBinding: { elementId: child.id },
+    });
+    expect(wire.customData).toEqual({ dummyplane: { kind: "wire", spawn: true } });
+    expect(isWire(wire)).toBe(true);
+    expect(isSpawnWire(wire)).toBe(true);
+    const bound = (id: string) => elements.find((e) => e.id === id)?.boundElements;
+    expect(bound(lone.id)).toEqual([{ id: wire.id, type: "arrow" }]);
+    expect(bound(child.id)).toEqual([{ id: wire.id, type: "arrow" }]);
+    // Not twice.
+    expect(withWire(elements, lone.id, child.id, "expressive", true)).toHaveLength(elements.length);
+  });
+
+  it("is not made by default, nor read on a plain wire or arrow", () => {
+    expect(isSpawnWire(createWire(lone, child))).toBe(false);
+    const plainWire = withWire([...base, child], lone.id, child.id);
+    expect(isSpawnWire(plainWire[plainWire.length - 1])).toBe(false);
+    expect(isSpawnWire(handDrawn(lone, child))).toBe(false);
+    // The spawn flag alone, without the wire kind, is no wire.
+    expect(isSpawnWire({ ...createWire(lone, child), customData: { dummyplane: { spawn: true } } } as ExcalidrawElement)).toBe(false);
+  });
+
+  it("stays while both terminals live, and goes once the sub-agent is closed", () => {
+    const { elements, wire } = spawned();
+    expect(orphanWires(elements)).toEqual([]);
+    expect(orphanWires(withoutIds(elements, child.id))).toEqual([wire.id]);
+    expect(orphanWires(withoutIds(elements, lone.id))).toEqual([wire.id]);
+    expect(orphanWires(elements.filter((e) => e.id !== child.id))).toEqual([wire.id]);
+  });
+
+  it("comes back with the sub-agent an undo brings back", () => {
+    const { elements, wire } = spawned();
+    const dropped = { ...wire, isDeleted: true, customData: { dummyplane: { kind: "wire", spawn: true, orphaned: true } } } as ExcalidrawElement;
+    const scene = [...elements.slice(0, -1), dropped];
+    expect(revivableWires(scene)).toEqual([wire.id]);
+    expect(revivableWires(withoutIds(scene, child.id))).toEqual([]);
+  });
+
+  it("is no orchestrator's link", () => {
+    const { elements } = spawned();
+    expect(orchestratorLinks(elements)).toEqual({ [orchestrator.id]: { groupIds: [], nodeIds: [] } });
+    expect(unmarkedWires(elements)).toEqual([]);
+  });
+
+  it("keeps its mark and its color when a minimized end reroutes it", () => {
+    const { elements, wire } = spawned();
+    const shrunk = elements.map((e) => (e.id === child.id ? ({ ...e, height: 68 } as ExcalidrawElement) : e));
+    const rerouted = rerouteWires(shrunk, new Set([child.id])).find((e) => e.id === wire.id) as ExcalidrawElbowArrowElement;
+    expect(rerouted.version).toBe(wire.version + 1);
+    expect(isSpawnWire(rerouted)).toBe(true);
+    expect(rerouted.strokeColor).toBe(wire.strokeColor);
   });
 });
