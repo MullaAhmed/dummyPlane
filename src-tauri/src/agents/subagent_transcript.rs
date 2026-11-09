@@ -418,7 +418,9 @@ mod tests {
         let mut reminder = user(json!("<system-reminder>\nYour final report"));
         reminder["isMeta"] = json!(true);
         let lines = parse(&[
-            user(json!("You are polishing UI in the worktree.\nEdit ONLY your files.")),
+            user(json!(
+                "You are polishing UI in the worktree.\nEdit ONLY your files."
+            )),
             reminder,
             user(json!("<system-reminder>later</system-reminder>")),
         ]);
@@ -481,7 +483,10 @@ mod tests {
         ]))]);
         assert_eq!(
             lines,
-            vec![line(LineKind::Report, "UI polish is done.\n\nFiles changed (3).")]
+            vec![line(
+                LineKind::Report,
+                "UI polish is done.\n\nFiles changed (3)."
+            )]
         );
     }
 
@@ -557,7 +562,10 @@ mod tests {
         let summary = tool_summary("Bash", &json!({ "command": long }));
         assert_eq!(summary.chars().count(), "Bash()".len() + MAX_SUMMARY);
         assert_eq!(
-            tool_summary("WebFetch", &json!({ "url": "https://a.b", "prompt": "Read" })),
+            tool_summary(
+                "WebFetch",
+                &json!({ "url": "https://a.b", "prompt": "Read" })
+            ),
             "WebFetch(https://a.b)"
         );
         assert_eq!(
@@ -571,7 +579,10 @@ mod tests {
         assert_eq!(truncate("héllo", 10), "héllo");
         assert_eq!(truncate("héllo", 3), "hé…");
         assert_eq!(truncate("日本語のテキスト", 4), "日本語…");
-        assert_eq!(prompt_title("\n\n  Fix the bug  \nmore"), Some("Fix the bug".into()));
+        assert_eq!(
+            prompt_title("\n\n  Fix the bug  \nmore"),
+            Some("Fix the bug".into())
+        );
         assert_eq!(prompt_title(" \n "), None);
     }
 
@@ -615,8 +626,14 @@ mod tests {
                 .join("agent-a4d2.jsonl")
         );
         // A hook fired inside a subagent: nested ones live in the same folder.
-        assert_eq!(transcript_file(&file, "ad41"), file.with_file_name("agent-ad41.jsonl"));
-        assert_eq!(meta_file(&file), file.with_file_name("agent-a4d2.meta.json"));
+        assert_eq!(
+            transcript_file(&file, "ad41"),
+            file.with_file_name("agent-ad41.jsonl")
+        );
+        assert_eq!(
+            meta_file(&file),
+            file.with_file_name("agent-a4d2.meta.json")
+        );
     }
 
     #[test]
@@ -632,12 +649,18 @@ mod tests {
         let mut file = File::create(&path).unwrap();
         file.write_all(&bytes.as_bytes()[..cut]).unwrap();
         file.flush().unwrap();
-        assert_eq!(tail.read().unwrap(), vec![line(LineKind::Prompt, "Résumé du problème")]);
+        assert_eq!(
+            tail.read().unwrap(),
+            vec![line(LineKind::Prompt, "Résumé du problème")]
+        );
         assert!(!tail.untouched());
         assert_eq!(tail.read().unwrap(), vec![], "the partial line waits");
         file.write_all(&bytes.as_bytes()[cut..]).unwrap();
         file.flush().unwrap();
-        assert_eq!(tail.read().unwrap(), vec![line(LineKind::Text, "Voilà — fini")]);
+        assert_eq!(
+            tail.read().unwrap(),
+            vec![line(LineKind::Text, "Voilà — fini")]
+        );
         assert_eq!(tail.read().unwrap(), vec![]);
     }
 

@@ -337,7 +337,9 @@ impl Subagents {
         }
         let entries = self.nodes.entry(node_id.to_string()).or_default();
         if let Some(id) = &hook.agent_id
-            && let Some(entry) = entries.iter_mut().find(|e| !e.synthetic && e.agent_id == *id)
+            && let Some(entry) = entries
+                .iter_mut()
+                .find(|e| !e.synthetic && e.agent_id == *id)
         {
             if entry.path_hint.is_none() {
                 entry.path_hint = hook
@@ -366,9 +368,9 @@ impl Subagents {
             Some(id) => entries
                 .iter_mut()
                 .find(|e| !e.synthetic && e.agent_id == *id)?,
-            None => entries.iter_mut().find(|e| {
-                e.synthetic && e.running && e.agent_type == hook.agent_type
-            })?,
+            None => entries
+                .iter_mut()
+                .find(|e| e.synthetic && e.running && e.agent_type == hook.agent_type)?,
         };
         if !entry.running {
             return None;
@@ -448,9 +450,7 @@ impl Subagents {
                     continue;
                 };
                 let meta = (!entry.meta_found
-                    || entry
-                        .meta_read_at
-                        .is_none_or(|at| now >= at + META_RECHECK))
+                    || entry.meta_read_at.is_none_or(|at| now >= at + META_RECHECK))
                 .then(|| meta_file(&tail.path));
                 if meta.is_some() {
                     entry.meta_read_at = Some(now);
@@ -618,25 +618,44 @@ mod tests {
             Some(PathBuf::from("C:/p/b7be/subagents/agent-def456.jsonl"))
         );
         let internal = SubagentHook::parse(&json!({ "hook_event_name": "SubagentStop" })).unwrap();
-        assert_eq!((internal.agent_id, internal.agent_type), (None, String::new()));
-        assert_eq!(SubagentHook::parse(&json!({ "hook_event_name": "Stop" })), None);
+        assert_eq!(
+            (internal.agent_id, internal.agent_type),
+            (None, String::new())
+        );
+        assert_eq!(
+            SubagentHook::parse(&json!({ "hook_event_name": "Stop" })),
+            None
+        );
     }
 
     #[test]
     fn pairs_starts_and_stops_by_id_and_counts_the_running_ones() {
         let now = Instant::now();
         let mut subagents = Subagents::default();
-        assert_eq!(subagents.hook("n1", start(Some("a"), "Explore"), now), vec![running("n1", 1)]);
-        assert_eq!(subagents.hook("n1", start(Some("b"), "Plan"), now), vec![running("n1", 2)]);
+        assert_eq!(
+            subagents.hook("n1", start(Some("a"), "Explore"), now),
+            vec![running("n1", 1)]
+        );
+        assert_eq!(
+            subagents.hook("n1", start(Some("b"), "Plan"), now),
+            vec![running("n1", 2)]
+        );
         // The prefixed and the bare id are the same subagent.
         let prefixed = SubagentHook::parse(&json!({
             "hook_event_name": "SubagentStop", "agent_id": "agent-a", "agent_type": "Explore"
         }))
         .unwrap();
         assert_eq!(subagents.hook("n1", prefixed, now), vec![running("n1", 1)]);
-        assert_eq!(subagents.hook("n1", stop(Some("a"), "Explore"), now), vec![], "stopped already");
+        assert_eq!(
+            subagents.hook("n1", stop(Some("a"), "Explore"), now),
+            vec![],
+            "stopped already"
+        );
         assert_eq!(subagents.running(), vec![("n1".to_string(), 1)]);
-        assert_eq!(subagents.hook("n1", stop(Some("b"), "Plan"), now), vec![running("n1", 0)]);
+        assert_eq!(
+            subagents.hook("n1", stop(Some("b"), "Plan"), now),
+            vec![running("n1", 0)]
+        );
         assert!(subagents.running().is_empty());
     }
 
@@ -645,7 +664,10 @@ mod tests {
         let now = Instant::now();
         let mut subagents = Subagents::default();
         subagents.hook("n1", start(Some("a"), "Explore"), now);
-        assert_eq!(subagents.hook("n1", start(Some("a"), "Explore"), now), vec![]);
+        assert_eq!(
+            subagents.hook("n1", start(Some("a"), "Explore"), now),
+            vec![]
+        );
         assert_eq!(subagents.running_count("n1"), 1);
     }
 
@@ -654,9 +676,15 @@ mod tests {
         let now = Instant::now();
         let mut subagents = Subagents::default();
         subagents.hook("n1", start(Some("a"), "Explore"), now);
-        assert_eq!(subagents.hook("n1", stop(Some("prompt-suggestion"), ""), now), vec![]);
+        assert_eq!(
+            subagents.hook("n1", stop(Some("prompt-suggestion"), ""), now),
+            vec![]
+        );
         assert_eq!(subagents.hook("n1", stop(None, ""), now), vec![]);
-        assert_eq!(subagents.hook("n2", stop(Some("a"), "Explore"), now), vec![]);
+        assert_eq!(
+            subagents.hook("n2", stop(Some("a"), "Explore"), now),
+            vec![]
+        );
         assert_eq!(subagents.hook("n1", start(Some("c"), ""), now), vec![]);
         assert_eq!(subagents.running_count("n1"), 1);
     }
@@ -668,9 +696,15 @@ mod tests {
         subagents.hook("n1", start(None, "Explore"), now);
         subagents.hook("n1", start(None, "Explore"), now);
         subagents.hook("n1", start(None, "Plan"), now);
-        assert_eq!(subagents.hook("n1", stop(None, "Explore"), now), vec![running("n1", 2)]);
+        assert_eq!(
+            subagents.hook("n1", stop(None, "Explore"), now),
+            vec![running("n1", 2)]
+        );
         assert_eq!(subagents.hook("n1", stop(None, "Review"), now), vec![]);
-        assert_eq!(subagents.hook("n1", stop(None, "Explore"), now), vec![running("n1", 1)]);
+        assert_eq!(
+            subagents.hook("n1", stop(None, "Explore"), now),
+            vec![running("n1", 1)]
+        );
         assert_eq!(subagents.hook("n1", stop(None, "Explore"), now), vec![]);
         assert!(poll(&mut subagents, now + ANNOUNCE_WAIT * 2).is_empty());
         assert!(subagents.snapshot().is_empty());
@@ -684,13 +718,19 @@ mod tests {
         assert!(poll(&mut subagents, now + Duration::from_millis(400)).is_empty());
         assert!(subagents.snapshot().is_empty(), "not shown yet");
         let later = now + ANNOUNCE_WAIT;
-        assert_eq!(infos(&poll(&mut subagents, later)), vec![("a".into(), SubagentState::Running)]);
+        assert_eq!(
+            infos(&poll(&mut subagents, later)),
+            vec![("a".into(), SubagentState::Running)]
+        );
         assert!(poll(&mut subagents, later).is_empty(), "told once");
         assert_eq!(subagents.snapshot().len(), 1);
         let emits = subagents.hook("n1", stop(Some("a"), "Explore"), later);
         assert_eq!(emits[0], running("n1", 0));
         assert_eq!(infos(&emits), vec![("a".into(), SubagentState::Done)]);
-        assert!(subagents.snapshot().is_empty(), "a reload does not revive it");
+        assert!(
+            subagents.snapshot().is_empty(),
+            "a reload does not revive it"
+        );
         let emits = subagents.hook("n1", start(Some("a"), "Explore"), later);
         assert_eq!(emits[0], running("n1", 1));
         assert_eq!(infos(&emits), vec![("a".into(), SubagentState::Running)]);
@@ -701,8 +741,14 @@ mod tests {
         let now = Instant::now();
         let mut subagents = Subagents::default();
         subagents.hook("n1", start(Some("a"), "Explore"), now);
-        assert_eq!(subagents.hook("n1", stop(Some("a"), "Explore"), now), vec![running("n1", 0)]);
-        assert_eq!(infos(&poll(&mut subagents, now)), vec![("a".into(), SubagentState::Done)]);
+        assert_eq!(
+            subagents.hook("n1", stop(Some("a"), "Explore"), now),
+            vec![running("n1", 0)]
+        );
+        assert_eq!(
+            infos(&poll(&mut subagents, now)),
+            vec![("a".into(), SubagentState::Done)]
+        );
     }
 
     #[test]
@@ -712,8 +758,20 @@ mod tests {
         subagents.hook("n1", start(Some("a"), "Explore"), now);
         subagents.hook("n2", start(Some("b"), "Explore"), now);
         subagents.hook("n2", stop(Some("b"), "Explore"), now);
-        assert_eq!(subagents.clear("n1"), Cleared { running: true, any: true });
-        assert_eq!(subagents.clear("n2"), Cleared { running: false, any: true });
+        assert_eq!(
+            subagents.clear("n1"),
+            Cleared {
+                running: true,
+                any: true
+            }
+        );
+        assert_eq!(
+            subagents.clear("n2"),
+            Cleared {
+                running: false,
+                any: true
+            }
+        );
         assert_eq!(subagents.clear("n2"), Cleared::default());
         assert!(subagents.running().is_empty());
     }
@@ -739,7 +797,11 @@ mod tests {
             ..Default::default()
         };
         done(finished.clone(), &mut subagents);
-        assert_eq!(subagents.running_count("n1"), 1, "finished from a previous run");
+        assert_eq!(
+            subagents.running_count("n1"),
+            1,
+            "finished from a previous run"
+        );
         done(Meta::default(), &mut subagents);
         let emits = done(finished, &mut subagents);
         assert_eq!(emits[0], running("n1", 0), "the stop hook was missed");
@@ -747,7 +809,11 @@ mod tests {
     }
 
     fn append(path: &Path, lines: &[Value]) {
-        let mut file = OpenOptions::new().create(true).append(true).open(path).unwrap();
+        let mut file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)
+            .unwrap();
         for line in lines {
             writeln!(file, "{line}").unwrap();
         }
@@ -768,17 +834,23 @@ mod tests {
         }))
         .unwrap();
         subagents.hook("n1", hook, now);
-        assert!(poll(&mut subagents, now).is_empty(), "no meta, no transcript yet");
+        assert!(
+            poll(&mut subagents, now).is_empty(),
+            "no meta, no transcript yet"
+        );
 
         std::fs::write(
             folder.join("agent-ad41.meta.json"),
             r#"{"agentType":"general-purpose","description":"Fix feature-taxonomy","parentAgentId":"a4d2","spawnDepth":2}"#,
         )
         .unwrap();
-        append(&file, &[
-            json!({ "type": "user", "agentId": "ad41", "message": { "role": "user", "content": "Fix the taxonomy.\nThen report." } }),
-            json!({ "type": "attachment", "agentId": "ad41", "attachment": {} }),
-        ]);
+        append(
+            &file,
+            &[
+                json!({ "type": "user", "agentId": "ad41", "message": { "role": "user", "content": "Fix the taxonomy.\nThen report." } }),
+                json!({ "type": "attachment", "agentId": "ad41", "attachment": {} }),
+            ],
+        );
         let emits = poll(&mut subagents, now + Duration::from_millis(350));
         let info = SubagentInfo {
             node_id: "n1".into(),
@@ -805,9 +877,12 @@ mod tests {
             ]
         );
 
-        append(&file, &[json!({ "type": "assistant", "message": { "content": [
-            { "type": "tool_use", "id": "toolu_1", "name": "Bash", "input": { "command": "ls" } }
-        ]}})]);
+        append(
+            &file,
+            &[json!({ "type": "assistant", "message": { "content": [
+                { "type": "tool_use", "id": "toolu_1", "name": "Bash", "input": { "command": "ls" } }
+            ]}})],
+        );
         let tool = SubagentLine {
             kind: LineKind::Tool,
             text: "Bash(ls)".into(),
@@ -847,12 +922,20 @@ mod tests {
         };
         assert_eq!(emits, vec![running("n1", 0), Emit::Info(done)]);
         // The handback lands after the stop hook.
-        append(&file, &[json!({ "type": "assistant", "message": { "content": [
-            { "type": "tool_use", "id": "toolu_2", "name": "SubagentHandback", "input": { "message": "Fixed." } }
-        ]}})]);
+        append(
+            &file,
+            &[json!({ "type": "assistant", "message": { "content": [
+                { "type": "tool_use", "id": "toolu_2", "name": "SubagentHandback", "input": { "message": "Fixed." } }
+            ]}})],
+        );
         let emits = poll(&mut subagents, stopped + FINAL_READ);
-        assert!(matches!(&emits[..], [Emit::Output(output)] if output.lines[0].kind == LineKind::Report));
-        assert!(subagents.jobs(stopped + FINAL_READ * 2).is_empty(), "read for the last time");
+        assert!(
+            matches!(&emits[..], [Emit::Output(output)] if output.lines[0].kind == LineKind::Report)
+        );
+        assert!(
+            subagents.jobs(stopped + FINAL_READ * 2).is_empty(),
+            "read for the last time"
+        );
         assert!(subagents.snapshot().is_empty());
     }
 
