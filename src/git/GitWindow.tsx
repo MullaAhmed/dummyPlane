@@ -96,7 +96,7 @@ function GitDrawer({ path }: { path: string }) {
   return (
     <aside
       data-git-window
-      className="dp-glass-strong absolute right-[72px] z-20 flex w-[min(920px,calc(100vw-180px))] flex-col overflow-hidden rounded-[14px] text-dp-text"
+      className="dp-glass-strong absolute right-[72px] z-20 flex w-[min(920px,calc(100vw-180px))] flex-col overflow-hidden rounded-lg text-dp-text"
       style={{ top: TOP_ROW_HEIGHT + 14, bottom: BOTTOM_BAR_HEIGHT + 14 }}
     >
       <header className="flex h-10 shrink-0 items-center gap-2 border-b border-dp-line px-3">
@@ -154,7 +154,10 @@ function Tab({ active, onClick, children }: { active: boolean; onClick: () => vo
       role="tab"
       aria-selected={active}
       onClick={onClick}
-      className={cn("rounded-[6px] px-2.5 py-0.5 text-[12px] text-dp-text-2 hover:text-dp-text", active && "bg-dp-accent-soft text-dp-text")}
+      className={cn(
+        "rounded-md px-2.5 py-0.5 text-xs text-dp-text-2 transition-[background-color,color] duration-150 ease-out hover:bg-dp-hover hover:text-dp-text motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50",
+        active && "bg-dp-accent-soft text-dp-text",
+      )}
     >
       {children}
     </button>
@@ -241,7 +244,7 @@ function ChangesTab(props: {
   return (
     <div className="flex min-h-0 flex-1">
       <div className="flex w-[320px] shrink-0 flex-col border-r border-dp-line">
-        <label className="flex shrink-0 items-center gap-2 border-b border-dp-line px-3 py-1 text-[12px] text-dp-text-2">
+        <label className="flex shrink-0 items-center gap-2 border-b border-dp-line px-3 py-1 text-xs text-dp-text-2">
           <input
             ref={all}
             type="checkbox"
@@ -260,7 +263,7 @@ function ChangesTab(props: {
               <li
                 key={file.path}
                 data-git-file={file.path}
-                className={cn("group flex items-center gap-2 px-3 text-[12px] text-dp-text-2 hover:bg-dp-hover", selected?.path === file.path && "bg-dp-hover text-dp-text")}
+                className={cn("group flex items-center gap-2 px-3 text-xs text-dp-text-2 hover:bg-dp-hover", selected?.path === file.path && "bg-dp-hover text-dp-text")}
               >
                 <input
                   type="checkbox"
@@ -273,7 +276,7 @@ function ChangesTab(props: {
                   type="button"
                   title={`${file.oldPath ? `${file.oldPath} → ` : ""}${file.path} · ${words.status[file.status]}`}
                   onClick={() => setSelectedPath(file.path)}
-                  className="flex min-w-0 flex-1 items-center gap-2 py-1 text-left"
+                  className="flex min-w-0 flex-1 items-center gap-2 py-1 text-left transition-[background-color,color] duration-150 ease-out motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50"
                 >
                   <span className="w-3 shrink-0 font-mono text-[11px] font-semibold" style={{ color: status.color }}>
                     {status.letter}
@@ -305,7 +308,7 @@ function ChangesTab(props: {
             value={message}
             rows={3}
             onChange={(e) => setMessage(e.target.value)}
-            className="resize-none rounded-[6px] bg-dp-field px-2 py-1.5 text-[12px] text-dp-text outline-none placeholder:text-dp-text-3"
+            className="resize-none rounded-md bg-dp-field px-2 py-1.5 text-xs text-dp-text outline-none placeholder:text-dp-text-3 focus-visible:ring-2 focus-visible:ring-dp-accent/50"
           />
           <AccentButton disabled={committing || chosen.length === 0 || !message.trim()} onClick={() => void commit()} className="justify-center text-xs">
             {committing ? t.committing : t.commit(chosen.length)}
@@ -332,7 +335,7 @@ function DiscardDialog({ file, onCancel, onConfirm }: { file: ChangedFile | null
           <Button variant="ghost" onClick={onCancel}>
             {t.cancel}
           </Button>
-          <Button className="bg-dp-danger text-white hover:bg-dp-danger/90" onClick={() => file && onConfirm(file)}>
+          <Button className="bg-dp-danger text-dp-on-accent hover:brightness-110" onClick={() => file && onConfirm(file)}>
             {t.confirm}
           </Button>
         </DialogFooter>
@@ -363,7 +366,7 @@ function HistoryTab({ path, refresh }: { path: string; refresh: number }) {
   return (
     <ul className="min-h-0 flex-1 overflow-y-auto py-1">
       {log.map((entry) => (
-        <li key={entry.hash} data-git-commit={entry.hash} className="flex items-center gap-3 px-3 py-1 text-[12px] hover:bg-dp-hover">
+        <li key={entry.hash} data-git-commit={entry.hash} className="flex items-center gap-3 px-3 py-1 text-xs transition-[background-color] duration-150 ease-out hover:bg-dp-hover motion-reduce:transition-none">
           <span title={entry.hash} className="shrink-0 font-mono text-[11px] text-dp-accent">
             {entry.shortHash}
           </span>

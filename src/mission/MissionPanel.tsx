@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import { useStore } from "zustand";
 import { useCanvas } from "@/canvas/canvasStore";
 import { BUDGET_COLOR } from "@/canvas/overlay/timeline";
@@ -20,6 +21,10 @@ import { OvernightDialog } from "./OvernightDialog";
 import { LEVELS, modelLabel } from "./router";
 import { agentState, missionOf, setMission } from "./store";
 
+/** The compact pill of this panel: a border, a hover fill, a press and a focus ring. */
+const PILL =
+  "rounded-full border border-dp-line px-2.5 py-0.5 text-[11px] text-dp-text transition-[background-color,transform] duration-150 ease-out hover:bg-dp-hover active:scale-[0.97] motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 disabled:opacity-50 disabled:pointer-events-none";
+
 /** Under the orchestrator's terminal: settings, plan and go-ahead, team, summary (spec orchestrator §6, §7). */
 export function MissionPanel({ nodeId }: { nodeId: string }) {
   const t = useMessages(missionMessages);
@@ -32,7 +37,7 @@ export function MissionPanel({ nodeId }: { nodeId: string }) {
         <header className="flex items-center gap-2">
           <span className="font-semibold uppercase tracking-[0.08em] text-dp-text">{t.title(mission.name ?? "")}</span>
           <span>{t.state[mission.state]}</span>
-          {mission.overnight && <span className="rounded bg-dp-field px-1.5 text-[11px] text-dp-text">{t.nightBadge}</span>}
+          {mission.overnight && <span className="rounded-md bg-dp-field px-1.5 text-[11px] text-dp-text">{t.nightBadge}</span>}
           {mission.branch && <span className="ml-auto truncate font-mono text-[11px]">{mission.branch}</span>}
         </header>
         {(mission.state === "redaction" || mission.state === "plan") && <Settings nodeId={nodeId} mission={mission} />}
@@ -74,7 +79,7 @@ function Settings({ nodeId, mission }: { nodeId: string; mission: Mission }) {
           placeholder={t.none}
           value={mission.budgetMin ?? ""}
           onChange={(e) => setMission(nodeId, { budgetMin: e.target.value ? Math.max(1, Math.round(Number(e.target.value))) : undefined })}
-          className="w-16 rounded bg-dp-field px-1 py-0.5 text-dp-text outline-none"
+          className="w-16 rounded-md bg-dp-field px-1 py-0.5 text-dp-text outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50"
         />
         {t.min}
       </label>
@@ -90,7 +95,7 @@ function Settings({ nodeId, mission }: { nodeId: string; mission: Mission }) {
             const count = Math.round(Number(e.target.value));
             if (count >= 1) setMission(nodeId, { maxAgents: Math.min(MAX_AGENTS, count) });
           }}
-          className="w-12 rounded bg-dp-field px-1 py-0.5 text-dp-text outline-none"
+          className="w-12 rounded-md bg-dp-field px-1 py-0.5 text-dp-text outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50"
         />
       </label>
       <label
@@ -106,7 +111,7 @@ function Settings({ nodeId, mission }: { nodeId: string; mission: Mission }) {
         />
         {t.routerLabel}
       </label>
-      <button type="button" onClick={() => setNight(true)} className="rounded-full border border-dp-line px-2.5 py-0.5 text-[11px] text-dp-text hover:bg-dp-card">
+      <button type="button" onClick={() => setNight(true)} className={PILL}>
         {t.nightButton}
       </button>
       {night && <OvernightDialog nodeId={nodeId} open onOpenChange={setNight} />}
@@ -117,7 +122,7 @@ function Settings({ nodeId, mission }: { nodeId: string; mission: Mission }) {
         type="button"
         data-link-toggle
         onClick={() => uiStore.getState().setLinking(linking ? null : nodeId)}
-        className="rounded-full bg-dp-accent px-2.5 py-0.5 text-[11px] font-semibold text-dp-on-accent hover:brightness-110"
+        className={cn(PILL, "border-transparent bg-dp-accent font-semibold text-dp-on-accent hover:bg-dp-accent hover:brightness-110")}
       >
         {linking ? t.done : t.link}
       </button>
@@ -133,7 +138,7 @@ function Plan({ mission }: { mission: Mission }) {
       {mission.task && <p className="text-dp-text">{mission.task}</p>}
       <ol className="flex flex-col gap-1">
         {plan.map((task, i) => (
-          <li key={i} className="rounded bg-dp-card px-2 py-1">
+          <li key={i} className="rounded-md bg-dp-card px-2 py-1">
             <div className="flex items-center gap-2 text-dp-text">
               <span className="font-medium">{task.title}</span>
               {task.level && (
@@ -164,7 +169,7 @@ function Queue({ mission }: { mission: Mission }) {
       <span className="font-semibold text-dp-text">{t.waitingTasks(queue.length)}</span>
       <ol className="flex flex-col gap-0.5">
         {queue.map((task) => (
-          <li key={task.title} className="flex items-center gap-2 rounded bg-dp-card px-2 py-0.5">
+          <li key={task.title} className="flex items-center gap-2 rounded-md bg-dp-card px-2 py-0.5">
             <span className="min-w-0 truncate">{task.title}</span>
             <span className="ml-auto shrink-0 font-mono text-[11px]">
               {task.group ? `${task.group.name} · ` : ""}
@@ -188,7 +193,7 @@ function PlanActions({ nodeId, mission }: { nodeId: string; mission: Mission }) 
         type="button"
         disabled={launching}
         onClick={() => void launchMission(nodeId)}
-        className="ml-auto rounded-full bg-dp-accent px-3 py-1 text-[11px] font-semibold text-dp-on-accent hover:brightness-110 disabled:opacity-60"
+        className={cn(PILL, "ml-auto border-transparent bg-dp-accent px-3 py-1 font-semibold text-dp-on-accent hover:bg-dp-accent hover:brightness-110")}
       >
         {launching ? t.launching : t.launch}
       </button>
@@ -210,7 +215,7 @@ function Team({ mission }: { mission: Mission }) {
         const steps = terminalOf(nodes[member.nodeId])?.steps ?? [];
         const done = steps.filter((s) => s.state === "fait").length;
         return (
-          <li key={member.nodeId || member.name} data-member={member.name} className="flex items-center gap-2 rounded bg-dp-card px-2 py-1">
+          <li key={member.nodeId || member.name} data-member={member.name} className="flex items-center gap-2 rounded-md bg-dp-card px-2 py-1">
             <span className="font-medium text-dp-text">{member.name}</span>
             <span className="min-w-0 truncate">{member.task}</span>
             {member.done && member.done.length > 0 && (
@@ -235,7 +240,7 @@ function Team({ mission }: { mission: Mission }) {
               title={t.reviewTitle(member.name)}
               aria-label={t.reviewLabel(member.name)}
               onClick={() => openReview(member.nodeId)}
-              className="shrink-0 rounded px-1 text-[11px] text-dp-text-2 hover:bg-dp-field hover:text-dp-text"
+              className="shrink-0 rounded-md px-1 text-[11px] text-dp-text-2 transition-[background-color,color] duration-150 ease-out hover:bg-dp-field hover:text-dp-text motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50"
             >
               {t.diff}
             </button>
@@ -276,7 +281,7 @@ function SummaryActions({ nodeId }: { nodeId: string }) {
   };
   return (
     <footer data-mission-actions className="flex shrink-0 justify-end border-t border-dp-line px-3 py-2">
-      <button type="button" onClick={() => void clean()} className="rounded-full border border-dp-line px-3 py-1 text-[11px] text-dp-text hover:bg-dp-card">
+      <button type="button" onClick={() => void clean()} className={cn(PILL, "px-3 py-1")}>
         {t.clean}
       </button>
     </footer>
