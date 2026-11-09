@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { RefreshCw } from "lucide-react";
+import { FileText, RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { studioRead } from "@/ipc/studio";
 import { useMessages } from "@/i18n";
 import { useNodes } from "@/store/nodes";
@@ -28,24 +29,23 @@ export function FileNode({ nodeId }: { nodeId: string }) {
 
   useEffect(load, [load]);
 
-  if (!path) return <div className="grid h-full place-items-center rounded-md border bg-card text-muted-foreground">{t.file.notFound}</div>;
+  if (!path) return <div className="grid h-full place-items-center rounded-xl border border-dp-line bg-dp-surface text-dp-text-2">{t.file.notFound}</div>;
   const name = path.split(/[\\/]/).pop() ?? path;
 
   return (
-    <div className="flex h-full flex-col overflow-hidden rounded-md border bg-card text-card-foreground">
-      <div className="flex items-center gap-2 border-b px-3 py-1.5">
-        <div className="min-w-0 flex-1">
-          <div className="truncate text-sm font-medium">{name}</div>
-          <div className="truncate text-xs text-muted-foreground" title={path}>{path}</div>
-        </div>
-        <button type="button" title={t.file.refresh} aria-label={t.file.refresh} onClick={load} className="rounded p-1 hover:bg-muted">
+    <div className="flex h-full flex-col overflow-hidden rounded-xl border border-dp-line bg-dp-surface text-dp-text">
+      <header className="flex h-9 shrink-0 items-center gap-2 border-b border-dp-line px-3">
+        <FileText className="size-4 shrink-0 text-dp-accent" />
+        <span className="shrink-0 truncate text-[13px] font-semibold text-dp-text">{name}</span>
+        <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-dp-text-2" title={path}>{path}</span>
+        <Button variant="ghost" size="icon-sm" title={t.file.refresh} aria-label={t.file.refresh} onClick={load}>
           <RefreshCw className="size-4" />
-        </button>
-      </div>
+        </Button>
+      </header>
       <div className="min-h-0 flex-1 overflow-auto p-3">
-        {content.state === "loading" && <p className="text-sm text-muted-foreground">{t.file.loading}</p>}
-        {content.state === "error" && <p className="text-sm text-destructive">{t.file.readFailed(content.message)}</p>}
-        {content.state === "ready" && content.text === "" && <p className="text-sm text-muted-foreground">{t.file.empty}</p>}
+        {content.state === "loading" && <p className="text-xs text-dp-text-2">{t.file.loading}</p>}
+        {content.state === "error" && <p className="text-xs text-dp-danger">{t.file.readFailed(content.message)}</p>}
+        {content.state === "ready" && content.text === "" && <p className="text-xs text-dp-text-2">{t.file.empty}</p>}
         {content.state === "ready" && content.text !== "" &&
           (isMarkdown(path) ? renderMarkdown(content.text) : <pre className="font-mono text-xs whitespace-pre">{content.text}</pre>)}
       </div>
