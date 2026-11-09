@@ -8,7 +8,7 @@ import { usePalette, useTheme } from "@/app/theme";
 import { completeArrival } from "@/commands/pendingArrival";
 import { assignMissingNames } from "@/fleet/naming";
 import { dismissResumeOffer, offerResumeAll } from "@/fleet/ResumeAllToast";
-import { createSpawnDragWatch, reflowAfterClose } from "@/fleet/spawnTree";
+import { createSpawnDragWatch, reflowSpawnTreesOf } from "@/fleet/spawnTree";
 import { adoptCopies } from "@/fleet/terminals";
 import { scheduleWireUpkeep } from "@/fleet/wireUpkeep";
 import { orchestratorLinks } from "@/fleet/wires";
@@ -139,6 +139,8 @@ function LoadedCanvas({ workspaceId, scene }: { workspaceId: string; scene: Load
             added.restored.forEach((id) => void nodesStore.getState().persist(id).catch(reportSaveError));
             // A closed orchestrator brought back takes its mission up again (spec première version §5.4).
             added.restored.forEach((id) => setOrchestratorClosed(id, false));
+            // A spawned agent brought back takes its place in its tree again.
+            reflowSpawnTreesOf(workspaceId, added.restored);
             if (added.copies.length) void adoptCopies(workspaceId, added.copies).catch(reportSaveError);
           },
           onNodesRemoved: (ids) => {
@@ -181,7 +183,7 @@ function LoadedCanvas({ workspaceId, scene }: { workspaceId: string; scene: Load
       removedNow.current = [];
       settleRemovals(verdict);
       // A closed spawned agent's tree closes up (flowchart layout).
-      reflowAfterClose(workspaceId, verdict.dispose);
+      reflowSpawnTreesOf(workspaceId, verdict.dispose);
       watchSpawnDrags(elements, appState);
       canvasStore.getState().setView(viewFrom(appState));
       canvasStore.getState().setDrawnSelection(drawnSelectionOf(elements, appState.selectedElementIds));

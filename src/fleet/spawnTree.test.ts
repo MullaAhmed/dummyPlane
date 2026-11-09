@@ -17,7 +17,7 @@ vi.mock("./sceneAccess", () => ({
 vi.mock("@/canvas/canvasStore", () => ({ canvasStore: { getState: () => ({ api: { updateScene } }) } }));
 vi.mock("@/canvas/sceneCache", () => ({ editStoredScene }));
 
-const { createSpawnDragWatch, reflowAfterClose, reflowSpawnTree } = await import("./spawnTree");
+const { createSpawnDragWatch, reflowSpawnTreesOf, reflowSpawnTree } = await import("./spawnTree");
 
 const { width: W } = NODE_SIZE.terminal;
 
@@ -69,18 +69,18 @@ describe("reflowSpawnTree", () => {
   });
 });
 
-describe("reflowAfterClose", () => {
+describe("reflowSpawnTreesOf", () => {
   it("lays the closed node's tree out again a frame later", () => {
     nodesStore.setState({ nodes: { root: record(), a: record("root"), b: record("root") } });
     scene.elements = [terminal("root", 0, 0), { ...terminal("a", W + GROUP_GAP, 0), isDeleted: true }, terminal("b", W + GROUP_GAP, 900)];
-    reflowAfterClose("w", ["a"]);
+    reflowSpawnTreesOf("w", ["a"]);
     expect(updateScene).not.toHaveBeenCalled();
     frames.forEach((cb) => cb(0));
     expect(at(written().elements, "b").y).toBe(0);
   });
 
   it("ignores nodes nobody spawned", () => {
-    reflowAfterClose("w", ["lone", "root"]);
+    reflowSpawnTreesOf("w", ["lone", "root"]);
     expect(frames).toHaveLength(0);
   });
 });
@@ -134,5 +134,41 @@ describe("createSpawnDragWatch", () => {
     watch(laid, dragging(["a"], false));
     watch([laid[0], { ...laid[1], x: 1 }], dragging(["a"], false));
     expect(frames).toHaveLength(0);
+  });
+});
+
+describe("closing and undoing", () => {
+  it("puts a closed node's tree back in place when an undo brings it back", () => {
+    nodesStore.setState({ nodes: { root: record(), a: record("root"), b: record("root"), a1: record("a") } });
+    const laid = [terminal("root", 0, 0), terminal("a", W + GROUP_GAP, 0), terminal("b", W + GROUP_GAP, 1400), terminal("a1", 2 * (W + GROUP_GAP), 0)];
+    // Closed: b and a1 close up into a's column.
+    scene.elements = laid.map((e) => (e.id === "a" ? { ...e, isDeleted: true } : e));
+    reflowSpawnTreesOf("w", ["a"]);
+    frames.splice(0).forEach((cb) => cb(0));
+    const closed = written().elements;
+    expect(at(closed, "a1").x).toBe(W + GROUP_GAP);
+    // The undo brings a back where it stood, over whatever took its place.
+    scene.elements = closed.map((e) => (e.id === "a" ? { ...e, isDeleted: false } : e));
+    reflowSpawnTreesOf("w", ["a"]);
+    frames.splice(0).forEach((cb) => cb(0));
+    const back = written().elements;
+    expect({ x: at(back, "a").x, y: at(back, "a").y }).toEqual({ x: W + GROUP_GAP, y: 0 });
+    expect({ x: at(back, "a1").x, y: at(back, "a1").y }).toEqual({ x: 2 * (W + GROUP_GAP), y: 0 });
+    expect(at(back, "b").y).toBeGreaterThan(at(back, "a").y + at(back, "a").height);
+  });
+});
+
+describe("dragging a whole tree", () => {
+  it("pins no child dragged along with its spawner", () => {
+    const watch = createSpawnDragWatch("w");
+    const laid = [terminal("root", 0, 0), terminal("a", W + GROUP_GAP, 0)];
+    const both = { selectedElementIds: { root: true as const, a: true as const } };
+    watch(laid, { ...both, selectedElementsAreBeingDragged: false });
+    const moved = laid.map((e) => ({ ...e, x: e.x + 500 }));
+    watch(moved, { ...both, selectedElementsAreBeingDragged: true });
+    scene.elements = moved;
+    watch(moved, { ...both, selectedElementsAreBeingDragged: false });
+    frames.forEach((cb) => cb(0));
+    expect(updateScene).not.toHaveBeenCalled();
   });
 });

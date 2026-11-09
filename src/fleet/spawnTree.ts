@@ -19,6 +19,16 @@ function hasSpawned(nodeId: string): boolean {
   return Object.values(nodesStore.getState().nodes).some((record) => record.kind === "terminal" && record.payload.spawnedBy === nodeId);
 }
 
+/** Whether a node up `nodeId`'s spawnedBy chain is in `ids`. */
+function hasAncestorIn(nodeId: string, ids: ReadonlySet<string>): boolean {
+  const seen = new Set([nodeId]);
+  for (let up = spawnedBy(nodeId); up && !seen.has(up); up = spawnedBy(up)) {
+    if (ids.has(up)) return true;
+    seen.add(up);
+  }
+  return false;
+}
+
 /** Where the nodes of the scene on screen stood at its last change: a node moved since was moved by that change. */
 const lastSeen = new Map<string, Point>();
 
@@ -58,12 +68,12 @@ export function reflowSpawnTree(workspaceId: string, nodeId: string, pin: readon
 }
 
 /**
- * After nodes closed: the trees of the spawned ones close up, their children
- * moving up to the nearest live ancestor. A frame later on screen: changing
- * the scene from inside `onChange` would re-enter it.
+ * After spawned nodes closed, or came back with an undo: their trees close up
+ * (children move up to the nearest live ancestor) or open again. A frame later
+ * on screen: changing the scene from inside `onChange` would re-enter it.
  */
-export function reflowAfterClose(workspaceId: string, closedIds: readonly string[]) {
-  const spawned = closedIds.filter((id) => spawnedBy(id) !== null);
+export function reflowSpawnTreesOf(workspaceId: string, nodeIds: readonly string[]) {
+  const spawned = nodeIds.filter((id) => spawnedBy(id) !== null);
   if (spawned.length === 0) return;
   const reflow = () => spawned.forEach((id) => reflowSpawnTree(workspaceId, id));
   if (sceneAccess(workspaceId)?.shown) requestAnimationFrame(reflow);
@@ -89,9 +99,11 @@ export function createSpawnDragWatch(workspaceId: string) {
     }
     if (dragging || dragged.size === 0) return;
     const ids = [...dragged].filter((id) => spawnedBy(id) !== null || hasSpawned(id));
+    const moved = new Set(dragged);
     dragged.clear();
     if (ids.length === 0) return;
-    const pin = ids.filter((id) => spawnedBy(id) !== null);
+    // A node dragged along with one of its ancestors was not placed by hand: the whole tree moved.
+    const pin = ids.filter((id) => spawnedBy(id) !== null && !hasAncestorIn(id, moved));
     requestAnimationFrame(() => ids.forEach((id) => reflowSpawnTree(workspaceId, id, pin)));
   };
 }
