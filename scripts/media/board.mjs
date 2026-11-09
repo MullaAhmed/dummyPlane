@@ -14,7 +14,7 @@ const before = await d.eval(`(async () => {
   return choice;
 })()`);
 await s.panel(d, sleep, false);
-await s.fit(d, sleep, 0.9, 1, -10, `!["orchestrator", "wire"].includes(e.customData?.openvibe?.kind ?? e.customData?.kind)`, 14);
+await s.fit(d, sleep, 0.9, 1, -10, `!["orchestrator", "wire"].includes(e.customData?.dummyplane?.kind ?? e.customData?.kind)`, 14);
 await sleep(1500);
 const shot = await d.send("Page.captureScreenshot", { format: "png" });
 fs.writeFileSync(out, Buffer.from(shot.data, "base64"));

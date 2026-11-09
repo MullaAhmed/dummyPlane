@@ -187,7 +187,7 @@ fn disk_version(path: &Path, file: &str) -> Result<Option<String>, String> {
 fn replace(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     let folder = path.parent().ok_or(ErrorKind::NotFound)?;
     let permissions = std::fs::metadata(path).ok().map(|m| m.permissions());
-    let temporary = folder.join(format!(".openvibe-{}.tmp", Uuid::new_v4()));
+    let temporary = folder.join(format!(".dummyplane-{}.tmp", Uuid::new_v4()));
     let written = (|| {
         let mut file = std::fs::File::create(&temporary)?;
         file.write_all(bytes)?;

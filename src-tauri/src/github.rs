@@ -1,4 +1,4 @@
-//! GitHub issues and Projects for the Kanban, through the `gh` CLI: OpenVibe
+//! GitHub issues and Projects for the Kanban, through the `gh` CLI: dummyPlane
 //! stores no token, the user's own `gh auth login` is used.
 
 use std::path::Path;

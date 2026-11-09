@@ -7,7 +7,7 @@ import { changelogSection } from "./release-lib.mjs";
 const version = (process.argv[2] ?? "").replace(/^v/, "");
 const install = `---
 
-**Install:** download \`OpenVibe_${version}_x64-setup.exe\` below and run it (Windows 10/11, no admin rights needed). Installed versions update themselves.
+**Install:** download \`dummyPlane_${version}_x64-setup.exe\` below and run it (Windows 10/11, no admin rights needed). Installed versions update themselves.
 
 Betas are not code-signed yet: if Windows SmartScreen stops the installer, choose **More info**, then **Run anyway**.`;
 

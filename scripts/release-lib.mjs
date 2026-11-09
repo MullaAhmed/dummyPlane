@@ -29,7 +29,7 @@ export function bumpCargoToml(text, version) {
 
 export function bumpCargoLock(text, version) {
   requireSemver(version);
-  return replaceOnce(text, /^(name = "openvibe"\r?\nversion = ")[^"]*(")/m, `$1${version}$2`, "openvibe package in Cargo.lock");
+  return replaceOnce(text, /^(name = "dummyplane"\r?\nversion = ")[^"]*(")/m, `$1${version}$2`, "dummyplane package in Cargo.lock");
 }
 
 const UNRELEASED = "## [Unreleased]";

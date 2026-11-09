@@ -1,5 +1,5 @@
 //! Claude profiles (spec comptes): a name and a folder, nothing else. The
-//! folder is Claude Code's own `CLAUDE_CONFIG_DIR`. OpenVibe reads its
+//! folder is Claude Code's own `CLAUDE_CONFIG_DIR`. dummyPlane reads its
 //! `settings.json` for the status line and the names under `projects` to know
 //! whether a conversation can be resumed; it never reads a conversation or the
 //! login, and copies or logs nothing.
@@ -33,7 +33,7 @@ pub struct Accounts {
     pub active: Option<String>,
 }
 
-/// A folder OpenVibe may hand to Claude as `CLAUDE_CONFIG_DIR`: absolute,
+/// A folder dummyPlane may hand to Claude as `CLAUDE_CONFIG_DIR`: absolute,
 /// without `..` or control characters. Returned as given.
 pub fn checked_dir(dir: &str) -> AppResult<PathBuf> {
     let path = Path::new(dir.trim());
@@ -211,7 +211,7 @@ mod tests {
         let accounts = db.with(|conn| load(conn)).unwrap();
         assert!(accounts.profiles.is_empty());
         assert_eq!(accounts.active, None, "the active profile went with it");
-        assert!(dir.is_dir(), "the folder is not OpenVibe's to delete");
+        assert!(dir.is_dir(), "the folder is not dummyPlane's to delete");
         db.with(|conn| set_active(conn, None)).unwrap();
     }
 }

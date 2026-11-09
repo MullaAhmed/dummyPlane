@@ -11,7 +11,7 @@ use crate::process::hide_window;
 use crate::pty::PtyManager;
 use crate::pty::shell::{Agent, binary, find_git_bash, which_locate};
 
-/// Right before the installer closes OpenVibe (spec première version §6.4):
+/// Right before the installer closes dummyPlane (spec première version §6.4):
 /// the agents stop and their final output is saved now, the scene and nodes
 /// having been saved by the interface. The installer ends the process with
 /// `std::process::exit`, so the app's own exit handling never runs.
@@ -75,7 +75,7 @@ pub struct Diagnostics {
     pub agents: Vec<FoundAgent>,
     pub git: Option<String>,
     pub git_bash: Option<String>,
-    /// OpenVibe's local hooks and MCP server runs.
+    /// dummyPlane's local hooks and MCP server runs.
     pub server: bool,
     pub data_dir: String,
     pub log_dir: String,

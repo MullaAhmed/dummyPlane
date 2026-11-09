@@ -1,4 +1,4 @@
-//! The project's notes (spec notes §3): plain Markdown in `.openvibe/notes/`, so
+//! The project's notes (spec notes §3): plain Markdown in `.dummyplane/notes/`, so
 //! that agents can simply read them. Only names arrive here, never paths, and
 //! the studio's confinement does the rest.
 
@@ -19,7 +19,7 @@ pub const MAX_NOTES: usize = 1000;
 pub const MAX_TOTAL_BYTES: u64 = 32 * 1024 * 1024;
 pub const MAX_NAME_CHARS: usize = 120;
 
-const NOTES_FOLDER: &str = ".openvibe/notes";
+const NOTES_FOLDER: &str = ".dummyplane/notes";
 const EXTENSION: &str = ".md";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -68,7 +68,7 @@ fn note_file(name: &str) -> Result<String, String> {
 }
 
 /// The notes folder, which may not exist yet, and never outside the project:
-/// a `.openvibe` or `notes` link that leaves it is refused.
+/// a `.dummyplane` or `notes` link that leaves it is refused.
 fn notes_root(project: &Path, create: bool) -> Result<PathBuf, String> {
     let root = studio::resolve(project, NOTES_FOLDER)?;
     if !create {
@@ -196,7 +196,7 @@ pub fn attached_in_scene(elements_json: &str, node_id: &str) -> Vec<String> {
     else {
         return Vec::new();
     };
-    frame["customData"]["openvibe"]["notes"]
+    frame["customData"]["dummyplane"]["notes"]
         .as_array()
         .map(|notes| {
             notes
@@ -274,7 +274,7 @@ mod tests {
     use crate::db::{Db, scenes, test_workspace};
 
     fn notes_of(project: &Path) -> PathBuf {
-        project.join(".openvibe").join("notes")
+        project.join(".dummyplane").join("notes")
     }
 
     fn project(notes: &[(&str, &[u8])]) -> TempDir {
@@ -363,7 +363,7 @@ mod tests {
             assert!(read(dir.path(), name).is_err(), "{name}");
             assert!(version(dir.path(), name).is_err(), "{name}");
         }
-        assert!(!dir.path().join(".openvibe").exists());
+        assert!(!dir.path().join(".dummyplane").exists());
         assert!(!dir.path().join("escape.md").exists());
     }
 
@@ -416,7 +416,7 @@ mod tests {
         assert_eq!(version(dir.path(), "plan").unwrap(), None);
         let refused = read(dir.path(), "plan").unwrap_err();
         assert_eq!(refused, "note not found: plan");
-        assert!(!dir.path().join(".openvibe").exists());
+        assert!(!dir.path().join(".dummyplane").exists());
     }
 
     #[test]
@@ -498,9 +498,9 @@ mod tests {
             if link_at_parent {
                 std::fs::create_dir(outside.path().join("notes")).unwrap();
                 std::fs::write(outside.path().join("notes").join("secret.md"), "secret").unwrap();
-                junction(&dir.path().join(".openvibe"), outside.path());
+                junction(&dir.path().join(".dummyplane"), outside.path());
             } else {
-                std::fs::create_dir(dir.path().join(".openvibe")).unwrap();
+                std::fs::create_dir(dir.path().join(".dummyplane")).unwrap();
                 junction(&notes_of(dir.path()), outside.path());
             }
             assert!(all(dir.path()).is_err());
@@ -532,7 +532,7 @@ mod tests {
     #[test]
     fn finds_the_notes_of_a_node_s_group() {
         let json = scene(json!([
-            { "id": "f", "type": "frame", "customData": { "openvibe": { "kind": "group", "notes": ["plan", "archi"] } } },
+            { "id": "f", "type": "frame", "customData": { "dummyplane": { "kind": "group", "notes": ["plan", "archi"] } } },
             { "id": "n", "type": "embeddable", "frameId": "f" },
         ]));
         assert_eq!(attached_in_scene(&json, "n"), ["plan", "archi"]);
@@ -541,7 +541,7 @@ mod tests {
     #[test]
     fn a_node_outside_a_group_has_no_notes() {
         let json = scene(json!([
-            { "id": "f", "type": "frame", "customData": { "openvibe": { "notes": ["plan"] } } },
+            { "id": "f", "type": "frame", "customData": { "dummyplane": { "notes": ["plan"] } } },
             { "id": "free", "type": "embeddable", "frameId": null },
         ]));
         assert!(attached_in_scene(&json, "free").is_empty());
@@ -551,12 +551,12 @@ mod tests {
     #[test]
     fn ignores_deleted_elements() {
         let frame_gone = scene(json!([
-            { "id": "f", "type": "frame", "isDeleted": true, "customData": { "openvibe": { "notes": ["plan"] } } },
+            { "id": "f", "type": "frame", "isDeleted": true, "customData": { "dummyplane": { "notes": ["plan"] } } },
             { "id": "n", "frameId": "f" },
         ]));
         assert!(attached_in_scene(&frame_gone, "n").is_empty());
         let node_gone = scene(json!([
-            { "id": "f", "type": "frame", "customData": { "openvibe": { "notes": ["plan"] } } },
+            { "id": "f", "type": "frame", "customData": { "dummyplane": { "notes": ["plan"] } } },
             { "id": "n", "frameId": "f", "isDeleted": true },
         ]));
         assert!(attached_in_scene(&node_gone, "n").is_empty());
@@ -565,7 +565,7 @@ mod tests {
     #[test]
     fn only_a_frame_carries_notes() {
         let json = scene(json!([
-            { "id": "f", "type": "rectangle", "customData": { "openvibe": { "notes": ["plan"] } } },
+            { "id": "f", "type": "rectangle", "customData": { "dummyplane": { "notes": ["plan"] } } },
             { "id": "n", "frameId": "f" },
         ]));
         assert!(attached_in_scene(&json, "n").is_empty());
@@ -574,7 +574,7 @@ mod tests {
     #[test]
     fn keeps_only_valid_names_and_survives_anything_malformed() {
         let json = scene(json!([
-            { "id": "f", "type": "frame", "customData": { "openvibe": { "notes": ["plan", 3, null, "../up", "a/b", ""] } } },
+            { "id": "f", "type": "frame", "customData": { "dummyplane": { "notes": ["plan", 3, null, "../up", "a/b", ""] } } },
             { "id": "n", "frameId": "f" },
         ]));
         assert_eq!(attached_in_scene(&json, "n"), ["plan"]);
@@ -584,7 +584,7 @@ mod tests {
             "{}",
             "null",
             "[1, 2]",
-            r#"[{"id":"f","type":"frame","customData":{"openvibe":{"notes":"plan"}}},{"id":"n","frameId":"f"}]"#,
+            r#"[{"id":"f","type":"frame","customData":{"dummyplane":{"notes":"plan"}}},{"id":"n","frameId":"f"}]"#,
             r#"[{"id":"f","type":"frame","customData":3},{"id":"n","frameId":"f"}]"#,
             r#"[{"id":"n","frameId":7}]"#,
         ] {
@@ -603,7 +603,7 @@ mod tests {
         let (db, workspace) = database();
         db.with(|conn| {
             nodes::save(conn, "n", &workspace, NodeKind::Terminal, "{}")?;
-            assert_eq!(project_of_node(conn, "n")?.path, "C:/openvibe-tests");
+            assert_eq!(project_of_node(conn, "n")?.path, "C:/dummyplane-tests");
             assert!(matches!(
                 project_of_node(conn, "unknown"),
                 Err(AppError::NotFound(_))
@@ -617,7 +617,7 @@ mod tests {
     fn reads_the_attached_notes_in_the_saved_scene() {
         let (db, workspace) = database();
         let elements = scene(json!([
-            { "id": "f", "type": "frame", "customData": { "openvibe": { "notes": ["plan"] } } },
+            { "id": "f", "type": "frame", "customData": { "dummyplane": { "notes": ["plan"] } } },
             { "id": "n", "frameId": "f" },
         ]));
         db.with(|conn| {

@@ -13,7 +13,7 @@ py -3.12 -m venv .venv-media
 
 | File | Made by |
 |---|---|
-| `docs/assets/brand/openvibe-mark.svg`, `openvibe-wave.svg`, `openvibe-lockup-{dark,light}.svg` | `logos.py`: the wave mark (spec identité §4.1) and the wordmark, its text outlined from Inter SemiBold |
+| `docs/assets/brand/dummyplane-mark.svg`, `dummyplane-wave.svg`, `dummyplane-lockup-{dark,light}.svg` | `logos.py`: the wave mark (spec identité §4.1) and the wordmark, its text outlined from Inter SemiBold |
 | `docs/assets/brand/banner-{dark,light}.png`, `social-preview.png` | `banner.html` in the same folder, rendered by `shot.py` |
 
 ```powershell
@@ -33,7 +33,7 @@ The recordings are made from the real app. The scripts drive the page through We
 
    ```powershell
    $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS='--remote-debugging-port=9223'
-   pnpm tauri dev --config '{\"identifier\":\"dev.openvibe.probe\"}'
+   pnpm tauri dev --config '{\"identifier\":\"dev.dummyplane.probe\"}'
    ```
 
 2. Create the demo repository, a throwaway `acme-shop` in your temp folder with one uncommitted change, then open it as a project:
@@ -50,7 +50,7 @@ The recordings are made from the real app. The scripts drive the page through We
    ```powershell
    node scripts/media/reset.mjs                # empties the canvas, stops its agents
    node scripts/media/rec.mjs broadcast
-   .venv-media\Scripts\python scripts/media/gif.py $env:TEMP\openvibe-media\frames\broadcast docs/assets/demo/broadcast.gif --width 1200 --cap 1.5
+   .venv-media\Scripts\python scripts/media/gif.py $env:TEMP\dummyplane-media\frames\broadcast docs/assets/demo/broadcast.gif --width 1200 --cap 1.5
    ```
 
    `launch` and `icons` start from an empty canvas. `broadcast` and `review` start their own group, and `commands` reuses the group that `broadcast` left. For `icons`, add `--speed 1.7` to `gif.py`. `sheet.py <gif> <png>` makes a contact sheet to check a GIF at a glance.

@@ -1,6 +1,6 @@
-# Backlog OpenVibe
+# Backlog dummyPlane
 
-Ce qui est reporté. La spec en cours est `docs/superpowers/specs/2026-10-24-openvibe-habillage-et-flotte-design.md` (habillage Symvibe et flotte d'agents). Les références « vidéo » renvoient aux démos de Symvibe analysées le 2026-10-24.
+Ce qui est reporté. La spec en cours est `docs/superpowers/specs/2026-10-24-dummyplane-habillage-et-flotte-design.md` (habillage Symvibe et flotte d'agents). Les références « vidéo » renvoient aux démos de Symvibe analysées le 2026-10-24.
 
 ## Idée générale de prochaine mise à jour
 
@@ -87,7 +87,7 @@ Ce qui est reporté. La spec en cours est `docs/superpowers/specs/2026-10-24-ope
 
 ## Constats du plan C1 (fenêtre et livraison, relecture finale)
 
-- Deux « Fermer » dans la rangée du haut : la pastille « × Fermer » (ferme le projet) et le bouton de fenêtre (quitte l'application, arrête les agents) ont la même info-bulle. Renommer celle du bouton de fenêtre « Fermer OpenVibe » (comme spec fenêtre §7.3) ; change la spec §4.3.
+- Deux « Fermer » dans la rangée du haut : la pastille « × Fermer » (ferme le projet) et le bouton de fenêtre (quitte l'application, arrête les agents) ont la même info-bulle. Renommer celle du bouton de fenêtre « Fermer dummyPlane » (comme spec fenêtre §7.3) ; change la spec §4.3.
 - Les 8 px entre deux pastilles de la barre du haut ne cliquent ni ne déplacent la fenêtre : rendre les conteneurs `pointer-events-none` et leurs enfants `pointer-events-auto`.
 - La bande de déplacement suppose que ProjectView et HomeScreen ne créent pas de contexte d'empilement (TopBar z-30 au-dessus de DragStrip z-20) : le documenter par un commentaire avant que J7/J8 n'y ajoutent `isolate`, transform ou opacity.
 - Le test « sits on an opaque pill » de `WindowControls` ne vérifie que des noms de classes : fragile face à la refonte.
@@ -141,7 +141,7 @@ Ce qui est reporté. La spec en cours est `docs/superpowers/specs/2026-10-24-ope
 - Une commande `/…` ne va pas aux terminaux « Personnalisé », même quand ils lancent un agent (Claude avec des options) : à trancher.
 
 ### Remote Control
-- Juste après un démarrage, Claude dessine encore son écran : OpenVibe le croit au travail ~1,5 s et répond « à la fin de son tour ». La demande est appliquée dès qu'il se calme.
+- Juste après un démarrage, Claude dessine encore son écran : dummyPlane le croit au travail ~1,5 s et répond « à la fin de son tour ». La demande est appliquée dès qu'il se calme.
 
 ### Routeur de modèles
 - Supprimer un orchestrateur en pleine mission laisse ses agents reliés dans leur worktree, avec le modèle du routeur (la puce de l'en-tête permet de revenir au modèle par défaut).
@@ -154,8 +154,8 @@ Ce qui est reporté. La spec en cours est `docs/superpowers/specs/2026-10-24-ope
 - Une erreur de lecture reste affichée si le dossier de l'agent change (les clés des onglets n'incluent pas le dossier).
 
 ### Usage dans la barre du haut
-- `CLAUDE_CONFIG_DIR` est lu dans l'environnement d'OpenVibe, pas dans celui du terminal ; la ligne d'état de l'utilisateur est lue au démarrage de chaque session seulement.
-- `--resume` garde le même identifiant de session : le coût cumulé que Claude restaure peut compter des dépenses d'avant l'ouverture d'OpenVibe.
+- `CLAUDE_CONFIG_DIR` est lu dans l'environnement d'dummyPlane, pas dans celui du terminal ; la ligne d'état de l'utilisateur est lue au démarrage de chaque session seulement.
+- `--resume` garde le même identifiant de session : le coût cumulé que Claude restaure peut compter des dépenses d'avant l'ouverture d'dummyPlane.
 
 ## Constats du jalon R2 (sécurité)
 
@@ -169,10 +169,10 @@ Ce qui est reporté. La spec en cours est `docs/superpowers/specs/2026-10-24-ope
 
 ## Constats du jalon R4 (installeur et mises à jour)
 
-- Le redémarrage d'OpenVibe après l'installation repose sur l'installeur NSIS en mode mise à jour : à vérifier sur la première mise à jour réelle (bêta 1 → bêta 2).
+- Le redémarrage d'dummyPlane après l'installation repose sur l'installeur NSIS en mode mise à jour : à vérifier sur la première mise à jour réelle (bêta 1 → bêta 2).
 - Le build de release n'a pas encore tourné en CI : le lancer à la main (Actions → Release) une fois les secrets de signature posés, et vérifier qu'une version à suffixe (`1.0.0-beta.1`) passe dans l'installeur.
 - `release.yml` ne lance que les tests de l'interface (la CI sur `main` couvre le reste du même commit) ; actions épinglées par version majeure, pas par SHA ; pas de règle de protection des tags `v*`.
-- `SECURITY.md` : le tableau des versions suivies dit encore `main (0.1.x)` ; le CHANGELOG doit présenter OpenVibe (fonctions principales) avant la première bêta.
+- `SECURITY.md` : le tableau des versions suivies dit encore `main (0.1.x)` ; le CHANGELOG doit présenter dummyPlane (fonctions principales) avant la première bêta.
 
 ## Constats du jalon R5a (langues)
 

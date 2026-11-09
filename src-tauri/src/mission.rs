@@ -1,5 +1,5 @@
 //! Worktrees and branches of a mission (spec orchestrateur §7.4, §7.6, §7.7).
-//! OpenVibe works beside the user's folder, never in their branch: no push,
+//! dummyPlane works beside the user's folder, never in their branch: no push,
 //! no force.
 
 use std::path::{Path, PathBuf};
@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::process::hide_window;
 
-/// A worktree OpenVibe made, on a branch of its own.
+/// A worktree dummyPlane made, on a branch of its own.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Worktree {
@@ -124,7 +124,7 @@ fn locate(project: &Path) -> Result<(PathBuf, PathBuf), String> {
 }
 
 fn add_worktree(root: &Path, dir: &Path, slug: &str, from: &str) -> Result<Worktree, String> {
-    let branch = format!("openvibe/{slug}");
+    let branch = format!("dummyplane/{slug}");
     if git(
         root,
         &[
@@ -170,7 +170,7 @@ pub fn prepare(project: &Path, name: &str) -> Result<Worktree, String> {
 pub fn add_agent(project: &Path, mission: &str, agent: &str) -> Result<Worktree, String> {
     let (root, dir) = locate(project)?;
     let name = format!("{mission}-{}", slug(agent));
-    add_worktree(&root, &dir, &name, &format!("openvibe/{mission}"))
+    add_worktree(&root, &dir, &name, &format!("dummyplane/{mission}"))
 }
 
 /// Merges an agent's branch into the mission's, in the mission's worktree; a conflict is undone.
@@ -269,7 +269,7 @@ pub fn cleanup(project: &Path, mission: &str, agents: &[String]) -> Result<Clean
             "branch",
             "--format=%(refname:short)",
             "--merged",
-            &format!("openvibe/{mission}"),
+            &format!("dummyplane/{mission}"),
         ],
     )?;
     let merged: Vec<&str> = merged.lines().map(str::trim).collect();
@@ -280,7 +280,7 @@ pub fn cleanup(project: &Path, mission: &str, agents: &[String]) -> Result<Clean
         if !path.exists() {
             continue;
         }
-        if merged.contains(&format!("openvibe/{name}").as_str()) {
+        if merged.contains(&format!("dummyplane/{name}").as_str()) {
             remove_worktree(&root, name, &path, &mut done);
         } else {
             done.kept.push(format!("{name} (branch not merged)"));
@@ -403,7 +403,7 @@ mod tests {
         };
         let tree = prepare(&proj, "Ajoute l'Authentification").unwrap();
         assert_eq!(tree.slug, "ajoute-l-authentification");
-        assert_eq!(tree.branch, "openvibe/ajoute-l-authentification");
+        assert_eq!(tree.branch, "dummyplane/ajoute-l-authentification");
         assert!(same(
             &tree.path,
             parent
@@ -445,7 +445,7 @@ mod tests {
         commit(Path::new(&mission.path), "m.txt", "m\n", "mission base");
         let agent = add_agent(&proj, &mission.slug, "Athéna").unwrap();
         assert_eq!(agent.slug, "auth-athena");
-        assert_eq!(agent.branch, "openvibe/auth-athena");
+        assert_eq!(agent.branch, "dummyplane/auth-athena");
         assert!(same(
             &agent.path,
             parent.path().join("proj.worktrees").join("auth-athena")
@@ -547,12 +547,12 @@ mod tests {
         );
         assert_eq!(
             done.kept,
-            vec!["openvibe/auth-apollon (branch not merged)".to_string()]
+            vec!["dummyplane/auth-apollon (branch not merged)".to_string()]
         );
         assert!(!parent.path().join("proj.worktrees").join("auth").exists());
         assert_eq!(
-            run(&proj, &["branch", "--list", "openvibe/*"]),
-            "openvibe/auth-apollon"
+            run(&proj, &["branch", "--list", "dummyplane/*"]),
+            "dummyplane/auth-apollon"
         );
         // The same plan can be launched again.
         prepare(&proj, "auth").unwrap();
@@ -585,7 +585,7 @@ mod tests {
             vec!["auth-apollon".to_string(), "auth".to_string()]
         );
         assert!(!parent.path().join("proj.worktrees").join("auth").exists());
-        let branches = run(&proj, &["branch", "--list", "openvibe/*"]);
-        assert!(branches.contains("openvibe/auth-apollon") && branches.contains("openvibe/auth"));
+        let branches = run(&proj, &["branch", "--list", "dummyplane/*"]);
+        assert!(branches.contains("dummyplane/auth-apollon") && branches.contains("dummyplane/auth"));
     }
 }

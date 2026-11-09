@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: light)" srcset="docs/assets/brand/banner-light.png">
-    <img alt="OpenVibe: an infinite canvas of real terminals for your AI coding agents" src="docs/assets/brand/banner-dark.png" width="100%">
+    <img alt="dummyPlane: an infinite canvas of real terminals for your AI coding agents" src="docs/assets/brand/banner-dark.png" width="100%">
   </picture>
 </p>
 
@@ -16,14 +16,14 @@
   <b>English</b> · <a href="README.fr.md">Français</a>
 </p>
 
-OpenVibe is a desktop app that puts your AI coding agents on an infinite canvas. Each agent runs in a **real terminal** (Claude Code, Codex, Gemini CLI and more). You group agents into teams, brief a whole team in one line, review their changes, and hand a large task to an **orchestrator** that splits it, staffs it and keeps time.
+dummyPlane is a desktop app that puts your AI coding agents on an infinite canvas. Each agent runs in a **real terminal** (Claude Code, Codex, Gemini CLI and more). You group agents into teams, brief a whole team in one line, review their changes, and hand a large task to an **orchestrator** that splits it, staffs it and keeps time.
 
-Everything runs on your machine. OpenVibe adds no cloud service and no telemetry, and it never skips an agent's permission prompts. Its only request of its own is a check for updates, which you can turn off.
+Everything runs on your machine. dummyPlane adds no cloud service and no telemetry, and it never skips an agent's permission prompts. Its only request of its own is a check for updates, which you can turn off.
 
-If you know Symvibe, OpenVibe covers the same ground (driving a fleet of CLI agents from an infinite canvas) as an independent, open-source project with its own design and features.
+If you know Symvibe, dummyPlane covers the same ground (driving a fleet of CLI agents from an infinite canvas) as an independent, open-source project with its own design and features.
 
 > [!NOTE]
-> OpenVibe is an early preview, built and tested on **Windows 10/11**. Its interface speaks **English and French**: it follows Windows, and the settings menu switches it.
+> dummyPlane is an early preview, built and tested on **Windows 10/11**. Its interface speaks **English and French**: it follows Windows, and the settings menu switches it.
 
 <picture>
   <source media="(prefers-color-scheme: light)" srcset="docs/assets/screenshots/board-light.png">
@@ -49,23 +49,23 @@ If you know Symvibe, OpenVibe covers the same ground (driving a fleet of CLI age
   - Give a group a **speciality** (one line, from its menu): a linked orchestrator reads it to hand each sub-task to the right group.
   - **Fold** a group onto its label with the chevron: its terminals leave the screen, nothing stops, and the label keeps its counters. Going to one of its agents unfolds it; a group can't be folded while its agents are still starting.
   - Save the team on screen as a **preset** (*Enregistrer l'équipe comme preset…* in the function palette) and deploy it in any project with *Déployer l'équipe*. A preset keeps the shape only: groups, roles, specialities, agents and links, never instructions or history.
-- **Live states.** OpenVibe shows whether each agent is starting, ready, running, waiting for you, stopped or done, both on the canvas and in the Agents panel. For Claude Code the state comes from its hooks; for other agents, from their output.
-- **One instruction box for everyone.** Address `@tous` (everyone), a group, an agent, or several at once (`@athena/hermes`). A line starting with `/` goes to the agents' CLI as a command, and OpenVibe suggests Claude Code's commands. The history keeps your last 50 instructions per project.
+- **Live states.** dummyPlane shows whether each agent is starting, ready, running, waiting for you, stopped or done, both on the canvas and in the Agents panel. For Claude Code the state comes from its hooks; for other agents, from their output.
+- **One instruction box for everyone.** Address `@tous` (everyone), a group, an agent, or several at once (`@athena/hermes`). A line starting with `/` goes to the agents' CLI as a command, and dummyPlane suggests Claude Code's commands. The history keeps your last 50 instructions per project.
 - **An orchestrator that manages.** Give it a goal. It proposes a plan, gives each agent a sub-task on its own git branch and worktree, watches the time budget and merges the results into a mission branch. Details are [below](#the-orchestrator).
 - **Change review.** See what an agent changed, either uncommitted or since its base, browse the repository read-only, and click a line to leave a remark. All remarks go back to the agent in one message.
 - **Hear about questions.** When an agent waits for you, a notice stays at the bottom left of the window until it stops waiting, and a Windows notification appears if the window is not in focus (switch it off in the settings menu). A click takes you to the agent, and a palette command goes to the next one that waits.
 - **Remote Control.** Turn on Claude Code's Remote Control for one agent, a group or the whole team, and follow them from your phone.
 - **Usage at a glance.** The title bar shows your Claude subscription's session and weekly limits. Click it for cost, durations, tokens per model, prompt cache state and an estimate of CO₂.
-- **Tokens over 30 days.** From the usage detail, a chart of the tokens you used each day, and their share by agent and by model. OpenVibe reads the logs Claude Code already keeps on your disk, counters only, never the conversations; nothing is sent anywhere. Codex is not read yet.
-- **Code Studio.** Fix a file by hand without leaving OpenVibe. Each project has a code workspace, an IDE tab beside its canvases, opened from the right rail or the function palette: the repository's tree, files in tabs with syntax colours in both themes, `Ctrl+S`, a Markdown preview, and *Insert* to put the file on a canvas. `Ctrl+P` finds a file, `App.tsx:42` included, and `Ctrl+G` goes to a line. If an agent wrote the file meanwhile, the save is refused and you choose: reload, or overwrite what you saw.
-- **Notes.** Notes are Markdown files in `.openvibe/notes/` of the project, so an agent can read them without OpenVibe. Link them with `[[name]]`, search them, see their backlinks and their graph, and attach notes to a group. A read-only tool lets agents list and read them.
+- **Tokens over 30 days.** From the usage detail, a chart of the tokens you used each day, and their share by agent and by model. dummyPlane reads the logs Claude Code already keeps on your disk, counters only, never the conversations; nothing is sent anywhere. Codex is not read yet.
+- **Code Studio.** Fix a file by hand without leaving dummyPlane. Each project has a code workspace, an IDE tab beside its canvases, opened from the right rail or the function palette: the repository's tree, files in tabs with syntax colours in both themes, `Ctrl+S`, a Markdown preview, and *Insert* to put the file on a canvas. `Ctrl+P` finds a file, `App.tsx:42` included, and `Ctrl+G` goes to a line. If an agent wrote the file meanwhile, the save is refused and you choose: reload, or overwrite what you saw.
+- **Notes.** Notes are Markdown files in `.dummyplane/notes/` of the project, so an agent can read them without dummyPlane. Link them with `[[name]]`, search them, see their backlinks and their graph, and attach notes to a group. A read-only tool lets agents list and read them.
 - **Install an agent from the app.** For an agent that is not found, *Installer* shows the official command in full, then runs it in a visible terminal on the canvas that you can interrupt. Ollama models install the same way. Nothing is fetched or run in the background.
 - **Loops.** Send an instruction again and again, with brakes. A loop fires every N minutes, when an agent goes idle, or when its screen shows a text; it must end after a number of turns (up to 1000) or a duration (up to 24 hours), whichever comes first. It never writes to an agent that waits for you, is stopped or is starting. A pill at the bottom left counts the running loops and their turns, with *Tout arrêter* one click away, and every loop is off again after a restart. Three templates (progress report, relaunch, watch the tests) fill the form but start nothing.
-- **Several Claude accounts.** A profile is only a name and a folder (Claude Code's `CLAUDE_CONFIG_DIR`). *Comptes Claude…* in the function palette lists them: *Utiliser* makes one the account of the next Claude agents, *Se connecter* opens a visible terminal to sign in, *Retirer* forgets a profile and leaves its folder alone. A terminal keeps the account it started with, and shows it in its header. OpenVibe never reads, copies or stores a credential.
-- **A git window.** Click the branch chip at the bottom left: the files changed in the project, their diff, a tick per file to commit exactly those, the history, and a *Pousser* button that names its target (`Pousser 3 → origin/main`). Discarding a file asks first and says what is lost; this button is the only route to a push inside OpenVibe's own tools: it goes only when you click, and it never forces. An agent running commands in a terminal is limited only by its permissions.
+- **Several Claude accounts.** A profile is only a name and a folder (Claude Code's `CLAUDE_CONFIG_DIR`). *Comptes Claude…* in the function palette lists them: *Utiliser* makes one the account of the next Claude agents, *Se connecter* opens a visible terminal to sign in, *Retirer* forgets a profile and leaves its folder alone. A terminal keeps the account it started with, and shows it in its header. dummyPlane never reads, copies or stores a credential.
+- **A git window.** Click the branch chip at the bottom left: the files changed in the project, their diff, a tick per file to commit exactly those, the history, and a *Pousser* button that names its target (`Pousser 3 → origin/main`). Discarding a file asks first and says what is lost; this button is the only route to a push inside dummyPlane's own tools: it goes only when you click, and it never forces. An agent running commands in a terminal is limited only by its permissions.
 - **Overnight run.** Say how long you will be away: an orchestrator plans, a team works through a queue of tickets, and a morning report waits for you. See [Overnight run](#overnight-run), and read its warnings first.
 - **Icon libraries.** About 600 icons from the Excalidraw community (system design, AWS, Azure, GCP), bundled with the app, for sketching architecture next to the agents that build it.
-- **Projects and workspaces.** One project per folder, several workspace tabs per project; drag the tabs to reorder them (or `Alt+←` / `Alt+→` on a tab, or its menu), and the order is remembered. OpenVibe saves everything locally and, after a restart, offers to resume your Claude conversations.
+- **Projects and workspaces.** One project per folder, several workspace tabs per project; drag the tabs to reorder them (or `Alt+←` / `Alt+→` on a tab, or its menu), and the order is remembered. dummyPlane saves everything locally and, after a restart, offers to resume your Claude conversations.
 - **Keyboard first.** Use the palettes, jump between terminals, or right-press anywhere for the radial menu. Light and dark themes follow Windows.
 
 ## A tour
@@ -90,7 +90,7 @@ If you know Symvibe, OpenVibe covers the same ground (driving a fleet of CLI age
 
 ![The icon libraries: API Gateway, Lambda and DynamoDB placed and linked with arrows](docs/assets/demo/icons.gif)
 
-**Check your usage.** The meter in the title bar opens the detail: subscription limits and when they reset, cost and durations of OpenVibe's sessions, tokens per model, and each session's prompt cache.
+**Check your usage.** The meter in the title bar opens the detail: subscription limits and when they reset, cost and durations of dummyPlane's sessions, tokens per model, and each session's prompt cache.
 
 <img alt="The usage detail: session and weekly limits, cost, durations, tokens per model and prompt cache" src="docs/assets/screenshots/usage.png" width="428">
 
@@ -103,7 +103,7 @@ The orchestrator is a Claude Code session that acts as a team manager. Link one 
 *A real mission, sped up where the badge says so. The router puts both sub-tasks on Haiku, each agent works and commits on its own branch, and the orchestrator merges both into the mission branch.*
 
 1. **It proposes a plan.** It splits the goal into sub-tasks, each with an owner, a time budget and, optionally, a difficulty level. The plan appears in the mission panel under the orchestrator.
-2. **You launch the mission.** OpenVibe creates the mission branch `openvibe/<mission>`, plus a branch and a worktree for each agent next to your repository. It then gives every agent its sub-task.
+2. **You launch the mission.** dummyPlane creates the mission branch `dummyplane/<mission>`, plus a branch and a worktree for each agent next to your repository. It then gives every agent its sub-task.
 3. **The agents report.** Each Claude agent declares its steps, which appear as a timeline under its terminal, and reports back when done. Agents can hand parts of their work to their own sub-agents.
 4. **The orchestrator keeps time.** It is told when a sub-task reaches its budget. At twice the budget you get a notification and a red bar. Nobody is stopped automatically: the orchestrator can extend, interrupt or reassign.
 5. **It merges.** Finished branches are merged into the mission branch; a conflict aborts that merge and is reported. A mission's own steps **never push** and **never merge into your own branch**. The git window pushes only when you click *Pousser*, and an agent running commands in a terminal is limited only by its permissions.
@@ -117,7 +117,7 @@ With the **model router**, each sub-task's level picks the model its agent runs 
 | `high` | Claude Opus 5.5 |
 | `extreme` | Claude Fable 5.1 |
 
-The orchestrator talks to OpenVibe through a local MCP server, with tools such as `propose_plan`, `team`, `read_output`, `extend`, `reassign`, `merge` and `remote_control`. It can read the repository, but it is denied `Edit`, `Write` and `NotebookEdit`: the agents write the code.
+The orchestrator talks to dummyPlane through a local MCP server, with tools such as `propose_plan`, `team`, `read_output`, `extend`, `reassign`, `merge` and `remote_control`. It can read the repository, but it is denied `Edit`, `Write` and `NotebookEdit`: the agents write the code.
 
 ### Overnight run
 
@@ -131,7 +131,7 @@ Read this before you choose:
 
 ## Supported agents
 
-OpenVibe launches the agents you already have installed: an agent counts as available when its command is on your `PATH`.
+dummyPlane launches the agents you already have installed: an agent counts as available when its command is on your `PATH`.
 
 | Agent | Command | State detection |
 |---|---|---|
@@ -165,7 +165,7 @@ Excalidraw's own keys (`V`, `H`, `R`, `O`, `A`, `T`, `P`, `E`, `Ctrl+Z`…) work
 
 ## Install
 
-Download `OpenVibe_<version>_x64-setup.exe` from the [latest release](https://github.com/Mideky-hub/openvibe/releases/latest) and run it (Windows 10/11). It installs for your user only and needs no administrator rights.
+Download `dummyPlane_<version>_x64-setup.exe` from the [latest release](https://github.com/Mideky-hub/openvibe/releases/latest) and run it (Windows 10/11). It installs for your user only and needs no administrator rights.
 
 You also need at least one agent CLI, for example [Claude Code](https://docs.claude.com/en/docs/claude-code/overview), and [Git](https://git-scm.com/): Git Bash provides the `bash` that the usage meter needs.
 
@@ -174,9 +174,9 @@ You also need at least one agent CLI, for example [Claude Code](https://docs.cla
 
 On first launch, the home screen walks you through installing an agent, adding a project and launching an agent. Something wrong? See the [troubleshooting guide](docs/troubleshooting.md), or open **Troubleshooting** from the settings menu.
 
-**Updates.** OpenVibe looks for a new release on GitHub 10 seconds after it starts, then every 6 hours, and offers to install it. Before the installer restarts it, OpenVibe saves your canvas and the terminals' history; Claude conversations can be resumed afterwards. Updates are signed: one whose signature does not match is refused. This check is the only request OpenVibe makes on its own. To turn it off, open the settings menu (the gear) and untick **Rechercher les mises à jour automatiquement**.
+**Updates.** dummyPlane looks for a new release on GitHub 10 seconds after it starts, then every 6 hours, and offers to install it. Before the installer restarts it, dummyPlane saves your canvas and the terminals' history; Claude conversations can be resumed afterwards. Updates are signed: one whose signature does not match is refused. This check is the only request dummyPlane makes on its own. To turn it off, open the settings menu (the gear) and untick **Rechercher les mises à jour automatiquement**.
 
-OpenVibe runs once: launching it a second time brings the open window back (and restores it if it was minimized) instead of starting another copy, which would fight the first over the database and the log.
+dummyPlane runs once: launching it a second time brings the open window back (and restores it if it was minimized) instead of starting another copy, which would fight the first over the database and the log.
 
 ### Build from source
 
@@ -192,7 +192,7 @@ OpenVibe runs once: launching it a second time brings the open window back (and 
 
 ```powershell
 git clone https://github.com/Mideky-hub/openvibe.git
-cd openvibe
+cd dummyplane
 pnpm install
 pnpm tauri dev                  # run in development
 pnpm tauri build                # build the installer
@@ -201,8 +201,8 @@ pnpm tauri build                # build the installer
 The installer is written to `src-tauri/target/release/bundle/nsis/`. It installs per user and needs no administrator rights.
 
 > [!TIP]
-> To try OpenVibe without touching your saved projects, give the development build its own data folder:
-> `pnpm tauri dev --config '{"identifier":"dev.openvibe.probe"}'`
+> To try dummyPlane without touching your saved projects, give the development build its own data folder:
+> `pnpm tauri dev --config '{"identifier":"dev.dummyplane.probe"}'`
 
 ## How it works
 
@@ -211,9 +211,9 @@ The installer is written to `src-tauri/target/release/bundle/nsis/`. It installs
 - **Agent states and tools:** the HTTP server listens on `127.0.0.1` only, on a random port.
   - Each Claude Code session gets an extra `--settings` file. It declares hooks that report the session's state, a status line that reports usage, and an MCP server for the mission tools.
   - Every request needs a token drawn when the app starts, or a token for the session itself.
-  - OpenVibe reads your own `~/.claude/settings.json` but never modifies it, and your own status line keeps showing in the terminals.
-- **Storage:** projects, canvases, terminal scrollback and settings live in a local SQLite database under `%APPDATA%\dev.openvibe.app\`. Notes are plain files in the project's `.openvibe/notes/`; team presets are a setting of the database.
-- **Token counts:** read-only and bounded. OpenVibe scans the `.jsonl` logs under Claude Code's folder (`~/.claude/projects`, or `$CLAUDE_CONFIG_DIR`) for the last 30 days, keeps dates, models and counters, and drops the rest unread.
+  - dummyPlane reads your own `~/.claude/settings.json` but never modifies it, and your own status line keeps showing in the terminals.
+- **Storage:** projects, canvases, terminal scrollback and settings live in a local SQLite database under `%APPDATA%\dev.dummyplane.app\`. Notes are plain files in the project's `.dummyplane/notes/`; team presets are a setting of the database.
+- **Token counts:** read-only and bounded. dummyPlane scans the `.jsonl` logs under Claude Code's folder (`~/.claude/projects`, or `$CLAUDE_CONFIG_DIR`) for the last 30 days, keeps dates, models and counters, and drops the rest unread.
 
 See [SECURITY.md](SECURITY.md) for the security model in more detail.
 
@@ -223,8 +223,8 @@ Bug reports, ideas and pull requests are welcome, in English or in French. Start
 
 ## License and credits
 
-OpenVibe is released under the [MIT License](LICENSE).
+dummyPlane is released under the [MIT License](LICENSE).
 
 It builds on [Tauri](https://tauri.app/), [Excalidraw](https://github.com/excalidraw/excalidraw), [xterm.js](https://xtermjs.org/), [portable-pty](https://github.com/wezterm/wezterm/tree/main/pty) and [cmdk](https://cmdk.paco.me/). The bundled icon libraries come from the Excalidraw community, under the MIT License; their authors are listed in [`public/libraries/CREDITS.md`](public/libraries/CREDITS.md).
 
-OpenVibe is an independent project. It is not affiliated with Symvibe, Anthropic, OpenAI, Google or the makers of the other agents it launches; their names belong to their owners.
+dummyPlane is an independent project. It is not affiliated with Symvibe, Anthropic, OpenAI, Google or the makers of the other agents it launches; their names belong to their owners.

@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: light)" srcset="docs/assets/brand/banner-light.png">
-    <img alt="OpenVibe : un canvas infini de vrais terminaux pour vos agents de code" src="docs/assets/brand/banner-dark.png" width="100%">
+    <img alt="dummyPlane : un canvas infini de vrais terminaux pour vos agents de code" src="docs/assets/brand/banner-dark.png" width="100%">
   </picture>
 </p>
 
@@ -16,14 +16,14 @@
   <a href="README.md">English</a> · <b>Français</b>
 </p>
 
-OpenVibe est une application de bureau qui place vos agents de code sur un canvas infini. Chaque agent tourne dans un **vrai terminal** (Claude Code, Codex, Gemini CLI et d'autres). Vous les réunissez en équipes, vous briefez toute une équipe en une ligne, vous relisez leurs changements, et vous confiez une grosse tâche à un **orchestrateur** qui la découpe, la distribue et surveille le temps.
+dummyPlane est une application de bureau qui place vos agents de code sur un canvas infini. Chaque agent tourne dans un **vrai terminal** (Claude Code, Codex, Gemini CLI et d'autres). Vous les réunissez en équipes, vous briefez toute une équipe en une ligne, vous relisez leurs changements, et vous confiez une grosse tâche à un **orchestrateur** qui la découpe, la distribue et surveille le temps.
 
-Tout tourne sur votre machine. OpenVibe n'ajoute aucun service en ligne ni aucune télémétrie, et ne contourne jamais les demandes d'autorisation des agents. Sa seule requête à lui est la recherche de mises à jour, que vous pouvez couper.
+Tout tourne sur votre machine. dummyPlane n'ajoute aucun service en ligne ni aucune télémétrie, et ne contourne jamais les demandes d'autorisation des agents. Sa seule requête à lui est la recherche de mises à jour, que vous pouvez couper.
 
-Si vous connaissez Symvibe : OpenVibe couvre le même terrain (piloter une flotte d'agents en ligne de commande depuis un canvas infini), en projet indépendant et open source, avec son propre design et ses propres fonctions.
+Si vous connaissez Symvibe : dummyPlane couvre le même terrain (piloter une flotte d'agents en ligne de commande depuis un canvas infini), en projet indépendant et open source, avec son propre design et ses propres fonctions.
 
 > [!NOTE]
-> OpenVibe est une préversion, développée et testée sous **Windows 10/11**. Son interface parle **français et anglais** : elle suit Windows, et le menu des réglages en change.
+> dummyPlane est une préversion, développée et testée sous **Windows 10/11**. Son interface parle **français et anglais** : elle suit Windows, et le menu des réglages en change.
 
 <picture>
   <source media="(prefers-color-scheme: light)" srcset="docs/assets/screenshots/board-light.png">
@@ -49,23 +49,23 @@ Si vous connaissez Symvibe : OpenVibe couvre le même terrain (piloter une flott
   - Donnez à un groupe une **spécialité** (une ligne, depuis son menu) : un orchestrateur relié la lit pour confier chaque sous-tâche au bon groupe.
   - **Repliez** un groupe sur son étiquette avec le chevron : ses terminaux quittent l'écran, rien ne s'arrête, et l'étiquette garde ses compteurs. Aller vers l'un de ses agents le déplie ; on ne peut pas replier un groupe dont les agents démarrent encore.
   - Enregistrez l'équipe affichée comme **preset** (*Enregistrer l'équipe comme preset…* dans la palette de fonctions) et déployez-la dans n'importe quel projet avec *Déployer l'équipe*. Un preset ne garde que la forme : groupes, rôles, spécialités, agents et liaisons, jamais les consignes ni l'historique.
-- **Des états en direct.** OpenVibe montre si chaque agent démarre, est prêt, travaille, attend votre réponse, est arrêté ou a terminé, sur le canvas comme dans le panneau Agents. Pour Claude Code, l'état vient de ses hooks ; pour les autres agents, de leur sortie.
-- **Une seule barre de consigne pour tous.** Ciblez `@tous`, un groupe, un agent ou plusieurs à la fois (`@athena/hermes`). Une ligne qui commence par `/` part comme commande vers la CLI des agents, et OpenVibe propose les commandes de Claude Code. L'historique garde vos 50 dernières consignes par projet.
+- **Des états en direct.** dummyPlane montre si chaque agent démarre, est prêt, travaille, attend votre réponse, est arrêté ou a terminé, sur le canvas comme dans le panneau Agents. Pour Claude Code, l'état vient de ses hooks ; pour les autres agents, de leur sortie.
+- **Une seule barre de consigne pour tous.** Ciblez `@tous`, un groupe, un agent ou plusieurs à la fois (`@athena/hermes`). Une ligne qui commence par `/` part comme commande vers la CLI des agents, et dummyPlane propose les commandes de Claude Code. L'historique garde vos 50 dernières consignes par projet.
 - **Un orchestrateur qui manage.** Donnez-lui un objectif. Il propose un plan, confie à chaque agent une sous-tâche sur sa propre branche git et son propre worktree, surveille le budget de temps et fusionne les résultats dans une branche de mission. Le détail est [plus bas](#lorchestrateur).
 - **La revue des changements.** Voyez ce qu'un agent a changé, non commité ou depuis sa base, parcourez le dépôt en lecture seule, et cliquez une ligne pour laisser une remarque. Toutes les remarques repartent à l'agent en un seul message.
 - **Savoir quand un agent a une question.** Quand un agent attend votre réponse, un avis reste affiché en bas à gauche de la fenêtre tant qu'il attend, et une notification Windows apparaît si la fenêtre n'a pas le focus (à couper dans le menu des réglages). Un clic vous amène à l'agent, et une commande de la palette va au suivant qui attend.
 - **Remote Control.** Activez le Remote Control de Claude Code pour un agent, un groupe ou toute l'équipe, et suivez-les depuis votre téléphone.
 - **L'usage d'un coup d'œil.** La barre de titre affiche les limites de session et de semaine de votre abonnement Claude. Un clic donne le coût, les durées, les tokens par modèle, l'état du cache de prompt et une estimation du CO₂.
-- **Les tokens sur 30 jours.** Depuis le détail de l'usage, un graphe des tokens consommés chaque jour, et leur part par agent et par modèle. OpenVibe lit les journaux que Claude Code garde déjà sur votre disque, les compteurs seulement, jamais les conversations ; rien n'est envoyé. Codex n'est pas encore lu.
-- **Code Studio.** Corrigez un fichier à la main sans quitter OpenVibe. Chaque projet a un espace de code, un onglet IDE à côté de ses canvas, ouvert depuis le rail droit ou la palette de fonctions : l'arbre du dépôt, les fichiers en onglets avec la coloration syntaxique dans les deux thèmes, `Ctrl+S`, un aperçu du Markdown, et *Insérer* pour poser le fichier sur un canvas. `Ctrl+P` trouve un fichier, `App.tsx:42` compris, et `Ctrl+G` va à une ligne. Si un agent a écrit le fichier entre-temps, l'enregistrement est refusé et vous choisissez : recharger, ou écraser ce que vous aviez vu.
-- **Les notes.** Les notes sont des fichiers Markdown dans `.openvibe/notes/` du projet : un agent peut les lire sans OpenVibe. Reliez-les avec `[[nom]]`, cherchez-les, voyez leurs rétroliens et leur graphe, et attachez des notes à un groupe. Un outil en lecture seule permet aux agents de les lister et de les lire.
+- **Les tokens sur 30 jours.** Depuis le détail de l'usage, un graphe des tokens consommés chaque jour, et leur part par agent et par modèle. dummyPlane lit les journaux que Claude Code garde déjà sur votre disque, les compteurs seulement, jamais les conversations ; rien n'est envoyé. Codex n'est pas encore lu.
+- **Code Studio.** Corrigez un fichier à la main sans quitter dummyPlane. Chaque projet a un espace de code, un onglet IDE à côté de ses canvas, ouvert depuis le rail droit ou la palette de fonctions : l'arbre du dépôt, les fichiers en onglets avec la coloration syntaxique dans les deux thèmes, `Ctrl+S`, un aperçu du Markdown, et *Insérer* pour poser le fichier sur un canvas. `Ctrl+P` trouve un fichier, `App.tsx:42` compris, et `Ctrl+G` va à une ligne. Si un agent a écrit le fichier entre-temps, l'enregistrement est refusé et vous choisissez : recharger, ou écraser ce que vous aviez vu.
+- **Les notes.** Les notes sont des fichiers Markdown dans `.dummyplane/notes/` du projet : un agent peut les lire sans dummyPlane. Reliez-les avec `[[nom]]`, cherchez-les, voyez leurs rétroliens et leur graphe, et attachez des notes à un groupe. Un outil en lecture seule permet aux agents de les lister et de les lire.
 - **Installer un agent depuis l'application.** Pour un agent introuvable, *Installer* affiche la commande officielle en entier, puis la lance dans un terminal visible du canvas que vous pouvez interrompre. Les modèles Ollama s'installent de la même façon. Rien n'est téléchargé ni exécuté en arrière-plan.
 - **Des boucles.** Renvoyez une consigne encore et encore, avec des garde-fous. Une boucle part toutes les N minutes, quand un agent devient inactif, ou quand son écran affiche un texte ; elle doit s'arrêter après un nombre de tours (jusqu'à 1000) ou une durée (jusqu'à 24 heures), le premier atteint. Elle n'écrit jamais à un agent qui attend votre réponse, qui est arrêté ou qui démarre. Une pastille en bas à gauche compte les boucles en cours et leurs tours, avec *Tout arrêter* à un clic, et toutes les boucles sont de nouveau éteintes après un redémarrage. Trois modèles (point d'avancement, relance, surveillance des tests) remplissent le formulaire sans rien démarrer.
-- **Plusieurs comptes Claude.** Un profil n'est qu'un nom et un dossier (le `CLAUDE_CONFIG_DIR` de Claude Code). *Comptes Claude…* dans la palette de fonctions les liste : *Utiliser* en fait le compte des prochains agents Claude, *Se connecter* ouvre un terminal visible pour s'identifier, *Retirer* oublie un profil et laisse son dossier intact. Un terminal garde le compte avec lequel il a démarré, et l'affiche dans son en-tête. OpenVibe ne lit, ne copie ni ne garde jamais un identifiant.
-- **Une fenêtre git.** Cliquez la puce de branche en bas à gauche : les fichiers modifiés du projet, leur diff, une case par fichier pour ne valider que ceux-là, l'historique, et un bouton *Pousser* qui nomme sa cible (`Pousser 3 → origin/main`). Abandonner un fichier demande d'abord confirmation et dit ce qui sera perdu ; ce bouton est la seule voie vers un push dans les outils d'OpenVibe : il ne part que sur votre clic et ne force jamais. Un agent qui lance des commandes dans un terminal n'est limité que par ses autorisations.
+- **Plusieurs comptes Claude.** Un profil n'est qu'un nom et un dossier (le `CLAUDE_CONFIG_DIR` de Claude Code). *Comptes Claude…* dans la palette de fonctions les liste : *Utiliser* en fait le compte des prochains agents Claude, *Se connecter* ouvre un terminal visible pour s'identifier, *Retirer* oublie un profil et laisse son dossier intact. Un terminal garde le compte avec lequel il a démarré, et l'affiche dans son en-tête. dummyPlane ne lit, ne copie ni ne garde jamais un identifiant.
+- **Une fenêtre git.** Cliquez la puce de branche en bas à gauche : les fichiers modifiés du projet, leur diff, une case par fichier pour ne valider que ceux-là, l'historique, et un bouton *Pousser* qui nomme sa cible (`Pousser 3 → origin/main`). Abandonner un fichier demande d'abord confirmation et dit ce qui sera perdu ; ce bouton est la seule voie vers un push dans les outils d'dummyPlane : il ne part que sur votre clic et ne force jamais. Un agent qui lance des commandes dans un terminal n'est limité que par ses autorisations.
 - **Mission de nuit.** Dites combien de temps vous vous absentez : un orchestrateur planifie, une équipe avance dans une file de tickets, et un rapport du matin vous attend. Voir [Mission de nuit](#mission-de-nuit), et lisez d'abord ses avertissements.
 - **Des bibliothèques d'icônes.** Environ 600 icônes de la communauté Excalidraw (conception système, AWS, Azure, GCP), embarquées dans l'application, pour dessiner l'architecture à côté des agents qui la construisent.
-- **Projets et workspaces.** Un projet par dossier, plusieurs onglets de workspace par projet ; glissez les onglets pour les réordonner (ou `Alt+←` / `Alt+→` sur un onglet, ou son menu), l'ordre est retenu. OpenVibe enregistre tout en local et, au redémarrage, propose de reprendre vos conversations Claude.
+- **Projets et workspaces.** Un projet par dossier, plusieurs onglets de workspace par projet ; glissez les onglets pour les réordonner (ou `Alt+←` / `Alt+→` sur un onglet, ou son menu), l'ordre est retenu. dummyPlane enregistre tout en local et, au redémarrage, propose de reprendre vos conversations Claude.
 - **Le clavier d'abord.** Utilisez les palettes, passez d'un terminal à l'autre, ou faites un appui droit n'importe où pour le menu radial. Les thèmes clair et sombre suivent Windows.
 
 ## Visite guidée
@@ -90,7 +90,7 @@ Si vous connaissez Symvibe : OpenVibe couvre le même terrain (piloter une flott
 
 ![Les bibliothèques d'icônes : API Gateway, Lambda et DynamoDB posées et reliées par des flèches](docs/assets/demo/icons.gif)
 
-**Suivre son usage.** Le compteur de la barre de titre ouvre le détail : limites de l'abonnement et leur remise à zéro, coût et durées des sessions d'OpenVibe, tokens par modèle, et cache de prompt de chaque session.
+**Suivre son usage.** Le compteur de la barre de titre ouvre le détail : limites de l'abonnement et leur remise à zéro, coût et durées des sessions d'dummyPlane, tokens par modèle, et cache de prompt de chaque session.
 
 <img alt="Le détail de l'usage : limites de session et de semaine, coût, durées, tokens par modèle et cache de prompt" src="docs/assets/screenshots/usage.png" width="428">
 
@@ -103,7 +103,7 @@ L'orchestrateur est une session Claude Code qui joue le rôle de manager d'équi
 *Une vraie mission, accélérée là où le badge l'indique. Le routeur met les deux sous-tâches sur Haiku, chaque agent travaille et commite sur sa propre branche, et l'orchestrateur fusionne les deux dans la branche de mission.*
 
 1. **Il propose un plan.** Il découpe l'objectif en sous-tâches, chacune avec un responsable, un budget de temps et, au besoin, un niveau de difficulté. Le plan s'affiche dans le panneau de mission, sous l'orchestrateur.
-2. **Vous lancez la mission.** OpenVibe crée la branche de mission `openvibe/<mission>`, ainsi qu'une branche et un worktree par agent, à côté de votre dépôt. Puis il confie à chaque agent sa sous-tâche.
+2. **Vous lancez la mission.** dummyPlane crée la branche de mission `dummyplane/<mission>`, ainsi qu'une branche et un worktree par agent, à côté de votre dépôt. Puis il confie à chaque agent sa sous-tâche.
 3. **Les agents rendent compte.** Chaque agent Claude déclare ses étapes, qui s'affichent en frise sous son terminal, et rend compte quand il a fini. Un agent peut confier une partie de son travail à ses propres sous-agents.
 4. **L'orchestrateur surveille le temps.** Il est prévenu quand une sous-tâche atteint son budget. Au double du budget, vous recevez une notification et la barre passe au rouge. Personne n'est arrêté automatiquement : l'orchestrateur peut prolonger, interrompre ou réattribuer.
 5. **Il fusionne.** Les branches terminées sont fusionnées dans la branche de mission ; en cas de conflit, la fusion est annulée et signalée. Les étapes propres à une mission **ne poussent jamais** et **ne fusionnent jamais dans votre propre branche**. La fenêtre git ne pousse que lorsque vous cliquez sur *Pousser*, et un agent qui lance des commandes dans un terminal n'est limité que par ses permissions.
@@ -117,7 +117,7 @@ Avec le **routeur de modèles**, le niveau de chaque sous-tâche choisit le mod�
 | `high` (élevé) | Claude Opus 5.5 |
 | `extreme` (extrême) | Claude Fable 5.1 |
 
-L'orchestrateur échange avec OpenVibe par un serveur MCP local, avec des outils comme `propose_plan`, `team`, `read_output`, `extend`, `reassign`, `merge` et `remote_control`. Il peut lire le dépôt, mais `Edit`, `Write` et `NotebookEdit` lui sont refusés : ce sont les agents qui écrivent le code.
+L'orchestrateur échange avec dummyPlane par un serveur MCP local, avec des outils comme `propose_plan`, `team`, `read_output`, `extend`, `reassign`, `merge` et `remote_control`. Il peut lire le dépôt, mais `Edit`, `Write` et `NotebookEdit` lui sont refusés : ce sont les agents qui écrivent le code.
 
 ### Mission de nuit
 
@@ -131,7 +131,7 @@ Avant de partir, ouvrez *Mission de nuit…* dans le panneau de la mission : com
 
 ## Agents pris en charge
 
-OpenVibe lance les agents déjà installés sur votre machine : un agent est disponible quand sa commande est dans votre `PATH`.
+dummyPlane lance les agents déjà installés sur votre machine : un agent est disponible quand sa commande est dans votre `PATH`.
 
 | Agent | Commande | Détection de l'état |
 |---|---|---|
@@ -165,7 +165,7 @@ Les touches d'Excalidraw (`V`, `H`, `R`, `O`, `A`, `T`, `P`, `E`, `Ctrl+Z`…) f
 
 ## Installation
 
-Téléchargez `OpenVibe_<version>_x64-setup.exe` depuis la [dernière version publiée](https://github.com/Mideky-hub/openvibe/releases/latest) et lancez-le (Windows 10/11). Il s'installe pour votre seul compte, sans droits d'administrateur.
+Téléchargez `dummyPlane_<version>_x64-setup.exe` depuis la [dernière version publiée](https://github.com/Mideky-hub/openvibe/releases/latest) et lancez-le (Windows 10/11). Il s'installe pour votre seul compte, sans droits d'administrateur.
 
 Il vous faut aussi au moins une CLI d'agent, par exemple [Claude Code](https://docs.claude.com/en/docs/claude-code/overview), et [Git](https://git-scm.com/) : Git Bash fournit le `bash` dont le compteur d'usage a besoin.
 
@@ -174,9 +174,9 @@ Il vous faut aussi au moins une CLI d'agent, par exemple [Claude Code](https://d
 
 Au premier lancement, l'accueil vous guide : installer un agent, ajouter un projet, lancer un agent. Un souci ? Consultez le [guide de dépannage](docs/troubleshooting.fr.md), ou ouvrez **Dépannage** depuis le menu des réglages.
 
-**Mises à jour.** OpenVibe cherche une nouvelle version sur GitHub 10 secondes après son démarrage, puis toutes les 6 heures, et propose de l'installer. Avant que l'installeur le relance, OpenVibe enregistre votre canvas et l'historique des terminaux ; les conversations Claude se reprennent ensuite. Les mises à jour sont signées : une signature qui ne correspond pas est refusée. Cette recherche est la seule requête qu'OpenVibe fait de lui-même. Pour la couper, ouvrez le menu des réglages (la roue dentée) et décochez **Rechercher les mises à jour automatiquement**.
+**Mises à jour.** dummyPlane cherche une nouvelle version sur GitHub 10 secondes après son démarrage, puis toutes les 6 heures, et propose de l'installer. Avant que l'installeur le relance, dummyPlane enregistre votre canvas et l'historique des terminaux ; les conversations Claude se reprennent ensuite. Les mises à jour sont signées : une signature qui ne correspond pas est refusée. Cette recherche est la seule requête qu'dummyPlane fait de lui-même. Pour la couper, ouvrez le menu des réglages (la roue dentée) et décochez **Rechercher les mises à jour automatiquement**.
 
-OpenVibe ne tourne qu'une fois : le lancer une seconde fois ramène la fenêtre déjà ouverte (et la restaure si elle était réduite) au lieu de démarrer une autre copie, qui se disputerait la base de données et le journal avec la première.
+dummyPlane ne tourne qu'une fois : le lancer une seconde fois ramène la fenêtre déjà ouverte (et la restaure si elle était réduite) au lieu de démarrer une autre copie, qui se disputerait la base de données et le journal avec la première.
 
 ### Compiler depuis les sources
 
@@ -192,7 +192,7 @@ OpenVibe ne tourne qu'une fois : le lancer une seconde fois ramène la fenêtre 
 
 ```powershell
 git clone https://github.com/Mideky-hub/openvibe.git
-cd openvibe
+cd dummyplane
 pnpm install
 pnpm tauri dev                  # lancer en développement
 pnpm tauri build                # construire l'installateur
@@ -201,8 +201,8 @@ pnpm tauri build                # construire l'installateur
 L'installateur est écrit dans `src-tauri/target/release/bundle/nsis/`. Il s'installe pour l'utilisateur courant, sans droits d'administrateur.
 
 > [!TIP]
-> Pour essayer OpenVibe sans toucher à vos projets enregistrés, donnez à la version de développement son propre dossier de données :
-> `pnpm tauri dev --config '{"identifier":"dev.openvibe.probe"}'`
+> Pour essayer dummyPlane sans toucher à vos projets enregistrés, donnez à la version de développement son propre dossier de données :
+> `pnpm tauri dev --config '{"identifier":"dev.dummyplane.probe"}'`
 
 ## Fonctionnement
 
@@ -211,9 +211,9 @@ L'installateur est écrit dans `src-tauri/target/release/bundle/nsis/`. Il s'ins
 - **États et outils des agents :** le serveur HTTP n'écoute que sur `127.0.0.1`, sur un port aléatoire.
   - Chaque session Claude Code reçoit un fichier `--settings` supplémentaire. Il déclare des hooks qui signalent l'état de la session, une ligne d'état qui transmet l'usage, et un serveur MCP pour les outils de mission.
   - Chaque requête doit porter un jeton tiré au démarrage de l'application, ou un jeton propre à la session.
-  - OpenVibe lit votre `~/.claude/settings.json` sans jamais le modifier, et votre propre ligne d'état reste affichée dans les terminaux.
-- **Stockage :** projets, canvas, historique des terminaux et réglages sont dans une base SQLite locale, sous `%APPDATA%\dev.openvibe.app\`. Les notes sont de simples fichiers dans le `.openvibe/notes/` du projet ; les presets d'équipe sont un réglage de la base.
-- **Compteurs de tokens :** lecture seule et bornée. OpenVibe parcourt les journaux `.jsonl` du dossier de Claude Code (`~/.claude/projects`, ou `$CLAUDE_CONFIG_DIR`) sur les 30 derniers jours, garde les dates, les modèles et les compteurs, et laisse le reste sans le lire.
+  - dummyPlane lit votre `~/.claude/settings.json` sans jamais le modifier, et votre propre ligne d'état reste affichée dans les terminaux.
+- **Stockage :** projets, canvas, historique des terminaux et réglages sont dans une base SQLite locale, sous `%APPDATA%\dev.dummyplane.app\`. Les notes sont de simples fichiers dans le `.dummyplane/notes/` du projet ; les presets d'équipe sont un réglage de la base.
+- **Compteurs de tokens :** lecture seule et bornée. dummyPlane parcourt les journaux `.jsonl` du dossier de Claude Code (`~/.claude/projects`, ou `$CLAUDE_CONFIG_DIR`) sur les 30 derniers jours, garde les dates, les modèles et les compteurs, et laisse le reste sans le lire.
 
 Le modèle de sécurité est détaillé dans [SECURITY.md](SECURITY.md).
 
@@ -223,8 +223,8 @@ Rapports de bug, idées et pull requests sont bienvenus, en français ou en angl
 
 ## Licence et remerciements
 
-OpenVibe est publié sous [licence MIT](LICENSE).
+dummyPlane est publié sous [licence MIT](LICENSE).
 
 Il s'appuie sur [Tauri](https://tauri.app/), [Excalidraw](https://github.com/excalidraw/excalidraw), [xterm.js](https://xtermjs.org/), [portable-pty](https://github.com/wezterm/wezterm/tree/main/pty) et [cmdk](https://cmdk.paco.me/). Les bibliothèques d'icônes embarquées viennent de la communauté Excalidraw, sous licence MIT ; leurs auteurs sont cités dans [`public/libraries/CREDITS.md`](public/libraries/CREDITS.md).
 
-OpenVibe est un projet indépendant. Il n'est affilié ni à Symvibe, ni à Anthropic, ni à OpenAI, ni à Google, ni aux éditeurs des autres agents qu'il lance ; leurs noms appartiennent à leurs propriétaires.
+dummyPlane est un projet indépendant. Il n'est affilié ni à Symvibe, ni à Anthropic, ni à OpenAI, ni à Google, ni aux éditeurs des autres agents qu'il lance ; leurs noms appartiennent à leurs propriétaires.

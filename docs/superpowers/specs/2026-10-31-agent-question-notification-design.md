@@ -77,11 +77,11 @@ Le texte d'exemple de la documentation est générique (« Claude needs your per
 Ajoutée avec le plugin officiel `tauri-plugin-notification` : un agent bloqué se voit mal quand la fenêtre est derrière une autre.
 
 - **Quand** : un agent se met à attendre et la fenêtre n'a pas le focus. Une seule notification par attente ; un rechargement de l'interface ne répète pas les attentes déjà connues.
-- **Texte** : titre « OpenVibe », corps « <nom> a une question », dans la langue de l'interface.
+- **Texte** : titre « dummyPlane », corps « <nom> a une question », dans la langue de l'interface.
 - **Clic** : la fenêtre revient au premier plan et, si l'agent attend encore et qu'un projet est ouvert, on arrive sur lui comme au §5. Sinon, seule la fenêtre revient.
 - **Permission** : rien à demander, le plugin l'accorde toujours sur ordinateur.
 - **Échec** : journalisé. La notification dans la fenêtre (§4) reste la référence.
-- **Limite** : Windows ne signale le clic à OpenVibe que tant que la notification est à l'écran, pas une fois passée dans le centre de notifications. Ce clic-là peut relancer l'application : le §10 ramène alors la fenêtre en cours, sans amener à l'agent.
+- **Limite** : Windows ne signale le clic à dummyPlane que tant que la notification est à l'écran, pas une fois passée dans le centre de notifications. Ce clic-là peut relancer l'application : le §10 ramène alors la fenêtre en cours, sans amener à l'agent.
 - **Réglage** : voir le §11.
 
 ## 9. Tests
@@ -101,8 +101,8 @@ Deux instances sur une même base, c'est un risque de perte de données pour les
 
 - **Plugin** : `tauri-plugin-single-instance` officiel, à version exacte, enregistré avant tout le reste : la seconde instance se ferme avant de toucher au journal ou à la base.
 - **Seconde lancée** : elle ramène la fenêtre en cours (restaurée si réduite, au premier plan). Pendant la fermeture de la première instance, il n'y a plus de fenêtre à ramener : les deux se ferment, et il faut relancer.
-- **Par identifiant** : le verrou porte sur l'identifiant de l'application. Le profil de développement (`dev.openvibe.probe`) tourne donc à côté d'une version installée, mais deux exécutables de même identifiant ne tournent jamais ensemble, quelle que soit leur version : ils partagent la même base. La fonction `semver` du plugin reste donc coupée.
-- **Clic dans le centre de notifications** : Windows relance l'application sans argument, la bibliothèque des notifications n'en posant aucun. La fenêtre en cours revient, mais on ne sait pas de quelle notification vient la relance. OpenVibe ne devine pas : une relance manuelle est identique, et elle déplacerait le canvas sans raison. La notification du §4 attend dans la fenêtre.
+- **Par identifiant** : le verrou porte sur l'identifiant de l'application. Le profil de développement (`dev.dummyplane.probe`) tourne donc à côté d'une version installée, mais deux exécutables de même identifiant ne tournent jamais ensemble, quelle que soit leur version : ils partagent la même base. La fonction `semver` du plugin reste donc coupée.
+- **Clic dans le centre de notifications** : Windows relance l'application sans argument, la bibliothèque des notifications n'en posant aucun. La fenêtre en cours revient, mais on ne sait pas de quelle notification vient la relance. dummyPlane ne devine pas : une relance manuelle est identique, et elle déplacerait le canvas sans raison. La notification du §4 attend dans la fenêtre.
 
 ## 11. Réglage
 

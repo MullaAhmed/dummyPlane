@@ -101,10 +101,10 @@ mod tests {
     fn claude_names_a_project_folder_after_its_path() {
         assert_eq!(
             project_folder(Path::new(
-                r"C:\Users\Spectrum\Documents\02_Code_Projects\openvibe"
+                r"C:\Users\Spectrum\Documents\02_Code_Projects\dummyplane"
             ))
             .as_deref(),
-            Some("C--Users-Spectrum-Documents-02-Code-Projects-openvibe")
+            Some("C--Users-Spectrum-Documents-02-Code-Projects-dummyplane")
         );
         assert_eq!(
             project_folder(Path::new(r"C:\Dév\x")).as_deref(),
