@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -13,6 +14,9 @@ import { useActivity } from "@/store/agentActivity";
 import { nodeNameOf, useNodes } from "@/store/nodes";
 import { uiStore, useUi } from "@/store/ui";
 import { shellMessages } from "./messages";
+
+const buttonBase =
+  "rounded-md transition-[color,background-color,border-color,opacity,transform] duration-150 ease-out motion-reduce:transition-none active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50";
 
 /**
  * "Close Isis?" before closing a running agent (spec habillage §7.5), or
@@ -44,17 +48,21 @@ export function CloseAgentDialog() {
 
   return (
     <Dialog open={closing !== null} onOpenChange={(open) => !open && close()}>
-      <DialogContent showCloseButton={false} className="sm:max-w-sm">
+      <DialogContent showCloseButton={false} className="rounded-xl bg-dp-surface text-dp-text ring-dp-line sm:max-w-sm">
         <DialogHeader>
           <DialogTitle>{one ? t.titleOne(name) : t.titleMany(names.length)}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
+          <DialogDescription className="text-dp-text-2">{description}</DialogDescription>
         </DialogHeader>
-        <DialogFooter>
-          <Button variant="ghost" onClick={close}>
+        <DialogFooter className="border-dp-line bg-dp-hover">
+          <Button
+            variant="ghost"
+            onClick={close}
+            className={cn(buttonBase, "text-dp-text-2 hover:bg-dp-hover hover:text-dp-text")}
+          >
             {t.cancel}
           </Button>
           <Button
-            className="bg-dp-danger text-white hover:bg-dp-danger/90"
+            className={cn(buttonBase, "bg-dp-danger/10 text-dp-danger hover:bg-dp-danger/20")}
             onClick={() => {
               if (closing) removeNodes(closing.remove);
               close();
