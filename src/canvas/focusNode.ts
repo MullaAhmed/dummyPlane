@@ -1,6 +1,8 @@
 import { focusTerminal } from "@/nodes/terminal/registry";
+import { setActiveTerminal } from "./activeTerminal";
 import { arrive } from "./arrive";
 import { canvasStore, fullSizeView } from "./canvasStore";
+import { nodeKindOf } from "./nodeElement";
 
 /** The fleet panel's click: the view centered on the terminal at 100 %, the element activated (its header menu answers at once), and the keyboard to it (spec habillage §5.5). */
 export function focusNode(nodeId: string) {
@@ -12,6 +14,15 @@ export function focusNode(nodeId: string) {
     arrive(nodeId);
     return;
   }
-  api.updateScene({ appState: { ...fullSizeView(element, api.getAppState()), activeEmbeddable: { element, state: "active" } } });
+  // The selection left behind goes: with it kept, Send would still reach the old selection, not the terminal just opened.
+  api.updateScene({
+    appState: {
+      ...fullSizeView(element, api.getAppState()),
+      activeEmbeddable: { element, state: "active" },
+      selectedElementIds: {},
+      selectedGroupIds: {},
+    },
+  });
+  if (nodeKindOf(element) === "terminal") setActiveTerminal(nodeId);
   focusTerminal(nodeId);
 }
