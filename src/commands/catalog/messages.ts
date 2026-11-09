@@ -78,7 +78,6 @@ export const catalogMessages = defineMessages({
       "agent.other": e("Other agent…", "agent", "catalog", "launch"),
       "agent.accounts": e("Claude accounts…", "account", "profile", "login", "log in", "use", "claude"),
       "agent.console": e("New console", "console", "terminal"),
-      "agent.four": e("Launch 4 agents", "four", "group", "agents"),
       "agent.orchestrator": e("Orchestrator", "orchestrator", "lead"),
       "studio.kanban": e("Kanban", "kanban", "board", "tasks", "cards", "columns"),
       "group.compose": e("Compose a group…", "group", "compose", "role"),

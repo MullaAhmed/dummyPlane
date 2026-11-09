@@ -1,8 +1,6 @@
 import type { ExcalidrawElement, ExcalidrawFrameElement } from "@excalidraw/excalidraw/element/types";
 import { isRoleId, type RoleId } from "@/fleet/roles";
 import { nodeKindOf } from "./nodeElement";
-import { messages } from "@/i18n";
-import { canvasMessages } from "./messages";
 
 export interface Rect {
   x: number;
@@ -102,14 +100,6 @@ export function groupOf(frames: readonly SceneFrame[], nodeId: string): SceneGro
  */
 export function groupBeingRenamed(editingFrame: string | null, frames: readonly SceneFrame[]): string | null {
   return frames.some((f) => f.id === editingFrame && isGroup(f)) ? editingFrame : null;
-}
-
-/** "Group N" with the smallest N no frame of the scene is named (spec §11.3, "Launch 4"). */
-export function nextGroupName(frames: readonly SceneFrame[]): string {
-  const taken = new Set(frames.map((f) => f.name));
-  let n = 1;
-  while (taken.has(canvasMessages.groupName(n))) n++;
-  return messages(canvasMessages).groupName(n);
 }
 
 /** The pantheons the groups of the scene draw their names from (spec §9.2). */

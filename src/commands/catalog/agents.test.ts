@@ -4,13 +4,13 @@ import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { agentsPanelStore } from "@/fleet/agentsPanelState";
 import { agentsStore } from "@/fleet/agentsStore";
 import { pauseAll, resumeAll } from "@/fleet/broadcast";
-import { launchAt, launchFour, newConsole, placeOrchestrator } from "@/fleet/quickActions";
+import { launchAt, newConsole, placeOrchestrator } from "@/fleet/quickActions";
 import { labelOf, type Command, type CommandContext } from "../command";
 import { pendingUiRequest } from "../uiRequests";
 import { AGENT_COMMANDS } from "./agents";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
-vi.mock("@/fleet/quickActions", () => ({ launchAt: vi.fn(), newConsole: vi.fn(), launchFour: vi.fn(), placeOrchestrator: vi.fn() }));
+vi.mock("@/fleet/quickActions", () => ({ launchAt: vi.fn(), newConsole: vi.fn(), placeOrchestrator: vi.fn() }));
 vi.mock("@/kanban/place", () => ({ placeKanban: vi.fn() }));
 vi.mock("@/fleet/broadcast", () => ({ pauseAll: vi.fn(() => Promise.resolve()), resumeAll: vi.fn(() => Promise.resolve()), workspaceTerminalIds: () => ["isis"] }));
 
@@ -46,7 +46,6 @@ describe("Agents (spec fenêtre §7.3)", () => {
       "Other agent…",
       "Claude accounts…",
       "New console",
-      "Launch 4 agents",
       "Orchestrator",
       "Kanban",
       "Compose a group…",
@@ -99,11 +98,10 @@ describe("Agents (spec fenêtre §7.3)", () => {
 
   it("does what the panel and the ＋ menu do", async () => {
     await find("agent.console").run(busy);
-    await find("agent.four").run(busy);
     await find("agent.orchestrator").run(busy);
     await find("agents.pauseAll").run(busy);
     await find("agents.resumeAll").run(busy);
-    expect([newConsole, launchFour, placeOrchestrator].every((f) => vi.mocked(f).mock.calls.length === 1)).toBe(true);
+    expect([newConsole, placeOrchestrator].every((f) => vi.mocked(f).mock.calls.length === 1)).toBe(true);
     expect(pauseAll).toHaveBeenCalledWith(["isis"]);
     expect(resumeAll).toHaveBeenCalledWith(["isis"]);
   });
@@ -112,8 +110,6 @@ describe("Agents (spec fenêtre §7.3)", () => {
     const at = { x: 10, y: 20 };
     await find("agent.launch.claude").run({ ...busy, at });
     expect(launchAt).toHaveBeenLastCalledWith("claude", at);
-    await find("agent.four").run({ ...busy, at });
-    expect(launchFour).toHaveBeenLastCalledWith(at);
     await find("agent.orchestrator").run({ ...busy, at });
     expect(placeOrchestrator).toHaveBeenLastCalledWith(at);
     agentsStore.setState({ agents: [{ id: "claude", available: true }, { id: "ollama", available: true }] } as never);

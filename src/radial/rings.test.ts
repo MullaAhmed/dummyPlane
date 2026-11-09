@@ -41,7 +41,7 @@ describe("the rings (spec menu radial §4)", () => {
   });
 
   it("names each ring's positions as the spec does, clockwise from the top", () => {
-    expect(labels("canvas")).toEqual(["Launch Claude", "Launch Shell", "Launch 4 agents", "Orchestrator", "Paste", "Text", "Other agent…", "Overview"]);
+    expect(labels("canvas")).toEqual(["Launch Claude", "Launch Shell", null, "Orchestrator", "Paste", "Text", "Other agent…", "Overview"]);
     expect(labels("terminal")).toEqual(["Copy", "Paste", "Rename", "Restart", "Close", "Duplicate", "Pause", "Stop the process"]);
     expect(labels("group")).toEqual(["Add an agent…", "Rename the group", "Link an orchestrator", "Pause group", "Close the group", "Ungroup", "Resume group", "Zoom to group"]);
     expect(labels("orchestrator")).toEqual(["Write an instruction", null, "Rename", null, "Delete", null, "Link", "Paste"]);

@@ -45,7 +45,7 @@ The recordings are made from the real app. The scripts drive the page through We
 
    The first Claude session in that folder asks whether you trust it; answer once in any terminal.
 
-3. Record a scene, then build its GIF. Scenes are in `scenes.mjs`: `launch`, `broadcast`, `commands`, `review` and `mission`.
+3. Record a scene, then build its GIF. Scenes are in `scenes.mjs`: `broadcast`, `commands`, `review` and `mission`.
 
    ```powershell
    node scripts/media/reset.mjs                # empties the canvas, stops its agents
@@ -53,7 +53,7 @@ The recordings are made from the real app. The scripts drive the page through We
    .venv-media\Scripts\python scripts/media/gif.py $env:TEMP\dummyplane-media\frames\broadcast docs/assets/demo/broadcast.gif --width 1200 --cap 1.5
    ```
 
-   `launch` starts from an empty canvas. `broadcast` and `review` start their own group, and `commands` reuses the group that `broadcast` left. `sheet.py <gif> <png>` makes a contact sheet to check a GIF at a glance.
+   `broadcast` and `review` start their own group, and `commands` reuses the group that `broadcast` left. `sheet.py <gif> <png>` makes a contact sheet to check a GIF at a glance.
 
    `mission` runs a real mission: an orchestrator on Sonnet 5.5, wired to a group of two Claude agents, with the model router on. It streams the start, then takes a frame every 1.5 s while the team works, until the mission ends. Commit `acme-shop` first, so the mission starts from a clean tree. `gif.py --ramp t:speed,…` speeds up the long part and marks it with a `×N` badge. If a run stops after the plan, record the rest with `missionGo`, then stitch the two with `join.py <first frames> <cut, UTC HH:MM:SS> <second frames> <out>`.
 

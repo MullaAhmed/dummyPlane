@@ -23,7 +23,7 @@ import { extractMentions, matchOptions, targetOptions, type TargetAgent } from "
 
 // Excalidraw does not load under Vitest (roughjs); these components only reach it through menu actions.
 vi.mock("@excalidraw/excalidraw", () => ({}));
-vi.mock("./quickActions", () => ({ newConsole: vi.fn(), launchFour: vi.fn(), placeOrchestrator: vi.fn() }));
+vi.mock("./quickActions", () => ({ newConsole: vi.fn(), placeOrchestrator: vi.fn() }));
 vi.mock("./broadcast", async (importOriginal) => ({ ...(await importOriginal<typeof import("./broadcast")>()), sendCommand: vi.fn(() => Promise.resolve()) }));
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -157,7 +157,6 @@ describe("components in English", () => {
     const text = document.body.textContent ?? "";
     expect(text).toContain("Launch an agent");
     expect(text).toContain("New console");
-    expect(text).toContain("Launch 4 agents");
     expect(text).toContain("Orchestrator");
     expect(text).toContain("commands groups and agents");
     expect(text).toContain("then click on the canvas to place it");

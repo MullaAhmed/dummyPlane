@@ -41,7 +41,7 @@ If you know Symvibe, dummyPlane covers the same ground (driving a fleet of CLI a
 ## Features
 
 - **Real terminals on a canvas.** Every agent is a real PTY (ConPTY on Windows) drawn with xterm.js. You can pan, zoom, draw around the agents and annotate their work. The canvas is [Excalidraw](https://github.com/excalidraw/excalidraw), so shapes, arrows, text and images all work.
-- **Teams.** Launch four agents at once, or compose a group with a role (Frontend, Backend, Testers, Reviewers…). Each group takes its names from a pantheon: Athena, Hermes, Apollo…
+- **Teams.** Compose a group with a role (Frontend, Backend, Testers, Reviewers…). Each group takes its names from a pantheon: Athena, Hermes, Apollo…
   - Give a group a **speciality** (one line, from its menu): a linked orchestrator reads it to hand each sub-task to the right group.
   - **Fold** a group onto its label with the chevron: its terminals leave the screen, nothing stops, and the label keeps its counters. Going to one of its agents unfolds it; a group can't be folded while its agents are still starting.
   - Save the team on screen as a **preset** (*Enregistrer l'équipe comme preset…* in the function palette) and deploy it in any project with *Déployer l'équipe*. A preset keeps the shape only: groups, roles, specialities, agents and links, never instructions or history.
@@ -64,10 +64,6 @@ If you know Symvibe, dummyPlane covers the same ground (driving a fleet of CLI a
 - **Keyboard first.** Use the palettes, jump between terminals, or right-press anywhere for the radial menu. Light and dark themes follow Windows.
 
 ## A tour
-
-**Launch a team.** Right-press the canvas and choose *Lancer 4 agents*: a group of four Claude Code sessions starts in its own frame.
-
-![Right-click on the canvas, "Lancer 4 agents", and a group of four Claude Code sessions starts](docs/assets/demo/launch.gif)
 
 **Brief the whole team.** Type `@frontend` and the question. The three agents of the group work at the same time, then come back *ready*.
 

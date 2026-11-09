@@ -6,7 +6,6 @@ import {
   CopyPlus,
   Ellipsis,
   Focus,
-  Layers,
   Link,
   Lock,
   LockOpen,
@@ -64,7 +63,7 @@ export const RINGS: Record<RingKind, readonly (RingSlot | null)[]> = {
   canvas: [
     { command: defaultLaunch, icon: Play, iconOf: () => AGENTS[defaultAgent(agentsStore.getState().agents)].Icon },
     { command: secondLaunch, icon: Terminal, iconOf: () => agentIconOf(secondLaunch()) },
-    { command: "agent.four", icon: Layers },
+    null,
     { command: "agent.orchestrator", icon: Network },
     { command: "drawing.paste", icon: ClipboardPaste },
     { command: "tool.text", icon: Type },

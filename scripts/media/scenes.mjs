@@ -1,27 +1,5 @@
 // The README recordings. Each scene: optional setup (not recorded), play (recorded).
 
-/** Right-click the canvas, "Lancer 4 agents": a group of four Claude Code sessions boots. */
-export const launch = {
-  async setup(d, sleep) {
-    await d.move(760, 560, 10);
-    await sleep(300);
-  },
-  async play(d, sleep) {
-    await sleep(700);
-    await d.move(640, 440, 700);
-    await sleep(250);
-    await d.click(null, { button: "right" });
-    await sleep(900);
-    const four = await d.at('button[aria-label="Lancer 4 agents"]');
-    await d.move(four.x, four.y, 650);
-    await sleep(900);
-    await d.click();
-    await sleep(800);
-    await d.move(980, 620, 900);
-    await sleep(9500);
-  },
-};
-
 /** Starts a named group of Claude agents on `model` (setup only, not recorded). */
 export async function team(d, sleep, { name = "Frontend", role = "frontend", names = ["Athena", "Hermes", "Apollo"], model = "claude-haiku-5-5" } = {}) {
   await d.eval(`(async () => {
