@@ -31,6 +31,7 @@ export interface TerminalPayload {
   accountId?: string;
   /** A command to run once, an install: only an explicit gesture runs it again (spec installation §7). */
   oneShot?: boolean;
+  /** Node id of the terminal whose agent spawned this one (spawn_agent). */ spawnedBy?: string;
 }
 
 /** Content of an orchestrator node (spec habillage §13, spec orchestrateur §6). */
