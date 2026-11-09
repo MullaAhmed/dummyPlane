@@ -54,23 +54,36 @@ function ResumeAllToast({ workspaceId }: { workspaceId: string }) {
   };
 
   return (
-    <div className="dp-glass-strong flex w-[360px] items-start gap-3 rounded-[14px] p-3 text-dp-text">
-      <History className="mt-0.5 size-4 shrink-0 text-dp-accent" />
+    <div className="dp-glass-strong flex w-[360px] items-start gap-3 rounded-lg p-3 text-dp-text">
+      <History className="mt-0.5 size-4 shrink-0 text-dp-accent-ink" />
       <div className="min-w-0 flex-1">
         <p className="text-sm font-medium">{t.title}</p>
         <p className="text-xs text-dp-text-2">
           {t.body(ids.length)}
         </p>
         <div className="mt-2 flex gap-2">
-          <button type="button" className="h-7 rounded-[8px] bg-dp-accent px-3 text-xs font-semibold text-dp-on-accent" onClick={resumeAll}>
+          <button
+            type="button"
+            className="h-7 rounded-md bg-dp-accent px-3 text-xs font-semibold text-dp-on-accent transition-[filter,transform] duration-150 ease-out hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] motion-reduce:transition-none"
+            onClick={resumeAll}
+          >
             {t.yes}
           </button>
-          <button type="button" className="h-7 rounded-[8px] bg-dp-field px-3 text-xs text-dp-text" onClick={answer}>
+          <button
+            type="button"
+            className="h-7 rounded-md bg-dp-field px-3 text-xs text-dp-text transition-[background-color,transform] duration-150 ease-out hover:bg-dp-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] motion-reduce:transition-none"
+            onClick={answer}
+          >
             {t.no}
           </button>
         </div>
       </div>
-      <button type="button" aria-label={t.close} className="text-dp-text-2 hover:text-dp-text" onClick={answer}>
+      <button
+        type="button"
+        aria-label={t.close}
+        className="grid size-6 shrink-0 place-items-center rounded-md text-dp-text-2 transition-[background-color,color] duration-150 ease-out hover:bg-dp-hover hover:text-dp-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none"
+        onClick={answer}
+      >
         <X className="size-3.5" />
       </button>
     </div>

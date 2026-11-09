@@ -62,10 +62,10 @@ export function PlacementGhost() {
       }}
     >
       {rect && (
-        <div className="pointer-events-none fixed rounded-xl border-2 border-dashed border-dp-accent/80 bg-dp-accent/5" style={rect} />
+        <div className="pointer-events-none fixed rounded-lg border-2 border-dashed border-dp-accent/80 bg-dp-accent/5" style={rect} />
       )}
       <div
-        className="dp-glass-strong pointer-events-none fixed left-1/2 -translate-x-1/2 rounded-[10px] px-3 py-1 text-xs text-dp-text-2"
+        className="dp-glass-strong pointer-events-none fixed left-1/2 -translate-x-1/2 rounded-full px-3 py-1 text-xs text-dp-text-2"
         style={{ top: TOP_ROW_HEIGHT + 14 }}
       >
         {group ? t.placement.addToGroup(group.name) : orchestrator ? t.placement.placeOrchestrator : t.placement.placeAgent}

@@ -28,7 +28,7 @@ export function LaunchOptionsForm(props: {
   return (
     <div className="grid gap-3 p-1">
       {onBack && (
-        <button type="button" onClick={onBack} className="flex items-center gap-1.5 text-xs text-dp-text-2 hover:text-dp-text">
+        <button type="button" onClick={onBack} className="flex items-center gap-1.5 self-start rounded-md text-xs text-dp-text-2 transition-[color] duration-150 ease-out hover:text-dp-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none">
           <ArrowLeft className="size-3.5" /> {t.title}
         </button>
       )}
@@ -40,7 +40,7 @@ export function LaunchOptionsForm(props: {
             type="button"
             aria-label={t.browse}
             onClick={() => void browse()}
-            className="grid size-8 shrink-0 place-items-center rounded-lg border border-dp-line bg-dp-card hover:bg-dp-hover"
+            className="grid size-8 shrink-0 place-items-center rounded-md border border-dp-line bg-dp-card transition-[background-color,transform] duration-150 ease-out hover:bg-dp-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] motion-reduce:transition-none"
           >
             <FolderOpen className="size-4" />
           </button>

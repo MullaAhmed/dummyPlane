@@ -219,7 +219,7 @@ export function CommandInput(props: {
         <ul
           role="listbox"
           className={cn(
-            "absolute bottom-full left-0 z-10 mb-2 overflow-hidden rounded-xl border border-dp-line bg-dp-surface-2 py-1 shadow-dp",
+            "absolute bottom-full left-0 z-10 mb-2 overflow-hidden rounded-lg border border-dp-line bg-dp-surface py-1 shadow-dp",
             parts ? "w-64" : "w-96 max-w-full",
           )}
         >
@@ -234,7 +234,7 @@ export function CommandInput(props: {
                 suggestion.pick();
               }}
               className={cn(
-                "flex cursor-pointer items-center gap-2 px-3 py-1 text-xs",
+                "mx-1 flex cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-xs transition-[background-color] duration-150 ease-out motion-reduce:transition-none",
                 i === row ? "bg-dp-hover text-dp-text" : "text-dp-text-2",
               )}
             >
@@ -259,9 +259,9 @@ export function CommandInput(props: {
                 type="button"
                 aria-label={t.remove(labels.get(targetKey(target)) ?? "")}
                 onClick={() => setTargets(chips.filter((c) => targetKey(c) !== targetKey(target)))}
-                className="grid size-4 place-items-center rounded-full text-dp-text-2 hover:text-dp-text"
+                className="grid size-4 place-items-center rounded-full text-dp-text-2 transition-[background-color,color] duration-150 ease-out hover:bg-dp-hover hover:text-dp-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none"
               >
-                <X className="size-3" />
+                <X className="size-3.5" />
               </button>
             </span>
           ))}
@@ -290,9 +290,9 @@ export function CommandInput(props: {
         disabled={!canSend}
         onClick={send}
         className={cn(
-          "flex shrink-0 items-center justify-center gap-1.5 font-semibold",
-          compact ? "size-7 rounded-[8px]" : "h-8 rounded-[10px] px-3 text-[12.5px]",
-          canSend ? "bg-dp-accent text-dp-on-accent" : "bg-dp-field text-dp-text-3",
+          "flex shrink-0 items-center justify-center gap-1.5 font-semibold transition-[background-color,filter,transform] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] disabled:pointer-events-none motion-reduce:transition-none",
+          compact ? "size-7 rounded-md" : "h-8 rounded-md px-3 text-[13px]",
+          canSend ? "bg-dp-accent text-dp-on-accent hover:brightness-110" : "bg-dp-field text-dp-text-3",
         )}
       >
         <ArrowUp className="size-4" />
