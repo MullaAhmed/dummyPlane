@@ -1,11 +1,12 @@
 // @vitest-environment happy-dom
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeAll, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { mockIPC } from "@tauri-apps/api/mocks";
 import { removeNodes } from "@/fleet/terminals";
 import { agentActivityStore } from "@/store/agentActivity";
 import { nodesStore } from "@/store/nodes";
+import { terminalStatusStore } from "@/store/terminalStatus";
 import { uiStore } from "@/store/ui";
 import { CloseAgentDialog } from "./CloseAgentDialog";
 
@@ -83,4 +84,78 @@ it("says whether the agent is at work or ready, as the spec asks (§7.5)", async
   expect(document.querySelector('[role="dialog"]')!.textContent).toContain("Isis is working.");
   await act(async () => agentActivityStore.getState().apply({ nodeId: "isis", activity: "idle", since: 2 }));
   expect(document.querySelector('[role="dialog"]')!.textContent).toContain("Isis is ready.");
+});
+
+describe("an agent that opened sub-agents (spawn_agent)", () => {
+  beforeAll(async () => {
+    const terminal = (name: string, spawnedBy?: string) => ({
+      workspaceId: "w1",
+      kind: "terminal" as const,
+      payload: { title: name, name, agent: "claude" as const, cwd: "C:/code", shell: "default" as const, command: "", ...(spawnedBy ? { spawnedBy } : {}) },
+    });
+    await nodesStore.getState().create("osiris", terminal("Osiris"));
+    await nodesStore.getState().create("horus", terminal("Horus", "osiris"));
+    await nodesStore.getState().create("seth", terminal("Seth", "horus"));
+  });
+  beforeEach(() => vi.mocked(removeNodes).mockClear());
+  afterEach(() => terminalStatusStore.getState().remove("osiris"));
+
+  const asked = { agents: ["osiris"], remove: ["osiris"], children: ["horus", "seth"] };
+  const checkbox = () => document.querySelector<HTMLInputElement>('[role="dialog"] input[type="checkbox"]');
+
+  it("offers to close them too, ticked, and closes them with it once confirmed", async () => {
+    await act(async () => uiStore.getState().setClosing(asked));
+    const dialog = document.querySelector('[role="dialog"]')!;
+    expect(dialog.textContent).toContain("Close Osiris?");
+    expect(dialog.textContent).toContain("Also close the sub-agents it opened: Horus, Seth");
+    expect(checkbox()!.checked).toBe(true);
+    await act(async () => button("Close the agent").click());
+    expect(removeNodes).toHaveBeenLastCalledWith(["osiris", "horus", "seth"]);
+    expect(uiStore.getState().closing).toBeNull();
+  });
+
+  it("closes the agent alone once unticked", async () => {
+    await act(async () => uiStore.getState().setClosing(asked));
+    await act(async () => checkbox()!.click());
+    expect(checkbox()!.checked).toBe(false);
+    await act(async () => button("Close the agent").click());
+    expect(removeNodes).toHaveBeenLastCalledWith(["osiris"]);
+    expect(uiStore.getState().closing).toBeNull();
+  });
+
+  it("starts ticked again at the next closing", async () => {
+    await act(async () => uiStore.getState().setClosing(asked));
+    await act(async () => checkbox()!.click());
+    await act(async () => button("Cancel").click());
+    expect(removeNodes).not.toHaveBeenCalled();
+    await act(async () => uiStore.getState().setClosing(asked));
+    expect(checkbox()!.checked).toBe(true);
+    await act(async () => button("Cancel").click());
+  });
+
+  it("says a stopped agent is stopped: only its sub-agents made it ask", async () => {
+    await act(async () => uiStore.getState().setClosing(asked));
+    const dialog = document.querySelector('[role="dialog"]')!;
+    expect(dialog.textContent).toContain("Osiris is stopped.");
+    expect(dialog.textContent).not.toContain("still running");
+    await act(async () => button("Cancel").click());
+  });
+
+  it("says a running one is running", async () => {
+    terminalStatusStore.getState().set("osiris", { state: "running" });
+    await act(async () => uiStore.getState().setClosing(asked));
+    const dialog = document.querySelector('[role="dialog"]')!;
+    expect(dialog.textContent).toContain("Osiris is still running. Closing it ends its session.");
+    expect(dialog.textContent).not.toContain("is stopped");
+    await act(async () => button("Cancel").click());
+  });
+
+  it("shows no checkbox for an agent without sub-agents to close", async () => {
+    await act(async () => uiStore.getState().setClosing({ agents: ["osiris"], remove: ["osiris"], children: [] }));
+    expect(document.querySelector('[role="dialog"]')).not.toBeNull();
+    expect(checkbox()).toBeNull();
+    expect(document.querySelector('[role="dialog"]')!.textContent).not.toContain("Also close");
+    await act(async () => button("Close the agent").click());
+    expect(removeNodes).toHaveBeenLastCalledWith(["osiris"]);
+  });
 });

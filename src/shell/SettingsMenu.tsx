@@ -3,6 +3,7 @@ import { ArrowDownCircle, Download, FileText, ImageDown, Info, LifeBuoy, Upload 
 import { showAbout } from "@/app/about";
 import { openLogDir } from "@/app/logs";
 import { setNativeNotifications, useNativeNotifications } from "@/app/nativeNotifications";
+import { MAX_SPAWNED_CHOICES, setMaxSpawned, setSubagentTerminalsSetting, useSubagentSettings } from "@/app/subagentSettings";
 import { checkForUpdate, setAutoUpdates, useUpdates } from "@/app/updates";
 import { PALETTES, readThemeChoice, setThemeChoice, setTransparency, useThemeSettings, type ThemeChoice } from "@/app/theme";
 import {
@@ -14,6 +15,9 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useMessages } from "@/i18n";
@@ -38,6 +42,8 @@ export function SettingsMenu({
   const { choice, transparency } = useThemeSettings();
   const autoUpdates = useUpdates((s) => s.auto);
   const nativeNotifications = useNativeNotifications();
+  const subagentTerminals = useSubagentSettings((s) => s.terminals);
+  const maxSpawned = useSubagentSettings((s) => s.maxSpawned);
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
@@ -71,6 +77,25 @@ export function SettingsMenu({
         >
           {t.nativeNotifications}
         </DropdownMenuCheckboxItem>
+        <DropdownMenuCheckboxItem
+          className={ROW}
+          checked={subagentTerminals}
+          onCheckedChange={(on) => void setSubagentTerminalsSetting(on === true)}
+        >
+          {t.subagentTerminals}
+        </DropdownMenuCheckboxItem>
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger className={ROW}>{t.maxSpawned(maxSpawned)}</DropdownMenuSubTrigger>
+          <DropdownMenuSubContent className="shadow-dp ring-dp-line">
+            <DropdownMenuRadioGroup value={String(maxSpawned)} onValueChange={(value) => void setMaxSpawned(Number(value))}>
+              {MAX_SPAWNED_CHOICES.map((n) => (
+                <DropdownMenuRadioItem key={n} className={ROW} value={String(n)}>
+                  {n}
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
         <DropdownMenuCheckboxItem className={ROW} checked={autoUpdates} onCheckedChange={(on) => void setAutoUpdates(on === true)}>
           {t.autoUpdates}
         </DropdownMenuCheckboxItem>

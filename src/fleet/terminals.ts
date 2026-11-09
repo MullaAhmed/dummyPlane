@@ -19,6 +19,8 @@ import { arrangeInFrame, freeCell, freeSpot, NODE_GAP } from "./groupLayout";
 import { fleetMessages } from "./messages";
 import { nameForNewAgent, pantheonsForCopiedGroups } from "./naming";
 import { sceneAccess } from "./sceneAccess";
+import { withSpawnedChildren } from "./spawnFamily";
+import { reflowSpawnTreesOf } from "./spawnTree";
 
 export interface Point {
   x: number;
@@ -190,14 +192,20 @@ export function removeFromStoredScene(workspaceId: string, ids: ReadonlySet<stri
   const terminals = elements.filter((e) => ids.has(e.id) && nodeKindOf(e) === "terminal").map((e) => e.id);
   scene.write(elements.map((e) => (ids.has(e.id) && !e.isDeleted ? newElementWith(e, { isDeleted: true }) : e)));
   for (const id of terminals) disposeTerminal(id);
+  reflowSpawnTreesOf(workspaceId, terminals);
 }
 
 export function removeNode(nodeId: string) {
   removeNodes([nodeId]);
 }
 
-/** "Close" of the header: a running agent asks for confirmation first (spec theme §7.5). */
+/**
+ * "Close" of the header: a running agent asks for confirmation first (spec
+ * theme §7.5), and so does one whose sub-agents (spawn_agent) are still on the
+ * canvas: they may close with it.
+ */
 export function requestClose(nodeId: string) {
-  if (isRunning(nodeId)) uiStore.getState().setClosing({ agents: [nodeId], remove: [nodeId] });
+  const closing = withSpawnedChildren({ agents: [nodeId], remove: [nodeId] });
+  if (isRunning(nodeId) || closing.children) uiStore.getState().setClosing(closing);
   else removeNode(nodeId);
 }

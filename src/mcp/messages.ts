@@ -10,8 +10,17 @@ export const agentMessages = defineMessages({
     tools: {
       declareSteps: "Declare your task's steps, in order (short titles). dummyPlane shows them as a timeline under your terminal. Replaces the steps already declared.",
       step: "Mark a step: in_progress when you start it, done when it is finished, failed if it fails. An unknown step is added at the end.",
-      report: "Report your mission sub-task to the orchestrator: a summary and a status (done, blocked or failed).",
+      report:
+        "Report your mission sub-task to the orchestrator, or your task to the agent that opened you with spawn_agent: a summary and a status (done, blocked or failed).",
       reportCheck: "What the user will have to check by hand, if anything.",
+      spawnAgent: (depth: number) =>
+        "Delegate a task to a sub-agent that opens as a new Claude terminal beside yours, in your folder (same worktree): the user can watch it and type into it. " +
+        "Use it instead of the built-in Agent/Task tool, several calls to work in parallel. It returns at once: do not wait or poll. " +
+        "When the sub-agent is done it calls report, and its summary is typed into your terminal as \"[dummyPlane] <name> reported (<status>): <summary>\". " +
+        `A sub-agent can spawn its own, ${depth} levels below a top agent at most; the number running at once is capped by a setting.`,
+      spawnTask: "The complete instructions: the sub-agent starts from nothing and knows only this.",
+      spawnTitle: "A short title for its terminal.",
+      spawnModel: "Optional Claude model (opus, sonnet, haiku, or a model id); by default Claude's own.",
       finishCheck: "What the user will have to check by hand: it tops the morning report.",
       mission: "The mission: state, name, task, overall budget, maximum number of agents working at once (max_agents) and how many are (active_agents), model router, branch, plan, the linked Claude agents available and the linked groups, with each one's group and speciality.",
       proposePlan: "Propose your plan: it replaces the pending plan and waits for the user's go-ahead (\"Launch the mission\" in the panel). One sub-task per agent; beyond Max agents, sub-tasks (agent \"new\") wait in the queue and start as seats free up.",
@@ -47,6 +56,22 @@ export const agentMessages = defineMessages({
       renamed: (name: string) => `Tool renamed: use ${name}.`,
       failed: (error: string) => `dummyPlane could not answer: ${error}`,
     },
+    spawn: {
+      task: "Give the sub-agent its task (task): the complete instructions.",
+      model: (model: string) => `Unknown model "${model}": opus, sonnet, haiku, or a model id.`,
+      gone: "Your terminal is no longer on the canvas.",
+      noCanvas: "Your workspace's canvas is not loaded: open it in dummyPlane, then try again.",
+      tooDeep: (max: number) => `Too deep: a sub-agent can only be spawned ${max} levels below a top agent. Do this task yourself.`,
+      tooMany: (running: number, max: number) =>
+        `${plural(running, "sub-agent is", "sub-agents are")} already running, the most at once is ${max} (dummyPlane's Settings). Wait for one to report, or do this task yourself.`,
+      failed: "The sub-agent's terminal could not be created.",
+      spawned: (name: string) => `${name} opened beside you and gets the task as soon as its Claude is ready. Its report will be typed into your terminal: carry on, do not wait for it.`,
+      brief: (parent: string, task: string) =>
+        `[dummyPlane · sub-agent of ${parent}] ${task}\n\nWhen you are done, commit if you changed files, then call report (summary, status): ${parent} reads it.`,
+      notStarted: (name: string) => `${name} did not start: its task is not sent.`,
+      notReady: (name: string) => `${name} is not ready after a minute, its Claude session did not open: its task is not sent.`,
+      notSent: (name: string, error: string) => `${name} did not get its task: ${error}`,
+    },
     agent: {
       declared: (count: number) => `${plural(count, "step", "steps")} declared.`,
       marked: (title: string, state: string) => `${title}: ${state}.`,
@@ -56,6 +81,8 @@ export const agentMessages = defineMessages({
       reported: (name: string, status: string, summary: string) => `${name} reported (${status}): ${summary}`,
       unheard: "Report saved, but the orchestrator is closed: nobody will read it for now.",
       sent: "Report passed on to the orchestrator.",
+      sentToParent: (name: string) => `Report passed on to ${name}.`,
+      unheardParent: "Report not passed on: the agent that opened you is closed.",
     },
     steps: {
       tooLong: (max: number) => `Each step is a short title (${max} characters at most).`,

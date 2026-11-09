@@ -4,9 +4,10 @@
 
 use std::io::Read;
 use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
-use serde_json::Value;
+use serde_json::{Value, json};
 use tiny_http::{Header, Method, Request, Response, Server};
 
 use super::activity::{
@@ -133,18 +134,58 @@ pub fn start(sink: impl HookSink) -> std::io::Result<HookServer> {
     Ok(HookServer { port, token })
 }
 
+/// Whether Claude's built-in sub-agents give way to `spawn_agent`'s terminals:
+/// read at each hook, so the setting reaches sessions already running.
+static SUBAGENT_TERMINALS: AtomicBool = AtomicBool::new(true);
+
+/// The user's "Sub-agents open as terminals" setting.
+pub fn set_subagent_terminals(on: bool) {
+    SUBAGENT_TERMINALS.store(on, Ordering::Relaxed);
+}
+
+/// Claude's built-in sub-agent tool, under its old name and its current one.
+const BUILTIN_SUBAGENT_TOOLS: [&str; 2] = ["Task", "Agent"];
+
+const SPAWN_AGENT_INSTEAD: &str = "In dummyPlane, delegate with the dummyplane spawn_agent tool so the sub-agent opens as a terminal.";
+
+/// What a `PreToolUse` gets back: a denial of the built-in sub-agent tool while
+/// sub-agents open as terminals, else no decision.
+fn pre_tool_use(json: &Value, terminals: bool) -> Option<Value> {
+    let builtin = json["tool_name"]
+        .as_str()
+        .is_some_and(|tool| BUILTIN_SUBAGENT_TOOLS.contains(&tool));
+    (terminals && builtin).then(|| {
+        json!({
+            "hookSpecificOutput": {
+                "hookEventName": "PreToolUse",
+                "permissionDecision": "deny",
+                "permissionDecisionReason": SPAWN_AGENT_INSTEAD,
+            }
+        })
+    })
+}
+
 /// A hook or a status line. A panic in the sink is answered 500 rather than
-/// lost (backlog R1).
+/// lost (backlog R1). A hook's decision travels as JSON in a 200.
 fn answer_hook(mut request: Request, token: &str, sink: &dyn HookSink) {
-    let status = catch_unwind(AssertUnwindSafe(|| {
+    let (status, body) = catch_unwind(AssertUnwindSafe(|| {
         if request.url().starts_with("/status/") {
-            status_line_of(&mut request, token, sink)
+            (status_line_of(&mut request, token, sink), None)
         } else {
             status_of(&mut request, token, sink)
         }
     }))
-    .unwrap_or(500);
-    let _ = request.respond(Response::empty(status));
+    .unwrap_or((500, None));
+    let _ = match body {
+        None => request.respond(Response::empty(status)),
+        Some(json) => request.respond(
+            Response::from_data(json.to_string().into_bytes())
+                .with_status_code(status)
+                .with_header(
+                    Header::from_bytes(&b"Content-Type"[..], &b"application/json"[..]).unwrap(),
+                ),
+        ),
+    };
 }
 
 /// One thread per request. When the system refuses the thread, the caller is
@@ -284,14 +325,15 @@ fn status_line_of(request: &mut Request, token: &str, sink: &dyn HookSink) -> u1
     }
 }
 
-fn status_of(request: &mut Request, token: &str, sink: &dyn HookSink) -> u16 {
+/// The status of a hook's answer, and the decision it carries, if any.
+fn status_of(request: &mut Request, token: &str, sink: &dyn HookSink) -> (u16, Option<Value>) {
     let header = token_header(request);
     let (source, node_id) = match parse_route(request.url(), token, header.as_deref()) {
         Ok(route) => route,
-        Err(status) => return status,
+        Err(status) => return (status, None),
     };
     if *request.method() != Method::Post {
-        return 405;
+        return (405, None);
     }
     let mut body = Vec::new();
     if request
@@ -300,21 +342,29 @@ fn status_of(request: &mut Request, token: &str, sink: &dyn HookSink) -> u16 {
         .read_to_end(&mut body)
         .is_err()
     {
-        return 400;
+        return (400, None);
     }
     if body.len() > MAX_BODY {
-        return 413;
+        return (413, None);
     }
     let Ok(json) = serde_json::from_slice::<serde_json::Value>(&body) else {
-        return 400;
+        return (400, None);
     };
     let (activity, session_ended) = match source {
         HookSource::Claude => {
             if let Some(hook) = SubagentHook::parse(&json) {
                 sink.subagent(&node_id, hook);
-                return 204;
+                return (204, None);
             }
             let event = json["hook_event_name"].as_str().unwrap_or_default();
+            if event == "PreToolUse" {
+                // A question, not an activity: the terminal's state stays as it is.
+                let terminals = SUBAGENT_TERMINALS.load(Ordering::Relaxed);
+                return match pre_tool_use(&json, terminals) {
+                    Some(decision) => (200, Some(decision)),
+                    None => (204, None),
+                };
+            }
             if claude_session_ended(event, json["reason"].as_str()) {
                 (Some(Activity::Idle), true)
             } else {
@@ -348,7 +398,7 @@ fn status_of(request: &mut Request, token: &str, sink: &dyn HookSink) -> u16 {
             message,
         });
     }
-    204
+    (204, None)
 }
 
 fn answer_mcp(mut request: Request, sink: &dyn HookSink) {
@@ -788,6 +838,28 @@ mod tests {
         headers: &[(&str, &str)],
         body: &[u8],
     ) -> (u16, String) {
+        let response = raw_exchange(port, method, path, headers, body);
+        let status = response
+            .split_whitespace()
+            .nth(1)
+            .unwrap_or("0")
+            .parse()
+            .unwrap();
+        let body = response
+            .split_once("\r\n\r\n")
+            .map(|(_, b)| b.to_string())
+            .unwrap_or_default();
+        (status, body)
+    }
+
+    /// The same request; returns the whole response, head included.
+    fn raw_exchange(
+        port: u16,
+        method: &str,
+        path: &str,
+        headers: &[(&str, &str)],
+        body: &[u8],
+    ) -> String {
         let mut stream = TcpStream::connect(("127.0.0.1", port)).unwrap();
         stream
             .set_read_timeout(Some(Duration::from_secs(5)))
@@ -804,17 +876,85 @@ mod tests {
         let _ = stream.write_all(body);
         let mut response = String::new();
         let _ = stream.read_to_string(&mut response);
-        let status = response
-            .split_whitespace()
-            .nth(1)
-            .unwrap_or("0")
-            .parse()
-            .unwrap();
-        let body = response
-            .split_once("\r\n\r\n")
-            .map(|(_, b)| b.to_string())
-            .unwrap_or_default();
-        (status, body)
+        response
+    }
+
+    #[test]
+    fn only_the_built_in_subagent_tool_is_denied_and_only_while_the_switch_is_on() {
+        let call = |tool: &str| json!({ "hook_event_name": "PreToolUse", "tool_name": tool });
+        for tool in ["Agent", "Task"] {
+            let decision = pre_tool_use(&call(tool), true).unwrap();
+            assert_eq!(decision["hookSpecificOutput"]["permissionDecision"], "deny");
+            assert_eq!(pre_tool_use(&call(tool), false), None, "{tool}");
+        }
+        // Matched by its exact name: tools named alike are not Claude's sub-agent.
+        for tool in ["TaskStop", "TaskCreate", "TaskOutput", "agent", "Bash"] {
+            assert_eq!(pre_tool_use(&call(tool), true), None, "{tool}");
+        }
+        let nameless = json!({ "hook_event_name": "PreToolUse" });
+        assert_eq!(pre_tool_use(&nameless, true), None);
+    }
+
+    /// Puts the switch back on, even when an assertion fails.
+    struct TerminalsBackOn;
+
+    impl Drop for TerminalsBackOn {
+        fn drop(&mut self) {
+            set_subagent_terminals(true);
+        }
+    }
+
+    /// The only test that flips the global switch: `cargo test` runs tests in parallel.
+    #[test]
+    fn denies_the_built_in_subagent_tool_while_subagents_open_as_terminals() {
+        let _back_on = TerminalsBackOn;
+        let (tx, rx) = mpsc::channel();
+        let server = start(Arc::new(TestSink::new(tx))).unwrap();
+        let path = format!("/hook/claude/n1?t={}", server.token);
+        let call = |tool: &str| {
+            json!({ "hook_event_name": "PreToolUse", "tool_name": tool, "tool_input": {} })
+                .to_string()
+        };
+        let pre = |tool: &str| exchange(server.port, "POST", &path, &[], call(tool).as_bytes());
+        let denial = json!({
+            "hookSpecificOutput": {
+                "hookEventName": "PreToolUse",
+                "permissionDecision": "deny",
+                "permissionDecisionReason": "In dummyPlane, delegate with the dummyplane spawn_agent tool so the sub-agent opens as a terminal."
+            }
+        });
+
+        set_subagent_terminals(true);
+        for tool in ["Agent", "Task"] {
+            let (status, body) = pre(tool);
+            assert_eq!(status, 200, "{tool}");
+            assert_eq!(
+                serde_json::from_str::<Value>(&body).unwrap(),
+                denial,
+                "{tool}"
+            );
+        }
+        let head = raw_exchange(server.port, "POST", &path, &[], call("Agent").as_bytes())
+            .to_ascii_lowercase();
+        assert!(
+            head.contains("\r\ncontent-type: application/json\r\n"),
+            "{head}"
+        );
+        // Another tool's call goes on, without a decision.
+        for tool in ["TaskStop", "Bash", "mcp__dummyplane__spawn_agent"] {
+            assert_eq!(pre(tool), (204, String::new()), "{tool}");
+        }
+
+        // Switched off, Claude's own sub-agents run, in sessions already started too.
+        set_subagent_terminals(false);
+        for tool in ["Agent", "Task"] {
+            assert_eq!(pre(tool), (204, String::new()), "{tool}");
+        }
+        set_subagent_terminals(true);
+        assert_eq!(pre("Agent").0, 200);
+
+        // A question, not an activity: no hit.
+        assert!(rx.recv_timeout(Duration::from_millis(300)).is_err());
     }
 
     #[test]
