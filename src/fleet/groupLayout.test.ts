@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { Rect } from "@/canvas/groups";
-import { arrangeInFrame, cellAt, clearSpot, freeCell, GROUP_GAP, groupGrid, orchestratorSpot } from "./groupLayout";
+import { NODE_SIZE } from "@/canvas/nodeElement";
+import type { Point } from "./terminals";
+import { arrangeInFrame, cellAt, clearSpot, freeCell, freeSpot, GROUP_GAP, groupGrid, NODE_GAP, orchestratorSpot, rectAround } from "./groupLayout";
 
 const at = (x: number, y: number, size: { width: number; height: number }): Rect => ({ x, y, width: size.width, height: size.height });
 
@@ -100,5 +102,59 @@ describe("clearSpot", () => {
 describe("orchestratorSpot", () => {
   it("puts an orchestrator to the left of the group, its top on the group's top", () => {
     expect(orchestratorSpot({ x: 1000, y: 500, width: 900, height: 600 })).toEqual({ x: 1000 - GROUP_GAP - 320, y: 880 });
+  });
+});
+
+describe("freeSpot", () => {
+  const size = NODE_SIZE.terminal;
+  const center = { x: 1000, y: 800 };
+  const overlaps = (a: Rect, b: Rect) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+  /** Smallest gap between two rects, the gap along x or y (negative when they overlap). */
+  const gapOf = (a: Rect, b: Rect) => Math.max(b.x - (a.x + a.width), a.x - (b.x + b.width), b.y - (a.y + a.height), a.y - (b.y + b.height));
+  const launch = (at: Point, placed: Rect[]) => {
+    const spot = freeSpot(rectAround(at, size), placed);
+    placed.push(spot);
+    return spot;
+  };
+
+  it("keeps the requested center on empty space (d)", () => {
+    expect(freeSpot(rectAround(center, size), [])).toEqual(rectAround(center, size));
+    const far = { x: 9000, y: 9000, width: 720, height: 440 };
+    expect(freeSpot(rectAround(center, size), [far])).toEqual(rectAround(center, size));
+  });
+
+  it("does not stack two launches at the same center (a)", () => {
+    const placed: Rect[] = [];
+    const first = launch(center, placed);
+    const second = launch(center, placed);
+    const third = launch(center, placed);
+    expect(overlaps(first, second)).toBe(false);
+    expect(overlaps(second, third)).toBe(false);
+    expect(overlaps(first, third)).toBe(false);
+    expect(gapOf(first, second)).toBeGreaterThanOrEqual(NODE_GAP);
+  });
+
+  it("places a launch right of an existing terminal it would cover, NODE_GAP apart (b)", () => {
+    const existing = rectAround(center, size);
+    const spot = freeSpot(rectAround({ x: center.x + 100, y: center.y + 50 }, size), [existing]);
+    expect(overlaps(spot, existing)).toBe(false);
+    expect(gapOf(spot, existing)).toBe(NODE_GAP);
+  });
+
+  it("keeps clear of group frames and every node", () => {
+    const frame = { x: 1000 - 50, y: 800 - 50, width: 2000, height: 2000 };
+    const spot = freeSpot(rectAround(center, size), [frame]);
+    expect(overlaps(spot, frame)).toBe(false);
+  });
+
+  it("gives a duplicate a spot that overlaps neither its source nor a neighbour (c)", () => {
+    const source = rectAround(center, size);
+    const neighbour = { x: source.x + source.width + NODE_GAP, y: source.y, width: size.width, height: size.height };
+    // duplicateTerminal's requested center: right of the source, NODE_GAP apart.
+    const requested = rectAround({ x: source.x + source.width * 1.5 + NODE_GAP, y: source.y + source.height / 2 }, size);
+    const copy = freeSpot(requested, [source, neighbour]);
+    expect(overlaps(copy, source)).toBe(false);
+    expect(overlaps(copy, neighbour)).toBe(false);
+    expect(gapOf(copy, source)).toBeGreaterThanOrEqual(NODE_GAP);
   });
 });
