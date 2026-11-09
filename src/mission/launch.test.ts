@@ -196,6 +196,32 @@ describe("launchMission (spec §7.3)", () => {
     expect(ptySendText).toHaveBeenCalledWith("n1", subTaskText("Auth", plan[1], tree(`auth-${fresh.toLowerCase()}`).branch));
   });
 
+  it("starts Max agents at the go-ahead, the plan's other sub-tasks first in the queue for a seat", async () => {
+    const three = ["A", "B", "C"].map((title) => ({ ...plan[1], title }));
+    const lint = { title: "Lint", brief: "Lance le lint", budgetMin: 5 };
+    await setup({ maxAgents: 2, plan: three, queue: [lint] });
+    vi.mocked(launchGroup).mockResolvedValueOnce({ frameId: "f1", nodeIds: ["n1", "n2"] });
+    terminalStatusStore.getState().set("n2", { state: "running" });
+    await launchMission("chef");
+    const mission = missionNow();
+    expect(missionAddAgent).toHaveBeenCalledTimes(2);
+    expect(launchGroup).toHaveBeenCalledWith(expect.anything(), expect.anything(), undefined, expect.objectContaining({ names: mission.members.map((m) => m.name) }));
+    expect(mission.members.map((m) => [m.nodeId, m.task])).toEqual([
+      ["n1", "A"],
+      ["n2", "B"],
+    ]);
+    expect(mission.plan).toEqual(three.slice(0, 2));
+    // The queue names no agent; the plan's rest goes before what was already waiting.
+    expect(mission.queue).toEqual([{ title: "C", brief: plan[1].brief, budgetMin: 30 }, lint]);
+    expect(mission.queue?.[0]).not.toHaveProperty("agent");
+    await vi.waitFor(() => expect(missionNow().members.every((m) => m.sentAt !== undefined)).toBe(true));
+    expect(ptySendText).toHaveBeenCalledWith("n1", subTaskText("Auth", three[0], mission.members[0].branch));
+    expect(ptySendText).toHaveBeenCalledWith("n2", subTaskText("Auth", three[1], mission.members[1].branch));
+    expect(ptySendText).toHaveBeenCalledTimes(2);
+    // Every seat taken: no new agent for the queue.
+    expect(missionAddAgent).toHaveBeenCalledTimes(2);
+  });
+
   it("judges a linked agent ready only once it is relaunched in its worktree (final review H2)", async () => {
     await setup();
     let relaunched!: () => void;
@@ -648,11 +674,53 @@ describe("reassignTask (spec §7.2 reattribuer)", () => {
     expect(pauseAgents).not.toHaveBeenCalled();
   });
 
-  it("does not open a new agent past Max agents", async () => {
+  it("does not open a new agent while Max agents are at work", async () => {
     await setup({ state: "en_cours", maxAgents: 2, project: "C:/code/proj", slug: "auth", frameId: "f1", members: [member("isis", "Isis", true, { task: "Login" }), member("n1", "Horus", false, { task: "API" })] });
-    expect(await reassignTask("chef", "isis", "nouveau")).toContain("Max agents");
+    expect(await reassignTask("chef", "isis", "nouveau")).toBe('2 agents are already at work (Max active agents): reassign to an agent that has reported instead of "new", or wait for one to finish.');
     expect(missionAddAgent).not.toHaveBeenCalled();
     expect(pauseAgents).not.toHaveBeenCalled();
+  });
+
+  it("still refuses one when two others are at work, the one handing over having reported", async () => {
+    const blocked = { summary: "bloqué", status: "bloque" as const, at: 1 };
+    // Its sub-task not typed yet, Seth's terminal is still starting: it holds its seat.
+    const members = [member("isis", "Isis", true, { task: "Login", report: blocked }), member("n1", "Horus", false, { task: "API" }), member("n2", "Seth", false, { task: "Docs", sentAt: undefined })];
+    await setup({ state: "en_cours", maxAgents: 2, project: "C:/code/proj", slug: "auth", frameId: "f1", members });
+    expect(await reassignTask("chef", "isis", "nouveau")).toContain("Max active agents");
+    expect(missionAddAgent).not.toHaveBeenCalled();
+  });
+
+  it("opens a new agent past the team's size: those who reported or handed over count no more against Max agents", async () => {
+    const done = { summary: "ok", status: "termine" as const, at: 1 };
+    const blocked = { summary: "bloqué", status: "bloque" as const, at: 1 };
+    await setup({
+      state: "en_cours",
+      maxAgents: 2,
+      project: "C:/code/proj",
+      slug: "auth",
+      frameId: "f1",
+      members: [
+        member("isis", "Isis", true, { task: "Login" }),
+        member("n1", "Horus", false, { task: "API", report: done, merged: true }),
+        member("n2", "Seth", false, { task: "Docs", report: blocked }),
+        member("n3", "Thot", false, { task: "Tests", handedTo: "Horus" }),
+      ],
+    });
+    // Still running: a report, not a stopped terminal, frees the seat.
+    for (const id of ["n2", "n3"]) terminalStatusStore.getState().set(id, { state: "running" });
+    canvasStore.setState({ frames: [{ id: "f1", x: 0, y: 0, width: 800, height: 500, name: "Mission Auth", group: { role: "general", pantheon: "egyptian" }, memberIds: ["n1", "n2", "n3"] }] });
+    const result = await reassignTask("chef", "isis", "nouveau");
+    expect(typeof result).toBe("object");
+    const name = (result as { name: string }).name;
+    expect(missionAddAgent).toHaveBeenCalledWith("C:/code/proj", "auth", name);
+    expect(missionNow().members.map((m) => [m.nodeId, m.task, m.handedTo])).toEqual([
+      ["isis", "Login", name],
+      ["n1", "API", undefined],
+      ["n2", "Docs", undefined],
+      ["n3", "Tests", "Horus"],
+      ["n9", "Login", undefined],
+    ]);
+    for (const id of ["n2", "n3"]) terminalStatusStore.getState().set(id, { state: "stopped" });
   });
 
   it("gives a sub-task to a new agent in the mission's group, started at once", async () => {

@@ -25,6 +25,13 @@ export interface SubTask {
 /** A task waiting for a free agent (spec overnight mission §4.1). */
 export type QueuedTask = Omit<SubTask, "agent">;
 
+/** A sub-task of the plan beyond Max agents, as it waits in the queue. */
+export function queuedTask(task: SubTask): QueuedTask {
+  const queued: Partial<SubTask> = { ...task };
+  delete queued.agent;
+  return queued as QueuedTask;
+}
+
 /** A task an agent is through with, for the morning report. */
 export interface PastTask {
   task: string;
@@ -285,7 +292,9 @@ export function proposedTasks(args: Record<string, unknown>, mission: Mission, g
   const e = messages(agentMessages).plan;
   const raw = args.tasks;
   if (!Array.isArray(raw) || raw.length === 0) return e.atLeastOne;
-  if ((mission.queue?.length ?? 0) + raw.length > MAX_QUEUE) return e.queueFull(MAX_QUEUE);
+  // A pending plan's sub-tasks beyond Max agents join the queue at the go-ahead.
+  const planned = mission.state === "plan" || mission.state === "lancement" ? Math.max(0, (mission.plan?.length ?? 0) - mission.maxAgents) : 0;
+  if ((mission.queue?.length ?? 0) + planned + raw.length > MAX_QUEUE) return e.queueFull(MAX_QUEUE);
   const taken = takenTitles(mission, true);
   const tasks: QueuedTask[] = [];
   for (const [i, item] of raw.entries()) {
@@ -322,7 +331,8 @@ export function proposedPlan(
   if (!task) return e.task;
   const raw = args.sous_taches;
   if (!Array.isArray(raw) || raw.length === 0) return e.atLeastOne;
-  if (raw.length > mission.maxAgents) return e.tooMany(mission.maxAgents);
+  // Beyond Max agents, sub-tasks wait in the queue at the go-ahead.
+  if ((mission.queue?.length ?? 0) + Math.max(0, raw.length - mission.maxAgents) > MAX_QUEUE) return e.queueFull(MAX_QUEUE);
   const plan: SubTask[] = [];
   // A plan replaces the pending one: only the queue's titles stand against it.
   const taken = takenTitles(mission, false);
@@ -334,6 +344,8 @@ export function proposedPlan(
     const agent = text(r.agent);
     const known = sameName(agent, NEW_AGENT) ? NEW_AGENT : linked.find((l) => sameName(l, agent));
     if (!known) return e.notLinked(n, agent);
+    // The queue names no agent: whoever has a seat first takes the task.
+    if (known !== NEW_AGENT && n > mission.maxAgents) return e.waitsForNew(n, mission.maxAgents);
     if (known !== NEW_AGENT && plan.some((s) => s.agent === known)) return e.alreadyHas(known);
     if ([...taken, ...plan.map((s) => s.title)].some((title) => sameName(title, fields.title))) return e.titleTaken(n, fields.title);
     const wanted = text(r.groupe);
