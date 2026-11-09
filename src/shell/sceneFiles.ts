@@ -2,7 +2,7 @@ import { CaptureUpdateAction, exportToBlob, loadFromBlob, serializeAsJSON } from
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { messages } from "@/i18n";
 import { nodeKindOf } from "@/canvas/nodeElement";
-import type { Theme } from "@/app/theme";
+import type { ThemeChoice } from "@/app/theme";
 import { exportBackground } from "@/theme/sceneColors";
 import { shellMessages } from "./messages";
 
@@ -48,10 +48,10 @@ export function exportScene(api: ExcalidrawImperativeAPI, name: string) {
   );
 }
 
-export async function exportPng(api: ExcalidrawImperativeAPI, name: string, theme: Theme) {
+export async function exportPng(api: ExcalidrawImperativeAPI, name: string, palette: ThemeChoice) {
   const blob = await exportToBlob({
     elements: api.getSceneElements(),
-    appState: { ...api.getAppState(), exportBackground: true, ...exportBackground(theme) },
+    appState: { ...api.getAppState(), exportBackground: true, ...exportBackground(palette) },
     files: api.getFiles(),
     mimeType: "image/png",
   });

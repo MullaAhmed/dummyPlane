@@ -26,7 +26,7 @@ it("keeps every toast in the bottom-right corner, above the zoom control (spec i
 });
 
 it("follows the app's theme, live", async () => {
-  themeStore.setState({ choice: "light", systemDark: true });
+  themeStore.setState({ choice: "calm" });
   const host = document.createElement("div");
   document.body.append(host);
   const root = createRoot(host);
@@ -37,7 +37,7 @@ it("follows the app's theme, live", async () => {
   });
   const toaster = () => host.querySelector<HTMLElement>("[data-sonner-toaster]")!;
   expect(toaster().dataset.sonnerTheme).toBe("light");
-  await act(async () => themeStore.setState({ choice: "dark" }));
+  await act(async () => themeStore.setState({ choice: "expressive" }));
   expect(toaster().dataset.sonnerTheme).toBe("dark");
   await act(async () => root.unmount());
   host.remove();

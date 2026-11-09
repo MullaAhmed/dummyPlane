@@ -17,7 +17,7 @@ import "./index.css";
 installLogging();
 // Windows' language until the saved choice is read at boot.
 document.documentElement.lang = langStore.getState().lang;
-startTheme(matchMedia("(prefers-color-scheme: dark)"));
+startTheme();
 // For the app's whole life (spec fenêtre §6.2, §8).
 installShortcuts(window);
 trackTerminalFocus(document);
