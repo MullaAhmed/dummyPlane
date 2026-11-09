@@ -12,7 +12,7 @@ import { DEFAULT_AWAY_HOURS, DEFAULT_LABEL, MAX_AWAY_HOURS, startOvernight } fro
 import { blockers, usageWarning } from "./overnightChecks";
 import { missionOf } from "./store";
 
-const FIELD = "w-20 rounded bg-dp-field px-2 py-1 text-sm text-dp-text outline-none";
+const FIELD = "w-20 rounded-md bg-dp-field px-2 py-1 text-sm text-dp-text outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50";
 /** From the tightest to the most open: commands stay an explicit choice (review). */
 const PERMISSIONS: readonly Permission[] = ["ask", "edits", "work"];
 
@@ -77,7 +77,7 @@ export function OvernightDialog({ nodeId, open, onOpenChange }: { nodeId: string
             {kind === "github" && (
               <label className="ml-6 flex items-center gap-2 text-xs text-dp-text-2" title={t.labelTitle}>
                 {t.label}
-                <input aria-label={t.labelLabel} value={label} onChange={(e) => setLabel(e.target.value)} className="w-32 rounded bg-dp-field px-2 py-1 text-dp-text outline-none" />
+                <input aria-label={t.labelLabel} value={label} onChange={(e) => setLabel(e.target.value)} className="w-32 rounded-md bg-dp-field px-2 py-1 text-dp-text outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50" />
               </label>
             )}
             <label className="flex items-center gap-2">
@@ -108,7 +108,7 @@ export function OvernightDialog({ nodeId, open, onOpenChange }: { nodeId: string
                 {t.blocked[id]}
               </li>
             ))}
-            {usage !== null && <li className="text-dp-waiting">{t.usage(usage)}</li>}
+            {usage !== null && <li className="text-dp-wait">{t.usage(usage)}</li>}
             <li>{t.awake}</li>
           </ul>
         </div>

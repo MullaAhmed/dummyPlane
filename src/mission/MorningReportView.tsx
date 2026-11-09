@@ -12,7 +12,7 @@ function Rows({ title, rows }: { title: string; rows: MorningRow[] }) {
       <span className="font-semibold text-dp-text">{t.morning.count(title, rows.length)}</span>
       <ul className="flex flex-col gap-0.5">
         {rows.map((row, i) => (
-          <li key={`${row.agent}-${row.task}-${i}`} title={row.summary} className="rounded bg-dp-card px-2 py-1">
+          <li key={`${row.agent}-${row.task}-${i}`} title={row.summary} className="rounded-md bg-dp-card px-2 py-1">
             <div className="flex items-center gap-2">
               <span className="min-w-0 truncate text-dp-text">{row.task}</span>
               {row.status && row.status !== "termine" && <span className="shrink-0 text-dp-danger">{t.report[row.status]}</span>}
