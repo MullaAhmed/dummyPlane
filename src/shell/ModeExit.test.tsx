@@ -19,11 +19,11 @@ it("offers a way out of the zen and reading modes, and nothing otherwise", async
   expect(host.querySelector("button")).toBeNull();
   await act(async () => canvasStore.setState({ view: { ...EMPTY_VIEW, mode: "reading" } }));
   const button = host.querySelector("button")!;
-  expect(button.textContent).toContain("Quitter le mode lecture");
+  expect(button.textContent).toContain("Leave reading mode");
   await act(async () => button.click());
   expect(updateScene).toHaveBeenCalledWith({ appState: { zenModeEnabled: false, viewModeEnabled: false } });
   await act(async () => canvasStore.setState({ view: { ...EMPTY_VIEW, mode: "zen" } }));
-  expect(host.querySelector("button")!.textContent).toContain("Quitter le mode zen");
+  expect(host.querySelector("button")!.textContent).toContain("Leave zen mode");
   await act(async () => root.unmount());
   host.remove();
 });

@@ -2,7 +2,7 @@ import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ArrowUp, X } from "lucide-react";
 import { useStore } from "zustand";
 import type { SceneFrame } from "@/canvas/groups";
-import { useLang, useMessages } from "@/i18n";
+import { useMessages } from "@/i18n";
 import { useNativeKeyDown } from "@/lib/useNativeKeyDown";
 import { cn } from "@/lib/utils";
 import { sendCommand } from "./broadcast";
@@ -47,7 +47,7 @@ function keptClosed(dismissed: Dismissal | null, text: string, caret: number): D
 }
 
 /**
- * The field of the command bar and of an orchestrator (spec habillage §12, §13):
+ * The field of the command bar and of an orchestrator (spec theme §12, §13):
  * `@` targets in chips (`@athena/zeus` for several), `/` the agents' commands,
  * Enter sends to them (or to `fallback`), ↑ ↓ recall.
  */
@@ -73,9 +73,7 @@ export function CommandInput(props: {
   const field = useRef<HTMLTextAreaElement>(null);
   const history = useStore(historyStore, (s) => s.entries);
 
-  // The « @tous » / "@all" label and the details follow the language.
-  const lang = useLang();
-  const options = useMemo(() => targetOptions(agents, groups), [agents, groups, lang]);
+  const options = useMemo(() => targetOptions(agents, groups), [agents, groups]);
   const labels = new Map(options.map((o) => [targetKey(o.target), o.label]));
   const chips = targets.filter((t) => labels.has(targetKey(t)));
   const mention = mentionAt(text, caret);

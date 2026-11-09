@@ -72,11 +72,11 @@ const LIGHT: Record<string, string> = {
 const OPAQUE = { "--ov-glass": "var(--ov-surface)", "--ov-glass-strong": "var(--ov-surface)", "--ov-head": "var(--ov-terminal-head)", "--ov-blur": "none" };
 
 describe("design tokens (spec identité §4.2)", () => {
-  it("defines every token of the dark theme, Argile, with the spec's value", () => {
+  it("defines every token of the dark theme, Clay, with the spec's value", () => {
     expect(cssBlock(tokens, ':root, :root[data-theme="dark"]')).toMatchObject(DARK);
   });
 
-  it("defines every token of the light theme, Ivoire, with the spec's value", () => {
+  it("defines every token of the light theme, Ivory, with the spec's value", () => {
     expect(cssBlock(tokens, ':root[data-theme="light"]')).toMatchObject(LIGHT);
   });
 

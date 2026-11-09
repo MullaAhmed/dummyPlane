@@ -27,7 +27,7 @@ import { canvasKnown, linkedClaudeAgents, linkedGroups, missionOf, orchestratorS
 const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));
 const t = () => messages(agentMessages);
 
-/** What an agent of the mission reads first (spec orchestrateur §7.3, §7.4). */
+/** What an agent of the mission reads first (spec orchestrator §7.3, §7.4). */
 export function subTaskText(mission: string, task: SubTask, branch: string, handover?: string): string {
   const brief = oneLine(task.brief);
   const text = t().lines.subTask(mission, task.title, `${brief}${/[.!?]$/.test(brief) ? "" : "."}`, task.budgetMin, branch);
@@ -37,7 +37,7 @@ export function subTaskText(mission: string, task: SubTask, branch: string, hand
 /**
  * What an agent is told of a task that may come from a ticket or from a Kanban
  * card, which GitHub may have filled: the orchestrator's note stops at the
- * orchestrator (spec mission de nuit §5.1). A linked board counts whether the
+ * orchestrator (spec overnight mission §5.1). A linked board counts whether the
  * task names its card or not: `card` is optional, the card's text was still read.
  */
 export function withTicketNote(orchestratorId: string, mission: Mission, text: string, task?: { card?: string }): string {
@@ -54,8 +54,8 @@ export function handoverText(from: Member): string {
 /**
  * A linked agent moves to `cwd` in a new conversation: a Claude session does
  * not resume from another folder (spec §7.3). It takes `model`, the router's,
- * or none to go back to Claude's own (spec maj §3); likewise for what its
- * mission lets it do unasked (spec mission de nuit §5.3).
+ * or none to go back to Claude's own (spec update §3); likewise for what its
+ * mission lets it do unasked (spec overnight mission §5.3).
  */
 export function restartIn(nodeId: string, cwd: string, model?: string, permission?: Permission): Promise<void> {
   const payload = terminalOf(nodesStore.getState().nodes[nodeId]);
@@ -82,7 +82,7 @@ const agentPayload = (name: string, cwd: string, model?: string, permission?: Pe
   ...(permission ? { permission } : {}),
 });
 
-/** Like a linked agent, a group chosen in the plan may be gone at the go-ahead (spec groupes spécialisés §4). */
+/** Like a linked agent, a group chosen in the plan may be gone at the go-ahead (spec specialised groups §4). */
 function checkGroups(orchestratorId: string, plan: readonly SubTask[]) {
   const linked = linkedGroups(orchestratorId);
   const lost = plan.find((task) => task.group && !linked.some((g) => g.id === task.group?.id));
@@ -131,7 +131,7 @@ async function formTeam(orchestratorId: string, workspaceId: string, project: st
         ...(task.group ? { group: task.group.id } : {}),
       });
     }
-    // Shown or not, its scene must be known to take the team (spec mission de nuit §6.1).
+    // Shown or not, its scene must be known to take the team (spec overnight mission §6.1).
     if (!canvasKnown(orchestratorId)) throw new Error(t().launch.leftWorkspace);
     checkGroups(orchestratorId, plan);
     const created = members.filter((m) => !m.linked && !m.group);
@@ -202,7 +202,7 @@ export async function assign(orchestratorId: string, member: Member, text: strin
   updateMember(orchestratorId, id, { sentAt: Date.now() });
 }
 
-/** « Lancer la mission » (spec §7.3): the plan's go-ahead. A second click while it launches does nothing. */
+/** "Launch the mission" (spec §7.3): the plan's go-ahead. A second click while it launches does nothing. */
 export async function launchMission(orchestratorId: string): Promise<void> {
   const record = nodesStore.getState().nodes[orchestratorId];
   const mission = missionOf(record);
@@ -241,7 +241,7 @@ export function endMission(orchestratorId: string, summary: string) {
   // Ended first: the agents stopping now are no events.
   setMission(orchestratorId, { state: "terminee", summary, endedAt: Date.now() });
   for (const member of mission.members) if (member.linked && mission.project) void restartIn(member.nodeId, mission.project);
-  // Those who joined a group go alone: it stays, with its own agents (spec groupes spécialisés §4).
+  // Those who joined a group go alone: it stays, with its own agents (spec specialised groups §4).
   const joined = mission.members.filter((m) => !m.linked && m.group).map((m) => m.nodeId);
   if (canvasKnown(orchestratorId)) {
     removeTeam(orchestratorId, record.workspaceId, mission.frameId, joined);
@@ -293,7 +293,7 @@ export async function mergeMission(orchestratorId: string): Promise<string> {
   return `${m.header(mission.branch ?? "")}\n${lines.join("\n")}`;
 }
 
-/** « Nettoyer la mission » (spec §7.7): merged worktrees go, the branches stay; the orchestrator is free again. */
+/** "Clean up the mission" (spec §7.7): merged worktrees go, the branches stay; the orchestrator is free again. */
 export async function cleanMission(orchestratorId: string): Promise<Cleanup | string> {
   const mission = missionOf(nodesStore.getState().nodes[orchestratorId]);
   if (mission?.state !== "terminee") return t().launch.notFinished;
@@ -307,7 +307,7 @@ export async function cleanMission(orchestratorId: string): Promise<Cleanup | st
   } catch (error) {
     return errorText(error);
   } finally {
-    // Freed even when git fails (project moved, worktrees removed by hand): never stuck « terminée » (final review H2).
+    // Freed even when git fails (project moved, worktrees removed by hand): never stuck "finished" (final review H2).
     nodesStore.getState().update(orchestratorId, { mission: next });
   }
 }
@@ -316,7 +316,7 @@ export async function cleanMission(orchestratorId: string): Promise<Cleanup | st
 async function newMember(orchestratorId: string, workspaceId: string, mission: Mission, task: SubTask): Promise<Member | string> {
   if (!mission.project || !mission.slug) return t().launch.noFolder;
   const { frames } = workspaceCanvas(workspaceId);
-  // The sub-task's group if it still exists, else the mission's (spec groupes spécialisés §4).
+  // The sub-task's group if it still exists, else the mission's (spec specialised groups §4).
   const chosen = frames.find((f) => f.id === task.group?.id);
   const frame = chosen ?? frames.find((f) => f.id === mission.frameId);
   const pantheon = frame?.group?.pantheon ?? pantheonForNewGroup(workspaceId);
@@ -385,7 +385,7 @@ export async function reassignTask(orchestratorId: string, fromNodeId: string, t
     const found = mission.members.find((m) => sameName(m.name, target) && m.nodeId !== from.nodeId && !m.handedTo);
     if (!found) return r.notOther(target);
     if (!found.report) return r.notDone(found.name);
-    // A stopped session would only say « n'a pas démarré » a minute later.
+    // A stopped session would only say "did not start" a minute later.
     if (!isRunning(found.nodeId)) return r.targetStopped(found.name);
     // Its entry takes the new sub-task: its finished work must be in the mission's branch first (final review H3).
     const finished = found.report.status === "termine";

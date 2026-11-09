@@ -50,7 +50,7 @@ function triggerOf(form: Form): LoopTrigger {
 
 const FIELD = "h-8 w-full rounded-lg border border-ov-line bg-ov-field px-2.5 text-[13px] text-ov-text outline-none focus-visible:border-ov-accent";
 
-/** The loops: the list and the form (spec boucles §4), opened by the palette or the indicator. */
+/** The loops: the list and the form (loops spec §4), opened by the palette or the indicator. */
 export function LoopsDialog() {
   const t = useMessages(loopsMessages).dialog;
   const [open, setOpen] = useState(false);

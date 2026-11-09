@@ -32,17 +32,17 @@ it("leaves nothing at the top of the canvas but the bars: no top toast, no banne
   const sources = sourceFiles();
   for (const [file, text] of Object.entries(sources)) {
     expect(/position: "top-right"/.test(text), `${file} : toast en haut`).toBe(false);
-    expect(/\btop-16\b/.test(text), `${file} : bandeau à 64 px, sous les onglets`).toBe(false);
+    expect(/\btop-16\b/.test(text), `${file} : title bar at 64 px, under the tabs`).toBe(false);
   }
 });
 
 it("draws the bottom row and its command bar in dense glass: they carry text over dark terminals (spec identité §4.2, §5.8)", () => {
   for (const file of ["shell/CommandBar.tsx", "shell/GitChip.tsx", "shell/ZoomControl.tsx", "shell/WaitingNotice.tsx"]) {
     expect(readSource(file), file).toMatch(/ov-glass-strong/);
-    expect(readSource(file), `${file} : verre léger sous du texte`).not.toMatch(/ov-glass(?!-strong)\b/);
+    expect(readSource(file), `${file} : light glass under text`).not.toMatch(/ov-glass(?!-strong)\b/);
   }
   expect(readSource("shell/CommandBar.tsx")).toContain("w-[680px]");
-  expect(readSource("shell/messages.ts")).toContain("Consigne aux agents · @ pour cibler · / commande · ↑ historique");
+  expect(readSource("shell/messages.ts")).toContain("Instruction for the agents · @ to target · / command · ↑ history");
   expect(readSource("fleet/CommandInput.tsx")).toContain("rounded-[10px]");
 });
 

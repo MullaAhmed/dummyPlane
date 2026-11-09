@@ -3,7 +3,7 @@ import { GitBranch, RotateCw, Undo2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { useLang, useMessages } from "@/i18n";
+import { useMessages } from "@/i18n";
 import { repoCommit, repoDiscard, repoHistory, repoPush, repoState, type LogEntry, type RepoState } from "@/ipc/repo";
 import type { ChangedFile } from "@/ipc/review";
 import { cn } from "@/lib/utils";
@@ -343,7 +343,6 @@ function DiscardDialog({ file, onCancel, onConfirm }: { file: ChangedFile | null
 
 function HistoryTab({ path, refresh }: { path: string; refresh: number }) {
   const t = useMessages(gitMessages);
-  const lang = useLang();
   const [log, setLog] = useState<LogEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -361,7 +360,6 @@ function HistoryTab({ path, refresh }: { path: string; refresh: number }) {
   if (error) return <GitMessage>{error}</GitMessage>;
   if (!log) return <GitMessage>{t.reading}</GitMessage>;
   if (log.length === 0) return <GitMessage>{t.history.empty}</GitMessage>;
-  const locale = lang === "fr" ? "fr-FR" : "en-GB";
   return (
     <ul className="min-h-0 flex-1 overflow-y-auto py-1">
       {log.map((entry) => (
@@ -374,7 +372,7 @@ function HistoryTab({ path, refresh }: { path: string; refresh: number }) {
           </span>
           <span className="max-w-[160px] shrink-0 truncate text-ov-text-2">{entry.author}</span>
           <span className="shrink-0 font-mono text-[11px] text-ov-text-3">
-            {new Date(entry.date * 1000).toLocaleDateString(locale, { day: "numeric", month: "short", year: "numeric" })}
+            {new Date(entry.date * 1000).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
           </span>
         </li>
       ))}

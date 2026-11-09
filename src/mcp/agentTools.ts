@@ -1,4 +1,4 @@
-import { langStore, messages } from "@/i18n";
+import { messages } from "@/i18n";
 import { declaredSteps, markedSteps, MAX_STEPS } from "@/nodes/steps";
 import { notify } from "@/mission/events";
 import { oneLine } from "@/mission/mission";
@@ -21,7 +21,7 @@ export const refused = (text: string): ToolResult => ({ ...said(text), isError: 
 
 const t = () => messages(agentMessages);
 
-/** The tools of any Claude session (spec orchestrateur §4.4), described in the interface's language. */
+/** The tools of any Claude session (spec orchestrator §4.4), described in the interface's language. */
 export function agentTools() {
   const d = t().tools;
   return [
@@ -65,17 +65,13 @@ export function declareSteps(nodeId: string, args: Record<string, unknown>): Too
   return said(t().agent.declared(steps.length));
 }
 
-/** The internal identifiers, said with their accents. */
-const FRENCH_STEP: Record<string, string> = { a_venir: "à venir", en_cours: "en cours", fait: "fait", echec: "échec" };
-
 export function markStep(nodeId: string, args: Record<string, unknown>): ToolResult {
   const current = terminalOf(nodesStore.getState().nodes[nodeId])?.steps ?? [];
   const steps = markedSteps(current, args.titre, args.etat);
   if (typeof steps === "string") return refused(steps);
   nodesStore.getState().update(nodeId, { steps });
   const step = steps.find((s) => s.title.toLowerCase() === String(args.titre).trim().toLowerCase())!;
-  // French reads « en cours », English the protocol's "in_progress".
-  const state = langStore.getState().lang === "fr" ? FRENCH_STEP[step.state] : outStep(step.state);
+  const state = outStep(step.state);
   return said(t().agent.marked(step.title, state));
 }
 
@@ -87,10 +83,10 @@ export function report(nodeId: string, args: Record<string, unknown>): ToolResul
   const status = args.statut;
   if (!summary) return refused(t().agent.summarize);
   if (status !== "termine" && status !== "bloque" && status !== "echec") return refused(t().agent.unknownStatus(String(status)));
-  // `merge` merges every « done » branch again: a merged one stays so until then (final review H2).
+  // `merge` merges every "done" branch again: a merged one stays so until then (final review H2).
   const check = typeof args.check === "string" ? oneLine(args.check) : "";
   updateMember(found.orchestratorId, nodeId, { report: { summary, status, at: Date.now(), ...(check ? { check } : {}) } });
-  // Its Kanban card follows: done, or on alert in « En cours ».
+  // Its Kanban card follows: done, or on alert in "In progress".
   const plan = missionOf(nodesStore.getState().nodes[found.orchestratorId])?.plan;
   if (status === "termine") void finishMissionCard(found.orchestratorId, plan, found.member.task).catch(() => undefined);
   else flagMissionCard(found.orchestratorId, plan, found.member.task, status === "bloque" ? "blocked" : "failed");

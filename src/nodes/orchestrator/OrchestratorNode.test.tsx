@@ -19,7 +19,7 @@ globalThis.ResizeObserver ??= class {
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-it("opens its name editor on request (« Renommer » of its radial menu)", async () => {
+it("opens its name editor on request (« Rename » of its radial menu)", async () => {
   mockIPC(() => undefined);
   await nodesStore.getState().create("chef", { workspaceId: "w1", kind: "orchestrator", payload: { name: "chef de backend" } });
   const host = document.createElement("div");
@@ -53,7 +53,7 @@ it("gives an orchestrator of before its Claude session, and shows its terminal (
   host.remove();
 });
 
-it("does not flash « introuvable » while a copy's record is on its way", async () => {
+it("does not flash « not found » while a copy's record is on its way", async () => {
   vi.useFakeTimers();
   const host = document.createElement("div");
   const root = createRoot(host);

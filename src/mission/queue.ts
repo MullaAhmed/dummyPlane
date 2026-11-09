@@ -23,7 +23,7 @@ const idleTold = new Map<string, string>();
 const missionNow = (orchestratorId: string) => missionOf(nodesStore.getState().nodes[orchestratorId]);
 const memberNow = (orchestratorId: string, nodeId: string) => missionNow(orchestratorId)?.members.find((m) => m.nodeId === nodeId && !m.handedTo);
 
-/** The first task an agent may take: of its group, or of none (spec mission de nuit §4.3). */
+/** The first task an agent may take: of its group, or of none (spec overnight mission §4.3). */
 function nextFor(mission: Mission, member: Member): QueuedTask | undefined {
   const group = memberGroupId(member);
   return mission.queue?.find((task) => !task.group || task.group.id === group);
@@ -137,7 +137,7 @@ function tellIfIdle(orchestratorId: string) {
   notify(orchestratorId, line);
 }
 
-/** An agent reported: « done » moves it on, the rest is the orchestrator's to decide (spec mission de nuit §4.3). */
+/** An agent reported: "done" moves it on, the rest is the orchestrator's to decide (spec overnight mission §4.3). */
 export async function afterReport(orchestratorId: string, nodeId: string): Promise<void> {
   if (isOrchestratorClosed(orchestratorId)) return;
   if (memberNow(orchestratorId, nodeId)?.report?.status === "termine") {

@@ -10,7 +10,7 @@ vi.mock("./registry", () => ({ COMMANDS: [], commandContext: () => ({}) }));
 const ctx: CommandContext = { project: true, workspaceId: "w1", terminalCount: 2, terminalId: "isis" };
 let available: boolean;
 const run = vi.fn();
-const next: Command = { id: "terminal.next", label: "Terminal suivant", section: "Navigation", keywords: [], shortcut: "Ctrl+Tab", available: () => available, run };
+const next: Command = { id: "terminal.next", label: "Next terminal", section: "Navigation", keywords: [], shortcut: "Ctrl+Tab", available: () => available, run };
 let uninstall: () => void;
 let xterm: HTMLTextAreaElement;
 const reachedXterm = vi.fn();

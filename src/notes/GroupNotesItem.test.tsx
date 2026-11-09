@@ -23,7 +23,7 @@ it("chooses a group's notes from its menu (spec notes §3)", async () => {
   const root = createRoot(host);
   await act(async () => root.render(<GroupMenu groupId="g1" answersRequests />));
   await act(async () => requestUi({ kind: "groupMenu", id: "g1" }));
-  const item = [...document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((el) => el.textContent === "Notes du groupe…");
+  const item = [...document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((el) => el.textContent === "Notes of the group…");
   await act(async () => item!.click());
   expect(notesStore.getState().attaching).toBe("g1");
   await act(async () => root.unmount());

@@ -10,13 +10,13 @@ vi.mock("./useTerminalHost", () => ({ useTerminalHost: () => undefined }));
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 afterEach(() => vi.useRealTimers());
 
-it("does not flash « Terminal introuvable » while a copy's record is on its way", async () => {
+it("does not flash « Terminal not found » while a copy's record is on its way", async () => {
   vi.useFakeTimers();
   const host = document.createElement("div");
   const root = createRoot(host);
   await act(async () => root.render(<TerminalNode nodeId="copie" />));
   expect(host.textContent).toBe("");
   await act(async () => void vi.advanceTimersByTime(MISSING_GRACE_MS + 1));
-  expect(host.textContent).toBe("Terminal introuvable");
+  expect(host.textContent).toBe("Terminal not found");
   await act(async () => root.unmount());
 });

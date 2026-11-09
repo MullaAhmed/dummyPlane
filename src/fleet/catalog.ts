@@ -18,7 +18,7 @@ import { fleetMessages } from "./messages";
 export interface AgentMeta {
   label: string;
   vendor: string;
-  /** Border and logo color of the agent's terminals (spec habillage §8). */
+  /** Border and logo color of the agent's terminals (spec theme §8). */
   tint: string;
   /** The program looked for on the PATH ("" for shell and custom). */
   binary: string;
@@ -28,7 +28,7 @@ export interface AgentMeta {
 /**
  * An agent's tint as an icon or text color: pulled toward the theme's text so
  * that light tints (Ollama, Cursor) stay visible on Ivoire and dark ones on
- * Argile (spec identité §3, "lisible dans les deux").
+ * Clay (spec identity §3, "readable in both").
  */
 export function agentInk(tint: string): string {
   return `color-mix(in srgb, ${tint} 65%, var(--ov-text))`;
@@ -76,13 +76,13 @@ export const AGENTS: Record<AgentId, AgentMeta> = {
 
 export const AGENT_ORDER: AgentId[] = [...AGENT_IDS];
 
-/** Agents of this tint work in indigo rather than orange (spec habillage §7.2). */
+/** Agents of this tint work in indigo rather than orange (spec theme §7.2). */
 export const INDIGO = "#707de3";
 
-/** Agents that start without options: Ollama needs a model, Personnalisé a command. */
+/** Agents that start without options: Ollama needs a model, Custom a command. */
 export const AGENTS_WITHOUT_OPTIONS = AGENT_ORDER.filter((id) => id !== "ollama" && id !== "custom");
 
-/** The agent of "Nouvelle console": the first available of Claude, Codex, Shell. */
+/** The agent of "New console": the first available of Claude, Codex, Shell. */
 export function defaultAgent(agents: readonly AgentInfo[]): AgentId {
   for (const id of ["claude", "codex"] as const) {
     if (agents.some((agent) => agent.id === id && agent.available)) return id;

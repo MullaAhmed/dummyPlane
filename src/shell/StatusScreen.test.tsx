@@ -17,10 +17,10 @@ it("keeps the window movable and closable while loading or failing", async () =>
   const host = document.createElement("div");
   document.body.append(host);
   const root = createRoot(host);
-  await act(async () => root.render(<StatusScreen message="Chargement…" />));
+  await act(async () => root.render(<StatusScreen message="Loading…" />));
   expect(host.querySelector("[data-tauri-drag-region]")).not.toBeNull();
-  expect(host.querySelector('[aria-label="Fermer OpenVibe"]')).not.toBeNull();
-  expect(host.textContent).toContain("Chargement…");
+  expect(host.querySelector('[aria-label="Close OpenVibe"]')).not.toBeNull();
+  expect(host.textContent).toContain("Loading…");
   await act(async () => root.unmount());
   host.remove();
 });

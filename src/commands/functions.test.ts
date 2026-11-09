@@ -14,17 +14,17 @@ const command = (id: string, label: string, section: string, available = true): 
 
 describe("functionSections (spec fenêtre §7.3)", () => {
   const commands = [
-    command("terminal.next", "Terminal suivant", "Navigation"),
-    command("workspace.new", "Nouveau workspace", "Workspaces"),
-    command("terminal.pause", "Mettre en pause", "Terminal · Isis", false),
-    command("canvas.overview", "Vue d'ensemble", "Navigation"),
-    command("palette.functions", "Rechercher une fonction…", "Navigation"),
+    command("terminal.next", "Next terminal", "Navigation"),
+    command("workspace.new", "New workspace", "Workspaces"),
+    command("terminal.pause", "Pause", "Terminal · Isis", false),
+    command("canvas.overview", "Overview", "Navigation"),
+    command("palette.functions", "Search for a function…", "Navigation"),
   ];
 
   it("lists the available functions by section, in the registry's order, without itself", () => {
     expect(functionSections(commands, ctx, "").map((s) => [s.label, s.items.map((c) => c.label)])).toEqual([
-      ["Navigation", ["Terminal suivant", "Vue d'ensemble"]],
-      ["Workspaces", ["Nouveau workspace"]],
+      ["Navigation", ["Next terminal", "Overview"]],
+      ["Workspaces", ["New workspace"]],
     ]);
   });
 
@@ -40,7 +40,7 @@ describe("functionSections (spec fenêtre §7.3)", () => {
     };
     const codex: Command = {
       id: "agent.launch.codex",
-      label: "Lancer Codex",
+      label: "Launch Codex",
       section: "Agents",
       keywords: [],
       available: () => true,
@@ -50,7 +50,7 @@ describe("functionSections (spec fenêtre §7.3)", () => {
     const sections = functionSections([rename, codex], { ...ctx, terminalId: "Isis" }, "");
     expect(sections.map((s) => s.label)).toEqual(["Terminal · Isis", "Agents"]);
     expect(sections[0].items[0]).toMatchObject({ label: "Renommer Isis", hint: "F2", disabled: null });
-    expect(sections[1].items[0]).toMatchObject({ label: "Lancer Codex", hint: null, disabled: "codex introuvable dans le PATH" });
+    expect(sections[1].items[0]).toMatchObject({ label: "Launch Codex", hint: null, disabled: "codex introuvable dans le PATH" });
     expect(labelOf(rename, { ...ctx, terminalId: "Thot" })).toBe("Renommer Thot");
     expect(sectionOf(codex, ctx)).toBe("Agents");
   });
@@ -58,20 +58,20 @@ describe("functionSections (spec fenêtre §7.3)", () => {
   it("puts the recent functions first, most recent first, when nothing is typed, without repeating them below", () => {
     const sections = functionSections(commands, ctx, "", ["workspace.new", "canvas.overview", "gone"]);
     expect(sections.map((s) => [s.label, s.items.map((c) => c.label)])).toEqual([
-      ["Récentes", ["Nouveau workspace", "Vue d'ensemble"]],
-      ["Navigation", ["Terminal suivant"]],
+      ["Recent", ["New workspace", "Overview"]],
+      ["Navigation", ["Next terminal"]],
     ]);
     expect(sections[0].items[0].section).toBe("Workspaces");
   });
 
   it("keeps a recent function first while searching when the words typed start its words, never for a loose match", () => {
-    expect(functionSections(commands, ctx, "vue", ["canvas.overview"])[0].label).toBe("Récentes");
-    expect(functionSections(commands, ctx, "nouv", ["canvas.overview"]).map((s) => s.label)).toEqual(["Workspaces"]);
-    // « tsv » finds Terminal suivant by its letters only: no promotion.
-    expect(functionSections(commands, ctx, "tsv", ["terminal.next"])[0].label).toBe("Navigation");
+    expect(functionSections(commands, ctx, "over", ["canvas.overview"])[0].label).toBe("Recent");
+    expect(functionSections(commands, ctx, "new wo", ["canvas.overview"]).map((s) => s.label)).toEqual(["Workspaces"]);
+    // "nxt" finds Next terminal by its letters only: no promotion.
+    expect(functionSections(commands, ctx, "nxt", ["terminal.next"])[0].label).toBe("Navigation");
   });
 
   it("ranks each section by the search", () => {
-    expect(functionSections(commands, ctx, "ens").map((s) => [s.label, s.items.map((c) => c.label)])).toEqual([["Navigation", ["Vue d'ensemble", "Terminal suivant"]]]);
+    expect(functionSections(commands, ctx, "ov").map((s) => [s.label, s.items.map((c) => c.label)])).toEqual([["Navigation", ["Overview"]]]);
   });
 });

@@ -45,14 +45,14 @@ describe("slug", () => {
 });
 
 describe("targetOptions", () => {
-  it("lists @tous, then the groups, then every agent with its group", () => {
+  it("lists @all, then the groups, then every agent with its group", () => {
     expect(options.map((o) => [o.label, o.detail])).toEqual([
-      ["@tous", "4 agents"],
+      ["@all", "4 agents"],
       ["@equipeback", "2 agents"],
       ["@docs", "1 agent"],
       ["@isis", "Équipe Back"],
       ["@thot", "Équipe Back"],
-      ["@isis", "Hors groupe"],
+      ["@isis", "No group"],
       ["@zeus", "Docs"],
     ]);
   });
@@ -72,7 +72,7 @@ describe("matchOptions", () => {
   it("ignores case and accents, and puts the names that start with the query first", () => {
     expect(matchOptions(options, "EQU").map((o) => o.label)).toEqual(["@equipeback"]);
     expect(matchOptions(options, "is").map((o) => o.label)).toEqual(["@isis", "@isis"]);
-    expect(matchOptions(options, "o").map((o) => o.label)).toEqual(["@tous", "@docs", "@thot"]);
+    expect(matchOptions(options, "o").map((o) => o.label)).toEqual(["@docs", "@thot"]);
     expect(matchOptions(options, "").length).toBe(options.length);
   });
 });
@@ -112,14 +112,14 @@ describe("keptDismissal", () => {
 
 describe("withoutMention", () => {
   it("removes the mention and one space after it", () => {
-    expect(withoutMention("@tous lance", 0, 5)).toEqual({ text: "lance", caret: 0 });
+    expect(withoutMention("@all lance", 0, 5)).toEqual({ text: "lance", caret: 0 });
     expect(withoutMention("lance @ba", 6, 9)).toEqual({ text: "lance ", caret: 6 });
   });
 });
 
 describe("extractMentions", () => {
   it("turns typed mentions of exactly one target into targets", () => {
-    expect(extractMentions("@tous lance les tests", options)).toEqual({ targets: [{ kind: "all" }], text: "lance les tests" });
+    expect(extractMentions("@all lance les tests", options)).toEqual({ targets: [{ kind: "all" }], text: "lance les tests" });
     expect(extractMentions("relis @Docs puis @zeus", options)).toEqual({
       targets: [
         { kind: "group", id: "g2" },
@@ -130,15 +130,15 @@ describe("extractMentions", () => {
   });
 
   it("leaves ambiguous, unknown mentions and e-mail addresses as typed", () => {
-    expect(extractMentions("@isis @nobody écris à a@b.fr", options)).toEqual({ targets: [], text: "@isis @nobody écris à a@b.fr" });
+    expect(extractMentions("@isis @nobody write to a@b.fr", options)).toEqual({ targets: [], text: "@isis @nobody write to a@b.fr" });
   });
 
   it("keeps the line breaks of the command", () => {
-    expect(extractMentions("@tous un\ndeux", options).text).toBe("un\ndeux");
+    expect(extractMentions("@all un\ndeux", options).text).toBe("un\ndeux");
   });
 
   it("keeps the indentation, tabs and inner spaces of the command", () => {
-    expect(extractMentions("@tous corrige :\n    if x:\n\treturn 1", options).text).toBe("corrige :\n    if x:\n\treturn 1");
+    expect(extractMentions("@all corrige :\n    if x:\n\treturn 1", options).text).toBe("corrige :\n    if x:\n\treturn 1");
     expect(extractMentions("  garde  ces  espaces  ", options).text).toBe("garde  ces  espaces");
   });
 
@@ -162,7 +162,7 @@ describe("extractMentions", () => {
   });
 
   it("reads a mention followed by punctuation", () => {
-    expect(extractMentions("@tous, lancez les tests", options)).toEqual({ targets: [{ kind: "all" }], text: "lancez les tests" });
+    expect(extractMentions("@all, lancez les tests", options)).toEqual({ targets: [{ kind: "all" }], text: "lancez les tests" });
     expect(extractMentions("dis à @zeus: bonjour", options)).toEqual({ targets: [{ kind: "agent", id: "d" }], text: "dis à bonjour" });
     expect(extractMentions("voir @a.b", options).text).toBe("voir @a.b");
   });

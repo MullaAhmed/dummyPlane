@@ -143,7 +143,7 @@ export default function NotesDialog({ projectId }: { projectId: string }) {
         // A click beside the window is not a request to close a work tool.
         onInteractOutside={(event) => event.preventDefault()}
         onEscapeKeyDown={(event) => {
-          // Radix takes Échap first and cancels it, so CodeMirror never sees it: its panels are closed from here.
+          // Radix takes Esc first and cancels it, so CodeMirror never sees it: its panels are closed from here.
           event.preventDefault();
           if (tab !== "edit" || !editor.current?.escape()) state.requestClose();
         }}

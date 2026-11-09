@@ -20,7 +20,7 @@ const withTerminals = (ctx: CommandContext) => ctx.project && ctx.terminalCount 
 const withWaiting = (ctx: CommandContext) => ctx.project && currentWaitingAgents().length > 0;
 const always = () => true;
 
-/** Ctrl+Tab and Ctrl+Maj+Tab (spec fenêtre §6.3): the next terminal in reading order, then the arrival (§6.4). */
+/** Ctrl+Tab and Ctrl+Shift+Tab (spec window §6.3): the next terminal in reading order, then the arrival (§6.4). */
 function step(direction: 1 | -1, ctx: CommandContext) {
   const api = canvasStore.getState().api;
   if (!api) return;
@@ -32,11 +32,11 @@ const nav = sectionNamed((s) => s.navigation);
 
 export const NAVIGATION: readonly Command[] = [
   command("terminal.next", { section: nav, shortcut: "Ctrl+Tab", available: withTerminals, run: (ctx) => step(1, ctx) }),
-  command("terminal.previous", { section: nav, shortcut: "Ctrl+Maj+Tab", available: withTerminals, run: (ctx) => step(-1, ctx) }),
+  command("terminal.previous", { section: nav, shortcut: "Ctrl+Shift+Tab", available: withTerminals, run: (ctx) => step(-1, ctx) }),
   command("agent.nextWaiting", { section: nav, available: withWaiting, run: (ctx) => goToNextWaiting(ctx.terminalId) }),
   command("palette.goTo", { section: nav, shortcut: "Ctrl+P", available: always, run: (ctx) => openPalette("goTo", ctx) }),
-  command("canvas.overview", { section: nav, shortcut: "Ctrl+Maj+A", available: inProject, run: () => overview() }),
-  command("canvas.release", { section: nav, shortcut: "Maj+Échap", available: inProject, run: () => releaseToCanvas() }),
+  command("canvas.overview", { section: nav, shortcut: "Ctrl+Shift+A", available: inProject, run: () => overview() }),
+  command("canvas.release", { section: nav, shortcut: "Shift+Escape", available: inProject, run: () => releaseToCanvas() }),
   command("canvas.fit", { section: nav, available: inProject, run: () => fitScene() }),
   command("canvas.zoom100", { section: nav, available: inProject, run: () => zoomTo(1) }),
   command("commandBar.focus", { section: nav, available: inProject, run: () => void focusCommandBar() }),
@@ -50,5 +50,5 @@ export const NAVIGATION: readonly Command[] = [
   command("project.home", { section: nav, available: inProject, run: () => projectsStore.getState().goHome() }),
   command("project.close", { section: nav, available: inProject, run: () => projectsStore.getState().close() }),
   command("editor.goToLine", { section: nav, shortcut: "Ctrl+G", available: () => inCodeWorkspace(), run: () => openGoToLine() }),
-  command("palette.functions", { section: nav, shortcut: "Ctrl+Maj+P", available: always, run: (ctx) => openPalette("functions", ctx) }),
+  command("palette.functions", { section: nav, shortcut: "Ctrl+Shift+P", available: always, run: (ctx) => openPalette("functions", ctx) }),
 ];

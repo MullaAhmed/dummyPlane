@@ -4,7 +4,7 @@ import { createStore } from "zustand";
 import { messages } from "@/i18n";
 import { shellMessages } from "./messages";
 
-/** Whether the window is maximized, kept by the window buttons: « Agrandir » or « Restaurer » in the palette. */
+/** Whether the window is maximized, kept by the window buttons: "Maximize" or "Restore" in the palette. */
 export const windowStore = createStore<{ maximized: boolean }>()(() => ({ maximized: false }));
 
 type Failure = "minimizeFailed" | "restoreFailed" | "maximizeFailed" | "closeFailed";

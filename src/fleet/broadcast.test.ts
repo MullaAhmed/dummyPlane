@@ -64,7 +64,7 @@ describe("sendToAgents", () => {
     await agent("isis", "claude", "running", "idle");
     await agent("thot", "claude", "starting");
     expect(await sendToAgents(["isis", "thot"], "go")).toEqual({ sent: 1, skipped: [], waiting: [], unsuited: [], starting: ["Thot"] });
-    expect(startingText(["Thot"])).toBe("1 agent en démarrage ignoré : Thot — réessaie dans un instant");
+    expect(startingText(["Thot"])).toBe("1 agent still starting ignored: Thot — try again in a moment");
     expect(startingText([])).toBeNull();
   });
 
@@ -95,19 +95,19 @@ describe("sendToAgents", () => {
 describe("skippedText / pausedText / resumedText", () => {
   it("says who was ignored and how many were paused or resumed", () => {
     expect(skippedText([])).toBeNull();
-    expect(skippedText(["Thot"])).toBe("1 agent arrêté ignoré : Thot");
-    expect(skippedText(["Thot", "Anubis"])).toBe("2 agents arrêtés ignorés : Thot, Anubis");
+    expect(skippedText(["Thot"])).toBe("1 stopped agent ignored: Thot");
+    expect(skippedText(["Thot", "Anubis"])).toBe("2 stopped agents ignored: Thot, Anubis");
     expect(unsuitedText([])).toBeNull();
-    expect(unsuitedText(["Thot"])).toBe("1 terminal sans agent ignoré : Thot — une commande / ne va qu'aux agents");
-    expect(unsuitedText(["Thot", "Rê"])).toBe("2 terminaux sans agent ignorés : Thot, Rê — une commande / ne va qu'aux agents");
+    expect(unsuitedText(["Thot"])).toBe("1 terminal without an agent ignored: Thot — a / command only goes to agents");
+    expect(unsuitedText(["Thot", "Rê"])).toBe("2 terminals without an agent ignored: Thot, Rê — a / command only goes to agents");
     expect(waitingText([])).toBeNull();
-    expect(waitingText(["Horus"])).toBe("1 agent en attente ignoré : Horus — réponds-lui dans son terminal");
-    expect(waitingText(["Horus", "Isis"])).toBe("2 agents en attente ignorés : Horus, Isis — réponds-leur dans leur terminal");
-    expect(pausedText(0)).toBe("Aucun agent en cours à mettre en pause");
-    expect(pausedText(1)).toBe("1 agent mis en pause");
-    expect(pausedText(5)).toBe("5 agents mis en pause");
-    expect(resumedText(0)).toBe("Aucun agent mis en pause à reprendre");
-    expect(resumedText(3)).toBe("3 agents repris");
+    expect(waitingText(["Horus"])).toBe("1 waiting agent ignored: Horus — answer it in its terminal");
+    expect(waitingText(["Horus", "Isis"])).toBe("2 waiting agents ignored: Horus, Isis — answer them in their terminals");
+    expect(pausedText(0)).toBe("No running agent to pause");
+    expect(pausedText(1)).toBe("1 agent paused");
+    expect(pausedText(5)).toBe("5 agents paused");
+    expect(resumedText(0)).toBe("No paused agent to resume");
+    expect(resumedText(3)).toBe("3 agents resumed");
   });
 });
 
@@ -176,7 +176,7 @@ describe("resumeAgent when the process just died (plan B3)", () => {
     pausedStore.getState().mark(["anubis2"], 1);
     dead.add("anubis2");
     await expect(resumeAgent("anubis2")).resolves.toBe(false);
-    expect(warning).toHaveBeenCalledWith("Anubis2 n'a pas pu reprendre : le processus vient de s'arrêter");
+    expect(warning).toHaveBeenCalledWith("Anubis2 could not resume: its process just stopped");
     expect(pausedStore.getState().pausedAt.anubis2).toBe(1);
     warning.mockRestore();
   });
@@ -190,8 +190,8 @@ describe("sendCommand and agents still starting (plan B3)", () => {
     await agent("anubis", "claude", "stopped");
     await sendCommand(["isis", "thot", "anubis"], "go");
     expect(warning.mock.calls.map(([text]) => text)).toEqual([
-      "1 agent arrêté ignoré : Anubis",
-      "1 agent en démarrage ignoré : Thot — réessaie dans un instant",
+      "1 stopped agent ignored: Anubis",
+      "1 agent still starting ignored: Thot — try again in a moment",
     ]);
     warning.mockRestore();
   });

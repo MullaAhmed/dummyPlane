@@ -89,17 +89,17 @@ describe("goToItems (spec fenêtre §7.2)", () => {
 describe("goToSections", () => {
   it("puts the items in their sections, in the spec's order, empty sections left out", () => {
     const sections = goToSections(goToItems(input({ home: true, activeProjectId: null })), "");
-    expect(sections.map((s) => s.label)).toEqual(["Projets"]);
-    expect(goToSections(goToItems(input()), "").map((s) => s.label)).toEqual(["Terminaux", "Groupes", "Orchestrateurs", "Workspaces", "Projets"]);
+    expect(sections.map((s) => s.label)).toEqual(["Projects"]);
+    expect(goToSections(goToItems(input()), "").map((s) => s.label)).toEqual(["Terminals", "Groups", "Orchestrators", "Workspaces", "Projects"]);
   });
 
   it("ranks each section by the search", () => {
     const sections = goToSections(goToItems(input()), "isis cl");
-    expect(sections.map((s) => [s.label, s.items.map((i) => i.label)])).toEqual([["Terminaux", ["Isis"]]]);
+    expect(sections.map((s) => [s.label, s.items.map((i) => i.label)])).toEqual([["Terminals", ["Isis"]]]);
   });
 
   it("puts the section of the best match first while searching", () => {
     // Thot and Hermès are found by their group's name, the group by its own.
-    expect(goToSections(goToItems(input()), "serveurs").map((s) => s.label)).toEqual(["Groupes", "Terminaux"]);
+    expect(goToSections(goToItems(input()), "servers").map((s) => s.label)).toEqual(["Terminals", "Groups"]);
   });
 });

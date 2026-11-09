@@ -51,19 +51,19 @@ it("floats under the tabs, down to the command bar at most, with the chips' acti
   const panel = host.firstElementChild as HTMLElement;
   expect(panel.style.top).toBe(`${TOP_ROW_HEIGHT + 14}px`);
   expect(panel.style.maxHeight).toBe(`calc(100% - ${TOP_ROW_HEIGHT + 14 + BOTTOM_BAR_HEIGHT + 14}px)`);
-  for (const label of ["Lancer un agent", "Nouvelle console", "Composer un groupe", "Tout mettre en pause", "Tout reprendre", "Plus d'actions", "Fermer le panneau"]) {
+  for (const label of ["Launch an agent", "New console", "Compose a group", "Pause all", "Resume all", "More actions", "Close the panel"]) {
     expect(byLabel(label), label).not.toBeNull();
   }
 });
 
 it("starts « Nouvelle console » at the center of the view, the click not taken for a point", async () => {
-  await act(async () => byLabel("Nouvelle console")!.click());
+  await act(async () => byLabel("New console")!.click());
   expect(newConsole).toHaveBeenCalledWith();
 });
 
-it("filters on the store's filter, labelled Prêts for idle agents", async () => {
+it("filters on the store's filter, labelled Ready for idle agents", async () => {
   const filters = [...host.querySelectorAll<HTMLButtonElement>("[data-filter]")];
-  expect(filters.map((f) => f.textContent?.replace(/\d+$/, ""))).toEqual(["Tous", "En cours", "Attend", "Actifs", "Prêts", "Arrêtés"]);
+  expect(filters.map((f) => f.textContent?.replace(/\d+$/, ""))).toEqual(["All", "Working", "Waiting", "Active", "Ready", "Stopped"]);
   await act(async () => filters[5].click());
   expect(agentsPanelStore.getState().filter).toBe("stopped");
   expect(filters[5].dataset.on).toBe("true");
@@ -73,32 +73,32 @@ it("wraps its filters rather than clipping one, and says when a filter hides eve
   const row = host.querySelector("[data-filter]")!.parentElement!;
   expect(row.className).toContain("flex-wrap");
   await act(async () => agentsPanelStore.setState({ filter: "working" }));
-  expect(host.textContent).toContain("Aucun agent dans ce filtre");
+  expect(host.textContent).toContain("No agent in this filter");
   await act(async () => canvasStore.getState().setNodeIds([]));
   await act(async () => agentsPanelStore.setState({ filter: "all" }));
-  expect(host.textContent).toContain("Aucun agent");
+  expect(host.textContent).toContain("No agent");
   expect(host.textContent).not.toContain("dans ce filtre");
 });
 
 it("offers a group's menu on its header, on hover; « Hors groupe » has none (spec identité §5.6)", async () => {
-  expect(host.querySelector('[aria-label="Menu du groupe"]')).toBeNull();
+  expect(host.querySelector('[aria-label="Group menu"]')).toBeNull();
   await act(async () =>
     canvasStore.setState({
       frames: [{ id: "g1", name: "Backend", x: 0, y: 0, width: 10, height: 10, group: { role: "general", pantheon: "egypt" }, memberIds: ["ada"] }],
     }),
   );
-  const menu = host.querySelector<HTMLButtonElement>('[aria-label="Menu du groupe"]')!;
+  const menu = host.querySelector<HTMLButtonElement>('[aria-label="Group menu"]')!;
   expect(menu.closest("[data-group-header]")!.querySelector("[data-section]")!.textContent).toContain("Backend");
   expect(menu.className).toContain("group-hover/section:opacity-100");
   await act(async () => menu.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
-  expect([...document.querySelectorAll('[role="menuitem"]')].map((i) => i.textContent)).toContain("Renommer");
+  expect([...document.querySelectorAll('[role="menuitem"]')].map((i) => i.textContent)).toContain("Rename");
 });
 
 it("folds a group and closes", async () => {
   expect(host.textContent).toContain("Ada");
   await act(async () => host.querySelector<HTMLButtonElement>("[data-section]")!.click());
   expect(host.textContent).not.toContain("Ada");
-  await act(async () => byLabel("Fermer le panneau")!.click());
+  await act(async () => byLabel("Close the panel")!.click());
   expect(agentsPanelStore.getState().open).toBe(false);
 });
 
@@ -112,7 +112,7 @@ it("opens « Composer un groupe » and a group's menu on request", async () => {
     }),
   );
   await act(async () => requestUi({ kind: "groupMenu", id: "g1" }));
-  expect([...document.querySelectorAll('[role="menuitem"]')].map((i) => i.textContent)).toContain("Renommer");
+  expect([...document.querySelectorAll('[role="menuitem"]')].map((i) => i.textContent)).toContain("Rename");
 });
 
 it("stops above the « Reprendre » offer instead of sitting under it", async () => {
@@ -125,10 +125,10 @@ it("stops above the « Reprendre » offer instead of sitting under it", async ()
   expect(panel.style.maxHeight).toBe(before);
 });
 
-it("gives each agent row Centrer and Fermer on hover and on keyboard focus (spec identité §5.6)", () => {
+it("gives each agent row Center and Close on hover and on keyboard focus (spec identité §5.6)", () => {
   const row = host.querySelector("[data-filter]")!.closest("aside")!.querySelector<HTMLElement>(".group.flex.items-center.gap-2")!;
   const labels = [...row.querySelectorAll("button[aria-label]")].map((b) => b.getAttribute("aria-label"));
-  expect(labels.some((l) => /^Centrer/.test(l!))).toBe(true);
-  expect(labels.some((l) => /^Fermer/.test(l!))).toBe(true);
+  expect(labels.some((l) => /^Center /.test(l!))).toBe(true);
+  expect(labels.some((l) => /^Close /.test(l!))).toBe(true);
   expect(row.querySelector('[class*="group-hover:flex"]')!.className).toContain("group-focus-within:flex");
 });

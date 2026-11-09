@@ -41,25 +41,25 @@ const button = (text: string) => [...document.querySelectorAll("button")].find((
 
 it("names the agent it would end, and closes it once confirmed (spec habillage §7.5)", async () => {
   await act(async () => uiStore.getState().setClosing({ agents: ["isis"], remove: ["isis"] }));
-  expect(document.querySelector('[role="dialog"]')!.textContent).toContain("Fermer Isis ?");
-  await act(async () => button("Fermer l'agent").click());
+  expect(document.querySelector('[role="dialog"]')!.textContent).toContain("Close Isis?");
+  await act(async () => button("Close the agent").click());
   expect(removeNodes).toHaveBeenLastCalledWith(["isis"]);
   expect(uiStore.getState().closing).toBeNull();
 });
 
-it("lists the agents an undo or Suppr would end together, and removes all that left with them", async () => {
+it("lists the agents an undo or Delete would end together, and removes all that left with them", async () => {
   await act(async () => uiStore.getState().setClosing({ agents: ["isis", "thot"], remove: ["isis", "thot", "g"] }));
   const dialog = document.querySelector('[role="dialog"]')!;
-  expect(dialog.textContent).toContain("Fermer 2 agents ?");
+  expect(dialog.textContent).toContain("Close 2 agents?");
   expect(dialog.textContent).toContain("Isis, Thot");
-  await act(async () => button("Fermer les agents").click());
+  await act(async () => button("Close the agents").click());
   expect(removeNodes).toHaveBeenLastCalledWith(["isis", "thot", "g"]);
 });
 
 it("keeps them when cancelled", async () => {
   vi.mocked(removeNodes).mockClear();
   await act(async () => uiStore.getState().setClosing({ agents: ["isis"], remove: ["isis"] }));
-  await act(async () => button("Annuler").click());
+  await act(async () => button("Cancel").click());
   expect(removeNodes).not.toHaveBeenCalled();
   expect(uiStore.getState().closing).toBeNull();
 });
@@ -72,15 +72,15 @@ it("tells what closing an orchestrator in mission leaves behind (spec première 
   });
   await act(async () => uiStore.getState().setClosing({ agents: ["chef"], remove: ["chef", "fil"] }));
   const dialog = document.querySelector('[role="dialog"]')!;
-  expect(dialog.textContent).toContain("Chef mène une mission en cours. Le fermer arrête sa session ; ses agents continuent, mais personne ne lira leurs comptes rendus. Les worktrees et les branches de la mission restent sur le disque.");
-  await act(async () => button("Fermer l'orchestrateur").click());
+  expect(dialog.textContent).toContain("Chef is leading a mission in progress. Closing it stops its session; its agents keep going, but nobody will read their reports. The mission's worktrees and branches stay on disk.");
+  await act(async () => button("Close the orchestrator").click());
   expect(removeNodes).toHaveBeenLastCalledWith(["chef", "fil"]);
 });
 
 it("says whether the agent is at work or ready, as the spec asks (§7.5)", async () => {
   agentActivityStore.getState().apply({ nodeId: "isis", activity: "working", since: 1 });
   await act(async () => uiStore.getState().setClosing({ agents: ["isis"], remove: ["isis"] }));
-  expect(document.querySelector('[role="dialog"]')!.textContent).toContain("Isis est en cours.");
+  expect(document.querySelector('[role="dialog"]')!.textContent).toContain("Isis is working.");
   await act(async () => agentActivityStore.getState().apply({ nodeId: "isis", activity: "idle", since: 2 }));
-  expect(document.querySelector('[role="dialog"]')!.textContent).toContain("Isis est prête.");
+  expect(document.querySelector('[role="dialog"]')!.textContent).toContain("Isis is ready.");
 });

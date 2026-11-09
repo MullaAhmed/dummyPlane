@@ -20,5 +20,5 @@ export default defineConfig(() => ({
     watch: { ignored: ["**/src-tauri/**"] },
   },
   // Agents' worktrees live under .claude/: their copies of the tests are not ours.
-  test: { setupFiles: ["src/test/setup.ts"], exclude: [...configDefaults.exclude, ".claude/**"] },
+  test: { exclude: [...configDefaults.exclude, ".claude/**"] },
 }));

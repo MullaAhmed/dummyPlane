@@ -103,9 +103,9 @@ export interface KanbanBoardLink {
 export interface KanbanPayload {
   columns: KanbanColumn[];
   cards: Record<string, KanbanCard>;
-  /** Set by « Lier à GitHub ». */
+  /** Set by "Link to GitHub". */
   github?: KanbanBoardLink;
-  /** Set by « Planifier avec l'orchestrateur »: the orchestrator node planning one of its columns. */
+  /** Set by "Plan with the orchestrator": the orchestrator node planning one of its columns. */
   orchestrator?: KanbanOrchestratorLink;
 }
 

@@ -30,7 +30,7 @@ export function recentProject(projects: readonly Project[]): Project | null {
 /**
  * The project to reopen at launch (spec habillage §5.1): the saved one if its
  * folder still exists; the most recently opened one when none was ever saved
- * (first launch after migration 002); none after "Fermer" or if it is gone.
+ * (first launch after migration 002); none after "Close" or if it is gone.
  */
 export function startupProject(projects: readonly Project[], saved: string | null): string | null {
   if (saved === CLOSED) return null;

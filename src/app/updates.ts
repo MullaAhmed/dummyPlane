@@ -11,12 +11,12 @@ import { saveEverything } from "./close";
 /** The first look, once the app has settled; then a look every 6 h (spec première version §6.4). */
 export const FIRST_CHECK_MS = 10_000;
 export const CHECK_EVERY_MS = 6 * 60 * 60_000;
-/** A blocked connection must not leave « Rechercher les mises à jour » without an answer. */
+/** A blocked connection must not leave "Check for updates" without an answer. */
 export const CHECK_TIMEOUT_MS = 30_000;
 const AUTO_KEY = "updates.auto";
 
 export interface UpdatesState {
-  /** « Rechercher les mises à jour automatiquement »: the only request OpenVibe makes on its own. */
+  /** "Check for updates automatically": the only request OpenVibe makes on its own. */
   auto: boolean;
   available: { version: string; notes: string } | null;
   /** 0 to 1 while the new version downloads. */

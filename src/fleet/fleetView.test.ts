@@ -37,7 +37,7 @@ describe("fleetSections", () => {
     expect(sections.map((s) => [s.id, s.name, s.agents.map((a) => a.id)])).toEqual([
       ["g1", "G1", ["a", "b"]],
       ["g2", "G2", ["d"]],
-      [null, "Hors groupe", ["c"]],
+      [null, "No group", ["c"]],
     ]);
     expect(sections[0].color).toBe("#AA88D2");
     expect(sections[2].color).toBeNull();

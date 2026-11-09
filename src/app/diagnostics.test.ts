@@ -16,11 +16,10 @@ const sample: Diagnostics = {
 };
 
 it("writes what a bug report needs, the home folder as ~ even when Rust missed it (spec première version §7.3)", () => {
-  expect(diagnosticText(sample, "fr")).toBe(
+  expect(diagnosticText(sample)).toBe(
     [
       "OpenVibe 1.0.0-beta.1",
       "OS: Windows 11 (build 26300)",
-      "Language: fr",
       "Agents:",
       "  claude: ~\\.local\\bin\\claude.exe",
       "  codex: not found",
@@ -31,11 +30,10 @@ it("writes what a bug report needs, the home folder as ~ even when Rust missed i
       "Logs: ~\\AppData\\Local\\dev.openvibe.app\\logs",
     ].join("\n"),
   );
-  expect(diagnosticText(sample, "en")).not.toMatch(/Mathieu|Users/i);
+  expect(diagnosticText(sample)).not.toMatch(/Mathieu|Users/i);
 });
 
-it("prefills the version in a new issue, and links the guide in the interface's language", () => {
+it("prefills the version in a new issue, and links the English guide", () => {
   expect(issueUrl("1.0.0-beta.1")).toBe("https://github.com/Mideky-hub/openvibe/issues/new?template=bug_report.yml&version=1.0.0-beta.1");
-  expect(guideUrl("fr")).toBe("https://github.com/Mideky-hub/openvibe/blob/main/docs/troubleshooting.fr.md");
-  expect(guideUrl("en")).toBe("https://github.com/Mideky-hub/openvibe/blob/main/docs/troubleshooting.md");
+  expect(guideUrl()).toBe("https://github.com/Mideky-hub/openvibe/blob/main/docs/troubleshooting.md");
 });

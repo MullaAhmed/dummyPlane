@@ -7,7 +7,7 @@ import { cssBlock, readSource, sourceFiles } from "./cssBlocks";
 const tokens = readSource("theme/tokens.css");
 
 it("writes on role colors with one dark ink, the same in both themes", () => {
-  // Role colors do not change with the theme; Ivoire's canvas color on them read at 2:1.
+  // Role colors do not change with the theme; Ivory's canvas color on them read at 2:1.
   for (const theme of [':root, :root[data-theme="dark"]', ':root[data-theme="light"]']) {
     expect(cssBlock(tokens, theme)["--ov-on-role"]).toBe("#1F1E1D");
   }

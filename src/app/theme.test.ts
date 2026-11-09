@@ -132,11 +132,11 @@ describe("changing the settings", () => {
   it("keeps the choice for the session and says so when it cannot be saved", async () => {
     const error = vi.spyOn(toast, "error").mockImplementation(() => "");
     mockIPC(() => {
-      throw new Error("disque plein");
+      throw new Error("disk full");
     });
     startTheme(new FakeScheme(true));
     await setThemeChoice("light");
     expect(root.dataset.theme).toBe("light");
-    expect(error).toHaveBeenCalledWith(expect.stringMatching(/^Réglage non enregistré : .*disque plein/));
+    expect(error).toHaveBeenCalledWith(expect.stringMatching(/^Setting not saved: .*disk full/));
   });
 });

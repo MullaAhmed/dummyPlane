@@ -2,7 +2,6 @@ import { showAbout } from "@/app/about";
 import { openLogDir } from "@/app/logs";
 import { checkForUpdate } from "@/app/updates";
 import { addProject } from "@/home/addProject";
-import { setLanguage } from "@/i18n/settings";
 import { closeWindow, minimizeWindow, toggleMaximizeWindow, windowStore } from "@/shell/windowState";
 import { showTroubleshooting } from "@/shell/troubleshoot";
 import { projectsStore } from "@/store/projects";
@@ -15,7 +14,7 @@ const projects = sectionNamed((s) => s.projects);
 const windowSection = sectionNamed((s) => s.window);
 const help = sectionNamed((s) => s.help);
 
-/** Projets, Fenêtre and Aide (spec fenêtre §7.3), the last sections of the palette. */
+/** Projects, Window and Help (spec window §7.3), the last sections of the palette. */
 export const APP: readonly Command[] = [
   command("project.add", { section: projects, available: () => projectsStore.getState().view === "home", run: () => addProject() }),
   command("window.minimize", { section: windowSection, available: always, run: () => minimizeWindow() }),
@@ -30,8 +29,4 @@ export const APP: readonly Command[] = [
   command("app.updates", { section: help, available: always, run: () => checkForUpdate({ manual: true }) }),
   command("app.logs", { section: help, available: always, run: () => openLogDir() }),
   command("app.troubleshoot", { section: help, available: always, run: () => showTroubleshooting() }),
-  // Three lines rather than one cycling « Langue » line: each is found by its own words and does one thing.
-  command("language.fr", { section: help, available: always, run: () => setLanguage("fr") }),
-  command("language.en", { section: help, available: always, run: () => setLanguage("en") }),
-  command("language.system", { section: help, available: always, run: () => setLanguage("system") }),
 ];

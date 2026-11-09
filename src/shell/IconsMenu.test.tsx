@@ -45,14 +45,14 @@ const tiles = () => [...host.querySelectorAll<HTMLButtonElement>("[data-icon]")]
 const tab = (label: string) => [...host.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find((b) => b.textContent === label)!;
 
 it("shows the system design icons first, then each cloud's (spec maj §4)", async () => {
-  expect([...host.querySelectorAll('[role="tab"]')].map((t) => t.textContent)).toEqual(["Conception système", "AWS", "Azure", "GCP"]);
+  expect([...host.querySelectorAll('[role="tab"]')].map((t) => t.textContent)).toEqual(["System design", "AWS", "Azure", "GCP"]);
   await vi.waitFor(() => expect(tiles()).toEqual(["Load Balancer", "Cache"]));
   await act(async () => tab("AWS").click());
   await vi.waitFor(() => expect(tiles()).toEqual(["Amazon S3", "AWS Lambda"]));
 });
 
 it("searches every category at once", async () => {
-  const field = host.querySelector<HTMLInputElement>('[aria-label="Chercher une icône"]')!;
+  const field = host.querySelector<HTMLInputElement>('[aria-label="Search for an icon"]')!;
   await act(async () => {
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(field, "load bal");
     field.dispatchEvent(new Event("input", { bubbles: true }));

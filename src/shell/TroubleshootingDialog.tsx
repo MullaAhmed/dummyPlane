@@ -8,7 +8,7 @@ import { openLogDir } from "@/app/logs";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AGENTS } from "@/fleet/catalog";
-import { useLang, useMessages } from "@/i18n";
+import { useMessages } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { shellMessages } from "./messages";
 import { checkAgain, troubleshootStore, useTroubleshoot } from "./troubleshoot";
@@ -29,10 +29,9 @@ function Check({ id, ok, label, value, hint, plain = false }: { id: string; ok: 
   );
 }
 
-/** « Dépannage » (spec première version §7.3): what OpenVibe sees, and where to go from there. */
+/** Troubleshooting (spec première version §7.3): what OpenVibe sees, and where to go from there. */
 export function TroubleshootingDialog() {
   const t = useMessages(shellMessages).troubleshoot;
-  const lang = useLang();
   const { open, diagnostics: d, error } = useTroubleshoot((s) => s);
   const [checking, setChecking] = useState(false);
 
@@ -43,7 +42,7 @@ export function TroubleshootingDialog() {
   };
   const copy = () => {
     if (d)
-      void navigator.clipboard.writeText(diagnosticText(d, lang)).then(
+      void navigator.clipboard.writeText(diagnosticText(d)).then(
         () => toast(t.copied),
         () => toast.error(t.copyFailed),
       );
@@ -101,7 +100,7 @@ export function TroubleshootingDialog() {
           </Button>
         </div>
         <DialogFooter>
-          <Button variant="ghost" onClick={() => void openUrl(guideUrl(lang))}>
+          <Button variant="ghost" onClick={() => void openUrl(guideUrl())}>
             <BookOpen /> {t.guide}
           </Button>
           <Button onClick={() => void report()}>

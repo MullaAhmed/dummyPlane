@@ -29,7 +29,7 @@ import { RESUME_OFFER_ROOM, resumeOfferStore } from "./ResumeAllToast";
 
 const OUTSIDE = "outside";
 
-/** The agents of the workspace on screen, by group (spec identité §5.6); it replaces the fleet panel. */
+/** The agents of the workspace on screen, by group (spec identity §5.6); it replaces the fleet panel. */
 export function AgentsPanel() {
   const t = useMessages(fleetMessages).panel;
   const filter = useAgentsPanel((s) => s.filter);

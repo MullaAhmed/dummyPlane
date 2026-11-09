@@ -41,23 +41,23 @@ describe("the rings (spec menu radial §4)", () => {
   });
 
   it("names each ring's positions as the spec does, clockwise from the top", () => {
-    expect(labels("canvas")).toEqual(["Lancer Claude", "Lancer Shell", "Lancer 4 agents", "Orchestrateur", "Coller", "Texte", "Autre agent…", "Vue d'ensemble"]);
-    expect(labels("terminal")).toEqual(["Copier", "Coller", "Renommer", "Relancer", "Fermer", "Dupliquer", "Mettre en pause", "Arrêter le processus"]);
-    expect(labels("group")).toEqual(["Ajouter un agent…", "Renommer le groupe", "Relier un orchestrateur", "Mettre le groupe en pause", "Fermer le groupe", "Dégrouper", "Reprendre le groupe", "Cadrer le groupe"]);
-    expect(labels("orchestrator")).toEqual(["Écrire une consigne", null, "Renommer", null, "Supprimer", null, "Relier", "Coller"]);
-    expect(labels("selection")).toEqual(["Copier", "Coller", "Dupliquer", "Premier plan", "Supprimer", "Arrière-plan", "Verrouiller", "Plus…"]);
+    expect(labels("canvas")).toEqual(["Launch Claude", "Launch Shell", "Launch 4 agents", "Orchestrator", "Paste", "Text", "Other agent…", "Overview"]);
+    expect(labels("terminal")).toEqual(["Copy", "Paste", "Rename", "Restart", "Close", "Duplicate", "Pause", "Stop the process"]);
+    expect(labels("group")).toEqual(["Add an agent…", "Rename the group", "Link an orchestrator", "Pause group", "Close the group", "Ungroup", "Resume group", "Zoom to group"]);
+    expect(labels("orchestrator")).toEqual(["Write an instruction", null, "Rename", null, "Delete", null, "Link", "Paste"]);
+    expect(labels("selection")).toEqual(["Copy", "Paste", "Duplicate", "Bring to front", "Delete", "Send to back", "Lock", "More…"]);
   });
 
   it("puts the default agent at the top of the canvas ring, with its icon", () => {
     agentsStore.setState({ agents: [{ id: "codex", available: true }] } as never);
     const top = lineOf(RINGS.canvas[0]!, ctx)!;
-    expect([top.label, top.Icon]).toEqual(["Lancer Codex", AGENTS.codex.Icon]);
+    expect([top.label, top.Icon]).toEqual(["Launch Codex", AGENTS.codex.Icon]);
     agentsStore.setState({ agents: [{ id: "claude", available: true }] } as never);
   });
 
   it("greys what cannot run, with its reason, and marks what ends something", () => {
     const copy = lineOf(RINGS.terminal[0]!, ctx)!;
-    expect([copy.enabled, copy.reason]).toEqual([false, "aucune sélection"]);
+    expect([copy.enabled, copy.reason]).toEqual([false, "nothing selected"]);
     const stop = lineOf(RINGS.terminal[7]!, ctx)!;
     expect([stop.enabled, stop.reason]).toEqual([false, null]);
     expect(lineOf(RINGS.terminal[4]!, ctx)!.danger).toBe(true);
@@ -65,15 +65,15 @@ describe("the rings (spec menu radial §4)", () => {
 });
 
 describe("the canvas ring when the default agent is the Shell (plan G1)", () => {
-  it("does not offer « Lancer Shell » twice: its second place goes to another agent, else to the custom one", () => {
+  it("does not offer « Launch Shell » twice: its second place goes to another agent, else to the custom one", () => {
     const canvas = () => RINGS.canvas.map((slot) => (slot ? lineOf(slot, ctx)!.label : null));
     agentsStore.setState({ agents: [{ id: "shell", available: true }, { id: "gemini", available: true }] } as never);
-    expect(canvas().filter((label) => label === "Lancer Shell")).toHaveLength(1);
-    expect(canvas()[1]).toBe("Lancer Gemini");
+    expect(canvas().filter((label) => label === "Launch Shell")).toHaveLength(1);
+    expect(canvas()[1]).toBe("Launch Gemini");
     agentsStore.setState({ agents: [{ id: "shell", available: true }] } as never);
-    expect(canvas().filter((label) => label === "Lancer Shell")).toHaveLength(1);
-    expect(canvas()[1]).not.toBe("Lancer Shell");
+    expect(canvas().filter((label) => label === "Launch Shell")).toHaveLength(1);
+    expect(canvas()[1]).not.toBe("Launch Shell");
     agentsStore.setState({ agents: [{ id: "claude", available: true }] } as never);
-    expect(canvas()[1]).toBe("Lancer Shell");
+    expect(canvas()[1]).toBe("Launch Shell");
   });
 });

@@ -58,20 +58,20 @@ describe("Navigation (spec fenêtre §7.3)", () => {
   it("lists the spec's functions, in its order", () => {
     agentsPanelStore.setState({ open: true });
     expect(NAVIGATION.filter((c) => c.id !== "palette.functions").map((c) => labelOf(c, busy))).toEqual([
-      "Terminal suivant",
-      "Terminal précédent",
-      "Aller à l'agent en attente suivant",
-      "Aller à…",
-      "Vue d'ensemble",
-      "Rendre la main au canvas",
-      "Ajuster à la scène",
-      "Zoom 100 %",
-      "Écrire une consigne",
-      "Masquer le panneau Agents",
+      "Next terminal",
+      "Previous terminal",
+      "Go to the next waiting agent",
+      "Go to…",
+      "Overview",
+      "Give control back to the canvas",
+      "Fit to scene",
+      "Zoom 100%",
+      "Write an instruction",
+      "Hide the Agents panel",
       "Notes",
-      "Accueil",
-      "Fermer le projet",
-      "Aller à la ligne…",
+      "Home",
+      "Close the project",
+      "Go to line…",
     ]);
   });
 
@@ -91,10 +91,10 @@ describe("Navigation (spec fenêtre §7.3)", () => {
   it("shows or hides the agents panel, named after its state", async () => {
     agentsPanelStore.setState({ open: false });
     const toggle = find(NAVIGATION, "agentsPanel.toggle");
-    expect(labelOf(toggle, busy)).toBe("Afficher le panneau Agents");
+    expect(labelOf(toggle, busy)).toBe("Show the Agents panel");
     await toggle.run(busy);
     expect(agentsPanelStore.getState().open).toBe(true);
-    expect(labelOf(toggle, busy)).toBe("Masquer le panneau Agents");
+    expect(labelOf(toggle, busy)).toBe("Hide the Agents panel");
   });
 
   it("offers the next waiting agent only while one waits, and starts from the current terminal", async () => {
@@ -107,7 +107,7 @@ describe("Navigation (spec fenêtre §7.3)", () => {
     expect(goToNextWaiting).toHaveBeenCalledWith("isis");
   });
 
-  it("offers nothing but « Aller à… » outside a project", () => {
+  it("offers nothing but « Go to… » outside a project", () => {
     expect(NAVIGATION.filter((c) => c.available(home)).map((c) => c.id)).toEqual(["palette.goTo", "palette.functions"]);
   });
 });
@@ -116,7 +116,7 @@ describe("Notes (spec notes §6)", () => {
   it("opens from the palette, in a project only", () => {
     const notes = find(NAVIGATION, "notes.open");
     expect(labelOf(notes, busy)).toBe("Notes");
-    expect(notes.keywords).toContain("mémoire");
+    expect(notes.keywords).toContain("memory");
     expect(notes.available(home)).toBe(false);
     expect(notes.available(busy)).toBe(true);
     closeNotes();
@@ -166,8 +166,8 @@ describe("Projets, Fenêtre, Aide", () => {
 
   it("names the maximize command after the window's state", () => {
     windowStore.setState({ maximized: false });
-    expect(labelOf(find(APP, "window.maximize"), home)).toBe("Agrandir");
+    expect(labelOf(find(APP, "window.maximize"), home)).toBe("Maximize");
     windowStore.setState({ maximized: true });
-    expect(labelOf(find(APP, "window.maximize"), home)).toBe("Restaurer");
+    expect(labelOf(find(APP, "window.maximize"), home)).toBe("Restore");
   });
 });

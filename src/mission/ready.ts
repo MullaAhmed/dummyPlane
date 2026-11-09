@@ -1,4 +1,4 @@
-/** What readiness reads of an agent's terminal, and how it answers it (spec orchestrateur §7.3). */
+/** What readiness reads of an agent's terminal, and how it answers it (spec orchestrator §7.3). */
 export interface ReadyProbe {
   running(): boolean;
   quietMs(): number;
@@ -28,9 +28,9 @@ export function claudeUp(screen: string): boolean {
 }
 
 /**
- * The next key for Claude's « trust this folder » prompt, or null while it does
- * not show its options: Down while « No, exit » is selected, Enter only on
- * « Yes » (README mission: Claude Code lists « No, exit » first, and a Down
+ * The next key for Claude's "trust this folder" prompt, or null while it does
+ * not show its options: Down while "No, exit" is selected, Enter only on
+ * "Yes" (mission README: Claude Code lists "No, exit" first, and a Down
  * sent before its menu takes keys is lost, so Enter would quit Claude).
  */
 export function trustKey(screen: string): string | null {

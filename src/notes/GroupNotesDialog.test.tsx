@@ -6,7 +6,6 @@ import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { canvasStore } from "@/canvas/canvasStore";
-import { langStore } from "@/i18n";
 import { projectsStore } from "@/store/projects";
 import { GroupNotesDialog } from "./GroupNotesDialog";
 import { groupNotesOf, setGroupNotes } from "./groupNotes";
@@ -40,7 +39,6 @@ afterEach(async () => {
   host?.remove();
   closeGroupNotes();
   clearMocks();
-  langStore.setState({ lang: "fr" });
 });
 
 async function show() {
@@ -78,7 +76,7 @@ describe("the notes of a group (spec notes §3)", () => {
     expect(box("Deploy").checked).toBe(false);
     await toggle("Deploy");
     await toggle("Auth");
-    await act(async () => textButton("Enregistrer")!.click());
+    await act(async () => textButton("Save")!.click());
     expect(groupNotesOf("g1")).toEqual(["Deploy"]);
     expect(notesStore.getState().attaching).toBeNull();
   });
@@ -86,7 +84,7 @@ describe("the notes of a group (spec notes §3)", () => {
   it("writes nothing on Cancel", async () => {
     await show();
     await toggle("Auth");
-    await act(async () => textButton("Annuler")!.click());
+    await act(async () => textButton("Cancel")!.click());
     expect(updateScene).not.toHaveBeenCalled();
     expect(notesStore.getState().attaching).toBeNull();
   });
@@ -95,22 +93,20 @@ describe("the notes of a group (spec notes §3)", () => {
     elements = [frame(["Old"])];
     await show();
     expect(box("Old").checked).toBe(true);
-    expect(document.body.textContent).toContain("note absente");
+    expect(document.body.textContent).toContain("note missing");
     await toggle("Old");
-    await act(async () => textButton("Enregistrer")!.click());
+    await act(async () => textButton("Save")!.click());
     expect(groupNotesOf("g1")).toEqual([]);
   });
 
   it("says so when the project has no notes", async () => {
     mockIPC((command) => (command === "notes_all" ? { notes: [], skipped: 0 } : undefined));
     await show();
-    expect(document.body.textContent).toContain("Aucune note");
+    expect(document.body.textContent).toContain("No notes in this project");
   });
 
-  it("speaks English", async () => {
-    await act(async () => langStore.setState({ lang: "en" }));
+  it("titles itself with the group's notes", async () => {
     await show();
-    expect(textButton("Save")).toBeDefined();
     expect(document.body.textContent).toContain("Notes of the group");
   });
 });

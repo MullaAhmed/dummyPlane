@@ -55,7 +55,7 @@ describe("the agents panel's state (spec identité §5.6)", () => {
       throw new Error("disque plein");
     });
     setAgentsPanel(true);
-    await vi.waitFor(() => expect(error).toHaveBeenCalledWith(expect.stringMatching(/^Réglage non enregistré : .*disque plein/)));
+    await vi.waitFor(() => expect(error).toHaveBeenCalledWith(expect.stringMatching(/^Setting not saved: .*disque plein/)));
     expect(agentsPanelStore.getState().open).toBe(true);
   });
 });

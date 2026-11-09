@@ -26,7 +26,7 @@ function closeOnLeave() {
   return () => unsubscribes.forEach((unsubscribe) => unsubscribe());
 }
 
-/** A press on the ring leaves the keyboard where it was: after « Coller », Enter still goes to the terminal. */
+/** A press on the ring leaves the keyboard where it was: after "Paste", Enter still goes to the terminal. */
 const keepKeyboard = (event: PointerEvent) => event.preventDefault();
 
 /** The ring of the right click (spec menu radial §5). */

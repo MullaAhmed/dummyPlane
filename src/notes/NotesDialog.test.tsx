@@ -5,7 +5,6 @@ import { EditorView } from "@codemirror/view";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { langStore } from "@/i18n";
 import NotesDialog from "./NotesDialog";
 import { closeNotes, notesStore, openNotes } from "./notesStore";
 
@@ -54,7 +53,6 @@ afterEach(async () => {
   host.remove();
   closeNotes();
   clearMocks();
-  langStore.setState({ lang: "fr" });
   vi.mocked(openUrl).mockClear();
 });
 
@@ -78,8 +76,8 @@ function type(field: HTMLInputElement, value: string) {
     field.dispatchEvent(new Event("input", { bubbles: true }));
   });
 }
-const searchField = () => dialog().querySelector<HTMLInputElement>('input[aria-label="Rechercher dans les notes"]')!;
-const nameField = () => dialog().querySelector<HTMLInputElement>('input[aria-label="Nom de la note"]')!;
+const searchField = () => dialog().querySelector<HTMLInputElement>('input[aria-label="Search the notes"]')!;
+const nameField = () => dialog().querySelector<HTMLInputElement>('input[aria-label="Name of the note"]')!;
 const pressEnter = (field: HTMLElement) => act(async () => void field.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
 const editor = () => EditorView.findFromDOM(dialog().querySelector<HTMLElement>(".cm-editor")!)!;
 const typeInEditor = (text: string) =>
@@ -143,10 +141,10 @@ describe("the notes (spec notes §6)", () => {
 
   it("edits with Ctrl+S, the reading view following", async () => {
     await open("Plain");
-    await click(tab("Édition"));
+    await click(tab("Edit"));
     await typeInEditor(" More.");
     expect(dialog().querySelector("[data-dirty]")).not.toBeNull();
-    await click(tab("Lecture"));
+    await click(tab("Read"));
     expect(reader().textContent).toContain("Nothing. More.");
     await pressSave();
     await settle();
@@ -156,16 +154,16 @@ describe("the notes (spec notes §6)", () => {
 
   it("keeps the undo history across the views", async () => {
     await open("Plain");
-    await click(tab("Édition"));
+    await click(tab("Edit"));
     const view = editor();
-    await click(tab("Lecture"));
-    await click(tab("Édition"));
+    await click(tab("Read"));
+    await click(tab("Edit"));
     expect(editor()).toBe(view);
   });
 
   it("shows new links in the list of backlinks once saved", async () => {
     await open("Plain");
-    await click(tab("Édition"));
+    await click(tab("Edit"));
     await typeInEditor(" [[Auth]]");
     await pressSave();
     await settle();
@@ -174,20 +172,20 @@ describe("the notes (spec notes §6)", () => {
   });
 
   it("creates a note with a valid name only", async () => {
-    await click(button("Nouvelle note"));
+    await click(button("New note"));
     await type(nameField(), "a/b");
     await pressEnter(nameField());
     await settle();
     expect(writes).toEqual([]);
-    expect(dialog().textContent).toContain("Ce nom ne convient pas");
-    await type(nameField(), "Idées");
+    expect(dialog().textContent).toContain("This name won't do");
+    await type(nameField(), "Ideas");
     await pressEnter(nameField());
     await settle();
-    expect(disk["Idées"]).toBe("# Idées\n");
+    expect(disk["Ideas"]).toBe("# Ideas\n");
   });
 
   it("opens a note instead of creating it twice", async () => {
-    await click(button("Nouvelle note"));
+    await click(button("New note"));
     await type(nameField(), "auth");
     await pressEnter(nameField());
     await settle();
@@ -197,23 +195,23 @@ describe("the notes (spec notes §6)", () => {
 
   it("asks before leaving a modified note", async () => {
     await open("Plain");
-    await click(tab("Édition"));
+    await click(tab("Edit"));
     await typeInEditor("x");
     await click(row("Auth"));
-    expect(document.body.textContent).toContain("Enregistrer Plain ?");
-    await click(textButton("Annuler"));
+    expect(document.body.textContent).toContain("Save Plain?");
+    await click(textButton("Cancel"));
     expect(editor().state.doc.toString()).toBe("Nothing.x");
   });
 
   it("closes through the same guard", async () => {
     await open("Plain");
-    await click(button("Fermer les notes"));
+    await click(button("Close the notes"));
     expect(notesStore.getState().open).toBe(false);
   });
 
   it("shows a note an agent changed instead of overwriting it", async () => {
     await open("Plain");
-    await click(tab("Édition"));
+    await click(tab("Edit"));
     await typeInEditor("x");
     disk.Plain = "agent";
     await pressSave();
@@ -223,7 +221,7 @@ describe("the notes (spec notes §6)", () => {
   });
 
   it("draws the notes and their links, and opens a note from the graph", async () => {
-    await click(tab("Graphe"));
+    await click(tab("Graph"));
     const graph = dialog().querySelector("[data-graph]")!;
     expect(graph.querySelectorAll("[data-graph-note]")).toHaveLength(3);
     expect(graph.querySelectorAll("[data-graph-link]")).toHaveLength(1);
@@ -235,7 +233,7 @@ describe("the notes (spec notes §6)", () => {
 
   it("does not ask for the list again and again when a modified note differs from the disk", async () => {
     await open("Plain");
-    await click(tab("Édition"));
+    await click(tab("Edit"));
     await typeInEditor("x");
     disk.Plain = "agent";
     let lists = 0;
@@ -247,7 +245,7 @@ describe("the notes (spec notes §6)", () => {
       if (command === "notes_version") return versionOf((args as { name: string }).name);
       return undefined;
     });
-    await click(button("Rafraîchir"));
+    await click(button("Refresh"));
     await settle();
     await settle();
     await settle();
@@ -255,39 +253,28 @@ describe("the notes (spec notes §6)", () => {
   });
 
   it("says why a note could not be created", async () => {
-    await click(button("Nouvelle note"));
+    await click(button("New note"));
     mockIPC((command) => {
-      if (command === "notes_write") throw { kind: "invalidInput", message: "chemin refusé : x" };
+      if (command === "notes_write") throw { kind: "invalidInput", message: "path refused : x" };
       return undefined;
     });
     await type(nameField(), "x");
     await pressEnter(nameField());
     await settle();
-    expect(dialog().textContent).toContain("chemin refusé : x");
+    expect(dialog().textContent).toContain("path refused : x");
   });
 
   it("says when notes were left out", async () => {
     mockIPC((command) => (command === "notes_all" ? { notes: [], skipped: 2 } : undefined));
-    await click(button("Rafraîchir"));
+    await click(button("Refresh"));
     await settle();
-    expect(dialog().textContent).toContain("2 notes non affichées");
+    expect(dialog().textContent).toContain("2 notes not shown");
   });
 
   it("says when there are no notes yet", async () => {
     mockIPC((command) => (command === "notes_all" ? { notes: [], skipped: 0 } : undefined));
-    await click(button("Rafraîchir"));
+    await click(button("Refresh"));
     await settle();
-    expect(dialog().textContent).toContain("Aucune note");
-  });
-
-  it("speaks English", async () => {
-    await act(async () => langStore.setState({ lang: "en" }));
-    expect(button("Close the notes")).not.toBeNull();
-    expect(tab("Graph")).toBeDefined();
-    await open("Plain");
-    await click(tab("Edit"));
-    await typeInEditor("x");
-    await click(button("Close the notes"));
-    expect(document.body.textContent).toContain("Save Plain?");
+    expect(dialog().textContent).toContain("No notes yet");
   });
 });

@@ -5,7 +5,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { canvasStore } from "@/canvas/canvasStore";
 import type { SceneFrame } from "@/canvas/groups";
-import { langStore } from "@/i18n";
 import { nodesStore } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
 import { agentsPanelStore } from "./agentsPanelState";
@@ -29,8 +28,6 @@ vi.mock("./broadcast", async (importOriginal) => ({ ...(await importOriginal<typ
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-beforeEach(() => langStore.setState({ lang: "en" }));
-afterEach(() => langStore.setState({ lang: "fr" }));
 
 describe("catalogs in English", () => {
   it("words the vendors, the roles, the pantheons and the filters", () => {
@@ -48,11 +45,10 @@ describe("catalogs in English", () => {
     expect(fleetSections([{ id: "a", name: "Isis", agent: "claude", state: "idle" }], [], "all")[0].name).toBe("No group");
   });
 
-  it("follows the language when it changes", () => {
+  it("uses the English labels", () => {
     expect(ROLES.testers.label).toBe("Testers");
-    langStore.setState({ lang: "fr" });
-    expect(ROLES.testers.label).toBe("Testeurs");
-    expect(AGENTS.custom.label).toBe("Personnalisé");
+    expect(ROLES.testers.label).toBe("Testers");
+    expect(AGENTS.custom.label).toBe("Custom");
   });
 
   it("words the slash command hints", () => {
@@ -93,28 +89,22 @@ describe("targets in both languages", () => {
   const frames: SceneFrame[] = [];
   const agents: TargetAgent[] = [{ id: "a", name: "Isis", groupName: null }];
 
-  it("shows @all in English and @tous in French", () => {
+  it("shows @all in English", () => {
     expect(targetOptions(agents, frames)[0].label).toBe("@all");
     expect(targetOptions(agents, frames)[0].detail).toBe("1 agent");
     expect(targetOptions(agents, frames)[1].detail).toBe("No group");
-    langStore.setState({ lang: "fr" });
-    expect(targetOptions(agents, frames)[0].label).toBe("@tous");
-    expect(targetOptions(agents, frames)[1].detail).toBe("Hors groupe");
+    expect(targetOptions(agents, frames)[0].label).toBe("@all");
+    expect(targetOptions(agents, frames)[1].detail).toBe("No group");
   });
 
-  it("understands both @all and @tous whatever the language", () => {
-    for (const lang of ["en", "fr"] as const) {
-      langStore.setState({ lang });
-      const options = targetOptions(agents, frames);
-      expect(extractMentions("@all run the tests", options)).toEqual({ targets: [{ kind: "all" }], text: "run the tests" });
-      expect(extractMentions("@tous lance les tests", options)).toEqual({ targets: [{ kind: "all" }], text: "lance les tests" });
-    }
+  it("understands @all", () => {
+    const options = targetOptions(agents, frames);
+    expect(extractMentions("@all run the tests", options)).toEqual({ targets: [{ kind: "all" }], text: "run the tests" });
   });
 
-  it("completes @al and @to to the all option", () => {
+  it("completes @al to the all option", () => {
     const options = targetOptions(agents, frames);
     expect(matchOptions(options, "al")[0].target).toEqual({ kind: "all" });
-    expect(matchOptions(options, "to")[0].target).toEqual({ kind: "all" });
   });
 });
 
@@ -174,9 +164,8 @@ describe("components in English", () => {
     expect(text).toContain("local model");
   });
 
-  it("switches the @ list's words when the language changes, the bar staying open (final review R5a)", async () => {
+  it("shows the @ list in English, the bar staying open (final review R5a)", async () => {
     const agents: TargetAgent[] = [{ id: "b", name: "Thot", groupName: null }];
-    langStore.setState({ lang: "fr" });
     await act(async () =>
       root.render(<CommandInput agents={agents} groups={[]} fallback={[]} placeholder="Consigne" emptyHint="Tape @" />),
     );
@@ -188,8 +177,7 @@ describe("components in English", () => {
       field.dispatchEvent(new Event("input", { bubbles: true }));
     });
     const options = () => [...host.querySelectorAll('[role="option"]')].map((o) => o.textContent);
-    expect(options()[0]).toContain("@tous");
-    await act(async () => langStore.setState({ lang: "en" }));
+    expect(options()[0]).toContain("@all");
     expect(options()).toEqual(["@all1 agent", "@thotNo group"]);
   });
 
@@ -210,7 +198,7 @@ describe("components in English", () => {
     };
     await type("@");
     expect([...host.querySelectorAll('[role="option"]')].map((o) => o.textContent)).toEqual(["@all1 agent", "@thotNo group"]);
-    await type("@tous /");
+    await type("@all /");
     expect(host.textContent).toContain("Summarize the conversation to free up context");
     await type("/effort @nobody");
     expect(host.textContent).toContain("Unknown target: @nobody");

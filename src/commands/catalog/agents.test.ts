@@ -4,7 +4,6 @@ import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { agentsPanelStore } from "@/fleet/agentsPanelState";
 import { agentsStore } from "@/fleet/agentsStore";
 import { pauseAll, resumeAll } from "@/fleet/broadcast";
-import { langStore } from "@/i18n";
 import { launchAt, launchFour, newConsole, placeOrchestrator } from "@/fleet/quickActions";
 import { labelOf, type Command, type CommandContext } from "../command";
 import { pendingUiRequest } from "../uiRequests";
@@ -34,33 +33,33 @@ afterAll(() => clearMocks());
 describe("Agents (spec fenêtre §7.3)", () => {
   it("lists the spec's functions, in its order", () => {
     expect(AGENT_COMMANDS.map((c) => labelOf(c, busy))).toEqual([
-      "Lancer Claude",
-      "Installer Codex…",
-      "Installer Gemini…",
-      "Installer Qwen Code…",
-      "Installer Cursor…",
-      "Installer OpenCode…",
-      "Installer Aider…",
-      "Installer Ollama…",
-      "Lancer Shell",
-      "Lancer un agent personnalisé…",
-      "Autre agent…",
-      "Comptes Claude…",
-      "Nouvelle console",
-      "Lancer 4 agents",
-      "Orchestrateur",
+      "Launch Claude",
+      "Install Codex…",
+      "Install Gemini…",
+      "Install Qwen Code…",
+      "Install Cursor…",
+      "Install OpenCode…",
+      "Install Aider…",
+      "Install Ollama…",
+      "Launch Shell",
+      "Launch a custom agent…",
+      "Other agent…",
+      "Claude accounts…",
+      "New console",
+      "Launch 4 agents",
+      "Orchestrator",
       "Kanban",
-      "Composer un groupe…",
-      "Tout mettre en pause",
-      "Tout reprendre",
+      "Compose a group…",
+      "Pause all",
+      "Resume all",
     ]);
   });
 
   it("offers to install a missing agent, through the menu's confirmation (spec installation §4.1)", async () => {
     const codex = find("agent.launch.codex");
-    expect(labelOf(codex, busy)).toBe("Installer Codex…");
+    expect(labelOf(codex, busy)).toBe("Install Codex…");
     expect(codex.disabled!(busy)).toBeNull();
-    expect(codex.keywords).toContain("installer");
+    expect(codex.keywords).toContain("install");
     await codex.run(busy);
     expect(launchAt).not.toHaveBeenCalled();
     expect(pendingUiRequest()).toEqual({ kind: "agentMenu", view: { install: "codex" } });
@@ -69,15 +68,13 @@ describe("Agents (spec fenêtre §7.3)", () => {
   });
 
   it("speaks English when it offers an install", () => {
-    langStore.setState({ lang: "en" });
     expect(labelOf(find("agent.launch.codex"), busy)).toBe("Install Codex…");
     expect(find("agent.launch.codex").keywords).toContain("install");
-    langStore.setState({ lang: "fr" });
   });
 
   it("keeps launching before the first detection, when nothing is known to be missing", () => {
     agentsStore.setState({ loaded: false, agents: [] } as never);
-    expect(labelOf(find("agent.launch.codex"), busy)).toBe("Lancer Codex");
+    expect(labelOf(find("agent.launch.codex"), busy)).toBe("Launch Codex");
     expect(find("agent.launch.codex").disabled!(busy)).toBeNull();
   });
 

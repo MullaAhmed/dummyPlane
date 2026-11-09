@@ -44,15 +44,15 @@ it("folds on the label's chevron, keeps the counters, and unfolds with a click (
     ),
   );
   expect(host.querySelectorAll("[data-backdrop]").length).toBe(1);
-  await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="Replier le groupe"]')!.click());
+  await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="Fold the group"]')!.click());
   expect((scene[0].customData as { openvibe: { folded?: boolean } }).openvibe.folded).toBe(true);
   // Folded: the frame is redrawn from the scene; the label stays, with its counters and the way back.
   await act(async () => canvasStore.setState({ frames: [frame(true)] as never }));
   expect(host.textContent).toContain("API");
-  expect(host.textContent).toContain("2 · inactif");
-  expect(host.querySelector('[aria-label="Déplier le groupe"]')).not.toBeNull();
+  expect(host.textContent).toContain("2 · idle");
+  expect(host.querySelector('[aria-label="Unfold the group"]')).not.toBeNull();
   expect(host.querySelectorAll("[data-backdrop]").length).toBe(0);
-  await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="Déplier le groupe"]')!.click());
+  await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="Unfold the group"]')!.click());
   expect((scene[0].customData as { openvibe: { folded?: boolean } }).openvibe.folded).toBeUndefined();
   await act(async () => root.unmount());
 });

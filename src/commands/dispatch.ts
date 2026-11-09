@@ -5,7 +5,7 @@ import { COMMANDS, commandContext } from "./registry";
 import { heldShortcutOf, isModalOpen, shortcutOf } from "./shortcuts";
 
 /**
- * The application's single keydown listener (spec fenêtre §6.2): on the
+ * The application's single keydown listener (spec window §6.2): on the
  * window, in the capture phase, ahead of xterm, the fields, Excalidraw and
  * WebView2. A recognized shortcut whose command is available is consumed: it
  * reaches neither the terminal, nor its agent, nor Excalidraw.
@@ -33,7 +33,7 @@ export function installShortcuts(
     event.preventDefault();
     event.stopImmediatePropagation();
     // A command that moves the keyboard closes the palette first: an open
-    // palette never shows while the keys go to a terminal (Échap included).
+    // palette never shows while the keys go to a terminal (Esc included).
     if (paletteStore.getState().open && !command.id.startsWith("palette.")) closePalette();
     closeOpenMenus(target.document);
     runCommand(command, ctx);

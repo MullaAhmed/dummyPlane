@@ -13,7 +13,7 @@ import { addOrchestrator } from "./orchestrators";
 import { clientRectOf, ghostRect, sceneOf } from "./placement";
 import type { Point } from "./terminals";
 
-/** Dashed outline that follows the pointer until a click places the agent (spec habillage §10.1). */
+/** Dashed outline that follows the pointer until a click places the agent (spec theme §10.1). */
 export function PlacementGhost() {
   const t = useMessages(fleetMessages);
   const placing = useUi((s) => s.placing);

@@ -30,14 +30,14 @@ beforeAll(async () => {
 
 describe("the line chosen by a search, from a Claude terminal (retours J8b)", () => {
   it("is the function of the terminal of the moment, not a loose match in an earlier section", () => {
-    expect(chosen("pause")).toMatchObject({ label: "Mettre en pause", section: "Terminal · Isis" });
-    expect(chosen("relancer")).toMatchObject({ label: "Relancer", section: "Terminal · Isis" });
-    expect(chosen("renommer")).toMatchObject({ label: "Renommer", section: "Terminal · Isis" });
+    expect(chosen("pause")).toMatchObject({ label: "Pause", section: "Terminal · Isis" });
+    expect(chosen("restart")).toMatchObject({ label: "Restart", section: "Terminal · Isis" });
+    expect(chosen("rename")).toMatchObject({ label: "Rename", section: "Terminal · Isis" });
   });
 
   it("still finds the others by their own words", () => {
-    expect(chosen("renommer le workspace")?.label).toBe("Renommer le workspace");
-    expect(chosen("tout pause")?.label).toBe("Tout mettre en pause");
-    expect(chosen("lancer claude")?.label).toBe("Lancer Claude");
+    expect(chosen("rename workspace")?.label).toBe("Rename workspace");
+    expect(chosen("all pause")?.label).toBe("Pause all");
+    expect(chosen("launch claude")?.label).toBe("Launch Claude");
   });
 });

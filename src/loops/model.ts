@@ -1,4 +1,4 @@
-/** What starts a loop's next run (spec boucles §3). */
+/** What starts a loop's next run (loops spec §3). */
 export type LoopTrigger =
   | { kind: "interval"; minutes: number }
   | { kind: "idle" }
@@ -35,7 +35,7 @@ export type LoopValidation = { ok: true; loop: LoopDraft } | { ok: false; error:
 
 const isCount = (value: unknown, max: number): value is number => typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= max;
 
-/** A draft as kept, or the first thing wrong with it. No loop is valid without a stop condition (spec boucles §1). */
+/** A draft as kept, or the first thing wrong with it. No loop is valid without a stop condition (loops spec §1). */
 export function validateLoop(draft: LoopDraft): LoopValidation {
   const name = draft.name.replace(/\s+/g, " ").trim();
   const instruction = draft.instruction.trim();
@@ -71,7 +71,7 @@ export function stopsAfter(loop: LoopDraft): { runs?: number; minutes?: number }
   return { ...(loop.maxRuns !== undefined ? { runs: loop.maxRuns } : {}), ...(loop.maxMinutes !== undefined ? { minutes: loop.maxMinutes } : {}) };
 }
 
-/** A starting point for the form: it fills a draft, it never starts a loop (spec boucles §3). */
+/** A starting point for the form: it fills a draft, it never starts a loop (loops spec §3). */
 export interface LoopTemplate {
   id: "progress" | "relaunch" | "tests";
   /** Everything but the name, the instruction (in the language of the moment) and the targets. */
@@ -109,7 +109,7 @@ function readLoop(raw: unknown): LoopDef | null {
   return result.ok ? { ...result.loop, id: raw.id } : null;
 }
 
-/** The loops of the saved setting: an invalid one is left out, the others stay (spec boucles §3). */
+/** The loops of the saved setting: an invalid one is left out, the others stay (loops spec §3). */
 export function readLoops(raw: unknown): LoopDef[] {
   if (!isObject(raw) || raw.version !== LOOPS_VERSION || !Array.isArray(raw.loops)) return [];
   return raw.loops.flatMap((l) => readLoop(l) ?? []).slice(0, MAX_LOOPS);

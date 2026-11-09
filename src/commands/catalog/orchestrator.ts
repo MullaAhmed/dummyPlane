@@ -42,7 +42,7 @@ export const ORCHESTRATOR: readonly Command[] = [
     run: async (ctx) => {
       const text = await readClipboardText();
       if (text === null) return;
-      // Like a terminal's « Coller »: its session's terminal takes the keyboard, then the text.
+      // Like a terminal's "Paste": its session's terminal takes the keyboard, then the text.
       arrive(id(ctx));
       pasteIntoTerminal(id(ctx), text);
     },

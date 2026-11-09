@@ -3,7 +3,6 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { goToAgent } from "@/commands/goToRun";
-import { langStore } from "@/i18n";
 import { agentActivityStore } from "@/store/agentActivity";
 import { nodesStore, type NodeRecord } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
@@ -50,7 +49,6 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  langStore.setState({ lang: "fr" });
   await act(async () => root.unmount());
   host.remove();
 });
@@ -63,7 +61,7 @@ describe("WaitingNotice (spec notification §4)", () => {
 
   it("appears when an agent starts waiting and disappears when it stops", async () => {
     await wait("isis");
-    expect(rows()).toEqual(["Isis a une question"]);
+    expect(rows()).toEqual(["Isis has a question"]);
     await act(async () => agentActivityStore.getState().apply({ nodeId: "isis", activity: "working", since: 1 }));
     expect(host.querySelector("section")).toBeNull();
   });
@@ -81,7 +79,7 @@ describe("WaitingNotice (spec notification §4)", () => {
 
   it("names the workspace of an agent that is not on screen", async () => {
     await wait("thot");
-    expect(rows()).toEqual(["Thot a une questionBackend"]);
+    expect(rows()).toEqual(["Thot has a questionBackend"]);
   });
 
   describe("the preview of the question (spec notification §7)", () => {
@@ -89,22 +87,22 @@ describe("WaitingNotice (spec notification §4)", () => {
 
     it("shows what the agent says it waits for, with the whole text in a tooltip", async () => {
       await ask("Claude needs your permission to use Bash");
-      expect(rows()).toEqual(["Isis a une questionClaude needs your permission to use Bash"]);
+      expect(rows()).toEqual(["Isis has a questionClaude needs your permission to use Bash"]);
       expect(host.querySelector("[title]")?.getAttribute("title")).toBe("Claude needs your permission to use Bash");
     });
 
     it("falls back to no preview", async () => {
       await ask(undefined);
-      expect(rows()).toEqual(["Isis a une question"]);
+      expect(rows()).toEqual(["Isis has a question"]);
       expect(host.querySelector("[title]")).toBeNull();
     });
 
     it("follows the agent: a new question replaces it, the end of the wait removes it", async () => {
       await ask("First?");
       await ask("Second?");
-      expect(rows()).toEqual(["Isis a une questionSecond?"]);
+      expect(rows()).toEqual(["Isis has a questionSecond?"]);
       await ask(undefined);
-      expect(rows()).toEqual(["Isis a une question"]);
+      expect(rows()).toEqual(["Isis has a question"]);
     });
 
     it("shows a message as plain text, never as markup", async () => {
@@ -130,7 +128,7 @@ describe("WaitingNotice (spec notification §4)", () => {
     await wait("ra", 3);
     await wait("isis", 1);
     await wait("nout", 2);
-    expect(rows()).toEqual(["Isis a une question", "Nout a une question", "Ra a une question"]);
+    expect(rows()).toEqual(["Isis has a question", "Nout has a question", "Ra has a question"]);
   });
 
   it("counts the others past three, and its line goes to the first of them", async () => {
@@ -138,15 +136,14 @@ describe("WaitingNotice (spec notification §4)", () => {
     await wait("nout", 2);
     await wait("ra", 3);
     await wait("seth", 4);
-    expect(last(rows())).toBe("+ 1 autre");
+    expect(last(rows())).toBe("+ 1 more");
     await wait("thot", 5);
-    expect(last(rows())).toBe("+ 2 autres");
+    expect(last(rows())).toBe("+ 2 more");
     await act(async () => last([...host.querySelectorAll("button")]).click());
     expect(goToAgent).toHaveBeenCalledWith(expect.objectContaining({ id: "seth" }));
   });
 
   it("speaks English", async () => {
-    await act(async () => langStore.setState({ lang: "en" }));
     await wait("isis", 1);
     expect(rows()).toEqual(["Isis has a question"]);
     expect(host.querySelector("section")?.getAttribute("aria-label")).toBe("Agents waiting for your answer");

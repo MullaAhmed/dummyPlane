@@ -14,7 +14,7 @@ import { commandsMessages } from "./messages";
 import { goToItems, type GoToItem } from "./goTo";
 
 /**
- * The items of « Aller à » for the palette that just opened (spec fenêtre
+ * The items of "Go to" for the palette that just opened (spec window
  * §7.2): the scene on screen as it is, the other workspaces' scenes read by
  * the scene cache (one SQLite read per workspace and session); their lines
  * come as they are read. An unreadable scene leaves its items out.
@@ -55,7 +55,7 @@ export function useGoToData(): { items: GoToItem[]; loading: boolean } {
   }, [home, workspaces, activeWorkspaceId]);
 
   const live = Object.fromEntries(workspaces.map((w) => [w.id, countRunning(nodes, statuses, [w.id])]));
-  // At home no project is open, even if « Tous les projets… » kept the last one's id.
+  // At home no project is open, even if "All projects…" kept the last one's id.
   const items = goToItems({ home, projects, activeProjectId: home ? null : activeProjectId, workspaces, activeWorkspaceId, scenes, nodes, live });
   return { items, loading: !home && workspaces.some((w) => !(w.id in scenes)) };
 }

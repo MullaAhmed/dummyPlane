@@ -16,7 +16,7 @@ function worded(base: Omit<Command, "label" | "keywords">, label: () => string, 
 }
 
 /**
- * The palette's lines for the loops (spec boucles §4): the window, and the
+ * The palette's lines for the loops (loops spec §4): the window, and the
  * emergency brake, which is listed wherever a loop runs, home included.
  */
 export function loopCommands(): Command[] {

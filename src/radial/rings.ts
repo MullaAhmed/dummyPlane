@@ -37,7 +37,7 @@ export type RingKind = "canvas" | "terminal" | "group" | "orchestrator" | "selec
 type Icon = ComponentType<{ className?: string }>;
 
 export interface RingSlot {
-  /** The registry's command, or the one of the moment (« Mettre en pause » / « Reprendre »). */
+  /** The registry's command, or the one of the moment ("Pause" / "Resume"). */
   command: string | ((ctx: CommandContext) => string);
   icon: Icon;
   /** The icon of the moment (the default agent's, the lock's). */

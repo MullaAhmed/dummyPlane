@@ -4,7 +4,7 @@ import { messages } from "@/i18n";
 import { projectsStore } from "@/store/projects";
 import { homeMessages } from "./messages";
 
-/** « Ajouter un projet » of the home screen and the palette: a folder, picked in Windows' dialog. */
+/** "Add a project" of the home screen and the palette: a folder, picked in Windows' dialog. */
 export async function addProject() {
   const picked = await open({ directory: true, title: messages(homeMessages).pickFolder });
   if (typeof picked !== "string") return;

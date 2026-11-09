@@ -1,10 +1,10 @@
 import type { AgentId } from "@/ipc/pty";
 
 export const DEFAULT_GROUP_SIZE = 4;
-/** Spec habillage §20: at most 12 agents per group. */
+/** Spec theme §20: at most 12 agents per group. */
 export const MAX_GROUP_SIZE = 12;
 
-/** A slot of "Composer un groupe": an agent, or null for the default agent. */
+/** A slot of "Compose a group": an agent, or null for the default agent. */
 export type Slot = AgentId | null;
 
 /** The slots of a group of `count` agents (1 to 12), keeping those already chosen. */

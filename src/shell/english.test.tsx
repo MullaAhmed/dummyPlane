@@ -7,20 +7,17 @@ import { canvasStore } from "@/canvas/canvasStore";
 import { HomeScreen } from "@/home/HomeScreen";
 import { ProjectCard } from "@/home/ProjectCard";
 import { homeMessages } from "@/home/messages";
-import { langStore, messages } from "@/i18n";
-import { setLanguage } from "@/i18n/settings";
+import { messages } from "@/i18n";
 import { nodesStore } from "@/store/nodes";
 import { projectsStore } from "@/store/projects";
 import { uiStore } from "@/store/ui";
 import { CloseAgentDialog } from "./CloseAgentDialog";
 import { ProjectPicker } from "./ProjectPicker";
-import { SettingsMenu } from "./SettingsMenu";
 import { ToolRail } from "./ToolRail";
 import { shellMessages } from "./messages";
 
 // Excalidraw does not load under Vitest (roughjs).
 vi.mock("@excalidraw/excalidraw", () => ({}));
-vi.mock("@/i18n/settings", () => ({ setLanguage: vi.fn(() => Promise.resolve()), loadLanguage: vi.fn() }));
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -28,7 +25,6 @@ let host: HTMLDivElement;
 let root: Root;
 
 beforeEach(() => {
-  langStore.setState({ choice: "system", lang: "en" });
   mockWindows("main");
   mockIPC((cmd) => (cmd.startsWith("list_") ? [] : cmd === "plugin:window|is_maximized" ? false : undefined), { shouldMockEvents: true });
   host = document.createElement("div");
@@ -40,7 +36,6 @@ afterEach(async () => {
   host.remove();
   clearMocks();
   vi.clearAllMocks();
-  langStore.setState({ choice: "system", lang: "fr" });
 });
 
 const open = (trigger: Element) => act(async () => void trigger.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
@@ -59,43 +54,6 @@ it("the project picker menu speaks English", async () => {
   expect(host.querySelector("button")!.textContent).toBe("Project");
   await open(host.querySelector("button")!);
   expect(menuItems().map((i) => i.textContent)).toEqual(["All projects…", "Close the project"]);
-});
-
-it("the settings menu offers the language, applies a choice, and its labels are English", async () => {
-  await act(async () => root.render(<SettingsMenu trigger={<button type="button">gear</button>} />));
-  await open(host.querySelector("button")!);
-  const items = menuItems();
-  expect(items.map((i) => i.textContent?.trim())).toEqual([
-    "System",
-    "Light (Ivory)",
-    "Dark (Clay)",
-    "Transparency effects",
-    "System",
-    "Français",
-    "English",
-    "Export the scene…",
-    "Import a scene…",
-    "Export as PNG…",
-    "Windows notifications",
-    "Check for updates automatically",
-    "Check for updates",
-    "About OpenVibe",
-    "Open the logs folder",
-    "Troubleshooting…",
-  ]);
-  expect(document.body.textContent).toContain("Language");
-  expect(items[4].getAttribute("aria-checked")).toBe("true");
-  await act(async () => items[5].click());
-  expect(setLanguage).toHaveBeenCalledWith("fr");
-});
-
-it("the settings menu marks the saved language choice", async () => {
-  langStore.setState({ choice: "fr", lang: "fr" });
-  await act(async () => root.render(<SettingsMenu trigger={<button type="button">gear</button>} />));
-  await open(host.querySelector("button")!);
-  const checked = menuItems().filter((i) => i.getAttribute("aria-checked") === "true").map((i) => i.textContent);
-  expect(checked).toContain("Français");
-  expect(document.body.textContent).toContain("Langue");
 });
 
 it("the home screen speaks English", async () => {

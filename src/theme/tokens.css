@@ -1,4 +1,4 @@
-/* Design tokens (spec identité §4.2): Argile (dark) and Ivoire (light). The
+/* Design tokens (spec identité §4.2): Clay (dark) and Ivory (light). The
    theme is written on <html data-theme> by src/app/theme.ts. */
 
 /* Both themes. */
@@ -101,7 +101,7 @@
   }
 }
 
-/* …or OpenVibe's (Réglages › Effets de transparence). */
+/* …or OpenVibe's (Settings › Transparency effects). */
 :root[data-theme][data-transparency="off"] {
   --ov-glass: var(--ov-surface);
   --ov-glass-strong: var(--ov-surface);

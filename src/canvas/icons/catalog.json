@@ -2,7 +2,7 @@
   "categories": [
     {
       "id": "systeme",
-      "label": "Conception système",
+      "label": "System design",
       "libraries": [
         { "source": "rohanp/system-design", "name": "System Design Components", "authors": ["Rohan Pithadiya"] },
         { "source": "youritjang/software-architecture", "name": "Software Architecture", "authors": ["Youri Tjang"] },

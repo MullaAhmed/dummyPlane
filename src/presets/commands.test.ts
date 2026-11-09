@@ -7,7 +7,6 @@ import { agentsStore } from "@/fleet/agentsStore";
 import type { CommandContext } from "@/commands/command";
 import { labelOf, runCommand, sectionOf } from "@/commands/command";
 import { pendingUiRequest } from "@/commands/uiRequests";
-import { langStore } from "@/i18n";
 import type { TeamPreset } from "./model";
 import { presetCommands } from "./commands";
 import { presetsStore } from "./store";
@@ -29,7 +28,6 @@ const home: CommandContext = { project: false, workspaceId: null, terminalCount:
 
 beforeEach(() => {
   mockIPC(() => null);
-  langStore.setState({ lang: "fr" });
   vi.clearAllMocks();
   presetsStore.setState({ presets: [preset("Dev HQ", "1")], loaded: true });
   agentsStore.setState({ agents: [{ id: "claude", available: true }], shells: [], loaded: true });
@@ -42,19 +40,16 @@ beforeEach(() => {
 afterEach(() => clearMocks());
 
 describe("the lines of the palette (spec presets §3)", () => {
-  it("lists save, then deploy and delete for each preset, with the agents announced, in the language of the moment", () => {
+  it("lists save, then deploy and delete for each preset, with the agents announced", () => {
     const commands = presetCommands([preset("Dev HQ", "1"), preset("Tests", "2")]);
     expect(commands.map((c) => c.id)).toEqual(["presets.save", "presets.deploy.1", "presets.remove.1", "presets.deploy.2", "presets.remove.2"]);
     expect(commands.map((c) => labelOf(c, project))).toEqual([
-      "Enregistrer l'équipe comme preset…",
-      "Déployer l'équipe : Dev HQ (3 agents)",
-      "Supprimer le preset : Dev HQ",
-      "Déployer l'équipe : Tests (3 agents)",
-      "Supprimer le preset : Tests",
+      "Save the team as a preset…",
+      "Deploy team: Dev HQ (3 agents)",
+      "Delete preset: Dev HQ",
+      "Deploy team: Tests (3 agents)",
+      "Delete preset: Tests",
     ]);
-    expect(sectionOf(commands[0], project)).toBe("Équipes");
-    langStore.setState({ lang: "en" });
-    expect(labelOf(commands[1], project)).toBe("Deploy team: Dev HQ (3 agents)");
     expect(sectionOf(commands[0], project)).toBe("Teams");
   });
 
@@ -74,8 +69,8 @@ describe("the lines of the palette (spec presets §3)", () => {
     const [, deploy] = presetCommands([preset("Dev HQ", "1")]);
     runCommand(deploy, project);
     await vi.waitFor(() => expect(deployPreset).toHaveBeenCalledTimes(1));
-    await vi.waitFor(() => expect(toast).toHaveBeenCalledWith("Équipe « Dev HQ » déployée : 2 groupes, 3 agents, 1 orchestrateur"));
-    expect(toast.warning).toHaveBeenCalledWith("1 agent absent de cet ordinateur remplacé par l'agent par défaut");
+    await vi.waitFor(() => expect(toast).toHaveBeenCalledWith("Team “Dev HQ” deployed: 2 groups, 3 agents, 1 orchestrator"));
+    expect(toast.warning).toHaveBeenCalledWith("1 agent not found on this computer replaced by the default agent");
   });
 
   it("deletes a preset", async () => {
@@ -83,8 +78,8 @@ describe("the lines of the palette (spec presets §3)", () => {
     runCommand(remove, project);
     await vi.waitFor(() => expect(presetsStore.getState().presets).toEqual([]));
     // A search that ranks the delete line first must not cost a preset: the toast takes it back.
-    const [, options] = vi.mocked(toast).mock.calls.find(([text]) => text === "Preset « Dev HQ » supprimé")! as [string, { action: { label: string; onClick: () => void } }];
-    expect(options.action.label).toBe("Annuler");
+    const [, options] = vi.mocked(toast).mock.calls.find(([text]) => text === "Preset “Dev HQ” deleted")! as [string, { action: { label: string; onClick: () => void } }];
+    expect(options.action.label).toBe("Undo");
     options.action.onClick();
     await vi.waitFor(() => expect(presetsStore.getState().presets.map((p) => p.name)).toEqual(["Dev HQ"]));
   });

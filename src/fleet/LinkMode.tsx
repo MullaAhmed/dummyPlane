@@ -10,7 +10,7 @@ import { clientRectOf, sceneOf } from "./placement";
 import type { Point } from "./terminals";
 import { linkTargetAt } from "./wires";
 
-/** "Relier" (spec habillage §13): each click wires a group or a terminal; Escape or a click in the void ends it. */
+/** "Link" (spec theme §13): each click wires a group or a terminal; Escape or a click in the void ends it. */
 export function LinkMode() {
   const t = useMessages(fleetMessages);
   const linking = useUi((s) => s.linking);
@@ -45,7 +45,7 @@ export function LinkMode() {
         uiStore.getState().setLinking(null);
       }}
       onClick={(e) => {
-        // The layer covers the orchestrator's « Terminer »: the click goes on to it.
+        // The layer covers the orchestrator's "Finish": the click goes on to it.
         const finish = finishButtonAt(e.clientX, e.clientY);
         if (finish) return finish.click();
         const target = targetAt({ x: e.clientX, y: e.clientY });

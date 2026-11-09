@@ -22,7 +22,7 @@ import type { Point } from "./terminals";
 
 type View = "agents" | "options" | "ollama" | { install: AgentId };
 
-/** "Lancer un agent", opened from the tool rail's ＋ or the agents panel (spec identité §5.4, §5.6). */
+/** "Launch an agent", opened from the tool rail's ＋ or the agents panel (spec identity §5.4, §5.6). */
 export function AgentMenu({
   trigger,
   side = "right",
@@ -30,7 +30,7 @@ export function AgentMenu({
 }: {
   trigger: (open: boolean) => ReactElement;
   side?: "right" | "left" | "bottom";
-  /** The tool rail's menu answers the palette's « Lancer un agent personnalisé… » and « Lancer Ollama… ». */
+  /** The tool rail's menu answers the palette's "Launch a custom agent…" and "Launch Ollama…". */
   answersRequests?: boolean;
 }) {
   const t = useMessages(fleetMessages);
@@ -73,7 +73,7 @@ export function AgentMenu({
 
   const place = (agent: AgentId, launch: LaunchOptions) => {
     setOpen(false);
-    // « Autre agent… » of the radial menu: launched where the right click was (spec menu radial §4.1).
+    // "Other agent…" of the radial menu: launched where the right click was (spec menu radial §4.1).
     if (placeAt) void launchAgent(agent, launch, placeAt).catch((error: unknown) => toast.error(messages(fleetMessages).launchFailed(String(error))));
     else uiStore.getState().setPlacing({ agent, options: launch });
   };
@@ -162,7 +162,7 @@ export function AgentMenu({
                 </span>
                 <span className="min-w-0 flex-1 text-[13px] font-medium text-ov-text">{t.agentMenu.launchFour}</span>
               </button>
-              {/* Spec habillage §10.1: placed the same way as an agent. */}
+              {/* Spec theme §10.1: placed the same way as an agent. */}
               <button
                 type="button"
                 onClick={() => {

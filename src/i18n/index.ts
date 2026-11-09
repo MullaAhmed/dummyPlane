@@ -1,56 +1,23 @@
-import { createStore, useStore } from "zustand";
-
 /**
- * English or French (spec première version §7.1): typed dictionaries per
- * domain, no library. `defineMessages(fr, en)` gives `en` the type of `fr`, so
- * a missing key does not compile; a value is a text or a function (parameters,
- * each language's plural).
+ * The interface is English-only. Each domain keeps its texts in a typed
+ * `messages.ts` object: `defineMessages(en)` returns it unchanged, so a
+ * component reads `t.someKey` and a value is a text or a function (parameters).
  */
-export type Lang = "fr" | "en";
-export type LanguageChoice = "system" | Lang;
-export type Dictionary<M> = Record<Lang, M>;
-
-/** French when Windows is French, English otherwise. */
-export function resolveLang(choice: LanguageChoice, systemLanguage: string): Lang {
-  if (choice !== "system") return choice;
-  return systemLanguage.toLowerCase().startsWith("fr") ? "fr" : "en";
+export function defineMessages<M>(en: M): M {
+  return en;
 }
 
-export function readLanguageChoice(raw: unknown): LanguageChoice {
-  return raw === "fr" || raw === "en" || raw === "system" ? raw : "system";
+/** Outside React: the messages of a domain. Kept as an identity helper. */
+export function messages<M>(dict: M): M {
+  return dict;
 }
 
-/** The webview's language, which follows Windows' display language. */
-export function systemLanguage(): string {
-  return typeof navigator === "undefined" ? "" : (navigator.language ?? "");
+/** In a component: the messages of a domain. Kept as an identity helper. */
+export function useMessages<M>(dict: M): M {
+  return dict;
 }
 
-export interface LangState {
-  choice: LanguageChoice;
-  lang: Lang;
-}
-
-/** From the first render on: Windows' language until the saved choice is read. */
-export const langStore = createStore<LangState>()(() => ({ choice: "system", lang: resolveLang("system", systemLanguage()) }));
-
-export const useLang = () => useStore(langStore, (s) => s.lang);
-
-export function defineMessages<M>(fr: M, en: NoInfer<M>): Dictionary<M> {
-  return { fr, en };
-}
-
-/** Outside React: the current language's messages, read when called. */
-export function messages<M>(dict: Dictionary<M>): M {
-  return dict[langStore.getState().lang];
-}
-
-/** In a component: re-renders when the language changes. */
-export function useMessages<M>(dict: Dictionary<M>): M {
-  return dict[useLang()];
-}
-
-/** "1 agent", "3 agents": French uses the singular for 0 and 1, English for 1 only. */
-export function plural(lang: Lang, count: number, one: string, many: string): string {
-  const singular = lang === "fr" ? count <= 1 : count === 1;
-  return `${count} ${singular ? one : many}`;
+/** "1 agent", "3 agents": singular for 1 only. */
+export function plural(count: number, one: string, many: string): string {
+  return `${count} ${count === 1 ? one : many}`;
 }

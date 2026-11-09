@@ -4,7 +4,6 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeAll, expect, it, vi } from "vitest";
 import { mockIPC } from "@tauri-apps/api/mocks";
 import { toast } from "sonner";
-import { langStore } from "@/i18n";
 import { nodesStore } from "@/store/nodes";
 import { cleanMission, launchMission } from "./launch";
 import { NEW_MISSION, type Mission } from "./mission";
@@ -24,7 +23,6 @@ let host: HTMLDivElement;
 let root: Root;
 beforeAll(() => mockIPC(() => undefined));
 afterEach(async () => {
-  langStore.setState({ lang: "fr" });
   await act(async () => root.unmount());
   host.remove();
 });
@@ -50,25 +48,25 @@ const button = (label: string) => [...host.querySelectorAll("button")].find((b) 
 
 it("sets the mission's global budget and team size before the plan (spec §7.1)", async () => {
   await show();
-  await act(async () => type(host.querySelector('[aria-label="Budget global (minutes)"]')!, "90"));
-  await act(async () => type(host.querySelector(`[aria-label="Nombre maximal d'agents"]`)!, "12"));
+  await act(async () => type(host.querySelector('[aria-label="Global budget (minutes)"]')!, "90"));
+  await act(async () => type(host.querySelector(`[aria-label="Maximum number of agents"]`)!, "12"));
   expect(missionOf(nodesStore.getState().nodes.chef)).toMatchObject({ state: "redaction", budgetMin: 90, maxAgents: 8 });
 });
 
 it("turns the model router on, and shows each sub-task's level and model (spec maj §3)", async () => {
   await show({ state: "plan", name: "Auth", plan: [{ title: "Login", brief: "Fais le login", agent: "Isis", budgetMin: 20, level: "faible" }] });
-  expect(host.textContent).toContain("faible");
+  expect(host.textContent).toContain("low");
   expect(host.textContent).not.toContain("Haiku 5.5");
-  await act(async () => (host.querySelector('[aria-label="Routeur de modèles"]') as HTMLInputElement).click());
+  await act(async () => (host.querySelector('[aria-label="Model router"]') as HTMLInputElement).click());
   expect(missionOf(nodesStore.getState().nodes.chef)?.router).toBe(true);
-  expect(host.textContent).toContain("faible · Haiku 5.5");
+  expect(host.textContent).toContain("low · Haiku 5.5");
 });
 
 it("shows the plan and gives the go-ahead (spec §7.3)", async () => {
   await show({ state: "plan", name: "Auth", task: "Ajoute l'authentification", budgetMin: 60, plan: [{ title: "Login", brief: "Fais le login", agent: "Isis", budgetMin: 20 }] });
   expect(host.textContent).toContain("Fais le login");
-  expect(host.textContent).toContain("20 min d'agents · 60 min de temps réel");
-  await act(async () => button("Lancer la mission").click());
+  expect(host.textContent).toContain("20 agent minutes · 60 min of real time");
+  await act(async () => button("Launch the mission").click());
   expect(launchMission).toHaveBeenCalledWith("chef");
 });
 
@@ -79,13 +77,13 @@ it("shows the group a new agent will join (spec groupes spécialisés §3)", asy
 
 it("opens « Mission de nuit » from its settings, and marks a night (spec mission de nuit §5.1)", async () => {
   await show();
-  expect(host.textContent).toContain("Mission de nuit…");
-  await act(async () => button("Mission de nuit…").click());
-  expect(document.body.textContent).toContain("Préparer la nuit");
+  expect(host.textContent).toContain("Overnight run…");
+  await act(async () => button("Overnight run…").click());
+  expect(document.body.textContent).toContain("Prepare the night");
   await act(async () => root.unmount());
   host.remove();
   await show({ overnight: true });
-  expect(host.querySelector("header")?.textContent).toContain("de nuit");
+  expect(host.querySelector("header")?.textContent).toContain("overnight");
 });
 
 it("shows the morning report of a night, what to check first (spec mission de nuit §6.2)", async () => {
@@ -99,20 +97,19 @@ it("shows the morning report of a night, what to check first (spec mission de nu
     ],
   });
   const report = host.querySelector("[data-morning]")!.textContent;
-  expect(report).toContain("Rapport du matin");
+  expect(report).toContain("Morning report");
   expect(report).toContain("60 / 480 min");
-  expect(report).toContain("À vérifier à la main (1)");
+  expect(report).toContain("To check by hand (1)");
   expect(report).toContain("Relire la migration");
-  expect(report).toContain("Fait (1)");
+  expect(report).toContain("Done (1)");
   expect(report).toContain("openvibe/nuit-isis");
-  expect(report).toContain("Échoué ou bloqué (1)");
-  expect(report).toContain("bloqué");
-  expect(report).toContain("Pas fini (1)");
-  expect(report).toContain("Restées dans la file : Docs");
+  expect(report).toContain("Morning report60 / 480 minTo check by hand (1)Relire la migrationDone (1)Login · mergedIsis · 10 / 20 minLogin faitopenvibe/nuit-isisFailed or blocked (1)APIblockedHorus · 5 / 20 minCoincéopenvibe/nuit-horusNot finished (1)TestsThot · 60 / 20 minbLeft in the queue: Docs");
+  expect(report).toContain("blocked");
+  expect(report).toContain("Not finished (1)");
+  expect(report).toContain("Left in the queue: Docs");
 });
 
 it("shows it in English", async () => {
-  langStore.setState({ lang: "en" });
   await show({ state: "terminee", overnight: true, budgetMin: 60, startedAt: 0, endedAt: 60_000, summary: "x", members: [{ nodeId: "a", name: "Isis", task: "Login", budgetMin: 20, linked: false, branch: "b", worktree: "w", sentAt: 0, report: { summary: "ok", status: "echec", at: 1 } }] });
   const report = host.querySelector("[data-morning]")!.textContent;
   expect(report).toContain("Morning report");
@@ -126,7 +123,7 @@ it("shows no morning report outside a night", async () => {
 
 it("shows the tasks waiting in the queue (spec mission de nuit §4)", async () => {
   await show({ state: "plan", name: "Auth", plan: [{ title: "Login", brief: "Fais le login", agent: "Isis", budgetMin: 20 }], queue: [{ title: "API", brief: "b", budgetMin: 30 }, { title: "Docs", brief: "b", budgetMin: 10 }] });
-  expect(host.querySelector("[data-queue]")?.textContent).toContain("En attente (2)");
+  expect(host.querySelector("[data-queue]")?.textContent).toContain("Waiting (2)");
   expect(host.querySelector("[data-queue]")?.textContent).toContain("API");
   expect(host.querySelector("[data-queue]")?.textContent).toContain("Docs");
 });
@@ -148,12 +145,12 @@ it("shows the team's reports and the summary, and cleans the mission (spec §7.7
     summary: "Tout est fait.",
     members: [{ nodeId: "isis", name: "Isis", task: "Login", budgetMin: 20, linked: true, branch: "openvibe/auth-isis", worktree: "C:/w", sentAt: 0, report: { summary: "ok", status: "termine", at: 6 * 60_000 }, merged: true }],
   });
-  expect(host.querySelector('[data-member="Isis"]')?.textContent).toContain("terminé · fusionné");
+  expect(host.querySelector('[data-member="Isis"]')?.textContent).toContain("done · merged");
   expect(host.querySelector('[data-member="Isis"]')?.textContent).toContain("6 / 20 min");
   expect(host.textContent).toContain("Tout est fait.");
-  await act(async () => button("Nettoyer la mission").click());
+  await act(async () => button("Clean up the mission").click());
   expect(cleanMission).toHaveBeenCalledWith("chef");
-  expect(toast.success).toHaveBeenCalledWith("Worktrees retirés : auth-isis, auth");
+  expect(toast.success).toHaveBeenCalledWith("Worktrees removed: auth-isis, auth");
 });
 
 it("shows the sub-tasks an agent finished before taking another (backlog H3)", async () => {
@@ -164,11 +161,10 @@ it("shows the sub-tasks an agent finished before taking another (backlog H3)", a
   });
   const finished = host.querySelector('[data-member="Isis"] [data-finished]');
   expect(finished?.textContent).toContain("2");
-  expect(finished?.getAttribute("title")).toBe("Déjà finies : API, Docs");
+  expect(finished?.getAttribute("title")).toBe("Already finished: API, Docs");
 });
 
 it("shows the mission panel in English", async () => {
-  langStore.setState({ lang: "en" });
   await show({ state: "plan", name: "Auth", router: true, budgetMin: 60, plan: [{ title: "Login", brief: "Do the login", agent: "Isis", budgetMin: 20, level: "faible" }] });
   expect(host.textContent).toContain("Mission · Auth");
   expect(host.textContent).toContain("plan proposed");
@@ -179,7 +175,6 @@ it("shows the mission panel in English", async () => {
 });
 
 it("shows the team and the cleanup in English", async () => {
-  langStore.setState({ lang: "en" });
   await show({
     state: "terminee",
     name: "Auth",
@@ -197,7 +192,7 @@ it("keeps the go-ahead and cleanup buttons outside the scrolling body", async ()
   const body = host.querySelector("[data-mission-body]")!;
   expect(body.className).toContain("overflow-y-auto");
   expect(body.className).toContain("min-h-0");
-  const launch = button("Lancer la mission");
+  const launch = button("Launch the mission");
   expect(body.contains(launch)).toBe(false);
   expect(launch.closest("[data-mission-actions]")?.className).toContain("shrink-0");
   expect(host.querySelector("[data-mission]")?.className).not.toContain("overflow-y-auto");
@@ -207,5 +202,5 @@ it("keeps the cleanup button outside the scrolling body once the mission is over
   await show({ state: "terminee", name: "Auth", summary: "Fini.", members: [] });
   const body = host.querySelector("[data-mission-body]")!;
   expect(body.textContent).toContain("Fini.");
-  expect(body.contains(button("Nettoyer la mission"))).toBe(false);
+  expect(body.contains(button("Clean up the mission"))).toBe(false);
 });

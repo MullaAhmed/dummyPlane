@@ -23,6 +23,6 @@ async function menuOf(missing: boolean) {
 }
 
 it("offers « Renommer » for a project that exists, not for a missing one", async () => {
-  expect(await menuOf(false)).toContain("Renommer");
-  expect(await menuOf(true)).not.toContain("Renommer");
+  expect(await menuOf(false)).toContain("Rename");
+  expect(await menuOf(true)).not.toContain("Rename");
 });

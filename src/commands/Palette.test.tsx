@@ -60,12 +60,12 @@ const input = () => document.querySelector<HTMLInputElement>("[cmdk-input]")!;
 const press = (key: string) => input().dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }));
 
 describe("the palette (spec fenêtre §7.1, §7.2)", () => {
-  it("opens on « Aller à », the first line chosen; at home, the projects, most recent first", async () => {
+  it("opens on Go to, the first line chosen; at home, the projects, most recent first", async () => {
     await act(async () => openPalette("goTo", home));
-    expect(input().placeholder).toBe("Aller à un terminal, un workspace, un fichier (fichier:ligne)… (> pour les fonctions)");
+    expect(input().placeholder).toBe("Go to a terminal, a workspace, a file (file:line)… (> for functions)");
     expect(items().map((i) => i.textContent)).toEqual(["apiC:/code/api", "mk-webappC:/code/mk-webapp"]);
     expect(selected()).toBe(items()[0]);
-    expect(document.body.textContent).toContain("↑↓ naviguer · Entrée ouvrir · Échap fermer");
+    expect(document.body.textContent).toContain("↑↓ navigate · Enter open · Esc close");
   });
 
   it("chooses the first line again after each keystroke, and Entrée closes before going there", async () => {
@@ -100,8 +100,8 @@ describe("the palette (spec fenêtre §7.1, §7.2)", () => {
     await act(async () => openPalette("functions", busy));
     expect(input().value).toBe("> ");
     const rows = items().map((i) => i.textContent);
-    expect(rows).toContain("Terminal suivantCtrl+Tab");
-    expect(rows).toContain("Aller à…Ctrl+P");
+    expect(rows).toContain("Next terminalCtrl+Tab");
+    expect(rows).toContain("Go to…Ctrl+P");
     expect(rows.some((r) => r?.startsWith("Rechercher une fonction"))).toBe(false);
   });
 
@@ -113,12 +113,12 @@ describe("the palette (spec fenêtre §7.1, §7.2)", () => {
     expect(document.activeElement).toBe(input());
   });
 
-  it("reopens on « Aller à » with the keyboard in its field when chosen from the functions", async () => {
+  it("reopens on Go to with the keyboard in its field when chosen from the functions", async () => {
     const xterm = document.createElement("textarea");
     document.body.append(xterm);
     xterm.focus();
     await act(async () => openPalette("functions", busy));
-    await act(async () => setPaletteQuery("> aller"));
+    await act(async () => setPaletteQuery("> go to"));
     await act(async () => press("Enter"));
     expect(paletteStore.getState()).toMatchObject({ open: true, query: "" });
     expect(document.activeElement).toBe(input());
@@ -154,40 +154,40 @@ describe("the palette (spec fenêtre §7.1, §7.2)", () => {
     } as never);
     await act(async () => openPalette("goTo", busy));
     await act(async () => new Promise<void>((resolve) => setTimeout(resolve, 0)));
-    expect(error).toHaveBeenCalledWith("Workspace Backend illisible");
+    expect(error).toHaveBeenCalledWith("Workspace Backend is unreadable");
     expect(items()[0].textContent).toContain("Isis");
-    expect(document.body.textContent).not.toContain("Chargement…");
+    expect(document.body.textContent).not.toContain("Loading…");
   });
 
   it("greys what cannot be installed, with why, and never chooses it", async () => {
     agentsStore.setState({ agents: [{ id: "shell", available: false }], loaded: true } as never);
     await act(async () => openPalette("functions", busy));
-    await act(async () => setPaletteQuery("> lancer shell"));
-    const line = items().find((i) => i.textContent?.startsWith("Lancer Shell"))!;
+    await act(async () => setPaletteQuery("> launch shell"));
+    const line = items().find((i) => i.textContent?.startsWith("Launch Shell"))!;
     expect(line.getAttribute("data-disabled")).toBe("true");
-    expect(line.textContent).toContain("introuvable dans le PATH");
+    expect(line.textContent).toContain("not found in PATH");
     expect(selected()).not.toBe(line);
   });
 
   it("offers to install a missing agent (spec installation §4.1)", async () => {
     agentsStore.setState({ agents: [{ id: "claude", available: false }], loaded: true } as never);
     await act(async () => openPalette("functions", busy));
-    await act(async () => setPaletteQuery("> installer claude"));
-    const line = items().find((i) => i.textContent?.startsWith("Installer Claude…"))!;
+    await act(async () => setPaletteQuery("> install claude"));
+    const line = items().find((i) => i.textContent?.startsWith("Install Claude…"))!;
     expect(line.getAttribute("data-disabled")).not.toBe("true");
   });
 
-  it("offers the last function again first: Ctrl+Maj+P then Entrée repeats it (retours J8b)", async () => {
+  it("offers the last function again first: Ctrl+Shift+P then Entrée repeats it (retours J8b)", async () => {
     recentStore.setState({ ids: [] });
     agentsPanelStore.setState({ open: false });
     await act(async () => openPalette("functions", busy));
-    await act(async () => setPaletteQuery("> panneau"));
+    await act(async () => setPaletteQuery("> agents panel"));
     await act(async () => press("Enter"));
     expect(agentsPanelStore.getState().open).toBe(true);
     await act(async () => openPalette("functions", busy));
     const first = items()[0];
-    expect(first.closest("[cmdk-group]")!.textContent).toContain("Récentes");
-    expect(first.textContent).toContain("Masquer le panneau Agents");
+    expect(first.closest("[cmdk-group]")!.textContent).toContain("Recent");
+    expect(first.textContent).toContain("Hide the Agents panel");
     expect(first.textContent).toContain("Navigation");
     expect(selected()).toBe(first);
   });
@@ -199,10 +199,10 @@ describe("the palette (spec fenêtre §7.1, §7.2)", () => {
     workspacesStore.setState({ workspaces: [{ id: "w1", projectId: "p1", name: "Workspace 1", position: 0, pantheon: null }], activeId: "w1" } as never);
     await act(async () => openPalette("goTo", busy));
     await act(async () => new Promise<void>((resolve) => setTimeout(resolve, 0)));
-    expect(document.body.textContent).not.toContain("Fichiers");
+    expect(document.body.textContent).not.toContain("Files");
     await act(async () => setPaletteQuery("App.tsx:42"));
-    expect(document.body.textContent).toContain("Fichiers");
-    expect(selected()!.textContent).toBe("App.tsxsrcligne 42");
+    expect(document.body.textContent).toContain("Files");
+    expect(selected()!.textContent).toBe("App.tsxsrcline 42");
     await act(async () => press("Enter"));
     expect(paletteStore.getState().open).toBe(false);
     expect(openInCodeStudio).toHaveBeenCalledWith("src/App.tsx", 42, undefined);
@@ -231,44 +231,44 @@ describe("agents in the functions list (plan F2)", () => {
   it("does not grey an agent before the first look has run", async () => {
     agentsStore.setState({ agents: [], loaded: false });
     await act(async () => openPalette("functions", busy));
-    await act(async () => setPaletteQuery("> lancer shell"));
-    const line = items().find((i) => i.textContent?.includes("Lancer Shell"));
+    await act(async () => setPaletteQuery("> launch shell"));
+    const line = items().find((i) => i.textContent?.includes("Launch Shell"));
     expect(line?.getAttribute("data-disabled")).not.toBe("true");
     expect(line?.textContent).not.toContain("introuvable");
   });
 });
 
 describe("while scenes are read (plan F1 finding)", () => {
-  it("does not say « Aucun résultat » next to « Chargement… »", async () => {
+  it("does not say No results next to Loading…", async () => {
     mockIPC(() => new Promise(() => undefined));
     workspacesStore.setState({ workspaces: [{ id: "w9", name: "Slow", projectId: "p1", position: 0 }], activeId: "w1" } as never);
     projectsStore.setState({ view: "project", activeId: "p1" } as never);
     await act(async () => openPalette("goTo", busy));
     await act(async () => setPaletteQuery("zzzz"));
     const text = document.body.textContent ?? "";
-    expect(text).toContain("Chargement…");
-    expect(text).not.toContain("Aucun résultat");
+    expect(text).toContain("Loading…");
+    expect(text).not.toContain("No results");
   });
 });
 
 describe("the team presets in the functions list (spec presets §3)", () => {
-  it("lists the saved presets under « Équipes », and reads them when the functions open", async () => {
+  it("lists the saved presets under Teams, and reads them when the functions open", async () => {
     presetsStore.setState({
       presets: [{ id: "1", name: "Dev HQ", savedAt: 1, groups: [{ name: "G", role: "docs", agents: ["claude", "codex"], x: 0, y: 0 }], orchestrators: [] }],
       loaded: true,
     });
     await act(async () => openPalette("functions", busy));
     await act(async () => setPaletteQuery("> dev hq"));
-    expect(items().map((i) => i.textContent).sort()).toEqual(["Déployer l'équipe : Dev HQ (2 agents)", "Supprimer le preset : Dev HQ"]);
-    expect(document.body.textContent).toContain("Équipes");
+    expect(items().map((i) => i.textContent).sort()).toEqual(["Delete preset: Dev HQ", "Deploy team: Dev HQ (2 agents)"]);
+    expect(document.body.textContent).toContain("Teams");
   });
 });
 
 describe("the loops in the functions list (spec boucles §4)", () => {
-  it("lists « Gérer les boucles… » in a project, under « Boucles »", async () => {
+  it("lists Manage loops… in a project, under Loops", async () => {
     await act(async () => openPalette("functions", busy));
-    await act(async () => setPaletteQuery("> boucles"));
-    expect(items().map((i) => i.textContent)).toEqual(["Gérer les boucles…"]);
-    expect(document.body.textContent).toContain("Boucles");
+    await act(async () => setPaletteQuery("> loops"));
+    expect(items().map((i) => i.textContent)).toContain("Manage loops…");
+    expect(document.body.textContent).toContain("Loops");
   });
 });

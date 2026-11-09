@@ -46,17 +46,17 @@ const meter = () => host.querySelector<HTMLButtonElement>("[data-usage]")!;
 
 it("waits for a Claude session's first answer before showing the limits (spec maj §6)", () => {
   expect(meter().textContent).toBe("Usage");
-  expect(meter().title).toContain("première réponse");
+  expect(meter().title).toContain("first reply");
 });
 
 it("shows the session's and the week's use of the plan in the title bar, then the detail on a click", async () => {
   await act(async () => usageStore.getState().apply({ nodeId: "isis", status: STATUS }, 1_000));
-  expect(meter().textContent).toContain("Session 29 %");
-  expect(meter().textContent).toContain("Semaine 93 %");
+  expect(meter().textContent).toContain("Session 29%");
+  expect(meter().textContent).toContain("Week 93%");
   expect(meter().querySelector('[data-tone="over"]')).not.toBeNull();
   await act(async () => meter().click());
   const detail = document.querySelector("[data-usage-detail]")!.textContent!;
-  for (const piece of ["Session (5 h)", "Semaine (tous modèles)", "Semaine (Fable)", "Coût total", "0,0074 $", "Durée API", "1 min", "Durée réelle", "1 h 05", "+12", "−3", "Haiku 5.5", "67,8 k", "CO₂", "Isis", "chaud", "48 %"]) {
+  for (const piece of ["Session (5 h)", "Week (all models)", "Week (Fable)", "Total cost", "$0.0074", "API time", "1 min", "Elapsed time", "1 h 05", "+12", "−3", "Haiku 5.5", "67.8 k", "CO₂", "Isis", "warm", "48%"]) {
     expect(detail).toContain(piece);
   }
 });
@@ -64,7 +64,7 @@ it("shows the session's and the week's use of the plan in the title bar, then th
 it("opens the 30-day tokens from the detail, and comes back to it", async () => {
   mockIPC((cmd) => (cmd === "token_usage" ? { days: [], sessions: [], models: [], filesScanned: 0, truncated: false } : undefined));
   await act(async () => meter().click());
-  const link = [...document.querySelectorAll<HTMLButtonElement>("[data-usage-detail] button")].find((b) => b.textContent?.includes("Tokens sur 30 jours"))!;
+  const link = [...document.querySelectorAll<HTMLButtonElement>("[data-usage-detail] button")].find((b) => b.textContent?.includes("Tokens over 30 days"))!;
   await act(async () => link.click());
   expect(document.querySelector("[data-tokens]")).not.toBeNull();
   expect(document.querySelector("[data-usage-detail]")).toBeNull();

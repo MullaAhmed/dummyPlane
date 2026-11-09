@@ -47,7 +47,7 @@ export function reportGithubError(error: unknown) {
   toast.error(messages(kanbanMessages).github.failed(detail));
 }
 
-/** « owner/number » or a Project URL (…/users|orgs/owner/projects/number); null when it is neither. */
+/** "owner/number" or a Project URL (…/users|orgs/owner/projects/number); null when it is neither. */
 export function parseProject(text: string): KanbanBoardLink["project"] | null {
   const trimmed = text.trim();
   const url = /github\.com\/(?:orgs|users)\/([\w.-]+)\/projects\/(\d+)/.exec(trimmed);
@@ -86,7 +86,7 @@ async function loadProject(path: string, project: NonNullable<KanbanBoardLink["p
   return { items, statuses, context: { projectStatuses: statuses, projectItemIdByKey } satisfies MoveContext };
 }
 
-/** « Synchroniser »: issues (and Project items) merged into the board. True when it went through. */
+/** "Sync": issues (and Project items) merged into the board. True when it went through. */
 export async function syncBoard(nodeId: string): Promise<boolean> {
   const link = boardOf(nodeId)?.github;
   const path = projectPath();
@@ -163,7 +163,7 @@ function setIssueState(nodeId: string, cardId: string, state: IssueState) {
   if (board && link) save(nodeId, updateCard(board, cardId, { github: { ...link, state } }));
 }
 
-/** « Créer l'issue sur GitHub »: the card's title and notes become an issue of the board's repository. */
+/** "Create the issue on GitHub": the card's title and notes become an issue of the board's repository. */
 export async function createIssueForCard(nodeId: string, cardId: string): Promise<boolean> {
   const board = boardOf(nodeId);
   const card = board?.cards[cardId];

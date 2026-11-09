@@ -27,7 +27,7 @@ export interface Point {
 
 /**
  * Adds a terminal centered on `center` (scene coordinates), or in the first
- * free cell of the group `groupId` (spec habillage §11.3), and starts it when
+ * free cell of the group `groupId` (spec theme §11.3), and starts it when
  * shown.
  */
 export async function addTerminal(
@@ -47,7 +47,7 @@ export async function addTerminal(
   const elements = scene.elements();
   const frame = groupId ? elements.find((e) => e.id === groupId && !e.isDeleted && groupInfoOf(e)) : undefined;
   scene.write(frame ? joinGroup(elements, element, frame) : [...elements, element]);
-  // Out of sight, Excalidraw would neither show it nor start its agent; in another workspace nothing mounts it at all (spec mission de nuit §6.1).
+  // Out of sight, Excalidraw would neither show it nor start its agent; in another workspace nothing mounts it at all (spec overnight mission §6.1).
   if (scene.shown) revealNode(element.id);
   else void relaunchTerminal(element.id, payload, "new");
   return element.id;
@@ -64,7 +64,7 @@ function joinGroup(elements: readonly ExcalidrawElement[], element: ExcalidrawEl
   );
 }
 
-/** "Dupliquer" of the header: a copy of the agent to the right of the node, or in its group's grid. */
+/** "Duplicate" of the header: a copy of the agent to the right of the node, or in its group's grid. */
 export async function duplicateTerminal(workspaceId: string, nodeId: string) {
   const element = canvasStore.getState().api?.getSceneElements().find((e) => e.id === nodeId);
   const source = terminalOf(nodesStore.getState().nodes[nodeId]);
@@ -90,7 +90,7 @@ export async function adoptCopies(workspaceId: string, copies: readonly { id: st
     const source = nodesStore.getState().nodes[sourceId];
     if (!source) continue;
     if (source.kind === "orchestrator") {
-      // An orchestrator runs Claude Code: without it, the copy is taken back (spec première version §7.2).
+      // An orchestrator runs Claude Code: without it, the copy is taken back (spec first version §7.2).
       if (!(await claudeInstalled())) {
         toast.error(messages(fleetMessages).noClaude);
         refused.add(id);
@@ -169,7 +169,7 @@ export function removeNodes(ids: readonly string[]) {
   });
 }
 
-/** Removes `ids` from a scene not on screen: no canvas will free their terminals (spec mission de nuit §6.1). */
+/** Removes `ids` from a scene not on screen: no canvas will free their terminals (spec overnight mission §6.1). */
 export function removeFromStoredScene(workspaceId: string, ids: ReadonlySet<string>) {
   const scene = sceneAccess(workspaceId);
   if (!scene || scene.shown) return;
@@ -183,7 +183,7 @@ export function removeNode(nodeId: string) {
   removeNodes([nodeId]);
 }
 
-/** "Fermer" of the header: a running agent asks for confirmation first (spec habillage §7.5). */
+/** "Close" of the header: a running agent asks for confirmation first (spec theme §7.5). */
 export function requestClose(nodeId: string) {
   if (isRunning(nodeId)) uiStore.getState().setClosing({ agents: [nodeId], remove: [nodeId] });
   else removeNode(nodeId);

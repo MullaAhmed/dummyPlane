@@ -29,7 +29,7 @@ it("names the agents an update will stop, and installs on demand (spec première
   expect(dialog.textContent).toContain("Isis");
   expect(dialog.textContent).not.toContain("Thot");
   expect(dialog.textContent).toContain("Things.");
-  const install = [...document.querySelectorAll("button")].find((b) => b.textContent === "Installer et redémarrer")!;
+  const install = [...document.querySelectorAll("button")].find((b) => b.textContent === "Install and restart")!;
   await act(async () => install.click());
   expect(installUpdate).toHaveBeenCalled();
   await act(async () => root.unmount());

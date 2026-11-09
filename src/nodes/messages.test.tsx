@@ -1,9 +1,8 @@
 // @vitest-environment happy-dom
 import { act } from "react";
 import { createRoot } from "react-dom/client";
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import { mockIPC } from "@tauri-apps/api/mocks";
-import { langStore } from "@/i18n";
 import { nodesStore } from "@/store/nodes";
 import { SHELL_LABELS } from "./terminal/launch";
 import { pillOf } from "./terminal/pill";
@@ -19,9 +18,7 @@ vi.mock("@/app/logs", () => ({ openLogDir: vi.fn() }));
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-beforeEach(() => langStore.setState({ lang: "en" }));
 afterEach(() => {
-  langStore.setState({ lang: "fr" });
   document.body.innerHTML = "";
 });
 
@@ -97,6 +94,4 @@ it("labels the default shell in English, and the restart marker written into the
   mockIPC(() => undefined);
   await relaunchSession("n", term, { ...payload, agent: "shell" }, "new");
   expect(written[0]).toContain("── restart ──");
-  langStore.setState({ lang: "fr" });
-  expect(SHELL_LABELS.default).toBe("Par défaut");
 });

@@ -8,7 +8,7 @@ import { useMessages } from "@/i18n";
 import { accountsStore, addProfile, removeProfile, useAccounts, activateProfile } from "./store";
 import { accountsMessages } from "./messages";
 
-/** « Comptes Claude » (spec comptes §6): profiles are a name and a folder; the login happens in Claude. */
+/** "Claude accounts" (spec comptes §6): profiles are a name and a folder; the login happens in Claude. */
 export function AccountsDialog() {
   const t = useMessages(accountsMessages);
   const { open, profiles, active } = useAccounts((s) => s);

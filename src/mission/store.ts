@@ -27,7 +27,7 @@ export function updateMember(orchestratorId: string, nodeId: string, patch: Part
 /**
  * Orchestrators deleted from the canvas. Their record stays for an undo, and so
  * does their mission: it waits, unheard, until the undo brings them back
- * (spec première version §5.4).
+ * (spec first version §5.4).
  */
 const closedOrchestrators = new Set<string>();
 
@@ -61,7 +61,7 @@ export function orchestratorShown(orchestratorId: string): boolean {
   return record !== undefined && record.workspaceId === workspacesStore.getState().activeId && canvasStore.getState().api !== null;
 }
 
-/** A workspace's wires and groups: live on screen, from its stored scene otherwise (spec mission de nuit §6.1). */
+/** A workspace's wires and groups: live on screen, from its stored scene otherwise (spec overnight mission §6.1). */
 export function workspaceCanvas(workspaceId: string | undefined): Pick<ReturnType<typeof canvasStore.getState>, "frames" | "links"> {
   const shown = workspaceId === workspacesStore.getState().activeId && canvasStore.getState().api !== null;
   if (workspaceId === undefined || shown) return canvasStore.getState();
@@ -90,7 +90,7 @@ export function linkedClaudeAgents(orchestratorId: string): { nodeId: string; na
   });
 }
 
-/** The groups wired to an orchestrator, with what each is for (spec groupes spécialisés §3). */
+/** The groups wired to an orchestrator, with what each is for (spec specialised groups §3). */
 export function linkedGroups(orchestratorId: string): { id: string; name: string; speciality: string | null }[] {
   const { links, frames } = canvasOfNode(orchestratorId);
   return linkedAgents(links[orchestratorId] ?? NO_LINKS, frames).groups.map((f) => ({ id: f.id, name: f.name, speciality: f.group?.speciality ?? null }));

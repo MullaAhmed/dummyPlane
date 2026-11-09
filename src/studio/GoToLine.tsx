@@ -37,7 +37,7 @@ export function goToLine(input: string): boolean {
   return true;
 }
 
-/** « Aller à la ligne » (Ctrl+G), under the title bar like the palette; rendered only while open. */
+/** "Go to line" (Ctrl+G), under the title bar like the palette; rendered only while open. */
 export function GoToLine() {
   const open = useStore(goToLineStore, (s) => s.open);
   // A workspace left for another closes it.

@@ -15,8 +15,8 @@ import { uiStore, useUi } from "@/store/ui";
 import { shellMessages } from "./messages";
 
 /**
- * "Fermer Isis ?" before closing a running agent (spec habillage §7.5), or
- * "Fermer 2 agents ?" when an undo or Suppr took several at once (retours J8b).
+ * "Close Isis?" before closing a running agent (spec habillage §7.5), or
+ * "Close 2 agents?" when an undo or Delete took several at once (retours J8b).
  * An orchestrator in mission says what its closing leaves behind (spec
  * première version §5.4).
  */
@@ -32,7 +32,7 @@ export function CloseAgentDialog() {
   const first = closing?.agents[0] ? nodes[closing.agents[0]] : undefined;
   const orchestrator = one && first?.kind === "orchestrator";
   const inMission = orchestrator && first.payload.mission?.state === "en_cours";
-  // Spec habillage §7.5: « est en cours » or « est prête », by what the agent is doing.
+  // Spec habillage §7.5: "is working" or "is ready", by what the agent is doing.
   const state = activity === "working" ? "Working" : activity === "idle" ? "Ready" : null;
   const description = !one
     ? t.several(names)

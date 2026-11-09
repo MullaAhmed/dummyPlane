@@ -64,27 +64,27 @@ afterAll(() => clearMocks());
 describe("Terminal · <prénom> and Groupe · <nom> (spec fenêtre §7.3)", () => {
   it("names its sections after the terminal of the moment and its group", () => {
     expect(sectionOf(find("terminal.rename"), ctx("isis"))).toBe("Terminal · Isis");
-    expect(sectionOf(find("group.rename"), ctx("isis"))).toBe("Groupe · Serveurs");
+    expect(sectionOf(find("group.rename"), ctx("isis"))).toBe("Group · Serveurs");
     expect(CURRENT.map((c) => labelOf(c, ctx("isis")))).toEqual([
-      "Renommer",
-      "Dupliquer",
-      "Revue des changements",
-      "Relancer",
-      "Arrêter le processus",
-      "Mettre en pause",
-      "Reprendre",
-      "Fermer",
-      "Copier",
-      "Coller",
-      "Renommer le groupe",
-      "Ajouter un agent…",
-      "Relier un orchestrateur",
-      "Replier ou déplier le groupe",
-      "Dégrouper",
-      "Fermer le groupe",
-      "Mettre le groupe en pause",
-      "Reprendre le groupe",
-      "Cadrer le groupe",
+      "Rename",
+      "Duplicate",
+      "Review changes",
+      "Restart",
+      "Stop the process",
+      "Pause",
+      "Resume",
+      "Close",
+      "Copy",
+      "Paste",
+      "Rename the group",
+      "Add an agent…",
+      "Link an orchestrator",
+      "Fold or unfold the group",
+      "Ungroup",
+      "Close the group",
+      "Pause group",
+      "Resume group",
+      "Zoom to group",
     ]);
   });
 
@@ -163,7 +163,7 @@ describe("Terminal · <prénom> and Groupe · <nom> (spec fenêtre §7.3)", () =
 
   it("copies the terminal's selection, greyed without one, and pastes the clipboard into it", async () => {
     Object.defineProperty(navigator, "clipboard", { value: { writeText: vi.fn(() => Promise.resolve()) }, configurable: true });
-    expect(find("terminal.copy").disabled!(ctx("isis"))).toBe("aucune sélection");
+    expect(find("terminal.copy").disabled!(ctx("isis"))).toBe("nothing selected");
     vi.mocked(terminalSelection).mockReturnValue("ls -la");
     expect(find("terminal.copy").disabled!(ctx("isis"))).toBeNull();
     await find("terminal.copy").run(ctx("isis"));
@@ -174,7 +174,7 @@ describe("Terminal · <prénom> and Groupe · <nom> (spec fenêtre §7.3)", () =
 
   it("acts on the group the radial menu points at, not the terminal's", async () => {
     const pointed = { ...ctx("thot"), groupId: "g1" };
-    expect(sectionOf(find("group.rename"), pointed)).toBe("Groupe · Serveurs");
+    expect(sectionOf(find("group.rename"), pointed)).toBe("Group · Serveurs");
     await find("group.pause").run(pointed);
     expect(pauseAll).toHaveBeenCalledWith(["isis"]);
     await find("group.frame").run(pointed);
@@ -199,7 +199,7 @@ describe("a target that went between the palette and Entrée (plan F2)", () => {
     expect(requestCloseGroup).not.toHaveBeenCalled();
   });
 
-  it("does nothing for Relancer when the terminal is gone", async () => {
+  it("does nothing for Restart when the terminal is gone", async () => {
     vi.mocked(relaunchTerminal).mockClear();
     await expect(Promise.resolve(find("terminal.relaunch").run(ctx("closed")))).resolves.toBeUndefined();
     expect(relaunchTerminal).not.toHaveBeenCalled();

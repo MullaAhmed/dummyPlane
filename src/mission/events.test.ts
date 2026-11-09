@@ -1,7 +1,6 @@
 // @vitest-environment happy-dom
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { mockIPC } from "@tauri-apps/api/mocks";
-import { langStore } from "@/i18n";
 import { ptySendText } from "@/ipc/pty";
 import { typedAgo } from "@/nodes/terminal/registry";
 import { remoteBusy } from "@/fleet/remoteControl";
@@ -93,13 +92,12 @@ describe("events to the orchestrator (spec orchestrateur §7.5)", () => {
     status("horus", "running");
     activity("horus", "waiting");
     expect(sent()).toEqual([
-      "chef: [OpenVibe] Isis attend une réponse de l'utilisateur (un dialogue est ouvert dans son terminal).",
-      "chef: [OpenVibe] Isis s'est arrêté : son terminal ne tourne plus.",
+      "chef: [OpenVibe] Isis is waiting for the user (a dialog is open in its terminal).",
+      "chef: [OpenVibe] Isis stopped: its terminal is no longer running.",
     ]);
   });
 
   it("tells it in English when the interface is (spec première version §7.1)", () => {
-    langStore.setState({ lang: "en" });
     try {
       activity("isis", "waiting");
       status("isis", "exited");
@@ -108,13 +106,12 @@ describe("events to the orchestrator (spec orchestrateur §7.5)", () => {
         "chef: [OpenVibe] Isis stopped: its terminal is no longer running.",
       ]);
     } finally {
-      langStore.setState({ lang: "fr" });
     }
   });
 
   it("counts a member's terminal removed from the canvas as stopped", () => {
     terminalStatusStore.getState().remove("isis");
-    expect(sent()).toEqual(["chef: [OpenVibe] Isis s'est arrêté : son terminal ne tourne plus."]);
+    expect(sent()).toEqual(["chef: [OpenVibe] Isis stopped: its terminal is no longer running."]);
   });
 
   it("waits for a restarted orchestrator's Claude to be up, never typing into its trust dialog (final review H2)", async () => {

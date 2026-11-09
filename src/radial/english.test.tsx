@@ -4,7 +4,6 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { mockIPC } from "@tauri-apps/api/mocks";
 import { toast } from "sonner";
-import { langStore } from "@/i18n";
 import { nodesStore } from "@/store/nodes";
 import { workspacesStore } from "@/store/workspaces";
 import { readClipboardText } from "./bridges";
@@ -32,7 +31,6 @@ beforeAll(async () => {
   });
 });
 beforeEach(async () => {
-  langStore.setState({ lang: "en" });
   radialStore.setState({ ring: null });
   workspacesStore.setState({ activeId: "w1" } as never);
   host = document.createElement("div");
@@ -43,7 +41,6 @@ beforeEach(async () => {
 afterEach(async () => {
   await act(async () => root.unmount());
   host.remove();
-  langStore.setState({ lang: "fr" });
 });
 
 const open = () =>
@@ -60,7 +57,7 @@ const open = () =>
   );
 const buttons = () => [...document.querySelectorAll<HTMLButtonElement>("[data-radial-slot]")];
 
-it("names the ring's buttons, the reason and the close button in English", async () => {
+it("names the ring's buttons, the reason and the close button", async () => {
   await open();
   expect(buttons().map((b) => b.getAttribute("aria-label"))).toEqual(["Copy", "Paste", "Rename", "Restart", "Close", "Duplicate", "Pause", "Stop the process"]);
   await act(async () => updateRadial({ hovered: 0 }));
@@ -68,14 +65,7 @@ it("names the ring's buttons, the reason and the close button in English", async
   expect(document.querySelector('[aria-label="Close the menu"]')).not.toBeNull();
 });
 
-it("follows the language when it changes while the ring is open", async () => {
-  await open();
-  await act(async () => langStore.setState({ lang: "fr" }));
-  expect(buttons()[0].getAttribute("aria-label")).toBe("Copier");
-  expect(document.querySelector('[aria-label="Fermer le menu"]')).not.toBeNull();
-});
-
-it("tells in English when the clipboard is empty or unreadable", async () => {
+it("tells when the clipboard is empty or unreadable", async () => {
   Object.defineProperty(navigator, "clipboard", { configurable: true, value: { read: async () => [] } });
   expect(await readClipboardText()).toBeNull();
   expect(toast).toHaveBeenCalledWith("The clipboard is empty");

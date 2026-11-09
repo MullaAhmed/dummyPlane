@@ -5,7 +5,6 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { diagnosticText, type Diagnostics } from "@/app/diagnostics";
-import { langStore } from "@/i18n";
 import { showTroubleshooting, troubleshootStore } from "./troubleshoot";
 import { TroubleshootingDialog } from "./TroubleshootingDialog";
 
@@ -50,7 +49,6 @@ afterEach(async () => {
   await act(async () => root.unmount());
   host.remove();
   clearMocks();
-  langStore.setState({ lang: "fr" });
 });
 
 const open = async () => {
@@ -63,29 +61,29 @@ const button = (text: string) => [...dialog().querySelectorAll("button")].find((
 it("shows the version, the agents found and where, Git and the local server (spec première version §7.3)", async () => {
   await open();
   const text = dialog().textContent!;
-  expect(text).toContain("Dépannage");
+  expect(text).toContain("Troubleshooting");
   expect(text).toContain("1.0.0-beta.1");
   expect(text).toContain("~\\.local\\bin\\claude.exe");
-  expect(dialog().querySelector("[data-agent='codex']")!.textContent).toContain("introuvable");
+  expect(dialog().querySelector("[data-agent='codex']")!.textContent).toContain("not found");
   // Without Git Bash, the usage meter stays empty: the dialog says why.
-  expect(dialog().querySelector("[data-check='gitBash']")!.textContent).toContain("compteur d'usage");
-  expect(dialog().querySelector("[data-check='server']")!.textContent).toContain("en marche");
+  expect(dialog().querySelector("[data-check='gitBash']")!.textContent).toContain("usage meter");
+  expect(dialog().querySelector("[data-check='server']")!.textContent).toContain("running");
 });
 
 it("copies the diagnostic, opens the folders, the guide and a new issue with the version", async () => {
   const writeText = vi.fn(() => Promise.resolve());
   Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
   await open();
-  await act(async () => button("Copier le diagnostic").click());
-  expect(writeText).toHaveBeenCalledWith(diagnosticText(found, "fr"));
-  await act(async () => button("Ouvrir le dossier des données").click());
-  await act(async () => button("Ouvrir le dossier des journaux").click());
+  await act(async () => button("Copy the diagnostics").click());
+  expect(writeText).toHaveBeenCalledWith(diagnosticText(found));
+  await act(async () => button("Open the data folder").click());
+  await act(async () => button("Open the logs folder").click());
   expect(calls).toContain("open_data_dir");
   expect(calls).toContain("open_log_dir");
-  await act(async () => button("Guide de dépannage").click());
-  await act(async () => button("Signaler un problème").click());
+  await act(async () => button("Troubleshooting guide").click());
+  await act(async () => button("Report a problem").click());
   expect(vi.mocked(openUrl).mock.calls.map(([url]) => url)).toEqual([
-    "https://github.com/Mideky-hub/openvibe/blob/main/docs/troubleshooting.fr.md",
+    "https://github.com/Mideky-hub/openvibe/blob/main/docs/troubleshooting.md",
     "https://github.com/Mideky-hub/openvibe/issues/new?template=bug_report.yml&version=1.0.0-beta.1",
   ]);
 });
@@ -93,15 +91,7 @@ it("copies the diagnostic, opens the folders, the guide and a new issue with the
 it("reads Windows' PATH again before checking again", async () => {
   await open();
   calls = [];
-  await act(async () => button("Vérifier à nouveau").click());
+  await act(async () => button("Check again").click());
   expect(calls.indexOf("refresh_path")).toBeGreaterThanOrEqual(0);
   expect(calls.indexOf("refresh_path")).toBeLessThan(calls.lastIndexOf("diagnostics"));
-});
-
-it("speaks English when the interface does", async () => {
-  langStore.setState({ lang: "en" });
-  await open();
-  expect(dialog().textContent).toContain("Troubleshooting");
-  expect(dialog().querySelector("[data-agent='codex']")!.textContent).toContain("not found");
-  expect(button("Report a problem")).toBeTruthy();
 });

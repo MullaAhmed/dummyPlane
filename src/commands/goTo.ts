@@ -15,7 +15,7 @@ import { rank, rankSections } from "./search";
 
 export type GoToKind = "terminal" | "group" | "orchestrator" | "workspace" | "project";
 
-/** A line of « Aller à » (spec fenêtre §7.2). */
+/** A line of "Go to" (spec window §7.2). */
 export interface GoToItem {
   key: string;
   kind: GoToKind;
@@ -61,7 +61,7 @@ function projectItems(input: GoToInput): GoToItem[] {
     .map((p) => ({ key: `project:${p.id}`, kind: "project", label: p.name, keywords: [p.path], projectId: p.id, path: p.path }));
 }
 
-/** The items of « Aller à », section by section, in their order without a search (spec fenêtre §7.2). */
+/** The items of "Go to", section by section, in their order without a search (spec window §7.2). */
 export function goToItems(input: GoToInput): GoToItem[] {
   if (input.home) return projectItems(input);
   const words = messages(commandsMessages).goTo.keywords;
@@ -142,7 +142,7 @@ export interface GoToSection {
   items: GoToItem[];
 }
 
-/** The sections of « Aller à », each ranked by the search, the best match's first while searching; empty ones left out. */
+/** The sections of "Go to", each ranked by the search, the best match's first while searching; empty ones left out. */
 export function goToSections(items: readonly GoToItem[], query: string): GoToSection[] {
   const labels = messages(commandsMessages).goTo.sections;
   const sections = GO_TO_SECTIONS.map((kind) => ({ kind, label: labels[kind], items: rank(items.filter((i) => i.kind === kind), query, (i) => i) })).filter(

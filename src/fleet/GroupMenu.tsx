@@ -26,8 +26,8 @@ import { setRemoteControlAll } from "./remoteControl";
 import { SpecialityMenu } from "./SpecialityMenu";
 
 /**
- * The menu of a group: the `⌄` of its label on the canvas (spec habillage
- * §11.4), or `trigger`, the ⋯ of its header in the agents panel (spec identité §5.6).
+ * The menu of a group: the `⌄` of its label on the canvas (spec theme
+ * §11.4), or `trigger`, the ⋯ of its header in the agents panel (spec identity §5.6).
  */
 export function GroupMenu({ groupId, trigger, answersRequests = false }: { groupId: string; trigger?: ReactElement; answersRequests?: boolean }) {
   const t = useMessages(fleetMessages);
@@ -36,7 +36,7 @@ export function GroupMenu({ groupId, trigger, answersRequests = false }: { group
   const speciality = useCanvas((s) => s.frames.find((f) => f.id === groupId)?.group?.speciality);
   const folded = useCanvas((s) => s.frames.find((f) => f.id === groupId)?.group?.folded === true);
   const available = (id: string) => agents.some((agent) => agent.id === id && agent.available);
-  // « Ajouter un agent… » of the palette opens the panel's copy of this menu.
+  // "Add an agent…" of the palette opens the panel's copy of this menu.
   useUiRequest(
     "groupMenu",
     (request) => {

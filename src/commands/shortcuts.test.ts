@@ -16,11 +16,11 @@ const key = (fields: Partial<KeyLike>): KeyLike => ({
 describe("shortcutOf (spec fenêtre §6.1, §6.2)", () => {
   it("recognizes each shortcut of the application", () => {
     expect(shortcutOf(key({ key: "Tab", ctrlKey: true }))).toBe("Ctrl+Tab");
-    expect(shortcutOf(key({ key: "Tab", ctrlKey: true, shiftKey: true }))).toBe("Ctrl+Maj+Tab");
+    expect(shortcutOf(key({ key: "Tab", ctrlKey: true, shiftKey: true }))).toBe("Ctrl+Shift+Tab");
     expect(shortcutOf(key({ key: "p", ctrlKey: true }))).toBe("Ctrl+P");
-    expect(shortcutOf(key({ key: "P", ctrlKey: true, shiftKey: true }))).toBe("Ctrl+Maj+P");
-    expect(shortcutOf(key({ key: "Escape", shiftKey: true }))).toBe("Maj+Échap");
-    expect(shortcutOf(key({ key: "A", ctrlKey: true, shiftKey: true }))).toBe("Ctrl+Maj+A");
+    expect(shortcutOf(key({ key: "P", ctrlKey: true, shiftKey: true }))).toBe("Ctrl+Shift+P");
+    expect(shortcutOf(key({ key: "Escape", shiftKey: true }))).toBe("Shift+Escape");
+    expect(shortcutOf(key({ key: "A", ctrlKey: true, shiftKey: true }))).toBe("Ctrl+Shift+A");
     expect(shortcutOf(key({ key: "g", ctrlKey: true }))).toBe("Ctrl+G");
     expect(shortcutOf(key({ key: "G", ctrlKey: true, shiftKey: true }))).toBeNull();
   });
@@ -37,9 +37,9 @@ describe("shortcutOf (spec fenêtre §6.1, §6.2)", () => {
     expect(shortcutOf(key({ key: "Tab", ctrlKey: true, metaKey: true }))).toBeNull();
   });
 
-  it("lets a held key repeat Ctrl+Tab and Ctrl+Maj+Tab only", () => {
+  it("lets a held key repeat Ctrl+Tab and Ctrl+Shift+Tab only", () => {
     expect(shortcutOf(key({ key: "Tab", ctrlKey: true, repeat: true }))).toBe("Ctrl+Tab");
-    expect(shortcutOf(key({ key: "Tab", ctrlKey: true, shiftKey: true, repeat: true }))).toBe("Ctrl+Maj+Tab");
+    expect(shortcutOf(key({ key: "Tab", ctrlKey: true, shiftKey: true, repeat: true }))).toBe("Ctrl+Shift+Tab");
     expect(shortcutOf(key({ key: "A", ctrlKey: true, shiftKey: true, repeat: true }))).toBeNull();
     expect(shortcutOf(key({ key: "Escape", shiftKey: true, repeat: true }))).toBeNull();
   });

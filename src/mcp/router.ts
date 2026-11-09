@@ -9,7 +9,7 @@ import { internalCall, RENAMED } from "./protocol";
 
 const t = () => messages(agentMessages).router;
 
-/** The interface's answer to one MCP call of a node, by its kind (spec orchestrateur §4.1, §4.3). */
+/** The interface's answer to one MCP call of a node, by its kind (spec orchestrator §4.1, §4.3). */
 export async function answer(call: McpCall): Promise<unknown> {
   const record = nodesStore.getState().nodes[call.nodeId];
   const orchestrator = record?.kind === "orchestrator";

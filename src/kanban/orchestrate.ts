@@ -11,7 +11,7 @@ import { moveCardWithGithub } from "./github";
 import { kanbanMessages } from "./messages";
 import { doneTarget, flagCard, linkedTo, linkOrchestrator, planRequest, setCardAgent, startCard } from "./missionLink";
 
-// The Kanban node's orchestrator wiring: « Planifier avec l'orchestrateur », and its cards following the mission.
+// The Kanban node's orchestrator wiring: "Plan with the orchestrator", and its cards following the mission.
 
 const t = () => messages(kanbanMessages);
 
@@ -35,7 +35,7 @@ function besideBoard(boardId: string) {
 }
 
 /**
- * « Planifier avec l'orchestrateur »: the column is handed to `orchestratorId`
+ * "Plan with the orchestrator": the column is handed to `orchestratorId`
  * (a new one with null) and its cards typed in its terminal, as soon as it is free.
  */
 export async function planWithOrchestrator(boardId: string, columnId: string, orchestratorId: string | null): Promise<boolean> {
@@ -69,7 +69,7 @@ function boardWithCard(orchestratorId: string, cardId: string): string | null {
   return linkedBoards(orchestratorId).find(({ board }) => board.cards[cardId])?.nodeId ?? null;
 }
 
-/** The mission starts: each sub-task's card goes « En cours », its agent as a chip. `members[i]` does `plan[i]`. */
+/** The mission starts: each sub-task's card goes "In progress", its agent as a chip. `members[i]` does `plan[i]`. */
 export async function startMissionCards(orchestratorId: string, members: readonly Member[], plan: readonly SubTask[]) {
   for (const [i, task] of plan.entries()) {
     const member = members[i];
@@ -105,7 +105,7 @@ export async function finishMissionCard(orchestratorId: string, plan: readonly S
   if (target) await moveCardWithGithub(found.boardId, found.card, target, undefined, missionFolder(orchestratorId));
 }
 
-/** A member reported blocked or failed: its card stays « En cours », its chip on alert. */
+/** A member reported blocked or failed: its card stays "In progress", its chip on alert. */
 export function flagMissionCard(orchestratorId: string, plan: readonly SubTask[] | undefined, task: string, status: KanbanAgentStatus) {
   const found = taskCard(orchestratorId, plan, task);
   if (found) saveCards(found.boardId, found.board, flagCard(found.board, found.card, status));

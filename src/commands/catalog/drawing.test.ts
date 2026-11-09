@@ -37,28 +37,28 @@ afterEach(() => document.body.replaceChildren());
 describe("Dessin (spec fenêtre §7.3)", () => {
   it("lists the tools, the hand included, with Excalidraw's keys, then Annuler and Rétablir", () => {
     expect(DRAWING.map((c) => [labelOf(c, busy), c.keys ?? null])).toEqual([
-      ["Sélection", "V"],
-      ["Main", "H"],
+      ["Selection", "V"],
+      ["Hand", "H"],
       ["Rectangle", "R"],
       ["Ellipse", "O"],
-      ["Losange", "D"],
-      ["Ligne", "L"],
-      ["Flèche", "A"],
-      ["Cadre", "F"],
-      ["Texte", "T"],
-      ["Stylo", "P"],
-      ["Gomme", "E"],
+      ["Diamond", "D"],
+      ["Line", "L"],
+      ["Arrow", "A"],
+      ["Frame", "F"],
+      ["Text", "T"],
+      ["Pen", "P"],
+      ["Eraser", "E"],
       ["Image", null],
-      ["Annuler", "Ctrl+Z"],
-      ["Rétablir", "Ctrl+Y"],
-      ["Copier", "Ctrl+C"],
-      ["Coller", "Ctrl+V"],
-      ["Dupliquer", "Ctrl+D"],
-      ["Premier plan", "Ctrl+Maj+]"],
-      ["Arrière-plan", "Ctrl+Maj+["],
-      ["Verrouiller", "Ctrl+Maj+L"],
-      ["Supprimer", "Suppr"],
-      ["Plus…", null],
+      ["Undo", "Ctrl+Z"],
+      ["Redo", "Ctrl+Y"],
+      ["Copy", "Ctrl+C"],
+      ["Paste", "Ctrl+V"],
+      ["Duplicate", "Ctrl+D"],
+      ["Bring to front", "Ctrl+Shift+]"],
+      ["Send to back", "Ctrl+Shift+["],
+      ["Lock", "Ctrl+Shift+L"],
+      ["Delete", "Suppr"],
+      ["More…", null],
     ]);
   });
 
@@ -129,14 +129,14 @@ describe("Dessin, sur la sélection (spec menu radial §4.5)", () => {
 
   it("names the lock after the selection's state", () => {
     scene({ r1: true });
-    expect(labelOf(DRAWING.find((c) => c.id === "drawing.lock")!, busy)).toBe("Verrouiller");
+    expect(labelOf(DRAWING.find((c) => c.id === "drawing.lock")!, busy)).toBe("Lock");
     scene({ r1: true }, true);
-    expect(labelOf(DRAWING.find((c) => c.id === "drawing.lock")!, busy)).toBe("Déverrouiller");
+    expect(labelOf(DRAWING.find((c) => c.id === "drawing.lock")!, busy)).toBe("Unlock");
   });
 
   it("offers « Déverrouiller » on a mixed selection: Excalidraw's lock unlocks it whole (plan G1)", () => {
     mixed({ r1: true, r2: true });
-    expect(labelOf(DRAWING.find((c) => c.id === "drawing.lock")!, busy)).toBe("Déverrouiller");
+    expect(labelOf(DRAWING.find((c) => c.id === "drawing.lock")!, busy)).toBe("Unlock");
   });
 
   it("pastes and starts a text where the radial menu was opened, else at the middle of the canvas", async () => {
@@ -161,9 +161,9 @@ describe("Dessin, sur la sélection (spec menu radial §4.5)", () => {
   });
 });
 
-describe("Scène", () => {
+describe("Scene", () => {
   it("exports, imports and saves a PNG as the settings menu does", async () => {
-    expect(SCENE.map((c) => labelOf(c, busy))).toEqual(["Exporter la scène…", "Importer une scène…", "Exporter en PNG…"]);
+    expect(SCENE.map((c) => labelOf(c, busy))).toEqual(["Export scene…", "Import scene…", "Export as PNG…"]);
     for (const command of SCENE) await command.run(busy);
     expect([exportCurrentScene, importIntoScene, exportCurrentPng].every((f) => vi.mocked(f).mock.calls.length === 1)).toBe(true);
   });

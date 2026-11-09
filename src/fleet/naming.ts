@@ -25,7 +25,7 @@ function outsidePantheon(workspaceId: string): Promise<string> {
 }
 
 /**
- * The name of an agent about to be created (spec habillage §9.2): from its
+ * The name of an agent about to be created (spec theme §9.2): from its
  * group's pantheon, or from the workspace's pantheon outside groups.
  */
 export async function nameForNewAgent(workspaceId: string, groupPantheon?: string): Promise<string> {

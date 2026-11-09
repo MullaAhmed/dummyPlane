@@ -4,7 +4,6 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { requestUi } from "@/commands/uiRequests";
-import { langStore } from "@/i18n";
 import { nodesStore } from "@/store/nodes";
 import { LoopsDialog } from "./LoopsDialog";
 import { LoopsIndicator } from "./LoopsIndicator";
@@ -31,7 +30,6 @@ let root: Root;
 
 beforeEach(async () => {
   mockIPC(() => null);
-  langStore.setState({ lang: "fr" });
   sends.length = 0;
   loopsStore.setState({ loops: [], loaded: true, runtime: {} });
   await nodesStore.getState().create("isis", {
@@ -70,18 +68,18 @@ const write = async (label: string, value: string) =>
 const open = async () => act(async () => requestUi({ kind: "loops" }));
 
 it("opens on the list, empty at first, with the spending warning in the description", async () => {
-  expect(document.body.textContent).not.toContain("Nouvelle boucle");
+  expect(document.body.textContent).not.toContain("New loop");
   await open();
-  expect(document.body.textContent).toContain("Aucune boucle");
-  expect(document.body.textContent).toContain("consomme de l'usage réel");
+  expect(document.body.textContent).toContain("No loop yet");
+  expect(document.body.textContent).toContain("Each run spends real usage");
 });
 
 it("fills the form from a template and starts nothing (spec boucles §3)", async () => {
   await open();
-  await act(async () => button("Nouvelle boucle").click());
-  await act(async () => button("Relance").click());
-  expect(field("Consigne envoyée").value).toContain("Continue");
-  expect(field("Nombre de tours").value).toBe("5");
+  await act(async () => button("New loop").click());
+  await act(async () => button("Relaunch").click());
+  expect(field("Instruction sent").value).toContain("Continue");
+  expect(field("Number of runs").value).toBe("5");
   expect(loopsStore.getState().loops).toEqual([]);
   expect(loopsStore.getState().runningCount()).toBe(0);
   expect(sends).toEqual([]);
@@ -89,33 +87,33 @@ it("fills the form from a template and starts nothing (spec boucles §3)", async
 
 it("refuses a loop without an end and says so", async () => {
   await open();
-  await act(async () => button("Nouvelle boucle").click());
-  await write("Nom", "Point");
-  await write("Consigne envoyée", "va");
+  await act(async () => button("New loop").click());
+  await write("Name", "Point");
+  await write("Instruction sent", "va");
   await act(async () => document.querySelector<HTMLInputElement>('[data-target="isis"]')!.click());
-  await act(async () => button("Enregistrer").click());
-  expect(document.body.textContent).toContain("Fixe une fin : un nombre de tours ou une durée");
+  await act(async () => button("Save").click());
+  expect(document.body.textContent).toContain("Set an end: a number of runs or a duration");
   expect(loopsStore.getState().loops).toEqual([]);
 });
 
 it("saves a bounded loop, lists it off with its end, turns it on, shows the runs and stops all from the indicator", async () => {
   await open();
-  await act(async () => button("Nouvelle boucle").click());
-  await write("Nom", "Point");
-  await write("Consigne envoyée", "va");
+  await act(async () => button("New loop").click());
+  await write("Name", "Point");
+  await write("Instruction sent", "va");
   await act(async () => document.querySelector<HTMLInputElement>('[data-target="isis"]')!.click());
-  await write("Nombre de tours", "4");
-  await act(async () => button("Enregistrer").click());
+  await write("Number of runs", "4");
+  await act(async () => button("Save").click());
   await vi.waitFor(() => expect(loopsStore.getState().loops).toHaveLength(1));
   expect(document.body.textContent).toContain("Point");
-  expect(document.body.textContent).toContain("jusqu'à 4 tours");
-  expect(document.body.textContent).toContain("éteinte");
+  expect(document.body.textContent).toContain("up to 4 runs");
+  expect(document.body.textContent).toContain("off");
   // Turned on only by a click.
   expect(loopsStore.getState().runningCount()).toBe(0);
-  await act(async () => button("Activer").click());
+  await act(async () => button("Turn on").click());
   expect(loopsStore.getState().runningCount()).toBe(1);
-  expect(document.body.textContent).toContain("tour 0 / 4");
-  expect(document.body.textContent).toContain("1 boucle · 0 tour");
+  expect(document.body.textContent).toContain("run 0 / 4");
+  expect(document.body.textContent).toContain("1 loop · 0 runs");
   await act(async () => document.querySelector<HTMLButtonElement>('[data-loops-indicator] button[data-stop-all]')!.click());
   expect(loopsStore.getState().runningCount()).toBe(0);
   expect(document.querySelector("[data-loops-indicator]")).toBeNull();

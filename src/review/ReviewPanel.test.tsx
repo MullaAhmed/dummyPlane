@@ -4,7 +4,6 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { sendToAgents } from "@/fleet/broadcast";
-import { langStore } from "@/i18n";
 import { toast } from "sonner";
 import { nodesStore } from "@/store/nodes";
 import { ReviewPanel } from "./ReviewPanel";
@@ -55,7 +54,6 @@ beforeEach(async () => {
   await act(async () => reviewStore.getState().open("isis"));
 });
 afterEach(async () => {
-  langStore.setState({ lang: "fr" });
   await act(async () => root.unmount());
   host.remove();
   clearMocks();
@@ -67,39 +65,39 @@ const button = (label: string) => [...host.querySelectorAll("button")].find((b) 
 it("lists what the agent changed since its base, and shows a file's diff (spec maj §5)", async () => {
   await vi.waitFor(() => expect(text()).toContain("src/a.ts"));
   expect(text()).toContain("Isis");
-  expect(text()).toContain("Depuis main");
+  expect(text()).toContain("Since main");
   expect(calls.find((c) => c.cmd === "review_changes")?.args).toEqual({ path: "C:/code/proj", base: "main" });
   await vi.waitFor(() => expect(host.querySelectorAll("[data-diff-line]").length).toBe(4));
   expect([...host.querySelectorAll("[data-diff-line]")].map((l) => l.getAttribute("data-diff-line"))).toEqual(["hunk", "ctx", "del", "add"]);
-  await act(async () => button("Non commité").click());
+  await act(async () => button("Uncommitted").click());
   await vi.waitFor(() => expect(calls.filter((c) => c.cmd === "review_changes").pop()?.args).toEqual({ path: "C:/code/proj", base: null }));
 });
 
 it("says when the list of changes was cut", async () => {
   await vi.waitFor(() => expect(text()).toContain("src/a.ts"));
-  expect(text()).not.toContain("Liste coupée");
+  expect(text()).not.toContain("List cut");
   cutList = true;
-  await act(async () => button("Non commité").click());
-  await vi.waitFor(() => expect(text()).toContain("Liste coupée : seuls les 2 premiers changements"));
+  await act(async () => button("Uncommitted").click());
+  await vi.waitFor(() => expect(text()).toContain("List cut: only the first 2 changes are shown."));
 });
 
 it("takes remarks on lines and sends them to the agent in one message", async () => {
   await vi.waitFor(() => expect(host.querySelectorAll("[data-diff-line]").length).toBe(4));
   await act(async () => (host.querySelector('[data-diff-line="add"]') as HTMLElement).click());
-  const field = host.querySelector<HTMLInputElement>('[aria-label="Remarque sur cette ligne"]')!;
+  const field = host.querySelector<HTMLInputElement>('[aria-label="Remark on this line"]')!;
   await act(async () => {
-    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(field, "Pourquoi 3 ?");
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(field, "Why 3?");
     field.dispatchEvent(new Event("input", { bubbles: true }));
   });
   await act(async () => field.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
-  expect(reviewStore.getState().remarks).toEqual([{ file: "src/a.ts", line: 2, lineText: "const y = 3;", text: "Pourquoi 3 ?" }]);
-  await act(async () => button("Envoyer à Isis").click());
-  expect(sendToAgents).toHaveBeenCalledWith(["isis"], expect.stringContaining("- src/a.ts:2 `const y = 3;` — Pourquoi 3 ?"));
+  expect(reviewStore.getState().remarks).toEqual([{ file: "src/a.ts", line: 2, lineText: "const y = 3;", text: "Why 3?" }]);
+  await act(async () => button("Send to Isis").click());
+  expect(sendToAgents).toHaveBeenCalledWith(["isis"], expect.stringContaining("- src/a.ts:2 `const y = 3;` — Why 3?"));
   await vi.waitFor(() => expect(reviewStore.getState().remarks).toEqual([]));
 });
 
 it("browses the repository's files, read-only", async () => {
-  await act(async () => button("Fichiers").click());
+  await act(async () => button("Files").click());
   await vi.waitFor(() => expect(text()).toContain("README.md"));
   await act(async () => button("README.md").click());
   await vi.waitFor(() => expect(text()).toContain("Bonjour"));
@@ -107,7 +105,7 @@ it("browses the repository's files, read-only", async () => {
 });
 
 it("keeps its remarks when closed and opened again on the same agent (final review maj §5)", async () => {
-  await act(async () => reviewStore.getState().add({ file: "src/a.ts", line: 2, text: "Pourquoi 3 ?" }));
+  await act(async () => reviewStore.getState().add({ file: "src/a.ts", line: 2, text: "Why 3?" }));
   await act(async () => reviewStore.getState().close());
   await act(async () => reviewStore.getState().open("isis"));
   expect(reviewStore.getState().remarks).toHaveLength(1);
@@ -129,9 +127,7 @@ it("closes on Escape, unless another part of the window already used it (final r
   expect(reviewStore.getState().nodeId).toBeNull();
 });
 
-
-it("shows the review in English", async () => {
-  await act(async () => langStore.setState({ lang: "en" }));
+it("shows the review's labels", async () => {
   await vi.waitFor(() => expect(text()).toContain("src/a.ts"));
   expect(text()).toContain("Review · Isis");
   expect(text()).toContain("Since main");
@@ -148,24 +144,24 @@ it("shows the review in English", async () => {
 it("keeps the file read and the remark being typed through Refresh and a click on another line (backlog 27 oct)", async () => {
   await vi.waitFor(() => expect(host.querySelectorAll("[data-diff-line]").length).toBe(4));
   await act(async () => (host.querySelector('[data-diff-line="add"]') as HTMLElement).click());
-  const field = () => host.querySelector<HTMLInputElement>('[aria-label="Remarque sur cette ligne"]')!;
+  const field = () => host.querySelector<HTMLInputElement>('[aria-label="Remark on this line"]')!;
   await act(async () => {
-    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(field(), "à moitié");
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(field(), "half-way");
     field().dispatchEvent(new Event("input", { bubbles: true }));
   });
   await act(async () => (host.querySelector('[data-diff-line="ctx"]') as HTMLElement).click());
-  expect(field().value).toBe("à moitié");
-  await act(async () => button("Rafraîchir").click());
+  expect(field().value).toBe("half-way");
+  await act(async () => button("Refresh").click());
   await vi.waitFor(() => expect(calls.filter((c) => c.cmd === "review_changes").length).toBe(2));
   expect(host.querySelectorAll("[data-diff-line]").length).toBe(4);
-  expect(field().value).toBe("à moitié");
+  expect(field().value).toBe("half-way");
 });
 
 it("tells the remarks wait when the agent is still starting, and keeps them (plan B3)", async () => {
   vi.mocked(sendToAgents).mockResolvedValueOnce({ sent: 0, skipped: [], waiting: [], unsuited: [], starting: ["Isis"] });
   vi.mocked(toast.warning).mockClear();
-  await act(async () => reviewStore.getState().add({ file: "src/a.ts", line: 2, text: "Pourquoi 3 ?" }));
-  await act(async () => button("Envoyer à Isis").click());
-  expect(toast.warning).toHaveBeenCalledWith("Isis démarre encore : réessaie dans un instant pour lui envoyer la revue.");
+  await act(async () => reviewStore.getState().add({ file: "src/a.ts", line: 2, text: "Why 3?" }));
+  await act(async () => button("Send to Isis").click());
+  expect(toast.warning).toHaveBeenCalledWith("Isis is still starting: try again in a moment to send it the review.");
   expect(reviewStore.getState().remarks).toHaveLength(1);
 });

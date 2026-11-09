@@ -49,7 +49,7 @@ export async function removeProfile(id: string) {
   await refresh();
 }
 
-/** « Utiliser »: new Claude agents start with this profile (null: the default one). */
+/** "Use": new Claude agents start with this profile (null: the default one). */
 export async function activateProfile(id: string | null) {
   await accountUse(id);
   await refresh();

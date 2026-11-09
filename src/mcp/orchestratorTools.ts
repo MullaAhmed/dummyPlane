@@ -21,7 +21,7 @@ import { outAgent, outAgentState, outLevel, outMission, outReport, outStep } fro
 const NO_ARGS = { type: "object", properties: {} } as const;
 const t = () => messages(agentMessages);
 
-/** The orchestrator's tools (spec orchestrateur §7.2), named in English, described in the interface's language. */
+/** The orchestrator's tools (spec orchestrator §7.2), named in English, described in the interface's language. */
 export function orchestratorTools() {
   const d = t().tools;
   return [
@@ -191,7 +191,7 @@ function proposePlan(orchestratorId: string, mission: Mission, args: Record<stri
   const result = proposedPlan(args, mission, linkedClaudeAgents(orchestratorId).map((a) => a.name), linkedGroups(orchestratorId), cards);
   if (typeof result === "string") return refused(result);
   setMission(orchestratorId, { state: "plan", ...result, error: undefined });
-  // The dialog was the go-ahead: the user has left (spec mission de nuit §5.1).
+  // The dialog was the go-ahead: the user has left (spec overnight mission §5.1).
   if (mission.overnight && mission.autoLaunch) {
     void launchMission(orchestratorId);
     return said(t().orchestrator.launchingNight);
@@ -199,7 +199,7 @@ function proposePlan(orchestratorId: string, mission: Mission, args: Record<stri
   return said(t().orchestrator.proposed(result.plan.length));
 }
 
-/** `tickets`: OpenVibe reads the source, the orchestrator may not run commands (spec mission de nuit §5.1). */
+/** `tickets`: OpenVibe reads the source, the orchestrator may not run commands (spec overnight mission §5.1). */
 async function tickets(orchestratorId: string, mission: Mission): Promise<ToolResult> {
   const project = sessionOf(nodesStore.getState().nodes[orchestratorId])?.cwd;
   if (!mission.tickets || !project) return refused(t().orchestrator.noTickets);
@@ -302,7 +302,7 @@ function prolong(orchestratorId: string, mission: Mission, args: Record<string, 
   const extraMin = (member.extraMin ?? 0) + minutes;
   const budget = member.budgetMin + extraMin;
   const spent = spentMin(member, Date.now());
-  // Real time: its new target must end before the global budget does (spec mission de nuit §3).
+  // Real time: its new target must end before the global budget does (spec overnight mission §3).
   const left = remainingGlobal(mission, Date.now());
   if (left !== undefined && budget - spent > left) return refused(t().orchestrator.globalLeft(left));
   // Below its new budget it may be told again later; still past it, it is not told twice (spec §8.2).
@@ -314,7 +314,7 @@ function prolong(orchestratorId: string, mission: Mission, args: Record<string, 
 async function interrupt(mission: Mission, args: Record<string, unknown>): Promise<ToolResult> {
   const member = memberNamed(mission, args.agent);
   if (typeof member === "string") return refused(member);
-  // The same as « Pause »: « Tout reprendre » knows it.
+  // The same as "Pause": "Resume all" knows it.
   if ((await pauseAgents([member.nodeId])) === 0) return refused(t().orchestrator.notWorking(member.name));
   return said(t().orchestrator.interrupted(member.name));
 }
@@ -389,7 +389,7 @@ async function remote(orchestratorId: string, mission: Mission, args: Record<str
   );
 }
 
-/** One call of the orchestrator, by internal name; it acts on its own mission only (spec orchestrateur §4.3). */
+/** One call of the orchestrator, by internal name; it acts on its own mission only (spec orchestrator §4.3). */
 export async function orchestratorTool(orchestratorId: string, name: string, args: Record<string, unknown>): Promise<ToolResult> {
   const mission = missionOf(nodesStore.getState().nodes[orchestratorId]);
   if (!mission) return refused(t().orchestrator.gone);

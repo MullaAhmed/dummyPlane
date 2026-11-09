@@ -41,7 +41,7 @@ export function presetNameOf(raw: string): string | null {
   return name === "" ? null : name;
 }
 
-const sameName = (a: string, b: string) => a.toLocaleLowerCase("fr") === b.toLocaleLowerCase("fr");
+const sameName = (a: string, b: string) => a.toLocaleLowerCase() === b.toLocaleLowerCase();
 
 export interface CaptureInput {
   frames: readonly SceneFrame[];

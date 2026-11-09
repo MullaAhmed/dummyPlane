@@ -45,12 +45,12 @@ const byLabel = (label: string) => host.querySelector<HTMLButtonElement>(`[aria-
 
 it("offers the canvas tools in the spec's order, each setting its Excalidraw tool (spec identité §5.4)", async () => {
   const labels = [...host.querySelectorAll("button")].map((b) => b.getAttribute("aria-label"));
-  expect(labels).toEqual(["Sélection (V)", "Main (H)", "Formes", "Texte (T)", "Stylo (P)", "Gomme (E)", "Image", "Icônes", "Lancer un agent", "Ajuster la vue"]);
+  expect(labels).toEqual(["Select (V)", "Hand (H)", "Shapes", "Text (T)", "Pen (P)", "Eraser (E)", "Image", "Icons", "Launch an agent", "Fit the view"]);
   const tools: [string, string][] = [
-    ["Sélection (V)", "selection"],
-    ["Main (H)", "hand"],
-    ["Texte (T)", "text"],
-    ["Gomme (E)", "eraser"],
+    ["Select (V)", "selection"],
+    ["Hand (H)", "hand"],
+    ["Text (T)", "text"],
+    ["Eraser (E)", "eraser"],
     ["Image", "image"],
   ];
   for (const [label, type] of tools) {
@@ -59,32 +59,32 @@ it("offers the canvas tools in the spec's order, each setting its Excalidraw too
   }
 });
 
-it("holds the catalog, Nouvelle console, Lancer 4 agents, Orchestrateur and Kanban in its ＋ (spec identité §5.4, §11)", async () => {
+it("holds the catalog, New console, Launch 4 agents, Orchestrator and Kanban in its ＋ (spec identité §5.4, §11)", async () => {
   const menuEntries = () =>
     [...document.querySelectorAll<HTMLButtonElement>('[data-slot="popover-content"] button')].map((b) => b.textContent ?? "");
-  await act(async () => byLabel("Lancer un agent").click());
+  await act(async () => byLabel("Launch an agent").click());
   const entries = menuEntries();
   expect(entries[0]).toContain("Claude");
-  expect(entries.slice(-5, -1)).toEqual(["Nouvelle console", "Lancer 4 agents", expect.stringContaining("Orchestrateur"), expect.stringContaining("Kanban")]);
+  expect(entries.slice(-5, -1)).toEqual(["New console", "Launch 4 agents", expect.stringContaining("Orchestrator"), expect.stringContaining("Kanban")]);
   const click = (text: string) =>
     [...document.querySelectorAll<HTMLButtonElement>('[data-slot="popover-content"] button')].find((b) => b.textContent === text)!.click();
-  await act(async () => click("Nouvelle console"));
+  await act(async () => click("New console"));
   expect(newConsole).toHaveBeenCalledTimes(1);
-  await act(async () => byLabel("Lancer un agent").click());
-  await act(async () => click("Lancer 4 agents"));
+  await act(async () => byLabel("Launch an agent").click());
+  await act(async () => click("Launch 4 agents"));
   expect(launchFour).toHaveBeenCalledTimes(1);
 });
 
 it("opens the ＋ menu on request, on the custom command's options or on Ollama's models", async () => {
   await act(async () => requestUi({ kind: "agentMenu", view: "options" }));
-  expect(document.querySelector('[data-slot="popover-content"]')!.textContent).toContain("Lancer la commande personnalisée");
+  expect(document.querySelector('[data-slot="popover-content"]')!.textContent).toContain("Launch the custom command");
 });
 
-it("launches the agent chosen in the ＋ menu where the radial menu was opened (« Autre agent… »)", async () => {
+it("launches the agent chosen in the ＋ menu where the radial menu was opened (Other agent…)", async () => {
   await act(async () => requestUi({ kind: "agentMenu", view: "agents", at: { x: 10, y: 20 } }));
   await act(async () => agentsStore.setState({ agents: [{ id: "claude", available: true }] } as never));
   const menu = document.querySelector('[data-slot="popover-content"]')!;
-  expect(menu.textContent).toContain("lancé là où tu as cliqué");
+  expect(menu.textContent).toContain("launched where you clicked");
   const claude = [...menu.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent?.startsWith("Claude"))!;
   await act(async () => claude.click());
   expect(launchAgent).toHaveBeenCalledWith("claude", expect.objectContaining({ shell: expect.any(String) }), { x: 10, y: 20 });

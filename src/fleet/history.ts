@@ -1,7 +1,7 @@
 import { createStore } from "zustand";
 import { getSetting, setSetting } from "@/ipc/db";
 
-/** ↑ and ↓ go through the last 50 commands (spec habillage §12). */
+/** ↑ and ↓ go through the last 50 commands (spec theme §12). */
 export const HISTORY_SIZE = 50;
 
 /** One history per project, shared by the command bar and the orchestrators. */

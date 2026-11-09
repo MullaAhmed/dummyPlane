@@ -33,7 +33,7 @@ it("names the open project in the title bar, lists recent projects with their pa
   expect(trigger.textContent).toBe("mk-webapp");
   await act(async () => trigger.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
   const items = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')];
-  expect(items.map((i) => i.textContent)).toEqual(["mk-webappC:/code/mk-webapp", "Tous les projets…", "Fermer le projet"]);
+  expect(items.map((i) => i.textContent)).toEqual(["mk-webappC:/code/mk-webapp", "All projects…", "Close the project"]);
   expect(items[0].querySelector("[data-path]")!.textContent).toBe("C:/code/mk-webapp");
   await act(async () => items[2].click());
   expect(close).toHaveBeenCalled();

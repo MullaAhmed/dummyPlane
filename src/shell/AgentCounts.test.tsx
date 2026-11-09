@@ -39,11 +39,11 @@ it("hides a counter at 0 and opens the panel on what it counts", async () => {
   const root = createRoot(host);
   await act(async () => root.render(<AgentCounts />));
   expect(host.querySelector('[aria-label="Agents en cours"]')).toBeNull();
-  const waiting = host.querySelector<HTMLButtonElement>('[aria-label="Agents qui attendent ta réponse"]')!;
+  const waiting = host.querySelector<HTMLButtonElement>('[aria-label="Agents waiting for your answer"]')!;
   expect(waiting.textContent).toContain("1");
   await act(async () => waiting.click());
   expect(agentsPanelStore.getState()).toMatchObject({ open: true, filter: "waiting" });
-  expect(host.querySelector('[aria-label="Agents actifs du projet"]')).not.toBeNull();
+  expect(host.querySelector('[aria-label="Active agents in the project"]')).not.toBeNull();
   await act(async () => root.unmount());
   host.remove();
 });

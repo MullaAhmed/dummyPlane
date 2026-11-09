@@ -35,7 +35,7 @@ export function pressCanvasKey({ key, code, ctrl = false, shift = false }: Canva
   container()?.dispatchEvent(new KeyboardEvent("keydown", { key, code, ctrlKey: ctrl, shiftKey: shift, bubbles: true, cancelable: true }));
 }
 
-/** Copier: Excalidraw's `copy` listener writes the selection to the system clipboard itself. */
+/** Copy: Excalidraw's `copy` listener writes the selection to the system clipboard itself. */
 export function copyCanvasSelection() {
   focusCanvas();
   document.dispatchEvent(new ClipboardEvent("copy", { clipboardData: new DataTransfer(), bubbles: true, cancelable: true }));
@@ -73,7 +73,7 @@ export async function readClipboardText(): Promise<string | null> {
   return text === "" ? null : text;
 }
 
-/** Coller at a window point: Excalidraw pastes where the pointer last moved, over its canvas only. */
+/** Paste at a window point: Excalidraw pastes where the pointer last moved, over its canvas only. */
 export async function pasteOnCanvasAt(client: Point) {
   const data = await readClipboard();
   if (!data) return;
@@ -104,7 +104,7 @@ export function startTextAt(client: Point) {
 
 const nativeMenus = new WeakSet<Event>();
 
-/** « Plus… »: Excalidraw's own menu at a window point; the ring's listener lets this one through. */
+/** "More…": Excalidraw's own menu at a window point; the ring's listener lets this one through. */
 export function openNativeMenuAt(client: Point) {
   const event = new MouseEvent("contextmenu", { clientX: client.x, clientY: client.y, button: 2, bubbles: true, cancelable: true });
   nativeMenus.add(event);

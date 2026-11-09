@@ -28,7 +28,7 @@ const HEADING =
 const ITEM =
   "flex h-8 cursor-default items-center gap-2 rounded-[8px] px-2.5 text-[12.5px] text-ov-text-2 data-[selected=true]:bg-ov-accent-soft";
 
-/** The palette (spec fenêtre §7.1), under the title bar, centered; rendered only while open. */
+/** The palette (spec window §7.1), under the title bar, centered; rendered only while open. */
 export function Palette() {
   const open = usePalette((s) => s.open);
   const openings = usePalette((s) => s.openings);
@@ -42,7 +42,7 @@ function PaletteBody() {
   const mode = modeOf(query);
   const search = stripPrefix(query);
   const goToData = useGoToData();
-  // « Lancer … » greys the agents not found: look again when the functions open, and follow the answer.
+  // "Launch …" greys the agents not found: look again when the functions open, and follow the answer.
   useAgents((s) => s.agents);
   useEffect(() => {
     if (mode !== "functions") return;
@@ -69,7 +69,7 @@ function PaletteBody() {
       ? (filesFirst ? [...files.map(fileKey), ...goToList.flatMap((s) => s.items.map((i) => i.key))] : [...goToList.flatMap((s) => s.items.map((i) => i.key)), ...files.map(fileKey)])
       : functionList.flatMap((s) => s.items.filter((l) => l.disabled === null).map((l) => l.command.id));
   const [chosen, setChosen] = useState("");
-  // The first line is chosen when it opens and after each keystroke (spec fenêtre §7.1).
+  // The first line is chosen when it opens and after each keystroke (spec window §7.1).
   useEffect(() => setChosen(""), [query]);
   const value = keys.includes(chosen) ? chosen : (keys[0] ?? "");
 
@@ -141,7 +141,7 @@ function PaletteBody() {
                       }}
                     >
                       <span className="truncate text-ov-text">{line.label}</span>
-                      {/* A recent line tells where it comes from: « Renommer » of which terminal. */}
+                      {/* A recent line tells where it comes from: "Rename" of which terminal. */}
                       {section.label === recentSection() && <span className="shrink-0 text-[11.5px] text-ov-text-3">{line.section}</span>}
                       {line.disabled !== null ? (
                         <span className="ml-auto shrink-0 text-[11px] text-ov-text-3">{line.disabled}</span>
@@ -165,7 +165,7 @@ function PaletteBody() {
 const FILE_LIMIT = 30;
 const fileKey = (path: string) => `file:${path}`;
 
-/** The project's files matching the search (Ctrl+P `fichier:ligne`): one opens in the Code Studio, at its line. */
+/** The project's files matching the search (Ctrl+P `file:line`): one opens in the Code Studio, at its line. */
 function FileSection({ files, line, column }: { files: readonly string[]; line?: number; column?: number }) {
   const t = useMessages(commandsMessages).goTo;
   if (files.length === 0) return null;

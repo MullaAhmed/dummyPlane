@@ -5,8 +5,8 @@ import { useLoops } from "./live";
 import { loopsMessages } from "./messages";
 
 /**
- * Visible as long as a loop runs (spec boucles §1): how many, how many runs
- * so far, and « Tout arrêter » one click away. Each run costs real usage.
+ * Visible as long as a loop runs (loops spec §1): how many, how many runs
+ * so far, and "Stop all" one click away. Each run costs real usage.
  */
 export function LoopsIndicator() {
   const t = useMessages(loopsMessages).indicator;

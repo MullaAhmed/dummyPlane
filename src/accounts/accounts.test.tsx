@@ -3,7 +3,6 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { langStore } from "@/i18n";
 import { buildSpawnSpec, newTerminalPayload } from "@/nodes/terminal/launch";
 import { readTerminalPayload } from "@/nodes/types";
 import { AccountChip } from "@/nodes/terminal/TerminalHeader";
@@ -33,7 +32,6 @@ beforeEach(() => {
 });
 afterEach(() => {
   clearMocks();
-  langStore.setState({ lang: "fr" });
 });
 
 it("starts a Claude terminal in its profile's folder, and in the default one when the profile is gone", () => {
@@ -63,12 +61,12 @@ it("shows the account chip only once there is a profile to choose from", async (
   expect(host.querySelector("[data-account]")?.textContent).toBe("Travail");
   expect(host.querySelector("[data-account]")?.getAttribute("title")).toContain(WORK.configDir);
   await act(async () => root.render(<AccountChip accountId={undefined} />));
-  expect(host.querySelector("[data-account]")?.textContent).toBe("Par défaut");
+  expect(host.querySelector("[data-account]")?.textContent).toBe("Default");
   await act(async () => root.unmount());
   host.remove();
 });
 
-it("lists the profiles and uses, logs in and removes them (spec comptes §6), in both languages", async () => {
+it("lists the profiles and uses, logs in and removes them (spec comptes §6), ", async () => {
   const host = document.createElement("div");
   document.body.append(host);
   const root = createRoot(host);
@@ -78,16 +76,14 @@ it("lists the profiles and uses, logs in and removes them (spec comptes §6), in
     await loadAccounts();
   });
   const text = () => document.body.textContent ?? "";
-  expect(text()).toContain("Comptes Claude");
+  expect(text()).toContain("Claude accounts");
   expect(text()).toContain("Travail");
   const button = (label: string) => [...document.body.querySelectorAll("button")].find((b) => b.textContent?.trim() === label)!;
-  await act(async () => button("Utiliser").click());
+  await act(async () => button("Use").click());
   await vi.waitFor(() => expect(calls.some((c) => c.cmd === "account_use" && c.args.id === "p1")).toBe(true));
-  await act(async () => button("Se connecter").click());
+  await act(async () => button("Log in").click());
   const { launchLogin } = await import("@/fleet/quickActions");
   expect(launchLogin).toHaveBeenCalledWith("p1");
-  await act(async () => langStore.setState({ lang: "en" }));
-  expect(text()).toContain("Claude accounts");
   expect(button("Remove")).toBeTruthy();
   await act(async () => button("Remove").click());
   await vi.waitFor(() => expect(calls.some((c) => c.cmd === "account_remove" && c.args.id === "p1")).toBe(true));

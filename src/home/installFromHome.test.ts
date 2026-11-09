@@ -99,7 +99,7 @@ it("says so when the project cannot be opened", async () => {
   projectsStore.setState({ projects: [project("a", 1)] });
   open.mockRejectedValueOnce(new Error("locked"));
   await installFromHome("claude");
-  expect(toast.error).toHaveBeenCalledWith("Ouverture du projet impossible : Error: locked");
+  expect(toast.error).toHaveBeenCalledWith("Could not open the project: Error: locked");
   sceneReady("w1");
   expect(installAgent).not.toHaveBeenCalled();
 });

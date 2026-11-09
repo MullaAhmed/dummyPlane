@@ -61,5 +61,5 @@ it("remote_control refuses a first name two agents share instead of taking the f
   await setup([member("a", "Isis"), member("b", "Isis")]);
   const result = await orchestratorTool("chef", "remote_control", { actif: true, agents: ["Isis"] });
   expect(result.isError).toBe(true);
-  expect(result.content[0].text).toContain("Plusieurs agents");
+  expect(result.content[0].text).toContain("Several agents");
 });

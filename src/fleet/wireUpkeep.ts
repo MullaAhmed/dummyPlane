@@ -8,7 +8,7 @@ let pending = false;
 
 /**
  * Hand-drawn wires get their mark and wires left without an end go (spec
- * habillage §13, plan B3), outside the undo history, a frame after the
+ * theme §13, plan B3), outside the undo history, a frame after the
  * change: changing the scene from inside `onChange` would re-enter it. One
  * upkeep at a time, each reading the scene as it is then.
  */
