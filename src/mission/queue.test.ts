@@ -302,7 +302,7 @@ describe("an agent that reports « blocked » or « failed »", () => {
 
   it("starts nothing past Max agents with next_task", async () => {
     await setup({ maxAgents: 1, members: [member("isis", "Isis", { report: stuck }), member("horus", "Horus", { task: "Docs0" })] });
-    expect(await giveNext("chef", missionNow().members[0])).toEqual({ refused: "1 agents are already at work (Max active agents): the next task starts as soon as one reports." });
+    expect(await giveNext("chef", missionNow().members[0])).toEqual({ refused: "1 agent is already at work (Max active agents): the next task starts as soon as one reports." });
     expect(missionAddAgent).not.toHaveBeenCalled();
     expect(missionNow().members[0].abandoned).toBeUndefined();
   });

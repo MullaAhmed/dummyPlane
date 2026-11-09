@@ -268,6 +268,7 @@ function describeTeam(orchestratorId: string, mission: Mission): ToolResult {
       time: timeText(memberTime(mission, m, now), budgetOf(m)),
       overdue: m.overdue ?? 0,
       handed_to: m.handedTo ?? null,
+      abandoned: m.abandoned === true,
       finished: m.done ?? [],
       model: m.model ? modelLabel(m.model) : null,
       branch: m.branch,
@@ -426,7 +427,7 @@ export async function orchestratorTool(orchestratorId: string, name: string, arg
     case "fusionner": {
       if (mission.state !== "en_cours") return refused(t().orchestrator.noMission);
       const merged = await mergeMission(orchestratorId);
-      // A conflict held an agent back: merged now, it can take the next task.
+      // A branch a conflict held back is in now: new agents for the queue start from it.
       void pumpQueue(orchestratorId);
       return said(merged);
     }
