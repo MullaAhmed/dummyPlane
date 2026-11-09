@@ -73,16 +73,23 @@ export function removeSubagentNodes(nodeId: string) {
   }
 }
 
-function ensureAll() {
-  for (const agentId of Object.keys(subagentNodesStore.getState().agents)) ensureSubagentNode(agentId);
+/** The subagents still without a node, nor closed by the user. */
+function unplaced(): string[] {
+  const { agents, dismissed } = subagentNodesStore.getState();
+  return Object.values(agents)
+    .filter((entry) => !entry.elementId && !dismissed[entry.agentId])
+    .map((entry) => entry.agentId);
+}
+
+function ensureUnplaced() {
+  for (const agentId of unplaced()) ensureSubagentNode(agentId);
 }
 
 let installed: Promise<void> | undefined;
 
 /**
  * Listens to the subagents of every Claude session, then takes the running
- * ones of a page that reloads. A workspace whose scene is read later gets
- * the nodes it missed when it is opened.
+ * ones of a page that reloads. A scene shown later gets the nodes it missed.
  */
 export function installSubagentNodes(): Promise<void> {
   installed ??= (async () => {
@@ -103,9 +110,10 @@ export function installSubagentNodes(): Promise<void> {
       // An output event between the listen and the snapshot already brought its newest lines.
       if (!known) store().append(info.agentId, lines);
     }
-    ensureAll();
-    workspacesStore.subscribe((s, previous) => {
-      if (s.activeId !== previous.activeId) requestAnimationFrame(ensureAll);
+    ensureUnplaced();
+    // A scene shown later (a reload, another workspace) takes the nodes it missed; deferred, as this runs inside Excalidraw's onChange.
+    canvasStore.subscribe((s, previous) => {
+      if (s.nodeIds !== previous.nodeIds && unplaced().length) requestAnimationFrame(ensureUnplaced);
     });
   })();
   return installed;
