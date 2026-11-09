@@ -16,11 +16,11 @@ it("puts menus, popovers, lists, dialogs and toasts in dense glass (spec identit
   for (const slot of ["dropdown-menu-content", "dropdown-menu-sub-content", "popover-content", "select-content", "dialog-content"]) {
     expect(index).toContain(`[data-slot="${slot}"]`);
   }
-  expect(index).toMatch(/\[data-slot="select-content"\] \{[^}]*var\(--dp-glass-strong\)[^}]*var\(--dp-blur\)[^}]*border-radius: 12px/);
-  expect(index).toMatch(/\[data-slot="dialog-content"\] \{[^}]*var\(--dp-glass-strong\)[^}]*border-radius: 16px/);
-  expect(index).toMatch(/\[data-slot="dialog-overlay"\] \{[^}]*rgb\(0 0 0 \/ 0\.25\)[^}]*blur\(3px\)/);
+  expect(index).toMatch(/\[data-slot="select-content"\] \{[^}]*var\(--dp-glass-strong\)[^}]*var\(--dp-blur\)[^}]*border-radius: var\(--radius-lg\)/);
+  expect(index).toMatch(/\[data-slot="dialog-content"\] \{[^}]*var\(--dp-glass-strong\)[^}]*border-radius: var\(--radius-xl\)/);
+  expect(index).toMatch(/\[data-slot="dialog-overlay"\] \{[^}]*var\(--dp-scrim\)[^}]*blur\(3px\)/);
   expect(index).toMatch(/:root\[data-transparency="off"\] \[data-slot="dialog-overlay"\] \{[^}]*backdrop-filter: none/);
-  expect(index).toMatch(/\[data-sonner-toast\]\[data-styled="true"\] \{[^}]*var\(--dp-glass-strong\)[^}]*border-radius: 14px/);
+  expect(index).toMatch(/\[data-sonner-toast\]\[data-styled="true"\] \{[^}]*var\(--dp-glass-strong\)[^}]*border-radius: var\(--radius-lg\)/);
 });
 
 it("keeps no rule for Excalidraw's left menu: SelectionPanel replaces its properties panel, and nothing renders the old one", () => {
