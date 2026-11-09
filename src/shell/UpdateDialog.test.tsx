@@ -25,7 +25,7 @@ it("names the agents an update will stop, and installs on demand (spec première
   const root = createRoot(host);
   await act(async () => root.render(<UpdateDialog />));
   const dialog = document.querySelector('[role="dialog"]')!;
-  expect(dialog.textContent).toContain("OpenVibe 1.0.0-beta.2");
+  expect(dialog.textContent).toContain("dummyPlane 1.0.0-beta.2");
   expect(dialog.textContent).toContain("Isis");
   expect(dialog.textContent).not.toContain("Thot");
   expect(dialog.textContent).toContain("Things.");

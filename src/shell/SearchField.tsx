@@ -19,7 +19,7 @@ export function SearchField() {
       // The keyboard stays where it is: it goes back there when the palette closes.
       onMouseDown={(e) => e.preventDefault()}
       onClick={() => openPalette("goTo", commandContext())}
-      className="flex h-[26px] w-[440px] min-w-0 max-w-[min(34vw,100%)] items-center gap-2 rounded-[8px] border border-ov-glass-line bg-ov-field px-2.5 text-[12.5px] text-ov-text-3 transition-colors hover:text-ov-text-2"
+      className="flex h-[26px] w-[440px] min-w-0 max-w-[min(34vw,100%)] items-center gap-2 rounded-[8px] border border-dp-glass-line bg-dp-field px-2.5 text-[12.5px] text-dp-text-3 transition-colors hover:text-dp-text-2"
     >
       <Search className="size-3.5 shrink-0" />
       <span className="truncate">{home ? t.project : t.inProject(name)}</span>

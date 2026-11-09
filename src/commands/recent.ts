@@ -1,6 +1,6 @@
 import { createStore, useStore } from "zustand";
 
-const KEY = "openvibe.recentFunctions";
+const KEY = "dummyplane.recentFunctions";
 const MAX = 3;
 
 function read(): string[] {
@@ -23,7 +23,7 @@ export function rememberFunction(id: string) {
   try {
     localStorage.setItem(KEY, JSON.stringify(ids));
   } catch {
-    // Kept until OpenVibe closes.
+    // Kept until dummyPlane closes.
   }
 }
 

@@ -5,7 +5,7 @@ import type { BudgetTone } from "@/mission/mission";
 
 /**
  * Claude's usage (spec maj §6), as each session's status line hands it to
- * OpenVibe: the plan's limits, and the cost, time, code and tokens of the
+ * dummyPlane: the plan's limits, and the cost, time, code and tokens of the
  * sessions of this run of the app.
  */
 export interface Limit {

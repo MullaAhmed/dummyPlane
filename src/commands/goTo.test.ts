@@ -10,7 +10,7 @@ const terminal = (id: string, x: number, frameId: string | null = null) =>
   element({ id, type: "embeddable", customData: { kind: "terminal" }, x, y: 40, frameId });
 const orchestrator = (id: string) => element({ id, type: "embeddable", customData: { kind: "orchestrator" }, x: 2000, y: 0 });
 const group = (id: string, name: string) =>
-  element({ id, type: "frame", name, x: 0, y: 0, width: 1400, height: 400, customData: { openvibe: { kind: "group", role: "backend", pantheon: "egypt" } } });
+  element({ id, type: "frame", name, x: 0, y: 0, width: 1400, height: 400, customData: { dummyplane: { kind: "group", role: "backend", pantheon: "egypt" } } });
 const node = (workspaceId: string, name: string, agent = "claude"): NodeRecord =>
   ({ workspaceId, kind: "terminal", payload: { title: name, name, agent, cwd: "C:/code", shell: "default", command: "" } }) as NodeRecord;
 

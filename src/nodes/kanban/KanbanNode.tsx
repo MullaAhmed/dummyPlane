@@ -46,9 +46,9 @@ type Messages = typeof kanbanNodeMessages;
 /** The colour of a card's left bar: none shows nothing, then warmer as it grows. */
 const PRIORITY_BAR: Record<KanbanPriority, string> = {
   none: "transparent",
-  low: "var(--ov-ok)",
-  medium: "var(--ov-wait)",
-  high: "var(--ov-danger)",
+  low: "var(--dp-ok)",
+  medium: "var(--dp-wait)",
+  high: "var(--dp-danger)",
 };
 
 type Editing = { mode: "new"; columnId: string } | { mode: "edit"; cardId: string };
@@ -178,10 +178,10 @@ export function KanbanNode({ nodeId }: { nodeId: string }) {
   const editedColumn = editing?.mode === "new" ? board.columns.find((c) => c.id === editing.columnId) : undefined;
 
   return (
-    <div data-kanban={nodeId} className="flex h-full flex-col overflow-hidden rounded-xl border border-ov-line bg-card text-card-foreground">
-      <header className="flex h-10 shrink-0 items-center gap-2 border-b border-ov-line px-3">
-        <KanbanSquare className="size-4 shrink-0 text-ov-accent" />
-        <span className="truncate text-[13px] font-semibold text-ov-text">{t.title}</span>
+    <div data-kanban={nodeId} className="flex h-full flex-col overflow-hidden rounded-xl border border-dp-line bg-card text-card-foreground">
+      <header className="flex h-10 shrink-0 items-center gap-2 border-b border-dp-line px-3">
+        <KanbanSquare className="size-4 shrink-0 text-dp-accent" />
+        <span className="truncate text-[13px] font-semibold text-dp-text">{t.title}</span>
         {board.github && (
           <span className="truncate font-mono text-[11px] text-muted-foreground" title={t.github.linkedTo(board.github.repo)}>
             {board.github.repo}
@@ -199,7 +199,7 @@ export function KanbanNode({ nodeId }: { nodeId: string }) {
             <button
               type="button"
               aria-label={t.github.boardMenu}
-              className="grid size-7 shrink-0 place-items-center rounded text-muted-foreground hover:bg-ov-hover hover:text-ov-text"
+              className="grid size-7 shrink-0 place-items-center rounded text-muted-foreground hover:bg-dp-hover hover:text-dp-text"
             >
               <MoreHorizontal className="size-4" />
             </button>
@@ -261,7 +261,7 @@ export function KanbanNode({ nodeId }: { nodeId: string }) {
             <button
               type="button"
               onClick={newColumn}
-              className="flex h-9 w-56 shrink-0 items-center gap-1.5 rounded-lg border border-dashed border-ov-line px-3 text-[13px] text-muted-foreground hover:bg-ov-hover hover:text-ov-text"
+              className="flex h-9 w-56 shrink-0 items-center gap-1.5 rounded-lg border border-dashed border-dp-line px-3 text-[13px] text-muted-foreground hover:bg-dp-hover hover:text-dp-text"
             >
               <Plus className="size-4" />
               {t.addColumn}
@@ -371,7 +371,7 @@ function LinkDialog({
               placeholder={detecting ? t.github.detecting : t.github.repoPlaceholder}
               onChange={(e) => setRepo(e.target.value)}
             />
-            {repo.trim() && !repoValid && <p className="text-[12px] text-ov-danger">{t.github.repoInvalid}</p>}
+            {repo.trim() && !repoValid && <p className="text-[12px] text-dp-danger">{t.github.repoInvalid}</p>}
             {notDetected && !repo.trim() && <p className="text-[12px] text-muted-foreground">{t.github.notDetected}</p>}
           </div>
           <div className="grid gap-1.5">
@@ -382,7 +382,7 @@ function LinkDialog({
               placeholder={t.github.projectPlaceholder}
               onChange={(e) => setProject(e.target.value)}
             />
-            {!projectValid && <p className="text-[12px] text-ov-danger">{t.github.projectInvalid}</p>}
+            {!projectValid && <p className="text-[12px] text-dp-danger">{t.github.projectInvalid}</p>}
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>
@@ -421,11 +421,11 @@ interface ColumnViewProps {
 function ColumnView(props: ColumnViewProps) {
   const { t, column, cards, dragged, spot } = props;
   const shown = cards.filter((c) => c.id !== dragged);
-  const indicator = <div className="h-0.5 shrink-0 rounded-full bg-ov-accent" />;
+  const indicator = <div className="h-0.5 shrink-0 rounded-full bg-dp-accent" />;
   return (
     <section
       data-column-id={column.id}
-      className="flex w-60 shrink-0 flex-col rounded-lg bg-ov-surface-2"
+      className="flex w-60 shrink-0 flex-col rounded-lg bg-dp-surface-2"
       onDragOver={props.onDragOver}
       onDragLeave={props.onDragLeave}
       onDrop={props.onDrop}
@@ -434,11 +434,11 @@ function ColumnView(props: ColumnViewProps) {
         {props.renaming ? (
           <TitleInput initial={column.title} onDone={props.onRenameDone} />
         ) : (
-          <h3 className="truncate text-[13px] font-semibold text-ov-text" title={t.doubleClickRename} onDoubleClick={props.onRenameStart}>
+          <h3 className="truncate text-[13px] font-semibold text-dp-text" title={t.doubleClickRename} onDoubleClick={props.onRenameStart}>
             {column.title}
           </h3>
         )}
-        <span data-testid="column-count" className="rounded-full bg-ov-card px-1.5 font-mono text-[11px] text-muted-foreground">
+        <span data-testid="column-count" className="rounded-full bg-dp-card px-1.5 font-mono text-[11px] text-muted-foreground">
           {cards.length}
         </span>
         <span className="ml-auto flex items-center">
@@ -447,7 +447,7 @@ function ColumnView(props: ColumnViewProps) {
             aria-label={t.newCard}
             title={t.newCard}
             onClick={props.onNewCard}
-            className="grid size-6 place-items-center rounded text-muted-foreground hover:bg-ov-hover hover:text-ov-text"
+            className="grid size-6 place-items-center rounded text-muted-foreground hover:bg-dp-hover hover:text-dp-text"
           >
             <Plus className="size-3.5" />
           </button>
@@ -456,7 +456,7 @@ function ColumnView(props: ColumnViewProps) {
               <button
                 type="button"
                 aria-label={t.columnMenu(column.title)}
-                className="grid size-6 place-items-center rounded text-muted-foreground hover:bg-ov-hover hover:text-ov-text"
+                className="grid size-6 place-items-center rounded text-muted-foreground hover:bg-dp-hover hover:text-dp-text"
               >
                 <MoreHorizontal className="size-3.5" />
               </button>
@@ -492,7 +492,7 @@ function ColumnView(props: ColumnViewProps) {
         <button
           type="button"
           onClick={props.onNewCard}
-          className="flex h-8 shrink-0 items-center gap-1.5 rounded-md px-2 text-[12px] text-muted-foreground hover:bg-ov-hover hover:text-ov-text"
+          className="flex h-8 shrink-0 items-center gap-1.5 rounded-md px-2 text-[12px] text-muted-foreground hover:bg-dp-hover hover:text-dp-text"
         >
           <Plus className="size-3.5" />
           {t.newCard}
@@ -528,12 +528,12 @@ function CardView({
       onDragEnd={onDragEnd}
       onClick={onOpen}
       className={cn(
-        "relative shrink-0 cursor-grab overflow-hidden rounded-md border border-ov-line bg-ov-card py-2 pr-2.5 pl-3.5 text-left shadow-ov hover:border-ov-accent/50",
+        "relative shrink-0 cursor-grab overflow-hidden rounded-md border border-dp-line bg-dp-card py-2 pr-2.5 pl-3.5 text-left shadow-dp hover:border-dp-accent/50",
         dragging && "opacity-40",
       )}
     >
       <span className="absolute inset-y-0 left-0 w-1" style={{ background: PRIORITY_BAR[card.priority] }} aria-label={t.priorities[card.priority]} />
-      <p className="text-[13px] leading-snug font-medium break-words text-ov-text">{card.title}</p>
+      <p className="text-[13px] leading-snug font-medium break-words text-dp-text">{card.title}</p>
       {(card.due || card.github || card.agent) && (
         <div className="mt-1.5 flex flex-wrap gap-1">
           {card.due && (
@@ -541,7 +541,7 @@ function CardView({
               title={overdue ? t.overdue : undefined}
               className={cn(
                 "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px]",
-                overdue ? "bg-destructive/15 text-ov-danger" : "bg-ov-surface-2 text-muted-foreground",
+                overdue ? "bg-destructive/15 text-dp-danger" : "bg-dp-surface-2 text-muted-foreground",
               )}
             >
               <Calendar className="size-3" />
@@ -557,8 +557,8 @@ function CardView({
                 if (card.github?.url) void openUrl(card.github.url).catch(() => undefined);
               }}
               className={cn(
-                "inline-flex items-center gap-1 rounded bg-ov-surface-2 px-1.5 py-0.5 font-mono text-[11px] hover:text-ov-text",
-                card.github.state === "closed" ? "text-ov-accent" : "text-muted-foreground",
+                "inline-flex items-center gap-1 rounded bg-dp-surface-2 px-1.5 py-0.5 font-mono text-[11px] hover:text-dp-text",
+                card.github.state === "closed" ? "text-dp-accent" : "text-muted-foreground",
               )}
             >
               <CircleDot className="size-3" />#{card.github.number}
@@ -570,7 +570,7 @@ function CardView({
               data-agent-status={card.agentStatus}
               className={cn(
                 "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px]",
-                card.agentStatus ? "bg-destructive/15 text-ov-danger" : "bg-ov-accent/15 text-ov-accent",
+                card.agentStatus ? "bg-destructive/15 text-dp-danger" : "bg-dp-accent/15 text-dp-accent",
               )}
             >
               <Bot className="size-3" />
@@ -613,7 +613,7 @@ function TitleInput({ initial, onDone }: { initial: string; onDone: (title: stri
       onBlur={() => {
         if (!cancelled.current) onDone(draft);
       }}
-      className="min-w-0 flex-1 rounded bg-ov-card px-1 text-[13px] font-semibold text-ov-text outline-none"
+      className="min-w-0 flex-1 rounded bg-dp-card px-1 text-[13px] font-semibold text-dp-text outline-none"
     />
   );
 }
@@ -658,7 +658,7 @@ function CardDialog({
   const chip = (active: boolean) =>
     cn(
       "h-7 rounded-md border px-2 text-[12px] transition-colors",
-      active ? "border-ov-accent bg-ov-accent-soft text-ov-text" : "border-ov-line text-muted-foreground hover:bg-ov-hover hover:text-ov-text",
+      active ? "border-dp-accent bg-dp-accent-soft text-dp-text" : "border-dp-line text-muted-foreground hover:bg-dp-hover hover:text-dp-text",
     );
 
   return (
@@ -705,7 +705,7 @@ function CardDialog({
           </div>
           <div className="grid gap-1.5">
             <Label>{t.priority}</Label>
-            <div role="radiogroup" aria-label={t.priority} className="inline-flex w-fit rounded-lg border border-ov-line p-0.5">
+            <div role="radiogroup" aria-label={t.priority} className="inline-flex w-fit rounded-lg border border-dp-line p-0.5">
               {KANBAN_PRIORITIES.map((p) => (
                 <button
                   key={p}
@@ -715,7 +715,7 @@ function CardDialog({
                   onClick={() => setPriority(p)}
                   className={cn(
                     "flex h-6 items-center gap-1.5 rounded-md px-2.5 text-[12px]",
-                    priority === p ? "bg-ov-card text-ov-text shadow-ov" : "text-muted-foreground hover:text-ov-text",
+                    priority === p ? "bg-dp-card text-dp-text shadow-dp" : "text-muted-foreground hover:text-dp-text",
                   )}
                 >
                   {p !== "none" && <span className="size-2 rounded-full" style={{ background: PRIORITY_BAR[p] }} />}

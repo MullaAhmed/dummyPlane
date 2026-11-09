@@ -22,11 +22,11 @@ import { rememberFunction, useRecentFunctions } from "./recent";
 import { COMMANDS } from "./registry";
 import { useGoToData } from "./useGoToData";
 
-// Section titles like `.ov-label` (a component class takes no variant in Tailwind 4).
+// Section titles like `.dp-label` (a component class takes no variant in Tailwind 4).
 const HEADING =
-  "[&_[cmdk-group-heading]]:px-2.5 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:pt-2 [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.06em] [&_[cmdk-group-heading]]:text-ov-text-2";
+  "[&_[cmdk-group-heading]]:px-2.5 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:pt-2 [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.06em] [&_[cmdk-group-heading]]:text-dp-text-2";
 const ITEM =
-  "flex h-8 cursor-default items-center gap-2 rounded-[8px] px-2.5 text-[12.5px] text-ov-text-2 data-[selected=true]:bg-ov-accent-soft";
+  "flex h-8 cursor-default items-center gap-2 rounded-[8px] px-2.5 text-[12.5px] text-dp-text-2 data-[selected=true]:bg-dp-accent-soft";
 
 /** The palette (spec window §7.1), under the title bar, centered; rendered only while open. */
 export function Palette() {
@@ -76,8 +76,8 @@ function PaletteBody() {
   return (
     <div data-palette-backdrop className="fixed inset-0 z-50" onPointerDown={(e) => e.target === e.currentTarget && closePalette()}>
       <div
-        className="ov-glass-strong absolute left-1/2 -translate-x-1/2 overflow-hidden rounded-[14px]"
-        style={{ top: TITLE_BAR_HEIGHT + 6, width: "min(560px, calc(100vw - 32px))", boxShadow: "var(--ov-glass-hi), var(--ov-glass-edge), var(--ov-shadow)" }}
+        className="dp-glass-strong absolute left-1/2 -translate-x-1/2 overflow-hidden rounded-[14px]"
+        style={{ top: TITLE_BAR_HEIGHT + 6, width: "min(560px, calc(100vw - 32px))", boxShadow: "var(--dp-glass-hi), var(--dp-glass-edge), var(--dp-shadow)" }}
       >
         <Command
           label={t.label}
@@ -101,7 +101,7 @@ function PaletteBody() {
             value={query}
             onValueChange={setPaletteQuery}
             placeholder={mode === "goTo" ? t.placeholderGoTo : t.placeholderFunctions}
-            className="h-11 w-full border-b border-ov-line bg-transparent px-3.5 text-[13.5px] text-ov-text outline-none placeholder:text-ov-text-3"
+            className="h-11 w-full border-b border-dp-line bg-transparent px-3.5 text-[13.5px] text-dp-text outline-none placeholder:text-dp-text-3"
           />
           <Command.List className={`max-h-[420px] overflow-y-auto p-1.5 ${HEADING}`}>
             {filesFirst && <FileSection files={files} line={fileQuery.line} column={fileQuery.column} />}
@@ -140,22 +140,22 @@ function PaletteBody() {
                         runCommand(line.command, context);
                       }}
                     >
-                      <span className="truncate text-ov-text">{line.label}</span>
+                      <span className="truncate text-dp-text">{line.label}</span>
                       {/* A recent line tells where it comes from: "Rename" of which terminal. */}
-                      {section.label === recentSection() && <span className="shrink-0 text-[11.5px] text-ov-text-3">{line.section}</span>}
+                      {section.label === recentSection() && <span className="shrink-0 text-[11.5px] text-dp-text-3">{line.section}</span>}
                       {line.disabled !== null ? (
-                        <span className="ml-auto shrink-0 text-[11px] text-ov-text-3">{line.disabled}</span>
+                        <span className="ml-auto shrink-0 text-[11px] text-dp-text-3">{line.disabled}</span>
                       ) : (
-                        line.hint && <span className="ml-auto shrink-0 font-mono text-[11px] text-ov-text-3">{line.hint}</span>
+                        line.hint && <span className="ml-auto shrink-0 font-mono text-[11px] text-dp-text-3">{line.hint}</span>
                       )}
                     </Command.Item>
                   ))}
                 </Command.Group>
               ))}
-            {goToBusy && <div className="px-2.5 py-1.5 text-[11.5px] text-ov-text-3">{t.loading}</div>}
-            {!goToBusy && <Command.Empty className="px-2.5 py-3 text-[12.5px] text-ov-text-3">{t.empty}</Command.Empty>}
+            {goToBusy && <div className="px-2.5 py-1.5 text-[11.5px] text-dp-text-3">{t.loading}</div>}
+            {!goToBusy && <Command.Empty className="px-2.5 py-3 text-[12.5px] text-dp-text-3">{t.empty}</Command.Empty>}
           </Command.List>
-          <footer className="border-t border-ov-line px-3.5 py-1.5 text-[11px] text-ov-text-2">{t.footer}</footer>
+          <footer className="border-t border-dp-line px-3.5 py-1.5 text-[11px] text-dp-text-2">{t.footer}</footer>
         </Command>
       </div>
     </div>
@@ -183,10 +183,10 @@ function FileSection({ files, line, column }: { files: readonly string[]; line?:
               void openInCodeStudio(path, line, column);
             }}
           >
-            <FileText className="size-3.5 shrink-0 text-ov-text-3" />
-            <span className="truncate font-medium text-ov-text">{path.slice(cut + 1)}</span>
-            {cut > 0 && <span className="truncate text-ov-text-3">{path.slice(0, cut)}</span>}
-            {line !== undefined && <span className="ml-auto shrink-0 font-mono text-[11px] text-ov-text-3">{t.atLine(line)}</span>}
+            <FileText className="size-3.5 shrink-0 text-dp-text-3" />
+            <span className="truncate font-medium text-dp-text">{path.slice(cut + 1)}</span>
+            {cut > 0 && <span className="truncate text-dp-text-3">{path.slice(0, cut)}</span>}
+            {line !== undefined && <span className="ml-auto shrink-0 font-mono text-[11px] text-dp-text-3">{t.atLine(line)}</span>}
           </Command.Item>
         );
       })}

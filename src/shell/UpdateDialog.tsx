@@ -19,7 +19,7 @@ export function UpdateChip() {
     <button
       type="button"
       onClick={() => updatesStore.setState({ dialogOpen: true })}
-      className="flex h-6 items-center gap-1 rounded-full bg-ov-accent-soft px-2 text-[11px] font-medium text-ov-accent hover:brightness-110"
+      className="flex h-6 items-center gap-1 rounded-full bg-dp-accent-soft px-2 text-[11px] font-medium text-dp-accent hover:brightness-110"
     >
       <ArrowDownCircle className="size-3.5" />
       {t.chip(available.version)}
@@ -48,7 +48,7 @@ export function UpdateDialog() {
     <Dialog open={dialogOpen && available !== null} onOpenChange={(open) => !open && !busy && close()}>
       <DialogContent showCloseButton={false} className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>OpenVibe {available?.version}</DialogTitle>
+          <DialogTitle>dummyPlane {available?.version}</DialogTitle>
           <DialogDescription>
             {running.length > 0 ? t.willStop(running) : t.willClose}
           </DialogDescription>

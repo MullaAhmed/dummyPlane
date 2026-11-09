@@ -84,7 +84,7 @@ export const nodesMessages = defineMessages(
       },
     },
     toolsUnavailable: {
-      title: "OpenVibe tools unavailable",
+      title: "dummyPlane tools unavailable",
       consequence: "Without them, the orchestrator could change your branch: it does not start.",
       retry: "Try again",
       openLogs: "Open the logs folder",

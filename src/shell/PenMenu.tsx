@@ -53,7 +53,7 @@ export function PenMenu({ active }: { active: boolean }) {
         </ToolButton>
       </PopoverTrigger>
       <PopoverContent side="right" className="w-60">
-        <p className="ov-label mb-2">{t.color}</p>
+        <p className="dp-label mb-2">{t.color}</p>
         <div className="mb-3 flex flex-wrap gap-2">
           {PEN_COLORS.map(({ scene }, index) => (
             // The label is the French one stored with the color; the interface shows its own language's.
@@ -64,15 +64,15 @@ export function PenMenu({ active }: { active: boolean }) {
               aria-label={t.colors[index]}
               onClick={() => choose({ color: scene })}
               className={cn(
-                "size-6 rounded-full ring-offset-2 ring-offset-ov-surface-2",
-                scene === color && "ring-2 ring-ov-accent",
+                "size-6 rounded-full ring-offset-2 ring-offset-dp-surface-2",
+                scene === color && "ring-2 ring-dp-accent",
               )}
               style={{ backgroundColor: displayColorFor(scene, theme) }}
             />
           ))}
           <label
             title={t.custom}
-            className="relative size-6 cursor-pointer overflow-hidden rounded-full border border-ov-line bg-[conic-gradient(#ef4444,#d9b35a,#5e9a55,#5cc8f0,#a47cf0,#ef4444)]"
+            className="relative size-6 cursor-pointer overflow-hidden rounded-full border border-dp-line bg-[conic-gradient(#ef4444,#d9b35a,#5e9a55,#5cc8f0,#a47cf0,#ef4444)]"
           >
             <input
               type="color"
@@ -81,7 +81,7 @@ export function PenMenu({ active }: { active: boolean }) {
             />
           </label>
         </div>
-        <p className="ov-label mb-2">{t.width}</p>
+        <p className="dp-label mb-2">{t.width}</p>
         <div className="flex gap-1.5">
           {PEN_WIDTHS.map((w) => (
             <button
@@ -90,11 +90,11 @@ export function PenMenu({ active }: { active: boolean }) {
               aria-label={t.widthN(w)}
               onClick={() => choose({ width: w })}
               className={cn(
-                "grid size-8 place-items-center rounded-lg border border-transparent bg-ov-card",
-                w === width && "border-ov-accent bg-ov-accent-soft",
+                "grid size-8 place-items-center rounded-lg border border-transparent bg-dp-card",
+                w === width && "border-dp-accent bg-dp-accent-soft",
               )}
             >
-              <span className="rounded-full bg-ov-text" style={{ width: w + 2, height: w + 2 }} />
+              <span className="rounded-full bg-dp-text" style={{ width: w + 2, height: w + 2 }} />
             </button>
           ))}
         </div>

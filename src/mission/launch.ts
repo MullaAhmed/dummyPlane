@@ -94,7 +94,7 @@ type Team = Required<Pick<Mission, "project" | "slug" | "branch" | "worktree">> 
 /** The relaunch of each linked agent: it is judged ready only once it is done. */
 type Restarts = Map<string, Promise<void>>;
 
-/** OpenVibe — not the AI — forms the team: every worktree first, then the agents (spec §7.3). */
+/** dummyPlane — not the AI — forms the team: every worktree first, then the agents (spec §7.3). */
 async function formTeam(orchestratorId: string, workspaceId: string, project: string, mission: Mission, restarts: Restarts): Promise<Team> {
   const plan = mission.plan ?? [];
   const linked = linkedClaudeAgents(orchestratorId);

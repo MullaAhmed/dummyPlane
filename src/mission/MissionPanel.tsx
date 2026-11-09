@@ -27,26 +27,26 @@ export function MissionPanel({ nodeId }: { nodeId: string }) {
   const now = useNow(60_000);
   if (!mission) return null;
   return (
-    <section data-mission={nodeId} className="flex max-h-[55%] shrink-0 flex-col border-t border-ov-line text-xs text-ov-text-2">
+    <section data-mission={nodeId} className="flex max-h-[55%] shrink-0 flex-col border-t border-dp-line text-xs text-dp-text-2">
       <div data-mission-body className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-3 py-2">
         <header className="flex items-center gap-2">
-          <span className="font-semibold uppercase tracking-[0.08em] text-ov-text">{t.title(mission.name ?? "")}</span>
+          <span className="font-semibold uppercase tracking-[0.08em] text-dp-text">{t.title(mission.name ?? "")}</span>
           <span>{t.state[mission.state]}</span>
-          {mission.overnight && <span className="rounded bg-ov-field px-1.5 text-[11px] text-ov-text">{t.nightBadge}</span>}
+          {mission.overnight && <span className="rounded bg-dp-field px-1.5 text-[11px] text-dp-text">{t.nightBadge}</span>}
           {mission.branch && <span className="ml-auto truncate font-mono text-[11px]">{mission.branch}</span>}
         </header>
         {(mission.state === "redaction" || mission.state === "plan") && <Settings nodeId={nodeId} mission={mission} />}
         {mission.state === "redaction" && <p>{t.writeTask}</p>}
         {mission.plan && (mission.state === "plan" || mission.state === "lancement") && <Plan mission={mission} />}
         {mission.error && (
-          <p role="alert" className="text-ov-danger">
+          <p role="alert" className="text-dp-danger">
             {mission.error}
           </p>
         )}
         {morningShown(mission, now) && <MorningReportView mission={mission} />}
         {(mission.state === "en_cours" || mission.state === "terminee") && <Team mission={mission} />}
         {mission.queue && mission.queue.length > 0 && <Queue mission={mission} />}
-        {mission.state === "terminee" && <p className="whitespace-pre-wrap text-ov-text">{mission.summary ?? ""}</p>}
+        {mission.state === "terminee" && <p className="whitespace-pre-wrap text-dp-text">{mission.summary ?? ""}</p>}
       </div>
       {/* Actions stay out of the scrolling body, so they are always visible. */}
       {mission.plan && (mission.state === "plan" || mission.state === "lancement") && <PlanActions nodeId={nodeId} mission={mission} />}
@@ -74,7 +74,7 @@ function Settings({ nodeId, mission }: { nodeId: string; mission: Mission }) {
           placeholder={t.none}
           value={mission.budgetMin ?? ""}
           onChange={(e) => setMission(nodeId, { budgetMin: e.target.value ? Math.max(1, Math.round(Number(e.target.value))) : undefined })}
-          className="w-16 rounded bg-ov-field px-1 py-0.5 text-ov-text outline-none"
+          className="w-16 rounded bg-dp-field px-1 py-0.5 text-dp-text outline-none"
         />
         {t.min}
       </label>
@@ -90,7 +90,7 @@ function Settings({ nodeId, mission }: { nodeId: string; mission: Mission }) {
             const count = Math.round(Number(e.target.value));
             if (count >= 1) setMission(nodeId, { maxAgents: Math.min(MAX_AGENTS, count) });
           }}
-          className="w-12 rounded bg-ov-field px-1 py-0.5 text-ov-text outline-none"
+          className="w-12 rounded bg-dp-field px-1 py-0.5 text-dp-text outline-none"
         />
       </label>
       <label
@@ -102,11 +102,11 @@ function Settings({ nodeId, mission }: { nodeId: string; mission: Mission }) {
           aria-label={t.routerLabel}
           checked={mission.router === true}
           onChange={(e) => setMission(nodeId, { router: e.target.checked || undefined })}
-          className="accent-[var(--ov-accent)]"
+          className="accent-[var(--dp-accent)]"
         />
         {t.routerLabel}
       </label>
-      <button type="button" onClick={() => setNight(true)} className="rounded-full border border-ov-line px-2.5 py-0.5 text-[11px] text-ov-text hover:bg-ov-card">
+      <button type="button" onClick={() => setNight(true)} className="rounded-full border border-dp-line px-2.5 py-0.5 text-[11px] text-dp-text hover:bg-dp-card">
         {t.nightButton}
       </button>
       {night && <OvernightDialog nodeId={nodeId} open onOpenChange={setNight} />}
@@ -117,7 +117,7 @@ function Settings({ nodeId, mission }: { nodeId: string; mission: Mission }) {
         type="button"
         data-link-toggle
         onClick={() => uiStore.getState().setLinking(linking ? null : nodeId)}
-        className="rounded-full bg-ov-accent px-2.5 py-0.5 text-[11px] font-semibold text-ov-on-accent hover:brightness-110"
+        className="rounded-full bg-dp-accent px-2.5 py-0.5 text-[11px] font-semibold text-dp-on-accent hover:brightness-110"
       >
         {linking ? t.done : t.link}
       </button>
@@ -130,19 +130,19 @@ function Plan({ mission }: { mission: Mission }) {
   const plan = mission.plan ?? [];
   return (
     <div className="flex flex-col gap-1.5">
-      {mission.task && <p className="text-ov-text">{mission.task}</p>}
+      {mission.task && <p className="text-dp-text">{mission.task}</p>}
       <ol className="flex flex-col gap-1">
         {plan.map((task, i) => (
-          <li key={i} className="rounded bg-ov-card px-2 py-1">
-            <div className="flex items-center gap-2 text-ov-text">
+          <li key={i} className="rounded bg-dp-card px-2 py-1">
+            <div className="flex items-center gap-2 text-dp-text">
               <span className="font-medium">{task.title}</span>
               {task.level && (
-                <span className="shrink-0 rounded-full bg-ov-field px-1.5 text-[11px] text-ov-text-2">
+                <span className="shrink-0 rounded-full bg-dp-field px-1.5 text-[11px] text-dp-text-2">
                   {t.level[task.level]}
                   {mission.router ? ` · ${LEVELS[task.level].modelLabel}` : ""}
                 </span>
               )}
-              <span className="ml-auto shrink-0 font-mono text-[11px] text-ov-text-2">
+              <span className="ml-auto shrink-0 font-mono text-[11px] text-dp-text-2">
                 {task.agent}
                 {task.group ? ` → ${task.group.name}` : ""} · {task.budgetMin} {t.min}
               </span>
@@ -161,10 +161,10 @@ function Queue({ mission }: { mission: Mission }) {
   const queue = mission.queue ?? [];
   return (
     <div data-queue className="flex flex-col gap-1">
-      <span className="font-semibold text-ov-text">{t.waitingTasks(queue.length)}</span>
+      <span className="font-semibold text-dp-text">{t.waitingTasks(queue.length)}</span>
       <ol className="flex flex-col gap-0.5">
         {queue.map((task) => (
-          <li key={task.title} className="flex items-center gap-2 rounded bg-ov-card px-2 py-0.5">
+          <li key={task.title} className="flex items-center gap-2 rounded bg-dp-card px-2 py-0.5">
             <span className="min-w-0 truncate">{task.title}</span>
             <span className="ml-auto shrink-0 font-mono text-[11px]">
               {task.group ? `${task.group.name} · ` : ""}
@@ -182,13 +182,13 @@ function PlanActions({ nodeId, mission }: { nodeId: string; mission: Mission }) 
   const total = (mission.plan ?? []).reduce((sum, s) => sum + s.budgetMin, 0);
   const launching = mission.state === "lancement";
   return (
-    <footer data-mission-actions className="flex shrink-0 items-center gap-2 border-t border-ov-line px-3 py-2">
+    <footer data-mission-actions className="flex shrink-0 items-center gap-2 border-t border-dp-line px-3 py-2">
       <span className="font-mono text-[11px]">{t.total(total, mission.budgetMin)}</span>
       <button
         type="button"
         disabled={launching}
         onClick={() => void launchMission(nodeId)}
-        className="ml-auto rounded-full bg-ov-accent px-3 py-1 text-[11px] font-semibold text-ov-on-accent hover:brightness-110 disabled:opacity-60"
+        className="ml-auto rounded-full bg-dp-accent px-3 py-1 text-[11px] font-semibold text-dp-on-accent hover:brightness-110 disabled:opacity-60"
       >
         {launching ? t.launching : t.launch}
       </button>
@@ -210,11 +210,11 @@ function Team({ mission }: { mission: Mission }) {
         const steps = terminalOf(nodes[member.nodeId])?.steps ?? [];
         const done = steps.filter((s) => s.state === "fait").length;
         return (
-          <li key={member.nodeId || member.name} data-member={member.name} className="flex items-center gap-2 rounded bg-ov-card px-2 py-1">
-            <span className="font-medium text-ov-text">{member.name}</span>
+          <li key={member.nodeId || member.name} data-member={member.name} className="flex items-center gap-2 rounded bg-dp-card px-2 py-1">
+            <span className="font-medium text-dp-text">{member.name}</span>
             <span className="min-w-0 truncate">{member.task}</span>
             {member.done && member.done.length > 0 && (
-              <span data-finished className="shrink-0 text-[11px] text-ov-text-3" title={t.finishedBefore(member.done.join(", "))}>
+              <span data-finished className="shrink-0 text-[11px] text-dp-text-3" title={t.finishedBefore(member.done.join(", "))}>
                 ✓ {member.done.length}
               </span>
             )}
@@ -235,12 +235,12 @@ function Team({ mission }: { mission: Mission }) {
               title={t.reviewTitle(member.name)}
               aria-label={t.reviewLabel(member.name)}
               onClick={() => openReview(member.nodeId)}
-              className="shrink-0 rounded px-1 text-[11px] text-ov-text-2 hover:bg-ov-field hover:text-ov-text"
+              className="shrink-0 rounded px-1 text-[11px] text-dp-text-2 hover:bg-dp-field hover:text-dp-text"
             >
               {t.diff}
             </button>
             {member.report && (
-              <span title={member.report.summary} className="shrink-0 rounded-full bg-ov-field px-1.5 text-[11px] text-ov-text">
+              <span title={member.report.summary} className="shrink-0 rounded-full bg-dp-field px-1.5 text-[11px] text-dp-text">
                 {t.report[member.report.status]}
                 {member.merged ? t.merged : ""}
               </span>
@@ -275,8 +275,8 @@ function SummaryActions({ nodeId }: { nodeId: string }) {
     else toast.success(messages(missionMessages).cleaned(result.removed, result.kept));
   };
   return (
-    <footer data-mission-actions className="flex shrink-0 justify-end border-t border-ov-line px-3 py-2">
-      <button type="button" onClick={() => void clean()} className="rounded-full border border-ov-line px-3 py-1 text-[11px] text-ov-text hover:bg-ov-card">
+    <footer data-mission-actions className="flex shrink-0 justify-end border-t border-dp-line px-3 py-2">
+      <button type="button" onClick={() => void clean()} className="rounded-full border border-dp-line px-3 py-1 text-[11px] text-dp-text hover:bg-dp-card">
         {t.clean}
       </button>
     </footer>

@@ -141,8 +141,8 @@ describe("changing the settings", () => {
     expect(root.dataset.palette).toBe("calm");
     expect(root.dataset.theme).toBe("light");
     expect(root.dataset.transparency).toBe("off");
-    expect(localStorage.getItem("ov.theme")).toBe("calm");
-    expect(localStorage.getItem("ov.transparency")).toBe("off");
+    expect(localStorage.getItem("dp.theme")).toBe("calm");
+    expect(localStorage.getItem("dp.transparency")).toBe("off");
     expect(saved).toEqual([
       { key: "ui.theme", value: "calm" },
       { key: "ui.transparency", value: "off" },

@@ -47,9 +47,9 @@ const plan = [
   { title: "Login", brief: "Fais le login.", agent: "Isis", budgetMin: 20 },
   { title: "API", brief: "Fais l'API\npuis teste", agent: "nouveau", budgetMin: 30 },
 ];
-const tree = (slug: string): Worktree => ({ slug, branch: `openvibe/${slug}`, path: `C:/code/proj.worktrees/${slug}` });
+const tree = (slug: string): Worktree => ({ slug, branch: `dummyplane/${slug}`, path: `C:/code/proj.worktrees/${slug}` });
 const member = (nodeId: string, name: string, linked: boolean, extra: Partial<Member> = {}): Member => ({
-  nodeId, name, task: "t", budgetMin: 5, linked, branch: `openvibe/auth-${nodeId}`, worktree: `C:/w/${nodeId}`, sentAt: 1, ...extra,
+  nodeId, name, task: "t", budgetMin: 5, linked, branch: `dummyplane/auth-${nodeId}`, worktree: `C:/w/${nodeId}`, sentAt: 1, ...extra,
 });
 const missionNow = () => missionOf(nodesStore.getState().nodes.chef)!;
 
@@ -78,12 +78,12 @@ beforeEach(() => {
 });
 
 it("writes an agent's sub-task on one line, with its budget, branch and duties (spec §7.3)", () => {
-  expect(subTaskText("Auth", plan[1], "openvibe/auth-horus")).toBe(
-    "[OpenVibe · mission Auth] API — Fais l'API puis teste. Budget: 30 min. Branch: openvibe/auth-horus. This worktree is new: its dependencies (node_modules…) are not installed. Declare your steps, delegate to your sub-agents, commit on your branch, then report with report.",
+  expect(subTaskText("Auth", plan[1], "dummyplane/auth-horus")).toBe(
+    "[dummyPlane · mission Auth] API — Fais l'API puis teste. Budget: 30 min. Branch: dummyplane/auth-horus. This worktree is new: its dependencies (node_modules…) are not installed. Declare your steps, delegate to your sub-agents, commit on your branch, then report with report.",
   );
 });
 
-describe("what OpenVibe types to agents, in English (spec première version §7.1)", () => {
+describe("what dummyPlane types to agents, in English (spec première version §7.1)", () => {
   const english = async (check: () => Promise<void> | void) => {
     try {
       await check();
@@ -93,11 +93,11 @@ describe("what OpenVibe types to agents, in English (spec première version §7.
 
   it("writes the sub-task and the handover in the interface's language", () =>
     english(() => {
-      expect(subTaskText("Auth", plan[1], "openvibe/auth-horus")).toBe(
-        "[OpenVibe · mission Auth] API — Fais l'API puis teste. Budget: 30 min. Branch: openvibe/auth-horus. This worktree is new: its dependencies (node_modules…) are not installed. Declare your steps, delegate to your sub-agents, commit on your branch, then report with report.",
+      expect(subTaskText("Auth", plan[1], "dummyplane/auth-horus")).toBe(
+        "[dummyPlane · mission Auth] API — Fais l'API puis teste. Budget: 30 min. Branch: dummyplane/auth-horus. This worktree is new: its dependencies (node_modules…) are not installed. Declare your steps, delegate to your sub-agents, commit on your branch, then report with report.",
       );
       expect(handoverText(member("n1", "Horus", false, { report: { summary: "API done", status: "termine", at: 1 } }))).toBe(
-        'Taking over Horus\'s work: its report (done): "API done". Its branch openvibe/auth-n1: merge it into yours to start from its work.',
+        'Taking over Horus\'s work: its report (done): "API done". Its branch dummyplane/auth-n1: merge it into yours to start from its work.',
       );
       expect(handoverText(member("n1", "Horus", false))).toContain("it did not report");
     }));
@@ -113,11 +113,11 @@ describe("what OpenVibe types to agents, in English (spec première version §7.
   it("says what was merged in English", () =>
     english(async () => {
       const done = { summary: "ok", status: "termine" as const, at: 1 };
-      await setup({ state: "en_cours", worktree: "C:/w/auth", branch: "openvibe/auth", members: [member("isis", "Isis", true, { report: done }), member("n1", "Horus", false, { report: done })] });
+      await setup({ state: "en_cours", worktree: "C:/w/auth", branch: "dummyplane/auth", members: [member("isis", "Isis", true, { report: done }), member("n1", "Horus", false, { report: done })] });
       vi.mocked(missionMerge).mockImplementation(async (_mission, _agent, branch) =>
         branch.endsWith("isis") ? { merge: { kind: "merged" }, uncommitted: true } : { merge: { kind: "conflict", files: ["a.ts"] }, uncommitted: false },
       );
-      expect(await mergeMission("chef")).toBe("Branch openvibe/auth:\nIsis: merged (uncommitted changes in its worktree are not merged)\nHorus: conflict, merge undone — a.ts");
+      expect(await mergeMission("chef")).toBe("Branch dummyplane/auth:\nIsis: merged (uncommitted changes in its worktree are not merged)\nHorus: conflict, merge undone — a.ts");
     }));
 
   it("refuses a reassignment in English, and tells the previous agent in English", () =>
@@ -126,7 +126,7 @@ describe("what OpenVibe types to agents, in English (spec première version §7.
       await setup({ state: "en_cours", project: "C:/code/proj", slug: "auth", frameId: "f1", members: [member("isis", "Isis", true, { task: "Login" }), member("n1", "Horus", false, { task: "API", report, merged: true })] });
       expect(await reassignTask("chef", "n1", "Isis")).toBe('Isis has not finished its sub-task: choose an agent that has reported, or "new".');
       expect(await reassignTask("chef", "isis", "Horus")).toEqual({ name: "Horus" });
-      expect(ptySendText).toHaveBeenCalledWith("isis", '[OpenVibe] Your sub-task "Login" goes to Horus: stop it and commit nothing more on it.');
+      expect(ptySendText).toHaveBeenCalledWith("isis", '[dummyPlane] Your sub-task "Login" goes to Horus: stop it and commit nothing more on it.');
     }));
 });
 
@@ -183,15 +183,15 @@ describe("launchMission (spec §7.3)", () => {
       expect.objectContaining({ names: [fresh], cwds: [tree(`auth-${fresh.toLowerCase()}`).path] }),
     );
     expect(linkOrchestrator).toHaveBeenCalledWith("chef", "f1");
-    expect(mission).toMatchObject({ state: "en_cours", project: "C:/code/proj", slug: "auth", branch: "openvibe/auth", frameId: "f1" });
+    expect(mission).toMatchObject({ state: "en_cours", project: "C:/code/proj", slug: "auth", branch: "dummyplane/auth", frameId: "f1" });
     expect(mission.startedAt).toEqual(expect.any(Number));
     expect(mission.members.map((m) => [m.nodeId, m.linked, m.branch])).toEqual([
-      ["isis", true, "openvibe/auth-isis"],
+      ["isis", true, "dummyplane/auth-isis"],
       ["n1", false, tree(`auth-${fresh.toLowerCase()}`).branch],
     ]);
     expect(vi.mocked(notify).mock.calls[0]).toEqual(["chef", expect.stringContaining("Go-ahead")]);
     await vi.waitFor(() => expect(missionNow().members.every((m) => m.sentAt !== undefined)).toBe(true));
-    expect(ptySendText).toHaveBeenCalledWith("isis", subTaskText("Auth", plan[0], "openvibe/auth-isis"));
+    expect(ptySendText).toHaveBeenCalledWith("isis", subTaskText("Auth", plan[0], "dummyplane/auth-isis"));
     expect(ptySendText).toHaveBeenCalledWith("n1", subTaskText("Auth", plan[1], tree(`auth-${fresh.toLowerCase()}`).branch));
   });
 
@@ -214,9 +214,9 @@ describe("launchMission (spec §7.3)", () => {
     await launchMission("chef");
     expect(missionNow()).toMatchObject({ state: "plan", error: "The project folder is not a git repository.", members: [] });
     expect(notify).toHaveBeenCalledWith("chef", "The mission could not start: The project folder is not a git repository.");
-    vi.mocked(missionAddAgent).mockResolvedValueOnce(tree("auth-isis")).mockRejectedValueOnce(new Error("La branche openvibe/auth-x existe déjà."));
+    vi.mocked(missionAddAgent).mockResolvedValueOnce(tree("auth-isis")).mockRejectedValueOnce(new Error("La branche dummyplane/auth-x existe déjà."));
     await launchMission("chef");
-    expect(missionNow()).toMatchObject({ state: "plan", error: "La branche openvibe/auth-x existe déjà." });
+    expect(missionNow()).toMatchObject({ state: "plan", error: "La branche dummyplane/auth-x existe déjà." });
     expect(relaunchTerminal).not.toHaveBeenCalled();
     expect(launchGroup).not.toHaveBeenCalled();
   });
@@ -402,7 +402,7 @@ describe("a mission whose workspace is not on screen (spec mission de nuit §6.1
 
   it("forms the team in the stored scene, the view left alone", async () => {
     await setup({ plan: [plan[1], { ...plan[1], title: "Style", group: { id: "g1", name: "Interface" } }] });
-    rememberScene("w1", [...wired, { id: "g1", type: "frame", name: "Interface", x: 0, y: 0, width: 800, height: 500, isDeleted: false, frameId: null, customData: { openvibe: { kind: "group", role: "frontend", pantheon: "norse" } } }, { id: "w", type: "arrow", isDeleted: false, frameId: null, startBinding: { elementId: "chef" }, endBinding: { elementId: "g1" } }] as never, {} as never, {}, []);
+    rememberScene("w1", [...wired, { id: "g1", type: "frame", name: "Interface", x: 0, y: 0, width: 800, height: 500, isDeleted: false, frameId: null, customData: { dummyplane: { kind: "group", role: "frontend", pantheon: "norse" } } }, { id: "w", type: "arrow", isDeleted: false, frameId: null, startBinding: { elementId: "chef" }, endBinding: { elementId: "g1" } }] as never, {} as never, {}, []);
     await launchMission("chef");
     expect(missionNow().state).toBe("en_cours");
     expect(launchGroup).toHaveBeenCalledWith(expect.anything(), expect.anything(), expect.objectContaining({ x: expect.any(Number) }), expect.objectContaining({ workspaceId: "w1" }));
@@ -424,7 +424,7 @@ describe("a mission whose workspace is not on screen (spec mission de nuit §6.1
 
   it("creates a replacement agent there too", async () => {
     const running = { state: "en_cours" as const, project: "C:/code/proj", slug: "auth", frameId: "f1", plan: [{ title: "t", brief: "b", agent: "Isis", budgetMin: 5 }], members: [member("isis", "Isis", true)] };
-    rememberScene("w1", [...wired, { id: "f1", type: "frame", name: "Mission", x: 0, y: 0, width: 800, height: 500, isDeleted: false, frameId: null, customData: { openvibe: { kind: "group", role: "general", pantheon: "norse" } } }] as never, {} as never, {}, []);
+    rememberScene("w1", [...wired, { id: "f1", type: "frame", name: "Mission", x: 0, y: 0, width: 800, height: 500, isDeleted: false, frameId: null, customData: { dummyplane: { kind: "group", role: "general", pantheon: "norse" } } }] as never, {} as never, {}, []);
     await setup(running);
     expect(await reassignTask("chef", "isis", "nouveau")).toEqual({ name: expect.any(String) });
     expect(addTerminal).toHaveBeenCalledWith("w1", expect.anything(), { x: 400, y: 250 }, "f1");
@@ -513,18 +513,18 @@ it("merges the branches of the agents done, and says what happened to each (spec
   await setup({
     state: "en_cours",
     worktree: "C:/w/auth",
-    branch: "openvibe/auth",
+    branch: "dummyplane/auth",
     members: [member("isis", "Isis", true, { report: done }), member("n1", "Horus", false, { report: done }), member("n2", "Anubis", false, { report: { ...done, status: "bloque" } })],
   });
   vi.mocked(missionMerge).mockImplementation(async (_mission, _agent, branch) =>
     branch.endsWith("isis") ? { merge: { kind: "merged" }, uncommitted: true } : { merge: { kind: "conflict", files: ["a.ts"] }, uncommitted: false },
   );
   expect(await mergeMission("chef")).toBe(
-    "Branch openvibe/auth:\nIsis: merged (uncommitted changes in its worktree are not merged)\nHorus: conflict, merge undone — a.ts",
+    "Branch dummyplane/auth:\nIsis: merged (uncommitted changes in its worktree are not merged)\nHorus: conflict, merge undone — a.ts",
   );
   expect(vi.mocked(missionMerge).mock.calls.map(([mission, agent, branch]) => [mission, agent, branch])).toEqual([
-    ["C:/w/auth", "C:/w/isis", "openvibe/auth-isis"],
-    ["C:/w/auth", "C:/w/n1", "openvibe/auth-n1"],
+    ["C:/w/auth", "C:/w/isis", "dummyplane/auth-isis"],
+    ["C:/w/auth", "C:/w/n1", "dummyplane/auth-n1"],
   ]);
   expect(missionNow().members.map((m) => m.merged === true)).toEqual([true, false, false]);
 });
@@ -587,9 +587,9 @@ describe("what the final review of H2 found", () => {
 
   it("keeps a merged branch merged when nothing new came since", async () => {
     const done = { summary: "ok", status: "termine" as const, at: 1 };
-    await setup({ state: "en_cours", worktree: "C:/w/auth", branch: "openvibe/auth", members: [member("isis", "Isis", true, { report: done, merged: true })] });
+    await setup({ state: "en_cours", worktree: "C:/w/auth", branch: "dummyplane/auth", members: [member("isis", "Isis", true, { report: done, merged: true })] });
     vi.mocked(missionMerge).mockResolvedValue({ merge: { kind: "empty" }, uncommitted: false });
-    expect(await mergeMission("chef")).toBe("Branch openvibe/auth:\nIsis: already merged, nothing new");
+    expect(await mergeMission("chef")).toBe("Branch dummyplane/auth:\nIsis: already merged, nothing new");
     expect(missionNow().members[0].merged).toBe(true);
   });
 });
@@ -607,11 +607,11 @@ describe("reassignTask (spec §7.2 reattribuer)", () => {
     expect(horus).toMatchObject({ task: "Login", budgetMin: 20, report: undefined, overdue: undefined, extraMin: undefined, merged: undefined, done: ["API"] });
     // The previous agent stops: its sub-task is another's now (final review H3).
     expect(pauseAgents).toHaveBeenCalledWith(["isis"]);
-    expect(ptySendText).toHaveBeenCalledWith("isis", "[OpenVibe] Your sub-task \"Login\" goes to Horus: stop it and commit nothing more on it.");
+    expect(ptySendText).toHaveBeenCalledWith("isis", "[dummyPlane] Your sub-task \"Login\" goes to Horus: stop it and commit nothing more on it.");
     await vi.waitFor(() => expect(ptySendText).toHaveBeenCalledWith("n1", expect.stringContaining("Taking over Isis's work")));
     const text = vi.mocked(ptySendText).mock.calls.find(([id]) => id === "n1")![1];
-    expect(text.startsWith(subTaskText("Auth", plan[0], "openvibe/auth-n1"))).toBe(true);
-    expect(text).toContain("openvibe/auth-isis");
+    expect(text.startsWith(subTaskText("Auth", plan[0], "dummyplane/auth-n1"))).toBe(true);
+    expect(text).toContain("dummyplane/auth-isis");
     expect(handoverText(member("n1", "Horus", false, { report }))).toContain("\"API faite\"");
   });
 
@@ -666,10 +666,10 @@ describe("reassignTask (spec §7.2 reattribuer)", () => {
 
 it("leaves a handed-over agent's branch to its successor when merging (final review H3)", async () => {
   const done = { summary: "ok", status: "termine" as const, at: 1 };
-  await setup({ state: "en_cours", worktree: "C:/w/auth", branch: "openvibe/auth", members: [member("isis", "Isis", true, { report: done, handedTo: "Horus" }), member("n1", "Horus", false, { report: done })] });
+  await setup({ state: "en_cours", worktree: "C:/w/auth", branch: "dummyplane/auth", members: [member("isis", "Isis", true, { report: done, handedTo: "Horus" }), member("n1", "Horus", false, { report: done })] });
   vi.mocked(missionMerge).mockResolvedValue({ merge: { kind: "merged" }, uncommitted: false });
   await mergeMission("chef");
-  expect(vi.mocked(missionMerge).mock.calls.map(([, , branch]) => branch)).toEqual(["openvibe/auth-n1"]);
+  expect(vi.mocked(missionMerge).mock.calls.map(([, , branch]) => branch)).toEqual(["dummyplane/auth-n1"]);
 });
 
 

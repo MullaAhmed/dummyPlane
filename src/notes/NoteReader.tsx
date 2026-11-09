@@ -35,13 +35,13 @@ export function NoteReader({ text, notes, onOpen, onCreate }: Props) {
           return <s key={i}>{span.text}</s>;
         case "code":
           return (
-            <code key={i} className="rounded-[4px] bg-ov-field px-1 font-mono text-[11.5px]">
+            <code key={i} className="rounded-[4px] bg-dp-field px-1 font-mono text-[11.5px]">
               {span.text}
             </code>
           );
         case "link":
           return (
-            <button key={i} type="button" title={span.url} onClick={() => void openUrl(span.url)} className="text-ov-accent underline underline-offset-2">
+            <button key={i} type="button" title={span.url} onClick={() => void openUrl(span.url)} className="text-dp-accent underline underline-offset-2">
               {span.label}
             </button>
           );
@@ -53,7 +53,7 @@ export function NoteReader({ text, notes, onOpen, onCreate }: Props) {
               type="button"
               title={target ? target.name : t.deadLink(span.target)}
               onClick={() => (target ? onOpen(target.name) : onCreate(span.target))}
-              className={cn("underline underline-offset-2", target ? "text-ov-accent" : "text-ov-text-3 decoration-dotted")}
+              className={cn("underline underline-offset-2", target ? "text-dp-accent" : "text-dp-text-3 decoration-dotted")}
             >
               {span.label}
             </button>
@@ -67,7 +67,7 @@ export function NoteReader({ text, notes, onOpen, onCreate }: Props) {
       case "heading": {
         const Heading = `h${item.level}` as "h1";
         return (
-          <Heading key={i} className={cn("mt-4 font-semibold text-ov-text first:mt-0", HEADINGS[item.level - 1])}>
+          <Heading key={i} className={cn("mt-4 font-semibold text-dp-text first:mt-0", HEADINGS[item.level - 1])}>
             {line(item.text)}
           </Heading>
         );
@@ -76,15 +76,15 @@ export function NoteReader({ text, notes, onOpen, onCreate }: Props) {
         return <p key={i}>{line(item.text)}</p>;
       case "quote":
         return (
-          <blockquote key={i} className="border-l-2 border-ov-accent pl-3 text-ov-text-2">
+          <blockquote key={i} className="border-l-2 border-dp-accent pl-3 text-dp-text-2">
             {line(item.text)}
           </blockquote>
         );
       case "rule":
-        return <hr key={i} className="border-ov-line" />;
+        return <hr key={i} className="border-dp-line" />;
       case "code":
         return (
-          <pre key={i} className="overflow-x-auto rounded-[9px] bg-ov-field p-3 font-mono text-[11.5px] leading-[18px]">
+          <pre key={i} className="overflow-x-auto rounded-[9px] bg-dp-field p-3 font-mono text-[11.5px] leading-[18px]">
             <code>{item.text}</code>
           </pre>
         );
@@ -94,7 +94,7 @@ export function NoteReader({ text, notes, onOpen, onCreate }: Props) {
           <List key={i} className={cn("pl-5", item.ordered ? "list-decimal" : "list-disc")}>
             {item.items.map((entry, j) => (
               <li key={j} className={cn(entry.checked !== undefined && "list-none")}>
-                {entry.checked !== undefined && <input type="checkbox" checked={entry.checked} disabled readOnly className="mr-1.5 -ml-4 accent-ov-accent" />}
+                {entry.checked !== undefined && <input type="checkbox" checked={entry.checked} disabled readOnly className="mr-1.5 -ml-4 accent-dp-accent" />}
                 {line(entry.text)}
               </li>
             ))}
@@ -107,9 +107,9 @@ export function NoteReader({ text, notes, onOpen, onCreate }: Props) {
   return (
     <div data-reader className="min-h-0 min-w-0 flex-1 overflow-y-auto px-6 py-5">
       {blocks.length === 0 ? (
-        <p className="text-xs text-ov-text-3">{t.emptyNote}</p>
+        <p className="text-xs text-dp-text-3">{t.emptyNote}</p>
       ) : (
-        <div className="mx-auto flex max-w-[720px] flex-col gap-2.5 text-[13px] leading-[1.6] text-ov-text">{blocks.map(block)}</div>
+        <div className="mx-auto flex max-w-[720px] flex-col gap-2.5 text-[13px] leading-[1.6] text-dp-text">{blocks.map(block)}</div>
       )}
     </div>
   );

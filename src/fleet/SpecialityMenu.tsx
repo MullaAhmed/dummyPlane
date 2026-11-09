@@ -48,7 +48,7 @@ export function SpecialityMenu({ groupId, speciality, onDone }: { groupId: strin
     <DropdownMenuSub>
       <DropdownMenuSubTrigger>
         {t.groupMenu.speciality}
-        {speciality && <span className="ml-1 max-w-20 truncate text-ov-text-3">{speciality}</span>}
+        {speciality && <span className="ml-1 max-w-20 truncate text-dp-text-3">{speciality}</span>}
       </DropdownMenuSubTrigger>
       <DropdownMenuSubContent className="w-52">
         <input
@@ -58,7 +58,7 @@ export function SpecialityMenu({ groupId, speciality, onDone }: { groupId: strin
           aria-label={t.groupMenu.specialityLabel}
           placeholder={t.groupMenu.specialityCustom}
           onKeyDown={onKeyDown}
-          className="m-1 w-[calc(100%-0.5rem)] rounded bg-ov-field px-2 py-1 text-xs text-ov-text outline-none"
+          className="m-1 w-[calc(100%-0.5rem)] rounded bg-dp-field px-2 py-1 text-xs text-dp-text outline-none"
         />
         <DropdownMenuSeparator />
         {ROLE_ORDER.filter((id) => id !== "general").map((id) => item(t.roles[id], t.roles[id]))}

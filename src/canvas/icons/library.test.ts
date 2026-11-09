@@ -89,7 +89,7 @@ describe("instantiate", () => {
 describe("what a library may bring (backlog 27 oct)", () => {
   it("drops embeddables, frames and images, and strips links, custom data and locks", () => {
     const [item] = readLibrary(
-      { libraryItems: [{ name: "X", elements: [rect("a", { link: "https://evil", customData: { openvibe: {} }, locked: true }), { ...rect("b"), type: "embeddable" }, { ...rect("c"), type: "image" }, { ...rect("d"), type: "frame" }] }] },
+      { libraryItems: [{ name: "X", elements: [rect("a", { link: "https://evil", customData: { dummyplane: {} }, locked: true }), { ...rect("b"), type: "embeddable" }, { ...rect("c"), type: "image" }, { ...rect("d"), type: "frame" }] }] },
       meta,
     );
     expect(item.elements.map((e) => e.id)).toEqual(["a"]);

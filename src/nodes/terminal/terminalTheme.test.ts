@@ -11,7 +11,7 @@ it("draws xterm on the node's body color in every palette, dark in each (spec id
     expressive: ':root, :root[data-palette="expressive"]',
   } as const;
   for (const [palette, selector] of Object.entries(selectors) as [keyof typeof selectors, string][]) {
-    expect(cssBlock(tokens, selector)["--ov-terminal"]).toBe(terminalThemeFor(palette).background);
+    expect(cssBlock(tokens, selector)["--dp-terminal"]).toBe(terminalThemeFor(palette).background);
   }
 });
 

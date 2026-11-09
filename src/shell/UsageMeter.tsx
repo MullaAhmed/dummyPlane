@@ -22,7 +22,7 @@ function formatTokens(count: number): string {
 function Bar({ limit, wide = false }: { limit: Limit; wide?: boolean }) {
   const tone = limitTone(limit.usedPercent);
   return (
-    <span data-tone={tone} className={wide ? "block h-1.5 w-full rounded-full bg-ov-line" : "block h-1 w-8 rounded-full bg-ov-line"}>
+    <span data-tone={tone} className={wide ? "block h-1.5 w-full rounded-full bg-dp-line" : "block h-1 w-8 rounded-full bg-dp-line"}>
       <span className="block h-full rounded-full" style={{ width: `${Math.min(100, limit.usedPercent)}%`, backgroundColor: BUDGET_COLOR[tone] }} />
     </span>
   );
@@ -59,7 +59,7 @@ export function UsageMeter() {
           type="button"
           data-usage
           title={limits ? u.titleWithLimits : u.titleWithoutLimits}
-          className="flex h-6 items-center gap-2 rounded-[6px] px-1.5 font-mono text-[11.5px] text-ov-text-2 hover:bg-ov-hover hover:text-ov-text"
+          className="flex h-6 items-center gap-2 rounded-[6px] px-1.5 font-mono text-[11.5px] text-dp-text-2 hover:bg-dp-hover hover:text-dp-text"
         >
           {!limits?.fiveHour && !limits?.sevenDay && !limits?.models.length ? (
             <>
@@ -97,7 +97,7 @@ export function UsageMeter() {
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="flex flex-col gap-1.5">
-      <p className="ov-label">{title}</p>
+      <p className="dp-label">{title}</p>
       {children}
     </section>
   );
@@ -106,8 +106,8 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 function Row({ label, children }: { label: ReactNode; children: ReactNode }) {
   return (
     <div className="flex items-center gap-2 text-[12px]">
-      <span className="text-ov-text-2">{label}</span>
-      <span className="ml-auto text-right font-mono text-ov-text">{children}</span>
+      <span className="text-dp-text-2">{label}</span>
+      <span className="ml-auto text-right font-mono text-dp-text">{children}</span>
     </div>
   );
 }
@@ -155,7 +155,7 @@ function UsageDetail({ onTokens }: { onTokens: () => void }) {
           <LimitRow label={u.weekFable} limit={fable.limit} now={now} />
         ) : (
           <Row label={u.weekFable}>
-            <span className="font-sans text-ov-text-3" title={u.notSentHint}>
+            <span className="font-sans text-dp-text-3" title={u.notSentHint}>
               {u.notSent}
             </span>
           </Row>
@@ -171,7 +171,7 @@ function UsageDetail({ onTokens }: { onTokens: () => void }) {
         <Row label={u.apiTime}>{formatDuration(sum.apiMs)}</Row>
         <Row label={u.wallTime}>{formatDuration(sum.wallMs)}</Row>
         <Row label={u.code}>
-          <span style={{ color: "var(--ov-ok)" }}>+{sum.linesAdded}</span> <span style={{ color: "var(--ov-danger)" }}>−{sum.linesRemoved}</span>
+          <span style={{ color: "var(--dp-ok)" }}>+{sum.linesAdded}</span> <span style={{ color: "var(--dp-danger)" }}>−{sum.linesRemoved}</span>
         </Row>
         <Row label={<span title={u.co2Hint}>{u.co2}</span>}>
           {sum.co2Grams < 10 ? formatDecimal(sum.co2Grams, 1) : Math.round(sum.co2Grams)} g
@@ -201,11 +201,11 @@ function UsageDetail({ onTokens }: { onTokens: () => void }) {
       <button
         type="button"
         onClick={onTokens}
-        className="self-start rounded-[6px] px-2 py-1 text-[12px] text-ov-accent hover:bg-ov-hover"
+        className="self-start rounded-[6px] px-2 py-1 text-[12px] text-dp-accent hover:bg-dp-hover"
       >
         {u.tokensLink} →
       </button>
-      <p className="text-[10.5px] text-ov-text-3">{u.footnote}</p>
+      <p className="text-[10.5px] text-dp-text-3">{u.footnote}</p>
     </div>
   );
 }

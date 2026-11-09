@@ -27,7 +27,7 @@ it("moves the window from its empty space only, with the logo, its content and t
   expect(regions[0]).toBe(bar);
   for (const spacer of regions.slice(1)) expect(spacer.querySelector("button")).toBeNull();
   expect(bar.querySelector("svg rect")!.getAttribute("fill")).toBe("currentColor");
-  for (const label of ["Minimize", "Maximize", "Close OpenVibe"]) expect(host.querySelector(`[aria-label="${label}"]`)).not.toBeNull();
+  for (const label of ["Minimize", "Maximize", "Close dummyPlane"]) expect(host.querySelector(`[aria-label="${label}"]`)).not.toBeNull();
   await act(async () => root.unmount());
   host.remove();
 });
@@ -36,7 +36,7 @@ it("centers its middle element between equal sides, which never cover it, and th
   const host = document.createElement("div");
   document.body.append(host);
   const root = createRoot(host);
-  await act(async () => root.render(<TitleBar leading={<span>OpenVibe</span>} center={<button type="button">Search</button>} />));
+  await act(async () => root.render(<TitleBar leading={<span>dummyPlane</span>} center={<button type="button">Search</button>} />));
   const bar = host.firstElementChild as HTMLElement;
   // The sides take at least their content's width, the middle what remains:
   // the usage meter no longer runs over the search field (README review).

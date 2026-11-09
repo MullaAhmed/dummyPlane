@@ -54,11 +54,11 @@ function Timeline(props: { nodeId: string; steps: Step[]; budget?: { spent: numb
       }}
     >
       {budget && <BudgetBar {...budgetBar(budget.spent, budget.budget)} title={`${Math.floor(budget.spent)} / ${budget.budget} min`} />}
-      {steps.length > 0 && <div className="absolute inset-x-0 top-[3px] h-px bg-ov-line" />}
+      {steps.length > 0 && <div className="absolute inset-x-0 top-[3px] h-px bg-dp-line" />}
       {dots.map((dot, i) => (
         <div key={i} className="absolute top-0 flex -translate-x-1/2 flex-col items-center" style={{ left: dot.x, width: dot.slot }}>
           <span className={dot.state === "en_cours" && alive ? "size-[7px] animate-pulse rounded-full" : "size-[7px] rounded-full"} style={{ backgroundColor: dot.color }} />
-          <span className="mt-px flex max-w-full px-1 text-[9px] leading-[11px] text-ov-text-2">
+          <span className="mt-px flex max-w-full px-1 text-[9px] leading-[11px] text-dp-text-2">
             <span className="truncate">{dot.title}</span>
             {dot.state === "en_cours" && running > 0 && <span className="shrink-0">{` ×${running}`}</span>}
           </span>
@@ -71,7 +71,7 @@ function Timeline(props: { nodeId: string; steps: Step[]; budget?: { spent: numb
 /** Time spent over budget, in the gap between the terminal and its steps. */
 function BudgetBar({ ratio, tone, title }: { ratio: number; tone: BudgetTone; title: string }) {
   return (
-    <div className="absolute inset-x-0 -top-[3px] h-[2px] bg-ov-line" aria-label={title}>
+    <div className="absolute inset-x-0 -top-[3px] h-[2px] bg-dp-line" aria-label={title}>
       <div className="h-full" style={{ width: `${ratio * 100}%`, backgroundColor: BUDGET_COLOR[tone] }} />
     </div>
   );

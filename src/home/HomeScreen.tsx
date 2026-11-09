@@ -28,13 +28,13 @@ export function HomeScreen() {
   }, []);
 
   return (
-    <div className="ov-ambient flex h-screen w-screen flex-col">
-      <TitleBar leading={<span data-tauri-drag-region="" className="text-[13px] font-semibold text-ov-text">OpenVibe</span>} center={<SearchField />} trailing={<UpdateChip />} />
+    <div className="dp-ambient flex h-screen w-screen flex-col">
+      <TitleBar leading={<span data-tauri-drag-region="" className="text-[13px] font-semibold text-dp-text">dummyPlane</span>} center={<SearchField />} trailing={<UpdateChip />} />
       {/* The scroller starts below the title bar: scrolled cards never slide under it. */}
       <div className="min-h-0 flex-1 overflow-auto">
         <div className="relative mx-auto max-w-5xl px-8 pb-12 pt-8">
           <header className="mb-6 flex items-center justify-between">
-            <h1 className="text-xl font-semibold text-ov-text">{t.title}</h1>
+            <h1 className="text-xl font-semibold text-dp-text">{t.title}</h1>
             <AccentButton onClick={() => void addProject()}>
               <FolderPlus /> {t.add}
             </AccentButton>
@@ -42,8 +42,8 @@ export function HomeScreen() {
           <GettingStarted hasProject={projects.length > 0} />
           {projects.length === 0 ? (
             <div className="mt-24 grid place-items-center gap-3 text-center">
-              <p className="text-lg font-semibold text-ov-text">{t.none}</p>
-              <p className="max-w-sm text-sm text-ov-text-2">
+              <p className="text-lg font-semibold text-dp-text">{t.none}</p>
+              <p className="max-w-sm text-sm text-dp-text-2">
                 {t.noneHint}
               </p>
             </div>
@@ -57,7 +57,7 @@ export function HomeScreen() {
           <button
             type="button"
             onClick={() => void showTroubleshooting()}
-            className="mx-auto mt-10 flex items-center gap-1.5 text-xs text-ov-text-2 hover:text-ov-text [&_svg]:size-3.5"
+            className="mx-auto mt-10 flex items-center gap-1.5 text-xs text-dp-text-2 hover:text-dp-text [&_svg]:size-3.5"
           >
             <LifeBuoy /> {t.troubleshoot}
           </button>

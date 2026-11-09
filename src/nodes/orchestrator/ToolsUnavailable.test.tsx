@@ -20,11 +20,11 @@ it("says why the orchestrator did not start, and retries it (spec première vers
   const host = document.createElement("div");
   document.body.append(host);
   const root = createRoot(host);
-  const message = "OpenVibe tools unavailable: the local OpenVibe server did not start.";
+  const message = "dummyPlane tools unavailable: the local dummyPlane server did not start.";
   await act(async () => root.render(<ToolsUnavailable nodeId="o" message={message} />));
   const alert = host.querySelector('[role="alert"]')!;
-  expect(alert.textContent).toContain("OpenVibe tools unavailable");
-  expect(alert.textContent).toContain("the local OpenVibe server did not start");
+  expect(alert.textContent).toContain("dummyPlane tools unavailable");
+  expect(alert.textContent).toContain("the local dummyPlane server did not start");
   const button = (text: string) => [...host.querySelectorAll("button")].find((b) => b.textContent === text)!;
   await act(async () => button("Try again").click());
   expect(relaunchTerminal).toHaveBeenCalledWith("o", session, "resume");

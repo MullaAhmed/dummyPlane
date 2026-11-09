@@ -24,10 +24,10 @@ export function ProjectPicker() {
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className="flex h-[26px] items-center gap-1 rounded-[6px] px-2 text-[13px] font-semibold text-ov-text hover:bg-ov-hover"
+          className="flex h-[26px] items-center gap-1 rounded-[6px] px-2 text-[13px] font-semibold text-dp-text hover:bg-dp-hover"
         >
           <span className="max-w-48 truncate">{active?.name ?? t.project}</span>
-          <ChevronDown className="size-3.5 text-ov-text-2" />
+          <ChevronDown className="size-3.5 text-dp-text-2" />
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-72">
@@ -43,7 +43,7 @@ export function ProjectPicker() {
             <Folder />
             <span className="flex min-w-0 flex-col">
               <span className="truncate">{project.name}</span>
-              <span data-path className="truncate font-mono text-[10.5px] text-ov-text-3">
+              <span data-path className="truncate font-mono text-[10.5px] text-dp-text-3">
                 {project.path}
               </span>
             </span>

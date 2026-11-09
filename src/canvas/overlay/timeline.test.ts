@@ -18,10 +18,10 @@ describe("the steps' frieze (spec orchestrateur §5.1)", () => {
   });
 
   it("colors by state: done, running, to come, failed", () => {
-    expect(STEP_COLOR).toEqual({ fait: "var(--ov-ok)", en_cours: "var(--ov-working)", a_venir: "var(--ov-text-3)", echec: "var(--ov-danger)" });
+    expect(STEP_COLOR).toEqual({ fait: "var(--dp-ok)", en_cours: "var(--dp-working)", a_venir: "var(--dp-text-3)", echec: "var(--dp-danger)" });
   });
 });
 
 it("colours a budget's bar with the identity's tokens (spec orchestrateur §8.3)", () => {
-  expect(BUDGET_COLOR).toEqual({ ok: "var(--ov-ok)", late: "var(--ov-accent)", over: "var(--ov-danger)" });
+  expect(BUDGET_COLOR).toEqual({ ok: "var(--dp-ok)", late: "var(--dp-accent)", over: "var(--dp-danger)" });
 });

@@ -64,7 +64,7 @@ export function SavePresetDialog() {
             }
           }}
         />
-        {replaced && <p className="text-xs text-ov-text-2">{t.replaces(replaced.name)}</p>}
+        {replaced && <p className="text-xs text-dp-text-2">{t.replaces(replaced.name)}</p>}
         <DialogFooter>
           <Button variant="ghost" onClick={() => setOpen(false)}>
             {t.cancel}

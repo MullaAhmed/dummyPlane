@@ -14,7 +14,7 @@ type Tool = "selection" | "hand" | "text" | "eraser" | "image" | ShapeTool;
 
 const setTool = (type: Tool) => canvasStore.getState().api?.setActiveTool({ type });
 
-const Separator = () => <span aria-hidden className="my-1 h-px w-6 bg-ov-line" />;
+const Separator = () => <span aria-hidden className="my-1 h-px w-6 bg-dp-line" />;
 
 /**
  * The canvas tools, floating on the left (spec identité §5.4). They replace
@@ -25,7 +25,7 @@ export function ToolRail() {
   const tool = useCanvas((s) => s.view.tool);
   const active = railToolOf(tool);
   return (
-    <nav className="ov-glass absolute left-3 top-1/2 z-30 flex -translate-y-1/2 flex-col items-center gap-0.5 rounded-[14px] p-[5px]">
+    <nav className="dp-glass absolute left-3 top-1/2 z-30 flex -translate-y-1/2 flex-col items-center gap-0.5 rounded-[14px] p-[5px]">
       <ToolButton label={t.selection} active={active === "selection"} onClick={() => setTool("selection")}>
         <MousePointer2 />
       </ToolButton>
@@ -48,7 +48,7 @@ export function ToolRail() {
       <AgentMenu
         answersRequests
         trigger={(open) => (
-          <ToolButton label={t.launchAgent} active={open} className={open ? undefined : "text-ov-accent"}>
+          <ToolButton label={t.launchAgent} active={open} className={open ? undefined : "text-dp-accent"}>
             <Plus />
           </ToolButton>
         )}

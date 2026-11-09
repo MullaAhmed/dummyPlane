@@ -2,11 +2,11 @@ import { describe, expect, it } from "vitest";
 import { readTerminalPayload } from "@/nodes/types";
 import { buildSpawnSpec, defaultTitle, newConversation, newTerminalPayload, orchestratorSession, switchedAgent } from "./launch";
 
-const base = { title: "", cwd: "C:\\code\\openvibe", agent: "shell" as const, command: "", shell: "default" as const };
+const base = { title: "", cwd: "C:\\code\\dummyplane", agent: "shell" as const, command: "", shell: "default" as const };
 
 describe("defaultTitle", () => {
   it("names the terminal after the agent and the folder", () => {
-    expect(defaultTitle("claude", "C:\\code\\openvibe\\")).toBe("Claude · openvibe");
+    expect(defaultTitle("claude", "C:\\code\\dummyplane\\")).toBe("Claude · dummyplane");
     expect(defaultTitle("shell", "/home/me/api")).toBe("Shell · api");
     expect(defaultTitle("aider", "")).toBe("Aider");
   });
@@ -15,7 +15,7 @@ describe("defaultTitle", () => {
 describe("newTerminalPayload", () => {
   it("fills a blank title, trims the custom command and keeps the given name", () => {
     const payload = newTerminalPayload({ ...base, agent: "custom", command: "  npm run dev " }, "Thot");
-    expect(payload.title).toBe("Custom · openvibe");
+    expect(payload.title).toBe("Custom · dummyplane");
     expect(payload.command).toBe("npm run dev");
     expect(payload.name).toBe("Thot");
     expect(payload.claudeSessionId).toBeUndefined();

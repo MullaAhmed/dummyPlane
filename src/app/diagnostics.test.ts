@@ -11,14 +11,14 @@ const sample: Diagnostics = {
   git: null,
   gitBash: "C:\\Users\\Mathieu\\scoop\\apps\\git\\bin\\bash.exe",
   server: true,
-  dataDir: "~\\AppData\\Roaming\\dev.openvibe.app",
-  logDir: "~\\AppData\\Local\\dev.openvibe.app\\logs",
+  dataDir: "~\\AppData\\Roaming\\dev.dummyplane.app",
+  logDir: "~\\AppData\\Local\\dev.dummyplane.app\\logs",
 };
 
 it("writes what a bug report needs, the home folder as ~ even when Rust missed it (spec première version §7.3)", () => {
   expect(diagnosticText(sample)).toBe(
     [
-      "OpenVibe 1.0.0-beta.1",
+      "dummyPlane 1.0.0-beta.1",
       "OS: Windows 11 (build 26300)",
       "Agents:",
       "  claude: ~\\.local\\bin\\claude.exe",
@@ -26,8 +26,8 @@ it("writes what a bug report needs, the home folder as ~ even when Rust missed i
       "Git: not found",
       "Git Bash: ~\\scoop\\apps\\git\\bin\\bash.exe",
       "Local server: running",
-      "Data: ~\\AppData\\Roaming\\dev.openvibe.app",
-      "Logs: ~\\AppData\\Local\\dev.openvibe.app\\logs",
+      "Data: ~\\AppData\\Roaming\\dev.dummyplane.app",
+      "Logs: ~\\AppData\\Local\\dev.dummyplane.app\\logs",
     ].join("\n"),
   );
   expect(diagnosticText(sample)).not.toMatch(/Mathieu|Users/i);

@@ -19,7 +19,7 @@ vi.mock("./ready", () => ({ whenReady: vi.fn(() => Promise.resolve(true)) }));
 /** Lets the started orchestrator's readiness settle. */
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 
-const member = (nodeId: string, name: string, sentAt?: number): Member => ({ nodeId, name, task: "t", budgetMin: 5, linked: false, branch: `openvibe/m-${nodeId}`, worktree: "C:/w", sentAt });
+const member = (nodeId: string, name: string, sentAt?: number): Member => ({ nodeId, name, task: "t", budgetMin: 5, linked: false, branch: `dummyplane/m-${nodeId}`, worktree: "C:/w", sentAt });
 const activity = (nodeId: string, value: "idle" | "working" | "waiting") => agentActivityStore.getState().apply({ nodeId, activity: value, since: 0 });
 const status = (nodeId: string, state: "running" | "stopped" | "exited") =>
   terminalStatusStore.getState().set(nodeId, state === "exited" ? { state, code: 0 } : { state });
@@ -52,7 +52,7 @@ describe("events to the orchestrator (spec orchestrateur §7.5)", () => {
     notify("chef", "Isis a rendu compte");
     expect(sent()).toEqual([]);
     await vi.advanceTimersByTimeAsync(1000);
-    expect(sent()).toEqual(["chef: [OpenVibe] Isis a rendu compte"]);
+    expect(sent()).toEqual(["chef: [dummyPlane] Isis a rendu compte"]);
     vi.useRealTimers();
   });
 
@@ -62,13 +62,13 @@ describe("events to the orchestrator (spec orchestrateur §7.5)", () => {
     notify("chef", "Isis a rendu compte");
     expect(sent()).toEqual([]);
     await vi.advanceTimersByTimeAsync(4000);
-    expect(sent()).toEqual(["chef: [OpenVibe] Isis a rendu compte"]);
+    expect(sent()).toEqual(["chef: [dummyPlane] Isis a rendu compte"]);
     vi.useRealTimers();
   });
 
   it("types a line in a free orchestrator at once", () => {
     notify("chef", "Isis a rendu compte (termine) : fait");
-    expect(sent()).toEqual(["chef: [OpenVibe] Isis a rendu compte (termine) : fait"]);
+    expect(sent()).toEqual(["chef: [dummyPlane] Isis a rendu compte (termine) : fait"]);
   });
 
   it("holds the lines while it waits for the user or is stopped, then sends them in order", async () => {
@@ -82,7 +82,7 @@ describe("events to the orchestrator (spec orchestrateur §7.5)", () => {
     notify("chef", "trois");
     status("chef", "running");
     await tick();
-    expect(sent()).toEqual(["chef: [OpenVibe] un", "chef: [OpenVibe] deux", "chef: [OpenVibe] trois"]);
+    expect(sent()).toEqual(["chef: [dummyPlane] un", "chef: [dummyPlane] deux", "chef: [dummyPlane] trois"]);
     expect(pendingEvents("chef")).toEqual([]);
   });
 
@@ -92,8 +92,8 @@ describe("events to the orchestrator (spec orchestrateur §7.5)", () => {
     status("horus", "running");
     activity("horus", "waiting");
     expect(sent()).toEqual([
-      "chef: [OpenVibe] Isis is waiting for the user (a dialog is open in its terminal).",
-      "chef: [OpenVibe] Isis stopped: its terminal is no longer running.",
+      "chef: [dummyPlane] Isis is waiting for the user (a dialog is open in its terminal).",
+      "chef: [dummyPlane] Isis stopped: its terminal is no longer running.",
     ]);
   });
 
@@ -102,8 +102,8 @@ describe("events to the orchestrator (spec orchestrateur §7.5)", () => {
       activity("isis", "waiting");
       status("isis", "exited");
       expect(sent()).toEqual([
-        "chef: [OpenVibe] Isis is waiting for the user (a dialog is open in its terminal).",
-        "chef: [OpenVibe] Isis stopped: its terminal is no longer running.",
+        "chef: [dummyPlane] Isis is waiting for the user (a dialog is open in its terminal).",
+        "chef: [dummyPlane] Isis stopped: its terminal is no longer running.",
       ]);
     } finally {
     }
@@ -111,7 +111,7 @@ describe("events to the orchestrator (spec orchestrateur §7.5)", () => {
 
   it("counts a member's terminal removed from the canvas as stopped", () => {
     terminalStatusStore.getState().remove("isis");
-    expect(sent()).toEqual(["chef: [OpenVibe] Isis stopped: its terminal is no longer running."]);
+    expect(sent()).toEqual(["chef: [dummyPlane] Isis stopped: its terminal is no longer running."]);
   });
 
   it("waits for a restarted orchestrator's Claude to be up, never typing into its trust dialog (final review H2)", async () => {
@@ -125,7 +125,7 @@ describe("events to the orchestrator (spec orchestrateur §7.5)", () => {
     const calls = vi.mocked(whenReady).mock.calls;
     expect(calls[calls.length - 1][2]).toBe(false);
     up(true);
-    await vi.waitFor(() => expect(sent()).toEqual(["chef: [OpenVibe] Isis a rendu compte"]));
+    await vi.waitFor(() => expect(sent()).toEqual(["chef: [dummyPlane] Isis a rendu compte"]));
   });
 
   it("puts back a line that could not be typed, for the orchestrator's next start (final review H2)", async () => {
@@ -135,7 +135,7 @@ describe("events to the orchestrator (spec orchestrateur §7.5)", () => {
     expect(pendingEvents("chef")).toEqual(["perdu ?"]);
     status("chef", "stopped");
     status("chef", "running");
-    await vi.waitFor(() => expect(sent()).toEqual(["chef: [OpenVibe] perdu ?", "chef: [OpenVibe] perdu ?"]));
+    await vi.waitFor(() => expect(sent()).toEqual(["chef: [dummyPlane] perdu ?", "chef: [dummyPlane] perdu ?"]));
     expect(pendingEvents("chef")).toEqual([]);
   });
 });

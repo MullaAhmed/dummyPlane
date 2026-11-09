@@ -55,13 +55,13 @@ export function AccountsDialog() {
           ))}
         </ul>
         <form
-          className="grid gap-2 border-t border-ov-line pt-3"
+          className="grid gap-2 border-t border-dp-line pt-3"
           onSubmit={(e) => {
             e.preventDefault();
             void add();
           }}
         >
-          <p className="ov-label">{t.addTitle}</p>
+          <p className="dp-label">{t.addTitle}</p>
           <Input aria-label={t.nameLabel} placeholder={t.namePlaceholder} value={name} onChange={(e) => setName(e.target.value)} />
           <Input aria-label={t.folderLabel} placeholder={t.folderPlaceholder} value={folder} onChange={(e) => setFolder(e.target.value)} />
           <div className="flex justify-end">
@@ -77,13 +77,13 @@ export function AccountsDialog() {
 
 function Row(props: { name: string; folder: string; active: boolean; activeLabel: string; children?: React.ReactNode }) {
   return (
-    <li data-profile={props.name} className="flex items-center gap-2 rounded-md bg-ov-card px-2.5 py-1.5">
+    <li data-profile={props.name} className="flex items-center gap-2 rounded-md bg-dp-card px-2.5 py-1.5">
       <div className="min-w-0 flex-1">
-        <p className="truncate text-ov-text">
+        <p className="truncate text-dp-text">
           {props.name}
-          {props.active && <span className="ml-2 rounded-full bg-ov-accent-soft px-1.5 py-0.5 text-[10px] text-ov-accent">{props.activeLabel}</span>}
+          {props.active && <span className="ml-2 rounded-full bg-dp-accent-soft px-1.5 py-0.5 text-[10px] text-dp-accent">{props.activeLabel}</span>}
         </p>
-        <p className="truncate font-mono text-[11px] text-ov-text-2">{props.folder}</p>
+        <p className="truncate font-mono text-[11px] text-dp-text-2">{props.folder}</p>
       </div>
       {props.children}
     </li>

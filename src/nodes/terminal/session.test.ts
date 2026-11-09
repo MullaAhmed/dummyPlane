@@ -70,14 +70,14 @@ it("shows a failed launch in the terminal and as an error status", async () => {
 });
 
 it("keeps the kind of a refused orchestrator, which its node shows instead of a red line", async () => {
-  const message = "OpenVibe tools unavailable: the local OpenVibe server did not start.";
+  const message = "dummyPlane tools unavailable: the local dummyPlane server did not start.";
   mockIPC(() => {
     throw { kind: "toolsUnavailable", message };
   });
   const term = fakeTerm();
   await startSession("t", term, payload, "new");
   expect(statusOf("t")).toEqual({ state: "error", message, kind: "toolsUnavailable" });
-  expect(term.written.join("")).not.toContain("OpenVibe tools");
+  expect(term.written.join("")).not.toContain("dummyPlane tools");
 });
 
 it("ignores input until the replay sent on re-attach has been written", async () => {

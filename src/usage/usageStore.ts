@@ -10,7 +10,7 @@ interface UsageState {
   apply: (event: StatusEvent, now: number) => void;
 }
 
-/** What the status lines of OpenVibe's Claude sessions report (spec maj §6); kept in memory. */
+/** What the status lines of dummyPlane's Claude sessions report (spec maj §6); kept in memory. */
 export const usageStore = createStore<UsageState>()((set) => ({
   sessions: {},
   limits: null,
@@ -20,7 +20,7 @@ export const usageStore = createStore<UsageState>()((set) => ({
     const known = usageStore.getState().sessions[session.sessionId];
     if (known?.before) session.before = known.before;
     else if (!known && resumedNodes.delete(event.nodeId)) {
-      // The first report of a resumed launch: what it already holds was spent before OpenVibe opened it.
+      // The first report of a resumed launch: what it already holds was spent before dummyPlane opened it.
       session.before = { costUsd: session.costUsd, apiMs: session.apiMs, wallMs: session.wallMs, linesAdded: session.linesAdded, linesRemoved: session.linesRemoved };
     }
     set((s) => ({ sessions: { ...s.sessions, [session.sessionId]: session }, limits: limits ? mergeLimits(s.limits, limits) : s.limits }));

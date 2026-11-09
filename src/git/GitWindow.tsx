@@ -96,19 +96,19 @@ function GitDrawer({ path }: { path: string }) {
   return (
     <aside
       data-git-window
-      className="ov-glass-strong absolute right-[72px] z-20 flex w-[min(920px,calc(100vw-180px))] flex-col overflow-hidden rounded-[14px] text-ov-text"
+      className="dp-glass-strong absolute right-[72px] z-20 flex w-[min(920px,calc(100vw-180px))] flex-col overflow-hidden rounded-[14px] text-dp-text"
       style={{ top: TOP_ROW_HEIGHT + 14, bottom: BOTTOM_BAR_HEIGHT + 14 }}
     >
-      <header className="flex h-10 shrink-0 items-center gap-2 border-b border-ov-line px-3">
-        <GitBranch className="size-4 shrink-0 text-ov-accent" />
+      <header className="flex h-10 shrink-0 items-center gap-2 border-b border-dp-line px-3">
+        <GitBranch className="size-4 shrink-0 text-dp-accent" />
         <span className="shrink-0 text-[13px] font-semibold">{t.title}</span>
         {repo && (
-          <span className="min-w-0 truncate font-mono text-[11px] text-ov-text-2" title={repo.branch}>
+          <span className="min-w-0 truncate font-mono text-[11px] text-dp-text-2" title={repo.branch}>
             {repo.branch}
           </span>
         )}
-        {repo && repo.ahead > 0 && <span className="shrink-0 font-mono text-[11px] text-ov-accent">{t.ahead(repo.ahead)}</span>}
-        {repo && repo.behind > 0 && <span className="shrink-0 font-mono text-[11px] text-ov-wait">{t.behind(repo.behind)}</span>}
+        {repo && repo.ahead > 0 && <span className="shrink-0 font-mono text-[11px] text-dp-accent">{t.ahead(repo.ahead)}</span>}
+        {repo && repo.behind > 0 && <span className="shrink-0 font-mono text-[11px] text-dp-wait">{t.behind(repo.behind)}</span>}
         <span className="ml-auto flex shrink-0 items-center gap-1">
           {repo && <PushButton repo={repo} pushing={pushing} onPush={() => void push()} />}
           <IconButton label={t.refresh} onClick={() => void again()}>
@@ -119,7 +119,7 @@ function GitDrawer({ path }: { path: string }) {
           </IconButton>
         </span>
       </header>
-      <div role="tablist" className="flex h-9 shrink-0 items-center gap-1 border-b border-ov-line px-2">
+      <div role="tablist" className="flex h-9 shrink-0 items-center gap-1 border-b border-dp-line px-2">
         <Tab active={tab === "changes"} onClick={() => setTab("changes")}>
           {t.tabChanges(repo?.files.length ?? 0)}
         </Tab>
@@ -128,7 +128,7 @@ function GitDrawer({ path }: { path: string }) {
         </Tab>
       </div>
       {(failure ?? (repo && error)) && (
-        <p role="alert" className="shrink-0 whitespace-pre-wrap border-b border-ov-line px-3 py-1.5 text-xs text-ov-danger">
+        <p role="alert" className="shrink-0 whitespace-pre-wrap border-b border-dp-line px-3 py-1.5 text-xs text-dp-danger">
           {failure ?? error}
         </p>
       )}
@@ -154,7 +154,7 @@ function Tab({ active, onClick, children }: { active: boolean; onClick: () => vo
       role="tab"
       aria-selected={active}
       onClick={onClick}
-      className={cn("rounded-[6px] px-2.5 py-0.5 text-[12px] text-ov-text-2 hover:text-ov-text", active && "bg-ov-accent-soft text-ov-text")}
+      className={cn("rounded-[6px] px-2.5 py-0.5 text-[12px] text-dp-text-2 hover:text-dp-text", active && "bg-dp-accent-soft text-dp-text")}
     >
       {children}
     </button>
@@ -240,34 +240,34 @@ function ChangesTab(props: {
   if (files.length === 0) return <GitMessage>{t.clean}</GitMessage>;
   return (
     <div className="flex min-h-0 flex-1">
-      <div className="flex w-[320px] shrink-0 flex-col border-r border-ov-line">
-        <label className="flex shrink-0 items-center gap-2 border-b border-ov-line px-3 py-1 text-[12px] text-ov-text-2">
+      <div className="flex w-[320px] shrink-0 flex-col border-r border-dp-line">
+        <label className="flex shrink-0 items-center gap-2 border-b border-dp-line px-3 py-1 text-[12px] text-dp-text-2">
           <input
             ref={all}
             type="checkbox"
             aria-label={t.includeAll}
             checked={chosen.length === files.length}
             onChange={() => setLeft(chosen.length === 0 ? new Set() : new Set(files.map((file) => file.path)))}
-            className="accent-[var(--ov-accent)]"
+            className="accent-[var(--dp-accent)]"
           />
           {t.includeAll}
         </label>
         <ul className="min-h-0 flex-1 overflow-y-auto py-1">
-          {cut && <li className="px-3 py-1 text-[11px] text-ov-text-3">{words.listCut(files.length)}</li>}
+          {cut && <li className="px-3 py-1 text-[11px] text-dp-text-3">{words.listCut(files.length)}</li>}
           {files.map((file) => {
             const status = FILE_STATUS[file.status];
             return (
               <li
                 key={file.path}
                 data-git-file={file.path}
-                className={cn("group flex items-center gap-2 px-3 text-[12px] text-ov-text-2 hover:bg-ov-hover", selected?.path === file.path && "bg-ov-hover text-ov-text")}
+                className={cn("group flex items-center gap-2 px-3 text-[12px] text-dp-text-2 hover:bg-dp-hover", selected?.path === file.path && "bg-dp-hover text-dp-text")}
               >
                 <input
                   type="checkbox"
                   aria-label={t.include(file.path)}
                   checked={!left.has(file.path)}
                   onChange={() => toggle(file)}
-                  className="shrink-0 accent-[var(--ov-accent)]"
+                  className="shrink-0 accent-[var(--dp-accent)]"
                 />
                 <button
                   type="button"
@@ -282,12 +282,12 @@ function ChangesTab(props: {
                     {file.path}
                   </span>
                   {file.added === null ? (
-                    <span className="shrink-0 text-[11px] text-ov-text-3" title={words.binaryOrBig}>
+                    <span className="shrink-0 text-[11px] text-dp-text-3" title={words.binaryOrBig}>
                       —
                     </span>
                   ) : (
                     <span className="shrink-0 font-mono text-[11px]">
-                      <span style={{ color: "var(--ov-ok)" }}>+{file.added}</span> <span style={{ color: "var(--ov-danger)" }}>−{file.removed}</span>
+                      <span style={{ color: "var(--dp-ok)" }}>+{file.added}</span> <span style={{ color: "var(--dp-danger)" }}>−{file.removed}</span>
                     </span>
                   )}
                 </button>
@@ -298,14 +298,14 @@ function ChangesTab(props: {
             );
           })}
         </ul>
-        <div className="grid shrink-0 gap-2 border-t border-ov-line p-2">
+        <div className="grid shrink-0 gap-2 border-t border-dp-line p-2">
           <textarea
             aria-label={t.messageLabel}
             placeholder={t.messagePlaceholder}
             value={message}
             rows={3}
             onChange={(e) => setMessage(e.target.value)}
-            className="resize-none rounded-[6px] bg-ov-field px-2 py-1.5 text-[12px] text-ov-text outline-none placeholder:text-ov-text-3"
+            className="resize-none rounded-[6px] bg-dp-field px-2 py-1.5 text-[12px] text-dp-text outline-none placeholder:text-dp-text-3"
           />
           <AccentButton disabled={committing || chosen.length === 0 || !message.trim()} onClick={() => void commit()} className="justify-center text-xs">
             {committing ? t.committing : t.commit(chosen.length)}
@@ -332,7 +332,7 @@ function DiscardDialog({ file, onCancel, onConfirm }: { file: ChangedFile | null
           <Button variant="ghost" onClick={onCancel}>
             {t.cancel}
           </Button>
-          <Button className="bg-ov-danger text-white hover:bg-ov-danger/90" onClick={() => file && onConfirm(file)}>
+          <Button className="bg-dp-danger text-white hover:bg-dp-danger/90" onClick={() => file && onConfirm(file)}>
             {t.confirm}
           </Button>
         </DialogFooter>
@@ -363,15 +363,15 @@ function HistoryTab({ path, refresh }: { path: string; refresh: number }) {
   return (
     <ul className="min-h-0 flex-1 overflow-y-auto py-1">
       {log.map((entry) => (
-        <li key={entry.hash} data-git-commit={entry.hash} className="flex items-center gap-3 px-3 py-1 text-[12px] hover:bg-ov-hover">
-          <span title={entry.hash} className="shrink-0 font-mono text-[11px] text-ov-accent">
+        <li key={entry.hash} data-git-commit={entry.hash} className="flex items-center gap-3 px-3 py-1 text-[12px] hover:bg-dp-hover">
+          <span title={entry.hash} className="shrink-0 font-mono text-[11px] text-dp-accent">
             {entry.shortHash}
           </span>
-          <span title={entry.subject} className="min-w-0 flex-1 truncate text-ov-text">
+          <span title={entry.subject} className="min-w-0 flex-1 truncate text-dp-text">
             {entry.subject}
           </span>
-          <span className="max-w-[160px] shrink-0 truncate text-ov-text-2">{entry.author}</span>
-          <span className="shrink-0 font-mono text-[11px] text-ov-text-3">
+          <span className="max-w-[160px] shrink-0 truncate text-dp-text-2">{entry.author}</span>
+          <span className="shrink-0 font-mono text-[11px] text-dp-text-3">
             {new Date(entry.date * 1000).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
           </span>
         </li>

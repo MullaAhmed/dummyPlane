@@ -12,14 +12,14 @@ export function ZoomControl() {
   const zoom = useCanvas((s) => s.view.zoom);
 
   return (
-    <div className="ov-glass-strong pointer-events-auto flex h-8 items-center rounded-[14px] px-0.5">
+    <div className="dp-glass-strong pointer-events-auto flex h-8 items-center rounded-[14px] px-0.5">
       <IconButton label={t.zoom.out} onClick={() => zoomTo(stepZoom(zoom, -1))}>
         <Minus />
       </IconButton>
       <button
         type="button"
         title={t.zoom.reset}
-        className="w-12 text-center font-mono text-xs text-ov-text-2 hover:text-ov-text"
+        className="w-12 text-center font-mono text-xs text-dp-text-2 hover:text-dp-text"
         onClick={() => zoomTo(1)}
       >
         {t.percent(Math.round(zoom * 100))}

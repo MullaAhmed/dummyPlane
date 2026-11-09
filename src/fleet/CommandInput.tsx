@@ -219,7 +219,7 @@ export function CommandInput(props: {
         <ul
           role="listbox"
           className={cn(
-            "absolute bottom-full left-0 z-10 mb-2 overflow-hidden rounded-xl border border-ov-line bg-ov-surface-2 py-1 shadow-ov",
+            "absolute bottom-full left-0 z-10 mb-2 overflow-hidden rounded-xl border border-dp-line bg-dp-surface-2 py-1 shadow-dp",
             parts ? "w-64" : "w-96 max-w-full",
           )}
         >
@@ -235,31 +235,31 @@ export function CommandInput(props: {
               }}
               className={cn(
                 "flex cursor-pointer items-center gap-2 px-3 py-1 text-xs",
-                i === row ? "bg-ov-hover text-ov-text" : "text-ov-text-2",
+                i === row ? "bg-dp-hover text-dp-text" : "text-dp-text-2",
               )}
             >
-              <span className="shrink-0 font-mono text-ov-text">{suggestion.label}</span>
+              <span className="shrink-0 font-mono text-dp-text">{suggestion.label}</span>
               <span className="ml-auto truncate">{suggestion.detail}</span>
             </li>
           ))}
         </ul>
       )}
       <div className="flex min-w-0 flex-1 flex-col gap-1">
-        {text.trim() && nothingTargeted && <p className="text-[11px] text-ov-text-2">{emptyHint}</p>}
-        {text.trim() && noAgents && !unknown && <p className="text-[11px] text-ov-text-2">{t.noAgents}</p>}
-        {unknown && <p className="text-[11px] text-ov-text-2">{t.unknownTarget(unknown)}</p>}
+        {text.trim() && nothingTargeted && <p className="text-[11px] text-dp-text-2">{emptyHint}</p>}
+        {text.trim() && noAgents && !unknown && <p className="text-[11px] text-dp-text-2">{t.noAgents}</p>}
+        {unknown && <p className="text-[11px] text-dp-text-2">{t.unknownTarget(unknown)}</p>}
         <div className="flex min-w-0 flex-wrap items-center gap-1">
           {chips.map((target) => (
             <span
               key={targetKey(target)}
-              className="flex h-6 items-center gap-1 rounded-full bg-ov-accent-soft pl-2 pr-1 font-mono text-[11px] text-ov-text"
+              className="flex h-6 items-center gap-1 rounded-full bg-dp-accent-soft pl-2 pr-1 font-mono text-[11px] text-dp-text"
             >
               {labels.get(targetKey(target))}
               <button
                 type="button"
                 aria-label={t.remove(labels.get(targetKey(target)) ?? "")}
                 onClick={() => setTargets(chips.filter((c) => targetKey(c) !== targetKey(target)))}
-                className="grid size-4 place-items-center rounded-full text-ov-text-2 hover:text-ov-text"
+                className="grid size-4 place-items-center rounded-full text-dp-text-2 hover:text-dp-text"
               >
                 <X className="size-3" />
               </button>
@@ -277,7 +277,7 @@ export function CommandInput(props: {
               setCaret(at);
             }}
             className={cn(
-              "min-w-[8rem] flex-1 resize-none bg-transparent py-1 text-ov-text outline-none placeholder:text-ov-text-2",
+              "min-w-[8rem] flex-1 resize-none bg-transparent py-1 text-dp-text outline-none placeholder:text-dp-text-2",
               compact ? "text-xs" : "text-[13px]",
             )}
           />
@@ -292,7 +292,7 @@ export function CommandInput(props: {
         className={cn(
           "flex shrink-0 items-center justify-center gap-1.5 font-semibold",
           compact ? "size-7 rounded-[8px]" : "h-8 rounded-[10px] px-3 text-[12.5px]",
-          canSend ? "bg-ov-accent text-ov-on-accent" : "bg-ov-field text-ov-text-3",
+          canSend ? "bg-dp-accent text-dp-on-accent" : "bg-dp-field text-dp-text-3",
         )}
       >
         <ArrowUp className="size-4" />

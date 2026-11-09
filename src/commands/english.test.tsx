@@ -121,7 +121,7 @@ describe("the palette component in English", () => {
     await act(async () => openPalette("functions", home));
     await act(async () => setPaletteQuery("> about"));
     const items = [...document.querySelectorAll("[cmdk-item]")].map((i) => i.textContent);
-    expect(items).toContain("About OpenVibe");
+    expect(items).toContain("About dummyPlane");
     expect(document.body.textContent).toContain("Help");
   });
 });

@@ -22,8 +22,8 @@ const found: Diagnostics = {
   git: null,
   gitBash: null,
   server: true,
-  dataDir: "~\\AppData\\Roaming\\dev.openvibe.app",
-  logDir: "~\\AppData\\Local\\dev.openvibe.app\\logs",
+  dataDir: "~\\AppData\\Roaming\\dev.dummyplane.app",
+  logDir: "~\\AppData\\Local\\dev.dummyplane.app\\logs",
 };
 
 let calls: string[];

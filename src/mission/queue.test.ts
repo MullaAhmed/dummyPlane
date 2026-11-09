@@ -36,7 +36,7 @@ vi.mock("./events", () => ({ notify: vi.fn() }));
 const session: TerminalPayload = { title: "Chef", name: "Chef", agent: "claude", cwd: "C:/code/proj", shell: "default", command: "", claudeSessionId: "s0", role: "orchestrator" };
 const done = { summary: "Login fait", status: "termine" as const, at: 600_000 };
 const member = (nodeId: string, name: string, extra: Partial<Member> = {}): Member => ({
-  nodeId, name, task: "Login", budgetMin: 20, linked: true, branch: `openvibe/auth-${nodeId}`, worktree: `C:/w/${nodeId}`, sentAt: 0, ...extra,
+  nodeId, name, task: "Login", budgetMin: 20, linked: true, branch: `dummyplane/auth-${nodeId}`, worktree: `C:/w/${nodeId}`, sentAt: 0, ...extra,
 });
 const next: QueuedTask = { title: "API", brief: "Fais l'API", budgetMin: 30 };
 const missionNow = () => missionOf(nodesStore.getState().nodes.chef)!;
@@ -50,7 +50,7 @@ async function setup(mission: Partial<Mission>) {
       name: "Chef",
       session,
       mission: {
-        state: "en_cours", maxAgents: 4, name: "Auth", project: "C:/code/proj", slug: "auth", branch: "openvibe/auth", worktree: "C:/w/auth", startedAt: 0,
+        state: "en_cours", maxAgents: 4, name: "Auth", project: "C:/code/proj", slug: "auth", branch: "dummyplane/auth", worktree: "C:/w/auth", startedAt: 0,
         plan: [{ title: "Login", brief: "Fais le login", agent: "Isis", budgetMin: 20 }],
         members: [member("isis", "Isis", { report: done })],
         queue: [next],
@@ -102,7 +102,7 @@ describe("an agent that reports « done » (spec mission de nuit §4.3)", () => 
   it("has its branch merged, then takes the next task in a new conversation in its worktree", async () => {
     await setup({});
     await afterReport("chef", "isis");
-    expect(missionMerge).toHaveBeenCalledWith("C:/w/auth", "C:/w/isis", "openvibe/auth-isis");
+    expect(missionMerge).toHaveBeenCalledWith("C:/w/auth", "C:/w/isis", "dummyplane/auth-isis");
     const isis = terminalOf(nodesStore.getState().nodes.isis)!;
     expect(isis.claudeSessionId).not.toBe("old");
     expect(isis.steps).toBeUndefined();
@@ -110,7 +110,7 @@ describe("an agent that reports « done » (spec mission de nuit §4.3)", () => 
     await vi.waitFor(() => expect(ptySendText).toHaveBeenCalled());
     expect(ptySendText).toHaveBeenCalledWith(
       "isis",
-      "[OpenVibe · mission Auth] API — Fais l'API. Budget: 30 min. Branch: openvibe/auth-isis. New task, new conversation, same worktree: start by merging openvibe/auth into your branch. Declare your steps, delegate to your sub-agents, commit on your branch, then report with report.",
+      "[dummyPlane · mission Auth] API — Fais l'API. Budget: 30 min. Branch: dummyplane/auth-isis. New task, new conversation, same worktree: start by merging dummyplane/auth into your branch. Declare your steps, delegate to your sub-agents, commit on your branch, then report with report.",
     );
     await vi.waitFor(() => expect(missionNow().members[0].sentAt).toEqual(expect.any(Number)));
   });
@@ -126,7 +126,7 @@ describe("an agent that reports « done » (spec mission de nuit §4.3)", () => 
     expect(isis).toMatchObject({ task: "API", budgetMin: 30, done: ["Login"] });
     expect(isis.report).toBeUndefined();
     expect(isis.merged).toBeUndefined();
-    expect(isis.past).toEqual([{ task: "Login", status: "termine", summary: "Login fait", merged: true, spentMin: 10, budgetMin: 20, branch: "openvibe/auth-isis" }]);
+    expect(isis.past).toEqual([{ task: "Login", status: "termine", summary: "Login fait", merged: true, spentMin: 10, budgetMin: 20, branch: "dummyplane/auth-isis" }]);
     expect(lines()).toEqual(["Isis takes \"API\". Still waiting: 0."]);
   });
 
@@ -450,7 +450,7 @@ it("does not launch a queued task without a level with the router on: it would r
 it("keeps the task an agent finished when reassign gives it another one", async () => {
   await setup({ members: [member("isis", "Isis", { task: "API" }), member("horus", "Horus", { task: "Login", report: done, merged: true })], plan: [{ title: "Login", brief: "b", agent: "Horus", budgetMin: 20 }, { title: "API", brief: "b", agent: "Isis", budgetMin: 30 }], queue: [] });
   await reassignTask("chef", "isis", "Horus");
-  expect(missionNow().members.find((m) => m.name === "Horus")?.past).toEqual([{ task: "Login", status: "termine", summary: "Login fait", merged: true, spentMin: 10, budgetMin: 20, branch: "openvibe/auth-horus" }]);
+  expect(missionNow().members.find((m) => m.name === "Horus")?.past).toEqual([{ task: "Login", status: "termine", summary: "Login fait", merged: true, spentMin: 10, budgetMin: 20, branch: "dummyplane/auth-horus" }]);
 });
 
 it("carries what an agent left to check into what it went through", async () => {
@@ -472,7 +472,7 @@ it("speaks English when the interface does", async () => {
   await vi.waitFor(() => expect(ptySendText).toHaveBeenCalled());
   expect(lines()).toEqual(['Isis takes "API". Still waiting: 0.']);
   expect(vi.mocked(ptySendText).mock.calls[0][1]).toBe(
-    "[OpenVibe · mission Auth] API — Fais l'API. Budget: 30 min. Branch: openvibe/auth-isis. New task, new conversation, same worktree: start by merging openvibe/auth into your branch. Declare your steps, delegate to your sub-agents, commit on your branch, then report with report.",
+    "[dummyPlane · mission Auth] API — Fais l'API. Budget: 30 min. Branch: dummyplane/auth-isis. New task, new conversation, same worktree: start by merging dummyplane/auth into your branch. Declare your steps, delegate to your sub-agents, commit on your branch, then report with report.",
   );
 });
 

@@ -71,10 +71,10 @@ describe("missionBranchFor", () => {
       kind: "orchestrator",
       payload: {
         name: "Chef",
-        mission: { ...NEW_MISSION, state: "en_cours", branch: "openvibe/auth", members: [{ nodeId: "isis", name: "Isis", task: "t", budgetMin: 5, linked: true, branch: "openvibe/auth-isis", worktree: "C:/w" }] },
+        mission: { ...NEW_MISSION, state: "en_cours", branch: "dummyplane/auth", members: [{ nodeId: "isis", name: "Isis", task: "t", budgetMin: 5, linked: true, branch: "dummyplane/auth-isis", worktree: "C:/w" }] },
       },
     });
-    expect(missionBranchFor("isis")).toBe("openvibe/auth");
+    expect(missionBranchFor("isis")).toBe("dummyplane/auth");
     expect(missionBranchFor("thot")).toBeNull();
   });
 });

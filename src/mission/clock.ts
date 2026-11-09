@@ -23,7 +23,7 @@ export function checkBudgets(now = Date.now()) {
     const lines = messages(agentMessages).lines;
     const said = messages(missionMessages);
     for (const overrun of found.members) {
-      // The clock runs while OpenVibe is closed: a stopped agent's overrun is for its restart, not a burst of toasts.
+      // The clock runs while dummyPlane is closed: a stopped agent's overrun is for its restart, not a burst of toasts.
       if (!isRunning(overrun.nodeId)) continue;
       const key = `${orchestratorId}:${overrun.nodeId}:${overrun.level}`;
       if (waiting.has(key)) continue;

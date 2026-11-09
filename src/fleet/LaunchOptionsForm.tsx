@@ -28,26 +28,26 @@ export function LaunchOptionsForm(props: {
   return (
     <div className="grid gap-3 p-1">
       {onBack && (
-        <button type="button" onClick={onBack} className="flex items-center gap-1.5 text-xs text-ov-text-2 hover:text-ov-text">
+        <button type="button" onClick={onBack} className="flex items-center gap-1.5 text-xs text-dp-text-2 hover:text-dp-text">
           <ArrowLeft className="size-3.5" /> {t.title}
         </button>
       )}
       <div className="grid gap-1.5">
-        <Label className="ov-label">{t.folder}</Label>
+        <Label className="dp-label">{t.folder}</Label>
         <div className="flex gap-1.5">
           <Input value={value.cwd} onChange={(e) => set({ cwd: e.target.value })} className="h-8 font-mono text-xs" />
           <button
             type="button"
             aria-label={t.browse}
             onClick={() => void browse()}
-            className="grid size-8 shrink-0 place-items-center rounded-lg border border-ov-line bg-ov-card hover:bg-ov-hover"
+            className="grid size-8 shrink-0 place-items-center rounded-lg border border-dp-line bg-dp-card hover:bg-dp-hover"
           >
             <FolderOpen className="size-4" />
           </button>
         </div>
       </div>
       <div className="grid gap-1.5">
-        <Label className="ov-label">{t.shell}</Label>
+        <Label className="dp-label">{t.shell}</Label>
         <Select value={value.shell} onValueChange={(shell) => set({ shell: shell as ShellKind })}>
           <SelectTrigger className="h-8 w-full">
             <SelectValue />
@@ -62,11 +62,11 @@ export function LaunchOptionsForm(props: {
         </Select>
       </div>
       <div className="grid gap-1.5">
-        <Label className="ov-label">{t.titleField}</Label>
+        <Label className="dp-label">{t.titleField}</Label>
         <Input value={value.title} onChange={(e) => set({ title: e.target.value })} placeholder={t.automatic} className="h-8" />
       </div>
       <div className="grid gap-1.5">
-        <Label className="ov-label">{t.customCommand}</Label>
+        <Label className="dp-label">{t.customCommand}</Label>
         <Input
           value={value.command}
           onChange={(e) => set({ command: e.target.value })}

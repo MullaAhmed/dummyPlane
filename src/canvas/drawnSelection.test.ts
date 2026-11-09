@@ -35,7 +35,7 @@ describe("which elements the panel acts on", () => {
     }
   });
 
-  it("leaves out OpenVibe nodes (embeddables), frames and deleted elements", () => {
+  it("leaves out dummyPlane nodes (embeddables), frames and deleted elements", () => {
     expect(isDrawn(el("n", { type: "embeddable" }))).toBe(false);
     expect(isDrawn(el("f", { type: "frame" }))).toBe(false);
     expect(isDrawn(el("m", { type: "magicframe" }))).toBe(false);

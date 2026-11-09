@@ -1,8 +1,8 @@
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 
-const LINK = /^openvibe:\/\/[a-z]+\/([\w-]+)$/;
+const LINK = /^dummyplane:\/\/[a-z]+\/([\w-]+)$/;
 
-/** The node id an OpenVibe embeddable points to, or null. */
+/** The node id an dummyPlane embeddable points to, or null. */
 export function sourceIdOf(link: string | null | undefined): string | null {
   return LINK.exec(link ?? "")?.[1] ?? null;
 }

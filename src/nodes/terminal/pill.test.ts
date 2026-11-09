@@ -103,7 +103,7 @@ describe("a running agent's activity (spec habillage §7.2)", () => {
   });
 });
 
-it("offers no resume to an orchestrator refused for lack of OpenVibe's tools: its node says why", () => {
+it("offers no resume to an orchestrator refused for lack of dummyPlane's tools: its node says why", () => {
   expect(resumeOfferOf({ state: "error", message: "m", kind: "toolsUnavailable" }, "claude", true)).toBeNull();
   expect(resumeOfferOf({ state: "error", message: "m" }, "claude", true)).toBe("resume");
 });

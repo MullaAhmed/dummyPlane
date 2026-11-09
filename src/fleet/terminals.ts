@@ -136,8 +136,8 @@ export async function adoptCopies(workspaceId: string, copies: readonly { id: st
     .map((e) => (homes.has(e.id) && groupInfoOf(e)?.folded ? newElementWith(e, { customData: withGroupFolded(e.customData, false) }) : e))
     .map((e) => {
       const pantheon = pantheons.get(e.id);
-      if (pantheon) return newElementWith(e, { customData: { ...e.customData, openvibe: { ...(e.customData?.openvibe as object), pantheon } } });
-      return ids.has(e.id) ? newElementWith(e, { link: `openvibe://${nodeKindOf(e) ?? "terminal"}/${e.id}` }) : e;
+      if (pantheon) return newElementWith(e, { customData: { ...e.customData, dummyplane: { ...(e.customData?.dummyplane as object), pantheon } } });
+      return ids.has(e.id) ? newElementWith(e, { link: `dummyplane://${nodeKindOf(e) ?? "terminal"}/${e.id}` }) : e;
     });
   api.updateScene({ elements: alignCopies(linked, ids), captureUpdate: CaptureUpdateAction.NEVER });
 }

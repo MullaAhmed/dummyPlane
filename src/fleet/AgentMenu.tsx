@@ -95,7 +95,7 @@ export function AgentMenu({
       <PopoverContent side={side} align="start" className="w-72 p-2">
         {view === "agents" && (
           <>
-            <p className="ov-label px-2 pb-1 pt-1">{t.agentMenu.title}</p>
+            <p className="dp-label px-2 pb-1 pt-1">{t.agentMenu.title}</p>
             <div className="flex flex-col">
               {AGENT_ORDER.map((id) => {
                 const meta = AGENTS[id];
@@ -107,7 +107,7 @@ export function AgentMenu({
                       disabled={!usable}
                       title={usable ? undefined : t.agentMenu.notFound(meta.binary)}
                       onClick={() => pick(id)}
-                      className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left hover:bg-ov-hover disabled:cursor-not-allowed disabled:opacity-40"
+                      className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left hover:bg-dp-hover disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       <span
                         className="grid size-7 place-items-center rounded-md"
@@ -116,10 +116,10 @@ export function AgentMenu({
                         <meta.Icon className="size-4" />
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className="block text-[13px] font-medium text-ov-text">{meta.label}</span>
-                        <span className="block text-[11px] text-ov-text-2">{meta.vendor}</span>
+                        <span className="block text-[13px] font-medium text-dp-text">{meta.label}</span>
+                        <span className="block text-[11px] text-dp-text-2">{meta.vendor}</span>
                       </span>
-                      {id === fallback && <Check className="size-3.5 text-ov-accent" />}
+                      {id === fallback && <Check className="size-3.5 text-dp-accent" />}
                     </button>
                     {/* Beside the row and not inside it: the row is disabled, this button is not. */}
                     {missing(id) && (
@@ -128,7 +128,7 @@ export function AgentMenu({
                         data-install={id}
                         aria-label={t.install.installAgent(meta.label)}
                         onClick={() => setView({ install: id })}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 rounded-[9px] bg-ov-accent-soft px-2 py-0.5 text-[11px] font-semibold text-ov-accent hover:underline"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 rounded-[9px] bg-dp-accent-soft px-2 py-0.5 text-[11px] font-semibold text-dp-accent hover:underline"
                       >
                         {t.install.button}
                       </button>
@@ -142,12 +142,12 @@ export function AgentMenu({
                   setOpen(false);
                   newConsole(placeAt ?? undefined);
                 }}
-                className="mt-1 flex items-center gap-2.5 rounded-lg border-t border-ov-line px-2 py-1.5 text-left hover:bg-ov-hover"
+                className="mt-1 flex items-center gap-2.5 rounded-lg border-t border-dp-line px-2 py-1.5 text-left hover:bg-dp-hover"
               >
-                <span className="grid size-7 place-items-center rounded-md bg-ov-field text-ov-text-2">
+                <span className="grid size-7 place-items-center rounded-md bg-dp-field text-dp-text-2">
                   <SquareTerminal className="size-4" />
                 </span>
-                <span className="min-w-0 flex-1 text-[13px] font-medium text-ov-text">{t.agentMenu.newConsole}</span>
+                <span className="min-w-0 flex-1 text-[13px] font-medium text-dp-text">{t.agentMenu.newConsole}</span>
               </button>
               <button
                 type="button"
@@ -155,12 +155,12 @@ export function AgentMenu({
                   setOpen(false);
                   launchFour(placeAt ?? undefined);
                 }}
-                className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-left hover:bg-ov-hover"
+                className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-left hover:bg-dp-hover"
               >
-                <span className="grid size-7 place-items-center rounded-md bg-ov-field text-ov-text-2">
+                <span className="grid size-7 place-items-center rounded-md bg-dp-field text-dp-text-2">
                   <Layers className="size-4" />
                 </span>
-                <span className="min-w-0 flex-1 text-[13px] font-medium text-ov-text">{t.agentMenu.launchFour}</span>
+                <span className="min-w-0 flex-1 text-[13px] font-medium text-dp-text">{t.agentMenu.launchFour}</span>
               </button>
               {/* Spec theme §10.1: placed the same way as an agent. */}
               <button
@@ -170,14 +170,14 @@ export function AgentMenu({
                   if (placeAt) placeOrchestrator(placeAt);
                   else uiStore.getState().setPlacing({ orchestrator: true });
                 }}
-                className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-left hover:bg-ov-hover"
+                className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-left hover:bg-dp-hover"
               >
-                <span className="grid size-7 place-items-center rounded-md bg-ov-accent-soft text-ov-accent">
+                <span className="grid size-7 place-items-center rounded-md bg-dp-accent-soft text-dp-accent">
                   <Network className="size-4" />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block text-[13px] font-medium text-ov-text">{t.agentMenu.orchestrator}</span>
-                  <span className="block text-[11px] text-ov-text-2">{t.agentMenu.orchestratorHint}</span>
+                  <span className="block text-[13px] font-medium text-dp-text">{t.agentMenu.orchestrator}</span>
+                  <span className="block text-[11px] text-dp-text-2">{t.agentMenu.orchestratorHint}</span>
                 </span>
               </button>
               <button
@@ -186,20 +186,20 @@ export function AgentMenu({
                   setOpen(false);
                   placeKanban(placeAt ?? undefined);
                 }}
-                className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-left hover:bg-ov-hover"
+                className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-left hover:bg-dp-hover"
               >
-                <span className="grid size-7 place-items-center rounded-md bg-ov-field text-ov-text-2">
+                <span className="grid size-7 place-items-center rounded-md bg-dp-field text-dp-text-2">
                   <Kanban className="size-4" />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block text-[13px] font-medium text-ov-text">{t.agentMenu.kanban}</span>
-                  <span className="block text-[11px] text-ov-text-2">{t.agentMenu.kanbanHint}</span>
+                  <span className="block text-[13px] font-medium text-dp-text">{t.agentMenu.kanban}</span>
+                  <span className="block text-[11px] text-dp-text-2">{t.agentMenu.kanbanHint}</span>
                 </span>
               </button>
             </div>
-            <div className="mt-1 flex items-center justify-between border-t border-ov-line px-2 pt-2 text-[11px] text-ov-text-2">
+            <div className="mt-1 flex items-center justify-between border-t border-dp-line px-2 pt-2 text-[11px] text-dp-text-2">
               <span>{placeAt ? t.agentMenu.placedWhereClicked : t.agentMenu.thenClickCanvas}</span>
-              <button type="button" className="text-ov-accent hover:underline" onClick={() => setView("options")}>
+              <button type="button" className="text-dp-accent hover:underline" onClick={() => setView("options")}>
                 {t.agentMenu.options}
               </button>
             </div>

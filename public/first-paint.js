@@ -7,8 +7,8 @@
   var choice = null;
   var transparency = null;
   try {
-    choice = localStorage.getItem("ov.theme");
-    transparency = localStorage.getItem("ov.transparency");
+    choice = localStorage.getItem("dp.theme");
+    transparency = localStorage.getItem("dp.transparency");
   } catch (e) {
     // No storage: the default palette, transparency on.
   }

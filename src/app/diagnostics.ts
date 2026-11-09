@@ -4,7 +4,7 @@ import { call } from "@/ipc/invoke";
 import type { AgentId } from "@/ipc/pty";
 import { appMessages } from "./messages";
 
-/** What OpenVibe sees of this PC for the troubleshooting dialog (spec première version §7.3); paths with the home folder as `~`. */
+/** What dummyPlane sees of this PC for the troubleshooting dialog (spec première version §7.3); paths with the home folder as `~`. */
 export interface Diagnostics {
   version: string;
   os: string;
@@ -13,7 +13,7 @@ export interface Diagnostics {
   /** `git --version`, or null without Git. */
   git: string | null;
   gitBash: string | null;
-  /** OpenVibe's local server (agents' states and tools) runs. */
+  /** dummyPlane's local server (agents' states and tools) runs. */
   server: boolean;
   dataDir: string;
   logDir: string;
@@ -46,7 +46,7 @@ const USER_FOLDER = /[A-Za-z]:[\\/]Users[\\/][^\\/\s]+/gi;
  */
 export function diagnosticText(d: Diagnostics): string {
   const lines = [
-    `OpenVibe ${d.version}`,
+    `dummyPlane ${d.version}`,
     `OS: ${d.os}`,
     "Agents:",
     ...d.agents.map((a) => `  ${a.id}: ${a.path ?? "not found"}`),

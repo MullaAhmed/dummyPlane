@@ -16,7 +16,7 @@ export const CHECK_TIMEOUT_MS = 30_000;
 const AUTO_KEY = "updates.auto";
 
 export interface UpdatesState {
-  /** "Check for updates automatically": the only request OpenVibe makes on its own. */
+  /** "Check for updates automatically": the only request dummyPlane makes on its own. */
   auto: boolean;
   available: { version: string; notes: string } | null;
   /** 0 to 1 while the new version downloads. */
@@ -69,7 +69,7 @@ export async function checkForUpdate({ manual = false } = {}) {
 
 /**
  * Downloads the new version, saves everything (scene, nodes, terminal histories),
- * then installs: Windows closes OpenVibe for the installer, which starts it again.
+ * then installs: Windows closes dummyPlane for the installer, which starts it again.
  */
 export async function installUpdate() {
   const update = found;
@@ -84,7 +84,7 @@ export async function installUpdate() {
       if (event.event === "Progress") received += event.data.chunkLength;
       updatesStore.setState({ progress: event.event === "Finished" ? 1 : total > 0 ? Math.min(1, received / total) : 0 });
     });
-    // The installer closes OpenVibe: changes only the user can decide on stop it here, agents untouched.
+    // The installer closes dummyPlane: changes only the user can decide on stop it here, agents untouched.
     if (hasUnsavedWork()) {
       updatesStore.setState({ progress: null });
       toast.warning(messages(appMessages).updateWaitsForSave);

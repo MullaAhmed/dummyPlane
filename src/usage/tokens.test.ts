@@ -37,7 +37,7 @@ describe("byAgent", () => {
   ];
   const names = new Map([["s-isis", "Isis"], ["s-isis-old", "Isis"], ["s-thot", "Thot"]]);
 
-  it("names the sessions of OpenVibe's agents, merges an agent's sessions, and groups the rest", () => {
+  it("names the sessions of dummyPlane's agents, merges an agent's sessions, and groups the rest", () => {
     const rows = byAgent(sessions, names, "Autres sessions");
     expect(rows.map((r) => [r.label, r.counts.output])).toEqual([["Isis", 150], ["Thot", 30], ["Autres sessions", 5]]);
     expect(rows[0].model).toBe("claude-opus-5-5");

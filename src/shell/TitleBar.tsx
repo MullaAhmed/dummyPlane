@@ -18,7 +18,7 @@ export function TitleBar({ leading, center, trailing }: { leading: ReactNode; ce
   return (
     <div
       data-tauri-drag-region=""
-      className="ov-glass-strong grid w-full shrink-0 items-center rounded-none border-x-0 border-t-0 pl-3"
+      className="dp-glass-strong grid w-full shrink-0 items-center rounded-none border-x-0 border-t-0 pl-3"
       style={{ height: TITLE_BAR_HEIGHT, gridTemplateColumns: "minmax(max-content, 1fr) minmax(0, auto) minmax(max-content, 1fr)" }}
     >
       <div className="flex h-full items-center gap-2">

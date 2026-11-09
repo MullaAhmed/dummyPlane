@@ -1,5 +1,5 @@
 /**
- * OpenVibe's mark: the pixel symbol of the logo pack (docs/assets/brand/logo-icon-*.svg),
+ * dummyPlane's mark: the pixel symbol of the logo pack (docs/assets/brand/logo-icon-*.svg),
  * drawn inline in `currentColor` so it follows the surrounding text colour on any theme.
  * The symbol is 20x28; it is padded to a square so `size` is a square box.
  */

@@ -38,7 +38,7 @@ export function RadialMenu() {
   const lines = RINGS[ring.kind].map((slot) => (slot ? lineOf(slot, ring.context) : null));
   const pill = ring.hovered !== null ? lines[ring.hovered] : null;
   return (
-    <div data-radial className="ov-radial-in pointer-events-none fixed z-[45]" style={{ left: ring.center.x, top: ring.center.y }}>
+    <div data-radial className="dp-radial-in pointer-events-none fixed z-[45]" style={{ left: ring.center.x, top: ring.center.y }}>
       {lines.map((line, slot) => {
         if (!line) return null;
         const at = slotPosition(slot);
@@ -51,8 +51,8 @@ export function RadialMenu() {
             aria-label={line.label}
             aria-disabled={!line.enabled}
             className={cn(
-              "ov-glass-strong pointer-events-auto absolute grid size-11 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full text-ov-text transition-transform duration-100",
-              ring.hovered === slot && line.enabled && "scale-[1.06] bg-ov-accent-soft ring-1 ring-ov-accent",
+              "dp-glass-strong pointer-events-auto absolute grid size-11 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full text-dp-text transition-transform duration-100",
+              ring.hovered === slot && line.enabled && "scale-[1.06] bg-dp-accent-soft ring-1 ring-dp-accent",
               !line.enabled && "opacity-40",
             )}
             style={{ left: at.x, top: at.y }}
@@ -61,7 +61,7 @@ export function RadialMenu() {
             onPointerLeave={() => updateRadial({ hovered: null })}
             onClick={() => line.enabled && chooseSlot(slot)}
           >
-            <line.Icon className={cn("size-[18px]", line.danger && "text-ov-danger")} />
+            <line.Icon className={cn("size-[18px]", line.danger && "text-dp-danger")} />
           </button>
         );
       })}
@@ -70,14 +70,14 @@ export function RadialMenu() {
         aria-label={t.closeMenu}
         onPointerDown={keepKeyboard}
         onClick={closeRadial}
-        className="ov-glass-strong pointer-events-auto absolute grid size-8 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full text-ov-text-2"
+        className="dp-glass-strong pointer-events-auto absolute grid size-8 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full text-dp-text-2"
         style={{ left: 0, top: 0 }}
       >
         <X className="size-4" />
       </button>
       {pill && (
         <div
-          className="ov-glass-strong absolute -translate-x-1/2 whitespace-nowrap rounded-full px-2.5 py-1 text-xs text-ov-text"
+          className="dp-glass-strong absolute -translate-x-1/2 whitespace-nowrap rounded-full px-2.5 py-1 text-xs text-dp-text"
           style={{ left: 0, top: RING_RADIUS + BUTTON_SIZE / 2 + PILL_GAP }}
         >
           {pill.reason ? `${pill.label} · ${pill.reason}` : pill.label}

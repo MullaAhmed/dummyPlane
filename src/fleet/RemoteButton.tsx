@@ -51,8 +51,8 @@ export function RemoteButton({ nodeId, wanted, running }: { nodeId: string; want
           aria-label={label}
           data-remote={link?.state ?? (wanted ? "wanted" : "off")}
           className={cn(
-            "grid size-5 place-items-center rounded hover:bg-ov-card [&_svg]:size-3.5",
-            link?.state === "on" ? "text-ov-accent" : link?.state === "error" ? "text-ov-danger" : wanted ? "text-ov-text" : "text-ov-text-2 hover:text-ov-text",
+            "grid size-5 place-items-center rounded hover:bg-dp-card [&_svg]:size-3.5",
+            link?.state === "on" ? "text-dp-accent" : link?.state === "error" ? "text-dp-danger" : wanted ? "text-dp-text" : "text-dp-text-2 hover:text-dp-text",
             (link?.state === "connecting" || link?.state === "pending") && "animate-pulse",
           )}
         >

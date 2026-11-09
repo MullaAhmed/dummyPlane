@@ -27,7 +27,7 @@ it("opens its name editor on request, with the keyboard (« Rename » of the pal
   host.remove();
 });
 
-it("shows Remote Control on a Claude session only, as OpenVibe knows it (spec maj §2)", async () => {
+it("shows Remote Control on a Claude session only, as dummyPlane knows it (spec maj §2)", async () => {
   const host = document.createElement("div");
   document.body.append(host);
   const root = createRoot(host);

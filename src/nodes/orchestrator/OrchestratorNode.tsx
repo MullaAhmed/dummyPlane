@@ -71,13 +71,13 @@ export function OrchestratorNode({ nodeId }: { nodeId: string }) {
     <div
       ref={rootRef}
       data-orchestrator={nodeId}
-      className="relative flex h-full flex-col overflow-hidden rounded-xl bg-ov-surface-2"
-      style={frameStyle("var(--ov-accent)", selected, waiting)}
+      className="relative flex h-full flex-col overflow-hidden rounded-xl bg-dp-surface-2"
+      style={frameStyle("var(--dp-accent)", selected, waiting)}
     >
-      <header className="flex h-10 shrink-0 items-center gap-2 border-b border-ov-line px-3">
-        <Network className="size-4 shrink-0 text-ov-accent" />
+      <header className="flex h-10 shrink-0 items-center gap-2 border-b border-dp-line px-3">
+        <Network className="size-4 shrink-0 text-dp-accent" />
         <NameField nodeId={nodeId} value={record.payload.name} onCommit={(name) => renameOrchestrator(nodeId, name)} />
-        <span className="ml-auto flex items-center gap-2 font-mono text-[11px] text-ov-text-2">
+        <span className="ml-auto flex items-center gap-2 font-mono text-[11px] text-dp-text-2">
           {clock && <span title={t.clockTitle}>{clock}</span>}
           <span>{sessionLabel(t.session, status, activity?.activity)}</span>
         </span>
@@ -87,7 +87,7 @@ export function OrchestratorNode({ nodeId }: { nodeId: string }) {
             <button
               type="button"
               aria-label={t.menu}
-              className="grid size-5 place-items-center rounded text-ov-text-2 hover:bg-ov-card hover:text-ov-text"
+              className="grid size-5 place-items-center rounded text-dp-text-2 hover:bg-dp-card hover:text-dp-text"
             >
               <ChevronDown className="size-3.5" />
             </button>
@@ -105,7 +105,7 @@ export function OrchestratorNode({ nodeId }: { nodeId: string }) {
           <X />
         </HeaderButton>
       </header>
-      <div className="relative min-h-[120px] flex-1 bg-ov-terminal px-1 pt-1">
+      <div className="relative min-h-[120px] flex-1 bg-dp-terminal px-1 pt-1">
         <div ref={hostRef} className="relative h-full w-full overflow-hidden" />
         {session && <ResumeCard nodeId={nodeId} payload={session} status={status} />}
         {status.state === "error" && status.kind === "toolsUnavailable" && <ToolsUnavailable nodeId={nodeId} message={status.message} />}
@@ -136,7 +136,7 @@ function NameField({ nodeId, value, onCommit }: { nodeId: string; value: string;
   });
   if (!editing) {
     return (
-      <span className="truncate text-[13px] font-semibold text-ov-text" onDoubleClick={() => setEditing(true)} title={t.doubleClickRename}>
+      <span className="truncate text-[13px] font-semibold text-dp-text" onDoubleClick={() => setEditing(true)} title={t.doubleClickRename}>
         {value}
       </span>
     );
@@ -173,7 +173,7 @@ function NameInput({ initial, onDone }: { initial: string; onDone: (name: string
       onBlur={() => {
         if (!cancelled.current) onDone(draft);
       }}
-      className="w-36 rounded bg-ov-card px-1 text-[13px] font-semibold text-ov-text outline-none"
+      className="w-36 rounded bg-dp-card px-1 text-[13px] font-semibold text-dp-text outline-none"
     />
   );
 }

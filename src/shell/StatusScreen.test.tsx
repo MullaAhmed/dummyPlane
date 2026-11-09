@@ -19,7 +19,7 @@ it("keeps the window movable and closable while loading or failing", async () =>
   const root = createRoot(host);
   await act(async () => root.render(<StatusScreen message="Loading…" />));
   expect(host.querySelector("[data-tauri-drag-region]")).not.toBeNull();
-  expect(host.querySelector('[aria-label="Close OpenVibe"]')).not.toBeNull();
+  expect(host.querySelector('[aria-label="Close dummyPlane"]')).not.toBeNull();
   expect(host.textContent).toContain("Loading…");
   await act(async () => root.unmount());
   host.remove();

@@ -79,7 +79,7 @@ it("says in English why the orchestrator did not start", async () => {
   await nodesStore.getState().create("o", { workspaceId: "w", kind: "orchestrator", payload: { name: "Orchestrator" } });
   const { host, root } = await mount(<ToolsUnavailable nodeId="o" message="x" />);
   const text = host.textContent!;
-  expect(text).toContain("OpenVibe tools unavailable");
+  expect(text).toContain("dummyPlane tools unavailable");
   expect(text).toContain("the orchestrator could change your branch");
   expect(text).toContain("Try again");
   expect(text).toContain("Open the logs folder");

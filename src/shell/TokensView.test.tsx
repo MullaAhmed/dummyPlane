@@ -40,7 +40,7 @@ async function show(answer: () => unknown) {
   return { host, back, done: () => act(async () => root.unmount()) };
 }
 
-it("shows a column per day and the part of each agent, named by OpenVibe's own agents", async () => {
+it("shows a column per day and the part of each agent, named by dummyPlane's own agents", async () => {
   const { host, done } = await show(() => report);
   expect(host.querySelectorAll("[data-day]")).toHaveLength(2);
   const rows = [...host.querySelectorAll("[data-agent-row]")].map((row) => row.textContent);

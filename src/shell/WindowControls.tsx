@@ -38,7 +38,7 @@ function WindowButton({ label, danger, className, ...props }: ComponentProps<"bu
       title={label}
       aria-label={label}
       className={cn(
-        "grid h-[38px] w-[46px] shrink-0 place-items-center text-ov-text-2 transition-colors hover:bg-ov-hover hover:text-ov-text [&_svg]:size-4",
+        "grid h-[38px] w-[46px] shrink-0 place-items-center text-dp-text-2 transition-colors hover:bg-dp-hover hover:text-dp-text [&_svg]:size-4",
         danger && "hover:bg-[#C42B1C] hover:text-white",
         className,
       )}
@@ -47,7 +47,7 @@ function WindowButton({ label, danger, className, ...props }: ComponentProps<"bu
   );
 }
 
-/** Minimize, Maximize / Restore, Close OpenVibe, Windows-style in the title bar's corner (spec identité §5.1). */
+/** Minimize, Maximize / Restore, Close dummyPlane, Windows-style in the title bar's corner (spec identité §5.1). */
 export function WindowControls() {
   const t = useMessages(shellMessages).window;
   const maximized = useMaximized();

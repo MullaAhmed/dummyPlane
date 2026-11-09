@@ -11,7 +11,7 @@ import { AGENTS } from "./catalog";
 import { fleetMessages } from "./messages";
 import { isSlashCommand, takesCommands } from "./slashCommands";
 
-/** "Tout reprendre" only restarts agents OpenVibe paused less than this ago (spec theme §14). */
+/** "Tout reprendre" only restarts agents dummyPlane paused less than this ago (spec theme §14). */
 export const RESUME_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 /**
@@ -22,7 +22,7 @@ export const RESUME_WINDOW_MS = 24 * 60 * 60 * 1000;
 const RESUME_TEXT = "\ncontinue";
 
 interface PausedState {
-  /** When OpenVibe paused each agent; kept in memory only. */
+  /** When dummyPlane paused each agent; kept in memory only. */
   pausedAt: Record<string, number>;
   mark: (ids: readonly string[], at: number) => void;
   clear: (ids: readonly string[]) => void;
@@ -35,7 +35,7 @@ export const pausedStore = createStore<PausedState>()((set) => ({
 }));
 
 // A paused agent that works or waits again (restarted by hand, sent a command)
-// or whose process stops is no longer OpenVibe's to resume. Its pause itself
+// or whose process stops is no longer dummyPlane's to resume. Its pause itself
 // only ends work: it never makes an agent working.
 agentActivityStore.subscribe((state, previous) => {
   const restarted = Object.keys(pausedStore.getState().pausedAt).filter((id) => {
@@ -143,7 +143,7 @@ export async function pauseAgents(ids: readonly string[], now = Date.now()): Pro
   return done.length;
 }
 
-/** Sends "continue" to the idle agents of `ids` OpenVibe paused less than 24 h ago (spec §14). */
+/** Sends "continue" to the idle agents of `ids` dummyPlane paused less than 24 h ago (spec §14). */
 export async function resumeAgents(ids: readonly string[], now = Date.now()): Promise<number> {
   const { pausedAt } = pausedStore.getState();
   const targets = ids.filter((id) => {

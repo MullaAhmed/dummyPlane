@@ -5,7 +5,7 @@ import { projectsStore, type ProjectsView } from "@/store/projects";
 /** The window's title (spec fenêtre §4.5): the taskbar and Alt+Tab name the open project. */
 export function titleFor(view: ProjectsView, projects: readonly Project[], activeId: string | null): string {
   const project = view === "project" ? projects.find((p) => p.id === activeId) : undefined;
-  return project ? `OpenVibe — ${project.name}` : "OpenVibe";
+  return project ? `dummyPlane — ${project.name}` : "dummyPlane";
 }
 
 /** Keeps the window title on the project shown; returns the function that stops it. */

@@ -10,7 +10,7 @@ const FORBIDDEN: [RegExp, string][] = [
   [/#322f28/i, "the fixed background of the status badges"],
   [/#12110e/i, "the old canvas background"],
   [/Geist/, "the Geist font"],
-  [/ov-orb/, "the orb"],
+  [/dp-orb/, "the orb"],
   [/#4fc2c2/i, "the gradient border of the chips"],
 ];
 

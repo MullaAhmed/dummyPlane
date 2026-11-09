@@ -1,6 +1,6 @@
 /**
  * xterm's colors (spec identité §3): terminals stay dark in every palette, on the
- * node body's `--ov-terminal` (the palette's deepest color), with the palette's
+ * node body's `--dp-terminal` (the palette's deepest color), with the palette's
  * accent as cursor.
  */
 import type { ThemeChoice } from "@/app/theme";

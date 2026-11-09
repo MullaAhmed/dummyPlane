@@ -1,4 +1,4 @@
-/* Excalidraw 0.18.1 under the OpenVibe shell (spec habillage §5.4, §5.7).
+/* Excalidraw 0.18.1 under the dummyPlane shell (spec habillage §5.4, §5.7).
    The selectors below are those of 0.18.1: re-check every one of them when
    upgrading Excalidraw. */
 
@@ -6,41 +6,41 @@
   --ui-font: "Inter Variable", sans-serif;
 }
 
-/* Both themes: Excalidraw's own variables follow the OpenVibe tokens. `:root`
+/* Both themes: Excalidraw's own variables follow the dummyPlane tokens. `:root`
    outranks Excalidraw's `.excalidraw.theme--dark`, whatever the sheet order. */
 :root .excalidraw.excalidraw {
-  --color-selection: var(--ov-accent);
-  --color-primary: var(--ov-accent);
-  --color-primary-darker: color-mix(in srgb, var(--ov-accent) 85%, black);
-  --color-primary-darkest: color-mix(in srgb, var(--ov-accent) 70%, black);
-  --color-primary-light: var(--ov-accent-soft);
-  --color-primary-light-darker: color-mix(in srgb, var(--ov-accent) 30%, transparent);
-  --color-primary-hover: color-mix(in srgb, var(--ov-accent) 85%, white);
-  --color-brand-hover: color-mix(in srgb, var(--ov-accent) 85%, white);
-  --color-brand-active: color-mix(in srgb, var(--ov-accent) 85%, black);
-  --color-surface-primary-container: var(--ov-accent-soft);
-  --color-on-primary-container: var(--ov-text);
-  --island-bg-color: var(--ov-surface);
-  --popup-secondary-bg-color: var(--ov-card);
-  --input-bg-color: var(--ov-card);
-  --input-border-color: var(--ov-line);
-  --input-hover-bg-color: var(--ov-hover);
-  --button-gray-1: var(--ov-card);
-  --button-gray-2: var(--ov-hover);
-  --button-gray-3: color-mix(in srgb, var(--ov-text) 14%, transparent);
-  --color-surface-high: var(--ov-hover);
-  --color-surface-mid: var(--ov-card);
-  --color-surface-low: var(--ov-surface);
-  --color-surface-lowest: var(--ov-canvas);
-  --color-on-surface: var(--ov-text);
-  --color-border-outline: var(--ov-line);
-  --color-border-outline-variant: var(--ov-line);
-  --dialog-border-color: var(--ov-line);
+  --color-selection: var(--dp-accent);
+  --color-primary: var(--dp-accent);
+  --color-primary-darker: color-mix(in srgb, var(--dp-accent) 85%, black);
+  --color-primary-darkest: color-mix(in srgb, var(--dp-accent) 70%, black);
+  --color-primary-light: var(--dp-accent-soft);
+  --color-primary-light-darker: color-mix(in srgb, var(--dp-accent) 30%, transparent);
+  --color-primary-hover: color-mix(in srgb, var(--dp-accent) 85%, white);
+  --color-brand-hover: color-mix(in srgb, var(--dp-accent) 85%, white);
+  --color-brand-active: color-mix(in srgb, var(--dp-accent) 85%, black);
+  --color-surface-primary-container: var(--dp-accent-soft);
+  --color-on-primary-container: var(--dp-text);
+  --island-bg-color: var(--dp-surface);
+  --popup-secondary-bg-color: var(--dp-card);
+  --input-bg-color: var(--dp-card);
+  --input-border-color: var(--dp-line);
+  --input-hover-bg-color: var(--dp-hover);
+  --button-gray-1: var(--dp-card);
+  --button-gray-2: var(--dp-hover);
+  --button-gray-3: color-mix(in srgb, var(--dp-text) 14%, transparent);
+  --color-surface-high: var(--dp-hover);
+  --color-surface-mid: var(--dp-card);
+  --color-surface-low: var(--dp-surface);
+  --color-surface-lowest: var(--dp-canvas);
+  --color-on-surface: var(--dp-text);
+  --color-border-outline: var(--dp-line);
+  --color-border-outline-variant: var(--dp-line);
+  --dialog-border-color: var(--dp-line);
   --overlay-bg-color: rgb(0 0 0 / 0.45);
-  --shadow-island: var(--ov-shadow);
-  --modal-shadow: var(--ov-shadow);
-  --color-slider-track: var(--ov-line);
-  --focus-highlight-color: var(--ov-accent-soft);
+  --shadow-island: var(--dp-shadow);
+  --modal-shadow: var(--dp-shadow);
+  --color-slider-track: var(--dp-line);
+  --focus-highlight-color: var(--dp-accent-soft);
 }
 
 /* The dot grid and the canvas color are painted under a transparent canvas. */
@@ -78,12 +78,12 @@
   width: 232px;
   max-height: calc(100vh - 160px) !important;
   padding: 12px !important;
-  background: var(--ov-glass-strong);
-  backdrop-filter: var(--ov-blur);
-  -webkit-backdrop-filter: var(--ov-blur);
-  border: 1px solid var(--ov-glass-line);
+  background: var(--dp-glass-strong);
+  backdrop-filter: var(--dp-blur);
+  -webkit-backdrop-filter: var(--dp-blur);
+  border: 1px solid var(--dp-glass-line);
   border-radius: 14px;
-  box-shadow: var(--ov-glass-hi), var(--ov-glass-edge), var(--ov-shadow);
+  box-shadow: var(--dp-glass-hi), var(--dp-glass-edge), var(--dp-shadow);
 }
 
 .excalidraw .App-menu__left legend,
@@ -93,31 +93,31 @@
   font-weight: 500;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--ov-text-2);
+  color: var(--dp-text-2);
 }
 
 .excalidraw .App-menu__left .buttonList label,
 .excalidraw .App-menu__left .ToolIcon__icon {
   border: 1px solid transparent;
   border-radius: 8px;
-  background: var(--ov-card);
+  background: var(--dp-card);
 }
 
 .excalidraw .App-menu__left .buttonList label.active,
 .excalidraw .App-menu__left .ToolIcon_type_radio:checked + .ToolIcon__icon {
-  border-color: var(--ov-accent);
-  background: var(--ov-accent-soft);
+  border-color: var(--dp-accent);
+  background: var(--dp-accent-soft);
 }
 
 .excalidraw .App-menu__left input[type="range"] {
-  accent-color: var(--ov-accent);
+  accent-color: var(--dp-accent);
 }
 
 .excalidraw .context-menu {
-  border: 1px solid var(--ov-line);
+  border: 1px solid var(--dp-line);
   border-radius: 12px;
-  background: var(--ov-surface-2);
-  box-shadow: var(--ov-shadow);
+  background: var(--dp-surface-2);
+  box-shadow: var(--dp-shadow);
 }
 
 /* Excalidraw inverts every canvas in dark mode (`.theme--dark canvas`), xterm's

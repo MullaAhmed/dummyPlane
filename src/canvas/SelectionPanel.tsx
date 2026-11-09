@@ -71,7 +71,7 @@ export function SelectionPanel() {
     );
 
   return (
-    <div className="ov-glass-strong absolute left-[70px] top-1/2 z-10 w-56 -translate-y-1/2 rounded-[14px] p-3">
+    <div className="dp-glass-strong absolute left-[70px] top-1/2 z-10 w-56 -translate-y-1/2 rounded-[14px] p-3">
       <Row label={LABEL.stroke}>
         {SWATCHES.map(({ scene, name }) => (
           <Swatch
@@ -110,7 +110,7 @@ function withApi(run: (api: ExcalidrawImperativeAPI) => void) {
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="mb-3">
-      <p className="ov-label mb-2">{label}</p>
+      <p className="dp-label mb-2">{label}</p>
       <div className="flex flex-wrap gap-2">{children}</div>
     </div>
   );
@@ -126,9 +126,9 @@ function Swatch({ name, color, active, onPick }: { name: string; color: string |
       onMouseDown={keepCanvasFocus}
       onClick={onPick}
       className={cn(
-        "size-6 rounded-full ring-offset-2 ring-offset-ov-surface-2",
-        color === null ? "border border-dashed border-ov-line" : "border border-black/10",
-        active && "ring-2 ring-ov-accent",
+        "size-6 rounded-full ring-offset-2 ring-offset-dp-surface-2",
+        color === null ? "border border-dashed border-dp-line" : "border border-black/10",
+        active && "ring-2 ring-dp-accent",
       )}
       style={color === null ? undefined : { backgroundColor: color }}
     />
@@ -142,7 +142,7 @@ function ActionButton({ icon, label, onClick }: { icon: ReactNode; label: string
       aria-label={label}
       onMouseDown={keepCanvasFocus}
       onClick={onClick}
-      className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-transparent bg-ov-card py-1.5 text-xs text-ov-text-2 hover:text-ov-text"
+      className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-transparent bg-dp-card py-1.5 text-xs text-dp-text-2 hover:text-dp-text"
     >
       {icon}
       {label}

@@ -1,7 +1,7 @@
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { call } from "./invoke";
 
-/** A question of OpenVibe's MCP server, for the interface to answer (spec orchestrateur §4.1). */
+/** A question of dummyPlane's MCP server, for the interface to answer (spec orchestrateur §4.1). */
 export interface McpCall {
   callId: number;
   nodeId: string;

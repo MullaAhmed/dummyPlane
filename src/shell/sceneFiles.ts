@@ -60,7 +60,7 @@ export async function exportPng(api: ExcalidrawImperativeAPI, name: string, pale
 
 /**
  * Adds the drawings of a scene file to the canvas. Elements already present and
- * OpenVibe nodes (their content lives in the database, not in the file) are skipped.
+ * dummyPlane nodes (their content lives in the database, not in the file) are skipped.
  */
 export async function importScene(api: ExcalidrawImperativeAPI) {
   const file = await pickFile(".excalidraw,.json,application/json");

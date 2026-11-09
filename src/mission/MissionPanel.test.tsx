@@ -91,8 +91,8 @@ it("shows the morning report of a night, what to check first (spec mission de nu
     state: "terminee", overnight: true, budgetMin: 480, startedAt: 0, endedAt: 60 * 60_000, summary: "Bilan", handChecks: ["Relire la migration"],
     queue: [{ title: "Docs", brief: "b", budgetMin: 10 }],
     members: [
-      { nodeId: "a", name: "Isis", task: "Login", budgetMin: 20, linked: false, branch: "openvibe/nuit-isis", worktree: "w", sentAt: 0, merged: true, report: { summary: "Login fait", status: "termine", at: 10 * 60_000 } },
-      { nodeId: "b", name: "Horus", task: "API", budgetMin: 20, linked: false, branch: "openvibe/nuit-horus", worktree: "w", sentAt: 0, report: { summary: "Coincé", status: "bloque", at: 5 * 60_000 } },
+      { nodeId: "a", name: "Isis", task: "Login", budgetMin: 20, linked: false, branch: "dummyplane/nuit-isis", worktree: "w", sentAt: 0, merged: true, report: { summary: "Login fait", status: "termine", at: 10 * 60_000 } },
+      { nodeId: "b", name: "Horus", task: "API", budgetMin: 20, linked: false, branch: "dummyplane/nuit-horus", worktree: "w", sentAt: 0, report: { summary: "Coincé", status: "bloque", at: 5 * 60_000 } },
       { nodeId: "c", name: "Thot", task: "Tests", budgetMin: 20, linked: false, branch: "b", worktree: "w", sentAt: 0 },
     ],
   });
@@ -102,8 +102,8 @@ it("shows the morning report of a night, what to check first (spec mission de nu
   expect(report).toContain("To check by hand (1)");
   expect(report).toContain("Relire la migration");
   expect(report).toContain("Done (1)");
-  expect(report).toContain("openvibe/nuit-isis");
-  expect(report).toContain("Morning report60 / 480 minTo check by hand (1)Relire la migrationDone (1)Login · mergedIsis · 10 / 20 minLogin faitopenvibe/nuit-isisFailed or blocked (1)APIblockedHorus · 5 / 20 minCoincéopenvibe/nuit-horusNot finished (1)TestsThot · 60 / 20 minbLeft in the queue: Docs");
+  expect(report).toContain("dummyplane/nuit-isis");
+  expect(report).toContain("Morning report60 / 480 minTo check by hand (1)Relire la migrationDone (1)Login · mergedIsis · 10 / 20 minLogin faitdummyplane/nuit-isisFailed or blocked (1)APIblockedHorus · 5 / 20 minCoincédummyplane/nuit-horusNot finished (1)TestsThot · 60 / 20 minbLeft in the queue: Docs");
   expect(report).toContain("blocked");
   expect(report).toContain("Not finished (1)");
   expect(report).toContain("Left in the queue: Docs");
@@ -141,9 +141,9 @@ it("shows the team's reports and the summary, and cleans the mission (spec §7.7
   await show({
     state: "terminee",
     name: "Auth",
-    branch: "openvibe/auth",
+    branch: "dummyplane/auth",
     summary: "Tout est fait.",
-    members: [{ nodeId: "isis", name: "Isis", task: "Login", budgetMin: 20, linked: true, branch: "openvibe/auth-isis", worktree: "C:/w", sentAt: 0, report: { summary: "ok", status: "termine", at: 6 * 60_000 }, merged: true }],
+    members: [{ nodeId: "isis", name: "Isis", task: "Login", budgetMin: 20, linked: true, branch: "dummyplane/auth-isis", worktree: "C:/w", sentAt: 0, report: { summary: "ok", status: "termine", at: 6 * 60_000 }, merged: true }],
   });
   expect(host.querySelector('[data-member="Isis"]')?.textContent).toContain("done · merged");
   expect(host.querySelector('[data-member="Isis"]')?.textContent).toContain("6 / 20 min");

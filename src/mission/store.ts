@@ -77,7 +77,7 @@ export function canvasKnown(orchestratorId: string): boolean {
 
 const canvasOfNode = (nodeId: string) => workspaceCanvas(nodesStore.getState().nodes[nodeId]?.workspaceId);
 
-/** The Claude agents wired to an orchestrator: only they have OpenVibe's tools for a mission (spec §2). */
+/** The Claude agents wired to an orchestrator: only they have dummyPlane's tools for a mission (spec §2). */
 export function linkedClaudeAgents(orchestratorId: string): { nodeId: string; name: string }[] {
   const { links, frames } = canvasOfNode(orchestratorId);
   const nodes = nodesStore.getState().nodes;

@@ -16,16 +16,16 @@ it("puts menus, popovers, lists, dialogs and toasts in dense glass (spec identit
   for (const slot of ["dropdown-menu-content", "dropdown-menu-sub-content", "popover-content", "select-content", "dialog-content"]) {
     expect(index).toContain(`[data-slot="${slot}"]`);
   }
-  expect(index).toMatch(/\[data-slot="select-content"\] \{[^}]*var\(--ov-glass-strong\)[^}]*var\(--ov-blur\)[^}]*border-radius: 12px/);
-  expect(index).toMatch(/\[data-slot="dialog-content"\] \{[^}]*var\(--ov-glass-strong\)[^}]*border-radius: 16px/);
+  expect(index).toMatch(/\[data-slot="select-content"\] \{[^}]*var\(--dp-glass-strong\)[^}]*var\(--dp-blur\)[^}]*border-radius: 12px/);
+  expect(index).toMatch(/\[data-slot="dialog-content"\] \{[^}]*var\(--dp-glass-strong\)[^}]*border-radius: 16px/);
   expect(index).toMatch(/\[data-slot="dialog-overlay"\] \{[^}]*rgb\(0 0 0 \/ 0\.25\)[^}]*blur\(3px\)/);
   expect(index).toMatch(/:root\[data-transparency="off"\] \[data-slot="dialog-overlay"\] \{[^}]*backdrop-filter: none/);
-  expect(index).toMatch(/\[data-sonner-toast\]\[data-styled="true"\] \{[^}]*var\(--ov-glass-strong\)[^}]*border-radius: 14px/);
+  expect(index).toMatch(/\[data-sonner-toast\]\[data-styled="true"\] \{[^}]*var\(--dp-glass-strong\)[^}]*border-radius: 14px/);
 });
 
 it("docks Excalidraw's properties panel in glass, right of the tool rail (spec identité §5.7)", () => {
   const excalidraw = readSource("theme/excalidraw.css");
-  expect(excalidraw).toMatch(/\.excalidraw \.App-menu__left \{[^}]*left: 70px;[^}]*var\(--ov-glass-strong\)[^}]*var\(--ov-blur\)[^}]*border-radius: 14px/);
+  expect(excalidraw).toMatch(/\.excalidraw \.App-menu__left \{[^}]*left: 70px;[^}]*var\(--dp-glass-strong\)[^}]*var\(--dp-blur\)[^}]*border-radius: 14px/);
 });
 
 it("leaves nothing at the top of the canvas but the bars: no top toast, no banner under the tabs", () => {
@@ -38,8 +38,8 @@ it("leaves nothing at the top of the canvas but the bars: no top toast, no banne
 
 it("draws the bottom row and its command bar in dense glass: they carry text over dark terminals (spec identité §4.2, §5.8)", () => {
   for (const file of ["shell/CommandBar.tsx", "shell/GitChip.tsx", "shell/ZoomControl.tsx", "shell/WaitingNotice.tsx"]) {
-    expect(readSource(file), file).toMatch(/ov-glass-strong/);
-    expect(readSource(file), `${file} : light glass under text`).not.toMatch(/ov-glass(?!-strong)\b/);
+    expect(readSource(file), file).toMatch(/dp-glass-strong/);
+    expect(readSource(file), `${file} : light glass under text`).not.toMatch(/dp-glass(?!-strong)\b/);
   }
   expect(readSource("shell/CommandBar.tsx")).toContain("w-[680px]");
   expect(readSource("shell/messages.ts")).toContain("Instruction for the agents · @ to target · / command · ↑ history");
@@ -61,7 +61,7 @@ it("stacks the title bar and the tabs: 72 px of canvas under them (spec identit�
 });
 
 it("out-ranks sonner's own injected style, which comes later in a release build", () => {
-  expect(index).toMatch(/\[data-sonner-toaster\] \[data-sonner-toast\]\[data-styled="true"\] \{[^}]*var\(--ov-shadow\)/);
+  expect(index).toMatch(/\[data-sonner-toaster\] \[data-sonner-toast\]\[data-styled="true"\] \{[^}]*var\(--dp-shadow\)/);
 });
 
 it("starts the placement and link layers under the bars, and truncates a long branch name", () => {

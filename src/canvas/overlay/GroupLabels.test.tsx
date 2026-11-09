@@ -24,7 +24,7 @@ const frame = (folded: boolean) => ({
 
 it("folds on the label's chevron, keeps the counters, and unfolds with a click (spec replier un groupe §2)", async () => {
   mockIPC(() => undefined);
-  let scene: Record<string, unknown>[] = [{ id: "g", type: "frame", customData: { openvibe: { kind: "group", role: "general", pantheon: "greek" } } }];
+  let scene: Record<string, unknown>[] = [{ id: "g", type: "frame", customData: { dummyplane: { kind: "group", role: "general", pantheon: "greek" } } }];
   const updateScene = vi.fn(({ elements }: { elements?: typeof scene }) => {
     if (elements) scene = elements;
   });
@@ -45,7 +45,7 @@ it("folds on the label's chevron, keeps the counters, and unfolds with a click (
   );
   expect(host.querySelectorAll("[data-backdrop]").length).toBe(1);
   await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="Fold the group"]')!.click());
-  expect((scene[0].customData as { openvibe: { folded?: boolean } }).openvibe.folded).toBe(true);
+  expect((scene[0].customData as { dummyplane: { folded?: boolean } }).dummyplane.folded).toBe(true);
   // Folded: the frame is redrawn from the scene; the label stays, with its counters and the way back.
   await act(async () => canvasStore.setState({ frames: [frame(true)] as never }));
   expect(host.textContent).toContain("API");
@@ -53,6 +53,6 @@ it("folds on the label's chevron, keeps the counters, and unfolds with a click (
   expect(host.querySelector('[aria-label="Unfold the group"]')).not.toBeNull();
   expect(host.querySelectorAll("[data-backdrop]").length).toBe(0);
   await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="Unfold the group"]')!.click());
-  expect((scene[0].customData as { openvibe: { folded?: boolean } }).openvibe.folded).toBeUndefined();
+  expect((scene[0].customData as { dummyplane: { folded?: boolean } }).dummyplane.folded).toBeUndefined();
   await act(async () => root.unmount());
 });

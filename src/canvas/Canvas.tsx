@@ -24,7 +24,7 @@ import { canvasStore, fullSizeView, viewFrom } from "./canvasStore";
 import { framesFromScene } from "./groups";
 import { drawnSelectionOf } from "./drawnSelection";
 import { SelectionPanel } from "./SelectionPanel";
-import { isOpenVibeLink } from "./nodeElement";
+import { isDummyPlaneLink } from "./nodeElement";
 import { classifyAddedNodes } from "./nodeCopies";
 import { createRemovalGuard, type RemovalVerdict } from "./removalGuard";
 import { DotGrid } from "./overlay/DotGrid";
@@ -63,7 +63,7 @@ export function Canvas({ workspaceId }: { workspaceId: string }) {
 }
 
 function Centered({ children }: { children: ReactNode }) {
-  return <div className="absolute inset-0 grid place-items-center text-sm text-ov-text-2">{children}</div>;
+  return <div className="absolute inset-0 grid place-items-center text-sm text-dp-text-2">{children}</div>;
 }
 
 function LoadedCanvas({ workspaceId, scene }: { workspaceId: string; scene: LoadedScene }) {
@@ -191,7 +191,7 @@ function LoadedCanvas({ workspaceId, scene }: { workspaceId: string; scene: Load
           initialData={initialData}
           onChange={onChange}
           UIOptions={EXCALIDRAW_UI_OPTIONS}
-          validateEmbeddable={isOpenVibeLink}
+          validateEmbeddable={isDummyPlaneLink}
           renderEmbeddable={(element) => <NodeHost element={element} />}
         />
       </div>

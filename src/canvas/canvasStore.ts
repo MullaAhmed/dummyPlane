@@ -97,7 +97,7 @@ interface CanvasState {
   /** Frames and groups of the scene on screen, derived on every change (spec §11.1). */
   frames: SceneFrame[];
   setFrames: (frames: SceneFrame[]) => void;
-  /** Ids of the OpenVibe nodes on the canvas on screen (deleted ones excluded). */
+  /** Ids of the dummyPlane nodes on the canvas on screen (deleted ones excluded). */
   nodeIds: string[];
   setNodeIds: (ids: string[]) => void;
   /** What each orchestrator of the scene is wired to (spec habillage §13). */

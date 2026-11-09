@@ -21,7 +21,7 @@ export const SHELL_LABELS: Record<ShellKind, string> = {
   gitbash: "Git Bash",
 };
 
-/** "Claude · openvibe": the agent and the last folder of the working directory. */
+/** "Claude · dummyplane": the agent and the last folder of the working directory. */
 export function defaultTitle(agent: AgentId, cwd: string): string {
   const folder = cwd.split(/[\\/]/).filter(Boolean).pop();
   return folder ? `${AGENTS[agent].label} · ${folder}` : AGENTS[agent].label;

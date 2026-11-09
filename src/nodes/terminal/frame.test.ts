@@ -11,13 +11,13 @@ describe("frameStyle", () => {
   it("puts a selected node in the accent, waiting or not", () => {
     for (const waiting of [false, true]) {
       const style = frameStyle("#e8743b", true, waiting);
-      expect(style.border).toBe("1.5px solid var(--ov-accent)");
-      expect(style.boxShadow).toContain("var(--ov-accent)");
+      expect(style.border).toBe("1.5px solid var(--dp-accent)");
+      expect(style.boxShadow).toContain("var(--dp-accent)");
     }
   });
 
   it("borders a waiting node in amber", () => {
-    expect(frameStyle("#e8743b", false, true).border).toBe("1px solid var(--ov-waiting)");
+    expect(frameStyle("#e8743b", false, true).border).toBe("1px solid var(--dp-waiting)");
   });
 });
 
@@ -25,6 +25,6 @@ describe("WAITING_GLOW", () => {
   // Excalidraw clips what overflows an embeddable: the glow is drawn inside the node.
   it("is an amber glow inside the node", () => {
     expect(WAITING_GLOW).toMatch(/^inset /);
-    expect(WAITING_GLOW).toContain("var(--ov-waiting)");
+    expect(WAITING_GLOW).toContain("var(--dp-waiting)");
   });
 });

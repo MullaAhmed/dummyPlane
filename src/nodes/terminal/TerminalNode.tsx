@@ -48,7 +48,7 @@ export function TerminalNode({ nodeId }: { nodeId: string }) {
     <div
       ref={rootRef}
       data-terminal={nodeId}
-      className="relative flex h-full flex-col overflow-hidden rounded-xl bg-ov-terminal"
+      className="relative flex h-full flex-col overflow-hidden rounded-xl bg-dp-terminal"
       style={frameStyle(AGENTS[payload.agent].tint, selected, waiting)}
     >
       <TerminalHeader
