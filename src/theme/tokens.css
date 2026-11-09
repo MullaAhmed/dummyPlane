@@ -7,16 +7,23 @@
 /* Shared by the three palettes: calm, electric and expressive. */
 :root {
   --dp-blur: blur(18px) saturate(150%);
+  /* Shared motion tokens. Use them instead of ad-hoc easings and durations.
+     ease-out: strong curve, starts fast so UI feels responsive.
+     dur-fast: presses, hovers, tooltips. dur: popovers, menus, dialogs. */
+  --dp-ease-out: cubic-bezier(.23,1,.32,1);
+  --dp-dur-fast: 150ms;
+  --dp-dur: 200ms;
   /* Aliases of the habillage tokens: the components reading them are rebuilt
-     by milestones R2 and R3, which drop these names. */
-  --dp-surface-2: var(--dp-surface);
-  --dp-command: var(--dp-surface);
-  --dp-selected: var(--dp-accent-soft);
-  --dp-working: var(--dp-accent);
-  --dp-waiting: var(--dp-wait);
-  --dp-idle: var(--dp-text-3);
-  --dp-done: var(--dp-ok);
-  --dp-live: var(--dp-ok);
+     by milestones R2 and R3, which drop these names.
+     @deprecated Use the base token (see the right-hand side). Kept so no name breaks. */
+  --dp-surface-2: var(--dp-surface); /* @deprecated: use --dp-surface */
+  --dp-command: var(--dp-surface); /* @deprecated: use --dp-surface */
+  --dp-selected: var(--dp-accent-soft); /* @deprecated: use --dp-accent-soft */
+  --dp-working: var(--dp-accent); /* @deprecated: use --dp-accent */
+  --dp-waiting: var(--dp-wait); /* @deprecated: use --dp-wait */
+  --dp-idle: var(--dp-text-3); /* @deprecated: use --dp-text-3 */
+  --dp-done: var(--dp-ok); /* @deprecated: use --dp-ok */
+  --dp-live: var(--dp-ok); /* @deprecated: use --dp-ok */
 }
 
 :root[data-palette="calm"] {
@@ -56,6 +63,8 @@
   --dp-shadow: 0 12px 40px rgba(15,41,33,0.16);
   --dp-float-shadow: 0 8px 28px rgba(15,41,33,0.1);
   --dp-draw: #173F32;
+  /* Dialog and sheet veil: tinted with the ink, so it reads as light, not grey. */
+  --dp-scrim: rgba(15,41,33,0.25);
 }
 
 :root[data-palette="electric"] {
@@ -95,6 +104,8 @@
   --dp-shadow: 0 12px 40px rgba(0,0,20,0.45);
   --dp-float-shadow: 0 8px 28px rgba(0,0,20,0.32);
   --dp-draw: #F4F4F1;
+  /* Dialog and sheet veil: the deep blue of the canvas, darker than the default. */
+  --dp-scrim: rgba(0,0,20,0.3);
 }
 
 :root, :root[data-palette="expressive"] {
@@ -134,6 +145,8 @@
   --dp-shadow: 0 12px 40px rgba(0,0,0,0.45);
   --dp-float-shadow: 0 8px 28px rgba(0,0,0,0.32);
   --dp-draw: #F4F4F1;
+  /* Dialog and sheet veil (the former hard-coded rgb(0 0 0 / .25)). */
+  --dp-scrim: rgba(0,0,0,0.25);
 }
 /* Without transparency (spec identité §4.2): Windows' setting… */
 @media (prefers-reduced-transparency: reduce) {
