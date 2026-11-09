@@ -46,6 +46,12 @@ export const nodesMessages = defineMessages(
       options: "Options…",
       doubleClickRename: "Double-click to rename",
       review: "Review changes",
+      minimize: "Minimize",
+    },
+    minimized: {
+      expand: "Expand",
+      doubleClickExpand: "Double-click to expand",
+      report: { done: "DONE", blocked: "BLOCKED", failed: "FAILED" },
     },
     file: {
       notFound: "File not found",
