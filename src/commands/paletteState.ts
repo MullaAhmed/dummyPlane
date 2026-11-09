@@ -57,5 +57,6 @@ export function setPaletteQuery(query: string) {
 export function closePalette() {
   const { returnFocus } = paletteStore.getState();
   paletteStore.setState({ open: false, query: "", context: null, returnFocus: null });
-  if (returnFocus?.isConnected) returnFocus.focus();
+  // Without scrolling: an xterm's textarea, at its cursor, can sit below the window's edge (see canvas/scrollPin.ts).
+  if (returnFocus?.isConnected) returnFocus.focus({ preventScroll: true });
 }

@@ -70,6 +70,8 @@ export function CommandInput(props: {
   // Escape closes the list for the mention typed at that position.
   const [dismissed, setDismissed] = useState<Dismissal | null>(null);
   const [browsing, setBrowsing] = useState<{ index: number; draft: string } | null>(null);
+  // The field has the keyboard: how to target shows before the first word, not after it.
+  const [focused, setFocused] = useState(false);
   const field = useRef<HTMLTextAreaElement>(null);
   const history = useStore(historyStore, (s) => s.entries);
 
@@ -245,7 +247,7 @@ export function CommandInput(props: {
         </ul>
       )}
       <div className="flex min-w-0 flex-1 flex-col gap-1">
-        {text.trim() && nothingTargeted && <p className="text-[11px] text-dp-text-2">{emptyHint}</p>}
+        {(text.trim() || focused) && nothingTargeted && <p className="text-[11px] text-dp-text-2">{emptyHint}</p>}
         {text.trim() && noAgents && !unknown && <p className="text-[11px] text-dp-text-2">{t.noAgents}</p>}
         {unknown && <p className="text-[11px] text-dp-text-2">{t.unknownTarget(unknown)}</p>}
         <div className="flex min-w-0 flex-wrap items-center gap-1">
@@ -271,6 +273,8 @@ export function CommandInput(props: {
             value={text}
             placeholder={chips.length > 0 ? "" : placeholder}
             onChange={(e) => edit(e.target.value, e.target.selectionStart)}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
             onSelect={(e) => {
               const at = e.currentTarget.selectionStart;
               if (at !== caret) setActive(0);
