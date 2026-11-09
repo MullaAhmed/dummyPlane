@@ -1,3 +1,4 @@
+import { signalWire } from "@/canvas/wireActivity";
 import { pauseAgents } from "@/fleet/broadcast";
 import { setRemoteControl } from "@/fleet/remoteControl";
 import { messages } from "@/i18n";
@@ -280,7 +281,7 @@ function readOutput(mission: Mission, args: Record<string, unknown>): ToolResult
   return said(terminalText(member.nodeId, lines) || t().orchestrator.emptyTerminal);
 }
 
-async function write(mission: Mission, args: Record<string, unknown>): Promise<ToolResult> {
+async function write(orchestratorId: string, mission: Mission, args: Record<string, unknown>): Promise<ToolResult> {
   const member = memberNamed(mission, args.agent);
   if (typeof member === "string") return refused(member);
   const text = typeof args.texte === "string" ? oneLine(args.texte) : "";
@@ -288,6 +289,7 @@ async function write(mission: Mission, args: Record<string, unknown>): Promise<T
   if (!isRunning(member.nodeId)) return refused(t().orchestrator.stopped(member.name));
   if (agentActivityStore.getState().activities[member.nodeId]?.activity === "waiting") return refused(t().orchestrator.waiting(member.name));
   await ptySendText(member.nodeId, text);
+  signalWire(member.nodeId, "toAgent", orchestratorId);
   return said(t().orchestrator.written(member.name));
 }
 
@@ -411,7 +413,7 @@ export async function orchestratorTool(orchestratorId: string, name: string, arg
     case "lire_sortie":
       return readOutput(mission, args);
     case "ecrire":
-      return write(mission, args);
+      return write(orchestratorId, mission, args);
     case "prolonger":
       return prolong(orchestratorId, mission, args);
     case "interrompre":

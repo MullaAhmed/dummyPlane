@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
+import { clearWirePulses, wireActivityStore } from "@/canvas/wireActivity";
 import type { Activity } from "@/ipc/activity";
 import type { AgentId } from "@/ipc/pty";
 import { agentActivityStore } from "@/store/agentActivity";
@@ -194,5 +195,16 @@ describe("sendCommand and agents still starting (plan B3)", () => {
       "1 agent still starting ignored: Thoth — try again in a moment",
     ]);
     warning.mockRestore();
+  });
+
+  it("lights the wires of the agents the command was typed into, and only those", async () => {
+    clearWirePulses();
+    const warning = vi.spyOn(toast, "warning").mockImplementation(() => "");
+    await agent("isis", "claude", "running", "idle");
+    await agent("anubis", "claude", "stopped");
+    await sendCommand(["isis", "anubis"], "go");
+    expect(wireActivityStore.getState().pulses).toEqual({ isis: { direction: "toAgent", at: expect.any(Number) } });
+    warning.mockRestore();
+    clearWirePulses();
   });
 });

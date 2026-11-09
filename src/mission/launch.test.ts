@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mockIPC } from "@tauri-apps/api/mocks";
 import { showNode } from "@/canvas/arrive";
 import { canvasStore } from "@/canvas/canvasStore";
+import { clearWirePulses, wireActivityStore } from "@/canvas/wireActivity";
 import { pauseAgents } from "@/fleet/broadcast";
 import { forgetScene, rememberScene } from "@/canvas/sceneCache";
 import { closeGroup, closeStoredGroup, launchGroup, showGroups } from "@/fleet/groups";
@@ -206,6 +207,15 @@ describe("launchMission (spec §7.3)", () => {
     relaunched();
     await vi.waitFor(() => expect(ptySendText).toHaveBeenCalledWith("isis", expect.any(String)));
     expect(whenReady).toHaveBeenCalledTimes(2);
+  });
+
+  it("lights the wire down to an agent once its sub-task is typed (wire activity)", async () => {
+    clearWirePulses();
+    await setup();
+    await launchMission("chef");
+    await vi.waitFor(() => expect(ptySendText).toHaveBeenCalledWith("n1", expect.any(String)));
+    await vi.waitFor(() => expect(wireActivityStore.getState().pulses.n1).toMatchObject({ direction: "toAgent", orchestratorId: "chef" }));
+    clearWirePulses();
   });
 
   it("takes a mission whose git fails back to its plan, with the error, and launches no one", async () => {

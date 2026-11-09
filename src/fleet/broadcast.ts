@@ -1,6 +1,7 @@
 import { toast } from "sonner";
 import { createStore } from "zustand";
 import { canvasStore } from "@/canvas/canvasStore";
+import { signalWire } from "@/canvas/wireActivity";
 import { messages } from "@/i18n";
 import type { Activity } from "@/ipc/activity";
 import { ptyInterrupt, ptySendText, type AgentId } from "@/ipc/pty";
@@ -86,11 +87,13 @@ function nameOf(id: string): string {
  * and those whose process dies meanwhile, are ignored and named (spec §17).
  * An agent waiting for an answer is left alone: the Enter after the text
  * would confirm its dialog's highlighted choice (spec §12). A `/command`
- * goes to the agents only, never to a plain terminal.
+ * goes to the agents only, never to a plain terminal. `onSent` hears each
+ * terminal the text was typed into.
  */
 export async function sendToAgents(
   ids: readonly string[],
   text: string,
+  onSent?: (id: string) => void,
 ): Promise<{ sent: number; skipped: string[]; waiting: string[]; unsuited: string[]; starting: string[] }> {
   const waiting: string[] = [];
   const unsuited: string[] = [];
@@ -116,6 +119,7 @@ export async function sendToAgents(
       }
       try {
         await ptySendText(id, text);
+        onSent?.(id);
         return true;
       } catch {
         return nameOf(id);
@@ -202,7 +206,8 @@ export function resumedText(count: number): string {
 
 /** The command bar's and the orchestrator's send, with the toasts of ignored agents. */
 export async function sendCommand(ids: readonly string[], text: string) {
-  const { skipped, waiting, unsuited, starting } = await sendToAgents(ids, text);
+  // The wires reaching the agents show the command going down them.
+  const { skipped, waiting, unsuited, starting } = await sendToAgents(ids, text, (id) => signalWire(id, "toAgent"));
   for (const warning of [skippedText(skipped), startingText(starting), waitingText(waiting), unsuitedText(unsuited)]) {
     if (warning) toast.warning(warning);
   }

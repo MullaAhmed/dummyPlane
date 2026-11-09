@@ -1,4 +1,5 @@
 import { showNode } from "@/canvas/arrive";
+import { signalWire } from "@/canvas/wireActivity";
 import { pauseAgents } from "@/fleet/broadcast";
 import { GROUP_GAP, groupGrid } from "@/fleet/groupLayout";
 import { closeGroup, closeStoredGroup, launchGroup, showGroups } from "@/fleet/groups";
@@ -199,6 +200,7 @@ export async function assign(orchestratorId: string, member: Member, text: strin
     return;
   }
   await ptySendText(id, text);
+  signalWire(id, "toAgent", orchestratorId);
   updateMember(orchestratorId, id, { sentAt: Date.now() });
 }
 
@@ -410,7 +412,10 @@ export async function reassignTask(orchestratorId: string, fromNodeId: string, t
   // The previous agent stops: its sub-task is another's now (final review H3).
   await pauseAgents([from.nodeId]).catch(() => 0);
   if (isRunning(from.nodeId)) {
-    void ptySendText(from.nodeId, t().lines.handedAway(from.task, to.name)).catch(() => undefined);
+    void ptySendText(from.nodeId, t().lines.handedAway(from.task, to.name)).then(
+      () => signalWire(from.nodeId, "toAgent", orchestratorId),
+      () => undefined,
+    );
   }
   void assign(orchestratorId, to, withTicketNote(orchestratorId, mission, subTaskText(mission.name ?? "", task, to.branch, handoverText(from)), task));
   return { name: to.name };
