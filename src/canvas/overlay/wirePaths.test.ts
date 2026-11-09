@@ -45,6 +45,26 @@ it("leaves out deleted, unbound and unmarked arrows, and arrows that do not reac
   expect(paths).toEqual([]);
 });
 
+const SPAWN = { customData: { dummyplane: { kind: "wire", spawn: true } } };
+
+it("reads a spawn wire from the agent that spawned the sub-agent, no orchestrator at either end", () => {
+  expect(wirePaths([arrow("s1", "isis", "thot", SPAWN)])).toEqual([
+    { id: "s1", orchestratorId: "isis", targetId: "thot", points: [{ x: 100, y: 50 }, { x: 140, y: 50 }, { x: 140, y: 80 }, { x: 180, y: 80 }] },
+  ]);
+  // Next to an orchestrator's wires.
+  expect(wirePaths([orchestrator, arrow("w1", "chef", "isis"), arrow("s1", "isis", "thot", SPAWN)]).map((p) => [p.id, p.orchestratorId, p.targetId])).toEqual([
+    ["w1", "chef", "isis"],
+    ["s1", "isis", "thot"],
+  ]);
+});
+
+it("leaves out a wire between two terminals without the spawn mark, and a deleted or unbound spawn wire", () => {
+  expect(wirePaths([arrow("w", "isis", "thot")])).toEqual([]);
+  expect(wirePaths([arrow("spawn-only", "isis", "thot", { customData: { dummyplane: { spawn: true } } })])).toEqual([]);
+  expect(wirePaths([arrow("gone", "isis", "thot", { ...SPAWN, isDeleted: true })])).toEqual([]);
+  expect(wirePaths([arrow("loose", "isis", "thot", { ...SPAWN, endBinding: null })])).toEqual([]);
+});
+
 it("tells a route that moved from one that did not", () => {
   const [a] = wirePaths([orchestrator, arrow("w1", "chef", "group")]);
   const [b] = wirePaths([orchestrator, arrow("w1", "chef", "group")]);
@@ -83,6 +103,15 @@ it("lights only the named orchestrator's wire, with the latest of its members' m
     thoth: { direction: "toOrchestrator", at: 7, orchestratorId: "chef" },
   });
   expect(active.map((a) => [a.wire.id, a.direction, a.at])).toEqual([["w1", "toOrchestrator", 7]]);
+});
+
+it("lights a spawn wire for the sub-agent's messages naming the agent that spawned it, not another orchestrator's", () => {
+  const [spawn] = wirePaths([arrow("s1", "isis", "thot", SPAWN)]);
+  const lit = activeWires([spawn], [], { thot: { direction: "toOrchestrator", at: 4, orchestratorId: "isis" } });
+  expect(lit.map((a) => [a.wire.id, a.direction, a.at])).toEqual([["s1", "toOrchestrator", 4]]);
+  expect(activeWires([spawn], [], { thot: { direction: "toAgent", at: 4, orchestratorId: "chef" } })).toEqual([]);
+  // A message of the parent itself is not the sub-agent's.
+  expect(activeWires([spawn], [], { isis: { direction: "toAgent", at: 4, orchestratorId: "isis" } })).toEqual([]);
 });
 
 it("draws the path the way the message goes, its corners rounded as Excalidraw rounds the wire's", () => {

@@ -4,8 +4,10 @@ import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { canvasStore } from "@/canvas/canvasStore";
 import { createRemovalGuard } from "@/canvas/removalGuard";
+import { nodesStore, type NodeRecord } from "@/store/nodes";
 import { isRunning, terminalStatusStore } from "@/store/terminalStatus";
 import { uiStore } from "@/store/ui";
+import { workspacesStore } from "@/store/workspaces";
 import { closeGroup } from "./groups";
 import { removeNodes, requestClose } from "./terminals";
 
@@ -34,6 +36,7 @@ beforeEach(() => {
   });
   for (const id of ["isis", "thot", "ra"]) terminalStatusStore.getState().set(id, { state: "running" });
   uiStore.setState({ closing: null });
+  nodesStore.setState({ nodes: {} });
 });
 
 describe("closing running agents, confirmed (spec habillage §7.5, retours J8b)", () => {
@@ -62,5 +65,54 @@ describe("closing running agents, confirmed (spec habillage §7.5, retours J8b)"
     closeGroup("g");
     expect(scene.every((e) => e.isDeleted)).toBe(true);
     expect(check(scene, ["ra", "thot"])).toEqual({ dispose: ["ra", "thot"], restore: [], ask: null });
+  });
+});
+
+describe("closing an agent that opened sub-agents (spawn_agent)", () => {
+  const terminal = (name: string, spawnedBy?: string): NodeRecord => ({
+    workspaceId: "w1",
+    kind: "terminal",
+    payload: { title: name, name, agent: "claude", cwd: "C:/code", shell: "default", command: "", ...(spawnedBy ? { spawnedBy } : {}) },
+  });
+  const deleted = () => scene.filter((e) => e.isDeleted).map((e) => e.id);
+
+  beforeEach(() => {
+    // The scene on screen is w1's: its sub-agents are read there.
+    workspacesStore.setState({ activeId: "w1" });
+    scene = [element("isis"), element("anubis"), element("horus"), element("seth")];
+  });
+
+  it("asks for a stopped agent whose sub-agent is still on the canvas, offering to close it too", () => {
+    nodesStore.setState({ nodes: { anubis: terminal("Anubis"), horus: terminal("Horus", "anubis") } });
+    requestClose("anubis");
+    expect(uiStore.getState().closing).toEqual({ agents: ["anubis"], remove: ["anubis"], children: ["horus"] });
+    expect(deleted()).toEqual([]);
+  });
+
+  it("offers the sub-agents' own sub-agents too", () => {
+    nodesStore.setState({ nodes: { anubis: terminal("Anubis"), horus: terminal("Horus", "anubis"), seth: terminal("Seth", "horus") } });
+    requestClose("anubis");
+    expect(uiStore.getState().closing?.children).toEqual(["horus", "seth"]);
+  });
+
+  it("names a running agent's sub-agents with it", () => {
+    nodesStore.setState({ nodes: { isis: terminal("Isis"), horus: terminal("Horus", "isis") } });
+    requestClose("isis");
+    expect(uiStore.getState().closing).toEqual({ agents: ["isis"], remove: ["isis"], children: ["horus"] });
+  });
+
+  it("closes a stopped agent at once when it opened none", () => {
+    nodesStore.setState({ nodes: { anubis: terminal("Anubis"), horus: terminal("Horus") } });
+    requestClose("anubis");
+    expect(uiStore.getState().closing).toBeNull();
+    expect(deleted()).toEqual(["anubis"]);
+  });
+
+  it("closes a stopped agent at once when its sub-agents are closed already", () => {
+    nodesStore.setState({ nodes: { anubis: terminal("Anubis"), horus: terminal("Horus", "anubis") } });
+    scene = scene.map((e) => (e.id === "horus" ? element("horus", { isDeleted: true }) : e));
+    requestClose("anubis");
+    expect(uiStore.getState().closing).toBeNull();
+    expect(deleted()).toEqual(["anubis", "horus"]);
   });
 });
