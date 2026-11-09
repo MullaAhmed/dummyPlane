@@ -36,7 +36,7 @@
   --color-border-outline: var(--dp-line);
   --color-border-outline-variant: var(--dp-line);
   --dialog-border-color: var(--dp-line);
-  --overlay-bg-color: rgb(0 0 0 / 0.45);
+  --overlay-bg-color: var(--dp-scrim);
   --shadow-island: var(--dp-shadow);
   --modal-shadow: var(--dp-shadow);
   --color-slider-track: var(--dp-line);
@@ -71,8 +71,8 @@
 
 .excalidraw .context-menu {
   border: 1px solid var(--dp-line);
-  border-radius: 12px;
-  background: var(--dp-surface-2);
+  border-radius: var(--radius-lg);
+  background: var(--dp-surface);
   box-shadow: var(--dp-shadow);
 }
 

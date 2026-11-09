@@ -166,7 +166,7 @@
   backdrop-filter: var(--dp-blur);
   -webkit-backdrop-filter: var(--dp-blur);
   border: 1px solid var(--dp-glass-line);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   box-shadow: var(--dp-glass-hi), var(--dp-glass-edge), var(--dp-shadow);
 }
 
@@ -175,12 +175,12 @@
   backdrop-filter: var(--dp-blur);
   -webkit-backdrop-filter: var(--dp-blur);
   border: 1px solid var(--dp-glass-line);
-  border-radius: 16px;
+  border-radius: var(--radius-xl);
   box-shadow: var(--dp-glass-hi), var(--dp-glass-edge), var(--dp-shadow);
 }
 
 [data-slot="dialog-overlay"] {
-  background: rgb(0 0 0 / 0.25);
+  background: var(--dp-scrim);
   backdrop-filter: blur(3px);
   -webkit-backdrop-filter: blur(3px);
 }
@@ -204,7 +204,7 @@
   backdrop-filter: var(--dp-blur);
   -webkit-backdrop-filter: var(--dp-blur);
   border-color: var(--dp-glass-line);
-  border-radius: 14px;
+  border-radius: var(--radius-lg);
   box-shadow: var(--dp-glass-hi), var(--dp-glass-edge), var(--dp-shadow);
 }
 
@@ -219,7 +219,14 @@
 }
 
 .dp-arrival {
-  animation: dp-arrival 600ms ease-out forwards;
+  animation: dp-arrival 600ms var(--dp-ease-out) forwards;
+}
+
+/* Reduced motion keeps the colour cue, drops its length. */
+@media (prefers-reduced-motion: reduce) {
+  .dp-arrival {
+    animation-duration: var(--dp-dur-fast);
+  }
 }
 
 /* The radial menu opens from its center (spec menu radial §5.1). */
@@ -235,7 +242,7 @@
 }
 
 .dp-radial-in {
-  animation: dp-radial-in 120ms ease-out;
+  animation: dp-radial-in var(--dp-dur-fast) var(--dp-ease-out);
 }
 
 @media (prefers-reduced-motion: reduce) {
