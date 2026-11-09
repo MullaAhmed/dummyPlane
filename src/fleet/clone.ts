@@ -10,6 +10,8 @@ export function cloneTerminalPayload(source: TerminalPayload, name: string): Ter
   delete copy.model;
   delete copy.remoteControl;
   delete copy.permission;
+  // A copy reports to nobody and counts toward no sub-agent tree.
+  delete copy.spawnedBy;
   // An install runs once, when asked for, and a copy starts by itself: it is a plain shell in the same folder.
   if (copy.oneShot) {
     copy.agent = "shell";

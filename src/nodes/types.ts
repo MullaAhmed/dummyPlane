@@ -31,6 +31,7 @@ export interface TerminalPayload {
   accountId?: string;
   /** A command to run once, an install: only an explicit gesture runs it again (spec installation §7). */
   oneShot?: boolean;
+  /** Node id of the terminal whose agent spawned this one (spawn_agent). */ spawnedBy?: string;
 }
 
 /** Content of an orchestrator node (spec habillage §13, spec orchestrateur §6). */
@@ -166,6 +167,7 @@ export function readTerminalPayload(raw: unknown): TerminalPayload | null {
   if (r.permission === "ask" || r.permission === "edits" || r.permission === "work") payload.permission = r.permission;
   if (r.oneShot === true) payload.oneShot = true;
   if (typeof r.accountId === "string" && r.accountId) payload.accountId = r.accountId;
+  if (typeof r.spawnedBy === "string" && r.spawnedBy) payload.spawnedBy = r.spawnedBy;
   return payload;
 }
 
