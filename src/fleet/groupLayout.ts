@@ -7,7 +7,8 @@ export const CELL = NODE_SIZE.terminal;
 export const GAP = 24;
 export const PADDING = 32;
 export const PADDING_TOP = 48;
-export const MAX_COLUMNS = 4;
+/** A column holds this many terminals; the next one opens a new column to its right. */
+export const MAX_ROWS = 4;
 
 /** Cell (`col`, `row`) of a frame whose top-left corner is `origin`. */
 export function cellAt(origin: { x: number; y: number }, col: number, row: number): Rect {
@@ -19,15 +20,19 @@ export function cellAt(origin: { x: number; y: number }, col: number, row: numbe
   };
 }
 
-/** The frame of a new group of `count` agents and its cells, relative to the frame's corner. */
+/**
+ * The frame of a new group of `count` agents and its cells, relative to the
+ * frame's corner. Terminals stack in a column, top to bottom; a column holds
+ * MAX_ROWS, then the next one opens to its right.
+ */
 export function groupGrid(count: number): { width: number; height: number; cells: Rect[] } {
   const n = Math.max(1, count);
-  const columns = Math.min(n, MAX_COLUMNS);
-  const rows = Math.ceil(n / columns);
+  const rows = Math.min(n, MAX_ROWS);
+  const columns = Math.ceil(n / rows);
   return {
     width: 2 * PADDING + columns * CELL.width + (columns - 1) * GAP,
     height: PADDING_TOP + PADDING + rows * CELL.height + (rows - 1) * GAP,
-    cells: Array.from({ length: n }, (_, i) => cellAt({ x: 0, y: 0 }, i % columns, Math.floor(i / columns))),
+    cells: Array.from({ length: n }, (_, i) => cellAt({ x: 0, y: 0 }, Math.floor(i / rows), i % rows)),
   };
 }
 
@@ -53,33 +58,31 @@ function grownTo(frame: Rect, cell: Rect): Rect {
 
 /**
  * Mathieu's alignment rule (spec §11.3): a terminal opened in a group takes the
- * first free cell of its grid, row by row. A full frame grows by a column (up
- * to four), else by rows; growth cells a member already covers (one dragged
- * past the edge stays in its frame) are skipped. Returns the cell and the
- * frame that holds it.
+ * first free cell of its grid, column by column, so it lands under the one
+ * above it. A full frame grows by a row (down to MAX_ROWS), then by a column to
+ * the right; growth cells a member already covers (one dragged past the edge
+ * stays in its frame) are skipped. Returns the cell and the frame that holds it.
  */
 export function freeCell(frame: Rect, members: readonly Rect[]): { cell: Rect; frame: Rect } {
-  const columns = Math.min(MAX_COLUMNS, Math.max(1, Math.floor((frame.width - 2 * PADDING + GAP) / (CELL.width + GAP))));
+  const columns = Math.max(1, Math.floor((frame.width - 2 * PADDING + GAP) / (CELL.width + GAP)));
   const rows = Math.max(1, Math.floor((frame.height - PADDING_TOP - PADDING + GAP) / (CELL.height + GAP)));
   const free = (col: number, row: number) => {
     const cell = cellAt(frame, col, row);
     return isTaken(cell, members) ? null : { cell, frame: grownTo(frame, cell) };
   };
-  for (let row = 0; row < rows; row++) {
-    for (let col = 0; col < columns; col++) {
+  // The grid as the frame holds it, holes first.
+  for (let col = 0; col < columns; col++) {
+    for (let row = 0; row < rows; row++) {
       const found = free(col, row);
       if (found) return found;
     }
   }
-  if (columns < MAX_COLUMNS) {
-    for (let row = 0; row < rows; row++) {
-      const found = free(columns, row);
-      if (found) return found;
-    }
-  }
-  // Members are finite: some row below is free.
-  for (let row = rows; ; row++) {
-    for (let col = 0; col < columns; col++) {
+  // Then growth: rows up to MAX_ROWS (a frame taller than that keeps its rows), then new columns.
+  // Members are finite: some column to the right is free.
+  const depth = Math.max(rows, MAX_ROWS);
+  for (let col = 0; ; col++) {
+    for (let row = 0; row < depth; row++) {
+      if (col < columns && row < rows) continue;
       const found = free(col, row);
       if (found) return found;
     }
