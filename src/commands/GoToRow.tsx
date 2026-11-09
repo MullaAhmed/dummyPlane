@@ -18,10 +18,10 @@ function TerminalLine({ item }: { item: GoToItem }) {
   return (
     <>
       <span
-        className="grid size-5 shrink-0 place-items-center rounded-[5px]"
+        className="grid size-5 shrink-0 place-items-center rounded-md"
         style={{ backgroundColor: `color-mix(in srgb, ${meta.tint} 18%, transparent)`, color: agentInk(meta.tint) }}
       >
-        <meta.Icon className="size-3" />
+        <meta.Icon className="size-3.5" />
       </span>
       <span className="truncate font-medium text-dp-text">{item.label}</span>
       <span className="shrink-0 text-dp-text-2">{meta.label}</span>
@@ -48,7 +48,7 @@ export function GoToRow({ item }: { item: GoToItem }) {
     case "group":
       return (
         <>
-          <span className="size-2 shrink-0 rounded-[2px]" style={{ backgroundColor: item.group?.color }} />
+          <span className="size-2 shrink-0 rounded-xs" style={{ backgroundColor: item.group?.color }} />
           <span className="truncate font-medium text-dp-text">{item.label}</span>
           <span className="shrink-0 text-dp-text-2">{t.members(item.members ?? 0)}</span>
           <Elsewhere item={item} />
@@ -58,7 +58,7 @@ export function GoToRow({ item }: { item: GoToItem }) {
     case "orchestrator":
       return (
         <>
-          <Network className="size-3.5 shrink-0 text-dp-accent" />
+          <Network className="size-3.5 shrink-0 text-dp-accent-ink" />
           <span className="truncate font-medium text-dp-text">{item.label}</span>
           <span className="shrink-0 text-dp-text-2">{t.linked(item.links ?? 0)}</span>
           <Elsewhere item={item} />
