@@ -573,6 +573,18 @@ it("cleans a finished mission and frees the orchestrator for the next, its setti
   expect(missionNow()).toEqual({ state: "redaction", budgetMin: 90, maxAgents: 3, members: [] });
 });
 
+it("cleans the worktree of every agent of the mission, those the queue started in new terminals included", async () => {
+  const members = [
+    member("isis", "Isis", true, { report: { summary: "ok", status: "termine", at: 1 }, merged: true }),
+    member("n1", "Horus", false, { report: { summary: "ko", status: "bloque", at: 2 }, abandoned: true }),
+    member("n2", "Thot", false, { group: "g1" }),
+  ];
+  await setup({ state: "terminee", project: "C:/code/proj", slug: "auth", summary: "ok", members });
+  vi.mocked(missionCleanup).mockResolvedValue({ removed: [], kept: [] });
+  await cleanMission("chef");
+  expect(missionCleanup).toHaveBeenCalledWith("C:/code/proj", "auth", ["Isis", "Horus", "Thot"]);
+});
+
 it("keeps the router setting when the mission is cleaned (backlog 27 oct)", async () => {
   await setup({ state: "terminee", budgetMin: 90, maxAgents: 3, router: true, project: "C:/code/proj", slug: "auth", summary: "ok", members: [member("isis", "Isis", true)] });
   vi.mocked(missionCleanup).mockResolvedValue({ removed: [], kept: [] });

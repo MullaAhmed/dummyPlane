@@ -6,7 +6,7 @@ import { ptySendText } from "@/ipc/pty";
 import { endMission, launchMission, mergeMission, reassignTask } from "@/mission/launch";
 import { budgetOf, memberTime, NEW_AGENT, oneLine, proposedPlan, proposedTasks, remainingGlobal, sameName, spentMin, type Member, type Mission } from "@/mission/mission";
 import { activeCount } from "@/mission/active";
-import { freeMembers, giveNext, pumpQueue } from "@/mission/queue";
+import { giveNext, pumpQueue } from "@/mission/queue";
 import { boardView } from "@/kanban/missionLink";
 import { LEVELS, modelLabel } from "@/mission/router";
 import { readTickets } from "@/mission/tickets";
@@ -229,7 +229,6 @@ function addTasks(orchestratorId: string, mission: Mission, args: Record<string,
 function describeQueue(orchestratorId: string, mission: Mission): ToolResult {
   return json({
     waiting: (mission.queue ?? []).map((s) => ({ title: s.title, brief: s.brief, budget_min: s.budgetMin, level: s.level ? outLevel(s.level) : null, group: s.group?.name ?? null, card: s.card ?? null })),
-    free_agents: freeMembers(mission).map((m) => m.name),
     active_agents: activeCount(orchestratorId, mission),
     max_agents: mission.maxAgents,
   });
