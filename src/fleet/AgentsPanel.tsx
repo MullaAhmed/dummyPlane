@@ -24,7 +24,7 @@ import { FLEET_FILTERS, filterCounts, fleetSections, fleetStateOf, type FleetAge
 import { GroupMenu } from "./GroupMenu";
 import { countsText } from "./groupSummary";
 import { fleetMessages } from "./messages";
-import { launchFour, newConsole } from "./quickActions";
+import { newConsole } from "./quickActions";
 import { RESUME_OFFER_ROOM, resumeOfferStore } from "./ResumeAllToast";
 
 const OUTSIDE = "outside";
@@ -112,7 +112,6 @@ export function AgentsPanel() {
               </IconButton>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onSelect={() => launchFour()}>{t.launchFour}</DropdownMenuItem>
               <DropdownMenuItem onSelect={() => setFolded(new Set([...sections.map((s) => keyOf(s.id)), "orchestrators"]))}>
                 {t.foldAll}
               </DropdownMenuItem>

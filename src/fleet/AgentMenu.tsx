@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactElement } from "react";
-import { Check, Kanban, Layers, Network, SquareTerminal } from "lucide-react";
+import { Check, Kanban, Network, SquareTerminal } from "lucide-react";
 import { toast } from "sonner";
 import { useUiRequest } from "@/commands/uiRequests";
 import { placeKanban } from "@/kanban/place";
@@ -17,7 +17,7 @@ import { defaultLaunchOptions, launchAgent, type LaunchOptions } from "./launchA
 import { fleetMessages } from "./messages";
 import { LaunchOptionsForm } from "./LaunchOptionsForm";
 import { OllamaPicker } from "./OllamaPicker";
-import { launchFour, newConsole, placeOrchestrator } from "./quickActions";
+import { newConsole, placeOrchestrator } from "./quickActions";
 import type { Point } from "./terminals";
 
 type View = "agents" | "options" | "ollama" | { install: AgentId };
@@ -148,19 +148,6 @@ export function AgentMenu({
                   <SquareTerminal className="size-4" />
                 </span>
                 <span className="min-w-0 flex-1 text-[13px] font-medium text-dp-text">{t.agentMenu.newConsole}</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setOpen(false);
-                  launchFour(placeAt ?? undefined);
-                }}
-                className="flex items-center gap-2.5 rounded-md px-2 py-1.5 text-left transition-[background-color,transform] duration-150 ease-out hover:bg-dp-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] motion-reduce:transition-none"
-              >
-                <span className="grid size-7 place-items-center rounded-md bg-dp-field text-dp-text-2">
-                  <Layers className="size-4" />
-                </span>
-                <span className="min-w-0 flex-1 text-[13px] font-medium text-dp-text">{t.agentMenu.launchFour}</span>
               </button>
               {/* Spec theme §10.1: placed the same way as an agent. */}
               <button
