@@ -10,6 +10,7 @@ import { installMcp } from "@/mcp/router";
 import { installMissionClock } from "@/mission/clock";
 import { installKeepAwake } from "@/mission/keepAwake";
 import { installMissionEvents } from "@/mission/events";
+import { installSubagentNodes } from "@/nodes/subagent/sync";
 import { forgetLivePty, setLivePtys } from "@/nodes/terminal/registry";
 import { installWaitingAlerts } from "@/shell/waitingAlert";
 import { agentActivityStore } from "@/store/agentActivity";
@@ -49,6 +50,7 @@ export function boot(): Promise<void> {
     agentActivityStore.getState().load(activity.activities);
     // What the sessions ran before this page loaded: the count is not lost on a reload.
     for (const { nodeId, running } of activity.subagents ?? []) subagentsStore.getState().set(nodeId, running);
+    await installSubagentNodes();
     if (!activity.hooksAvailable) toast.warning(messages(appMessages).hooksDown);
     await installMcp();
     await installUsage();

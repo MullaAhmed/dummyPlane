@@ -4,6 +4,7 @@ pub mod hooks_server;
 pub mod mcp;
 pub mod mcp_files;
 pub mod prompts;
+pub mod subagent_transcript;
 pub mod subagents;
 pub mod transcripts;
 

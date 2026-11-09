@@ -1,8 +1,8 @@
 import type { ExcalidrawElement, ExcalidrawEmbeddableElement } from "@excalidraw/excalidraw/element/types";
 
-export type NodeKind = "terminal" | "orchestrator" | "note" | "kanban" | "git" | "file";
+export type NodeKind = "terminal" | "orchestrator" | "note" | "kanban" | "git" | "file" | "subagent";
 
-const NODE_KINDS: readonly NodeKind[] = ["terminal", "orchestrator", "note", "kanban", "git", "file"];
+const NODE_KINDS: readonly NodeKind[] = ["terminal", "orchestrator", "note", "kanban", "git", "file", "subagent"];
 
 export const NODE_SIZE: Record<NodeKind, { width: number; height: number }> = {
   terminal: { width: 720, height: 440 },
@@ -11,9 +11,11 @@ export const NODE_SIZE: Record<NodeKind, { width: number; height: number }> = {
   kanban: { width: 640, height: 400 },
   git: { width: 360, height: 320 },
   file: { width: 520, height: 420 },
+  // A group cell: a subagent joins its terminal's grid (src/nodes/subagent).
+  subagent: { width: 720, height: 440 },
 };
 
-const LINK_PATTERN = /^dummyplane:\/\/(terminal|orchestrator|note|kanban|git|file)\/[\w-]+$/;
+const LINK_PATTERN = /^dummyplane:\/\/(terminal|orchestrator|note|kanban|git|file|subagent)\/[\w-]+$/;
 
 /** Only our own nodes may be embedded: no arbitrary iframes on the canvas. */
 export function isDummyPlaneLink(link: string): boolean {

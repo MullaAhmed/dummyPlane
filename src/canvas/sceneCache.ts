@@ -2,6 +2,7 @@ import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { BinaryFileData, BinaryFiles, ExcalidrawInitialDataState } from "@excalidraw/excalidraw/types";
 import { elbowWires } from "@/fleet/wires";
 import { loadWorkspace, saveScene } from "@/ipc/db";
+import { withoutSubagents } from "@/nodes/subagent/scene";
 import { nodesStore } from "@/store/nodes";
 import { liveNodeIds, type SavedAppState } from "./sceneSync";
 
@@ -37,8 +38,9 @@ async function readScene(workspaceId: string): Promise<LoadedScene> {
   );
   const scene: LoadedScene = {
     initialData: {
-      // Wires saved before they were elbowed are elbowed before Excalidraw restores them.
-      elements: data.elementsJson ? elbowWires(JSON.parse(data.elementsJson) as ExcalidrawElement[]) : [],
+      // A subagent's node lives only as long as its session: a stored one has ended, so it goes first.
+      // Then wires saved before they were elbowed are elbowed, between the ends that remain, before Excalidraw restores them.
+      elements: data.elementsJson ? elbowWires(withoutSubagents(JSON.parse(data.elementsJson) as ExcalidrawElement[])) : [],
       appState: data.appStateJson ? (JSON.parse(data.appStateJson) as SavedAppState) : {},
       files,
     },
