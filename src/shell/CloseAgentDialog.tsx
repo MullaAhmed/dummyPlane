@@ -11,7 +11,6 @@ import {
 } from "@/components/ui/dialog";
 import { useMessages } from "@/i18n";
 import { removeNodes } from "@/fleet/terminals";
-import { afterSpawnTreeChange } from "@/fleet/spawnFamily";
 import { useActivity } from "@/store/agentActivity";
 import { nodeNameOf, useNodes } from "@/store/nodes";
 import { isRunning } from "@/store/terminalStatus";
@@ -63,11 +62,8 @@ function CloseAgentContent({ closing }: { closing: ClosingAgents | null }) {
   const confirm = () => {
     if (!closing) return;
     const leaving = withChildren ? [...closing.remove, ...children] : closing.remove;
+    // The canvas reflows the trees of the spawned agents that leave.
     removeNodes(leaving);
-    const workspaceId = nodes[closing.agents[0]]?.workspaceId;
-    if (workspaceId && (children.length > 0 || leaving.some((id) => nodes[id]?.kind === "terminal" && nodes[id].payload.spawnedBy))) {
-      afterSpawnTreeChange(workspaceId, closing.agents[0]);
-    }
   };
 
   return (

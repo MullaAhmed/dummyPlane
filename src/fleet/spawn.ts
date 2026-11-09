@@ -16,7 +16,8 @@ import { isRunning } from "@/store/terminalStatus";
 import { NODE_GAP } from "./groupLayout";
 import { nameForNewAgent } from "./naming";
 import { sceneAccess } from "./sceneAccess";
-import { afterSpawnTreeChange, MAX_SPAWN_DEPTH, markLaunching, runningSpawned, spawnDepth } from "./spawnFamily";
+import { MAX_SPAWN_DEPTH, markLaunching, runningSpawned, spawnDepth } from "./spawnFamily";
+import { reflowSpawnTree } from "./spawnTree";
 import { addTerminal } from "./terminals";
 import { withWire } from "./wires";
 
@@ -102,7 +103,8 @@ async function spawnNow(parentId: string, args: SpawnArgs): Promise<SpawnResult>
   markLaunching(childId, true);
   const now = sceneAccess(workspaceId);
   if (now) now.write(withWire(now.elements(), parentId, childId, undefined, true));
-  afterSpawnTreeChange(workspaceId, childId);
+  // Element, spawnedBy and wire all there: the tree takes its flowchart layout, the wire rerouted.
+  reflowSpawnTree(workspaceId, childId);
   void deliver(parentId, childId, name, t().brief(parent.name || "your parent agent", task));
   return { text: t().spawned(name) };
 }

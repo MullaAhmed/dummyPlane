@@ -4,8 +4,9 @@ import type { ClosingAgents } from "@/store/ui";
 import { sceneAccess } from "./sceneAccess";
 
 /**
- * The trees spawn_agent grows: each sub-agent's payload names the terminal
- * whose agent spawned it (`spawnedBy`). Read here, acted on in `./spawn`.
+ * The families spawn_agent grows: each sub-agent's payload names the terminal
+ * whose agent spawned it (`spawnedBy`). Their depth, their seats and their
+ * closing are read here; spawning is `./spawn`, their layout `./spawnTree`.
  */
 
 /** How many spawn_agent levels a tree has at most: a top agent's sub-agent is at depth 1. */
@@ -85,17 +86,6 @@ export function runningSpawned(): number {
     const state = statusOf(id).state;
     return !reported.has(id) && (state === "running" || state === "starting");
   }).length;
-}
-
-/**
- * Where the flow layout re-arranges a spawn tree once a sub-agent opened or
- * closed: `reflowSpawnTree(workspaceId, nodeId)` of `src/fleet/flowLayout.ts`,
- * not on this branch yet. Until then a sub-agent stays where `addTerminal` put
- * it, right of its parent and clear of every other node.
- */
-export function afterSpawnTreeChange(workspaceId: string, nodeId: string): void {
-  void workspaceId;
-  void nodeId;
 }
 
 /** A closing to confirm, with the sub-agents its agents opened that it does not take already. */

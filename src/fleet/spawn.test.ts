@@ -15,6 +15,7 @@ import { terminalStatusStore } from "@/store/terminalStatus";
 import { nameForNewAgent } from "./naming";
 import { spawnAgent } from "./spawn";
 import { markLaunching, markReported, runningSpawned } from "./spawnFamily";
+import { reflowSpawnTree } from "./spawnTree";
 import { addTerminal } from "./terminals";
 import { isSpawnWire } from "./wires";
 
@@ -30,6 +31,7 @@ vi.mock("@/mission/events", () => ({ notify: vi.fn() }));
 vi.mock("@/mission/store", () => ({ workspaceCanvas: vi.fn(() => ({ frames: [], links: {} })) }));
 vi.mock("./naming", () => ({ nameForNewAgent: vi.fn(() => Promise.resolve("Ra")) }));
 vi.mock("./terminals", () => ({ addTerminal: vi.fn() }));
+vi.mock("./spawnTree", () => ({ reflowSpawnTree: vi.fn(() => true) }));
 
 /** The workspace's scene, as `sceneAccess` reads and writes it. */
 let scene: ExcalidrawElement[] = [];
@@ -117,8 +119,16 @@ describe("spawn_agent", () => {
     expect(runningSpawned()).toBe(0);
   });
 
-  it("draws a spawn wire from the parent to the sub-agent", async () => {
+  it("draws a spawn wire from the parent to the sub-agent, then lays the tree out", async () => {
+    vi.mocked(reflowSpawnTree).mockImplementationOnce(() => {
+      // Called once the element, the record and the wire all exist.
+      expect(scene.some((e) => e.id === "child1")).toBe(true);
+      expect(scene.some((e) => isSpawnWire(e))).toBe(true);
+      expect(terminalOf(nodesStore.getState().nodes.child1)?.spawnedBy).toBe("isis");
+      return true;
+    });
     await spawnAgent("isis", { task: "Do it" });
+    expect(reflowSpawnTree).toHaveBeenCalledWith("w1", "child1");
     const wire = scene.find((e) => e.type === "arrow")!;
     expect(isSpawnWire(wire)).toBe(true);
     expect(wire).toMatchObject({ startBinding: { elementId: "isis" }, endBinding: { elementId: "child1" } });
