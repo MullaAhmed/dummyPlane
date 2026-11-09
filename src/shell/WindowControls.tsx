@@ -38,8 +38,8 @@ function WindowButton({ label, danger, className, ...props }: ComponentProps<"bu
       title={label}
       aria-label={label}
       className={cn(
-        "grid h-[38px] w-[46px] shrink-0 place-items-center text-dp-text-2 transition-colors hover:bg-dp-hover hover:text-dp-text [&_svg]:size-4",
-        danger && "hover:bg-[#C42B1C] hover:text-white",
+        "grid h-[38px] w-[46px] shrink-0 place-items-center text-dp-text-2 transition-[color,background-color] duration-150 ease-out motion-reduce:transition-none hover:bg-dp-hover hover:text-dp-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-dp-accent/50 [&_svg]:size-4",
+        danger && "hover:bg-dp-danger hover:text-dp-surface",
         className,
       )}
       {...props}

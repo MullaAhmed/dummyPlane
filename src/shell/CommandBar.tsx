@@ -44,8 +44,8 @@ export function CommandBar() {
   );
 
   return (
-    <div data-command-bar className="dp-glass-strong pointer-events-auto flex min-h-[46px] w-[680px] max-w-[calc(100vw-360px)] items-end gap-3 rounded-[16px] py-[7px] pl-3.5 pr-[7px]">
-      <span className="mb-1.5 shrink-0 text-base font-bold text-dp-accent" aria-hidden>
+    <div data-command-bar className="dp-glass-strong pointer-events-auto flex min-h-12 w-[680px] max-w-[calc(100vw-360px)] items-end gap-3 rounded-lg py-2 pl-3.5 pr-2">
+      <span className="mb-1.5 shrink-0 text-base font-bold text-dp-accent-ink" aria-hidden>
         ›
       </span>
       <CommandInput
@@ -77,7 +77,7 @@ export function CommandHint() {
 
   if (!shown) return null;
   return (
-    <div className="dp-glass-strong pointer-events-auto flex items-center gap-2 rounded-[10px] py-1 pl-3 pr-1 text-xs text-dp-text-2">
+    <div className="dp-glass-strong pointer-events-auto flex items-center gap-2 rounded-lg py-1 pl-3 pr-1 text-xs text-dp-text-2">
       {t.hint}
       <button
         type="button"
@@ -86,9 +86,9 @@ export function CommandHint() {
           setShown(false);
           void setSetting(HINT_KEY, true).catch(() => undefined);
         }}
-        className="grid size-5 place-items-center rounded-[6px] hover:bg-dp-hover hover:text-dp-text"
+        className="grid size-5 place-items-center rounded-md text-dp-text-2 transition-[color,background-color,transform] duration-150 ease-out motion-reduce:transition-none hover:bg-dp-hover hover:text-dp-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97]"
       >
-        <X className="size-3" />
+        <X className="size-3.5" />
       </button>
     </div>
   );

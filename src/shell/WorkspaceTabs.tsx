@@ -28,6 +28,9 @@ const fail = (what: Failure) => (error: unknown) => {
 /** The tab being dragged (a drag stays inside this row). */
 let dragged: string | null = null;
 
+const FOCUS = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50";
+const PRESS = "transition-[color,background-color,border-color,opacity,transform] duration-150 ease-out motion-reduce:transition-none active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50";
+
 function WorkspaceTab(props: { workspace: Workspace; active: boolean; canRemove: boolean; index: number; count: number }) {
   const { workspace, active, canRemove, index, count } = props;
   const t = useMessages(shellMessages).tabs;
@@ -46,7 +49,7 @@ function WorkspaceTab(props: { workspace: Workspace; active: boolean; canRemove:
       <Input
         autoFocus
         defaultValue={workspace.name}
-        className="mb-0.5 h-[28px] w-40 rounded-[6px]"
+        className="mb-0.5 h-8 w-40 rounded-md"
         onBlur={(e) => {
           void workspacesStore.getState().rename(workspace.id, e.currentTarget.value).catch(fail("renameFailed"));
           setEditing(false);
@@ -82,16 +85,16 @@ function WorkspaceTab(props: { workspace: Workspace; active: boolean; canRemove:
         setMenuOpen(true);
       }}
       className={cn(
-        "group relative top-px flex h-[30px] shrink-0 items-center rounded-t-[6px] border border-b-0 pl-3.5 pr-1 text-[12.5px]",
+        "group relative top-px flex h-8 shrink-0 items-center rounded-t-md border border-b-0 pl-3 pr-1 text-[13px] transition-[color,background-color,border-color] duration-150 ease-out motion-reduce:transition-none",
         active
-          ? "border-dp-glass-line bg-dp-tab-on text-dp-text before:absolute before:inset-x-2.5 before:-top-px before:h-0.5 before:rounded-full before:bg-dp-accent"
+          ? "border-[color:var(--dp-glass-line)] bg-dp-tab-on text-dp-text before:absolute before:inset-x-2.5 before:-top-px before:h-0.5 before:rounded-full before:bg-dp-accent"
           : "border-transparent text-dp-text-2 hover:bg-dp-hover hover:text-dp-text",
       )}
     >
       {/* The whole tab selects, padding and badge included, like a browser tab. */}
       <button
         type="button"
-        className="flex items-center self-stretch"
+        className={cn("flex items-center self-stretch rounded-md", PRESS, FOCUS)}
         onClick={() => workspacesStore.getState().select(workspace.id)}
         onDoubleClick={() => setEditing(true)}
         // Alt+←/→: the keyboard's way to reorder (the drag's alternative).
@@ -101,15 +104,15 @@ function WorkspaceTab(props: { workspace: Workspace; active: boolean; canRemove:
           void workspacesStore.getState().move(workspace.id, index + (e.key === "ArrowLeft" ? -1 : 1));
         }}
       >
-        {isCode(workspace) && <Code2 data-code-icon aria-hidden className="mr-1.5 size-3.5 shrink-0 text-dp-accent" />}
+        {isCode(workspace) && <Code2 data-code-icon aria-hidden className="mr-1.5 size-3.5 shrink-0 text-dp-accent-ink" />}
         <span className="max-w-40 truncate">{workspace.name}</span>
         {(active || running > 0) && (
           <span
             data-badge
             title={t.activeAgents(running)}
             className={cn(
-              "ml-2 rounded-full px-1.5 font-mono text-[10px]",
-              active ? "bg-dp-accent-soft text-dp-accent" : "bg-dp-field text-dp-text-2",
+              "ml-2 rounded-full px-1.5 font-mono text-[11px]",
+              active ? "bg-dp-accent-soft text-dp-accent-ink" : "bg-dp-field text-dp-text-2",
             )}
           >
             {running}
@@ -122,7 +125,9 @@ function WorkspaceTab(props: { workspace: Workspace; active: boolean; canRemove:
           aria-label={t.deleteWorkspace}
           title={t.deleteWorkspace}
           onClick={() => void removeWorkspace(workspace, running).catch(fail("deleteFailed"))}
-          className="ml-1 grid size-5 place-items-center rounded-[4px] text-dp-text-2 opacity-0 group-hover:opacity-100 hover:bg-dp-hover hover:text-dp-text focus-visible:opacity-100"
+          className={cn(
+            "ml-1 grid size-5 place-items-center rounded-md text-dp-text-2 opacity-0 transition-[color,background-color,opacity,transform] duration-150 ease-out motion-reduce:transition-none group-hover:opacity-100 hover:bg-dp-hover hover:text-dp-text focus-visible:opacity-100 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50",
+          )}
         >
           <X className="size-3.5" />
         </button>
@@ -183,7 +188,7 @@ export function WorkspaceTabs() {
       ))}
       <IconButton
         label={t.newWorkspace}
-        className="mb-0.5 size-[28px]"
+        className={cn("mb-0.5 size-7 rounded-md", PRESS, FOCUS)}
         onClick={() => void workspacesStore.getState().create().catch(fail("createFailed"))}
       >
         <Plus />
