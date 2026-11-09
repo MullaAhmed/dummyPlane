@@ -85,8 +85,14 @@ it("lights only the named orchestrator's wire, with the latest of its members' m
   expect(active.map((a) => [a.wire.id, a.direction, a.at])).toEqual([["w1", "toOrchestrator", 7]]);
 });
 
-it("draws the path the way the message goes", () => {
-  expect(pathData(route, "toAgent")).toBe("M0 0 L10 0 L10 20");
-  expect(pathData(route, "toOrchestrator")).toBe("M10 20 L10 0 L0 0");
+it("draws the path the way the message goes, its corners rounded as Excalidraw rounds the wire's", () => {
+  // The corner takes at most half of each side: 5 here.
+  expect(pathData(route, "toAgent")).toBe("M0 0 L5 0 Q10 0 10 5 L10 20");
+  expect(pathData(route, "toOrchestrator")).toBe("M10 20 L10 5 Q10 0 5 0 L0 0");
+  // Long sides: Excalidraw's 16.
+  const long = [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 60 }, { x: 200, y: 60 }];
+  expect(pathData(long, "toAgent")).toBe("M0 0 L84 0 Q100 0 100 16 L100 44 Q100 60 116 60 L200 60");
+  expect(pathData([{ x: 0, y: 0 }, { x: 0, y: 300 }], "toAgent")).toBe("M0 0 L0 300");
   expect(pathData([{ x: 0.123, y: 4.56 }], "toAgent")).toBe("M0.1 4.6");
+  expect(pathData([], "toAgent")).toBe("");
 });

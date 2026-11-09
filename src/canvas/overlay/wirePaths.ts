@@ -82,10 +82,35 @@ export function activeWires(
   return active;
 }
 
-/** The SVG path of a route, in the direction the message travels. */
+/** The radius Excalidraw rounds an elbow arrow's corners with (`generateElbowArrowShape(points, 16)`, 0.18.1). */
+export const ELBOW_CORNER = 16;
+
+/**
+ * The SVG path of a route, in the direction the message travels. Its corners
+ * are rounded as Excalidraw rounds the wire's, at most half of each side, so
+ * the light runs on the line.
+ */
 export function pathData(points: readonly Point[], direction: WireDirection): string {
   const ordered = direction === "toAgent" ? points : [...points].reverse();
-  return ordered.map((p, i) => `${i === 0 ? "M" : "L"}${round(p.x)} ${round(p.y)}`).join(" ");
+  if (ordered.length === 0) return "";
+  const d = [`M${xy(ordered[0])}`];
+  for (let i = 1; i < ordered.length - 1; i++) {
+    const [prev, corner, next] = [ordered[i - 1], ordered[i], ordered[i + 1]];
+    const radius = Math.min(ELBOW_CORNER, distance(corner, prev) / 2, distance(corner, next) / 2);
+    d.push(`L${xy(toward(corner, prev, radius))}`, `Q${xy(corner)} ${xy(toward(corner, next, radius))}`);
+  }
+  if (ordered.length > 1) d.push(`L${xy(ordered[ordered.length - 1])}`);
+  return d.join(" ");
+}
+
+const distance = (a: Point, b: Point) => Math.hypot(b.x - a.x, b.y - a.y);
+
+/** The point `length` away from `from` on the way to `to`. */
+function toward(from: Point, to: Point, length: number): Point {
+  const span = distance(from, to);
+  if (span === 0) return from;
+  return { x: from.x + ((to.x - from.x) / span) * length, y: from.y + ((to.y - from.y) / span) * length };
 }
 
 const round = (n: number) => Math.round(n * 10) / 10;
+const xy = (p: Point) => `${round(p.x)} ${round(p.y)}`;

@@ -12,7 +12,7 @@ vi.mock("@/mission/queue", () => ({ afterReport: vi.fn(() => Promise.resolve()) 
 vi.mock("@/mission/events", () => ({ notify: vi.fn() }));
 
 const member: Member = { nodeId: "isis", name: "Isis", task: "t", budgetMin: 10, linked: false, branch: "b", worktree: "w", sentAt: 1 };
-const terminal = (id: string, name: string) => ({ title: "", name, agent: "claude" as const, cwd: "C:/p", shell: "default" as const, command: "" });
+const terminal = (name: string) => ({ title: "", name, agent: "claude" as const, cwd: "C:/p", shell: "default" as const, command: "" });
 
 beforeEach(async () => {
   mockIPC(() => undefined);
@@ -22,8 +22,8 @@ beforeEach(async () => {
     kind: "orchestrator",
     payload: { name: "Chef", mission: { state: "en_cours", maxAgents: 4, budgetMin: 60, startedAt: Date.now(), members: [member] } },
   });
-  await nodesStore.getState().create("isis", { workspaceId: "w1", kind: "terminal", payload: terminal("isis", "Isis") });
-  await nodesStore.getState().create("seth", { workspaceId: "w1", kind: "terminal", payload: terminal("seth", "Seth") });
+  await nodesStore.getState().create("isis", { workspaceId: "w1", kind: "terminal", payload: terminal("Isis") });
+  await nodesStore.getState().create("seth", { workspaceId: "w1", kind: "terminal", payload: terminal("Seth") });
 });
 afterEach(() => clearWirePulses());
 
