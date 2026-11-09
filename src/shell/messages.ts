@@ -73,8 +73,6 @@ export const shellMessages = defineMessages(
       about: "About OpenVibe",
       openLogs: "Open the logs folder",
       troubleshoot: "Troubleshooting…",
-      language: "Language",
-      languageSystem: "System",
     },
     troubleshoot: {
       title: "Troubleshooting",
