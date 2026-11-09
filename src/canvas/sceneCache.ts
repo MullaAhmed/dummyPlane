@@ -1,5 +1,6 @@
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { BinaryFileData, BinaryFiles, ExcalidrawInitialDataState } from "@excalidraw/excalidraw/types";
+import { elbowWires } from "@/fleet/wires";
 import { loadWorkspace, saveScene } from "@/ipc/db";
 import { nodesStore } from "@/store/nodes";
 import { liveNodeIds, type SavedAppState } from "./sceneSync";
@@ -36,7 +37,8 @@ async function readScene(workspaceId: string): Promise<LoadedScene> {
   );
   const scene: LoadedScene = {
     initialData: {
-      elements: data.elementsJson ? (JSON.parse(data.elementsJson) as ExcalidrawElement[]) : [],
+      // Wires saved before they were elbowed are elbowed before Excalidraw restores them.
+      elements: data.elementsJson ? elbowWires(JSON.parse(data.elementsJson) as ExcalidrawElement[]) : [],
       appState: data.appStateJson ? (JSON.parse(data.appStateJson) as SavedAppState) : {},
       files,
     },

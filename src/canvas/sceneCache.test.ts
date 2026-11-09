@@ -23,6 +23,37 @@ it("reads a scene once while the first read is still pending (plan F1)", async (
   expect(reads).toHaveBeenCalledTimes(1);
 });
 
+it("elbows the wires saved curved, before Excalidraw restores them", async () => {
+  const box = (id: string, x: number, kind: string) => ({ id, type: "embeddable", x, y: 0, width: 400, height: 300, angle: 0, isDeleted: false, version: 1, customData: { kind } });
+  const curved = {
+    id: "w",
+    type: "arrow",
+    x: 408,
+    y: 150,
+    width: 384,
+    height: 46,
+    points: [[0, 0], [192, -46], [384, 0]],
+    roundness: { type: 2 },
+    elbowed: false,
+    strokeColor: "#C2603F",
+    version: 1,
+    isDeleted: false,
+    startBinding: { elementId: "chef", focus: 0, gap: 8 },
+    endBinding: { elementId: "isis", focus: 0, gap: 8 },
+    customData: { dummyplane: { kind: "wire" } },
+  };
+  const elementsJson = JSON.stringify([box("chef", 0, "orchestrator"), box("isis", 800, "terminal"), curved]);
+  mockIPC((cmd) => (cmd === "load_workspace" ? { nodes: [], files: [], elementsJson, appStateJson: null } : undefined));
+  const { initialData } = await loadScene("w1");
+  const wire = initialData.elements?.find((e) => e.id === "w");
+  expect(wire).toMatchObject({
+    elbowed: true,
+    roundness: null,
+    startBinding: { elementId: "chef", fixedPoint: [1 + 5 / 400, 0.5001] },
+    endBinding: { elementId: "isis", fixedPoint: [-5 / 400, 0.5001] },
+  });
+});
+
 describe("a stored scene being edited (review)", () => {
   const terminal = (id: string, isDeleted = false) => ({ id, type: "embeddable", isDeleted, frameId: null, customData: { kind: "terminal" } });
   const payload = { title: "", name: "", agent: "shell" as const, cwd: "C:/", shell: "default" as const, command: "" };
