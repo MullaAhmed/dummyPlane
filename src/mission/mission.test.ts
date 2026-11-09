@@ -24,10 +24,23 @@ describe("proposedPlan (spec orchestrateur §7.2)", () => {
     // Real time: two agents in parallel share it, one sub-task alone must fit (spec mission de nuit §3).
     expect(proposedPlan(args({ ...task("nouveau", 30), titre: "A" }, { ...task("nouveau", 30), titre: "B" }), budgeted, [])).toMatchObject({ name: "Auth" });
     expect(proposedPlan(args(task("nouveau", 31)), budgeted, [])).toBe("Sub-task 1: 31 min do not fit in the overall budget (30 min of real time).");
-    expect(proposedPlan(args(task("nouveau"), task("nouveau"), task("nouveau")), budgeted, [])).toContain("No more than 2 sub-tasks: one per agent, 2 agents at most.");
+    // Past Max agents, sub-tasks wait in the queue at the go-ahead: only "new" ones, the queue names no agent.
+    expect(proposedPlan(args({ ...task("nouveau"), titre: "A" }, { ...task("nouveau"), titre: "B" }, { ...task("nouveau"), titre: "C" }), budgeted, [])).toMatchObject({ name: "Auth" });
+    expect(proposedPlan(args({ ...task("nouveau"), titre: "A" }, { ...task("nouveau"), titre: "B" }, task("Athena")), budgeted, ["Athena"])).toBe(
+      'Sub-task 3: only the first 2 sub-tasks start at the go-ahead (Max agents), the rest wait in the queue for a free or new agent: give it agent "new".',
+    );
     expect(proposedPlan(args(task("nouveau", 0)), NEW_MISSION, [])).toContain("budget");
     expect(proposedPlan({ tache: "x", sous_taches: [task("nouveau")] }, NEW_MISSION, [])).toContain("name");
     expect(proposedPlan(args(), NEW_MISSION, [])).toContain("at least one");
+  });
+
+  it("refuses a plan whose waiting sub-tasks would overflow the queue (spec mission de nuit §4.1)", () => {
+    const queued = (count: number) => Array.from({ length: count }, (_, i) => ({ title: `Q${i}`, brief: "b", budgetMin: 5 }));
+    const three = args({ ...task("nouveau"), titre: "A" }, { ...task("nouveau"), titre: "B" }, { ...task("nouveau"), titre: "C" });
+    expect(proposedPlan(three, { ...NEW_MISSION, maxAgents: 1, queue: queued(99) }, [])).toBe("The queue holds 100 tasks at most.");
+    expect(proposedPlan(three, { ...NEW_MISSION, maxAgents: 1, queue: queued(98) }, [])).toMatchObject({ name: "Auth" });
+    // Only the sub-tasks past Max agents join the queue: one that starts takes no place in it.
+    expect(proposedPlan(args({ ...task("nouveau"), titre: "A" }), { ...NEW_MISSION, maxAgents: 1, queue: queued(100) }, [])).toMatchObject({ name: "Auth" });
   });
 
   it("keeps the Kanban card of a sub-task, when its boards have it", () => {
@@ -87,6 +100,14 @@ describe("tasks for the queue (spec mission de nuit §4.2)", () => {
       { title: "A", brief: "Fais-le", budgetMin: 20 },
       { title: "B", brief: "Fais-le", budgetMin: 20, level: "eleve", group: { id: "g1", name: "Interface" } },
     ]);
+  });
+
+  it("counts a pending plan's sub-tasks beyond Max agents: they join the queue at the go-ahead", () => {
+    const sub = (title: string) => ({ title, brief: "b", agent: "nouveau", budgetMin: 5 });
+    const queue = Array.from({ length: 97 }, (_, i) => ({ title: `Q${i}`, brief: "b", budgetMin: 5 }));
+    const pending: Mission = { ...NEW_MISSION, state: "plan", maxAgents: 1, plan: [sub("P1"), sub("P2"), sub("P3")], queue };
+    expect(proposedTasks(added(item("A"), item("B")), pending, [])).toBe("The queue holds 100 tasks at most.");
+    expect(proposedTasks(added(item("A")), pending, [])).toHaveLength(1);
   });
 
   it("keeps the Kanban card of a task, one of its linked boards only", () => {

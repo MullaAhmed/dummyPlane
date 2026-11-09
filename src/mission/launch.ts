@@ -18,8 +18,9 @@ import { agentMessages } from "@/mcp/messages";
 import { outReport } from "@/mcp/protocol";
 import { nodesStore, sessionOf, terminalOf } from "@/store/nodes";
 import { isRunning } from "@/store/terminalStatus";
+import { activeCount, freeSeat, holdSeat, oneAtATime } from "./active";
 import { notify } from "./events";
-import { NEW_AGENT, NEW_MISSION, oneLine, pastTask, sameName, type Member, type Mission, type SubTask } from "./mission";
+import { NEW_AGENT, NEW_MISSION, oneLine, pastTask, queuedTask, sameName, type Member, type Mission, type SubTask } from "./mission";
 import { whenReady } from "./ready";
 import { modelFor } from "./router";
 import { canvasKnown, linkedClaudeAgents, linkedGroups, missionOf, orchestratorShown, setMission, updateMember, workspaceCanvas } from "./store";
@@ -216,21 +217,27 @@ export async function launchMission(orchestratorId: string): Promise<void> {
     return;
   }
   setMission(orchestratorId, { state: "lancement", error: undefined });
+  // Max agents start at once; the plan's other sub-tasks wait at the head of the queue for a seat.
+  const plan = mission.plan.slice(0, mission.maxAgents);
+  const waiting = mission.plan.slice(mission.maxAgents).map(queuedTask);
   const restarts: Restarts = new Map();
   let team: Team;
   try {
-    team = await formTeam(orchestratorId, record.workspaceId, session.cwd, mission, restarts);
+    team = await formTeam(orchestratorId, record.workspaceId, session.cwd, { ...mission, plan }, restarts);
   } catch (error) {
     setMission(orchestratorId, { state: "plan", error: errorText(error) });
     notify(orchestratorId, t().lines.couldNotStart(errorText(error)));
     return;
   }
-  setMission(orchestratorId, { state: "en_cours", startedAt: Date.now(), ...team });
+  // `add_tasks` may have queued more while the team formed.
+  const queue = missionOf(nodesStore.getState().nodes[orchestratorId])?.queue ?? mission.queue;
+  setMission(orchestratorId, { state: "en_cours", startedAt: Date.now(), ...team, plan, ...(waiting.length > 0 ? { queue: [...waiting, ...(queue ?? [])] } : {}) });
   const names = team.members.map((m) => `${m.name} (${m.task})`).join(", ");
   notify(orchestratorId, t().lines.goAhead(names, team.branch));
-  const plan = mission.plan;
   void startMissionCards(orchestratorId, team.members, plan).catch(() => undefined);
   team.members.forEach((member, i) => void assign(orchestratorId, member, withTicketNote(orchestratorId, mission, subTaskText(mission.name ?? "", plan[i], member.branch), plan[i]), restarts.get(member.nodeId)));
+  // Fewer sub-tasks than Max agents, and tasks queued: new agents take them now. Imported late: the queue imports this module.
+  if (plan.length < mission.maxAgents && queue?.length) void import("./queue").then(({ pumpQueue }) => pumpQueue(orchestratorId)).catch(() => undefined);
 }
 
 /** `finish` (spec §7.7): created agents close, linked ones go back to the project. */
@@ -312,8 +319,8 @@ export async function cleanMission(orchestratorId: string): Promise<Cleanup | st
   }
 }
 
-/** A new agent for a handed-over sub-task: its worktree, its terminal in the mission's group, started now. */
-async function newMember(orchestratorId: string, workspaceId: string, mission: Mission, task: SubTask): Promise<Member | string> {
+/** A new agent for a sub-task (handed over, or from the queue): its worktree, its terminal in the sub-task's group or the mission's, started now. */
+export async function newMember(orchestratorId: string, workspaceId: string, mission: Mission, task: SubTask): Promise<Member | string> {
   if (!mission.project || !mission.slug) return t().launch.noFolder;
   const { frames } = workspaceCanvas(workspaceId);
   // The sub-task's group if it still exists, else the mission's (spec specialised groups §4).
@@ -376,9 +383,16 @@ export async function reassignTask(orchestratorId: string, fromNodeId: string, t
   let to: Member;
   if (sameName(target, NEW_AGENT)) {
     if (!canvasKnown(orchestratorId)) return r.hidden;
-    // A handed-away agent's session stays open: only the running ones count against the cap.
-    if (mission.members.filter((m) => isRunning(m.nodeId)).length >= mission.maxAgents) return r.teamFull(mission.maxAgents);
-    const made = await newMember(orchestratorId, record.workspaceId, mission, task);
+    // Max agents caps the agents at work, not the team: those who reported or handed over count no more.
+    if (activeCount(orchestratorId, mission) >= mission.maxAgents) return r.teamFull(mission.maxAgents);
+    // Its seat is held while it is created, in turn with the queue's new agents: no name nor seat twice.
+    holdSeat(orchestratorId, `reassign:${task.title}`);
+    let made: Member | string;
+    try {
+      made = await oneAtATime(orchestratorId, () => newMember(orchestratorId, record.workspaceId, missionOf(nodesStore.getState().nodes[orchestratorId]) ?? mission, task));
+    } finally {
+      freeSeat(orchestratorId, `reassign:${task.title}`);
+    }
     if (typeof made === "string") return made;
     to = made;
   } else {
