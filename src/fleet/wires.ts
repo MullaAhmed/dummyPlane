@@ -18,8 +18,8 @@ import type { Point } from "./terminals";
  */
 export const WIRE_COLOR = "#F25500";
 
-/** What wires were drawn with before: a wire still in one of them takes WIRE_COLOR when it is elbowed. */
-const FORMER_WIRE_COLORS = ["#c2603f", "#f4602e"];
+/** The terracotta wires were drawn with before: a wire still in it takes WIRE_COLOR when it is elbowed. */
+const FORMER_WIRE_COLOR = "#c2603f";
 
 // Excalidraw 0.18.1's constants (tests cannot load Excalidraw):
 /**
@@ -267,7 +267,7 @@ export function elbowWires(elements: readonly ExcalidrawElement[]): readonly Exc
     const to = wire.endBinding && byId.get(wire.endBinding.elementId);
     if (!from || !to) return element;
     changed = true;
-    const strokeColor = FORMER_WIRE_COLORS.includes(wire.strokeColor.toLowerCase()) ? WIRE_COLOR : wire.strokeColor;
+    const strokeColor = wire.strokeColor.toLowerCase() === FORMER_WIRE_COLOR ? WIRE_COLOR : wire.strokeColor;
     const elbow: ExcalidrawElbowArrowElement = {
       ...wire,
       ...elbowForm(from, to),
