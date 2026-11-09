@@ -153,12 +153,13 @@ it("prefers an @ target to the active terminal", async () => {
   expect(sendCommand).toHaveBeenCalledWith(["t2"], "run tests");
 });
 
-it("falls back to the active terminal when what is selected holds no agent", async () => {
+it("does not send to the active terminal behind a selection that holds no agent", async () => {
   await activate("t1");
   await select(["orphan"]);
+  expect(field().placeholder).not.toContain("Thoth");
   await type("run tests");
-  await act(async () => sendButton().click());
-  expect(sendCommand).toHaveBeenCalledWith(["t1"], "run tests");
+  expect(sendButton().disabled).toBe(true);
+  expect(host.textContent).not.toContain("To Thoth");
 });
 
 it("does not count an active terminal that was closed", async () => {

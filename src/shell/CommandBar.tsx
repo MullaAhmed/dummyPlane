@@ -47,7 +47,7 @@ export function CommandBar() {
     [nodeIds, nodes, frames],
   );
   const groups = useMemo(() => frames.filter(isGroup), [frames]);
-  // Without `@`: the selection, else the terminal the user last entered if it is still alive.
+  // Without `@`: the selection, else, with nothing selected at all, the terminal the user last entered if it is still alive.
   const selected = useMemo(
     () => selectionTargets(selectedIds, frames, agents.map((a) => a.id)),
     [selectedIds, frames, agents],
@@ -56,8 +56,9 @@ export function CommandBar() {
     () => activeTarget(activeId, agents.map((a) => a.id), () => activeAlive),
     [activeId, agents, activeAlive],
   );
-  const fallback = useMemo(() => (selected.length > 0 || active === null ? selected : [active]), [selected, active]);
-  const activeName = selected.length === 0 && active !== null ? agents.find((a) => a.id === active)?.name : undefined;
+  const nothingSelected = selectedIds.length === 0;
+  const fallback = useMemo(() => (nothingSelected && active !== null ? [active] : selected), [nothingSelected, selected, active]);
+  const activeName = nothingSelected && active !== null ? agents.find((a) => a.id === active)?.name : undefined;
 
   return (
     <div data-command-bar className="dp-glass-strong pointer-events-auto flex min-h-12 w-[680px] max-w-[calc(100vw-360px)] items-end gap-3 rounded-lg py-2 pl-3.5 pr-2">
