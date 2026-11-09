@@ -4,7 +4,7 @@ import { mockIPC } from "@tauri-apps/api/mocks";
 import { clearWirePulses, wireActivityStore } from "@/canvas/wireActivity";
 import type { Member } from "@/mission/mission";
 import { notify } from "@/mission/events";
-import { nodesStore } from "@/store/nodes";
+import { nodesStore, terminalOf } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
 import { agentTools, declareSteps, markStep, report } from "./agentTools";
 
@@ -62,11 +62,37 @@ it("lights every wire reaching an agent outside a mission when it marks a step, 
   expect(pulses().seth).toEqual({ direction: "toOrchestrator", at: expect.any(Number) });
 });
 
+// Nobody hears it, yet its work is done: its terminal minimizes all the same.
+it("minimizes a terminal outside any mission that reports its work done, its report kept for its card", () => {
+  expect(report("seth", { resume: "Done", statut: "termine" }).isError).not.toBe(true);
+  expect(terminalOf(nodesStore.getState().nodes.seth)).toMatchObject({ minimized: true, lastReport: { status: "done", summary: "Done" } });
+});
+
+it("keeps a terminal outside any mission that reports itself blocked open: someone has to look", () => {
+  expect(report("seth", { resume: "Needs a key", statut: "bloque" }).isError).not.toBe(true);
+  const payload = terminalOf(nodesStore.getState().nodes.seth);
+  expect(payload?.minimized).toBeUndefined();
+  expect(payload?.lastReport).toEqual({ status: "blocked", summary: "Needs a key" });
+});
+
+it("leaves a terminal as it was when its report is refused: no summary, or a status `report` does not know", () => {
+  const before = nodesStore.getState().nodes.seth;
+  report("seth", { statut: "termine" });
+  report("seth", { resume: "Done", statut: "done" });
+  expect(nodesStore.getState().nodes.seth).toBe(before);
+});
+
 it("offers spawn_agent to every Claude session, its task required", () => {
   const spawn = agentTools().find((tool) => tool.name === "spawn_agent")!;
   expect(spawn.inputSchema.required).toEqual(["task"]);
   expect(Object.keys(spawn.inputSchema.properties)).toEqual(["task", "title", "model"]);
   expect(spawn.description).toContain("3 levels");
+});
+
+it("minimizes a spawned agent that reports its work done, its parent told all the same", () => {
+  report("ra", { resume: "Tests written", statut: "termine" });
+  expect(terminalOf(nodesStore.getState().nodes.ra)).toMatchObject({ minimized: true, lastReport: { status: "done", summary: "Tests written" } });
+  expect(notify).toHaveBeenCalledWith("seth", expect.stringContaining("Ra reported"));
 });
 
 it("types a spawned agent's report into its parent and lights the wire toward it", () => {

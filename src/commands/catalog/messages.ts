@@ -91,6 +91,8 @@ export const catalogMessages = defineMessages({
       "terminal.stop": e("Stop the process", "stop", "kill", "process"),
       "terminal.pause": e("Pause", "pause", "interrupt"),
       "terminal.resume": e("Resume", "resume", "continue"),
+      "terminal.minimize": e("Minimize terminal", "minimize", "collapse", "card", "hide", "terminal"),
+      "terminal.expand": e("Expand terminal", "expand", "restore", "maximize", "unminimize", "terminal"),
       "terminal.close": e("Close", "close", "terminal"),
       "terminal.copy": e("Copy", "copy", "selection", "clipboard"),
       "terminal.paste": e("Paste", "paste", "clipboard"),

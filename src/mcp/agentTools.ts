@@ -8,6 +8,7 @@ import { afterReport } from "@/mission/queue";
 import { isOrchestratorClosed, memberOf, missionOf, updateMember } from "@/mission/store";
 import { spawnAgent } from "@/fleet/spawn";
 import { markReported, MAX_SPAWN_DEPTH, spawnedByOf } from "@/fleet/spawnFamily";
+import { onAgentReported } from "@/nodes/terminal/minimize";
 import { nodeNameOf, nodesStore, terminalOf } from "@/store/nodes";
 import { isRunning } from "@/store/terminalStatus";
 import { agentMessages } from "./messages";
@@ -126,6 +127,7 @@ function reportToParent(nodeId: string, summary: string, status: ReportStatus): 
  * opened with spawn_agent reports to its parent too; otherwise nobody listens.
  */
 export function report(nodeId: string, args: Record<string, unknown>): ToolResult {
+  onAgentReported(nodeId, args.statut, args.resume);
   const found = memberOf(nodeId, { evenClosed: true });
   const spawned = spawnedByOf(nodeId) !== undefined;
   if (!found && !spawned) return said(t().agent.noMission);

@@ -12,6 +12,10 @@ export function cloneTerminalPayload(source: TerminalPayload, name: string): Ter
   delete copy.permission;
   // A copy reports to nobody and counts toward no sub-agent tree.
   delete copy.spawnedBy;
+  // A copy is a new agent: it starts open, with no report of its own yet.
+  delete copy.minimized;
+  delete copy.expandedHeight;
+  delete copy.lastReport;
   // An install runs once, when asked for, and a copy starts by itself: it is a plain shell in the same folder.
   if (copy.oneShot) {
     copy.agent = "shell";

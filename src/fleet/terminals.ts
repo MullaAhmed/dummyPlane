@@ -6,7 +6,7 @@ import { revealNode } from "@/canvas/arrive";
 import { canvasStore } from "@/canvas/canvasStore";
 import { groupInfoOf, groupOf, insertIntoFrame, withGroupFolded } from "@/canvas/groups";
 import { allowRemoval } from "@/canvas/removalGuard";
-import { createNodeElement, nodeKindOf } from "@/canvas/nodeElement";
+import { createNodeElement, NODE_SIZE, nodeKindOf } from "@/canvas/nodeElement";
 import { disposeTerminal, markForAutostart, relaunchTerminal } from "@/nodes/terminal/registry";
 import type { TerminalPayload } from "@/nodes/types";
 import { nodesStore, terminalOf } from "@/store/nodes";
@@ -132,6 +132,13 @@ export async function adoptCopies(workspaceId: string, copies: readonly { id: st
   }
   if (refused.size) removeNodes([...refused]);
   const ids = new Set(copies.map((copy) => copy.id).filter((id) => !refused.has(id)));
+  // A minimized terminal's copy starts open: its element takes the height the card stood for.
+  const fullHeights = new Map(
+    copies.flatMap(({ id, sourceId }) => {
+      const source = terminalOf(nodesStore.getState().nodes[sourceId]);
+      return ids.has(id) && source?.minimized ? [[id, source.expandedHeight ?? NODE_SIZE.terminal.height] as const] : [];
+    }),
+  );
   const scene = api.getSceneElementsIncludingDeleted();
   const homes = new Set(scene.filter((e) => ids.has(e.id)).map((e) => e.frameId));
   const linked = scene
@@ -139,7 +146,8 @@ export async function adoptCopies(workspaceId: string, copies: readonly { id: st
     .map((e) => {
       const pantheon = pantheons.get(e.id);
       if (pantheon) return newElementWith(e, { customData: { ...e.customData, dummyplane: { ...(e.customData?.dummyplane as object), pantheon } } });
-      return ids.has(e.id) ? newElementWith(e, { link: `dummyplane://${nodeKindOf(e) ?? "terminal"}/${e.id}` }) : e;
+      const height = fullHeights.get(e.id);
+      return ids.has(e.id) ? newElementWith(e, { link: `dummyplane://${nodeKindOf(e) ?? "terminal"}/${e.id}`, ...(height ? { height } : {}) }) : e;
     });
   api.updateScene({ elements: alignCopies(linked, ids), captureUpdate: CaptureUpdateAction.NEVER });
 }

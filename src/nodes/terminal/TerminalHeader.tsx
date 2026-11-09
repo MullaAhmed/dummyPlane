@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { ChevronDown, FileDiff, RotateCw } from "lucide-react";
+import { ChevronDown, FileDiff, Minimize2, RotateCw } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,6 +24,7 @@ import type { AgentActivity } from "@/store/agentActivity";
 import { nodesStore } from "@/store/nodes";
 import type { TerminalStatus } from "@/store/terminalStatus";
 import { newConversation, switchedAgent, type LaunchMode } from "./launch";
+import { minimizeTerminal } from "./minimize";
 import { relaunchTerminal, stopTerminal } from "./registry";
 import { StatusPill } from "./StatusPill";
 import { TerminalOptionsDialog } from "./TerminalOptionsDialog";
@@ -223,6 +224,9 @@ export function TerminalHeader(props: {
           <FileDiff />
         </HeaderButton>
         <RelaunchMenu nodeId={nodeId} payload={payload} running={status.state === "running"} />
+        <HeaderButton label={t.minimize} onClick={() => minimizeTerminal(nodeId)}>
+          <Minimize2 />
+        </HeaderButton>
         {actions}
       </div>
       {optionsOpen && <TerminalOptionsDialog nodeId={nodeId} payload={payload} onClose={() => setOptionsOpen(false)} />}

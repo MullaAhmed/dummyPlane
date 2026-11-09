@@ -48,3 +48,10 @@ it("leaves a mission's permissions to its own agents: a copy asks as usual (revi
   const copy = cloneTerminalPayload({ ...claude, permission: "work" }, "Osiris");
   expect(copy.permission).toBeUndefined();
 });
+
+it("starts a minimized terminal's copy open, with no report of its own", () => {
+  const copy = cloneTerminalPayload({ ...claude, minimized: true, expandedHeight: 520, lastReport: { status: "done", summary: "Shipped" } }, "Osiris");
+  expect(copy.minimized).toBeUndefined();
+  expect(copy.expandedHeight).toBeUndefined();
+  expect(copy.lastReport).toBeUndefined();
+});

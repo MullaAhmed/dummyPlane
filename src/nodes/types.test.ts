@@ -92,3 +92,25 @@ describe("readFilePayload", () => {
     expect(readFilePayload({ path: 3 })).toBeNull();
   });
 });
+
+describe("a minimized terminal (./terminal/minimize.ts)", () => {
+  const terminal = { title: "T", name: "Isis", agent: "claude", cwd: "C:/api", shell: "default", command: "" };
+
+  it("reads back that it is minimized, the height it expands to and its agent's last report", () => {
+    const saved = { ...terminal, minimized: true, expandedHeight: 520, lastReport: { status: "done", summary: "All good" } };
+    expect(readTerminalPayload(JSON.parse(JSON.stringify(saved)))).toEqual(saved);
+    for (const status of ["blocked", "failed"]) {
+      expect(readTerminalPayload({ ...terminal, lastReport: { status, summary: "Needs a key" } })?.lastReport).toEqual({ status, summary: "Needs a key" });
+    }
+  });
+
+  it("drops what it cannot use", () => {
+    for (const minimized of [false, "yes", 1]) expect(readTerminalPayload({ ...terminal, minimized })).not.toHaveProperty("minimized");
+    for (const expandedHeight of [0, -1, Number.NaN, Infinity, "500", null]) {
+      expect(readTerminalPayload({ ...terminal, expandedHeight })).not.toHaveProperty("expandedHeight");
+    }
+    const reports = [null, "done", { status: "termine", summary: "x" }, { status: "done" }, { status: "done", summary: 3 }, { summary: "x" }];
+    for (const lastReport of reports) expect(readTerminalPayload({ ...terminal, lastReport })).not.toHaveProperty("lastReport");
+    expect(readTerminalPayload({ ...terminal, minimized: "yes", expandedHeight: -1, lastReport: "done" })).toEqual(terminal);
+  });
+});

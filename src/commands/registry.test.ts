@@ -170,6 +170,7 @@ describe("what each context lists (spec fenêtre §11)", () => {
         "terminal.duplicate",
         "terminal.review",
         "terminal.relaunch",
+        "terminal.minimize",
         "terminal.close",
         "terminal.copy",
         "terminal.paste",

@@ -15,6 +15,7 @@ import {
   orchestratorTargets,
   orphanWires,
   outdatedWires,
+  rerouteWires,
   revivableWires,
   unmarkedWires,
   wireColor,
@@ -413,6 +414,44 @@ describe("revivableWires (plan B3 undo)", () => {
   });
 });
 
+describe("rerouteWires (a node the app resizes: Excalidraw reroutes only what the user moves)", () => {
+  const wire = createWire(orchestrator, member);
+  const toLone = createWire(orchestrator, lone);
+  const shrunk = { ...member, height: 68 } as ExcalidrawElement;
+
+  it("routes the wires bound to the node again between their ends as they stand, and leaves the rest", () => {
+    const elements = [orchestrator, frame, shrunk, lone, plain, wire, toLone];
+    const next = rerouteWires(elements, new Set([member.id]));
+    const rerouted = next[5] as ExcalidrawElbowArrowElement;
+    expect(rerouted).toMatchObject({
+      id: wire.id,
+      elbowed: true,
+      version: wire.version + 1,
+      startBinding: { elementId: orchestrator.id },
+      endBinding: { elementId: member.id },
+      customData: { dummyplane: { kind: "wire" } },
+    });
+    expect(orthogonal(rerouted.points)).toBe(true);
+    // Its end on the middle of the shrunk node's side, no longer where the full node had it.
+    const end = fixedOnScene(shrunk, rerouted.endBinding!.fixedPoint);
+    expect(ends(rerouted).end.x).toBeCloseTo(end.x);
+    expect(ends(rerouted).end.y).toBeCloseTo(end.y);
+    expect(ends(rerouted).end.y).not.toBeCloseTo(ends(wire).end.y);
+    [0, 1, 2, 3, 4, 6].forEach((i) => expect(next[i]).toBe(elements[i]));
+  });
+
+  it("returns the scene itself when no live wire joins the nodes to a live end", () => {
+    const elements = [orchestrator, frame, shrunk, lone, plain, wire];
+    expect(rerouteWires(elements, new Set([plain.id]))).toBe(elements);
+    expect(rerouteWires(base, new Set([member.id]))).toBe(base);
+    const left = [orchestrator, shrunk, { ...wire, isDeleted: true } as ExcalidrawElement, handDrawn(orchestrator, member)];
+    expect(rerouteWires(left, new Set([member.id]))).toBe(left);
+    // Its other end is gone.
+    const alone = [shrunk, wire];
+    expect(rerouteWires(alone, new Set([member.id]))).toBe(alone);
+  });
+});
+
 describe("spawn wires (spawn_agent)", () => {
   /** A sub-agent its terminal `lone` spawned, on its right. */
   const child = createNodeElement("terminal", { x: 1200, y: 900 }) as unknown as ExcalidrawElement;
@@ -471,5 +510,14 @@ describe("spawn wires (spawn_agent)", () => {
     const { elements } = spawned();
     expect(orchestratorLinks(elements)).toEqual({ [orchestrator.id]: { groupIds: [], nodeIds: [] } });
     expect(unmarkedWires(elements)).toEqual([]);
+  });
+
+  it("keeps its mark and its color when a minimized end reroutes it", () => {
+    const { elements, wire } = spawned();
+    const shrunk = elements.map((e) => (e.id === child.id ? ({ ...e, height: 68 } as ExcalidrawElement) : e));
+    const rerouted = rerouteWires(shrunk, new Set([child.id])).find((e) => e.id === wire.id) as ExcalidrawElbowArrowElement;
+    expect(rerouted.version).toBe(wire.version + 1);
+    expect(isSpawnWire(rerouted)).toBe(true);
+    expect(rerouted.strokeColor).toBe(wire.strokeColor);
   });
 });

@@ -118,8 +118,23 @@ export function ptyWrite(nodeId: string, data: string): Promise<void> {
   return queued(nodeId, () => call<void>("pty_write", { nodeId, data }));
 }
 
+const textListeners = new Set<(nodeId: string) => void>();
+
+/** Hears every text typed into a node by `ptySendText`: a task, a message, the command bar's Send. */
+export function onTextSent(listener: (nodeId: string) => void): () => void {
+  textListeners.add(listener);
+  return () => textListeners.delete(listener);
+}
+
 /** Types a command into the terminal, then Enter (spec habillage §15.3). */
 export function ptySendText(nodeId: string, text: string): Promise<void> {
+  for (const listener of textListeners) {
+    try {
+      listener(nodeId);
+    } catch (error) {
+      console.warn("text listener failed", error);
+    }
+  }
   return queued(nodeId, () => call<void>("pty_send_text", { nodeId, text }));
 }
 

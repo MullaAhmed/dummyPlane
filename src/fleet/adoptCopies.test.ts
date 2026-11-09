@@ -67,3 +67,12 @@ it("unfolds a folded group copied whole: its copies would never mount, nor start
   const copy = scene.find((e) => e.id === "copy")!;
   expect((copy.customData!.dummyplane as Record<string, unknown>).folded).toBeUndefined();
 });
+
+it("gives a minimized terminal's copy the height its card stood for: the copy starts open", async () => {
+  nodesStore.getState().update("isis", { minimized: true, expandedHeight: 520 });
+  scene = scene.map((e) => (e.id === "isis" || e.id === "isis2" ? ({ ...e, height: 68 } as ExcalidrawElement) : e));
+  await adoptCopies("w1", [{ id: "isis2", sourceId: "isis" }]);
+  expect(scene.find((e) => e.id === "isis2")!.height).toBe(520);
+  expect(scene.find((e) => e.id === "isis")!.height).toBe(68);
+  expect(terminalOf(nodesStore.getState().nodes.isis2)?.minimized).toBeUndefined();
+});
