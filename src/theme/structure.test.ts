@@ -23,9 +23,8 @@ it("puts menus, popovers, lists, dialogs and toasts in dense glass (spec identit
   expect(index).toMatch(/\[data-sonner-toast\]\[data-styled="true"\] \{[^}]*var\(--dp-glass-strong\)[^}]*border-radius: 14px/);
 });
 
-it("docks Excalidraw's properties panel in glass, right of the tool rail (spec identité §5.7)", () => {
-  const excalidraw = readSource("theme/excalidraw.css");
-  expect(excalidraw).toMatch(/\.excalidraw \.App-menu__left \{[^}]*left: 70px;[^}]*var\(--dp-glass-strong\)[^}]*var\(--dp-blur\)[^}]*border-radius: 14px/);
+it("keeps no rule for Excalidraw's left menu: SelectionPanel replaces its properties panel, and nothing renders the old one", () => {
+  expect(readSource("theme/excalidraw.css")).not.toContain("App-menu__left");
 });
 
 it("leaves nothing at the top of the canvas but the bars: no top toast, no banner under the tabs", () => {

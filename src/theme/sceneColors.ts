@@ -51,8 +51,17 @@ export function sceneColorFor(displayHex: string, theme: Theme): string {
   return theme === "dark" ? toSceneColor(displayHex) : displayHex;
 }
 
+/**
+ * Electric's canvas (#263CF5) cannot be reached through the dark filter: no stored
+ * color shows as it. The nearest one, of all 8-bit colors, shows as #3878d0; the
+ * plain inverse of the canvas, #a0baff, would show as #384e8a.
+ */
+const ELECTRIC_EXPORT_SCENE = "#4e99ff";
+
 /** A PNG export looks like the canvas on screen, in the palette's scheme and on its canvas color (spec identité §4.5). */
 export function exportBackground(palette: ThemeChoice): { exportWithDarkMode: boolean; viewBackgroundColor: string } {
   const { scheme, canvas } = PALETTES[palette];
-  return scheme === "dark" ? { exportWithDarkMode: true, viewBackgroundColor: toSceneColor(canvas) } : { exportWithDarkMode: false, viewBackgroundColor: canvas };
+  if (scheme === "light") return { exportWithDarkMode: false, viewBackgroundColor: canvas };
+  const viewBackgroundColor = palette === "electric" ? ELECTRIC_EXPORT_SCENE : toSceneColor(canvas);
+  return { exportWithDarkMode: true, viewBackgroundColor };
 }
