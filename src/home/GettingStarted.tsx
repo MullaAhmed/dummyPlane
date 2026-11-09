@@ -25,15 +25,15 @@ export function GettingStarted({ hasProject }: { hasProject: boolean }) {
     { id: "launch", title: t.launch, hint: t.launchHint(keyLabel("Ctrl+K")), done: false },
   ];
   return (
-    <section data-getting-started className="dp-glass-strong mb-6 rounded-[14px] p-5">
+    <section data-getting-started className="dp-glass-strong mb-6 rounded-lg p-5">
       <h2 className="mb-4 text-sm font-semibold text-dp-text">{t.title}</h2>
-      <ol className="grid gap-3 sm:grid-cols-3">
+      <ol className="grid gap-4 sm:grid-cols-3">
         {steps.map((step, i) => (
           <li key={step.id} data-step={step.id} data-done={String(step.done)} className="flex items-start gap-3">
             <span
               className={cn(
                 "grid size-6 shrink-0 place-items-center rounded-full font-mono text-[11px] font-semibold",
-                step.done ? "bg-dp-ok/15 text-dp-ok" : "bg-dp-accent-soft text-dp-accent",
+                step.done ? "bg-dp-ok/15 text-dp-ok" : "bg-dp-accent-soft text-dp-accent-ink",
               )}
             >
               {step.done ? (
@@ -46,11 +46,16 @@ export function GettingStarted({ hasProject }: { hasProject: boolean }) {
               )}
             </span>
             <div className="min-w-0">
-              <p className={cn("text-[13px] font-semibold", step.done ? "text-dp-text-2 line-through" : "text-dp-text")}>{step.title}</p>
+              <p className={cn("text-[13px] font-semibold", step.done ? "text-dp-text-3 line-through" : "text-dp-text")}>{step.title}</p>
               <p className="text-xs text-dp-text-2">{step.hint}</p>
               {step.id === "project" && !step.done && (
-                <button type="button" data-link onClick={() => void openUrl(GIT_DOWNLOAD)} className="mt-1 flex items-center gap-1 text-xs text-dp-accent hover:underline">
-                  {t.installGit} <ExternalLink className="size-3" />
+                <button
+                  type="button"
+                  data-link
+                  onClick={() => void openUrl(GIT_DOWNLOAD)}
+                  className="-mx-1.5 mt-1 flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs text-dp-accent-ink transition-[color,background-color] duration-150 ease-out hover:bg-dp-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] motion-reduce:transition-none [&_svg]:size-3.5"
+                >
+                  {t.installGit} <ExternalLink />
                 </button>
               )}
             </div>
