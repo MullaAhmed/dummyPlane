@@ -37,5 +37,5 @@ try {
 for (const [path, text] of next) writeFileSync(path, text);
 git("add", ...Object.keys(bumps));
 git("commit", "-m", `chore(release): v${version}`);
-git("tag", "-a", `v${version}`, "-m", `OpenVibe ${version}`);
+git("tag", "-a", `v${version}`, "-m", `dummyPlane ${version}`);
 console.log(`v${version} is ready. Push it with: git push origin main v${version}`);

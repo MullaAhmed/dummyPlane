@@ -1,4 +1,4 @@
-// Drives the probe OpenVibe page through WebView2's DevTools port (page input
+// Drives the probe dummyPlane page through WebView2's DevTools port (page input
 // only, never the OS) and records it with Page.startScreencast.
 import fs from "node:fs";
 import path from "node:path";

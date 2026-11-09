@@ -1,4 +1,4 @@
-//! OpenVibe's MCP server (spec orchestrateur §4.1): JSON-RPC over one HTTP
+//! dummyPlane's MCP server (spec orchestrateur §4.1): JSON-RPC over one HTTP
 //! POST, answered at once. Rust holds the transport and the caller's identity;
 //! `tools/list` and `tools/call` are answered by the interface.
 
@@ -71,7 +71,7 @@ pub fn action(message: &Value) -> Action {
                 json!({
                     "protocolVersion": version,
                     "capabilities": { "tools": {} },
-                    "serverInfo": { "name": "openvibe", "version": env!("CARGO_PKG_VERSION") },
+                    "serverInfo": { "name": "dummyplane", "version": env!("CARGO_PKG_VERSION") },
                 }),
             ))
         }

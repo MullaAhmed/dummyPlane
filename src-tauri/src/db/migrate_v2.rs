@@ -212,11 +212,11 @@ mod tests {
         assert_eq!(count(&conn, "SELECT COUNT(*) FROM workspaces"), 4);
     }
 
-    /// `OPENVIBE_DB_COPY=<copie de openvibe.db> cargo test --lib -- --ignored --nocapture`
+    /// `DUMMYPLANE_DB_COPY=<copie de dummyplane.db> cargo test --lib -- --ignored --nocapture`
     #[test]
-    #[ignore = "needs OPENVIBE_DB_COPY, a copy of a real openvibe.db"]
+    #[ignore = "needs DUMMYPLANE_DB_COPY, a copy of a real dummyplane.db"]
     fn migrates_a_copy_of_the_real_database() {
-        let path = std::env::var("OPENVIBE_DB_COPY").expect("OPENVIBE_DB_COPY");
+        let path = std::env::var("DUMMYPLANE_DB_COPY").expect("DUMMYPLANE_DB_COPY");
         let mut conn = Connection::open(&path).unwrap();
         conn.execute_batch("PRAGMA foreign_keys = ON;").unwrap();
         migrate_up_to(&mut conn, 2, &crate::db::home_dir()).unwrap();

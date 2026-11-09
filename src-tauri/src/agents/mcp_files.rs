@@ -1,4 +1,4 @@
-//! The files that give a Claude session OpenVibe's tools (spec orchestrateur
+//! The files that give a Claude session dummyPlane's tools (spec orchestrateur
 //! §4.2): `--mcp-config <nodeId>.json` and `--append-system-prompt-file <nodeId>.md`.
 
 use std::io;
@@ -14,7 +14,7 @@ pub struct McpFiles {
 }
 
 pub fn config_json(url: &str, token: &str) -> Value {
-    json!({ "mcpServers": { "openvibe": {
+    json!({ "mcpServers": { "dummyplane": {
         "type": "http",
         "url": url,
         "headers": { "Authorization": format!("Bearer {token}") }
@@ -76,10 +76,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn points_claude_at_openvibe_with_the_node_s_token() {
+    fn points_claude_at_dummyplane_with_the_node_s_token() {
         assert_eq!(
             config_json("http://127.0.0.1:4242/mcp", "tok"),
-            serde_json::json!({ "mcpServers": { "openvibe": {
+            serde_json::json!({ "mcpServers": { "dummyplane": {
                 "type": "http",
                 "url": "http://127.0.0.1:4242/mcp",
                 "headers": { "Authorization": "Bearer tok" }
@@ -96,14 +96,14 @@ mod tests {
             "n1",
             "http://127.0.0.1:1/mcp",
             "tok",
-            "Tu travailles dans OpenVibe.",
+            "Tu travailles dans dummyPlane.",
         )
         .unwrap();
         assert_eq!(files.config, mcp.join("n1.json"));
         assert_eq!(files.prompt, mcp.join("n1.md"));
         assert_eq!(
             std::fs::read_to_string(&files.prompt).unwrap(),
-            "Tu travailles dans OpenVibe."
+            "Tu travailles dans dummyPlane."
         );
         assert!(write(&mcp, "../evil", "u", "t", "p").is_err());
         let english =

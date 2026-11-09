@@ -83,7 +83,7 @@ pub enum Permission {
 /// what the other misses, neither is a sandbox.
 pub const NO_PUSH_ENV: [(&str, &str); 3] = [
     ("GIT_CONFIG_COUNT", "1"),
-    ("GIT_CONFIG_KEY_0", "url.openvibe-no-push:.pushInsteadOf"),
+    ("GIT_CONFIG_KEY_0", "url.dummyplane-no-push:.pushInsteadOf"),
     ("GIT_CONFIG_VALUE_0", ""),
 ];
 
@@ -156,7 +156,7 @@ pub struct SpawnPlan {
     pub interrupt: Option<&'static [u8]>,
 }
 
-/// What OpenVibe passes to agents so they report their state (spec §8.2).
+/// What dummyPlane passes to agents so they report their state (spec §8.2).
 #[derive(Debug, Clone, Default)]
 pub struct AgentHooks {
     /// Claude: `claude --settings <file>`.
@@ -165,18 +165,18 @@ pub struct AgentHooks {
     pub codex_notify: Option<String>,
     /// The curl config that carries the local server's token (spec première version §4.3).
     pub curl_config: Option<PathBuf>,
-    /// Claude: `--mcp-config <file>`, OpenVibe's tools (spec orchestrateur §4.2).
+    /// Claude: `--mcp-config <file>`, dummyPlane's tools (spec orchestrateur §4.2).
     pub mcp_config: Option<PathBuf>,
     /// Claude: `--append-system-prompt-file <file>`, its role.
     pub system_prompt: Option<PathBuf>,
 }
 
 /// What keeps an orchestrator a manager (spec première version §4.1): its
-/// settings (`deny`), OpenVibe's tools and its role. Without one of them it
+/// settings (`deny`), dummyPlane's tools and its role. Without one of them it
 /// would start as a plain Claude in the user's folder, so it does not start.
 pub fn orchestrator_tools(hooks: &AgentHooks, server_running: bool) -> Result<(), String> {
     if !server_running {
-        return Err("OpenVibe's local server did not start".to_string());
+        return Err("dummyPlane's local server did not start".to_string());
     }
     let complete = hooks.claude_settings.is_some()
         && hooks.mcp_config.is_some()
@@ -188,7 +188,7 @@ pub fn orchestrator_tools(hooks: &AgentHooks, server_running: bool) -> Result<()
     }
 }
 
-/// Claude Code marks the processes its tools start; an OpenVibe launched from
+/// Claude Code marks the processes its tools start; an dummyPlane launched from
 /// a Claude Code session must not pass them on, or its agents become child
 /// sessions, left out of `--resume` (spec §8.2).
 pub const INHERITED_MARKERS: [&str; 8] = [
@@ -216,7 +216,7 @@ pub const CLAUDE_SESSION_EXTRAS: [&str; 8] = [
     "NoDefaultCurrentDirectoryInExePath",
 ];
 
-/// The variables a terminal does not inherit; `inside_claude`: OpenVibe itself
+/// The variables a terminal does not inherit; `inside_claude`: dummyPlane itself
 /// was started from a Claude Code session.
 pub fn removed_env(inside_claude: bool) -> Vec<String> {
     let extras: &[&str] = if inside_claude {
@@ -429,7 +429,7 @@ fn claude_command(
                 " {flag} {}",
                 quote(syntax, &path.to_string_lossy())
             ));
-            // The orchestrator gets OpenVibe's tools only: the user's MCP
+            // The orchestrator gets dummyPlane's tools only: the user's MCP
             // servers could write files out of reach of its `deny` list.
             if flag == "--mcp-config" && launch.role == Role::Orchestrator {
                 claude.push_str(" --strict-mcp-config");
@@ -574,8 +574,8 @@ pub fn build_plan(
         env: vec![
             ("TERM".into(), "xterm-256color".into()),
             ("COLORTERM".into(), "truecolor".into()),
-            ("OPENVIBE".into(), "1".into()),
-            ("OPENVIBE_NODE_ID".into(), node_id.into()),
+            ("DUMMYPLANE".into(), "1".into()),
+            ("DUMMYPLANE_NODE_ID".into(), node_id.into()),
         ]
         .into_iter()
         .chain(refreshed_path())
@@ -848,7 +848,7 @@ mod tests {
         assert_eq!(plan.initial_input.as_deref(), Some("aider\r"));
         assert!(
             plan.env
-                .contains(&("OPENVIBE_NODE_ID".into(), "node-1".into()))
+                .contains(&("DUMMYPLANE_NODE_ID".into(), "node-1".into()))
         );
         assert!(plan.env.contains(&("TERM".into(), "xterm-256color".into())));
     }
@@ -871,7 +871,7 @@ mod tests {
     }
 
     #[test]
-    fn gives_claude_openvibe_s_tools_and_its_role() {
+    fn gives_claude_dummyplane_s_tools_and_its_role() {
         let hooks = AgentHooks {
             claude_settings: Some(PathBuf::from(r"C:\data\hooks\n1.json")),
             mcp_config: Some(PathBuf::from(r"C:\data\mcp\n1.json")),
@@ -905,7 +905,7 @@ mod tests {
         assert_eq!(orchestrator_tools(&tooled(), true), Ok(()));
         assert_eq!(
             orchestrator_tools(&AgentHooks::default(), false),
-            Err("OpenVibe's local server did not start".to_string())
+            Err("dummyPlane's local server did not start".to_string())
         );
         for partial in [
             AgentHooks {
@@ -929,7 +929,7 @@ mod tests {
     }
 
     #[test]
-    fn an_orchestrator_gets_only_openvibes_tools() {
+    fn an_orchestrator_gets_only_dummyplanes_tools() {
         let mut launch = claude(ClaudeMode::New, "");
         launch.as_mut().unwrap().role = Role::Orchestrator;
         let manager = agent_command(&spec(Agent::Claude, launch), ShellSyntax::Cmd, &tooled())

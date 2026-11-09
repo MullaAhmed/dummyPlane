@@ -74,12 +74,12 @@ pub fn run() {
                 .enable_clipboard_access()
                 .build()?;
             log::info!(
-                "OpenVibe {} on {} {}",
+                "dummyPlane {} on {} {}",
                 app.package_info().version,
                 std::env::consts::OS,
                 std::env::consts::ARCH
             );
-            let path = app.path().app_data_dir()?.join("openvibe.db");
+            let path = app.path().app_data_dir()?.join("dummyplane.db");
             let db = match Db::open(&path) {
                 Ok(db) => db,
                 Err(err) => {
@@ -91,7 +91,7 @@ pub fn run() {
                             "Cannot open the database {shown}:\n{err}"
                         ))
                         .kind(MessageDialogKind::Error)
-                        .title("OpenVibe")
+                        .title("dummyPlane")
                         .blocking_show();
                     return Err(err.into());
                 }
@@ -185,7 +185,7 @@ pub fn run() {
             commands::agents::mcp_reply,
         ])
         .build(tauri::generate_context!())
-        .expect("error while building the OpenVibe application");
+        .expect("error while building the dummyPlane application");
 
     app.run(|handle, event| {
         // Agents must not outlive the window that shows them; their screens are

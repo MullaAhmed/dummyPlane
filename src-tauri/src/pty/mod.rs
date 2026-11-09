@@ -152,7 +152,7 @@ impl PtyManager {
     }
 
     /// Stops every terminal and waits until each exit was handled, its final
-    /// output saved: an update's installer closes OpenVibe right after (spec
+    /// output saved: an update's installer closes dummyPlane right after (spec
     /// première version §6.4). False if some were still exiting at `timeout`.
     pub fn stop_all(&self, timeout: Duration) -> bool {
         self.kill_all();
@@ -393,18 +393,18 @@ mod windows_tests {
         let exited = spawn_answering(
             &mgr,
             "a",
-            cmd_plan(&["/c", "echo openvibe-hello"], None),
+            cmd_plan(&["/c", "echo dummyplane-hello"], None),
             sink.clone(),
         );
         let info = wait_exit(&exited);
         assert_eq!(info.code, Some(0));
         assert!(info.pid.is_some(), "the exit names its process");
         assert!(
-            sink.text().contains("openvibe-hello"),
+            sink.text().contains("dummyplane-hello"),
             "output: {:?}",
             sink.text()
         );
-        assert!(String::from_utf8_lossy(&info.scrollback.data).contains("openvibe-hello"));
+        assert!(String::from_utf8_lossy(&info.scrollback.data).contains("dummyplane-hello"));
         assert!(mgr.list().is_empty());
         assert!(mgr.scrollback("a").is_none());
     }
@@ -551,14 +551,14 @@ mod windows_tests {
     #[test]
     fn removes_inherited_variables_from_the_terminal() {
         // SAFETY: no other test reads or writes this variable.
-        unsafe { std::env::set_var("OPENVIBE_TEST_MARKER", "leaked") };
-        let mut plan = cmd_plan(&["/c", "echo [%OPENVIBE_TEST_MARKER%]"], None);
-        plan.env_remove = vec!["OPENVIBE_TEST_MARKER".into()];
+        unsafe { std::env::set_var("DUMMYPLANE_TEST_MARKER", "leaked") };
+        let mut plan = cmd_plan(&["/c", "echo [%DUMMYPLANE_TEST_MARKER%]"], None);
+        plan.env_remove = vec!["DUMMYPLANE_TEST_MARKER".into()];
         let sink = VecSink::default();
         let exited = spawn_answering(&PtyManager::default(), "g", plan, sink.clone());
         wait_exit(&exited);
         assert!(
-            sink.text().contains("[%OPENVIBE_TEST_MARKER%]"),
+            sink.text().contains("[%DUMMYPLANE_TEST_MARKER%]"),
             "output: {:?}",
             sink.text()
         );
@@ -638,10 +638,10 @@ mod windows_tests {
         let sink = VecSink::default();
         let exited = spawn_answering(&mgr, "j", cmd_plan(&[], None), sink.clone());
         wait_until("prompt", || sink.text().contains('>'));
-        mgr.send_text("j", "echo sent-by-openvibe").unwrap();
+        mgr.send_text("j", "echo sent-by-dummyplane").unwrap();
         // The typed line, then what the command printed.
         wait_until("command output", || {
-            sink.text().matches("sent-by-openvibe").count() >= 2
+            sink.text().matches("sent-by-dummyplane").count() >= 2
         });
         mgr.write("j", b"exit\r").unwrap();
         wait_exit(&exited);

@@ -1,5 +1,5 @@
 name: Bug report
-description: Something in OpenVibe does not work as expected.
+description: Something in dummyPlane does not work as expected.
 labels: ["bug"]
 body:
   - type: markdown
@@ -27,7 +27,7 @@ body:
   - type: input
     id: version
     attributes:
-      label: OpenVibe version or commit
+      label: dummyPlane version or commit
       placeholder: 0.1.0, or the commit you built
     validations:
       required: true
@@ -48,8 +48,8 @@ body:
     attributes:
       label: Log file
       description: |
-        In OpenVibe, press Ctrl+Shift+P and choose "Ouvrir le dossier des journaux", or go to
-        `%LOCALAPPDATA%\dev.openvibe.app\logs`. Drag `openvibe.log` here. It holds no token and no terminal text.
+        In dummyPlane, press Ctrl+Shift+P and choose "Ouvrir le dossier des journaux", or go to
+        `%LOCALAPPDATA%\dev.dummyplane.app\logs`. Drag `dummyplane.log` here. It holds no token and no terminal text.
   - type: textarea
     id: extra
     attributes:

@@ -202,7 +202,7 @@ impl HookSink for AppSink {
         let state = self
             .0
             .try_state::<AgentState>()
-            .ok_or_else(|| "OpenVibe is not responding".to_string())?;
+            .ok_or_else(|| "dummyPlane is not responding".to_string())?;
         let (call_id, answer) = state.mcp_calls.open();
         let event = McpCallEvent {
             call_id,
@@ -213,7 +213,7 @@ impl HookSink for AppSink {
         let _ = self.0.emit("mcp-call", event);
         let result = answer.recv_timeout(MCP_TIMEOUT);
         state.mcp_calls.close(call_id);
-        result.map_err(|_| "OpenVibe is not responding".to_string())
+        result.map_err(|_| "dummyPlane is not responding".to_string())
     }
 }
 
@@ -295,9 +295,9 @@ pub fn hooks_for(
     let urls = hook_urls(server, node_id);
     match agent {
         Agent::Claude => {
-            // The user's own status line goes on showing, after OpenVibe has read the usage (spec maj §6).
+            // The user's own status line goes on showing, after dummyPlane has read the usage (spec maj §6).
             // Without the curl config, no status line: its token would go on a command line.
-            // Without a bash to run it, none either: the user's own line then shows as it does without OpenVibe.
+            // Without a bash to run it, none either: the user's own line then shows as it does without dummyPlane.
             let status = state
                 .curl_config
                 .clone()
