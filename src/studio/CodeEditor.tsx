@@ -56,13 +56,13 @@ function themeFor(theme: Theme): Extension {
   return [
     EditorView.theme(
       {
-        "&": { height: "100%", backgroundColor: "transparent", color: "var(--dp-text)", fontSize: "12.5px" },
+        "&": { height: "100%", backgroundColor: "transparent", color: "var(--dp-text)", fontSize: "13px" },
         ".cm-scroller": { fontFamily: "var(--font-mono, 'JetBrains Mono Variable', monospace)", lineHeight: "1.55" },
         ".cm-content": { caretColor: "var(--dp-accent)" },
         ".cm-cursor, .cm-dropCursor": { borderLeftColor: "var(--dp-accent)" },
         "&.cm-focused": { outline: "none" },
         "&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground, .cm-selectionBackground": {
-          backgroundColor: "var(--dp-selected)",
+          backgroundColor: "var(--dp-accent-soft)",
         },
         ".cm-gutters": { backgroundColor: "transparent", color: "var(--dp-text-3)", border: "none" },
         ".cm-activeLine, .cm-activeLineGutter": { backgroundColor: "var(--dp-hover)" },

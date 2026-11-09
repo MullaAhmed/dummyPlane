@@ -25,12 +25,12 @@ const INLINE =
   /`([^`]+)`|!\[([^\]]*)\]\(([^)\s]*)\)|\[([^\]]+)\]\(([^)\s]*)\)|\*\*(.+?)\*\*|__(.+?)__|\*([^*\s][^*]*?)\*|\b_([^_\s][^_]*?)_\b/g;
 
 const HEADING_CLASSES = [
-  "text-xl font-semibold",
   "text-lg font-semibold",
   "text-base font-semibold",
   "text-sm font-semibold",
   "text-sm font-medium",
   "text-sm font-medium text-dp-text-2",
+  "text-[13px] font-medium text-dp-text-2",
 ];
 
 /** Returns the href if it is http(s), mailto or relative; otherwise null. */
@@ -55,7 +55,7 @@ function renderInline(text: string): ReactNode[] {
     const k = key++;
     if (m[1] !== undefined) {
       out.push(
-        <code key={k} className="rounded bg-dp-field px-1 font-mono text-[0.9em]">
+        <code key={k} className="rounded-sm bg-dp-field px-1 font-mono text-[0.9em]">
           {m[1]}
         </code>,
       );
@@ -72,7 +72,7 @@ function renderInline(text: string): ReactNode[] {
             href={href}
             target="_blank"
             rel="noreferrer noopener"
-            className="text-dp-accent underline"
+            className="rounded-sm text-dp-accent-ink underline underline-offset-2 transition-[color,background-color] duration-150 ease-out motion-reduce:transition-none hover:bg-dp-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50"
           >
             {renderInline(m[4])}
           </a>
@@ -118,7 +118,7 @@ export function renderMarkdown(source: string): ReactNode {
       while (i < lines.length && !/^\s*```\s*$/.test(lines[i])) code.push(lines[i++]);
       i++;
       blocks.push(
-        <pre key={key} className="overflow-x-auto rounded border border-dp-line bg-dp-field p-2">
+        <pre key={key} className="overflow-x-auto rounded-md border border-dp-line bg-dp-field p-2">
           <code className="font-mono text-xs" data-lang={m[1] || undefined}>
             {code.join("\n")}
           </code>
