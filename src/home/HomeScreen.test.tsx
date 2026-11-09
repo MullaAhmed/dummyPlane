@@ -29,7 +29,7 @@ it("puts the title bar on top and scrolls the projects under it, never into it (
   const root = createRoot(host);
   await act(async () => root.render(<HomeScreen />));
   const bar = host.querySelector("[data-tauri-drag-region]")!;
-  expect(bar.querySelector("svg path")!.getAttribute("stroke")).toBe("#D97757");
+  expect(bar.querySelector("svg rect")!.getAttribute("fill")).toBe("currentColor");
   expect(bar.textContent).toContain("OpenVibe");
   const header = host.querySelector("header")!;
   expect(header.textContent).toContain("Projets");
