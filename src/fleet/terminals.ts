@@ -20,6 +20,7 @@ import { fleetMessages } from "./messages";
 import { nameForNewAgent, pantheonsForCopiedGroups } from "./naming";
 import { sceneAccess } from "./sceneAccess";
 import { withSpawnedChildren } from "./spawnFamily";
+import { reflowSpawnTreesOf } from "./spawnTree";
 
 export interface Point {
   x: number;
@@ -191,6 +192,7 @@ export function removeFromStoredScene(workspaceId: string, ids: ReadonlySet<stri
   const terminals = elements.filter((e) => ids.has(e.id) && nodeKindOf(e) === "terminal").map((e) => e.id);
   scene.write(elements.map((e) => (ids.has(e.id) && !e.isDeleted ? newElementWith(e, { isDeleted: true }) : e)));
   for (const id of terminals) disposeTerminal(id);
+  reflowSpawnTreesOf(workspaceId, terminals);
 }
 
 export function removeNode(nodeId: string) {
