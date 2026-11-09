@@ -30,7 +30,10 @@ function TabButton({ active, onClick, children }: { active: boolean; onClick: ()
       role="tab"
       aria-selected={active}
       onClick={onClick}
-      className={cn("rounded-full px-2.5 py-0.5 text-[12px] text-dp-text-2 hover:text-dp-text", active && "bg-dp-accent-soft text-dp-text")}
+      className={cn(
+        "rounded-full px-2.5 py-0.5 text-xs text-dp-text-2 transition-[color,background-color] duration-150 ease-out hover:bg-dp-hover hover:text-dp-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none",
+        active && "bg-dp-accent-soft text-dp-text hover:bg-dp-accent-soft",
+      )}
     >
       {children}
     </button>
@@ -150,7 +153,7 @@ export default function NotesDialog({ projectId }: { projectId: string }) {
       >
         <header className="flex h-11 shrink-0 items-center gap-2 border-b border-dp-line px-3">
           <BookOpen className="size-4 shrink-0 text-dp-accent" />
-          <DialogTitle className="shrink-0" style={{ fontSize: 13, fontWeight: 600 }}>
+          <DialogTitle className="shrink-0 text-[13px] font-semibold">
             {t.title}
           </DialogTitle>
           {file && (
@@ -190,7 +193,7 @@ export default function NotesDialog({ projectId }: { projectId: string }) {
                 placeholder={t.searchPlaceholder(notes.length)}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                className="h-7 min-w-0 flex-1 rounded-[6px] bg-dp-field px-2 text-[12px] text-dp-text outline-none placeholder:text-dp-text-3"
+                className="h-7 min-w-0 flex-1 rounded-md bg-dp-field px-2 text-xs text-dp-text outline-none transition-[box-shadow] duration-150 ease-out placeholder:text-dp-text-3 focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none"
               />
               <IconButton label={t.newNote} onClick={() => askName("")}>
                 <Plus />
@@ -212,7 +215,7 @@ export default function NotesDialog({ projectId }: { projectId: string }) {
                   onKeyDown={(e) => {
                     if (e.key === "Enter") void create();
                   }}
-                  className="h-7 w-full rounded-[6px] bg-dp-field px-2 text-[12px] text-dp-text outline-none placeholder:text-dp-text-3"
+                  className="h-7 w-full rounded-md bg-dp-field px-2 text-xs text-dp-text outline-none transition-[box-shadow] duration-150 ease-out placeholder:text-dp-text-3 focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none"
                 />
                 {badName && <p className="pt-1 text-[11px] text-dp-danger">{t.badName}</p>}
               </div>
@@ -235,9 +238,12 @@ export default function NotesDialog({ projectId }: { projectId: string }) {
                     title={hit.name}
                     aria-current={hit.name === file}
                     onClick={() => open(hit.name)}
-                    className={cn("block w-full px-3 py-1 text-left hover:bg-dp-hover", hit.name === file && "bg-dp-accent-soft hover:bg-dp-accent-soft")}
+                    className={cn(
+                      "block w-full px-3 py-1 text-left transition-[background-color] duration-150 ease-out hover:bg-dp-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-dp-accent/50 motion-reduce:transition-none",
+                      hit.name === file && "bg-dp-accent-soft hover:bg-dp-accent-soft",
+                    )}
                   >
-                    <span className="block truncate text-[12.5px] text-dp-text">{hit.name}</span>
+                    <span className="block truncate text-[13px] text-dp-text">{hit.name}</span>
                     {hit.excerpt && <span className="block truncate text-[11px] text-dp-text-3">{hit.excerpt}</span>}
                   </button>
                 ))
@@ -248,7 +254,7 @@ export default function NotesDialog({ projectId }: { projectId: string }) {
           <div className="flex min-w-0 flex-1 flex-col">
             {disk && <DiskBanner session={session} disk={disk} />}
             {error && (
-              <p role="status" className="shrink-0 border-b border-dp-line px-3 py-1.5 text-[12px] text-dp-danger">
+              <p role="status" className="shrink-0 border-b border-dp-line px-3 py-1.5 text-xs text-dp-danger">
                 {error}
               </p>
             )}
@@ -271,14 +277,18 @@ export default function NotesDialog({ projectId }: { projectId: string }) {
             )}
             {file && !loading && !refused && tab !== "graph" && (
               <section data-backlinks aria-label={t.backlinks} className="max-h-[30%] shrink-0 overflow-y-auto border-t border-dp-line px-3 py-2">
-                <h3 className="pb-1 text-[11px] font-semibold text-dp-text-2">{t.backlinks}</h3>
+                <h3 className="dp-label pb-1">{t.backlinks}</h3>
                 {linking.length === 0 ? (
-                  <p className="text-[11.5px] text-dp-text-3">{t.noBacklinks}</p>
+                  <p className="text-xs text-dp-text-3">{t.noBacklinks}</p>
                 ) : (
                   <ul className="flex flex-wrap gap-x-3 gap-y-0.5">
                     {linking.map((note) => (
                       <li key={note.name}>
-                        <button type="button" onClick={() => open(note.name)} className="text-[12px] text-dp-accent underline underline-offset-2">
+                        <button
+                          type="button"
+                          onClick={() => open(note.name)}
+                          className="rounded-sm text-xs text-dp-accent-ink underline underline-offset-2 transition-[background-color] duration-150 ease-out hover:bg-dp-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none"
+                        >
                           {note.name}
                         </button>
                       </li>

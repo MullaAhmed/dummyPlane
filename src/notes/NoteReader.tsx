@@ -15,7 +15,9 @@ interface Props {
   onCreate: (name: string) => void;
 }
 
-const HEADINGS = ["text-[20px]", "text-[17px]", "text-[15px]", "text-[13px]", "text-[13px]", "text-[13px]"];
+const HEADINGS = ["text-lg", "text-base", "text-sm", "text-[13px]", "text-[13px]", "text-[13px]"];
+const LINK =
+  "rounded-sm underline underline-offset-2 transition-[background-color] duration-150 ease-out hover:bg-dp-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none";
 
 /** A note, read: elements built by React from the parsed text, never HTML (spec notes §3). */
 export function NoteReader({ text, notes, onOpen, onCreate }: Props) {
@@ -35,13 +37,13 @@ export function NoteReader({ text, notes, onOpen, onCreate }: Props) {
           return <s key={i}>{span.text}</s>;
         case "code":
           return (
-            <code key={i} className="rounded-[4px] bg-dp-field px-1 font-mono text-[11.5px]">
+            <code key={i} className="rounded-sm bg-dp-field px-1 font-mono text-xs">
               {span.text}
             </code>
           );
         case "link":
           return (
-            <button key={i} type="button" title={span.url} onClick={() => void openUrl(span.url)} className="text-dp-accent underline underline-offset-2">
+            <button key={i} type="button" title={span.url} onClick={() => void openUrl(span.url)} className={cn("text-dp-accent-ink", LINK)}>
               {span.label}
             </button>
           );
@@ -53,7 +55,7 @@ export function NoteReader({ text, notes, onOpen, onCreate }: Props) {
               type="button"
               title={target ? target.name : t.deadLink(span.target)}
               onClick={() => (target ? onOpen(target.name) : onCreate(span.target))}
-              className={cn("underline underline-offset-2", target ? "text-dp-accent" : "text-dp-text-3 decoration-dotted")}
+              className={cn(LINK, target ? "text-dp-accent-ink" : "text-dp-text-3 decoration-dotted")}
             >
               {span.label}
             </button>
@@ -84,7 +86,7 @@ export function NoteReader({ text, notes, onOpen, onCreate }: Props) {
         return <hr key={i} className="border-dp-line" />;
       case "code":
         return (
-          <pre key={i} className="overflow-x-auto rounded-[9px] bg-dp-field p-3 font-mono text-[11.5px] leading-[18px]">
+          <pre key={i} className="overflow-x-auto rounded-lg bg-dp-field p-3 font-mono text-xs leading-[18px]">
             <code>{item.text}</code>
           </pre>
         );
