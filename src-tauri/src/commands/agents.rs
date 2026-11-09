@@ -15,7 +15,7 @@ use crate::agents::mcp::{Pending, Tokens};
 use crate::agents::subagents::SubagentCounts;
 use crate::agents::{claude_settings, mcp_files, prompts};
 use crate::error::AppResult;
-use crate::pty::shell::{Agent, AgentHooks, Permission, Role};
+use crate::pty::shell::{Agent, AgentHooks, Permission, Role, find_git_bash, which_locate};
 use crate::sync::lock;
 
 /// Quiet terminals are checked this often (the 1.5 s rule).
@@ -28,6 +28,8 @@ pub struct AgentState {
     hooks: Option<HookServer>,
     /// The curl config that carries the server's token (spec première version §4.3).
     curl_config: Option<PathBuf>,
+    /// The bash that runs the status line script: Git Bash on Windows, else `bash`. None when Windows has no Git Bash.
+    status_bash: Option<PathBuf>,
     hooks_dir: PathBuf,
     mcp_dir: PathBuf,
     /// One token per Claude launch, naming its node (spec orchestrateur §4.1).
@@ -127,10 +129,20 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
             .inspect_err(|err| log::error!("curl config not written: {err}"))
             .ok()
     });
+    // A bare `bash` on Windows may be WSL's launcher, which cannot run the script: Git Bash's own, or none.
+    let status_bash = if cfg!(windows) {
+        which_locate("git").and_then(|git| find_git_bash(&git))
+    } else {
+        Some(PathBuf::from("bash"))
+    };
+    if status_bash.is_none() {
+        log::warn!("Git Bash not found: Claude's usage meter stays empty");
+    }
     app.manage(AgentState {
         tracker: Mutex::new(Tracker::default()),
         hooks,
         curl_config,
+        status_bash,
         hooks_dir,
         mcp_dir,
         mcp_tokens: Tokens::default(),
@@ -285,13 +297,16 @@ pub fn hooks_for(
         Agent::Claude => {
             // The user's own status line goes on showing, after OpenVibe has read the usage (spec maj §6).
             // Without the curl config, no status line: its token would go on a command line.
+            // Without a bash to run it, none either: the user's own line then shows as it does without OpenVibe.
             let status = state
                 .curl_config
                 .clone()
-                .map(|config| claude_settings::StatusLine {
+                .zip(state.status_bash.clone())
+                .map(|(config, bash)| claude_settings::StatusLine {
                     script: state.hooks_dir.join("statusline.sh"),
                     url: urls.status,
                     config,
+                    bash,
                     user: claude_settings::status_line_for(
                         cwd,
                         claude_settings::settings_file_in(config_dir).as_deref(),
@@ -423,6 +438,7 @@ mod tests {
             script: PathBuf::from(r"C:\data\hooks\statusline.sh"),
             url: urls.status.clone(),
             config: config.clone(),
+            bash: PathBuf::from("bash"),
             user: None,
         });
         let codex = AgentHooks {
