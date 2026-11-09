@@ -40,7 +40,7 @@ it("toggles the agents panel and shows how many agents wait (spec identité §5.
   expect(agents.querySelector("[data-pip]")?.textContent).toBe("1");
   await act(async () => agents.click());
   expect(agentsPanelStore.getState().open).toBe(true);
-  expect(host.querySelector('[aria-label="Réglages"]')).not.toBeNull();
+  expect(host.querySelector('[aria-label="Settings"]')).not.toBeNull();
   await act(async () => root.unmount());
   host.remove();
 });

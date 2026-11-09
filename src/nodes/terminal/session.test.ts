@@ -61,23 +61,23 @@ it("gives a Claude terminal without a conversation id one, and keeps it in its n
 
 it("shows a failed launch in the terminal and as an error status", async () => {
   mockIPC(() => {
-    throw { kind: "notFound", message: "dossier introuvable : C:/gone" };
+    throw { kind: "notFound", message: "folder not found: C:/gone" };
   });
   const term = fakeTerm();
   await startSession("t", term, payload, "new");
-  expect(statusOf("t")).toEqual({ state: "error", message: "dossier introuvable : C:/gone", kind: "notFound" });
-  expect(term.written.join("")).toContain("dossier introuvable");
+  expect(statusOf("t")).toEqual({ state: "error", message: "folder not found: C:/gone", kind: "notFound" });
+  expect(term.written.join("")).toContain("folder not found");
 });
 
 it("keeps the kind of a refused orchestrator, which its node shows instead of a red line", async () => {
-  const message = "Outils OpenVibe indisponibles : le serveur local d'OpenVibe n'a pas démarré.";
+  const message = "OpenVibe tools unavailable: the local OpenVibe server did not start.";
   mockIPC(() => {
     throw { kind: "toolsUnavailable", message };
   });
   const term = fakeTerm();
   await startSession("t", term, payload, "new");
   expect(statusOf("t")).toEqual({ state: "error", message, kind: "toolsUnavailable" });
-  expect(term.written.join("")).not.toContain("Outils OpenVibe");
+  expect(term.written.join("")).not.toContain("OpenVibe tools");
 });
 
 it("ignores input until the replay sent on re-attach has been written", async () => {

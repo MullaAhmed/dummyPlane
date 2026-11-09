@@ -3,11 +3,11 @@ import { messages } from "@/i18n";
 import { agentsText } from "./groupSummary";
 import { fleetMessages } from "./messages";
 
-/** Who a command goes to (spec habillage §12). */
+/** Who a command goes to (spec theme §12). */
 export type Target = { kind: "all" } | { kind: "group"; id: string } | { kind: "agent"; id: string };
 
-/** Both languages' words for everyone: `@tous` and `@all` work whatever the interface's language. */
-const ALL_NAMES: readonly string[] = ["tous", "all"];
+/** The word for everyone: `@all`. */
+const ALL_NAMES: readonly string[] = ["all"];
 
 /** The options a typed name designates: the one of that name, and the "all" option for either of its words. */
 function optionsNamed(options: readonly TargetOption[], word: string): TargetOption[] {
@@ -18,9 +18,9 @@ function optionsNamed(options: readonly TargetOption[], word: string): TargetOpt
 /** One line of the `@` list. */
 export interface TargetOption {
   target: Target;
-  /** "@tous", "@backend", "@isis". */
+  /** "@all", "@backend", "@isis". */
   label: string;
-  /** In grey: the size of a group, or the group of an agent ("Hors groupe"). */
+  /** In grey: the size of a group, or the group of an agent ("Outside a group"). */
   detail: string;
 }
 
@@ -31,7 +31,7 @@ export interface TargetAgent {
   groupName: string | null;
 }
 
-/** "Équipe Back" → "equipeback": no spaces nor accents, lower case. */
+/** "Team Back" → "teamback": no spaces nor accents, lower case. */
 export function slug(text: string): string {
   return text
     .normalize("NFD")
@@ -68,7 +68,7 @@ export function targetAgents(
   });
 }
 
-/** @tous, then the groups, then the agents; two agents of the same name both show, with their group (spec §12). */
+/** @all, then the groups, then the agents; two agents of the same name both show, with their group (spec §12). */
 export function targetOptions(agents: readonly TargetAgent[], groups: readonly SceneFrame[]): TargetOption[] {
   const all: TargetOption = { target: { kind: "all" }, label: messages(fleetMessages).targets.all, detail: agentsText(agents.length) };
   const groupOptions = groups
@@ -133,7 +133,7 @@ export function withoutMention(text: string, start: number, end: number): { text
 
 /**
  * Typed `@names` that match exactly one option become targets and leave the
- * text ("@tous lance les tests", "@tous, lancez…") with the punctuation and
+ * text ("@all runs the tests", "@all, run…") with the punctuation and
  * the space that follow them; ambiguous or unknown ones stay as typed.
  * `@athena/zeus/héra` targets the three of them, when each is known. The
  * rest of the command keeps its spaces (indented code, tabs).

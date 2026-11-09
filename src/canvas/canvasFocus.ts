@@ -12,7 +12,7 @@ export const ZONE_OFFSETS = { top: TOP_ROW_HEIGHT, bottom: BOTTOM_BAR_HEIGHT };
 const LABEL_ROOM = 24;
 
 /**
- * Maj+Échap (spec fenêtre §6.5): the terminal or field that has the keyboard
+ * Shift+Escape (spec fenêtre §6.5): the terminal or field that has the keyboard
  * loses it, the active terminal is deactivated, nothing gets selected (a
  * click into a terminal selects it: that selection is cleared, or Suppr
  * would delete the terminal just left), and the keyboard goes to Excalidraw's
@@ -21,12 +21,12 @@ const LABEL_ROOM = 24;
  */
 export function releaseToCanvas(doc: Document = document) {
   const active = doc.activeElement;
-  // A rename field validates on blur: Escape first, so Maj+Échap cancels it like Échap does.
+  // A rename field validates on blur: Escape first, so Shift+Escape cancels it like Escape does.
   // Never into a terminal's textarea: the agent would read it.
   if (active instanceof HTMLInputElement) active.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
   if (active instanceof HTMLElement) active.blur();
   canvasStore.getState().api?.updateScene({ appState: { activeEmbeddable: null, selectedElementIds: {}, selectedGroupIds: {} } });
-  // Placement and link modes end here too: their own Escape listeners never see Maj+Échap.
+  // Placement and link modes end here too: their own Escape listeners never see Shift+Escape.
   uiStore.getState().setPlacing(null);
   uiStore.getState().setLinking(null);
   doc.querySelector<HTMLElement>(".excalidraw-container")?.focus();
@@ -44,7 +44,7 @@ export function overviewTargets(elements: readonly ExcalidrawElement[]): Excalid
   return [...live.filter((e) => e.type === "frame" && holding.has(e.id) && groupInfoOf(e) !== null), ...nodes];
 }
 
-/** Ctrl+Maj+A (spec fenêtre §6.6): every node in view, with an animation and a 10 % margin, then the keyboard to the canvas. */
+/** Ctrl+Shift+A (spec fenêtre §6.6): every node in view, with an animation and a 10 % margin, then the keyboard to the canvas. */
 export function overview() {
   const api = canvasStore.getState().api;
   if (!api) return;
@@ -53,7 +53,7 @@ export function overview() {
   releaseToCanvas();
 }
 
-/** A group of « Aller à » (spec fenêtre §7.2): its frame fitted, at 100 % at most, then the keyboard to the canvas. False when it is gone. */
+/** A group of "Go to" (spec fenêtre §7.2): its frame fitted, at 100 % at most, then the keyboard to the canvas. False when it is gone. */
 export function focusGroup(frameId: string): boolean {
   const api = canvasStore.getState().api;
   const frame = api?.getSceneElements().find((e) => e.id === frameId && e.type === "frame");

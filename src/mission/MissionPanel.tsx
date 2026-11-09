@@ -20,7 +20,7 @@ import { OvernightDialog } from "./OvernightDialog";
 import { LEVELS, modelLabel } from "./router";
 import { agentState, missionOf, setMission } from "./store";
 
-/** Under the orchestrator's terminal: settings, plan and go-ahead, team, summary (spec orchestrateur §6, §7). */
+/** Under the orchestrator's terminal: settings, plan and go-ahead, team, summary (spec orchestrator §6, §7). */
 export function MissionPanel({ nodeId }: { nodeId: string }) {
   const t = useMessages(missionMessages);
   const mission = useNodes((s) => missionOf(s.nodes[nodeId]));
@@ -155,7 +155,7 @@ function Plan({ mission }: { mission: Mission }) {
   );
 }
 
-/** The tasks no agent has taken yet (spec mission de nuit §4). */
+/** The tasks no agent has taken yet (spec overnight mission §4). */
 function Queue({ mission }: { mission: Mission }) {
   const t = useMessages(missionMessages);
   const queue = mission.queue ?? [];
@@ -252,7 +252,7 @@ function Team({ mission }: { mission: Mission }) {
   );
 }
 
-/** « 6 / 20 min », coloured like its bar (spec §8.3). */
+/** "6 / 20 min", coloured like its bar (spec §8.3). */
 /** A member's time, unless it cannot be told (a mission ended before end times were kept). */
 function MemberTime({ spent, budget }: { spent: number | undefined; budget: number }) {
   return spent === undefined ? null : <BudgetTime spent={spent} budget={budget} />;

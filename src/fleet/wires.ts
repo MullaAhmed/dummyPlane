@@ -4,7 +4,7 @@ import { findTerminalAt } from "@/canvas/hitTest";
 import { nodeKindOf } from "@/canvas/nodeElement";
 import type { Point } from "./terminals";
 
-/** The terracotta of the wires (spec identité §4.2, « Terre cuite »). */
+/** The terracotta of the wires (spec identity §4.2, "terracotta"). */
 export const WIRE_COLOR = "#C2603F";
 
 /** Space between a wire's ends and the elements it joins. */
@@ -173,7 +173,7 @@ export function unmarkedWires(elements: readonly ExcalidrawElement[]): string[] 
     .map((arrow) => arrow.id);
 }
 
-/** What a click of "Relier" designates: a lone terminal, else the group under the pointer (spec §13). */
+/** What a click of "Link" designates: a lone terminal, else the group under the pointer (spec §13). */
 export function linkTargetAt(elements: readonly ExcalidrawElement[], frames: readonly SceneFrame[], point: Point): string | null {
   const terminal = findTerminalAt(elements, point.x, point.y);
   if (terminal) {

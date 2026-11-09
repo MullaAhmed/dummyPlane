@@ -12,7 +12,7 @@ import { setGroupSpeciality } from "./groups";
 import { fleetMessages } from "./messages";
 import { ROLE_ORDER } from "./roles";
 
-/** « Spécialité » of the group menu: free text, or a role as a suggestion (spec groupes spécialisés §2). */
+/** "Speciality" of the group menu: free text, or a role as a suggestion (specialised groups spec §2). */
 export function SpecialityMenu({ groupId, speciality, onDone }: { groupId: string; speciality?: string; onDone?: () => void }) {
   const t = useMessages(fleetMessages);
   const field = useRef<HTMLInputElement | null>(null);

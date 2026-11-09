@@ -17,7 +17,7 @@ export interface OvernightChoice {
   permission: Permission;
 }
 
-/** The dialog's answer: the mission is set for the night, then the orchestrator gets its orders (spec mission de nuit §5.1). */
+/** The dialog's answer: the mission is set for the night, then the orchestrator gets its orders (spec overnight mission §5.1). */
 export function startOvernight(orchestratorId: string, choice: OvernightChoice) {
   const { awayMin, agents, source, autoLaunch, permission } = choice;
   setMission(orchestratorId, { overnight: true, budgetMin: awayMin, maxAgents: agents, tickets: source, autoLaunch: autoLaunch || undefined, permission });

@@ -10,7 +10,7 @@ vi.mock("./registry", () => ({ relaunchTerminal: vi.fn(), stopTerminal: vi.fn(),
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-it("opens its name editor on request, with the keyboard (« Renommer » of the palette)", async () => {
+it("opens its name editor on request, with the keyboard (« Rename » of the palette)", async () => {
   const host = document.createElement("div");
   document.body.append(host);
   const root = createRoot(host);
@@ -38,9 +38,9 @@ it("shows Remote Control on a Claude session only, as OpenVibe knows it (spec ma
   await act(async () => root.render(<TerminalHeader nodeId="isis" payload={claude} status={{ state: "running" }} />));
   expect(phone()?.getAttribute("data-remote")).toBe("off");
   await act(async () => root.render(<TerminalHeader nodeId="isis" payload={{ ...claude, remoteControl: true }} status={{ state: "stopped" }} />));
-  expect(phone()?.getAttribute("aria-label")).toBe("Remote Control au prochain démarrage");
+  expect(phone()?.getAttribute("aria-label")).toBe("Remote Control at next start");
   await act(async () => remoteStore.getState().set("isis", { state: "on", url: "https://claude.ai/code/session_1" }));
-  expect(phone()?.getAttribute("aria-label")).toBe("Remote Control actif");
+  expect(phone()?.getAttribute("aria-label")).toBe("Remote Control on");
   await act(async () => root.unmount());
   host.remove();
 });

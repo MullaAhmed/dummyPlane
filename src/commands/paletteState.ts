@@ -5,13 +5,13 @@ export type PaletteMode = "goTo" | "functions";
 
 interface PaletteState {
   open: boolean;
-  /** The field's text; `>` first makes the functions mode (spec fenêtre §7.1). */
+  /** The field's text; `>` first makes the functions mode (spec window §7.1). */
   query: string;
-  /** Taken when it opened: the functions are listed for that moment (spec fenêtre §7.3). */
+  /** Taken when it opened: the functions are listed for that moment (spec window §7.3). */
   context: CommandContext | null;
   /** Where the keyboard was when it opened, and goes back when it closes. */
   returnFocus: HTMLElement | null;
-  /** Counts openings: a palette closed then reopened at once (« Aller à… » from the functions) is a new one, with the keyboard. */
+  /** Counts openings: a palette closed then reopened at once ("Go to…" from the functions) is a new one, with the keyboard. */
   openings: number;
 }
 
@@ -30,7 +30,7 @@ export function stripPrefix(query: string): string {
   return query.replace(/^\s*>\s?/, "");
 }
 
-/** Ctrl+P and Ctrl+Maj+P: opens the palette, or switches its mode keeping the search. */
+/** Ctrl+P and Ctrl+Shift+P: opens the palette, or switches its mode keeping the search. */
 export function openPalette(mode: PaletteMode, context: CommandContext) {
   const state = paletteStore.getState();
   const search = state.open ? stripPrefix(state.query) : "";
@@ -53,7 +53,7 @@ export function setPaletteQuery(query: string) {
   paletteStore.setState({ query });
 }
 
-/** Closes it; the keyboard goes back where it was when it opened (spec fenêtre §7.1). */
+/** Closes it; the keyboard goes back where it was when it opened (spec window §7.1). */
 export function closePalette() {
   const { returnFocus } = paletteStore.getState();
   paletteStore.setState({ open: false, query: "", context: null, returnFocus: null });

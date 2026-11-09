@@ -2,7 +2,7 @@ import type { Rect } from "@/canvas/groups";
 import { NODE_SIZE } from "@/canvas/nodeElement";
 import type { Point } from "./terminals";
 
-/** Group grid (spec habillage §11.3): terminals 24 apart, 32 inside the frame, 48 at the top for the label. */
+/** Group grid (spec theme §11.3): terminals 24 apart, 32 inside the frame, 48 at the top for the label. */
 export const CELL = NODE_SIZE.terminal;
 export const GAP = 24;
 export const PADDING = 32;
@@ -146,7 +146,7 @@ export function freeSpot(spot: Rect, obstacles: readonly Rect[]): Rect {
   return candidates.find(isFree) ?? spot;
 }
 
-/** Where "Relier un orchestrateur" puts it: left of the group, tops aligned (spec habillage §11.4). */
+/** Where "Link an orchestrator" puts it: left of the group, tops aligned (spec theme §11.4). */
 export function orchestratorSpot(frame: Rect): Point {
   const { width, height } = NODE_SIZE.orchestrator;
   return { x: frame.x - GROUP_GAP - width / 2, y: frame.y + height / 2 };

@@ -16,9 +16,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { langStore, readLanguageChoice, useMessages } from "@/i18n";
-import { setLanguage } from "@/i18n/settings";
-import { useStore } from "zustand";
+import { useMessages } from "@/i18n";
 import { shellMessages } from "./messages";
 import { showTroubleshooting } from "./troubleshoot";
 import { exportCurrentPng, exportCurrentScene, importIntoScene } from "./sceneActions";
@@ -35,7 +33,6 @@ export function SettingsMenu({
 }) {
   const t = useMessages(shellMessages).settings;
   const { choice, transparency } = useThemeSettings();
-  const languageChoice = useStore(langStore, (s) => s.choice);
   const autoUpdates = useUpdates((s) => s.auto);
   const nativeNotifications = useNativeNotifications();
   return (
@@ -53,13 +50,6 @@ export function SettingsMenu({
         <DropdownMenuCheckboxItem checked={transparency} onCheckedChange={(on) => void setTransparency(on === true)}>
           {t.transparency}
         </DropdownMenuCheckboxItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuLabel className="ov-label">{t.language}</DropdownMenuLabel>
-        <DropdownMenuRadioGroup value={languageChoice} onValueChange={(value) => void setLanguage(readLanguageChoice(value))}>
-          <DropdownMenuRadioItem value="system">{t.languageSystem}</DropdownMenuRadioItem>
-          <DropdownMenuRadioItem value="fr">Français</DropdownMenuRadioItem>
-          <DropdownMenuRadioItem value="en">English</DropdownMenuRadioItem>
-        </DropdownMenuRadioGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={exportCurrentScene}>
           <Download /> {t.exportScene}

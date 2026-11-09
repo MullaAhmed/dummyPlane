@@ -10,7 +10,7 @@ import { isRunning, terminalStatusStore } from "@/store/terminalStatus";
 import { shellMessages } from "./messages";
 import { ReleaseNotes } from "./ReleaseNotes";
 
-/** « Version x disponible » in the title bar, once a check found one (spec première version §6.4). */
+/** "Version x available" in the title bar, once a check found one (spec première version §6.4). */
 export function UpdateChip() {
   const t = useMessages(shellMessages).update;
   const available = useUpdates((s) => s.available);

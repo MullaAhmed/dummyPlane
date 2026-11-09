@@ -9,7 +9,7 @@ import { exportPng, exportScene, importScene } from "./sceneFiles";
 
 vi.mock("./sceneFiles", () => ({
   exportScene: vi.fn(() => Promise.resolve(true)),
-  importScene: vi.fn(() => Promise.reject(new Error("fichier illisible"))),
+  importScene: vi.fn(() => Promise.reject(new Error("unreadable file"))),
   exportPng: vi.fn(() => Promise.resolve(true)),
 }));
 
@@ -31,6 +31,6 @@ it("exports the scene on screen under its workspace's name, as the settings menu
 it("says so when an import fails", async () => {
   const error = vi.spyOn(toast, "error").mockImplementation(() => "");
   importIntoScene();
-  await vi.waitFor(() => expect(error).toHaveBeenCalledWith(expect.stringMatching(/^Import impossible : .*fichier illisible/)));
+  await vi.waitFor(() => expect(error).toHaveBeenCalledWith(expect.stringMatching(/^Import failed: .*unreadable file/)));
   expect(importScene).toHaveBeenCalledWith(api);
 });

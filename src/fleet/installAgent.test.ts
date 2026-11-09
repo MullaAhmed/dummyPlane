@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import { arrive } from "@/canvas/arrive";
 import { canvasStore } from "@/canvas/canvasStore";
-import { langStore } from "@/i18n";
 import type { AgentId, AgentInfo } from "@/ipc/pty";
 import { terminalStatusStore } from "@/store/terminalStatus";
 import { agentsStore } from "./agentsStore";
@@ -39,7 +38,6 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers();
-  langStore.setState({ lang: "fr" });
 });
 
 describe("installAgent", () => {
@@ -51,7 +49,7 @@ describe("installAgent", () => {
     expect(options).toMatchObject({
       command: 'powershell -ExecutionPolicy ByPass -c "irm https://chatgpt.com/codex/install.ps1 | iex"',
       shell: "powershell",
-      title: "Installation · Codex",
+      title: "Install · Codex",
       oneShot: true,
     });
     expect(center).toEqual({ x: 10, y: 20 });
@@ -89,7 +87,7 @@ describe("installAgent", () => {
     agentsStore.setState({ agents: available("codex", true) });
     await tick();
     expect(recheck).toHaveBeenCalledTimes(2);
-    expect(toast).toHaveBeenCalledWith("Codex est installé");
+    expect(toast).toHaveBeenCalledWith("Codex is installed");
     await tick();
     expect(recheck).toHaveBeenCalledTimes(2);
   });
@@ -97,17 +95,16 @@ describe("installAgent", () => {
   it("says so when the terminal cannot be started", async () => {
     launch.mockRejectedValue(new Error("no shell"));
     expect(await installAgent("codex")).toBeNull();
-    expect(toast.error).toHaveBeenCalledWith("Lancement impossible : Error: no shell");
+    expect(toast.error).toHaveBeenCalledWith("Could not launch: Error: no shell");
   });
 
   it("says so when there is no canvas to put the terminal on", async () => {
     launch.mockResolvedValue(null);
     expect(await installAgent("codex")).toBeNull();
-    expect(toast.error).toHaveBeenCalledWith("Ouvre un projet : l'installation se fait dans un terminal de son canvas.");
+    expect(toast.error).toHaveBeenCalledWith("Open a project: the install runs in a terminal on its canvas.");
   });
 
   it("speaks English", async () => {
-    langStore.setState({ lang: "en" });
     await installAgent("codex");
     expect(launch.mock.calls[0][1].title).toBe("Install · Codex");
     agentsStore.setState({ agents: available("codex", true) });
@@ -197,6 +194,6 @@ describe("pullOllamaModel", () => {
     expect(toast).not.toHaveBeenCalled();
     listOllamaModels.mockResolvedValue(["llama3.2:latest"]);
     await tick();
-    expect(toast).toHaveBeenCalledWith("Modèle prêt : llama3.2");
+    expect(toast).toHaveBeenCalledWith("Model ready: llama3.2");
   });
 });

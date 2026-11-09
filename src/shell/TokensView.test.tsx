@@ -4,7 +4,6 @@ import { createRoot } from "react-dom/client";
 import { afterEach, expect, it, vi } from "vitest";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { accountsStore } from "@/accounts/store";
-import { langStore } from "@/i18n";
 import { nodesStore } from "@/store/nodes";
 import { TokensView } from "./TokensView";
 
@@ -47,10 +46,10 @@ it("shows a column per day and the part of each agent, named by OpenVibe's own a
   const rows = [...host.querySelectorAll("[data-agent-row]")].map((row) => row.textContent);
   expect(rows[0]).toContain("Isis");
   expect(rows[0]).toContain("800");
-  expect(rows[1]).toContain("Autres sessions Claude");
-  expect(host.textContent).toContain("3 fichiers lus");
-  expect(host.textContent).toContain("lecture tronquée");
-  expect(host.textContent).toContain("rien n'est envoyé");
+  expect(rows[1]).toContain("Other Claude sessions");
+  expect(host.textContent).toContain("3 files read");
+  expect(host.textContent).toContain("reading cut short");
+  expect(host.textContent).toContain("nothing is sent");
   await done();
 });
 
@@ -58,7 +57,7 @@ it("says so when the logs cannot be read, and goes back", async () => {
   const { host, back, done } = await show(() => {
     throw new Error("boom");
   });
-  expect(host.textContent).toContain("Lecture impossible");
+  expect(host.textContent).toContain("Could not read");
   await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="Usage"]')!.click());
   expect(back).toHaveBeenCalled();
   await done();
@@ -69,10 +68,7 @@ const profile = { id: "work", name: "Travail", configDir: "C:/profiles/work" };
 it("says it covers the default folder only, when profiles exist (review)", async () => {
   accountsStore.setState({ profiles: [profile] });
   const { host, done } = await show(() => report);
-  expect(host.querySelector("[data-tokens-scope]")?.textContent).toBe("Compte par défaut seulement : les profils Claude ne sont pas comptés ici.");
-  await act(async () => langStore.setState({ lang: "en" }));
   expect(host.querySelector("[data-tokens-scope]")?.textContent).toBe("Default account only: Claude profiles are not counted here.");
-  await act(async () => langStore.setState({ lang: "fr" }));
   await done();
   accountsStore.setState({ profiles: [] });
 });

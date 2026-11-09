@@ -3,12 +3,12 @@ import { agentsText, countsText, groupsText, livingAgents, membersIn, waitingTex
 
 describe("countsText", () => {
   it("shows the members and those at work", () => {
-    expect(countsText(4, 2)).toBe("4 · 2 en cours");
+    expect(countsText(4, 2)).toBe("4 · 2 working");
   });
 
-  it("says inactif when nobody works", () => {
-    expect(countsText(3, 0)).toBe("3 · inactif");
-    expect(countsText(0, 0)).toBe("0 · inactif");
+  it("says idle when nobody works", () => {
+    expect(countsText(3, 0)).toBe("3 · idle");
+    expect(countsText(0, 0)).toBe("0 · idle");
   });
 });
 
@@ -21,18 +21,18 @@ describe("livingAgents", () => {
 
 describe("waitingText", () => {
   it("adds the members waiting for an answer, in amber", () => {
-    expect(waitingText(1)).toBe("· 1 attend");
-    expect(waitingText(3)).toBe("· 3 attendent");
+    expect(waitingText(1)).toBe("· 1 waiting");
+    expect(waitingText(3)).toBe("· 3 waiting");
     expect(waitingText(0)).toBeNull();
   });
 });
 
 describe("agentsText / groupsText", () => {
-  it("counts in French with the singular", () => {
+  it("counts with the singular", () => {
     expect(agentsText(1)).toBe("1 agent");
     expect(agentsText(8)).toBe("8 agents");
-    expect(groupsText(0)).toBe("0 groupe");
-    expect(groupsText(2)).toBe("2 groupes");
+    expect(groupsText(0)).toBe("0 groups");
+    expect(groupsText(2)).toBe("2 groups");
   });
 });
 

@@ -10,7 +10,7 @@ import { AGENTS } from "./catalog";
 import { fleetMessages } from "./messages";
 
 /**
- * Claude Code's Remote Control (spec maj §2): a session followed from
+ * Claude Code's Remote Control (spec update §2): a session followed from
  * claude.ai or the phone. OpenVibe types `/remote-control` and reads the
  * answer on the terminal's screen; a terminal that has it on starts with it.
  */
@@ -131,7 +131,7 @@ export async function enableRemote(io: RemoteIo, timeoutMs = ANSWER_MS): Promise
   return { on: true, url: after.kind === "menu" || after.kind === "active" ? after.url : undefined };
 }
 
-/** Turns Remote Control off: its menu, then « Disconnect this session ». */
+/** Turns Remote Control off: its menu, then "Disconnect this session". */
 export async function disableRemote(io: RemoteIo, timeoutMs = ANSWER_MS): Promise<RemoteResult> {
   let screen = remoteScreen(io.screen());
   if (screen.kind === "consent") return { error: consentError() };
@@ -344,11 +344,11 @@ agentActivityStore.subscribe((state, previous) => {
 
 const KNOWN_ERRORS = ["consent", "draft", "notConfirmed", "menuNotOpened", "menuUnreadable", "disconnectNotConfirmed"] as const;
 
-/** An error stored as text keeps the language of its moment: a known one is said again in the current language. */
+/** A known error stored as text is said again with its current message. */
 export function remoteErrorText(error: string): string {
   const now = messages(fleetMessages).remote;
   for (const key of KNOWN_ERRORS) {
-    if (fleetMessages.fr.remote[key] === error || fleetMessages.en.remote[key] === error) return now[key];
+    if (now[key] === error) return now[key];
   }
   return error;
 }

@@ -12,7 +12,7 @@ function pastTheNight({ startedAt, budgetMin }: Mission, now: number): boolean {
   return startedAt !== undefined && budgetMin !== undefined && now - startedAt >= (budgetMin + GRACE_MIN) * MINUTE;
 }
 
-/** Whether a running overnight mission needs the PC awake (spec mission de nuit §5.4). */
+/** Whether a running overnight mission needs the PC awake (spec overnight mission §5.4). */
 export function wantsAwake(nodes: Record<string, NodeRecord>, now = Date.now()): boolean {
   return Object.entries(nodes).some(([id, record]) => {
     const mission = missionOf(record);

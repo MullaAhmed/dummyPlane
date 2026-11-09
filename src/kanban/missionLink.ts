@@ -77,7 +77,7 @@ export interface RequestTexts {
 }
 
 /**
- * What « Planifier avec l'orchestrateur » types in the orchestrator's terminal:
+ * What "Plan with the orchestrator" types in the orchestrator's terminal:
  * one line (a line break would send it early) listing the column's cards. Null
  * for an unknown or empty column.
  */

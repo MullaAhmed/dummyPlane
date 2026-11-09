@@ -12,10 +12,6 @@
   <img alt="Status: early preview" src="https://img.shields.io/badge/status-early%20preview-D4A27F?style=flat-square">
 </p>
 
-<p align="center">
-  <b>English</b> · <a href="README.fr.md">Français</a>
-</p>
-
 dummyPlane is a desktop app that puts your AI coding agents on an infinite canvas. Each agent runs in a **real terminal** (Claude Code, Codex, Gemini CLI and more). You group agents into teams, brief a whole team in one line, review their changes, and hand a large task to an **orchestrator** that splits it, staffs it and keeps time.
 
 Everything runs on your machine. dummyPlane adds no cloud service and no telemetry, and it never skips an agent's permission prompts. Its only request of its own is a check for updates, which you can turn off.

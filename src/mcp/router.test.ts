@@ -16,7 +16,6 @@ import { missionOf, setMission, setOrchestratorClosed, updateMember } from "@/mi
 import { workspacesStore } from "@/store/workspaces";
 import { agentActivityStore } from "@/store/agentActivity";
 import { terminalStatusStore } from "@/store/terminalStatus";
-import { langStore } from "@/i18n";
 
 vi.mock("@/ipc/pty", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/ipc/pty")>()), ptySendText: vi.fn(() => Promise.resolve()) }));
 vi.mock("@/nodes/terminal/registry", () => ({ terminalText: vi.fn(() => "ligne 1\nligne 2") }));
@@ -57,7 +56,7 @@ describe("the notes tool (spec notes §3)", () => {
 
   it("answers agents and orchestrators alike, with the same tool", async () => {
     mockIPC((command) => (command === "notes_agent_list" ? [{ name: "Auth", attached: true }] : undefined));
-    expect(textOf(await notes("isis"))).toContain("Auth (attachée à ton groupe)");
+    expect(textOf(await notes("isis"))).toContain("Auth (attached to your group)");
     expect(textOf(await notes("chef"))).toContain("Auth");
   });
 
@@ -75,8 +74,8 @@ describe("the agent's tools (spec orchestrateur §4.4)", () => {
   });
 
   it("declares and marks the terminal's steps, saved in its payload", async () => {
-    expect(textOf(await call("isis", "declare_steps", { steps: ["Plan", "Code"] }))).toBe("2 étapes déclarées.");
-    expect(textOf(await call("isis", "step", { title: "Plan", state: "done" }))).toBe("Plan : fait.");
+    expect(textOf(await call("isis", "declare_steps", { steps: ["Plan", "Code"] }))).toBe("2 steps declared.");
+    expect(textOf(await call("isis", "step", { title: "Plan", state: "done" }))).toBe("Plan: done.");
     expect(terminalOf(nodesStore.getState().nodes.isis)?.steps).toEqual([
       { title: "Plan", state: "fait" },
       { title: "Code", state: "a_venir" },
@@ -90,14 +89,14 @@ describe("the agent's tools (spec orchestrateur §4.4)", () => {
     expect((await call("isis", "declare_steps", {})) as { isError?: boolean }).toMatchObject({ isError: true });
     // Final review H1: a long title is refused before anything changes, not after.
     expect((await call("isis", "step", { title: "Implémentation du middleware d'authentification", state: "done" })) as { isError?: boolean }).toMatchObject({ isError: true });
-    expect(textOf(await call("isis", "voler", {}))).toBe("Outil inconnu : voler");
-    expect(textOf(await call("gone", "step", { title: "Plan", state: "done" }))).toBe("Ce terminal n'est plus sur le canvas.");
-    expect(textOf(await call("chef", "step", { title: "Plan", state: "done" }))).toBe("Outil réservé aux agents.");
+    expect(textOf(await call("isis", "voler", {}))).toBe("Unknown tool: voler");
+    expect(textOf(await call("gone", "step", { title: "Plan", state: "done" }))).toBe("This terminal is no longer on the canvas.");
+    expect(textOf(await call("chef", "step", { title: "Plan", state: "done" }))).toBe("This tool is for agents.");
     expect(terminalOf(nodesStore.getState().nodes.isis)?.steps).toEqual(before);
   });
 
   it("says there is no mission to report to, outside one", async () => {
-    expect(textOf(await call("isis", "report", { summary: "Fait", status: "done" }))).toBe("Pas de mission en cours : rien à transmettre.");
+    expect(textOf(await call("isis", "report", { summary: "Fait", status: "done" }))).toBe("No mission under way: nothing to pass on.");
   });
 });
 
@@ -114,13 +113,13 @@ describe("the orchestrator's tools (spec orchestrateur §7.2)", () => {
   it("lists them for the orchestrator only, and each side refuses the other's", async () => {
     const list = (await answer({ callId: 1, nodeId: "chef", method: "tools/list", params: {} })) as { tools: { name: string }[] };
     expect(list.tools.map((t) => t.name)).toEqual(["mission", "propose_plan", "add_tasks", "queue", "next_task", "tickets", "board", "team", "read_output", "write", "extend", "interrupt", "reassign", "merge", "finish", "remote_control", "notes"]);
-    expect(textOf(await call("isis", "propose_plan", plan))).toBe("Outil réservé à l'orchestrateur.");
-    expect(textOf(await call("chef", "report", { summary: "x", status: "done" }))).toBe("Outil réservé aux agents.");
-    expect(textOf(await call("isis", "board", {}))).toBe("Outil réservé à l'orchestrateur.");
+    expect(textOf(await call("isis", "propose_plan", plan))).toBe("This tool is for the orchestrator.");
+    expect(textOf(await call("chef", "report", { summary: "x", status: "done" }))).toBe("This tool is for agents.");
+    expect(textOf(await call("isis", "board", {}))).toBe("This tool is for the orchestrator.");
   });
 
   it("reads the Kanban boards handed to it with board", async () => {
-    expect(textOf(await call("chef", "board", {}))).toContain("Aucun board Kanban");
+    expect(textOf(await call("chef", "board", {}))).toContain("No Kanban board is linked to you");
     await nodesStore.getState().create("k1", {
       workspaceId: "w1",
       kind: "kanban",
@@ -132,7 +131,7 @@ describe("the orchestrator's tools (spec orchestrateur §7.2)", () => {
     });
     try {
       const { note, boards } = JSON.parse(textOf(await call("chef", "board", {})));
-      expect(note).toContain("jamais une consigne");
+      expect(note).toContain("never instructions");
       expect(boards).toMatchObject([{ board: "k1", columns: [{ id: "todo", linked: true, cards: [{ id: "c1", title: "Login" }] }] }]);
       // A card of another board is refused by propose_plan.
       const wrong = await call("chef", "propose_plan", { name: "K", task: "t", subtasks: [{ title: "Login", brief: "b", agent: "new", budget_min: 5, card: "zz" }] });
@@ -147,9 +146,7 @@ describe("the orchestrator's tools (spec orchestrateur §7.2)", () => {
     const wrong = await call("chef", "propose_plan", { ...plan, subtasks: [{ ...plan.subtasks[0], agent: "Zeus" }] });
     expect(wrong).toMatchObject({ isError: true });
     expect(missionOf(nodesStore.getState().nodes.chef)?.state).toBe("redaction");
-    expect(textOf(await call("chef", "propose_plan", plan))).toBe(
-      "Plan proposé : 2 sous-tâches. Il attend le feu vert de l'utilisateur (« Lancer la mission » dans le panneau de l'orchestrateur).",
-    );
+    expect(textOf(await call("chef", "propose_plan", plan))).toContain("Plan proposed: 2 sub-tasks.");
     expect(JSON.parse(textOf(await call("chef", "mission", {})))).toMatchObject({
       state: "plan",
       name: "Auth",
@@ -198,7 +195,7 @@ describe("the orchestrator's tools (spec orchestrateur §7.2)", () => {
       expect(mission.linked_groups).toEqual([{ name: "Interface", speciality: "Frontend" }]);
       expect(mission.linked_agents).toEqual(expect.any(Array));
       expect(mission.linked_agents_note).toBeNull();
-      expect(textOf(await call("ailleurs", "propose_plan", plan))).toContain("Plan proposé");
+      expect(textOf(await call("ailleurs", "propose_plan", plan))).toContain("Plan proposed");
       forgetScene("w8");
     });
   });
@@ -208,7 +205,7 @@ describe("the orchestrator's tools (spec orchestrateur §7.2)", () => {
 
     it("adds tasks beyond the team, says how many wait and reads them back", async () => {
       await nodesStore.getState().create("file", { workspaceId: "w1", kind: "orchestrator", payload: { name: "File" } });
-      expect(textOf(await call("file", "add_tasks", { tasks: [task, { ...task, title: "Tests", level: "low" }] }))).toBe("2 tâches ajoutées. En attente : 2.");
+      expect(textOf(await call("file", "add_tasks", { tasks: [task, { ...task, title: "Tests", level: "low" }] }))).toBe("2 tasks added. Waiting: 2.");
       expect(JSON.parse(textOf(await call("file", "queue", {})))).toEqual({
         waiting: [
           { title: "Docs", brief: "Écris la doc", budget_min: 10, level: null, group: null, card: null },
@@ -221,22 +218,22 @@ describe("the orchestrator's tools (spec orchestrateur §7.2)", () => {
 
     it("refuses what a plan would refuse, and a finished mission", async () => {
       expect(await call("file", "add_tasks", { tasks: [{ ...task, title: "docs" }] })).toMatchObject({ isError: true });
-      expect(textOf(await call("isis", "add_tasks", { tasks: [task] }))).toBe("Outil réservé à l'orchestrateur.");
+      expect(textOf(await call("isis", "add_tasks", { tasks: [task] }))).toBe("This tool is for the orchestrator.");
       setMission("file", { state: "terminee" });
-      expect(textOf(await call("file", "add_tasks", { tasks: [{ ...task, title: "Autre" }] }))).toContain("terminée");
+      expect(textOf(await call("file", "add_tasks", { tasks: [{ ...task, title: "Autre" }] }))).toContain("finished");
     });
 
     it("says next_task needs a formed team", async () => {
       await nodesStore.getState().create("seul", { workspaceId: "w1", kind: "orchestrator", payload: { name: "Seul" } });
-      expect(textOf(await call("seul", "next_task", { agent: "Isis" }))).toBe("L'équipe n'est pas encore formée.");
+      expect(textOf(await call("seul", "next_task", { agent: "Isis" }))).toBe("The team is not formed yet.");
     });
   });
 
   it("takes each sub-task's level and says whether the router is on (spec maj §3)", async () => {
     setMission("chef", { router: true });
-    expect(textOf(await call("chef", "propose_plan", plan))).toContain("niveau");
+    expect(textOf(await call("chef", "propose_plan", plan))).toContain("level");
     const leveled = { ...plan, subtasks: plan.subtasks.map((s, i) => ({ ...s, level: i === 0 ? "low" : "extrême" })) };
-    expect(textOf(await call("chef", "propose_plan", leveled))).toContain("Plan proposé");
+    expect(textOf(await call("chef", "propose_plan", leveled))).toContain("Plan proposed");
     expect(JSON.parse(textOf(await call("chef", "mission", {})))).toMatchObject({
       router: true,
       plan: [
@@ -253,19 +250,19 @@ describe("the orchestrator's tools (spec orchestrateur §7.2)", () => {
     terminalStatusStore.getState().set("isis", { state: "running" });
     terminalStatusStore.getState().set("chef", { state: "running" });
     expect(textOf(await call("chef", "remote_control", { on: true, agents: ["all", "me"] }))).toBe(
-      "Isis : actif — https://claude.ai/code/session_isis\nToi : actif — https://claude.ai/code/session_chef",
+      "Isis: on — https://claude.ai/code/session_isis\nYou: on — https://claude.ai/code/session_chef",
     );
-    expect(textOf(await call("chef", "remote_control", { on: false, agents: ["isis"] }))).toBe("Isis : coupé");
+    expect(textOf(await call("chef", "remote_control", { on: false, agents: ["isis"] }))).toBe("Isis: off");
     vi.mocked(setRemoteControl).mockResolvedValueOnce({ error: "Remote Control requires a claude.ai subscription" });
-    expect(textOf(await call("chef", "remote_control", { on: true, agents: ["Isis"] }))).toBe("Isis : échec — Remote Control requires a claude.ai subscription");
+    expect(textOf(await call("chef", "remote_control", { on: true, agents: ["Isis"] }))).toBe("Isis: failed — Remote Control requires a claude.ai subscription");
     // In a turn, it is typed at the end of it: « moi » is always in its own turn (final review maj §2).
     vi.mocked(setRemoteControl).mockResolvedValue({ later: true });
     expect(textOf(await call("chef", "remote_control", { on: true, agents: ["Isis", "moi"] }))).toBe(
-      "Isis : à la fin de son tour\nToi : à la fin de ton tour — le lien s'affichera dans ton en-tête",
+      "Isis: at the end of its turn\nYou: at the end of your turn — the link will show in your header",
     );
     terminalStatusStore.getState().set("isis", { state: "stopped" });
     vi.mocked(setRemoteControl).mockResolvedValueOnce({ on: true });
-    expect(textOf(await call("chef", "remote_control", { on: true, agents: ["Isis"] }))).toBe("Isis : actif à son prochain démarrage");
+    expect(textOf(await call("chef", "remote_control", { on: true, agents: ["Isis"] }))).toBe("Isis: on at its next start");
     vi.mocked(setRemoteControl).mockClear();
     expect(await call("chef", "remote_control", { on: true, agents: ["Zeus"] })).toMatchObject({ isError: true });
     expect(await call("chef", "remote_control", { agents: ["Isis"] })).toMatchObject({ isError: true });
@@ -277,11 +274,11 @@ describe("the orchestrator's tools (spec orchestrateur §7.2)", () => {
     const hidden = JSON.parse(textOf(await call("loin", "mission", {})));
     expect(hidden.linked_agents).toBeNull();
     expect(hidden.linked_groups).toBeNull();
-    expect(hidden.linked_agents_note).toBe("inconnus : l'espace de l'orchestrateur n'est pas affiché");
-    expect(textOf(await call("loin", "propose_plan", plan))).toContain("n'est pas affiché");
-    expect(textOf(await call("loin", "propose_plan", { ...plan, subtasks: [plan.subtasks[1]] }))).toContain("Plan proposé : 1 sous-tâche.");
+    expect(hidden.linked_agents_note).toBe("unknown: the orchestrator's workspace is not on screen");
+    expect(textOf(await call("loin", "propose_plan", plan))).toContain("not on screen");
+    expect(textOf(await call("loin", "propose_plan", { ...plan, subtasks: [plan.subtasks[1]] }))).toContain("Plan proposed: 1 sub-task.");
     // Its groups are as unknown as its agents: refused, not told that the group does not exist.
-    expect(textOf(await call("loin", "propose_plan", { ...plan, subtasks: [{ ...plan.subtasks[1], group: "Interface" }] }))).toContain("n'est pas affiché");
+    expect(textOf(await call("loin", "propose_plan", { ...plan, subtasks: [{ ...plan.subtasks[1], group: "Interface" }] }))).toContain("not on screen");
   });
 
   describe("once the team is formed", () => {
@@ -321,20 +318,20 @@ describe("the orchestrator's tools (spec orchestrateur §7.2)", () => {
 
     it("writes to an agent that runs, never into a dialog meant for the user", async () => {
       terminalStatusStore.getState().set("isis", { state: "stopped" });
-      expect(textOf(await call("chef", "write", { agent: "Isis", text: "Relance" }))).toBe("Isis est arrêté.");
+      expect(textOf(await call("chef", "write", { agent: "Isis", text: "Relance" }))).toBe("Isis is stopped.");
       terminalStatusStore.getState().set("isis", { state: "running" });
       agentActivityStore.getState().apply({ nodeId: "isis", activity: "waiting", since: 0 });
       expect(await call("chef", "write", { agent: "Isis", text: "Relance" })).toMatchObject({ isError: true });
       agentActivityStore.getState().apply({ nodeId: "isis", activity: "idle", since: 0 });
-      expect(textOf(await call("chef", "write", { agent: "Isis", text: "Relance\nles tests" }))).toBe("Écrit à Isis.");
+      expect(textOf(await call("chef", "write", { agent: "Isis", text: "Relance\nles tests" }))).toBe("Written to Isis.");
       expect(ptySendText).toHaveBeenCalledWith("isis", "Relance les tests");
     });
 
     it("takes an agent's report to its orchestrator", async () => {
       expect(await call("isis", "report", { summary: "Fait", status: "fini" })).toMatchObject({ isError: true });
-      expect(textOf(await call("isis", "report", { summary: "Login fait", status: "done" }))).toBe("Compte rendu transmis à l'orchestrateur.");
+      expect(textOf(await call("isis", "report", { summary: "Login fait", status: "done" }))).toBe("Report passed on to the orchestrator.");
       expect(missionOf(nodesStore.getState().nodes.chef)?.members[0].report).toMatchObject({ summary: "Login fait", status: "termine" });
-      expect(notify).toHaveBeenCalledWith("chef", "Isis a rendu compte (done) : Login fait");
+      expect(notify).toHaveBeenCalledWith("chef", "Isis reported (done): Login fait");
     });
 
     it("keeps what an agent leaves to check by hand (spec mission de nuit §6.2)", async () => {
@@ -343,7 +340,7 @@ describe("the orchestrator's tools (spec orchestrateur §7.2)", () => {
     });
 
     it("records a report no orchestrator hears, and says so (spec première version §5.4)", async () => {
-      const unheard = "Compte rendu enregistré, mais l'orchestrateur est fermé : personne ne le lira pour l'instant.";
+      const unheard = "Report saved, but the orchestrator is closed: nobody will read it for now.";
       vi.mocked(notify).mockClear();
       terminalStatusStore.getState().set("chef", { state: "stopped" });
       expect(textOf(await call("isis", "report", { summary: "Fini", status: "done" }))).toBe(unheard);
@@ -353,8 +350,8 @@ describe("the orchestrator's tools (spec orchestrateur §7.2)", () => {
       expect(textOf(await call("isis", "report", { summary: "Fini encore", status: "done" }))).toBe(unheard);
       setOrchestratorClosed("chef", false);
       // Queued all the same: it hears them when it runs again (final review R3).
-      expect(notify).toHaveBeenCalledWith("chef", "Isis a rendu compte (done) : Fini");
-      expect(notify).toHaveBeenCalledWith("chef", "Isis a rendu compte (done) : Fini encore");
+      expect(notify).toHaveBeenCalledWith("chef", "Isis reported (done): Fini");
+      expect(notify).toHaveBeenCalledWith("chef", "Isis reported (done): Fini encore");
     });
 
     it("keeps an agent's merged branch merged when it reports again (final review H2)", async () => {
@@ -367,9 +364,9 @@ describe("the orchestrator's tools (spec orchestrateur §7.2)", () => {
       setMission("chef", { budgetMin: 30, startedAt: Date.now() });
       // Isis reported earlier in this file: still at work here, its whole budget counts.
       updateMember("chef", "isis", { report: undefined });
-      expect(textOf(await call("chef", "extend", { agent: "Isis", minutes: 20 }))).toBe("Il reste 30 min sur le budget global.");
+      expect(textOf(await call("chef", "extend", { agent: "Isis", minutes: 20 }))).toBe("30 min left in the overall budget.");
       updateMember("chef", "isis", { overdue: 1 });
-      expect(textOf(await call("chef", "extend", { agent: "Isis", minutes: 10 }))).toBe("Isis : +10 min, budget 30 min.");
+      expect(textOf(await call("chef", "extend", { agent: "Isis", minutes: 10 }))).toBe("Isis: +10 min, budget 30 min.");
       expect(missionOf(nodesStore.getState().nodes.chef)?.members[0]).toMatchObject({ extraMin: 10 });
       expect(missionOf(nodesStore.getState().nodes.chef)?.members[0].overdue).toBeUndefined();
       // The orchestrator reads the time with its extensions, and what is left (final review H3).
@@ -380,14 +377,14 @@ describe("the orchestrator's tools (spec orchestrateur §7.2)", () => {
     });
 
     it("interrupts an agent's turn like « Pause » (spec §7.2)", async () => {
-      expect(textOf(await call("chef", "interrupt", { agent: "Isis" }))).toBe("Tour d'Isis interrompu. write « continue » le reprend.");
+      expect(textOf(await call("chef", "interrupt", { agent: "Isis" }))).toBe('Isis\'s turn interrupted. write "continue" resumes it.');
       expect(pauseAgents).toHaveBeenCalledWith(["isis"]);
       vi.mocked(pauseAgents).mockResolvedValueOnce(0);
-      expect(textOf(await call("chef", "interrupt", { agent: "Isis" }))).toBe("Isis n'est pas au travail : rien à interrompre.");
+      expect(textOf(await call("chef", "interrupt", { agent: "Isis" }))).toBe("Isis is not at work: nothing to interrupt.");
     });
 
     it("hands a sub-task over through OpenVibe (spec §7.2)", async () => {
-      expect(textOf(await call("chef", "reassign", { subtask: "login", agent: "new" }))).toBe("« Login » passe à Horus.");
+      expect(textOf(await call("chef", "reassign", { subtask: "login", agent: "new" }))).toBe('"Login" goes to Horus.');
       expect(reassignTask).toHaveBeenCalledWith("chef", "isis", "nouveau");
       expect(await call("chef", "reassign", { subtask: "Paiement", agent: "new" })).toMatchObject({ isError: true });
     });
@@ -396,33 +393,31 @@ describe("the orchestrator's tools (spec orchestrateur §7.2)", () => {
       expect(textOf(await call("chef", "merge", {}))).toBe("Branche openvibe/auth :\nIsis : fusionné");
       expect(await call("chef", "propose_plan", plan)).toMatchObject({ isError: true });
       expect(await call("chef", "finish", {})).toMatchObject({ isError: true });
-      expect(textOf(await call("chef", "finish", { summary: "Fini" }))).toContain("Mission terminée");
+      expect(textOf(await call("chef", "finish", { summary: "Fini" }))).toContain("Mission finished");
       expect(endMission).toHaveBeenCalledWith("chef", "Fini");
     });
   });
 });
 
 it("answers a failed step with its accent in French (backlog R5c)", async () => {
-  expect(textOf(await call("isis", "step", { title: "Plan", state: "failed" }))).toBe("Plan : échec.");
+  expect(textOf(await call("isis", "step", { title: "Plan", state: "failed" }))).toBe("Plan: failed.");
 });
 
 describe("the English protocol (spec première version §7.1)", () => {
   it("still takes French values, and tells a former name what it became", async () => {
-    expect(textOf(await call("isis", "step", { title: "Plan", state: "en_cours" }))).toBe("Plan : en cours.");
+    expect(textOf(await call("isis", "step", { title: "Plan", state: "en_cours" }))).toBe("Plan: in_progress.");
     const old = await call("isis", "rendre_compte", { resume: "x", statut: "termine" });
     expect(old).toMatchObject({ isError: true });
-    expect(textOf(old)).toBe("Outil renommé : utilise report.");
+    expect(textOf(old)).toBe("Tool renamed: use report.");
   });
 
   it("describes its tools and answers in English when the interface is in English", async () => {
-    langStore.setState({ lang: "en" });
     try {
       const list = (await answer({ callId: 1, nodeId: "isis", method: "tools/list", params: {} })) as { tools: { name: string; description: string }[] };
       expect(list.tools[0].description).toContain("Declare your task's steps");
       expect(textOf(await call("isis", "declare_steps", { steps: ["Plan"] }))).toBe("1 step declared.");
       expect(textOf(await call("isis", "voler", {}))).toBe("Unknown tool: voler");
     } finally {
-      langStore.setState({ lang: "fr" });
     }
   });
 });

@@ -3,7 +3,6 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { langStore } from "@/i18n";
 import { setGroupSpeciality } from "./groups";
 import { SpecialityMenu } from "./SpecialityMenu";
 
@@ -41,16 +40,14 @@ beforeEach(() => {
 afterEach(async () => {
   await act(async () => root.unmount());
   host.remove();
-  langStore.setState({ lang: "fr" });
 });
 
 it("suggests the group roles, the general one aside, and offers no clearing without a speciality", async () => {
   await open();
-  expect(items().map((i) => i.textContent)).toEqual(["Frontend", "Backend", "Testeurs", "Relecteurs", "Design", "Docs", "Sécurité"]);
+  expect(items().map((i) => i.textContent)).toEqual(["Frontend", "Backend", "Testers", "Reviewers", "Design", "Docs", "Security"]);
 });
 
 it("suggests in English too", async () => {
-  langStore.setState({ lang: "en" });
   await open("API");
   expect(items().map((i) => i.textContent)).toEqual(["Frontend", "Backend", "Testers", "Reviewers", "Design", "Docs", "Security", "None"]);
   expect(field().placeholder).toBe("Your own, then Enter");

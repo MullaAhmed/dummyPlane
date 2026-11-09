@@ -96,7 +96,7 @@ it("does not send a /command whose target is unknown to the selection instead (f
   await type("/clear @thot/zues");
   await press("Enter");
   expect(sendCommand).not.toHaveBeenCalled();
-  expect(host.textContent).toContain("Cible inconnue : @thot/zues");
+  expect(host.textContent).toContain("Unknown target: @thot/zues");
 });
 
 
@@ -156,12 +156,12 @@ it("does not send on the Enter that ends an IME composition (plan B3)", async ()
   expect(sendCommand).toHaveBeenCalledTimes(1);
 });
 
-it("says why Envoyer is grey when the chosen group has no agent, not « Écris une consigne » (plan B3)", async () => {
+it("says why Send is grey when the chosen group has no agent, not Write an instruction (plan B3)", async () => {
   const empty = { id: "g1", name: "Vide", x: 0, y: 0, width: 10, height: 10, group: { role: "general", pantheon: "egypt" }, memberIds: [] };
   await act(async () => root.render(<CommandInput agents={agents} groups={[empty] as never} fallback={[]} placeholder="Consigne" emptyHint="Tape @" />));
-  await type("@vide lance les tests");
-  const send = host.querySelector<HTMLButtonElement>('button[aria-label="Envoyer"]')!;
+  await type("@vide run the tests");
+  const send = host.querySelector<HTMLButtonElement>('button[aria-label="Send"]')!;
   expect(send.disabled).toBe(true);
-  expect(send.title).toBe("Aucun agent dans cette cible");
-  expect(host.textContent).toContain("Aucun agent dans cette cible");
+  expect(send.title).toBe("No agent in this target");
+  expect(host.textContent).toContain("No agent in this target");
 });

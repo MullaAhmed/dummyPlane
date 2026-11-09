@@ -3,12 +3,12 @@ import { isTypingKey, pillOf, resumeOfferOf, startsNewConversation, startsOnKeys
 
 describe("pillOf", () => {
   it("labels each process state (spec habillage §7.2)", () => {
-    expect(pillOf({ state: "running" })).toEqual({ label: "ACTIF", tone: "live" });
-    expect(pillOf({ state: "stopped" })).toEqual({ label: "ARRÊTÉ", tone: "stopped" });
-    expect(pillOf({ state: "exited", code: 0 })).toEqual({ label: "TERMINÉ · 0", tone: "done" });
-    expect(pillOf({ state: "exited", code: 2 })).toEqual({ label: "TERMINÉ · 2", tone: "failed" });
-    expect(pillOf({ state: "exited", code: null })).toEqual({ label: "TERMINÉ", tone: "done" });
-    expect(pillOf({ state: "error", message: "x" })).toEqual({ label: "ERREUR", tone: "failed" });
+    expect(pillOf({ state: "running" })).toEqual({ label: "ACTIVE", tone: "live" });
+    expect(pillOf({ state: "stopped" })).toEqual({ label: "STOPPED", tone: "stopped" });
+    expect(pillOf({ state: "exited", code: 0 })).toEqual({ label: "EXITED · 0", tone: "done" });
+    expect(pillOf({ state: "exited", code: 2 })).toEqual({ label: "EXITED · 2", tone: "failed" });
+    expect(pillOf({ state: "exited", code: null })).toEqual({ label: "EXITED", tone: "done" });
+    expect(pillOf({ state: "error", message: "x" })).toEqual({ label: "ERROR", tone: "failed" });
   });
 });
 
@@ -64,15 +64,15 @@ describe("startsNewConversation", () => {
   it("keeps the conversation id when the previous launch failed", () => {
     expect(startsNewConversation({ state: "stopped" })).toBe(true);
     expect(startsNewConversation({ state: "exited", code: 0 })).toBe(true);
-    expect(startsNewConversation({ state: "error", message: "dossier introuvable" })).toBe(false);
+    expect(startsNewConversation({ state: "error", message: "folder not found" })).toBe(false);
   });
 });
 
 describe("a terminal waiting for its staggered start", () => {
   const starting = { state: "starting" } as const;
 
-  it("reads DÉMARRAGE, not ARRÊTÉ", () => {
-    expect(pillOf(starting)).toEqual({ label: "DÉMARRAGE", tone: "stopped" });
+  it("reads STARTING, not STOPPED", () => {
+    expect(pillOf(starting)).toEqual({ label: "STARTING", tone: "stopped" });
   });
 
   it("offers neither to resume nor to relaunch", () => {
@@ -87,19 +87,19 @@ describe("a terminal waiting for its staggered start", () => {
 describe("a running agent's activity (spec habillage §7.2)", () => {
   const running = { state: "running" } as const;
 
-  it("reads PRÊT, EN COURS or ATTEND", () => {
-    expect(pillOf(running, "idle")).toEqual({ label: "PRÊT", tone: "ready" });
-    expect(pillOf(running, "working")).toEqual({ label: "EN COURS", tone: "working" });
-    expect(pillOf(running, "waiting")).toEqual({ label: "ATTEND", tone: "waiting" });
+  it("reads READY, WORKING or WAITING", () => {
+    expect(pillOf(running, "idle")).toEqual({ label: "READY", tone: "ready" });
+    expect(pillOf(running, "working")).toEqual({ label: "WORKING", tone: "working" });
+    expect(pillOf(running, "waiting")).toEqual({ label: "WAITING", tone: "waiting" });
   });
 
   it("works in indigo for the indigo agents", () => {
-    expect(pillOf(running, "working", true)).toEqual({ label: "EN COURS", tone: "workingIndigo" });
+    expect(pillOf(running, "working", true)).toEqual({ label: "WORKING", tone: "workingIndigo" });
   });
 
-  it("reads ACTIF while its activity is unknown, and ignores the activity of a stopped process", () => {
-    expect(pillOf(running)).toEqual({ label: "ACTIF", tone: "live" });
-    expect(pillOf({ state: "stopped" }, "working")).toEqual({ label: "ARRÊTÉ", tone: "stopped" });
+  it("reads ACTIVE while its activity is unknown, and ignores the activity of a stopped process", () => {
+    expect(pillOf(running)).toEqual({ label: "ACTIVE", tone: "live" });
+    expect(pillOf({ state: "stopped" }, "working")).toEqual({ label: "STOPPED", tone: "stopped" });
   });
 });
 

@@ -42,7 +42,7 @@ function underWaitingNotice(rect: Rect, view: Viewport): boolean {
   return left < notice.right && left + rect.width > notice.left && top < notice.bottom && top + rect.height > notice.top;
 }
 
-/** The terminal at 100 %, centered in the zone utile (plan E1, décision 1). */
+/** The terminal at 100 %, centered in the usable area (plan E1, decision 1). */
 export function arrivalView(rect: Rect, viewport: { width: number; height: number }) {
   const middle = (TOP_ROW_HEIGHT + viewport.height - BOTTOM_BAR_HEIGHT) / 2;
   return {

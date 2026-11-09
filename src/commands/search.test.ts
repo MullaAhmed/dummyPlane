@@ -45,22 +45,22 @@ describe("rank", () => {
 
   it("breaks a tie by the share of the label the search covers", () => {
     const tied = [
-      { label: "Renommer le workspace", keywords: [] },
-      { label: "Renommer", keywords: [] },
-      { label: "Tout mettre en pause", keywords: [] },
-      { label: "Mettre en pause", keywords: [] },
+      { label: "Rename workspace", keywords: [] },
+      { label: "Rename", keywords: [] },
+      { label: "Pause all", keywords: [] },
+      { label: "Pause", keywords: [] },
     ];
-    expect(rank(tied, "renommer", textOf).map((i) => i.label)).toEqual(["Renommer", "Renommer le workspace"]);
-    expect(rank(tied, "pause", textOf).map((i) => i.label)).toEqual(["Mettre en pause", "Tout mettre en pause"]);
+    expect(rank(tied, "rename", textOf).map((i) => i.label)).toEqual(["Rename", "Rename workspace"]);
+    expect(rank(tied, "pause", textOf).map((i) => i.label)).toEqual(["Pause", "Pause all"]);
   });
 });
 
 describe("rankSections", () => {
   const textOf = (item: { label: string; keywords: string[] }) => item;
   const sections = [
-    { label: "Navigation", items: [{ label: "Masquer le panneau Agents", keywords: [] }] },
-    { label: "Agents", items: [{ label: "Tout mettre en pause", keywords: [] }] },
-    { label: "Terminal · Isis", items: [{ label: "Mettre en pause", keywords: [] }] },
+    { label: "Navigation", items: [{ label: "Hide the Agents panel", keywords: [] }] },
+    { label: "Agents", items: [{ label: "Pause all", keywords: [] }] },
+    { label: "Terminal · Isis", items: [{ label: "Pause", keywords: [] }] },
   ];
 
   it("puts the section of the best match first while searching: its first line is the one chosen", () => {
@@ -80,8 +80,8 @@ describe("search details (plan F1 findings)", () => {
   });
 
   it("splits words at apostrophes", () => {
-    expect(matchScore("ensemble", "Vue d'ensemble")).toBe(matchScore("ensemble", "Vue ensemble"));
-    expect(matchScore("ensemble", "Vue d’ensemble")!).toBeGreaterThanOrEqual(4);
+    expect(matchScore("prompt", "Shell's prompt")).toBe(matchScore("prompt", "Shell prompt"));
+    expect(matchScore("prompt", "Shell’s prompt")!).toBeGreaterThanOrEqual(4);
   });
 
   it("unfolds the ligatures œ and æ", () => {

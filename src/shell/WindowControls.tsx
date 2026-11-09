@@ -47,7 +47,7 @@ function WindowButton({ label, danger, className, ...props }: ComponentProps<"bu
   );
 }
 
-/** Réduire, Agrandir / Restaurer, Fermer OpenVibe, Windows-style in the title bar's corner (spec identité §5.1). */
+/** Minimize, Maximize / Restore, Close OpenVibe, Windows-style in the title bar's corner (spec identité §5.1). */
 export function WindowControls() {
   const t = useMessages(shellMessages).window;
   const maximized = useMaximized();

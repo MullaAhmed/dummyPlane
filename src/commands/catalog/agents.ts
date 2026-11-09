@@ -13,7 +13,7 @@ import { command, derived, sectionNamed } from "./define";
 import { catalog } from "./messages";
 import { inProject } from "./navigation";
 
-/** The agents of « Lancer … », in the spec's order (spec fenêtre §7.3). */
+/** The agents of "Launch …", in the spec's order (spec window §7.3). */
 const LAUNCHED: readonly AgentId[] = ["claude", "codex", "gemini", "qwen", "cursor", "opencode", "aider", "ollama", "shell"];
 
 const section = sectionNamed((s) => s.agents);
@@ -42,7 +42,7 @@ export const AGENT_COMMANDS: readonly Command[] = [
           run: (ctx) => {
             // The command is read in the menu before it runs (spec installation §2).
             if (installable(agent)) requestUi({ kind: "agentMenu", view: { install: agent }, at: ctx.at });
-            // Ollama starts on a model: its menu opens on them (plan F2, décision 1).
+            // Ollama starts on a model: its menu opens on them (plan F2, decision 1).
             else if (agent === "ollama") requestUi({ kind: "agentMenu", view: "ollama", at: ctx.at });
             else launchAt(agent, ctx.at);
           },
@@ -73,7 +73,7 @@ export const AGENT_COMMANDS: readonly Command[] = [
   command("group.compose", {
     section,
     available: inProject,
-    // Its window is anchored in the agents panel (plan F2, décision 4).
+    // Its window is anchored in the agents panel (plan F2, decision 4).
     run: () => {
       setAgentsPanel(true);
       requestUi({ kind: "composeGroup" });

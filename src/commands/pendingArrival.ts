@@ -13,7 +13,7 @@ export interface PendingArrival {
 
 let pending: PendingArrival | null = null;
 
-/** An item of another workspace: reached once that workspace's scene is on screen (spec fenêtre §7.2). */
+/** An item of another workspace: reached once that workspace's scene is on screen (spec window §7.2). */
 export function requestArrival(target: PendingArrival) {
   pending = target;
 }
@@ -23,7 +23,7 @@ export function arrivalPending(workspaceId: string): boolean {
   return pending?.workspaceId === workspaceId;
 }
 
-/** Reaches the pending item of `workspaceId`, now on screen; says so when it is gone (spec fenêtre §9). */
+/** Reaches the pending item of `workspaceId`, now on screen; says so when it is gone (spec window §9). */
 export function completeArrival(workspaceId: string) {
   if (!pending) return;
   // Another workspace came first: the user went elsewhere, the arrival is abandoned.

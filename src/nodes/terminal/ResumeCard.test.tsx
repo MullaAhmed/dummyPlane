@@ -2,7 +2,6 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { langStore } from "@/i18n";
 import type { TerminalPayload } from "@/nodes/types";
 import { relaunchTerminal } from "./registry";
 import { ResumeCard } from "./ResumeCard";
@@ -26,7 +25,6 @@ beforeEach(() => {
 afterEach(async () => {
   await act(async () => root.unmount());
   host.remove();
-  langStore.setState({ lang: "fr" });
 });
 
 const render = (terminal: TerminalPayload) =>
@@ -34,19 +32,18 @@ const render = (terminal: TerminalPayload) =>
 
 it("promises that typing starts afresh on an ordinary terminal", async () => {
   await render(payload);
-  expect(host.textContent).toContain("taper démarre à neuf");
+  expect(host.textContent).toContain("typing starts fresh");
 });
 
 it("does not promise it on a one-shot command, which only the click runs again (spec installation §7)", async () => {
   await render({ ...payload, oneShot: true });
-  expect(host.textContent).not.toContain("taper");
-  expect(host.textContent).toContain("Cliquer pour relancer la commande");
+  expect(host.textContent).not.toContain("typing");
+  expect(host.textContent).toContain("Click to run the command again");
   await act(async () => host.querySelector("button")!.click());
   expect(relaunchTerminal).toHaveBeenCalledWith("n", { ...payload, oneShot: true }, "new");
 });
 
 it("speaks English", async () => {
-  langStore.setState({ lang: "en" });
   await render({ ...payload, oneShot: true });
   expect(host.textContent).toContain("Click to run the command again");
 });

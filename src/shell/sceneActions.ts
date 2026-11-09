@@ -19,11 +19,11 @@ function sceneName(): string {
   return workspaces.find((w) => w.id === activeId)?.name ?? "scene";
 }
 
-/** « Exporter la scène… » of the settings menu and the palette. */
+/** "Export the scene…" of the settings menu and the palette. */
 export const exportCurrentScene = () => run((api) => exportScene(api, sceneName()), "exportFailed");
 
-/** « Importer une scène… ». */
+/** "Import a scene…". */
 export const importIntoScene = () => run(importScene, "importFailed");
 
-/** « Exporter en PNG… », in the app's theme. */
+/** "Export as PNG…", in the app's theme. */
 export const exportCurrentPng = () => run((api) => exportPng(api, sceneName(), currentPalette()), "exportFailed");

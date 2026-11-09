@@ -15,7 +15,7 @@ const MAX_FOUND = 120;
 
 const CREDITS = ICON_CATEGORIES.flatMap((category) => category.libraries.map((library) => `${library.name} — ${library.authors.join(", ")}`)).join("\n");
 
-/** The ICÔNES menu of the rail (spec maj §4): system design, AWS, Azure and GCP icons, put on the canvas. */
+/** The ICONS menu of the rail (spec maj §4): system design, AWS, Azure and GCP icons, put on the canvas. */
 export function IconsMenu() {
   const t = useMessages(shellMessages).icons;
   const [open, setOpen] = useState(false);
@@ -67,7 +67,7 @@ export function IconsPanel({ onPick }: { onPick: (item: IconItem) => void }) {
   const stillLoading = wantedNow.some((c) => !items[c.id] && !failed.has(c.id));
   const someFailed = wantedNow.some((c) => failed.has(c.id));
   const found = searching ? matchIcons(ICON_CATEGORIES.flatMap((c) => items[c.id] ?? []), query).slice(0, MAX_FOUND) : items[category];
-  // A search waits for the big files still loading before it says « none »; a failure is told per category.
+  // A search waits for the big files still loading before it says "none"; a failure is told per category.
   const shown = found !== undefined && found.length === 0 && stillLoading ? undefined : found;
   return (
     <div className="flex flex-col gap-2">

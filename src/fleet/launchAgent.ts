@@ -19,7 +19,7 @@ export interface LaunchOptions {
   accountId?: string;
 }
 
-/** Agents start in the project folder, in the first available shell (spec habillage §6.1). */
+/** Agents start in the project folder, in the first available shell (spec theme §6.1). */
 export function defaultLaunchOptions(): LaunchOptions {
   const { projects, activeId } = projectsStore.getState();
   const cwd = projects.find((p) => p.id === activeId)?.path ?? "";
@@ -29,7 +29,7 @@ export function defaultLaunchOptions(): LaunchOptions {
 /**
  * Creates and starts an agent of the active workspace at `center` (scene
  * coordinates). Inside a group it takes the group's next free cell and a name
- * from the group's pantheon (spec habillage §10.1, §11.3).
+ * from the group's pantheon (spec theme §10.1, §11.3).
  */
 export async function launchAgent(agent: AgentId, options: LaunchOptions, center: Point): Promise<string | null> {
   const workspaceId = workspacesStore.getState().activeId;

@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import { arrive } from "@/canvas/arrive";
 import { focusGroup } from "@/canvas/canvasFocus";
-import { langStore } from "@/i18n";
 import { agentActivityStore } from "@/store/agentActivity";
 import { nodesStore } from "@/store/nodes";
 import { projectsStore } from "@/store/projects";
@@ -70,24 +69,22 @@ describe("goTo (spec fenêtre §7.2)", () => {
     vi.mocked(arrive).mockReturnValue(false);
     goTo(item({ workspaceId: "w2", targetId: "isis", label: "Isis" }));
     completeArrival("w2");
-    expect(error).toHaveBeenCalledWith("Isis n'existe plus");
+    expect(error).toHaveBeenCalledWith("Isis no longer exists");
     goTo(item({ kind: "group", workspaceId: "w1", targetId: "g", label: "Serveurs" }));
     vi.mocked(focusGroup).mockReturnValue(false);
     goTo(item({ kind: "group", workspaceId: "w1", targetId: "g", label: "Serveurs" }));
-    expect(error).toHaveBeenLastCalledWith("Serveurs n'existe plus");
+    expect(error).toHaveBeenLastCalledWith("Serveurs no longer exists");
   });
 
   it("says so in English too", () => {
     const error = vi.spyOn(toast, "error").mockImplementation(() => "");
-    langStore.setState({ lang: "en" });
     vi.mocked(arrive).mockReturnValue(false);
     goTo(item({ workspaceId: "w2", targetId: "isis", label: "Isis" }));
     completeArrival("w2");
-    langStore.setState({ lang: "fr" });
     expect(error).toHaveBeenCalledWith("Isis no longer exists");
   });
 
-  it("goes to a waiting agent like a line of « Aller à »", () => {
+  it("goes to a waiting agent like a line of Go to", () => {
     goToAgent({ id: "isis", kind: "terminal", name: "Isis", workspaceId: "w1", since: 0 });
     expect(arrive).toHaveBeenCalledWith("isis");
     goToAgent({ id: "chef", kind: "orchestrator", name: "Chef", workspaceId: "w2", since: 0 });

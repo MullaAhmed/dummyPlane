@@ -2,7 +2,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { onAction, sendNotification, type ActionPerformed } from "@tauri-apps/plugin-notification";
 import { nativeNotificationsStore } from "@/app/nativeNotifications";
 import { goToAgent } from "@/commands/goToRun";
-import { langStore } from "@/i18n";
 import { agentActivityStore } from "@/store/agentActivity";
 import { nodesStore } from "@/store/nodes";
 import { projectsStore } from "@/store/projects";
@@ -51,27 +50,19 @@ beforeEach(() => {
 
 afterEach(() => {
   uninstall();
-  langStore.setState({ lang: "fr" });
 });
 
 describe("the Windows notification (spec notification §8)", () => {
   it("tells when an agent starts waiting and the window is not focused", async () => {
     apply("isis", "waiting");
     await settled();
-    expect(sendNotification).toHaveBeenCalledExactlyOnceWith({ title: "OpenVibe", body: "Isis a une question", extra: { nodeId: "isis" } });
+    expect(sendNotification).toHaveBeenCalledExactlyOnceWith({ title: "OpenVibe", body: "Isis has a question", extra: { nodeId: "isis" } });
   });
 
   it("keeps the preview in the window: a toast can show on the lock screen (spec notification §7)", async () => {
     agentActivityStore.getState().apply({ nodeId: "isis", activity: "waiting", since: 1, message: "Run rm on C:/secret?" });
     await settled();
-    expect(sendNotification).toHaveBeenCalledExactlyOnceWith({ title: "OpenVibe", body: "Isis a une question", extra: { nodeId: "isis" } });
-  });
-
-  it("speaks the interface's language", async () => {
-    langStore.setState({ lang: "en" });
-    apply("isis", "waiting");
-    await settled();
-    expect(sendNotification).toHaveBeenCalledWith(expect.objectContaining({ body: "Isis has a question" }));
+    expect(sendNotification).toHaveBeenCalledExactlyOnceWith({ title: "OpenVibe", body: "Isis has a question", extra: { nodeId: "isis" } });
   });
 
   it("stays silent when the window is focused: the notice is on screen", async () => {

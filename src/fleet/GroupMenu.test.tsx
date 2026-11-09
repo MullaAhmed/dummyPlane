@@ -22,11 +22,11 @@ it("offers to fold an unfolded group and to unfold a folded one", async () => {
   await act(async () => root.render(<GroupMenu groupId="g" />));
   await act(async () => host.querySelector("button")!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
   const item = (text: string) => [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((i) => i.textContent === text);
-  await act(async () => item("Replier le groupe")!.click());
+  await act(async () => item("Fold the group")!.click());
   expect(setGroupFolded).toHaveBeenLastCalledWith("g", true);
   await act(async () => canvasStore.setState({ frames: [frame(true)] as never }));
   await act(async () => host.querySelector("button")!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
-  await act(async () => item("Déplier le groupe")!.click());
+  await act(async () => item("Unfold the group")!.click());
   expect(setGroupFolded).toHaveBeenLastCalledWith("g", false);
   await act(async () => root.unmount());
   document.body.replaceChildren();

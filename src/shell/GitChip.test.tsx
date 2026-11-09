@@ -4,7 +4,6 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it } from "vitest";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { gitWindowStore } from "@/git/gitWindowStore";
-import { langStore } from "@/i18n";
 import { projectsStore } from "@/store/projects";
 import { GitChip } from "./GitChip";
 
@@ -28,7 +27,6 @@ afterEach(async () => {
   await act(async () => root.unmount());
   host.remove();
   clearMocks();
-  langStore.setState({ lang: "fr" });
 });
 
 it("opens the git window on the project's folder (spec fenêtre git §3)", async () => {
@@ -36,15 +34,9 @@ it("opens the git window on the project's folder (spec fenêtre git §3)", async
   const chip = host.querySelector("button")!;
   expect(chip.textContent).toContain("main");
   expect(chip.textContent).toContain("3");
-  expect(chip.getAttribute("aria-label")).toBe("Ouvrir la fenêtre git · main");
+  expect(chip.getAttribute("aria-label")).toBe("Open the git window · main");
   await act(async () => chip.click());
   expect(gitWindowStore.getState().path).toBe("C:/code/api");
-});
-
-it("words it in English", async () => {
-  langStore.setState({ lang: "en" });
-  await act(async () => root.render(<GitChip />));
-  expect(host.querySelector("button")!.getAttribute("aria-label")).toBe("Open the git window · main");
 });
 
 it("shows nothing outside a repository", async () => {

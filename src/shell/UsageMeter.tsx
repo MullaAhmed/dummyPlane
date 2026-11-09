@@ -12,7 +12,7 @@ import { useUsage } from "@/usage/usageStore";
 import { shellMessages } from "./messages";
 import { TokensView } from "./TokensView";
 
-/** « 67,8 k », « 1,2 M » tokens. */
+/** "67.8 k", "1.2 M" tokens. */
 function formatTokens(count: number): string {
   if (count >= 1_000_000) return `${formatDecimal(count / 1_000_000, 1)} M`;
   if (count >= 1_000) return `${formatDecimal(count / 1_000, 1)} k`;

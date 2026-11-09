@@ -9,7 +9,7 @@ import { SHELL_LABELS } from "@/nodes/terminal/launch";
 import type { LaunchOptions } from "./launchAgent";
 import { fleetMessages } from "./messages";
 
-/** Folder, shell, title and custom command of the next agents (spec habillage §10.1). */
+/** Folder, shell, title and custom command of the next agents (spec theme §10.1). */
 export function LaunchOptionsForm(props: {
   value: LaunchOptions;
   shells: ShellKind[];

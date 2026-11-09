@@ -33,9 +33,9 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 
-it("tells OpenVibe's version (« À propos d'OpenVibe »)", async () => {
+it("tells OpenVibe's version (\"About OpenVibe\")", async () => {
   await showAbout();
-  expect(toast).toHaveBeenCalledWith("OpenVibe 0.1.0", { description: "Canvas d'agents local et open source." });
+  expect(toast).toHaveBeenCalledWith("OpenVibe 0.1.0", { description: "A local, open source canvas for agents." });
 });
 
 it("launches an agent, or places an orchestrator, at the center of the view", () => {
@@ -56,7 +56,7 @@ it("launches an agent, places an orchestrator or a group of four where the radia
   expect(vi.mocked(launchGroup).mock.lastCall?.[2]).toEqual({ x: 50, y: 60 });
 });
 
-it("puts the cursor in the command bar's field (« Écrire une consigne »)", () => {
+it("puts the cursor in the command bar's field (\"Write an instruction\")", () => {
   expect(focusCommandBar()).toBe(false);
   document.body.innerHTML = '<div data-command-bar><textarea></textarea></div>';
   expect(focusCommandBar()).toBe(true);
@@ -74,7 +74,7 @@ it("keeps one implementation of each action: the buttons call the shared ones", 
   expect(readSource("shell/WindowControls.tsx")).toContain("toggleMaximizeWindow");
 });
 
-it("waits for the agent list before « Nouvelle console », instead of launching a Shell", async () => {
+it("waits for the agent list before New console, instead of launching a Shell", async () => {
   agentsStore.setState({ agents: [], shells: [], loaded: false });
   mockIPC((cmd) => (cmd === "list_agents" ? [{ id: "claude", available: true }] : cmd === "list_shells" ? [] : undefined));
   await newConsole({ x: 1, y: 2 });

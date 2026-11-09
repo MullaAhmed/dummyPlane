@@ -23,7 +23,7 @@ export async function addKanban(workspaceId: string, center: Point) {
   });
 }
 
-/** « Kanban »: at `at`, else at the center of the view. */
+/** "Kanban": at `at`, else at the center of the view. */
 export function placeKanban(at?: Point) {
   const workspaceId = workspacesStore.getState().activeId;
   if (!workspaceId) return;

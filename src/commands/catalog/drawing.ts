@@ -30,14 +30,14 @@ const TOOLS: readonly { type: Tool; keys?: string }[] = [
   { type: "image" },
 ];
 
-/** A drawing tool, then the keyboard to the canvas (spec fenêtre §7.3). */
+/** A drawing tool, then the keyboard to the canvas (spec window §7.3). */
 function pickTool(type: Tool) {
   canvasStore.getState().api?.setActiveTool({ type });
   releaseToCanvas();
 }
 
 /**
- * Annuler / Rétablir: Excalidraw's own keys, sent to its container (its API has
+ * Undo / Redo: Excalidraw's own keys, sent to its container (its API has
  * no undo). The keyboard goes back to the canvas after: Excalidraw computes the
  * undo from the state of the moment, which would overwrite a release still pending.
  */
@@ -88,16 +88,16 @@ export const DRAWING: readonly Command[] = [
   command("drawing.copy", { section: drawing, keys: "Ctrl+C", available: withSelection, run: () => copyCanvasSelection() }),
   command("drawing.paste", { section: drawing, keys: "Ctrl+V", available: inProject, run: (ctx) => pasteOnCanvasAt(pointOf(ctx)) }),
   command("drawing.duplicate", { section: drawing, keys: "Ctrl+D", available: withSelection, run: () => pressCanvasKey(CANVAS_KEYS.duplicate) }),
-  command("drawing.front", { section: drawing, keys: "Ctrl+Maj+]", available: withSelection, run: () => pressCanvasKey(CANVAS_KEYS.front) }),
-  command("drawing.back", { section: drawing, keys: "Ctrl+Maj+[", available: withSelection, run: () => pressCanvasKey(CANVAS_KEYS.back) }),
+  command("drawing.front", { section: drawing, keys: "Ctrl+Shift+]", available: withSelection, run: () => pressCanvasKey(CANVAS_KEYS.front) }),
+  command("drawing.back", { section: drawing, keys: "Ctrl+Shift+[", available: withSelection, run: () => pressCanvasKey(CANVAS_KEYS.back) }),
   command("drawing.lock", {
     label: () => (selectionLocked() ? catalog().unlock : catalog().lock),
     section: drawing,
-    keys: "Ctrl+Maj+L",
+    keys: "Ctrl+Shift+L",
     available: withSelection,
     run: () => pressCanvasKey(CANVAS_KEYS.lock),
   }),
-  // Agents in the selection go through the closing guard (spec habillage §7.5).
+  // Agents in the selection go through the closing guard (spec theme §7.5).
   command("drawing.delete", { section: drawing, keys: "Suppr", available: withSelection, run: () => pressCanvasKey(CANVAS_KEYS.delete) }),
   // The radial menu's only: Excalidraw's full menu at its point (spec menu radial §4.5).
   command("drawing.more", { section: drawing, available: (ctx) => withSelection(ctx) && ctx.at !== undefined, run: (ctx) => openNativeMenuAt(pointOf(ctx)) }),

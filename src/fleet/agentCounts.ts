@@ -20,7 +20,7 @@ export function agentCounts(
   return { working, waiting };
 }
 
-/** The counts of the workspace on screen: what the agents panel shows (plan D2, décision 1). */
+/** The counts of the workspace on screen: what the agents panel shows (plan D2, decision 1). */
 export function useWorkspaceAgentCounts(): { working: number; waiting: number } {
   const nodeIds = useCanvas((s) => s.nodeIds);
   const nodes = useNodes((s) => s.nodes);

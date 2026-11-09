@@ -6,7 +6,6 @@ import { clearMocks, mockIPC, mockWindows } from "@tauri-apps/api/mocks";
 import { toast } from "sonner";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { agentsStore } from "@/fleet/agentsStore";
-import { langStore } from "@/i18n";
 import { AGENT_IDS, type AgentInfo } from "@/ipc/pty";
 import type { Project } from "@/ipc/db";
 import { HomeScreen } from "./HomeScreen";
@@ -57,7 +56,6 @@ afterEach(async () => {
   await act(async () => root.unmount());
   host.remove();
   clearMocks();
-  langStore.setState({ lang: "fr" });
 });
 
 const render = () => act(async () => root.render(<HomeScreen />));
@@ -66,7 +64,7 @@ const button = (text: string) => [...host.querySelectorAll("button")].find((b) =
 
 it("guides a newcomer without agent nor project: three steps, Claude Code's command first (spec première version §7.2)", async () => {
   await render();
-  expect(panel()?.textContent).toContain("Bien démarrer");
+  expect(panel()?.textContent).toContain("Getting started");
   const steps = [...panel()!.querySelectorAll<HTMLElement>("li[data-step]")].map((li) => [li.dataset.step, li.dataset.done]);
   expect(steps).toEqual([
     ["agent", "false"],
@@ -74,7 +72,7 @@ it("guides a newcomer without agent nor project: three steps, Claude Code's comm
     ["launch", "false"],
   ]);
   const card = host.querySelector<HTMLElement>("[data-no-agent]")!;
-  expect(card.textContent).toContain("Aucun agent de code trouvé");
+  expect(card.textContent).toContain("No coding agent found");
   expect(card.querySelector("code")!.textContent).toBe("irm https://claude.ai/install.ps1 | iex");
   // Claude Code first: the orchestrator, missions and usage need it.
   expect(card.textContent!.indexOf("Claude Code")).toBeLessThan(card.textContent!.indexOf("Codex"));
@@ -84,7 +82,7 @@ it("copies Claude Code's install command and opens the official pages", async ()
   const writeText = vi.fn(() => Promise.resolve());
   Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
   await render();
-  await act(async () => button("Copier").click());
+  await act(async () => button("Copy").click());
   expect(writeText).toHaveBeenCalledWith("irm https://claude.ai/install.ps1 | iex");
   const codex = [...host.querySelectorAll<HTMLElement>("[data-no-agent] [data-link]")].find((a) => a.textContent?.includes("Codex"))!;
   await act(async () => codex.click());
@@ -93,7 +91,7 @@ it("copies Claude Code's install command and opens the official pages", async ()
 
 it("installs Claude Code in one click: its command is already on screen (spec installation §4.2)", async () => {
   await render();
-  await act(async () => button("Installer Claude Code").click());
+  await act(async () => button("Install Claude Code").click());
   expect(installFromHome).toHaveBeenCalledWith("claude");
   expect(host.querySelector("[data-install-prompt]")).toBeNull();
 });
@@ -104,7 +102,7 @@ it("shows the other agents' command before installing them", async () => {
   await act(async () => install().click());
   expect(installFromHome).not.toHaveBeenCalled();
   expect(host.querySelector("[data-install-prompt='gemini'] code")!.textContent).toBe("npm install -g @google/gemini-cli");
-  await act(async () => button("Lancer dans un terminal").click());
+  await act(async () => button("Run in a terminal").click());
   expect(installFromHome).toHaveBeenCalledWith("gemini");
   expect(host.querySelector("[data-install-prompt]")).toBeNull();
 });
@@ -112,23 +110,22 @@ it("shows the other agents' command before installing them", async () => {
 it("closes the prompt without installing", async () => {
   await render();
   await act(async () => host.querySelector<HTMLButtonElement>("[data-install='qwen']")!.click());
-  await act(async () => button("Installer Qwen Code").click());
+  await act(async () => button("Install Qwen Code").click());
   expect(host.querySelector("[data-install-prompt]")).toBeNull();
   expect(installFromHome).not.toHaveBeenCalled();
 });
 
 it("says where the install terminal will open", async () => {
   await render();
-  expect(host.querySelector("[data-no-agent]")!.textContent).toContain("choisis d'abord son dossier");
+  expect(host.querySelector("[data-no-agent]")!.textContent).toContain("pick its folder first");
   await act(async () => root.unmount());
   projects = [project];
   root = createRoot(host);
   await render();
-  expect(host.querySelector("[data-no-agent]")!.textContent).toContain("sur le canvas de « api »");
+  expect(host.querySelector("[data-no-agent]")!.textContent).toContain("on the canvas of \"api\"");
 });
 
 it("words the install in English", async () => {
-  langStore.setState({ lang: "en" });
   await render();
   const card = host.querySelector("[data-no-agent]")!;
   expect(card.textContent).toContain("Install Claude Code");
@@ -140,7 +137,7 @@ it("reads Windows' PATH again before looking for the agents, then shows the step
   await render();
   agents = only("claude");
   calls = [];
-  await act(async () => button("Vérifier à nouveau").click());
+  await act(async () => button("Check again").click());
   expect(calls.filter((c) => c === "refresh_path" || c === "list_agents")).toEqual(["refresh_path", "list_agents"]);
   expect(host.querySelector("[data-no-agent]")).toBeNull();
   expect(panel()!.querySelector<HTMLElement>("li[data-step='agent']")!.dataset.done).toBe("true");
@@ -166,7 +163,6 @@ it("shows nothing before the agents are known, so it never flashes", async () =>
 });
 
 it("speaks English when the interface does", async () => {
-  langStore.setState({ lang: "en" });
   await render();
   expect(panel()?.textContent).toContain("Getting started");
   expect(host.querySelector("[data-no-agent]")!.textContent).toContain("No coding agent found");
@@ -188,13 +184,13 @@ it("tells screen readers a step is done, with text instead of an aria-label on a
   agents = only("claude");
   await render();
   const done = panel()!.querySelector<HTMLElement>("li[data-step='agent']")!;
-  expect(done.querySelector(".sr-only")?.textContent).toBe("fait");
+  expect(done.querySelector(".sr-only")?.textContent).toBe("done");
   expect(done.querySelector("[aria-label]")).toBeNull();
 });
 
 it("tells the user when the clipboard refuses the install command", async () => {
   Object.defineProperty(navigator, "clipboard", { value: { writeText: vi.fn(() => Promise.reject(new Error("denied"))) }, configurable: true });
   await render();
-  await act(async () => button("Copier").click());
+  await act(async () => button("Copy").click());
   expect(toast.error).toHaveBeenCalled();
 });

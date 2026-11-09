@@ -1,7 +1,7 @@
 import { messages } from "@/i18n";
 import { fleetMessages } from "./messages";
 
-/** Group roles and their colors (spec habillage §4.1, §11.2). */
+/** Group roles and their colors (spec theme §4.1, §11.2). */
 export type RoleId = "frontend" | "backend" | "testers" | "reviewers" | "design" | "docs" | "security" | "general";
 
 export interface Role {

@@ -6,12 +6,12 @@ import { sourceFiles } from "./cssBlocks";
 
 // What the habillage spec took from Symvibe (spec identité §5.11, §12).
 const FORBIDDEN: [RegExp, string][] = [
-  [/#f4602e/i, "l'orange de Symvibe"],
-  [/#322f28/i, "le fond fixe des badges d'état"],
-  [/#12110e/i, "l'ancien fond du canvas"],
-  [/Geist/, "la police Geist"],
-  [/ov-orb/, "l'orbe"],
-  [/#4fc2c2/i, "la bordure dégradée des puces"],
+  [/#f4602e/i, "Symvibe's orange"],
+  [/#322f28/i, "the fixed background of the status badges"],
+  [/#12110e/i, "the old canvas background"],
+  [/Geist/, "the Geist font"],
+  [/ov-orb/, "the orb"],
+  [/#4fc2c2/i, "the gradient border of the chips"],
 ];
 
 it("keeps no trace of the habillage identity", () => {

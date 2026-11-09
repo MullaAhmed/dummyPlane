@@ -32,7 +32,7 @@ it("follows the app's theme, live", async () => {
   const root = createRoot(host);
   await act(async () => root.render(<AppToaster />));
   await act(async () => {
-    toast("Consigne envoyée");
+    toast("Instruction sent");
     await new Promise<void>((resolve) => setTimeout(resolve, 0));
   });
   const toaster = () => host.querySelector<HTMLElement>("[data-sonner-toaster]")!;

@@ -6,7 +6,7 @@ import { appMessages } from "./messages";
 
 const KEY = "notifications.native";
 
-/** « Notifications Windows » (spec notification §11); the notice in the window does not depend on it. */
+/** "Windows notifications" (spec notification §11); the notice in the window does not depend on it. */
 export const nativeNotificationsStore = createStore<{ enabled: boolean }>()(() => ({ enabled: true }));
 export const useNativeNotifications = () => useStore(nativeNotificationsStore, (s) => s.enabled);
 

@@ -17,7 +17,7 @@ export function forwardWheel(event: Pick<WheelEvent, "deltaX" | "deltaY" | "ctrl
   );
 }
 
-/** The « Terminer » button of an orchestrator, if the point is over it: the link layer takes the click away from it. */
+/** The "Finish" button of an orchestrator, if the point is over it: the link layer takes the click away from it. */
 export function finishButtonAt(x: number, y: number, doc: Document = document): HTMLElement | null {
   for (const element of doc.elementsFromPoint(x, y)) {
     const button = element.closest<HTMLElement>("[data-link-toggle]");

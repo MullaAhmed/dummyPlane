@@ -3,7 +3,6 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { expect, it, vi } from "vitest";
 import { mockIPC } from "@tauri-apps/api/mocks";
-import { langStore } from "@/i18n";
 import { nodesStore } from "@/store/nodes";
 import { KanbanNode } from "./KanbanNode";
 
@@ -26,7 +25,6 @@ const button = (text: string) => [...document.querySelectorAll("button")].find((
 
 it("shows its columns with their counts, and adds a card through the dialog (issue #29)", async () => {
   mockIPC(() => undefined);
-  langStore.setState({ choice: "fr", lang: "fr" });
   await nodesStore.getState().create("board", {
     workspaceId: "w1",
     kind: "kanban",
@@ -48,11 +46,11 @@ it("shows its columns with their counts, and adds a card through the dialog (iss
   expect(columns.map((c) => c.querySelector('[data-testid="column-count"]')!.textContent)).toEqual(["1", "0"]);
   expect(host.querySelector('[data-card-id="c1"]')!.textContent).toContain("Écrire le test");
 
-  await act(async () => columns[1].querySelector<HTMLButtonElement>('button[aria-label="Nouvelle carte"]')!.click());
+  await act(async () => columns[1].querySelector<HTMLButtonElement>('button[aria-label="New card"]')!.click());
   const title = document.querySelector<HTMLInputElement>("#kanban-card-title")!;
   await act(async () => type(title, "Relire la PR"));
-  await act(async () => button("Haute").click());
-  await act(async () => button("Valider").click());
+  await act(async () => button("High").click());
+  await act(async () => button("Save").click());
 
   const record = nodesStore.getState().nodes.board;
   if (record?.kind !== "kanban") throw new Error("not a kanban");
@@ -78,7 +76,6 @@ it("renders nothing for a node that is not a board", async () => {
 
 it("opens a linked card's issue from its chip, and syncs a linked board (issue #29)", async () => {
   mockIPC(() => undefined);
-  langStore.setState({ choice: "fr", lang: "fr" });
   const url = "https://github.com/o/r/issues/7";
   await nodesStore.getState().create("linked", {
     workspaceId: "w1",
@@ -100,7 +97,7 @@ it("opens a linked card's issue from its chip, and syncs a linked board (issue #
   // The chip opens the issue, not the card's dialog.
   expect(document.querySelector('[role="dialog"]')).toBeNull();
 
-  await act(async () => button("Synchroniser").click());
+  await act(async () => button("Sync").click());
   expect(github.syncBoard).toHaveBeenCalledWith("linked");
 
   await act(async () => root.unmount());

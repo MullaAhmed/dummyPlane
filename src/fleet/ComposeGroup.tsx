@@ -59,7 +59,7 @@ function SlotButton(props: { agent: AgentId; choices: AgentId[]; onPick: (agent:
   );
 }
 
-/** "Composer un groupe", anchored to its trigger (spec habillage §11.2). */
+/** "Compose a group", anchored to its trigger (spec theme §11.2). */
 export function ComposeGroup({
   trigger,
   side = "top",
@@ -67,7 +67,7 @@ export function ComposeGroup({
 }: {
   trigger: ReactElement;
   side?: "top" | "left" | "bottom";
-  /** The agents panel's copy answers the palette's « Composer un groupe… ». */
+  /** The agents panel's copy answers the palette's "Compose a group…". */
   answersRequests?: boolean;
 }) {
   const t = useMessages(fleetMessages).compose;

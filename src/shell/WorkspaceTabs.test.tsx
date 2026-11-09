@@ -49,7 +49,7 @@ it("shows the workspaces as browser tabs, then +, then empty space that moves th
   expect(tabs().map((t) => t.dataset.tab)).toEqual(["w1", "w2"]);
   expect(tabs()[1].dataset.active).toBe("true");
   expect(tabs()[1].className).toContain("bg-ov-tab-on");
-  expect(row().querySelector('[aria-label="Nouveau workspace"]')).not.toBeNull();
+  expect(row().querySelector('[aria-label="New workspace"]')).not.toBeNull();
   // The scrolling row itself never drags: a press on it would move the window instead of scrolling.
   expect(row().hasAttribute("data-tauri-drag-region")).toBe(false);
   const spacer = row().lastElementChild as HTMLElement;
@@ -83,16 +83,16 @@ it("selects a tab from anywhere on it, its badge included", async () => {
 });
 
 it("deletes a workspace from its × after the existing confirmation, never the last one", async () => {
-  const close = tabs()[0].querySelector<HTMLButtonElement>('[aria-label="Supprimer le workspace"]')!;
+  const close = tabs()[0].querySelector<HTMLButtonElement>('[aria-label="Delete the workspace"]')!;
   expect(close.className).toContain("group-hover:opacity-100");
   await act(async () => close.click());
   expect(calls.some((cmd) => cmd.startsWith("plugin:dialog|"))).toBe(true);
   expect(workspacesStore.getState().workspaces).toHaveLength(2);
   await act(async () => workspacesStore.setState({ workspaces: workspacesStore.getState().workspaces.slice(0, 1) }));
-  expect(host.querySelector('[aria-label="Supprimer le workspace"]')).toBeNull();
+  expect(host.querySelector('[aria-label="Delete the workspace"]')).toBeNull();
 });
 
-it("opens a tab's name editor on request (« Renommer le workspace »)", async () => {
+it("opens a tab's name editor on request (\"Rename the workspace\")", async () => {
   await act(async () => requestUi({ kind: "renameWorkspace", id: "w2" }));
   const field = row().querySelector("input")!;
   expect(field.value).toBe("Backend");

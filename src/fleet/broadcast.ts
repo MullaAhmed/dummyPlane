@@ -11,11 +11,11 @@ import { AGENTS } from "./catalog";
 import { fleetMessages } from "./messages";
 import { isSlashCommand, takesCommands } from "./slashCommands";
 
-/** "Tout reprendre" only restarts agents OpenVibe paused less than this ago (spec habillage §14). */
+/** "Tout reprendre" only restarts agents OpenVibe paused less than this ago (spec theme §14). */
 export const RESUME_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 /**
- * What "Reprendre" types (spec §14), on a line of its own: Claude Code puts a
+ * What "Resume" types (spec §14), on a line of its own: Claude Code puts a
  * prompt interrupted before any answer back in its input, and "continue" must
  * not be glued to it.
  */
@@ -157,7 +157,7 @@ export async function resumeAgents(ids: readonly string[], now = Date.now()): Pr
   return done.length;
 }
 
-/** "Reprendre" of one agent: an explicit request, so no 24 h limit. */
+/** "Resume" of one agent: an explicit request, so no 24 h limit. */
 export async function resumeAgent(id: string): Promise<boolean> {
   const facts = factsOf(id);
   if (!facts || !canResume(facts)) return false;
@@ -172,22 +172,22 @@ export async function resumeAgent(id: string): Promise<boolean> {
   return true;
 }
 
-/** "2 agents arrêtés ignorés : Thot, Anubis" (spec §12). */
+/** "2 stopped agents ignored: Thot, Anubis" (spec §12). */
 export function skippedText(names: readonly string[]): string | null {
   return names.length === 0 ? null : messages(fleetMessages).broadcast.skipped(names);
 }
 
-/** "1 agent en démarrage ignoré : Thot — réessaie dans un instant". */
+/** "1 agent still starting ignored: Thot — try again in a moment". */
 export function startingText(names: readonly string[]): string | null {
   return names.length === 0 ? null : messages(fleetMessages).broadcast.starting(names);
 }
 
-/** "1 agent en attente ignoré : Horus — réponds-lui dans son terminal" (spec §12). */
+/** "1 waiting agent ignored: Horus — answer it in its terminal" (spec §12). */
 export function waitingText(names: readonly string[]): string | null {
   return names.length === 0 ? null : messages(fleetMessages).broadcast.waiting(names);
 }
 
-/** "1 terminal sans agent ignoré : Thot — une commande / ne va qu'aux agents". */
+/** "1 terminal without an agent ignored: Thot — a / command only goes to agents". */
 export function unsuitedText(names: readonly string[]): string | null {
   return names.length === 0 ? null : messages(fleetMessages).broadcast.unsuited(names);
 }

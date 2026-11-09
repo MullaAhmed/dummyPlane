@@ -14,7 +14,7 @@ import { GettingStarted } from "./GettingStarted";
 import { homeMessages } from "./messages";
 import { ProjectCard } from "./ProjectCard";
 
-/** Projects as glass cards under the title bar; a click opens one on its last workspace (spec identité §5.9). */
+/** Projects as glass cards under the title bar; a click opens one on its last workspace (spec identity §5.9). */
 export function HomeScreen() {
   const t = useMessages(homeMessages);
   const projects = useProjects((s) => s.projects);

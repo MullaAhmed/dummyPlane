@@ -17,7 +17,7 @@ import { reviewStore, useReview } from "./reviewStore";
 /** The files tab lists this many paths at most; the filter finds the others. */
 const MAX_FILES = 400;
 
-/** The panel's own toasts show at the top: the default corner is where « Envoyer » is. */
+/** The panel's own toasts show at the top: the default corner is where "Send" is. */
 const TOAST_AWAY = { position: "top-center" } as const;
 
 const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));

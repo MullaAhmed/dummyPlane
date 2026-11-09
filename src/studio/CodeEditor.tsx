@@ -23,7 +23,7 @@ import { languageFor, otherLanguageFor } from "./languages";
 import { studioStore, useStudio } from "./studioStore";
 import { smallestChange } from "./text";
 
-/** The line just reached by Ctrl+P `fichier:ligne` or Ctrl+G, lit for a moment; null puts it out. */
+/** The line just reached by Ctrl+P `file:line` or Ctrl+G, lit for a moment; null puts it out. */
 const flash = StateEffect.define<number | null>();
 const flashLine = StateField.define({
   create: () => Decoration.none,
@@ -86,7 +86,7 @@ function themeFor(theme: Theme): Extension {
 }
 
 export interface CodeEditorHandle {
-  /** Closes what Échap closes in the editor, if anything is open. */
+  /** Closes what Esc closes in the editor, if anything is open. */
   escape: () => boolean;
 }
 

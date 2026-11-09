@@ -12,7 +12,7 @@ import { ORCHESTRATOR } from "./catalog/orchestrator";
 import { WORKSPACES } from "./catalog/workspaces";
 import type { Command, CommandContext } from "./command";
 
-/** Every function of the application, by section in the spec's order (spec fenêtre §7.3). */
+/** Every function of the application, by section in the spec's order (spec window §7.3). */
 export const COMMANDS: readonly Command[] = [...NAVIGATION, ...WORKSPACES, ...AGENT_COMMANDS, ...CURRENT, ...ORCHESTRATOR, ...DRAWING, ...SCENE, ...APP];
 
 /** The context of a command, read at this moment from the stores and the keyboard focus. */

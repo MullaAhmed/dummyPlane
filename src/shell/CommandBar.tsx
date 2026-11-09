@@ -59,7 +59,7 @@ export function CommandBar() {
   );
 }
 
-/** "Essaie « @tous lance les tests »", above the chips until dismissed (spec §12). */
+/** The hint "Try @all run the tests", above the chips until dismissed (spec §12). */
 export function CommandHint() {
   const t = useMessages(shellMessages).commandBar;
   const [shown, setShown] = useState(false);

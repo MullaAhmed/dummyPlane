@@ -34,7 +34,7 @@ function WorkspaceTab(props: { workspace: Workspace; active: boolean; canRemove:
   const [editing, setEditing] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const running = useRunningCount([workspace.id]);
-  // « Renommer le workspace » of the palette.
+  // "Rename the workspace" of the palette.
   useUiRequest("renameWorkspace", (request) => {
     if (request.id !== workspace.id) return false;
     setEditing(true);

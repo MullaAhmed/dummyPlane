@@ -17,7 +17,7 @@ import { terminalStatusStore } from "@/store/terminalStatus";
 import { uiStore, useUi } from "@/store/ui";
 import { shellMessages } from "./messages";
 
-/** "Fermer le groupe Backend ?" listing the agents still running (spec habillage §11.4). */
+/** "Close the group Backend?" listing the agents still running (spec habillage §11.4). */
 export function CloseGroupDialog() {
   const t = useMessages(shellMessages).closeGroup;
   const groupId = useUi((s) => s.closingGroup);

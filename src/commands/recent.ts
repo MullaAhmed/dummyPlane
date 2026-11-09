@@ -15,7 +15,7 @@ function read(): string[] {
 /** The last functions run from the palette, most recent first (retours J8b). */
 export const recentStore = createStore<{ ids: string[] }>()(() => ({ ids: read() }));
 
-/** A function run from the palette heads « Récentes », the oldest of three leaving; the palette's own are left out. */
+/** A function run from the palette heads "Recent", the oldest of three leaving; the palette's own are left out. */
 export function rememberFunction(id: string) {
   if (id.startsWith("palette.")) return;
   const ids = [id, ...recentStore.getState().ids.filter((other) => other !== id)].slice(0, MAX);

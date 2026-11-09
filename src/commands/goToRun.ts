@@ -20,7 +20,7 @@ function reachTarget(target: PendingArrival) {
   if (!reach(target.kind, target.id)) toast.error(messages(commandsMessages).goTo.gone(target.label));
 }
 
-/** Entrée on a line of « Aller à » (spec fenêtre §7.2). */
+/** Enter on a line of "Go to" (spec window §7.2). */
 export function goTo(item: GoToItem) {
   switch (item.kind) {
     case "workspace":

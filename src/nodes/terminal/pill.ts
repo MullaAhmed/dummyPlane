@@ -50,7 +50,7 @@ export function startsOnKeystroke(status: TerminalStatus, oneShot = false): bool
 }
 
 /**
- * "Taper" in "taper démarre à neuf": a character or Enter. Escape, arrows,
+ * "Typing" in "typing starts fresh": a character or Enter. Escape, arrows,
  * function keys and shortcuts (Ctrl+C, Ctrl+Z…) are reflexes, not typing, and
  * must not throw away the conversation the card offers to resume. AltGr
  * characters (Ctrl+Alt on Windows) count as typing.

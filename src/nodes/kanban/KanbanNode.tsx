@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useLang, useMessages } from "@/i18n";
+import { useMessages } from "@/i18n";
 import {
   addCard,
   addColumn,
@@ -41,7 +41,7 @@ import { PlanMenu } from "./PlanMenu";
 
 export { KANBAN_CARD_MIME } from "./drag";
 
-type Messages = (typeof kanbanNodeMessages)["fr"];
+type Messages = typeof kanbanNodeMessages;
 
 /** The colour of a card's left bar: none shows nothing, then warmer as it grows. */
 const PRIORITY_BAR: Record<KanbanPriority, string> = {
@@ -309,7 +309,7 @@ export function KanbanNode({ nodeId }: { nodeId: string }) {
 
 const REPO = /^[\w.-]+\/[\w.-]+$/;
 
-/** « Lier à GitHub »: the repository, detected from the project's origin, and optionally a Project (v2). */
+/** "Link to GitHub": the repository, detected from the project's origin, and optionally a Project (v2). */
 function LinkDialog({
   t,
   initial,
@@ -517,7 +517,6 @@ function CardView({
   onDragStart: (e: DragEvent) => void;
   onDragEnd: (e: DragEvent) => void;
 }) {
-  const lang = useLang();
   const overdue = card.due !== undefined && dueState(card.due) === "overdue";
   return (
     <div
@@ -546,7 +545,7 @@ function CardView({
               )}
             >
               <Calendar className="size-3" />
-              {formatDue(card.due, lang)}
+              {formatDue(card.due)}
             </span>
           )}
           {card.github && (
@@ -585,11 +584,11 @@ function CardView({
   );
 }
 
-/** "28 oct." / "Oct 28": the date of a YYYY-MM-DD, without its year. */
-function formatDue(due: string, lang: string): string {
+/** "28 Oct": the date of a YYYY-MM-DD, without its year. */
+function formatDue(due: string): string {
   const [y, m, d] = due.split("-").map(Number);
   if (!y || !m || !d) return due;
-  return new Intl.DateTimeFormat(lang, { day: "numeric", month: "short" }).format(new Date(y, m - 1, d));
+  return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short" }).format(new Date(y, m - 1, d));
 }
 
 /** A column title being edited: Enter or a click elsewhere keeps it, Escape cancels. */

@@ -21,7 +21,7 @@ import { requestUi } from "../uiRequests";
 import { command } from "./define";
 import { catalog } from "./messages";
 
-/** The terminal of the moment (spec fenêtre §7.3): the one that had the keyboard when the palette opened. */
+/** The terminal of the moment (spec window §7.3): the one that had the keyboard when the palette opened. */
 function payloadOf(ctx: CommandContext): TerminalPayload | undefined {
   return ctx.project && ctx.terminalId ? terminalOf(nodesStore.getState().nodes[ctx.terminalId]) : undefined;
 }
@@ -46,7 +46,7 @@ const hasTerminal = (ctx: CommandContext) => payloadOf(ctx) !== undefined;
 const hasGroup = (ctx: CommandContext) => groupOfCurrent(ctx) !== null;
 // `available` guarantees both before `run`.
 const terminalId = (ctx: CommandContext) => ctx.terminalId as string;
-/** `run` of a group command: nothing happens if the group went between the palette and Entrée. */
+/** `run` of a group command: nothing happens if the group went between the palette and Enter. */
 function forGroup(run: (id: string) => void | Promise<void>): Command["run"] {
   return (ctx) => {
     const group = groupOfCurrent(ctx);
@@ -86,7 +86,7 @@ export const CURRENT: readonly Command[] = [
   command("terminal.relaunch", {
     section: terminalSection,
     available: hasTerminal,
-    // Claude resumes its session, other agents start anew (plan F2, décision 2).
+    // Claude resumes its session, other agents start anew (plan F2, decision 2).
     run: (ctx) => {
       const payload = payloadOf(ctx);
       if (!payload) return;
@@ -151,7 +151,7 @@ export const CURRENT: readonly Command[] = [
   command("group.addAgent", {
     section: groupSection,
     available: hasGroup,
-    // The group's menu, in the agents panel (plan F2, décision 4).
+    // The group's menu, in the agents panel (plan F2, decision 4).
     run: forGroup((id) => {
       setAgentsFilter("all");
       setAgentsPanel(true);

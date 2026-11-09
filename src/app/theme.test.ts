@@ -122,7 +122,7 @@ describe("loadThemeSettings", () => {
     await loadThemeSettings();
     expect(themeStore.getState()).toMatchObject({ choice: "expressive", transparency: true });
     mockIPC(() => {
-      throw new Error("base verrouillée");
+      throw new Error("base locked");
     });
     await expect(loadThemeSettings()).resolves.toBeUndefined();
     expect(themeStore.getState()).toMatchObject({ choice: "expressive", transparency: true });
@@ -152,11 +152,11 @@ describe("changing the settings", () => {
   it("keeps the choice for the session and says so when it cannot be saved", async () => {
     const error = vi.spyOn(toast, "error").mockImplementation(() => "");
     mockIPC(() => {
-      throw new Error("disque plein");
+      throw new Error("disk full");
     });
     startTheme();
     await setThemeChoice("electric");
     expect(root.dataset.palette).toBe("electric");
-    expect(error).toHaveBeenCalledWith(expect.stringMatching(/^Réglage non enregistré : .*disque plein/));
+    expect(error).toHaveBeenCalledWith(expect.stringMatching(/^Setting not saved: .*disk full/));
   });
 });

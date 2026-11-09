@@ -1,4 +1,4 @@
-/** Lower case, accents dropped: « Hermès » and « hermes » are the same (spec fenêtre §7.1). */
+/** Lower case, accents dropped: "Hermès" and "hermes" are the same (spec window §7.1). */
 export function normalize(text: string): string {
   return text.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/œ/g, "oe").replace(/æ/g, "ae");
 }
@@ -12,7 +12,7 @@ function isSubsequence(needle: string, haystack: string): boolean {
 }
 
 /**
- * How well `query` matches an item (spec fenêtre §7.1), null when a term of
+ * How well `query` matches an item (spec window §7.1), null when a term of
  * the query does not: a term at the start of a word of the label scores
  * best, then of a keyword, then inside a word, then with its letters spread.
  */
@@ -42,7 +42,7 @@ export function startsWords(query: string, { label, keywords }: Text): boolean {
 }
 type Relevance = { score: number; coverage: number };
 
-/** The share of the label's words a term starts: « renommer » is all of « Renommer », a third of « Renommer le workspace ». */
+/** The share of the label's words a term starts: "rename" is all of "Rename", a third of "Rename the workspace". */
 function coverage(query: string, label: string): number {
   const terms = words(query);
   const labelWords = words(label);
@@ -71,7 +71,7 @@ export function rank<T>(items: readonly T[], query: string, textOf: (item: T) =>
 /**
  * Ranked sections, the one holding the best match first while searching, so
  * that the first line, the one chosen, is the best of all (retours J8b,
- * amending spec fenêtre §7.1); in their own order without a search and on ties.
+ * amending spec window §7.1); in their own order without a search and on ties.
  */
 export function rankSections<T, S extends { items: readonly T[] }>(sections: readonly S[], query: string, textOf: (item: T) => Text): S[] {
   if (words(query).length === 0) return [...sections];

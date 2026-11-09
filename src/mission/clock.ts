@@ -28,7 +28,7 @@ export function checkBudgets(now = Date.now()) {
       const key = `${orchestratorId}:${overrun.nodeId}:${overrun.level}`;
       if (waiting.has(key)) continue;
       const before = mission.members.find((m) => m.nodeId === overrun.nodeId)?.overdue ?? 0;
-      // Overnight a budget is a target and nobody is there: the morning report shows it (spec mission de nuit §3).
+      // Overnight a budget is a target and nobody is there: the morning report shows it (spec overnight mission §3).
       if (overrun.level === 2 && !mission.overnight) toast.warning(said.overBudgetTwice(overrun.name, overrun.budget));
       const told = () => {
         waiting.delete(key);

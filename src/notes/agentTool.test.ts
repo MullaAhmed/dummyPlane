@@ -1,7 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
-import { langStore } from "@/i18n";
 import { linkedClaudeAgents } from "@/mission/store";
 import { notesTool, notesToolSpec } from "./agentTool";
 
@@ -17,7 +16,7 @@ beforeEach(() => {
     asked.push({ command, args });
     if (command === "notes_agent_list") return [{ name: "Auth", attached: true }, { name: "Deploy", attached: false }];
     if (command === "notes_agent_read") {
-      if ((args as { name: string }).name === "bad") throw { kind: "invalidInput", message: "chemin refusé : bad" };
+      if ((args as { name: string }).name === "bad") throw { kind: "invalidInput", message: "path refused: bad" };
       return "# Auth\nbody";
     }
     return undefined;
@@ -25,7 +24,6 @@ beforeEach(() => {
 });
 afterEach(() => {
   clearMocks();
-  langStore.setState({ lang: "fr" });
 });
 
 describe("the notes tool (spec notes §3)", () => {
@@ -38,9 +36,9 @@ describe("the notes tool (spec notes §3)", () => {
 
   it("lists the notes, those of the agent's group marked", async () => {
     const text = textOf(await notesTool("anubis", false, {}));
-    expect(text).toContain("Auth (attachée à ton groupe)");
+    expect(text).toContain("Auth (attached to your group)");
     expect(text).toContain("Deploy");
-    expect(text).not.toContain("Deploy (attachée");
+    expect(text).not.toContain("Deploy (attached");
     expect(asked[0]).toMatchObject({ command: "notes_agent_list", args: { nodeIds: ["anubis"] } });
   });
 
@@ -58,7 +56,7 @@ describe("the notes tool (spec notes §3)", () => {
   it("gives a refused path back as a readable error", async () => {
     const result = await notesTool("anubis", false, { name: "bad" });
     expect(result.isError).toBe(true);
-    expect(textOf(result)).toContain("chemin refusé");
+    expect(textOf(result)).toContain("path refused");
   });
 
   it("refuses a name that is no text", async () => {
@@ -69,21 +67,17 @@ describe("the notes tool (spec notes §3)", () => {
 
   it("says when there are no notes", async () => {
     mockIPC(() => []);
-    expect(textOf(await notesTool("anubis", false, {}))).toContain("Aucune note");
+    expect(textOf(await notesTool("anubis", false, {}))).toContain("No notes in this project");
   });
 
   it("cuts a very long note, and says so", async () => {
     mockIPC(() => "x".repeat(200_000));
     const text = textOf(await notesTool("anubis", false, { name: "long" }));
     expect(text.length).toBeLessThan(101_000);
-    expect(text).toContain("tronquée");
+    expect(text).toContain("note cut");
   });
 
-  it("speaks English", async () => {
-    langStore.setState({ lang: "en" });
+  it("describes itself in English", () => {
     expect(notesToolSpec().description).toContain("Markdown");
-    expect(textOf(await notesTool("anubis", false, {}))).toContain("Auth (attached to your group)");
-    mockIPC(() => []);
-    expect(textOf(await notesTool("anubis", false, {}))).toContain("No notes");
   });
 });

@@ -11,7 +11,7 @@ export interface RemovalVerdict {
   ask: Closing | null;
 }
 
-/** Nodes about to leave the canvas after their confirmation (« Fermer l'agent », « Fermer le groupe »). */
+/** Nodes about to leave the canvas after their confirmation ("Close the agent", "Close the group"). */
 const confirmed = new Set<string>();
 
 export function allowRemoval(ids: Iterable<string>) {
@@ -22,7 +22,7 @@ const liveOf = (elements: readonly ExcalidrawElement[]) => new Map(elements.filt
 
 /**
  * A running agent never leaves the canvas unasked (retours J8b): Ctrl+Z
- * undoing its launch, Rétablir, Suppr, the eraser or an imported scene would
+ * undoing its launch, Redo, Delete, the eraser or an imported scene would
  * end its session. Given each change of the scene (deleted elements included)
  * and the nodes it removed, the guard lets the stopped and the confirmed ones
  * go, and puts the others back as they were, with their group when it left

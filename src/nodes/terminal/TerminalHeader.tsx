@@ -149,7 +149,7 @@ export function TerminalHeader(props: {
   const t = useMessages(nodesMessages).header;
   const [editing, setEditing] = useState(false);
   const [optionsOpen, setOptionsOpen] = useState(false);
-  // « Renommer » of the palette.
+  // "Rename" of the palette.
   useUiRequest("renameTerminal", (request) => {
     if (request.id !== nodeId) return false;
     setEditing(true);

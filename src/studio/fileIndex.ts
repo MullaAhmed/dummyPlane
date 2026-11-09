@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { createStore, useStore } from "zustand";
 import { studioTree } from "@/ipc/studio";
 
-/** The files of each project, for « Aller à… »: kept between openings, read again at each. */
+/** The files of each project, for "Go to…": kept between openings, read again at each. */
 interface FileIndexState {
   files: Record<string, readonly string[]>;
 }

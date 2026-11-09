@@ -4,7 +4,6 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { toast } from "sonner";
-import { langStore } from "@/i18n";
 import type { LogEntry, NoPush, RepoState } from "@/ipc/repo";
 import type { ChangedFile } from "@/ipc/review";
 import { reviewStore } from "@/review/reviewStore";
@@ -63,7 +62,6 @@ afterEach(async () => {
   clearMocks();
   document.body.replaceChildren();
   gitWindowStore.setState({ path: null });
-  langStore.setState({ lang: "fr" });
 });
 
 const render = async () => {
@@ -75,7 +73,7 @@ const labelled = (label: string) => document.body.querySelector<HTMLElement>(`[a
 const check = (label: string) => labelled(label) as HTMLInputElement;
 const typeMessage = (value: string) =>
   act(async () => {
-    const area = labelled("Message du commit") as HTMLTextAreaElement;
+    const area = labelled("Commit message") as HTMLTextAreaElement;
     Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(area, value);
     area.dispatchEvent(new Event("input", { bubbles: true }));
   });
@@ -87,10 +85,10 @@ describe("the changes (spec fenêtre git §3.1)", () => {
     expect(row.textContent).toContain("M");
     expect(row.textContent).toContain("+2");
     expect(row.textContent).toContain("−1");
-    expect(check("Inclure src/a.ts").checked).toBe(true);
-    expect(check("Inclure b.txt").checked).toBe(true);
-    expect(button("Valider (2)")).toBeTruthy();
-    expect(document.body.textContent).toContain("Modifications (2)");
+    expect(check("Include src/a.ts").checked).toBe(true);
+    expect(check("Include b.txt").checked).toBe(true);
+    expect(button("Commit (2)")).toBeTruthy();
+    expect(document.body.textContent).toContain("Changes (2)");
   });
 
   it("marks a binary file without counts", async () => {
@@ -111,33 +109,33 @@ describe("the changes (spec fenêtre git §3.1)", () => {
 
   it("checks and unchecks all, and a new file arrives checked while unchecked ones stay so", async () => {
     await render();
-    await act(async () => check("Tout inclure").click());
-    expect(check("Inclure src/a.ts").checked).toBe(false);
-    expect(button("Valider (0)")!.disabled).toBe(true);
-    await act(async () => check("Tout inclure").click());
-    expect(check("Inclure src/a.ts").checked).toBe(true);
-    await act(async () => check("Inclure src/a.ts").click());
+    await act(async () => check("Include all").click());
+    expect(check("Include src/a.ts").checked).toBe(false);
+    expect(button("Commit (0)")!.disabled).toBe(true);
+    await act(async () => check("Include all").click());
+    expect(check("Include src/a.ts").checked).toBe(true);
+    await act(async () => check("Include src/a.ts").click());
     repo = { ...repo, files: [...repo.files, file("new.ts", "untracked")] };
-    await act(async () => labelled("Actualiser").click());
-    expect(check("Inclure src/a.ts").checked).toBe(false);
-    expect(check("Inclure new.ts").checked).toBe(true);
+    await act(async () => labelled("Refresh").click());
+    expect(check("Include src/a.ts").checked).toBe(false);
+    expect(check("Include new.ts").checked).toBe(true);
   });
 
   it("says when the list was cut: what is not shown cannot be committed", async () => {
     repo = { ...repo, truncated: true };
     await render();
-    expect(document.body.textContent).toContain("Liste coupée : seuls les 2 premiers changements");
+    expect(document.body.textContent).toContain("List cut: only the first 2 changes are shown.");
   });
 
   it("keeps the message and the choices when a refresh fails, and says why", async () => {
     await render();
-    await act(async () => check("Inclure b.txt").click());
+    await act(async () => check("Include b.txt").click());
     await typeMessage("fix: something");
     fail.repo_state = "index.lock";
-    await act(async () => labelled("Actualiser").click());
+    await act(async () => labelled("Refresh").click());
     expect(document.body.querySelector("[role='alert']")!.textContent).toContain("index.lock");
-    expect((labelled("Message du commit") as HTMLTextAreaElement).value).toBe("fix: something");
-    expect(check("Inclure b.txt").checked).toBe(false);
+    expect((labelled("Commit message") as HTMLTextAreaElement).value).toBe("fix: something");
+    expect(check("Include b.txt").checked).toBe(false);
   });
 
   it("never lets an older answer overwrite a newer one", async () => {
@@ -147,8 +145,8 @@ describe("the changes (spec fenêtre git §3.1)", () => {
       if (cmd === "repo_state") return new Promise((resolve) => answers.push(resolve));
       if (cmd === "review_file_diff") return "";
     });
-    await act(async () => labelled("Actualiser").click());
-    await act(async () => labelled("Actualiser").click());
+    await act(async () => labelled("Refresh").click());
+    await act(async () => labelled("Refresh").click());
     await act(async () => answers[1]({ ...repo, files: [file("newer.ts")] }));
     await act(async () => answers[0]({ ...repo, files: [file("older.ts")] }));
     expect(document.body.querySelector("[data-git-file='newer.ts']")).not.toBeNull();
@@ -158,52 +156,52 @@ describe("the changes (spec fenêtre git §3.1)", () => {
   it("says when nothing changed", async () => {
     repo.files = [];
     await render();
-    expect(document.body.textContent).toContain("Rien à valider");
+    expect(document.body.textContent).toContain("Nothing to commit");
   });
 
   it("says why a folder cannot be read", async () => {
-    fail.repo_state = "pas un dépôt git";
+    fail.repo_state = "not a git repository";
     await render();
-    expect(document.body.textContent).toContain("pas un dépôt git");
+    expect(document.body.textContent).toContain("not a git repository");
   });
 });
 
 describe("the commit (spec fenêtre git §3.2)", () => {
   it("needs a message and a file", async () => {
     await render();
-    expect(button("Valider (2)")!.disabled).toBe(true);
+    expect(button("Commit (2)")!.disabled).toBe(true);
     await typeMessage("   ");
-    expect(button("Valider (2)")!.disabled).toBe(true);
+    expect(button("Commit (2)")!.disabled).toBe(true);
     await typeMessage("fix: something");
-    expect(button("Valider (2)")!.disabled).toBe(false);
+    expect(button("Commit (2)")!.disabled).toBe(false);
   });
 
   it("commits the checked files only, then empties the message and reads again", async () => {
     await render();
-    await act(async () => check("Inclure b.txt").click());
+    await act(async () => check("Include b.txt").click());
     await typeMessage("fix: something");
     calls = [];
-    await act(async () => button("Valider (1)")!.click());
+    await act(async () => button("Commit (1)")!.click());
     expect(called("repo_commit")[0].args).toEqual({ path: "C:/code/api", files: [repo.files[0]], message: "fix: something" });
-    expect((labelled("Message du commit") as HTMLTextAreaElement).value).toBe("");
+    expect((labelled("Commit message") as HTMLTextAreaElement).value).toBe("");
     expect(called("repo_state").length).toBe(1);
-    expect(toast).toHaveBeenCalledWith("Commit 1234567 créé");
+    expect(toast).toHaveBeenCalledWith("Commit 1234567 created");
   });
 
   it("keeps the message and the choices through a look at the history", async () => {
     await render();
-    await act(async () => check("Inclure b.txt").click());
+    await act(async () => check("Include b.txt").click());
     await typeMessage("fix: something");
-    await act(async () => button("Historique")!.click());
-    await act(async () => button("Modifications")!.click());
-    expect((labelled("Message du commit") as HTMLTextAreaElement).value).toBe("fix: something");
-    expect(check("Inclure b.txt").checked).toBe(false);
+    await act(async () => button("History")!.click());
+    await act(async () => button("Changes")!.click());
+    expect((labelled("Commit message") as HTMLTextAreaElement).value).toBe("fix: something");
+    expect(check("Include b.txt").checked).toBe(false);
   });
 
   it("never pushes after a commit", async () => {
     await render();
     await typeMessage("fix: something");
-    await act(async () => button("Valider (2)")!.click());
+    await act(async () => button("Commit (2)")!.click());
     expect(called("repo_push")).toEqual([]);
   });
 
@@ -211,14 +209,14 @@ describe("the commit (spec fenêtre git §3.2)", () => {
     fail.repo_commit = "pre-commit: no way";
     await render();
     await typeMessage("fix: something");
-    await act(async () => button("Valider (2)")!.click());
+    await act(async () => button("Commit (2)")!.click());
     expect(document.body.querySelector("[role='alert']")!.textContent).toContain("pre-commit: no way");
-    expect((labelled("Message du commit") as HTMLTextAreaElement).value).toBe("fix: something");
+    expect((labelled("Commit message") as HTMLTextAreaElement).value).toBe("fix: something");
   });
 });
 
 describe("discarding (spec fenêtre git §3.3)", () => {
-  const ask = (path: string) => act(async () => labelled(`Abandonner ${path}`).click());
+  const ask = (path: string) => act(async () => labelled(`Discard ${path}`).click());
 
   it("touches nothing before the dialog's button", async () => {
     await render();
@@ -226,13 +224,13 @@ describe("discarding (spec fenêtre git §3.3)", () => {
     expect(called("repo_discard")).toEqual([]);
     const dialog = document.body.querySelector("[role='dialog']")!;
     expect(dialog.textContent).toContain("src/a.ts");
-    expect(dialog.textContent).toContain("irréversible");
+    expect(dialog.textContent).toContain("cannot be undone");
   });
 
   it("does nothing when cancelled", async () => {
     await render();
     await ask("src/a.ts");
-    await act(async () => button("Annuler")!.click());
+    await act(async () => button("Cancel")!.click());
     expect(called("repo_discard")).toEqual([]);
     expect(document.body.querySelector("[role='dialog']")).toBeNull();
   });
@@ -241,7 +239,7 @@ describe("discarding (spec fenêtre git §3.3)", () => {
     await render();
     await ask("src/a.ts");
     calls = [];
-    await act(async () => button("Abandonner ce fichier")!.click());
+    await act(async () => button("Discard this file")!.click());
     expect(called("repo_discard")[0].args).toEqual({ path: "C:/code/api", file: repo.files[0], stamp: "s1" });
     expect(called("repo_state").length).toBe(1);
   });
@@ -251,9 +249,9 @@ describe("discarding (spec fenêtre git §3.3)", () => {
     await ask("src/a.ts");
     const kept = repo.files;
     repo = { ...repo, files: [] };
-    await act(async () => labelled("Actualiser").click());
+    await act(async () => labelled("Refresh").click());
     repo = { ...repo, files: kept };
-    await act(async () => labelled("Actualiser").click());
+    await act(async () => labelled("Refresh").click());
     expect(document.body.querySelector("[role='dialog']")).toBeNull();
     expect(called("repo_discard")).toEqual([]);
   });
@@ -261,16 +259,16 @@ describe("discarding (spec fenêtre git §3.3)", () => {
   it("says an untracked file will be deleted", async () => {
     await render();
     await ask("b.txt");
-    expect(document.body.querySelector("[role='dialog']")!.textContent).toContain("sera supprimé");
+    expect(document.body.querySelector("[role='dialog']")!.textContent).toContain("will be deleted");
   });
 
   it("shows the refusal when the file changed meanwhile, and reads again", async () => {
-    fail.repo_discard = "src/a.ts a changé depuis la confirmation : rien n'a été touché.";
+    fail.repo_discard = "src/a.ts changed since confirmation: nothing was touched.";
     await render();
     await ask("src/a.ts");
     calls = [];
-    await act(async () => button("Abandonner ce fichier")!.click());
-    expect(document.body.querySelector("[role='alert']")!.textContent).toContain("rien n'a été touché");
+    await act(async () => button("Discard this file")!.click());
+    expect(document.body.querySelector("[role='alert']")!.textContent).toContain("nothing was touched");
     expect(called("repo_state").length).toBe(1);
   });
 });
@@ -278,7 +276,7 @@ describe("discarding (spec fenêtre git §3.3)", () => {
 describe("the history (spec fenêtre git §3.4)", () => {
   it("shows hash, author and date", async () => {
     await render();
-    await act(async () => button("Historique")!.click());
+    await act(async () => button("History")!.click());
     const row = document.body.querySelector<HTMLElement>("[data-git-commit='abcdef0123']")!;
     expect(row.textContent).toContain("abcdef0");
     expect(row.textContent).toContain("feat: the first one");
@@ -289,54 +287,54 @@ describe("the history (spec fenêtre git §3.4)", () => {
   it("says when there is no commit", async () => {
     history = [];
     await render();
-    await act(async () => button("Historique")!.click());
-    expect(document.body.textContent).toContain("Aucun commit");
+    await act(async () => button("History")!.click());
+    expect(document.body.textContent).toContain("No commit yet.");
   });
 });
 
 describe("pushing (spec fenêtre git §3.5)", () => {
   it("only ever pushes on the button's click", async () => {
     await render();
-    await act(async () => labelled("Actualiser").click());
-    await act(async () => button("Historique")!.click());
+    await act(async () => labelled("Refresh").click());
+    await act(async () => button("History")!.click());
     expect(called("repo_push")).toEqual([]);
     calls = [];
-    await act(async () => button("Pousser 2 → origin/main")!.click());
+    await act(async () => button("Push 2 → origin/main")!.click());
     expect(called("repo_push")).toEqual([{ cmd: "repo_push", args: { path: "C:/code/api", branch: "main", target: "origin/main", head: "abc" } }]);
     expect(called("repo_state").length).toBe(1);
-    expect(toast).toHaveBeenCalledWith("Poussé vers origin/main");
+    expect(toast).toHaveBeenCalledWith("Pushed to origin/main");
   });
 
   it("offers a branch without upstream", async () => {
     repo = { ...repo, upstream: null, ahead: 0 };
     await render();
-    expect(button("Pousser → origin/main")!.disabled).toBe(false);
+    expect(button("Push → origin/main")!.disabled).toBe(false);
   });
 
   it("is greyed when up to date", async () => {
     repo = { ...repo, ahead: 0 };
     await render();
-    expect(button("Pousser")!.disabled).toBe(true);
-    expect(button("Pousser")!.title).toBe("Déjà à jour");
+    expect(button("Push")!.disabled).toBe(true);
+    expect(button("Push")!.title).toBe("Already up to date");
   });
 
   it.each<[NoPush, string]>([
-    ["noRemote", "Ce dépôt n'a pas de dépôt distant"],
-    ["manyRemotes", "Plusieurs dépôts distants, aucun origin : pousse depuis un terminal"],
-    ["detached", "HEAD détachée : aucune branche à pousser"],
-    ["noCommit", "Aucun commit à pousser"],
-    ["mirror", "Ce dépôt distant est un miroir : pousse depuis un terminal"],
+    ["noRemote", "This repository has no remote"],
+    ["manyRemotes", "Several remotes and no origin: push from a terminal"],
+    ["detached", "Detached HEAD: no branch to push"],
+    ["noCommit", "No commit to push"],
+    ["mirror", "This remote is a mirror: push from a terminal"],
   ])("says why it cannot push: %s", async (noPush, why) => {
     repo = { ...repo, upstream: null, ahead: 0, pushTo: null, noPush };
     await render();
-    expect(button("Pousser")!.disabled).toBe(true);
-    expect(button("Pousser")!.title).toBe(why);
+    expect(button("Push")!.disabled).toBe(true);
+    expect(button("Push")!.title).toBe(why);
   });
 
   it("shows a refused push", async () => {
     fail.repo_push = "rejected: fetch first";
     await render();
-    await act(async () => button("Pousser 2 → origin/main")!.click());
+    await act(async () => button("Push 2 → origin/main")!.click());
     expect(document.body.querySelector("[role='alert']")!.textContent).toContain("rejected: fetch first");
   });
 
@@ -349,7 +347,7 @@ describe("pushing (spec fenêtre git §3.5)", () => {
 describe("the window", () => {
   it("closes on its button and when the review panel opens", async () => {
     await render();
-    await act(async () => labelled("Fermer").click());
+    await act(async () => labelled("Close").click());
     expect(gitWindowStore.getState().path).toBeNull();
     await render();
     await act(async () => reviewStore.getState().open("isis"));
@@ -368,8 +366,7 @@ describe("the window", () => {
     expect(gitWindowStore.getState().path).toBeNull();
   });
 
-  it("speaks English", async () => {
-    langStore.setState({ lang: "en" });
+  it("labels the window in English", async () => {
     await render();
     expect(document.body.textContent).toContain("Changes (2)");
     expect(button("Commit (2)")).toBeTruthy();

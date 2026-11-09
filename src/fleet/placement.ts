@@ -21,12 +21,12 @@ export function clientOf(scene: Point, view: Viewport): Point {
   };
 }
 
-/** The scene point at the middle of the canvas ("Nouvelle console"). */
+/** The scene point at the middle of the canvas ("New console"). */
 export function viewportCenter(view: Viewport & Pick<CanvasView, "width" | "height">): Point {
   return sceneOf({ x: view.offsetLeft + view.width / 2, y: view.offsetTop + view.height / 2 }, view);
 }
 
-/** Screen rectangle of the node about to be placed, a terminal by default, centered on the pointer (spec habillage §10.1). */
+/** Screen rectangle of the node about to be placed, a terminal by default, centered on the pointer (spec theme §10.1). */
 export function ghostRect(pointer: Point, zoom: number, kind: NodeKind = "terminal") {
   const width = NODE_SIZE[kind].width * zoom;
   const height = NODE_SIZE[kind].height * zoom;

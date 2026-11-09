@@ -60,8 +60,8 @@ describe("framesFromScene", () => {
 
 describe("groups of the scene", () => {
   const frames = framesFromScene([
-    group("g1", "backend", "greek", { x: 0, y: 0, width: 1000, height: 1000, name: "Groupe 1" }),
-    frame("plain", { x: 0, y: 0, width: 3000, height: 3000, name: "Groupe 3" }),
+    group("g1", "backend", "greek", { x: 0, y: 0, width: 1000, height: 1000, name: "Group 1" }),
+    frame("plain", { x: 0, y: 0, width: 3000, height: 3000, name: "Group 3" }),
     group("g2", "docs", "norse", { x: 500, y: 500, width: 1000, height: 1000, name: "Docs" }),
     terminal("a", "g2"),
   ]);
@@ -78,8 +78,8 @@ describe("groups of the scene", () => {
   });
 
   it("names a new group with the smallest free number", () => {
-    expect(nextGroupName(frames)).toBe("Groupe 2");
-    expect(nextGroupName([])).toBe("Groupe 1");
+    expect(nextGroupName(frames)).toBe("Group 2");
+    expect(nextGroupName([])).toBe("Group 1");
   });
 
   it("lists the pantheons the groups use", () => {

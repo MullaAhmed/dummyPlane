@@ -76,12 +76,12 @@ it("browses the tree, edits a file, saves it with Ctrl+S and previews Markdown s
   await vi.waitFor(() => expect(modal().querySelector("[data-dirty]")).toBeNull());
 
   await act(async () => editFile("docs/guide.md", "# Guide\n<script>alert(1)</script>\n"));
-  await click([...modal().querySelectorAll("button")].find((b) => b.textContent === "Aperçu")!);
+  await click([...modal().querySelectorAll("button")].find((b) => b.textContent === "Preview")!);
   const preview = modal().querySelector("[data-preview]")!;
   expect(preview.querySelector("h1")?.textContent).toBe("Guide");
   expect(preview.querySelector("script")).toBeNull();
 
-  await click([...modal().querySelectorAll("button")].find((b) => b.textContent === "Insérer")!);
+  await click([...modal().querySelectorAll("button")].find((b) => b.textContent === "Insert")!);
   expect(insertFileNode).toHaveBeenCalledWith("docs/guide.md");
 });
 
@@ -90,19 +90,19 @@ it("asks before closing a tab with unsaved changes", async () => {
   await click(modal().querySelector('[data-path="main.ts"]'));
   await vi.waitFor(() => expect(studioStore.getState().tabs[0]?.session.getState().version).toBe("v1"));
   await act(async () => editFile("main.ts", "changed"));
-  await click(modal().querySelector('[aria-label="Fermer main.ts"]'));
+  await click(modal().querySelector('[aria-label="Close main.ts"]'));
   expect(modal().querySelector('[role="alert"]')).not.toBeNull();
   expect(studioStore.getState().tabs).toHaveLength(1);
-  await click([...modal().querySelectorAll("button")].find((b) => b.textContent === "Fermer sans enregistrer")!);
+  await click([...modal().querySelectorAll("button")].find((b) => b.textContent === "Close without saving")!);
   expect(studioStore.getState().tabs).toHaveLength(0);
 });
 
 it("shows the project's files in a panel the bar folds, and closes the studio when it goes", async () => {
   expect(studioStore.getState().project).toBe("p1");
   await vi.waitFor(() => expect(modal().querySelector("[data-files]")).not.toBeNull());
-  await click(modal().querySelector('nav [aria-label="Masquer les fichiers"]'));
+  await click(modal().querySelector('nav [aria-label="Hide the files"]'));
   expect(modal().querySelector("[data-files]")).toBeNull();
-  await click(modal().querySelector('nav [aria-label="Afficher les fichiers"]'));
+  await click(modal().querySelector('nav [aria-label="Show the files"]'));
   expect(modal().querySelector("[data-files]")).not.toBeNull();
   await act(async () => root.render(<></>));
   expect(studioStore.getState().project).toBeNull();
@@ -119,9 +119,9 @@ it("warns when a file with unsaved changes moved on the disk, and overwrites onl
   await act(async () => editFile("main.ts", "mine"));
   disk = "agent";
   await act(async () => window.dispatchEvent(new Event("focus")));
-  await vi.waitFor(() => expect(modal().querySelector('[role="alert"]')?.textContent).toContain("a changé sur le disque"));
+  await vi.waitFor(() => expect(modal().querySelector('[role="alert"]')?.textContent).toContain("changed on disk"));
   expect(calls.some((c) => c.cmd === "studio_write")).toBe(false);
-  await click([...modal().querySelectorAll("button")].find((b) => b.textContent === "Écraser avec ma version")!);
+  await click([...modal().querySelectorAll("button")].find((b) => b.textContent === "Overwrite with my version")!);
   await vi.waitFor(() => expect(calls.find((c) => c.cmd === "studio_write")?.args).toMatchObject({ content: "mine", expected: "agent" }));
 });
 
@@ -130,8 +130,8 @@ it("closes the tab of a file deleted from the disk when asked", async () => {
   await act(async () => editFile("main.ts", "mine"));
   disk = null;
   await act(async () => window.dispatchEvent(new Event("focus")));
-  await vi.waitFor(() => expect(modal().querySelector('[role="alert"]')?.textContent).toContain("supprimé du disque"));
-  await click([...modal().querySelectorAll("button")].find((b) => b.textContent === "Fermer sans garder")!);
+  await vi.waitFor(() => expect(modal().querySelector('[role="alert"]')?.textContent).toContain("was deleted from the disk"));
+  await click([...modal().querySelectorAll("button")].find((b) => b.textContent === "Close without keeping")!);
   expect(studioStore.getState().tabs).toHaveLength(0);
 });
 

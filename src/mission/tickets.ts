@@ -1,6 +1,6 @@
 import { missionBacklog, missionIssues } from "@/ipc/mission";
 
-/** Where an overnight mission takes its tasks (spec mission de nuit §5.1). A Kanban reaches an orchestrator through « Planifier avec l'orchestrateur ». */
+/** Where an overnight mission takes its tasks (spec overnight mission §5.1). A Kanban reaches an orchestrator through "Plan with the orchestrator". */
 export type TicketSource = { kind: "github"; label: string } | { kind: "backlog" };
 
 export interface Ticket {

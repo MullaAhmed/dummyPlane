@@ -4,7 +4,7 @@ export interface SearchHit {
   excerpt: string;
 }
 
-/** Without case nor accents: « evite » finds « Évité ». */
+/** Without case nor accents: "evite" finds "Évité". */
 const plain = (text: string) => text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
 
 /** The notes holding every word of `query`, in their name or text; matches in the name first. */

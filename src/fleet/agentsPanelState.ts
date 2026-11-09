@@ -5,7 +5,7 @@ import { getSetting, setSetting } from "@/ipc/db";
 import type { FleetFilter } from "./fleetView";
 import { fleetMessages } from "./messages";
 
-/** Spec identité §5.6: the panel comes back as it was left. */
+/** Spec identity §5.6: the panel comes back as it was left. */
 export const AGENTS_PANEL_KEY = "ui.agentsPanel";
 
 interface AgentsPanelState {

@@ -32,8 +32,8 @@ it("puts the title bar on top and scrolls the projects under it, never into it (
   expect(bar.querySelector("svg rect")!.getAttribute("fill")).toBe("currentColor");
   expect(bar.textContent).toContain("OpenVibe");
   const header = host.querySelector("header")!;
-  expect(header.textContent).toContain("Projets");
-  expect(header.textContent).toContain("Ajouter un projet");
+  expect(header.textContent).toContain("Projects");
+  expect(header.textContent).toContain("Add a project");
   let scroller = header.parentElement;
   while (scroller && !scroller.className.includes("overflow-auto")) scroller = scroller.parentElement;
   expect(bar.compareDocumentPosition(scroller!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();

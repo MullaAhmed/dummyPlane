@@ -19,10 +19,10 @@ export interface FunctionLine {
 export const recentSection = () => messages(commandsMessages).palette.recent;
 
 /**
- * The functions mode (spec fenêtre §7.3): the commands available at that
+ * The functions mode (spec window §7.3): the commands available at that
  * moment, by section in the registry's order, each ranked by the search, the
  * section of the best match first while searching. The palette's own command
- * is not listed in it. The `recent` functions head the list in « Récentes »,
+ * is not listed in it. The `recent` functions head the list in "Recent",
  * most recent first, and stay there while searching when the words typed start
  * their words (retours J8b); they are not repeated below.
  */

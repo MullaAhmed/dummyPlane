@@ -10,7 +10,7 @@ import { presetNameOf } from "./model";
 import { presetsMessages } from "./messages";
 import { presetsStore, usePresets } from "./store";
 
-/** The name of a preset to save (spec presets §3), opened by « Enregistrer l'équipe comme preset… ». */
+/** The name of a preset to save (spec presets §3), opened by “Save the team as a preset…”. */
 export function SavePresetDialog() {
   const t = useMessages(presetsMessages).dialog;
   const [open, setOpen] = useState(false);
@@ -23,7 +23,7 @@ export function SavePresetDialog() {
     return true;
   });
   const kept = presetNameOf(name);
-  const replaced = kept ? presets.find((p) => p.name.toLocaleLowerCase("fr") === kept.toLocaleLowerCase("fr")) : undefined;
+  const replaced = kept ? presets.find((p) => p.name.toLocaleLowerCase() === kept.toLocaleLowerCase()) : undefined;
 
   const save = async () => {
     if (!kept) return;

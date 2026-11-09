@@ -28,8 +28,8 @@ beforeAll(async () => {
 describe("Orchestrateur · <nom> (spec menu radial §4.4, §6.2)", () => {
   it("is the radial menu's only: the palette never points at an orchestrator", () => {
     expect(ORCHESTRATOR.filter((c) => c.available(palette))).toEqual([]);
-    expect(ORCHESTRATOR.map((c) => labelOf(c, ring))).toEqual(["Écrire une consigne", "Renommer", "Relier", "Coller", "Supprimer"]);
-    expect(sectionOf(find("orchestrator.rename"), ring)).toBe("Orchestrateur · chef de backend");
+    expect(ORCHESTRATOR.map((c) => labelOf(c, ring))).toEqual(["Write an instruction", "Rename", "Link", "Paste", "Delete"]);
+    expect(sectionOf(find("orchestrator.rename"), ring)).toBe("Orchestrator · chef de backend");
   });
 
   it("does what the orchestrator's own controls do", async () => {

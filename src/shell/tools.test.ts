@@ -20,7 +20,7 @@ describe("railToolOf", () => {
 describe("pen palette", () => {
   it("offers eight pen colors, stored once for both themes, ink first, and 5 widths", () => {
     expect(PEN_COLORS).toHaveLength(8);
-    expect(PEN_COLORS[0]).toEqual({ label: "Encre", scene: "#29261B" });
+    expect(PEN_COLORS[0]).toEqual({ label: "Ink", scene: "#29261B" });
     for (const { scene } of PEN_COLORS) expect(scene).toMatch(/^#[0-9A-F]{6}$/);
     expect(PEN_WIDTHS).toEqual([1, 2, 4, 6, 8]);
   });

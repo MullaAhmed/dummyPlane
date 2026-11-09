@@ -16,18 +16,18 @@ import type { Point } from "./terminals";
 
 const reportLaunchError = (error: unknown) => toast.error(messages(fleetMessages).launchFailed(String(error)));
 
-/** An agent at `at`, else at the center of the view, in the group under it if any (spec habillage §11.3, spec menu radial §4.1). */
+/** An agent at `at`, else at the center of the view, in the group under it if any (spec theme §11.3, spec menu radial §4.1). */
 export function launchAt(agent: AgentId, at?: Point) {
   const center = at ?? viewportCenter(canvasStore.getState().view);
   void launchAgent(agent, defaultLaunchOptions(), center).catch(reportLaunchError);
 }
 
-/** "Nouvelle console": the default agent (spec habillage §5.6). */
+/** "New console": the default agent (spec theme §5.6). */
 export async function newConsole(at?: Point) {
   launchAt(defaultAgent(await loadedAgents()), at);
 }
 
-/** "Lancer 4 agents": a Général group of four default agents (spec habillage §11.3). */
+/** "Launch 4 agents": a General group of four default agents (spec theme §11.3). */
 export async function launchFour(at?: Point) {
   const agent = defaultAgent(await loadedAgents());
   const name = nextGroupName(canvasStore.getState().frames);
@@ -35,7 +35,7 @@ export async function launchFour(at?: Point) {
   returnKeyboardToCanvas();
 }
 
-/** « Orchestrateur »: at `at`, else at the center of the view, like a launch (plan F2, décision 3). */
+/** "Orchestrator": at `at`, else at the center of the view, like a launch (plan F2, decision 3). */
 export function placeOrchestrator(at?: Point) {
   const workspaceId = workspacesStore.getState().activeId;
   if (!workspaceId) return;
@@ -43,7 +43,7 @@ export function placeOrchestrator(at?: Point) {
 }
 
 /**
- * « Se connecter » of a Claude profile (spec comptes §5): a visible Claude terminal started with that
+ * "Sign in" of a Claude profile (spec comptes §5): a visible Claude terminal started with that
  * profile, where the user logs in. False when there is no canvas to place it on: no project, or the code workspace.
  */
 export async function launchLogin(accountId: string): Promise<boolean> {

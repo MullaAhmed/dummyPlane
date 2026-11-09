@@ -15,7 +15,7 @@ describe("defaultTitle", () => {
 describe("newTerminalPayload", () => {
   it("fills a blank title, trims the custom command and keeps the given name", () => {
     const payload = newTerminalPayload({ ...base, agent: "custom", command: "  npm run dev " }, "Thot");
-    expect(payload.title).toBe("Personnalisé · openvibe");
+    expect(payload.title).toBe("Custom · openvibe");
     expect(payload.command).toBe("npm run dev");
     expect(payload.name).toBe("Thot");
     expect(payload.claudeSessionId).toBeUndefined();

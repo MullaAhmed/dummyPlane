@@ -18,7 +18,7 @@ const OTHERS = (Object.keys(AGENT_INSTALLS) as AgentId[]).filter((id) => id !== 
 
 const linkClass = "flex items-center gap-1 rounded-md px-2 py-1 text-xs text-ov-text hover:bg-ov-hover [&_svg]:size-3 [&_svg]:text-ov-text-2";
 
-/** « Aucun agent de code trouvé »: Claude Code first, then the others (spec installation §4.2). */
+/** "No code agent found": Claude Code first, then the others (spec installation §4.2). */
 export function NoAgent() {
   const t = useMessages(homeMessages).noAgent;
   const [checking, setChecking] = useState(false);

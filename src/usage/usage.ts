@@ -1,4 +1,4 @@
-import { langStore, messages, type Lang } from "@/i18n";
+import { messages } from "@/i18n";
 import { usageMessages } from "./messages";
 import { formatDecimal } from "@/i18n/format";
 import type { BudgetTone } from "@/mission/mission";
@@ -15,9 +15,9 @@ export interface Limit {
 }
 
 export interface Limits {
-  /** The 5-hour window: « Session ». */
+  /** The 5-hour window: "Session". */
   fiveHour?: Limit;
-  /** The 7-day window, all models: « Semaine ». */
+  /** The 7-day window, all models: "Week". */
   sevenDay?: Limit;
   /** A model's own weekly window (`seven_day_fable`…), when Claude Code sends one. */
   models: { key: string; label: string; limit: Limit }[];
@@ -207,10 +207,9 @@ export function liveCacheSessions(sessions: readonly SessionUsage[], nodeIds: Re
   return [...latest.values()];
 }
 
-/** « 0,0074 $ », « 12,50 $ »; "$0.0074", "$12.50" in English. */
-export function formatUsd(usd: number, lang: Lang = langStore.getState().lang): string {
-  const amount = formatDecimal(usd, usd < 0.1 ? 4 : 2, lang);
-  return lang === "fr" ? `${amount} $` : `$${amount}`;
+/** "$0.0074", "$12.50". */
+export function formatUsd(usd: number): string {
+  return `$${formatDecimal(usd, usd < 0.1 ? 4 : 2)}`;
 }
 
 /** A limit's colour: like a budget, orange from 70 %, red from 90 %. */

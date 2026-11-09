@@ -11,7 +11,7 @@ import { ToolButton } from "./buttons";
 import { shellMessages } from "./messages";
 import { SettingsMenu } from "./SettingsMenu";
 
-/** The rail on the right: the activities (spec identité §5.5). "Fonctions" comes with J8. */
+/** The rail on the right: the activities (spec identité §5.5). "Functions" comes with J8. */
 export function ActivityRail() {
   const t = useMessages(shellMessages).activityRail;
   const open = useAgentsPanel((s) => s.open);

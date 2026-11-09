@@ -43,31 +43,31 @@ afterEach(async () => {
 });
 
 it("minimizes, maximizes and asks to close the window", async () => {
-  await act(async () => button("Réduire")!.click());
-  await act(async () => button("Agrandir")!.click());
-  await act(async () => button("Fermer OpenVibe")!.click());
+  await act(async () => button("Minimize")!.click());
+  await act(async () => button("Maximize")!.click());
+  await act(async () => button("Close OpenVibe")!.click());
   // close, never destroy: the save before closing (onCloseRequested) runs.
   expect(calls).toEqual(["minimize", "toggle_maximize", "close"]);
 });
 
 it("closes from a Windows-style corner button that turns red on hover", () => {
-  const close = button("Fermer OpenVibe")!;
+  const close = button("Close OpenVibe")!;
   expect(close.className).toContain("w-[46px]");
   expect(close.className).toContain("hover:bg-[#C42B1C]");
 });
 
 it("follows the maximized state, however it changed", async () => {
-  expect(button("Agrandir")).not.toBeNull();
+  expect(button("Maximize")).not.toBeNull();
   maximized = true; // double-click on the strip, Win+Up, snapping…
   await act(async () => emit("tauri://resize", { width: 1920, height: 1080 }));
   await settle();
-  expect(button("Restaurer")).not.toBeNull();
-  // Published for the palette's « Agrandir » / « Restaurer ».
+  expect(button("Restore")).not.toBeNull();
+  // Published for the palette's "Maximize" / "Restore".
   expect(windowStore.getState().maximized).toBe(true);
-  expect(button("Agrandir")).toBeNull();
+  expect(button("Maximize")).toBeNull();
   maximized = false;
   await act(async () => emit("tauri://resize", { width: 1440, height: 900 }));
   await settle();
-  expect(button("Agrandir")).not.toBeNull();
+  expect(button("Maximize")).not.toBeNull();
   expect(windowStore.getState().maximized).toBe(false);
 });

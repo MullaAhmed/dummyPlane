@@ -1,7 +1,7 @@
 import { messages } from "@/i18n";
 import { fleetMessages } from "./messages";
 
-/** Spec habillage §9.1: each group draws its agents' names from its own pantheon. */
+/** Spec theme §9.1: each group draws its agents' names from its own pantheon. */
 export type PantheonId =
   | "egyptian"
   | "greek"
@@ -118,11 +118,11 @@ export function nextPantheon(used: readonly (string | null | undefined)[]): Pant
 /** The first name of the pantheon nobody in the workspace has; then "Isis 2", "Osiris 2"… */
 export function nextName(pantheon: string, taken: readonly string[]): string {
   const names = (PANTHEONS.find((p) => p.id === pantheon) ?? PANTHEONS[0]).names;
-  const used = new Set(taken.map((name) => name.toLocaleLowerCase("fr")));
+  const used = new Set(taken.map((name) => name.toLowerCase()));
   for (let round = 1; ; round++) {
     for (const name of names) {
       const candidate = round === 1 ? name : `${name} ${round}`;
-      if (!used.has(candidate.toLocaleLowerCase("fr"))) return candidate;
+      if (!used.has(candidate.toLowerCase())) return candidate;
     }
   }
 }

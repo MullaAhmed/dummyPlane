@@ -10,8 +10,8 @@ const ids = () => {
 function board(): KanbanPayload {
   return {
     columns: [
-      { id: "todo", title: "À faire", cardIds: ["a", "b"] },
-      { id: "done", title: "Fait", cardIds: [] },
+      { id: "todo", title: "To do", cardIds: ["a", "b"] },
+      { id: "done", title: "Done", cardIds: [] },
     ],
     cards: {
       a: { id: "a", title: "Login", notes: "OAuth\nGitHub", priority: "high", due: "2026-11-02", github: { repo: "me/app", number: 12, url: "u", state: "open" } },
@@ -72,7 +72,7 @@ describe("planRequest", () => {
   it("lists the column's cards on one line, with their details", () => {
     const text = planRequest(board(), "todo", texts)!;
     expect(text).not.toMatch(/\n/);
-    expect(text).toBe("PLAN À faire (2): 1) [a] Login — OAuth GitHub — high — due 2026-11-02 — #12 me/app | 2) [b] Logout");
+    expect(text).toBe("PLAN To do (2): 1) [a] Login — OAuth GitHub — high — due 2026-11-02 — #12 me/app | 2) [b] Logout");
   });
 
   it("cuts long notes", () => {
@@ -88,10 +88,10 @@ describe("planRequest", () => {
 });
 
 describe("startCard", () => {
-  it("creates « En cours » before the done column and sets the agent chip", () => {
-    const started = startCard(board(), "a", "Amon", "En cours", ids())!;
+  it("creates In progress before the done column and sets the agent chip", () => {
+    const started = startCard(board(), "a", "Amon", "In progress", ids())!;
     expect(started.columnId).toBe("new1");
-    expect(started.board.columns.map((c) => c.title)).toEqual(["À faire", "En cours", "Fait"]);
+    expect(started.board.columns.map((c) => c.title)).toEqual(["To do", "In progress", "Done"]);
     expect(started.board.cards.a.agent).toBe("Amon");
     // The move is the caller's (GitHub follows it).
     expect(started.board.columns[0].cardIds).toContain("a");
@@ -101,17 +101,17 @@ describe("startCard", () => {
     const b = board();
     b.columns.splice(1, 0, { id: "doing", title: "In Progress", cardIds: [] });
     expect(inProgressColumn(b)?.id).toBe("doing");
-    expect(startCard(b, "a", "Amon", "En cours", ids())!.columnId).toBe("doing");
-    expect(withInProgressColumn(b, "En cours").board).toBe(b);
+    expect(startCard(b, "a", "Amon", "In progress", ids())!.columnId).toBe("doing");
+    expect(withInProgressColumn(b, "In progress").board).toBe(b);
   });
 
   it("is null for an unknown card", () => {
-    expect(startCard(board(), "zzz", "Amon", "En cours")).toBeNull();
+    expect(startCard(board(), "zzz", "Amon", "In progress")).toBeNull();
   });
 
   it("adds the column at the end of a board without columns", () => {
-    const placed = withInProgressColumn({ columns: [], cards: {} }, "En cours", ids());
-    expect(placed.board.columns).toEqual([{ id: "new1", title: "En cours", cardIds: [] }]);
+    const placed = withInProgressColumn({ columns: [], cards: {} }, "In progress", ids());
+    expect(placed.board.columns).toEqual([{ id: "new1", title: "In progress", cardIds: [] }]);
   });
 });
 
@@ -126,7 +126,7 @@ describe("the agent chip", () => {
   });
 
   it("goes on alert for blocked or failed, the card staying in its column", () => {
-    const started = startCard(board(), "a", "Amon", "En cours", ids())!.board;
+    const started = startCard(board(), "a", "Amon", "In progress", ids())!.board;
     const blocked = flagCard(started, "a", "blocked");
     expect(blocked.cards.a.agentStatus).toBe("blocked");
     expect(blocked.columns).toBe(started.columns);
@@ -142,7 +142,7 @@ describe("the agent chip", () => {
 
   it("is cleared when the card starts again", () => {
     const flagged = flagCard(setCardAgent(board(), "a", "Amon"), "a", "blocked");
-    expect(startCard(flagged, "a", "Amon", "En cours", ids())!.board.cards.a).not.toHaveProperty("agentStatus");
+    expect(startCard(flagged, "a", "Amon", "In progress", ids())!.board.cards.a).not.toHaveProperty("agentStatus");
   });
 });
 

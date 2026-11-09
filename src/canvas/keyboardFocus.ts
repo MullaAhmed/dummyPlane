@@ -35,7 +35,7 @@ export function lastTerminalOf(workspaceId: string): string | null {
 }
 
 /**
- * After an action of ours (Dégrouper, Lancer 4…), Excalidraw's shortcuts
+ * After an action of ours (Ungroup, Launch 4…), Excalidraw's shortcuts
  * (Ctrl+Z first) answer only inside its container: the keyboard goes back
  * there once the menu or popover has handed it to its trigger (plan B1). A
  * terminal or a text field that has it keeps it.

@@ -24,7 +24,7 @@ it("says the start failed instead of loading forever", async () => {
   document.body.append(host);
   const root = createRoot(host);
   await act(async () => root.render(<App />));
-  expect(host.textContent).toContain("démarrage interrompu (local server refused)");
+  expect(host.textContent).toContain("start interrupted (local server refused)");
   expect(host.textContent).not.toContain("Chargement…");
   await act(async () => root.unmount());
 });

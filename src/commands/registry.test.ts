@@ -56,7 +56,7 @@ describe("the registry (spec fenêtre §6.1, §8)", () => {
     expect(new Set(ids).size).toBe(ids.length);
     const shortcuts = COMMANDS.flatMap((c) => (c.shortcut ? [c.shortcut] : []));
     expect(new Set(shortcuts).size).toBe(shortcuts.length);
-    expect(new Set(shortcuts)).toEqual(new Set(["Ctrl+Tab", "Ctrl+Maj+Tab", "Ctrl+P", "Ctrl+Maj+P", "Maj+Échap", "Ctrl+Maj+A", "Ctrl+G"]));
+    expect(new Set(shortcuts)).toEqual(new Set(["Ctrl+Tab", "Ctrl+Shift+Tab", "Ctrl+P", "Ctrl+Shift+P", "Shift+Escape", "Ctrl+Shift+A", "Ctrl+G"]));
   });
 
   it("offers the terminal steps only with terminals, the palette everywhere", () => {
@@ -96,7 +96,7 @@ describe("the registry (spec fenêtre §6.1, §8)", () => {
     const error = vi.spyOn(toast, "error").mockImplementation(() => "");
     const failing: Command = { ...command("canvas.overview"), run: () => Promise.reject(new Error("canvas absent")) };
     runCommand(failing, busy);
-    await vi.waitFor(() => expect(error).toHaveBeenCalledWith(expect.stringMatching(/^Vue d'ensemble impossible : .*canvas absent/)));
+    await vi.waitFor(() => expect(error).toHaveBeenCalledWith(expect.stringMatching(/^Overview failed: .*canvas absent/)));
   });
 });
 
@@ -130,7 +130,7 @@ describe("what each context lists (spec fenêtre §11)", () => {
   const idsOf = (ctx: CommandContext) => COMMANDS.filter((c) => c.available(ctx)).map((c) => c.id);
 
   it("at home: navigation, window and help only (no workspaces, drawing or scene)", () => {
-    expect(sectionsOf(home).sort()).toEqual(["Aide", "Fenêtre", "Navigation"]);
+    expect(sectionsOf(home).sort()).toEqual(["Help", "Navigation", "Window"]);
     expect(idsOf(home)).toMatchInlineSnapshot(`
       [
         "palette.goTo",
@@ -142,9 +142,6 @@ describe("what each context lists (spec fenêtre §11)", () => {
         "app.updates",
         "app.logs",
         "app.troubleshoot",
-        "language.fr",
-        "language.en",
-        "language.system",
       ]
     `);
   });
@@ -155,10 +152,10 @@ describe("what each context lists (spec fenêtre §11)", () => {
         "Navigation",
         "Workspaces",
         "Agents",
-        "Dessin",
-        "Scène",
-        "Fenêtre",
-        "Aide",
+        "Drawing",
+        "Scene",
+        "Window",
+        "Help",
       ]
     `);
     expect(idsOf(empty).filter((id) => id.startsWith("terminal.") || id.startsWith("group.") || id.startsWith("orchestrator."))).toEqual(["group.compose"]);
@@ -188,9 +185,9 @@ it("a failed command says what its button says (plan F2)", async () => {
   }
   await vi.waitFor(() => expect(error).toHaveBeenCalledTimes(4));
   expect(error.mock.calls.map(([text]) => text)).toEqual([
-    "Duplication impossible : Error: boom",
-    "Création impossible : Error: boom",
-    "Suppression impossible : Error: boom",
-    "Orchestrateur impossible : Error: boom",
+    "Could not duplicate: Error: boom",
+    "Could not create: Error: boom",
+    "Could not delete: Error: boom",
+    "Could not create the orchestrator: Error: boom",
   ]);
 });

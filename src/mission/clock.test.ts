@@ -2,7 +2,6 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { mockIPC } from "@tauri-apps/api/mocks";
 import { toast } from "sonner";
-import { langStore } from "@/i18n";
 import { nodesStore } from "@/store/nodes";
 import { checkBudgets } from "./clock";
 import { notify } from "./events";
@@ -40,18 +39,18 @@ it("tells the orchestrator once when a budget runs out, warns the user at 200 % 
   checkBudgets(11 * min);
   checkBudgets(12 * min);
   expect(vi.mocked(notify).mock.calls.map(([to, line]) => [to, line])).toEqual([
-    ["chef", "Budget écoulé : Isis (Login) a passé ses 10 min sans rendre compte. Décide : write, extend, interrupt ou reassign."],
+    ["chef", "Budget used up: Isis (Login) went past its 10 min without reporting. Decide: write, extend, interrupt or reassign."],
   ]);
   expect(missionOf(nodesStore.getState().nodes.chef)?.members[0].overdue).toBe(1);
   checkBudgets(21 * min);
   checkBudgets(22 * min);
   expect(toast.warning).toHaveBeenCalledTimes(1);
-  expect(toast.warning).toHaveBeenCalledWith("Isis a dépassé deux fois son budget (10 min) sans rendre compte.");
+  expect(toast.warning).toHaveBeenCalledWith("Isis has gone over twice its budget (10 min) without reporting.");
   checkBudgets(31 * min);
   checkBudgets(40 * min);
-  expect(vi.mocked(notify).mock.calls.map(([to, line]) => [to, line])[1]).toEqual(["chef", "Budget global écoulé (30 min) : termine avec ce qui est fait."]);
+  expect(vi.mocked(notify).mock.calls.map(([to, line]) => [to, line])[1]).toEqual(["chef", "Overall budget used up (30 min): finish with what is done."]);
   expect(notify).toHaveBeenCalledTimes(2);
-  expect(toast.warning).toHaveBeenLastCalledWith("Budget global de la mission Auth écoulé (30 min).");
+  expect(toast.warning).toHaveBeenLastCalledWith("Mission Auth: overall budget used up (30 min).");
   expect(missionOf(nodesStore.getState().nodes.chef)?.globalOverdue).toBe(true);
 });
 
@@ -68,7 +67,7 @@ describe("an overnight mission (spec mission de nuit §3)", () => {
   it("treats an agent's budget as a target: a line that says so, and no toast for an empty room", () => {
     night();
     checkBudgets(11 * min);
-    expect(vi.mocked(notify).mock.calls[0][1]).toBe("Cible dépassée : Isis (Login) a passé ses 10 min, ce n'est qu'une cible. Regarde où il en est avec read_output ; laisse-le finir s'il avance.");
+    expect(vi.mocked(notify).mock.calls[0][1]).toBe("Target passed: Isis (Login) went past its 10 min, which is only a target. See where it stands with read_output; let it finish if it is moving.");
     checkBudgets(21 * min);
     expect(toast.warning).not.toHaveBeenCalled();
   });
@@ -80,7 +79,7 @@ describe("an overnight mission (spec mission de nuit §3)", () => {
     expect(notify).not.toHaveBeenCalled();
     checkBudgets(90 * min);
     checkBudgets(91 * min);
-    expect(vi.mocked(notify).mock.calls.map(([, line]) => line)).toEqual(["Plus que 10 min : la file ne donne plus de tâche. Fusionne ce qui est fait, fais vérifier, puis termine."]);
+    expect(vi.mocked(notify).mock.calls.map(([, line]) => line)).toEqual(["10 min left: the queue gives out no more tasks. Merge what is done, have it checked, then finish."]);
     expect(missionOf(nodesStore.getState().nodes.chef)?.windDownTold).toBe(true);
     checkBudgets(100 * min);
     expect(notify).toHaveBeenCalledTimes(2);
@@ -96,7 +95,6 @@ describe("an overnight mission (spec mission de nuit §3)", () => {
   });
 
   it("says it in English", () => {
-    langStore.setState({ lang: "en" });
     try {
       night();
       checkBudgets(11 * min);
@@ -105,7 +103,6 @@ describe("an overnight mission (spec mission de nuit §3)", () => {
       checkBudgets(90 * min);
       expect(vi.mocked(notify).mock.calls[1][1]).toBe("10 min left: the queue gives out no more tasks. Merge what is done, have it checked, then finish.");
     } finally {
-      langStore.setState({ lang: "fr" });
     }
   });
 });
@@ -129,7 +126,6 @@ it("tells the orchestrator and the user in English when the interface is (spec p
   setMission("chef", { members: [fresh], globalOverdue: undefined });
   vi.mocked(notify).mockClear();
   vi.mocked(toast.warning).mockClear();
-  langStore.setState({ lang: "en" });
   try {
     checkBudgets(100 * min);
     expect(vi.mocked(notify).mock.calls.map(([to, line]) => [to, line])).toEqual([
@@ -141,7 +137,6 @@ it("tells the orchestrator and the user in English when the interface is (spec p
       ["Mission Auth: overall budget used up (30 min)."],
     ]);
   } finally {
-    langStore.setState({ lang: "fr" });
   }
 });
 

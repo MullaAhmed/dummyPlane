@@ -6,7 +6,7 @@ import type { TerminalStatus } from "@/store/terminalStatus";
 import { fleetMessages } from "./messages";
 import { ROLES } from "./roles";
 
-/** What the fleet panel tells about an agent (spec habillage §5.5). */
+/** What the fleet panel tells about an agent (spec theme §5.5). */
 /** `active`: the process runs and its activity is not known (the pill says ACTIF). */
 export type FleetState = "working" | "waiting" | "active" | "idle" | "stopped";
 export type FleetFilter = "all" | FleetState;
@@ -44,7 +44,7 @@ export function fleetStateOf(status: TerminalStatus, activity?: AgentActivity): 
   return "stopped";
 }
 
-/** Each group in scene order, then "Hors groupe"; only the agents of `filter`, no empty section. */
+/** Each group in scene order, then "Outside a group"; only the agents of `filter`, no empty section. */
 export function fleetSections(
   agents: readonly FleetAgent[],
   frames: readonly SceneFrame[],

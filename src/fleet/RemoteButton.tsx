@@ -36,7 +36,7 @@ function run(nodeId: string, on: boolean) {
   });
 }
 
-/** Remote Control of one Claude session, in its header (spec maj §2). */
+/** Remote Control of one Claude session, in its header (spec update §2). */
 export function RemoteButton({ nodeId, wanted, running }: { nodeId: string; wanted: boolean; running: boolean }) {
   const t = useMessages(fleetMessages).remote;
   const link = useRemoteLink(nodeId);

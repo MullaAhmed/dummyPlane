@@ -1,7 +1,6 @@
 // @vitest-environment happy-dom
 import { beforeEach, describe, expect, it } from "vitest";
 import { mockIPC } from "@tauri-apps/api/mocks";
-import { langStore } from "@/i18n";
 import { NEW_MISSION } from "@/mission/mission";
 import { nodesStore } from "@/store/nodes";
 import { missionBranchFor, parseDiff, reviewMessage } from "./review";
@@ -53,26 +52,13 @@ describe("reviewMessage", () => {
   it("gathers the remarks in one message, each with its file and line", () => {
     expect(
       reviewMessage([
-        { file: "src/a.ts", line: 12, text: "Renomme z." },
-        { file: "src/a.ts", line: 11, side: "old", text: "Pourquoi retirer y ?" },
-        { file: "README.md", text: "Documente l'option." },
+        { file: "src/a.ts", line: 12, text: "Rename z." },
+        { file: "src/a.ts", line: 11, side: "old", text: "Why remove y?" },
+        { file: "README.md", text: "Document the option." },
       ]),
     ).toBe(
-      "Revue de code de tes changements :\n- src/a.ts:12 — Renomme z.\n- src/a.ts (ligne 11 supprimée, numérotée dans la version avant tes changements) — Pourquoi retirer y ?\n- README.md — Documente l'option.\nCorrige ce qui doit l'être, puis dis-moi ce que tu as changé.",
+      "Code review of your changes:\n- src/a.ts:12 — Rename z.\n- src/a.ts (line 11 removed, numbered in the version before your changes) — Why remove y?\n- README.md — Document the option.\nFix what needs fixing, then tell me what you changed.",
     );
-  });
-});
-
-describe("reviewMessage in English (spec première version §7.1)", () => {
-  it("follows the interface's language", () => {
-    langStore.setState({ lang: "en" });
-    try {
-      expect(reviewMessage([{ file: "src/a.ts", line: 11, side: "old", text: "Why?" }, { file: "README.md", text: "Document it." }])).toBe(
-        "Code review of your changes:\n- src/a.ts (line 11 removed, numbered in the version before your changes) — Why?\n- README.md — Document it.\nFix what needs fixing, then tell me what you changed.",
-      );
-    } finally {
-      langStore.setState({ lang: "fr" });
-    }
   });
 });
 

@@ -2,7 +2,7 @@ import type { ProjectChecks } from "@/ipc/mission";
 import { currentLimit, type Limit, type Limits } from "@/usage/usage";
 import type { TicketSource } from "./tickets";
 
-/** Past this, the night may run out of plan: a warning, not a refusal (spec mission de nuit §5.2). */
+/** Past this, the night may run out of plan: a warning, not a refusal (spec overnight mission §5.2). */
 export const USAGE_WARNING_PERCENT = 80;
 
 export type CheckId = "git" | "gh";

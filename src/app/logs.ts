@@ -3,7 +3,7 @@ import { messages } from "@/i18n";
 import { call } from "@/ipc/invoke";
 import { appMessages } from "./messages";
 
-/** « Ouvrir le dossier des journaux » of the palette, the settings menu and the error screens. */
+/** "Open the logs folder" of the palette, the settings menu and the error screens. */
 export async function openLogDir() {
   try {
     await call<void>("open_log_dir");

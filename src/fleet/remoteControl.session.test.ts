@@ -123,7 +123,7 @@ describe("links and toasts (backlog 27 oct)", () => {
   it("says « next start » for a stopped session in a group, not « turned on »", async () => {
     terminalStatusStore.getState().set("isis", { state: "stopped" });
     await setRemoteControlAll(["isis"], true);
-    expect(vi.mocked(toast).mock.calls.map((c) => c[0]).join("|")).toContain("prochain démarrage");
+    expect(vi.mocked(toast).mock.calls.map((c) => c[0]).join("|")).toContain("next start");
   });
 
   it("offers Cut and Retry while the state is an error", () => {

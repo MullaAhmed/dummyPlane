@@ -10,7 +10,7 @@ import { fleetMessages } from "./messages";
 
 type Models = { models: string[] } | { error: string } | null;
 
-/** Model and mode of an Ollama agent (spec habillage §8.1); a new model is pulled in a visible terminal (spec installation §5). */
+/** Model and mode of an Ollama agent (spec theme §8.1); a new model is pulled in a visible terminal (spec installation §5). */
 export function OllamaPicker(props: { aiderAvailable: boolean; onBack: () => void; onPick: (ollama: OllamaLaunch) => void; onPull: (model: string) => void }) {
   const { aiderAvailable, onBack, onPick, onPull } = props;
   const t = useMessages(fleetMessages).ollama;

@@ -4,8 +4,6 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { toast } from "sonner";
-import { langStore } from "@/i18n";
-import { setLanguage } from "@/i18n/settings";
 import { agentsStore } from "@/fleet/agentsStore";
 import { projectsStore } from "@/store/projects";
 import { labelOf, runCommand, sectionOf, type CommandContext } from "./command";
@@ -19,7 +17,6 @@ import { COMMANDS } from "./registry";
 vi.mock("@excalidraw/excalidraw", () => ({}));
 vi.mock("@/nodes/terminal/registry", () => ({ focusTerminal: vi.fn(), terminalSelection: vi.fn(() => "") }));
 vi.mock("./goToRun", () => ({ goTo: vi.fn() }));
-vi.mock("@/i18n/settings", () => ({ setLanguage: vi.fn(() => Promise.resolve()) }));
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -29,17 +26,15 @@ const find = (id: string) => COMMANDS.find((c) => c.id === id)!;
 const lines = (query: string, ctx = busy) => functionSections(COMMANDS, ctx, query).flatMap((s) => s.items.map((l) => l.command.id));
 
 beforeEach(() => {
-  langStore.setState({ lang: "en" });
   recentStore.setState({ ids: [] });
   agentsStore.setState({ agents: [{ id: "claude", available: true }], loaded: true, load: () => Promise.resolve() } as never);
 });
 afterEach(() => {
-  langStore.setState({ lang: "fr" });
   vi.restoreAllMocks();
 });
 
 describe("the palette's catalogs in English", () => {
-  it("reads labels and sections in the current language", () => {
+  it("reads labels and sections in English", () => {
     expect(labelOf(find("terminal.next"), busy)).toBe("Next terminal");
     expect(labelOf(find("agent.nextWaiting"), busy)).toBe("Go to the next waiting agent");
     expect(labelOf(find("agent.launch.claude"), busy)).toBe("Launch Claude");
@@ -49,26 +44,18 @@ describe("the palette's catalogs in English", () => {
     expect(sectionOf(find("app.logs"), busy)).toBe("Help");
     expect(sectionOf(find("edit.undo"), busy)).toBe("Drawing");
     expect(sectionOf(find("terminal.rename"), busy)).toMatch(/^Terminal · /);
-    langStore.setState({ lang: "fr" });
-    expect(labelOf(find("terminal.next"), busy)).toBe("Terminal suivant");
-    expect(sectionOf(find("app.logs"), busy)).toBe("Aide");
   });
 
   it("groups each section once, under its English name", () => {
     const sections = functionSections(COMMANDS, busy, "").map((s) => s.label);
     expect(sections).toContain("Drawing");
-    expect(sections).not.toContain("Dessin");
     expect(new Set(sections).size).toBe(sections.length);
   });
 
-  it("searches with the English words, and no longer with the French ones", () => {
+  it("searches with the English words", () => {
     expect(lines("undo")).toContain("edit.undo");
     expect(lines("minimize")[0]).toBe("window.minimize");
     expect(lines("clipboard")).toContain("drawing.paste");
-    expect(lines("annuler")).not.toContain("edit.undo");
-    langStore.setState({ lang: "fr" });
-    expect(lines("annuler")).toContain("edit.undo");
-    expect(lines("undo")).not.toContain("edit.undo");
   });
 
   it("greys what cannot be installed, in English", () => {
@@ -88,7 +75,7 @@ describe("the palette's catalogs in English", () => {
     await vi.waitFor(() => expect(error).toHaveBeenCalledWith("Close the project failed: Error: boom"));
   });
 
-  it("go-to sections, keywords and labels follow the language", () => {
+  it("groups the go-to items under their English section names", () => {
     const items = goToItems({
       home: true,
       projects: [{ id: "p1", name: "api", path: "C:/api", lastOpenedAt: 1, missing: false }],
@@ -100,24 +87,6 @@ describe("the palette's catalogs in English", () => {
       live: {},
     } as never);
     expect(goToSections(items, "").map((s) => s.label)).toEqual(["Projects"]);
-  });
-});
-
-describe("the language commands", () => {
-  it("lists three lines in Help, found by « language » in either language", () => {
-    expect(lines("language")).toEqual(expect.arrayContaining(["language.fr", "language.en", "language.system"]));
-    expect(labelOf(find("language.system"), home)).toBe("Windows language");
-    expect(sectionOf(find("language.en"), home)).toBe("Help");
-    langStore.setState({ lang: "fr" });
-    expect(lines("langue", home)).toEqual(expect.arrayContaining(["language.fr", "language.en", "language.system"]));
-    expect(labelOf(find("language.system"), home)).toBe("Langue de Windows");
-  });
-
-  it("each calls setLanguage with its choice", () => {
-    runCommand(find("language.fr"), home);
-    runCommand(find("language.en"), home);
-    runCommand(find("language.system"), home);
-    expect(vi.mocked(setLanguage).mock.calls.map((c) => c[0])).toEqual(["fr", "en", "system"]);
   });
 });
 
@@ -148,11 +117,11 @@ describe("the palette component in English", () => {
     expect(document.body.textContent).toContain("No results");
   });
 
-  it("lists the functions in English, the language commands under Help", async () => {
+  it("lists the functions in English, under their English sections", async () => {
     await act(async () => openPalette("functions", home));
-    await act(async () => setPaletteQuery("> windows"));
+    await act(async () => setPaletteQuery("> about"));
     const items = [...document.querySelectorAll("[cmdk-item]")].map((i) => i.textContent);
-    expect(items).toContain("Windows language");
+    expect(items).toContain("About OpenVibe");
     expect(document.body.textContent).toContain("Help");
   });
 });
@@ -172,37 +141,5 @@ describe("the go-to rows in English", () => {
     expect(await row({ key: "w", kind: "workspace", label: "Main", keywords: [], live: 1, current: true })).toBe("Main1 activeshown");
     await act(async () => root.unmount());
     host.remove();
-  });
-});
-
-describe("a language change while the palette is open (R5a)", () => {
-  let host: HTMLDivElement;
-  let root: Root;
-  beforeEach(async () => {
-    mockIPC(() => undefined);
-    projectsStore.setState({ view: "home", projects: [{ id: "p1", name: "api", path: "C:/code/api", lastOpenedAt: 1, missing: false }], activeId: null } as never);
-    paletteStore.setState({ open: false, query: "", context: null, returnFocus: null });
-    host = document.createElement("div");
-    document.body.append(host);
-    root = createRoot(host);
-    await act(async () => root.render(<Palette />));
-  });
-  afterEach(async () => {
-    await act(async () => root.unmount());
-    document.body.replaceChildren();
-    clearMocks();
-  });
-
-  it("rewrites the placeholder, the section titles and the lines in the new language", async () => {
-    await act(async () => openPalette("goTo", home));
-    expect(document.querySelector("[cmdk-group-heading]")?.textContent).toBe("Projects");
-    await act(async () => langStore.setState({ lang: "fr" }));
-    expect(document.querySelector("[cmdk-group-heading]")?.textContent).toBe("Projets");
-    expect(document.querySelector<HTMLInputElement>("[cmdk-input]")!.placeholder).toContain("Aller à");
-    await act(async () => setPaletteQuery("> "));
-    expect(document.body.textContent).toContain("Fenêtre");
-    await act(async () => langStore.setState({ lang: "en" }));
-    expect(document.body.textContent).toContain("Window");
-    expect(document.body.textContent).not.toContain("Fenêtre");
   });
 });

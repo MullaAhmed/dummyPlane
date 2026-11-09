@@ -23,13 +23,13 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 
-it("names the project and its shortcut, and opens « Aller à » (spec identité §5.1)", async () => {
+it("names the project and its shortcut, and opens \"Go to\" (spec identité §5.1)", async () => {
   const host = document.createElement("div");
   document.body.append(host);
   const root = createRoot(host);
   await act(async () => root.render(<SearchField />));
   const field = host.querySelector("button")!;
-  expect(field.textContent).toContain("Rechercher dans mk-webapp");
+  expect(field.textContent).toContain("Search in mk-webapp");
   expect(field.textContent).toContain("Ctrl+P");
   expect(field.className).toContain("w-[440px]");
   // A press does not take the keyboard: it goes back where it was when the palette closes.
@@ -41,13 +41,13 @@ it("names the project and its shortcut, and opens « Aller à » (spec identité
   await act(async () => root.unmount());
 });
 
-it("reads « Rechercher un projet » at home (spec identité §5.9)", async () => {
+it("reads \"Search for a project\" at home (spec identité §5.9)", async () => {
   projectsStore.setState({ view: "home" } as never);
   const host = document.createElement("div");
   document.body.append(host);
   const root = createRoot(host);
   await act(async () => root.render(<SearchField />));
-  expect(host.querySelector("button")!.textContent).toContain("Rechercher un projet");
+  expect(host.querySelector("button")!.textContent).toContain("Search for a project");
   await act(async () => root.unmount());
 });
 

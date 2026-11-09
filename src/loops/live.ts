@@ -8,7 +8,7 @@ import { acceptsInstruction } from "./engine";
 import { createLoopsStore, LOOPS_KEY, type LoopsState } from "./store";
 
 /**
- * The real loops store (spec boucles §4): its engine reads the application's
+ * The real loops store (loops spec §4): its engine reads the application's
  * agents and sends through `sendToAgents`, which spares those that wait.
  */
 export const loopsStore = createLoopsStore(

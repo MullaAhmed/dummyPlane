@@ -1,6 +1,6 @@
 import { normalize } from "@/commands/search";
 
-/** What « Aller à… » reads as a file search: `App.tsx:42` is App.tsx at line 42. */
+/** What "Go to…" reads as a file search: `App.tsx:42` is App.tsx at line 42. */
 export interface FileQuery {
   text: string;
   line?: number;

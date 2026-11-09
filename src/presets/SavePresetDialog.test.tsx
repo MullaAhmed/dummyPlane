@@ -6,7 +6,6 @@ import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { toast } from "sonner";
 import { canvasStore } from "@/canvas/canvasStore";
 import { requestUi } from "@/commands/uiRequests";
-import { langStore } from "@/i18n";
 import { nodesStore } from "@/store/nodes";
 import { SavePresetDialog } from "./SavePresetDialog";
 import { presetsStore } from "./store";
@@ -23,7 +22,6 @@ const saved: { key: string; value: unknown }[] = [];
 
 beforeEach(async () => {
   saved.length = 0;
-  langStore.setState({ lang: "fr" });
   vi.clearAllMocks();
   mockIPC((cmd, args) => {
     if (cmd === "set_setting") saved.push(args as { key: string; value: unknown });
@@ -51,7 +49,7 @@ afterEach(async () => {
   clearMocks();
 });
 
-const field = () => document.querySelector<HTMLInputElement>('input[aria-label="Nom du preset"]')!;
+const field = () => document.querySelector<HTMLInputElement>('input[aria-label="Preset name"]')!;
 const type = async (value: string) =>
   act(async () => {
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(field(), value);
@@ -68,21 +66,21 @@ it("stays closed until the palette asks, then opens on a name field", async () =
 it("saves the team on screen under the name typed, on the button and on Enter", async () => {
   await act(async () => requestUi({ kind: "savePreset" }));
   await type("  Dev HQ ");
-  await act(async () => button("Enregistrer").click());
+  await act(async () => button("Save").click());
   await vi.waitFor(() => expect(presetsStore.getState().presets).toHaveLength(1));
   const [preset] = presetsStore.getState().presets as TeamPreset[];
   expect(preset).toMatchObject({ name: "Dev HQ", groups: [{ name: "Backend", role: "backend", agents: ["claude"] }] });
   expect(saved[0].key).toBe("presets.teams");
-  expect(toast).toHaveBeenCalledWith("Preset « Dev HQ » enregistré");
+  expect(toast).toHaveBeenCalledWith("Preset “Dev HQ” saved");
   expect(field()).toBeNull();
 });
 
 it("does not save an empty name, does not close on the Enter that ends an IME composition, and says when a name is taken", async () => {
   presetsStore.setState({ presets: [{ id: "1", name: "Dev HQ", savedAt: 1, groups: [{ name: "G", role: "docs", agents: ["claude"], x: 0, y: 0 }], orchestrators: [] }] });
   await act(async () => requestUi({ kind: "savePreset" }));
-  expect(button("Enregistrer").disabled).toBe(true);
+  expect(button("Save").disabled).toBe(true);
   await type("dev hq");
-  expect(document.body.textContent).toContain("Remplace le preset « Dev HQ »");
+  expect(document.body.textContent).toContain("Replaces the preset “Dev HQ”");
   await act(async () => {
     field().dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true, isComposing: true }));
   });
@@ -98,8 +96,8 @@ it("says there is nothing to save when no group holds an agent any more", async 
   canvasStore.setState({ frames: [] });
   await act(async () => requestUi({ kind: "savePreset" }));
   await type("X");
-  await act(async () => button("Enregistrer").click());
-  expect(toast.error).toHaveBeenCalledWith("Aucun groupe avec des agents à enregistrer");
+  await act(async () => button("Save").click());
+  expect(toast.error).toHaveBeenCalledWith("No group with agents to save");
   expect(saved).toHaveLength(0);
 });
 
@@ -107,17 +105,14 @@ it("refuses clearly when no canvas is on screen, instead of saving an empty team
   canvasStore.setState({ api: null });
   await act(async () => requestUi({ kind: "savePreset" }));
   await type("X");
-  await act(async () => button("Enregistrer").click());
-  expect(toast.error).toHaveBeenCalledWith("Aucun workspace affiché : ouvre un projet pour enregistrer son équipe");
+  await act(async () => button("Save").click());
+  expect(toast.error).toHaveBeenCalledWith("No workspace on screen: open a project to save its team");
   expect(saved).toHaveLength(0);
   expect(presetsStore.getState().presets).toEqual([]);
 });
 
-it("speaks English when the interface does", async () => {
-  langStore.setState({ lang: "en" });
+it("names the dialog in English", async () => {
   await act(async () => requestUi({ kind: "savePreset" }));
   expect(document.querySelector('input[aria-label="Preset name"]')).not.toBeNull();
   expect(document.body.textContent).toContain("Save the team as a preset");
-  expect(button("Save")).toBeTruthy();
-  expect(button("Cancel")).toBeTruthy();
 });

@@ -3,7 +3,6 @@ import { beforeEach, expect, it, vi } from "vitest";
 import type { CommandContext } from "@/commands/command";
 import { labelOf, runCommand, sectionOf } from "@/commands/command";
 import { pendingUiRequest } from "@/commands/uiRequests";
-import { langStore } from "@/i18n";
 import { loopCommands } from "./commands";
 import { loopsStore } from "./live";
 
@@ -23,21 +22,19 @@ const home: CommandContext = { project: false, workspaceId: null, terminalCount:
 const loop = { id: "1", name: "Point", instruction: "go", targets: ["a"], trigger: { kind: "interval", minutes: 5 } as const, maxRuns: 2 };
 
 beforeEach(() => {
-  langStore.setState({ lang: "fr" });
   loopsStore.setState({ loops: [loop], loaded: true, runtime: {} });
 });
 
-it("lists « Gérer les boucles… » in a project, and « tout arrêter » only while a loop runs, counting them", () => {
+it("lists Manage loops… in a project, and Stop all only while a loop runs, counting them", () => {
   const [manage, stopAll] = loopCommands();
-  expect(labelOf(manage, project)).toBe("Gérer les boucles…");
-  expect(sectionOf(manage, project)).toBe("Boucles");
+  expect(labelOf(manage, project)).toBe("Manage loops…");
+  expect(sectionOf(manage, project)).toBe("Loops");
   expect(manage.available(project)).toBe(true);
   expect(manage.available(home)).toBe(false);
   expect(stopAll.available(project)).toBe(false);
   loopsStore.getState().start("1");
   expect(stopAll.available(project)).toBe(true);
-  expect(labelOf(stopAll, project)).toBe("Boucles : tout arrêter (1)");
-  langStore.setState({ lang: "en" });
+  expect(labelOf(stopAll, project)).toBe("Loops: stop all (1)");
   expect(labelOf(stopAll, project)).toBe("Loops: stop all (1)");
 });
 

@@ -23,13 +23,13 @@ async function load() {
   }
 }
 
-/** « Dépannage » of the palette, the settings menu and the home screen (spec première version §7.3). */
+/** Troubleshooting from the palette, the settings menu and the home screen (spec première version §7.3). */
 export async function showTroubleshooting() {
   troubleshootStore.setState({ open: true, diagnostics: null, error: null });
   await load();
 }
 
-/** « Vérifier à nouveau »: Windows' PATH first, so an agent installed since the start is found. */
+/** Check again: Windows' PATH first, so an agent installed since the start is found. */
 export async function checkAgain() {
   try {
     await refreshPath();

@@ -8,7 +8,7 @@ interface AgentsState {
   loaded: boolean;
   /** Looks for the agents on the PATH again (an install shows up without restart). */
   load: () => Promise<void>;
-  /** « Vérifier à nouveau »: Windows' PATH is read again first (spec première version §7.2). */
+  /** "Check again": Windows' PATH is read again first (spec first version §7.2). */
   recheck: () => Promise<void>;
 }
 

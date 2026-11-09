@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { langStore } from "@/i18n";
 import { co2Grams, currentLimit, limitTone, liveCacheSessions, mergeLimits, readStatus, totals, formatUsd, type Limits, type SessionUsage } from "./usage";
 
 /** A status line's JSON as Claude Code 2.1.304 sent it in OpenVibe, after one answer. */
@@ -88,11 +87,6 @@ describe("co2Grams", () => {
 });
 
 describe("formatting", () => {
-  it("shows small costs with their cents' detail", () => {
-    expect(formatUsd(0.00738)).toBe("0,0074 $");
-    expect(formatUsd(12.5)).toBe("12,50 $");
-  });
-
   it("colours a limit by how much of it is used", () => {
     expect(limitTone(50)).toBe("ok");
     expect(limitTone(75)).toBe("late");
@@ -124,20 +118,14 @@ describe("mergeLimits (final review maj §6)", () => {
   });
 });
 
-it("writes costs the English way in English", () => {
-  expect(formatUsd(0.00738, "en")).toBe("$0.0074");
-  expect(formatUsd(12.5, "en")).toBe("$12.50");
+it("writes costs the English way", () => {
+  expect(formatUsd(0.00738)).toBe("$0.0074");
+  expect(formatUsd(12.5)).toBe("$12.50");
 });
 
-it("names a session without a model in the interface's language", () => {
+it("names a session without a model", () => {
   const unknown: SessionUsage = { sessionId: "a", nodeId: "n", model: null, costUsd: 1, apiMs: 0, wallMs: 0, linesAdded: 0, linesRemoved: 0, inputTokens: 1, outputTokens: 1, contextPercent: null, cache: null, at: 0 };
-  expect(totals([unknown]).byModel[0].name).toBe("Modèle inconnu");
-  langStore.setState({ lang: "en" });
-  try {
-    expect(totals([unknown]).byModel[0].name).toBe("Unknown model");
-  } finally {
-    langStore.setState({ lang: "fr" });
-  }
+  expect(totals([unknown]).byModel[0].name).toBe("Unknown model");
 });
 
 describe("the prompt cache section (backlog 27 oct)", () => {

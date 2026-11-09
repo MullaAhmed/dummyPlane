@@ -117,7 +117,7 @@ export function OrchestratorNode({ nodeId }: { nodeId: string }) {
 }
 
 /** What its session does, in the header. */
-function sessionLabel(t: (typeof nodesMessages)["fr"]["orchestrator"]["session"], status: TerminalStatus, activity: Activity | undefined): string {
+function sessionLabel(t: (typeof nodesMessages)["orchestrator"]["session"], status: TerminalStatus, activity: Activity | undefined): string {
   if (status.state === "starting") return t.starting;
   if (status.state === "error" && status.kind === "toolsUnavailable") return t.toolsUnavailable;
   if (status.state !== "running") return t.stopped;
@@ -128,7 +128,7 @@ function sessionLabel(t: (typeof nodesMessages)["fr"]["orchestrator"]["session"]
 function NameField({ nodeId, value, onCommit }: { nodeId: string; value: string; onCommit: (name: string) => void }) {
   const t = useMessages(nodesMessages).orchestrator;
   const [editing, setEditing] = useState(false);
-  // « Renommer » of the orchestrator's radial menu.
+  // "Rename" of the orchestrator's radial menu.
   useUiRequest("renameOrchestrator", (request) => {
     if (request.id !== nodeId) return false;
     setEditing(true);

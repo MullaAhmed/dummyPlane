@@ -59,7 +59,7 @@ export function setLivePtys(nodeIds: string[]) {
 
 /**
  * A terminal just created starts on its first mount, `delayMs` later (groups
- * stagger their agents). Until then it reads DÉMARRAGE, not ARRÊTÉ.
+ * stagger their agents). Until then it reads STARTING, not STOPPED.
  */
 export function markForAutostart(nodeId: string, delayMs = 0) {
   autostart.mark(nodeId, delayMs);
@@ -283,7 +283,7 @@ export function xtermOf(nodeId: string): Terminal | undefined {
   return entries.get(nodeId)?.term;
 }
 
-/** The terminal's selection, empty without one (« Copier » of its radial menu). */
+/** The terminal's selection, empty without one ("Copy" of its radial menu). */
 export function terminalSelection(nodeId: string): string {
   return entries.get(nodeId)?.term.getSelection() ?? "";
 }
