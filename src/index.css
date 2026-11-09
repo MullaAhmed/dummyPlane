@@ -24,6 +24,7 @@
   --color-ov-text: var(--ov-text);
   --color-ov-text-2: var(--ov-text-2);
   --color-ov-accent: var(--ov-accent);
+  --color-ov-accent-ink: var(--ov-accent-ink);
   --color-ov-accent-soft: var(--ov-accent-soft);
   --color-ov-danger: var(--ov-danger);
   --color-ov-terminal: var(--ov-terminal);

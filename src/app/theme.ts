@@ -5,12 +5,21 @@ import { messages } from "@/i18n";
 import { getSetting, setSetting } from "@/ipc/db";
 import { appMessages } from "./messages";
 
-/** Spec identité §4.5. */
-export type ThemeChoice = "system" | "light" | "dark";
+/** Spec identité §4.2: three palettes, each 60% canvas, 30% text and surfaces, 10% accent. */
+export type ThemeChoice = "calm" | "electric" | "expressive";
+/** The color scheme a palette declares: `data-theme` on <html>, read by Tailwind's `dark:` and Excalidraw. */
 export type Theme = "light" | "dark";
 
 export const THEME_KEY = "ui.theme";
 export const TRANSPARENCY_KEY = "ui.transparency";
+export const DEFAULT_THEME: ThemeChoice = "expressive";
+
+/** English names and schemes, as the Theme radio group shows them. `canvas` is the palette's 60%. */
+export const PALETTES: Record<ThemeChoice, { name: string; scheme: Theme; canvas: string }> = {
+  calm: { name: "Calm and Playful", scheme: "light", canvas: "#EDE3CC" },
+  electric: { name: "Electric and Energetic", scheme: "dark", canvas: "#263CF5" },
+  expressive: { name: "Dark and Expressive", scheme: "dark", canvas: "#101014" },
+};
 
 /** What public/first-paint.js reads before the first paint (the settings live in SQLite, read later). */
 function mirror() {
@@ -19,13 +28,13 @@ function mirror() {
     localStorage.setItem("ov.theme", choice);
     localStorage.setItem("ov.transparency", transparency ? "on" : "off");
   } catch {
-    // No storage: the next start paints in Windows' theme until the settings are read.
+    // No storage: the next start paints the default palette until the settings are read.
   }
 }
 
-/** Anything but light or dark (missing, corrupted) means System. */
+/** Anything but a known palette (missing, corrupted, an older choice) means the default palette. */
 export function readThemeChoice(raw: unknown): ThemeChoice {
-  return raw === "light" || raw === "dark" ? raw : "system";
+  return raw === "calm" || raw === "electric" || raw === "expressive" ? raw : DEFAULT_THEME;
 }
 
 /** Transparency stays on unless it was explicitly turned off. */
@@ -33,27 +42,23 @@ export function readTransparency(raw: unknown): boolean {
   return raw !== "off";
 }
 
-export function resolveTheme(choice: ThemeChoice, systemDark: boolean): Theme {
-  if (choice !== "system") return choice;
-  return systemDark ? "dark" : "light";
-}
-
 interface ThemeState {
   choice: ThemeChoice;
-  /** Windows' light or dark mode for apps, as the WebView reports it. */
-  systemDark: boolean;
   transparency: boolean;
 }
 
-export const themeStore = createStore<ThemeState>()(() => ({ choice: "system", systemDark: true, transparency: true }));
+export const themeStore = createStore<ThemeState>()(() => ({ choice: DEFAULT_THEME, transparency: true }));
+
+export function currentPalette(): ThemeChoice {
+  return themeStore.getState().choice;
+}
 
 export function currentTheme(): Theme {
-  const { choice, systemDark } = themeStore.getState();
-  return resolveTheme(choice, systemDark);
+  return PALETTES[currentPalette()].scheme;
 }
 
 export function useTheme(): Theme {
-  return useStore(themeStore, (s) => resolveTheme(s.choice, s.systemDark));
+  return useStore(themeStore, (s) => PALETTES[s.choice].scheme);
 }
 
 export function useThemeSettings(): { choice: ThemeChoice; transparency: boolean } {
@@ -61,30 +66,23 @@ export function useThemeSettings(): { choice: ThemeChoice; transparency: boolean
 }
 
 /**
- * The theme on the root element: the tokens (`data-theme`), the WebView's own
- * scrollbars and form controls (`color-scheme`), the opaque fallback
- * (`data-transparency`). The window's Tauri theme is left alone: forcing it
- * would change what the WebView reports for `prefers-color-scheme`.
+ * The theme on the root element: the palette (`data-palette`, the tokens), its
+ * scheme (`data-theme`, Tailwind's `dark:`), the WebView's own scrollbars and
+ * form controls (`color-scheme`), the opaque fallback (`data-transparency`).
+ * The window's Tauri theme is left alone.
  */
 export function applyTheme(root: HTMLElement = document.documentElement) {
-  const { transparency } = themeStore.getState();
-  const theme = currentTheme();
-  root.dataset.theme = theme;
-  root.style.colorScheme = theme;
+  const { choice, transparency } = themeStore.getState();
+  const scheme = PALETTES[choice].scheme;
+  root.dataset.palette = choice;
+  root.dataset.theme = scheme;
+  root.style.colorScheme = scheme;
   if (transparency) delete root.dataset.transparency;
   else root.dataset.transparency = "off";
 }
 
-/** Windows' color scheme, as `matchMedia("(prefers-color-scheme: dark)")` gives it. */
-export interface SystemScheme {
-  matches: boolean;
-  addEventListener(type: "change", listener: (event: { matches: boolean }) => void): void;
-}
-
-/** Before the first render: follows Windows, live, until the saved choice is read. */
-export function startTheme(scheme: SystemScheme) {
-  themeStore.setState({ systemDark: scheme.matches });
-  scheme.addEventListener("change", (event) => themeStore.setState({ systemDark: event.matches }));
+/** At startup, before the first render: keeps the root in step with the store. */
+export function startTheme() {
   themeStore.subscribe(() => applyTheme());
   applyTheme();
 }

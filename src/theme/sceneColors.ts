@@ -1,7 +1,7 @@
 // Excalidraw's dark theme draws the canvas through `invert(93%) hue-rotate(180deg)`
 // (spec habillage §4.3). These convert between a stored element color and the
 // color seen on screen; saturated colors cannot all be shown and come out duller.
-import type { Theme } from "@/app/theme";
+import { PALETTES, type Theme, type ThemeChoice } from "@/app/theme";
 
 type Rgb = [number, number, number];
 
@@ -51,9 +51,8 @@ export function sceneColorFor(displayHex: string, theme: Theme): string {
   return theme === "dark" ? toSceneColor(displayHex) : displayHex;
 }
 
-/** A PNG export looks like the canvas on screen (spec identité §4.5). */
-export function exportBackground(theme: Theme): { exportWithDarkMode: boolean; viewBackgroundColor: string } {
-  return theme === "dark"
-    ? { exportWithDarkMode: true, viewBackgroundColor: toSceneColor("#232220") }
-    : { exportWithDarkMode: false, viewBackgroundColor: "#F7F5EF" };
+/** A PNG export looks like the canvas on screen, in the palette's scheme and on its canvas color (spec identité §4.5). */
+export function exportBackground(palette: ThemeChoice): { exportWithDarkMode: boolean; viewBackgroundColor: string } {
+  const { scheme, canvas } = PALETTES[palette];
+  return scheme === "dark" ? { exportWithDarkMode: true, viewBackgroundColor: toSceneColor(canvas) } : { exportWithDarkMode: false, viewBackgroundColor: canvas };
 }

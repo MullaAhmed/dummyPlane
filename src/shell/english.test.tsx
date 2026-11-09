@@ -66,9 +66,9 @@ it("the settings menu offers the language, applies a choice, and its labels are 
   await open(host.querySelector("button")!);
   const items = menuItems();
   expect(items.map((i) => i.textContent?.trim())).toEqual([
-    "System",
-    "Light (Ivory)",
-    "Dark (Clay)",
+    "Calm and Playful",
+    "Electric and Energetic",
+    "Dark and Expressive",
     "Transparency effects",
     "System",
     "Français",
