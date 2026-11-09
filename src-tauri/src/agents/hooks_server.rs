@@ -14,6 +14,7 @@ use super::activity::{
     gemini_activity,
 };
 use super::mcp;
+use super::subagents::SubagentHook;
 
 /// Larger bodies are refused (spec §10.3).
 pub const MAX_BODY: usize = 64 * 1024;
@@ -34,8 +35,8 @@ pub struct HookHit {
 pub trait HookSink: Send + Sync + 'static {
     /// A hook event that changes a terminal's activity.
     fn hit(&self, hit: HookHit);
-    /// A Claude session started (`true`) or ended (`false`) a subagent.
-    fn subagent(&self, node_id: &str, started: bool);
+    /// A Claude session started or stopped a subagent (`SubagentStart` / `SubagentStop`).
+    fn subagent(&self, node_id: &str, hook: SubagentHook);
     /// The node an MCP token was given to.
     fn mcp_node(&self, token: &str) -> Option<String>;
     /// `tools/list` or `tools/call` for a node, answered by the interface.
@@ -309,11 +310,11 @@ fn status_of(request: &mut Request, token: &str, sink: &dyn HookSink) -> u16 {
     };
     let (activity, session_ended) = match source {
         HookSource::Claude => {
-            let event = json["hook_event_name"].as_str().unwrap_or_default();
-            if matches!(event, "SubagentStart" | "SubagentStop") {
-                sink.subagent(&node_id, event == "SubagentStart");
+            if let Some(hook) = SubagentHook::parse(&json) {
+                sink.subagent(&node_id, hook);
                 return 204;
             }
+            let event = json["hook_event_name"].as_str().unwrap_or_default();
             if claude_session_ended(event, json["reason"].as_str()) {
                 (Some(Activity::Idle), true)
             } else {
@@ -491,7 +492,7 @@ mod tests {
 
     struct TestSink {
         hits: Mutex<mpsc::Sender<HookHit>>,
-        subagents: Mutex<Vec<(String, bool)>>,
+        subagents: Mutex<Vec<(String, SubagentHook)>>,
         statuses: Mutex<Vec<(String, serde_json::Value)>>,
         tokens: mcp::Tokens,
     }
@@ -511,11 +512,11 @@ mod tests {
         fn hit(&self, hit: HookHit) {
             let _ = self.hits.lock().unwrap().send(hit);
         }
-        fn subagent(&self, node_id: &str, started: bool) {
+        fn subagent(&self, node_id: &str, hook: SubagentHook) {
             self.subagents
                 .lock()
                 .unwrap()
-                .push((node_id.to_string(), started));
+                .push((node_id.to_string(), hook));
         }
         fn mcp_node(&self, token: &str) -> Option<String> {
             self.tokens
@@ -978,27 +979,26 @@ mod tests {
             200
         );
         let path = format!("/hook/claude/n1?t={}", server.token);
-        assert_eq!(
-            send(
-                server.port,
-                "POST",
-                &path,
-                br#"{"hook_event_name":"SubagentStart","agent_type":"Explore"}"#
-            ),
-            204
-        );
-        assert_eq!(
-            send(
-                server.port,
-                "POST",
-                &path,
-                br#"{"hook_event_name":"SubagentStop","agent_type":"Explore"}"#
-            ),
-            204
-        );
+        // The real payloads: the start's id is prefixed, the stop's bare.
+        let start = br#"{"session_id":"b7be","transcript_path":"C:/p/b7be.jsonl","cwd":"C:/w","hook_event_name":"SubagentStart","agent_id":"agent-a4d2c6eef3e5fb6b0","agent_type":"Explore"}"#;
+        let stop = br#"{"session_id":"b7be","transcript_path":"C:/p/b7be.jsonl","cwd":"C:/w","hook_event_name":"SubagentStop","stop_hook_active":false,"agent_id":"a4d2c6eef3e5fb6b0","agent_type":"Explore","agent_transcript_path":"C:/p/b7be/subagents/agent-a4d2c6eef3e5fb6b0.jsonl","last_assistant_message":"Done.","background_tasks":[],"session_crons":[]}"#;
+        assert_eq!(send(server.port, "POST", &path, start), 204);
+        assert_eq!(send(server.port, "POST", &path, stop), 204);
+        let hook = SubagentHook {
+            started: true,
+            agent_id: Some("a4d2c6eef3e5fb6b0".into()),
+            agent_type: "Explore".into(),
+            transcript_path: Some("C:/p/b7be.jsonl".into()),
+            agent_transcript_path: None,
+        };
+        let stopped = SubagentHook {
+            started: false,
+            agent_transcript_path: Some("C:/p/b7be/subagents/agent-a4d2c6eef3e5fb6b0.jsonl".into()),
+            ..hook.clone()
+        };
         assert_eq!(
             *sink.subagents.lock().unwrap(),
-            vec![("n1".to_string(), true), ("n1".to_string(), false)]
+            vec![("n1".to_string(), hook), ("n1".to_string(), stopped)]
         );
     }
 

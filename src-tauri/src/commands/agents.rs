@@ -1,6 +1,7 @@
 //! Agent activity as the frontend sees it (spec habillage §10.2, §15.3): the
 //! hook server, the tracker, the `agent-activity` event and the snapshot.
 
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::PathBuf;
 use std::sync::Mutex;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -12,7 +13,7 @@ use tauri::{AppHandle, Emitter, Manager, State};
 use crate::agents::activity::{Activity, Change, HookSource, Tracker};
 use crate::agents::hooks_server::{self, HookHit, HookServer, HookSink};
 use crate::agents::mcp::{Pending, Tokens};
-use crate::agents::subagents::SubagentCounts;
+use crate::agents::subagents::{Emit, Job, SubagentHook, SubagentSnapshot, Subagents};
 use crate::agents::{claude_settings, mcp_files, prompts};
 use crate::error::AppResult;
 use crate::pty::shell::{Agent, AgentHooks, Permission, Role, find_git_bash, which_locate};
@@ -22,6 +23,8 @@ use crate::sync::lock;
 const TICK: Duration = Duration::from_millis(250);
 /// An MCP call the interface has not answered by then fails (spec orchestrateur §4.1).
 const MCP_TIMEOUT: Duration = Duration::from_secs(30);
+/// The subagents' transcripts are read this often.
+const SUBAGENT_POLL: Duration = Duration::from_millis(350);
 
 pub struct AgentState {
     tracker: Mutex<Tracker>,
@@ -35,7 +38,7 @@ pub struct AgentState {
     /// One token per Claude launch, naming its node (spec orchestrateur §4.1).
     mcp_tokens: Tokens,
     mcp_calls: Pending,
-    subagents: Mutex<SubagentCounts>,
+    subagents: Mutex<Subagents>,
 }
 
 #[derive(Clone, Serialize)]
@@ -52,6 +55,13 @@ struct McpCallEvent {
 struct SubagentsEvent {
     node_id: String,
     running: u32,
+}
+
+/// A session's subagents went with it: their nodes go.
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SubagentSessionEvent {
+    node_id: String,
 }
 
 /// What a Claude session's status line was given (spec maj §6).
@@ -147,7 +157,7 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
         mcp_dir,
         mcp_tokens: Tokens::default(),
         mcp_calls: Pending::default(),
-        subagents: Mutex::new(SubagentCounts::default()),
+        subagents: Mutex::new(Subagents::default()),
     });
     let ticker = app.clone();
     std::thread::spawn(move || {
@@ -159,7 +169,42 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
             }
         }
     });
+    let poller = app.clone();
+    std::thread::spawn(move || {
+        loop {
+            std::thread::sleep(SUBAGENT_POLL);
+            // A transcript that makes the reading panic must not end the reading of the others.
+            if catch_unwind(AssertUnwindSafe(|| poll_subagents(&poller))).is_err() {
+                log::error!("subagent transcripts: a poll panicked");
+            }
+        }
+    });
     Ok(())
+}
+
+/// Reads what the subagents' transcripts added, without holding the lock the
+/// hooks take, then tells the frontend.
+fn poll_subagents(app: &AppHandle) {
+    let state = app.state::<AgentState>();
+    let jobs = lock(&state.subagents).jobs(Instant::now());
+    let done = jobs.into_iter().map(Job::run).collect();
+    let mut subagents = lock(&state.subagents);
+    let emits = subagents.apply(done, Instant::now());
+    emit_subagents(app, emits);
+}
+
+/// Called with the lock held: the events reach the frontend in the order the
+/// state changed, never one about a session after its end.
+fn emit_subagents(app: &AppHandle, emits: Vec<Emit>) {
+    for emit in emits {
+        let _ = match emit {
+            Emit::Running { node_id, running } => {
+                app.emit("agent-subagents", SubagentsEvent { node_id, running })
+            }
+            Emit::Info(info) => app.emit("agent-subagent", info),
+            Emit::Output(output) => app.emit("subagent-output", output),
+        };
+    }
 }
 
 /// The app behind the hook server.
@@ -170,18 +215,13 @@ impl HookSink for AppSink {
         on_hook(&self.0, hit);
     }
 
-    fn subagent(&self, node_id: &str, started: bool) {
+    fn subagent(&self, node_id: &str, hook: SubagentHook) {
         let Some(state) = self.0.try_state::<AgentState>() else {
             return;
         };
-        let running = lock(&state.subagents).change(node_id, started);
-        let _ = self.0.emit(
-            "agent-subagents",
-            SubagentsEvent {
-                node_id: node_id.into(),
-                running,
-            },
-        );
+        let mut subagents = lock(&state.subagents);
+        let emits = subagents.hook(node_id, hook, Instant::now());
+        emit_subagents(&self.0, emits);
     }
 
     fn mcp_node(&self, token: &str) -> Option<String> {
@@ -219,12 +259,22 @@ impl HookSink for AppSink {
 
 /// A session or its process ended: its subagents went with it.
 fn clear_subagents(app: &AppHandle, state: &AgentState, node_id: &str) {
-    if lock(&state.subagents).clear(node_id) {
+    let mut subagents = lock(&state.subagents);
+    let cleared = subagents.clear(node_id);
+    if cleared.running {
         let _ = app.emit(
             "agent-subagents",
             SubagentsEvent {
                 node_id: node_id.into(),
                 running: 0,
+            },
+        );
+    }
+    if cleared.any {
+        let _ = app.emit(
+            "subagent-session-ended",
+            SubagentSessionEvent {
+                node_id: node_id.into(),
             },
         );
     }
@@ -403,6 +453,12 @@ pub async fn agent_activity_snapshot(state: State<'_, AgentState>) -> AppResult<
         activities,
         subagents,
     })
+}
+
+/// The running subagents and their kept lines, for a page that reloads.
+#[tauri::command]
+pub async fn subagent_snapshot(state: State<'_, AgentState>) -> AppResult<Vec<SubagentSnapshot>> {
+    Ok(lock(&state.subagents).snapshot())
 }
 
 #[cfg(test)]
