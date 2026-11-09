@@ -1,4 +1,3 @@
-use crate::tr;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -177,10 +176,7 @@ pub struct AgentHooks {
 /// would start as a plain Claude in the user's folder, so it does not start.
 pub fn orchestrator_tools(hooks: &AgentHooks, server_running: bool) -> Result<(), String> {
     if !server_running {
-        return Err(tr!(
-            "le serveur local d'OpenVibe n'a pas démarré",
-            "OpenVibe's local server did not start"
-        ));
+        return Err("OpenVibe's local server did not start".to_string());
     }
     let complete = hooks.claude_settings.is_some()
         && hooks.mcp_config.is_some()
@@ -188,10 +184,7 @@ pub fn orchestrator_tools(hooks: &AgentHooks, server_running: bool) -> Result<()
     if complete {
         Ok(())
     } else {
-        Err(tr!(
-            "ses réglages n'ont pas pu être écrits (voir le journal)",
-            "its settings could not be written (see the log)"
-        ))
+        Err("its settings could not be written (see the log)".to_string())
     }
 }
 
@@ -283,10 +276,7 @@ pub fn resolve_shell(kind: ShellKind, locate: Locate) -> AppResult<ShellProgram>
                 syntax: ShellSyntax::PowerShell,
             })
             .ok_or_else(|| {
-                AppError::NotFound(tr!(
-                    "pwsh introuvable dans le PATH",
-                    "pwsh not found in the PATH"
-                ))
+                AppError::NotFound("pwsh not found in the PATH".to_string())
             }),
         ShellKind::GitBash => locate("git")
             .and_then(|git| find_git_bash(&git))
@@ -295,7 +285,7 @@ pub fn resolve_shell(kind: ShellKind, locate: Locate) -> AppResult<ShellProgram>
                 args: vec!["--login".into(), "-i".into()],
                 syntax: ShellSyntax::Posix,
             })
-            .ok_or_else(|| AppError::NotFound(tr!("Git Bash introuvable", "Git Bash not found"))),
+            .ok_or_else(|| AppError::NotFound("Git Bash not found".to_string())),
     }
 }
 
@@ -378,10 +368,7 @@ pub fn agent_command(
         Agent::Custom => {
             let command = spec.command.trim();
             if command.is_empty() {
-                return Err(AppError::InvalidInput(tr!(
-                    "la commande personnalisée est vide",
-                    "the custom command is empty"
-                )));
+                return Err(AppError::InvalidInput("the custom command is empty".to_string()));
             }
             Some(command.to_string())
         }
@@ -400,7 +387,7 @@ pub fn agent_command(
 /// ("qwen2.5-coder:7b", "hf.co/user/model:tag") are accepted.
 fn ollama_command(launch: Option<&OllamaLaunch>, syntax: ShellSyntax) -> AppResult<String> {
     let launch = launch.ok_or_else(|| {
-        AppError::InvalidInput(tr!("options Ollama manquantes", "Ollama options missing"))
+        AppError::InvalidInput("Ollama options missing".to_string())
     })?;
     let model = launch.model.trim();
     let valid = !model.is_empty()
@@ -408,10 +395,7 @@ fn ollama_command(launch: Option<&OllamaLaunch>, syntax: ShellSyntax) -> AppResu
             .chars()
             .all(|c| c.is_ascii_alphanumeric() || "._:/-".contains(c));
     if !valid {
-        return Err(AppError::InvalidInput(tr!(
-            "modèle Ollama invalide : {model}",
-            "invalid Ollama model: {model}"
-        )));
+        return Err(AppError::InvalidInput(format!("invalid Ollama model: {model}")));
     }
     Ok(match launch.mode {
         OllamaMode::Chat => format!("ollama run {}", quote(syntax, model)),
@@ -431,7 +415,7 @@ fn claude_command(
     hooks: &AgentHooks,
 ) -> AppResult<String> {
     let launch = launch.ok_or_else(|| {
-        AppError::InvalidInput(tr!("options Claude manquantes", "Claude options missing"))
+        AppError::InvalidInput("Claude options missing".to_string())
     })?;
     let mut claude = "claude".to_string();
     let flags = [
@@ -461,10 +445,7 @@ fn claude_command(
                 .chars()
                 .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '.' | '_' | '[' | ']'));
         if !valid {
-            return Err(AppError::InvalidInput(tr!(
-                "modèle invalide : {model}",
-                "invalid model: {model}"
-            )));
+            return Err(AppError::InvalidInput(format!("invalid model: {model}")));
         }
         claude.push_str(&format!(" --model {}", quote(syntax, model)));
     }
@@ -482,10 +463,7 @@ fn claude_command(
     // Parsing guarantees the id is a bare UUID, so it never needs quoting.
     let session = uuid::Uuid::parse_str(&launch.session_id).map_err(|_| {
         let id = &launch.session_id;
-        AppError::InvalidInput(tr!(
-            "identifiant de session invalide : {id}",
-            "invalid session id: {id}"
-        ))
+        AppError::InvalidInput(format!("invalid session id: {id}"))
     })?;
     let title = clean_title(&launch.title);
     Ok(match launch.mode {
@@ -573,10 +551,7 @@ pub fn build_plan(
     let cwd = PathBuf::from(&spec.cwd);
     if !cwd.is_dir() {
         let cwd = &spec.cwd;
-        return Err(AppError::NotFound(tr!(
-            "dossier introuvable : {cwd}",
-            "folder not found: {cwd}"
-        )));
+        return Err(AppError::NotFound(format!("folder not found: {cwd}")));
     }
     let shell = resolve_shell(spec.shell, locate)?;
     let initial_input =
@@ -805,14 +780,14 @@ mod tests {
         )
         .unwrap_err();
         assert_eq!(err.kind(), "invalidInput");
-        let english = crate::i18n::in_english(|| {
+        let english = {
             agent_command(
                 &spec(Agent::Claude, launch_with("x; rm -rf /")),
                 ShellSyntax::Posix,
                 &AgentHooks::default(),
             )
             .unwrap_err()
-        });
+        };
         assert_eq!(english.to_string(), "invalid session id: x; rm -rf /");
     }
 
@@ -930,7 +905,7 @@ mod tests {
         assert_eq!(orchestrator_tools(&tooled(), true), Ok(()));
         assert_eq!(
             orchestrator_tools(&AgentHooks::default(), false),
-            Err("le serveur local d'OpenVibe n'a pas démarré".to_string())
+            Err("OpenVibe's local server did not start".to_string())
         );
         for partial in [
             AgentHooks {
@@ -948,7 +923,7 @@ mod tests {
         ] {
             assert_eq!(
                 orchestrator_tools(&partial, true),
-                Err("ses réglages n'ont pas pu être écrits (voir le journal)".to_string())
+                Err("its settings could not be written (see the log)".to_string())
             );
         }
     }
@@ -1145,9 +1120,9 @@ mod tests {
                 .kind(),
             "notFound"
         );
-        let english = crate::i18n::in_english(|| {
+        let english = {
             build_plan("n", &s, &nothing_on_path, &AgentHooks::default()).unwrap_err()
-        });
+        };
         assert_eq!(
             english.to_string(),
             "folder not found: Z:/definitely/not/here"

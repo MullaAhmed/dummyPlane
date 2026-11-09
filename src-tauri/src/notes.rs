@@ -2,7 +2,6 @@
 //! that agents can simply read them. Only names arrive here, never paths, and
 //! the studio's confinement does the rest.
 
-use crate::tr;
 use std::collections::BTreeSet;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
@@ -63,10 +62,7 @@ pub fn is_valid_name(name: &str) -> bool {
 
 fn note_file(name: &str) -> Result<String, String> {
     if !is_valid_name(name) {
-        return Err(tr!(
-            "nom de note refusé : {name}",
-            "note name refused: {name}"
-        ));
+        return Err(format!("note name refused: {name}"));
     }
     Ok(format!("{name}{EXTENSION}"))
 }
@@ -83,10 +79,7 @@ fn notes_root(project: &Path, create: bool) -> Result<PathBuf, String> {
     let real = std::fs::canonicalize(&root).map_err(|err| err.to_string())?;
     let base = std::fs::canonicalize(project).map_err(|err| err.to_string())?;
     if !real.starts_with(&base) {
-        return Err(tr!(
-            "chemin refusé : {NOTES_FOLDER}",
-            "path refused: {NOTES_FOLDER}"
-        ));
+        return Err(format!("path refused: {NOTES_FOLDER}"));
     }
     Ok(real)
 }
@@ -158,7 +151,7 @@ pub fn read(project: &Path, name: &str) -> Result<OpenedFile, String> {
     let file = note_file(name)?;
     let root = notes_root(project, false)?;
     if !root.is_dir() {
-        return Err(tr!("note introuvable : {name}", "note not found: {name}"));
+        return Err(format!("note not found: {name}"));
     }
     studio::read(&root, &file)
 }
@@ -226,10 +219,7 @@ pub fn project_of_node(conn: &Connection, node_id: &str) -> AppResult<Project> {
         )
         .optional()?;
     let project_id = project_id.ok_or_else(|| {
-        AppError::NotFound(tr!(
-            "nœud introuvable : {node_id}",
-            "node not found: {node_id}"
-        ))
+        AppError::NotFound(format!("node not found: {node_id}"))
     })?;
     projects::get(conn, &project_id)
 }
@@ -424,7 +414,7 @@ mod tests {
             }
         );
         assert_eq!(version(dir.path(), "plan").unwrap(), None);
-        let refused = crate::i18n::in_english(|| read(dir.path(), "plan").unwrap_err());
+        let refused = read(dir.path(), "plan").unwrap_err();
         assert_eq!(refused, "note not found: plan");
         assert!(!dir.path().join(".openvibe").exists());
     }

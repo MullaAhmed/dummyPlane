@@ -29,19 +29,13 @@ const UPDATE_STOP_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(
 
 fn log_dir(app: &AppHandle) -> AppResult<PathBuf> {
     app.path().app_log_dir().map_err(|err| {
-        AppError::NotFound(crate::tr!(
-            "Dossier des journaux introuvable : {err}",
-            "Logs folder not found: {err}"
-        ))
+        AppError::NotFound(format!("Logs folder not found: {err}"))
     })
 }
 
 fn data_dir(app: &AppHandle) -> AppResult<PathBuf> {
     app.path().app_data_dir().map_err(|err| {
-        AppError::NotFound(crate::tr!(
-            "Dossier des données introuvable : {err}",
-            "Data folder not found: {err}"
-        ))
+        AppError::NotFound(format!("Data folder not found: {err}"))
     })
 }
 

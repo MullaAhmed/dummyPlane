@@ -4,7 +4,6 @@ pub mod scrollback;
 pub mod session;
 pub mod shell;
 
-use crate::tr;
 use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
@@ -73,10 +72,7 @@ impl PtyManager {
         let history = lock(&self.histories).remove(node_id).unwrap_or_default();
         let mut sessions = lock(&self.sessions);
         if sessions.contains_key(node_id) {
-            return Err(AppError::InvalidInput(tr!(
-                "le terminal {node_id} tourne déjà",
-                "terminal {node_id} is already running"
-            )));
+            return Err(AppError::InvalidInput(format!("terminal {node_id} is already running")));
         }
         let Started {
             session,
@@ -181,10 +177,7 @@ impl PtyManager {
     pub fn claim_start(&self, node_id: &str) -> AppResult<StartClaim> {
         let mut starting = lock(&self.starting);
         if self.is_running(node_id) || !starting.insert(node_id.to_string()) {
-            return Err(AppError::InvalidInput(tr!(
-                "le terminal {node_id} tourne déjà",
-                "terminal {node_id} is already running"
-            )));
+            return Err(AppError::InvalidInput(format!("terminal {node_id} is already running")));
         }
         Ok(StartClaim {
             starting: self.starting.clone(),
@@ -240,10 +233,7 @@ impl PtyManager {
 
     fn require(&self, node_id: &str) -> AppResult<Arc<Session>> {
         self.get(node_id).ok_or_else(|| {
-            AppError::NotFound(tr!(
-                "aucun terminal actif pour {node_id}",
-                "no active terminal for {node_id}"
-            ))
+            AppError::NotFound(format!("no active terminal for {node_id}"))
         })
     }
 }

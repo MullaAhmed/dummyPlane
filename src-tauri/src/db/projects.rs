@@ -1,4 +1,3 @@
-use crate::tr;
 use rusqlite::{Connection, OptionalExtension, params};
 use serde::Serialize;
 
@@ -99,10 +98,7 @@ pub fn create(conn: &Connection, path: &str) -> AppResult<Project> {
 pub fn rename(conn: &Connection, id: &str, name: &str) -> AppResult<()> {
     let name = name.trim();
     if name.is_empty() {
-        return Err(AppError::InvalidInput(tr!(
-            "le nom du projet est vide",
-            "the project name is empty"
-        )));
+        return Err(AppError::InvalidInput("the project name is empty".to_string()));
     }
     changed(
         conn.execute(
@@ -171,7 +167,7 @@ fn rebase_payload(payload: &mut serde_json::Value, from: &str, to: &str) -> bool
 }
 
 /// Points the project at another folder, and its nodes with it: a terminal
-/// started in the old folder (or below) would otherwise fail with "dossier introuvable".
+/// started in the old folder (or below) would otherwise fail with "folder not found".
 pub fn relocate(conn: &Connection, id: &str, path: &str) -> AppResult<()> {
     let path = valid_path(conn, path, Some(id))?;
     let old = get(conn, id)?.path;
@@ -243,10 +239,7 @@ pub fn delete(conn: &Connection, id: &str) -> AppResult<Deleted> {
 fn valid_path(conn: &Connection, path: &str, except: Option<&str>) -> AppResult<String> {
     let path = normalize_path(path);
     if path.is_empty() {
-        return Err(AppError::InvalidInput(tr!(
-            "le dossier du projet est vide",
-            "the project folder is empty"
-        )));
+        return Err(AppError::InvalidInput("the project folder is empty".to_string()));
     }
     let key = path_key(&path);
     let mut stmt = conn.prepare("SELECT id, path FROM projects")?;
@@ -259,10 +252,7 @@ fn valid_path(conn: &Connection, path: &str, except: Option<&str>) -> AppResult<
         .iter()
         .any(|(id, other)| Some(id.as_str()) != except && path_key(other) == key)
     {
-        return Err(AppError::InvalidInput(tr!(
-            "ce dossier est déjà un projet : {path}",
-            "this folder is already a project: {path}"
-        )));
+        return Err(AppError::InvalidInput(format!("this folder is already a project: {path}")));
     }
     Ok(path)
 }
@@ -276,7 +266,7 @@ fn changed(rows: usize, id: &str) -> AppResult<()> {
 }
 
 fn not_found(id: &str) -> AppError {
-    AppError::NotFound(tr!("projet introuvable : {id}", "project not found: {id}"))
+    AppError::NotFound(format!("project not found: {id}"))
 }
 
 #[cfg(test)]
@@ -307,7 +297,7 @@ mod tests {
 
     #[test]
     fn refuses_an_empty_folder_in_english() {
-        crate::i18n::in_english(|| {
+        {
             Db::open_in_memory()
                 .unwrap()
                 .with(|conn| {
@@ -318,7 +308,7 @@ mod tests {
                     Ok(())
                 })
                 .unwrap();
-        });
+        };
     }
 
     #[test]

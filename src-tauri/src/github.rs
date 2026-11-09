@@ -10,7 +10,6 @@ use serde_json::Value;
 
 use crate::error::{AppError, AppResult};
 use crate::process::hide_window;
-use crate::tr;
 
 /// Enough for a Kanban; `gh` stops at 30 by default.
 const ISSUE_LIMIT: &str = "200";
@@ -229,19 +228,13 @@ pub fn date_of_day(days: i64) -> String {
 }
 
 fn unreadable(detail: impl std::fmt::Display) -> AppError {
-    AppError::Github(tr!(
-        "réponse de gh illisible : {detail}",
-        "unreadable gh output: {detail}"
-    ))
+    AppError::Github(format!("unreadable gh output: {detail}"))
 }
 
 /// Runs `gh` in `path`; a missing CLI, a missing login and a failed call each say so.
 fn gh(path: &Path, args: &[&str]) -> AppResult<String> {
     let program = crate::pty::shell::which_locate("gh").ok_or_else(|| {
-        AppError::Github(tr!(
-            "GitHub CLI (gh) introuvable : installez-la (https://cli.github.com) puis lancez `gh auth login`.",
-            "GitHub CLI (gh) not found: install it (https://cli.github.com) then run `gh auth login`."
-        ))
+        AppError::Github("GitHub CLI (gh) not found: install it (https://cli.github.com) then run `gh auth login`.".to_string())
     })?;
     let mut command = Command::new(program);
     command
@@ -257,21 +250,12 @@ fn gh(path: &Path, args: &[&str]) -> AppResult<String> {
     }
     let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
     if stderr.contains("gh auth login") || stderr.contains("not logged") {
-        return Err(AppError::Github(tr!(
-            "GitHub CLI non authentifiée : lancez `gh auth login` dans un terminal.",
-            "GitHub CLI not authenticated: run `gh auth login` in a terminal."
-        )));
+        return Err(AppError::Github("GitHub CLI not authenticated: run `gh auth login` in a terminal.".to_string()));
     }
     if stderr.contains("missing required scopes") || stderr.contains("read:project") {
-        return Err(AppError::Github(tr!(
-            "Accès aux Projects GitHub refusé : lancez `gh auth refresh -s project`.",
-            "Access to GitHub Projects denied: run `gh auth refresh -s project`."
-        )));
+        return Err(AppError::Github("Access to GitHub Projects denied: run `gh auth refresh -s project`.".to_string()));
     }
-    Err(AppError::Github(tr!(
-        "gh a échoué : {stderr}",
-        "gh failed: {stderr}"
-    )))
+    Err(AppError::Github(format!("gh failed: {stderr}")))
 }
 
 /// "owner/name" of the project's `origin` remote; None when it is not on github.com.
@@ -373,10 +357,7 @@ fn status_field(path: &Path, owner: &str, number: &str) -> AppResult<StatusField
         ],
     )?;
     parse_status_field(&json)?.ok_or_else(|| {
-        AppError::NotFound(tr!(
-            "ce Project GitHub n'a pas de champ Status",
-            "this GitHub Project has no Status field"
-        ))
+        AppError::NotFound("this GitHub Project has no Status field".to_string())
     })
 }
 
@@ -401,10 +382,7 @@ pub fn set_issue_state(path: &Path, repo: &str, number: u64, state: &str) -> App
         "closed" => "close",
         "open" => "reopen",
         other => {
-            return Err(AppError::InvalidInput(tr!(
-                "état d'issue inconnu : {other}",
-                "unknown issue state: {other}"
-            )));
+            return Err(AppError::InvalidInput(format!("unknown issue state: {other}")));
         }
     };
     gh(path, &["issue", verb, &number.to_string(), "--repo", repo])?;
@@ -428,10 +406,7 @@ pub fn move_project_item(
         .find(|(_, name)| name.trim().to_lowercase() == wanted)
         .map(|(id, _)| id.clone())
         .ok_or_else(|| {
-            AppError::NotFound(tr!(
-                "statut « {status} » absent du Project GitHub",
-                "status \"{status}\" not in the GitHub Project"
-            ))
+            AppError::NotFound(format!("status \"{status}\" not in the GitHub Project"))
         })?;
     let view = gh(
         path,

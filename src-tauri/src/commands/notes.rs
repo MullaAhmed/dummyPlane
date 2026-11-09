@@ -7,7 +7,6 @@ use crate::db::projects;
 use crate::error::{AppError, AppResult};
 use crate::notes::{self, AgentNote, NoteList};
 use crate::studio::{OpenedFile, WriteOutcome};
-use crate::tr;
 
 /// The project's folder, read here: the interface never names a root (spec notes §3).
 fn project_root(db: &Db, project_id: &str) -> AppResult<PathBuf> {
@@ -80,10 +79,7 @@ pub async fn notes_agent_list(
     node_ids: Vec<String>,
 ) -> AppResult<Vec<AgentNote>> {
     let Some(caller) = node_ids.first() else {
-        return Err(AppError::InvalidInput(tr!(
-            "aucun nœud donné",
-            "no node given"
-        )));
+        return Err(AppError::InvalidInput("no node given".to_string()));
     };
     let root = node_root(&db, caller)?;
     let attached = db.with(|conn| {

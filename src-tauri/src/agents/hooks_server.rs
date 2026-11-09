@@ -541,7 +541,7 @@ mod tests {
             }
             assert_ne!(node_id, "boom", "a sink that panics");
             if node_id == "slow" {
-                return Err("OpenVibe ne répond pas".into());
+                return Err("OpenVibe is not responding".into());
             }
             Ok(serde_json::json!({ "node": node_id, "method": method, "params": params }))
         }
@@ -865,7 +865,7 @@ mod tests {
             br#"{"jsonrpc":"2.0","id":3,"method":"tools/list"}"#,
         );
         let json: serde_json::Value = serde_json::from_str(&body).unwrap();
-        assert_eq!(json["error"]["message"], "OpenVibe ne répond pas");
+        assert_eq!(json["error"]["message"], "OpenVibe is not responding");
     }
 
     #[test]
