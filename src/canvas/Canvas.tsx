@@ -8,6 +8,7 @@ import { usePalette, useTheme } from "@/app/theme";
 import { completeArrival } from "@/commands/pendingArrival";
 import { assignMissingNames } from "@/fleet/naming";
 import { dismissResumeOffer, offerResumeAll } from "@/fleet/ResumeAllToast";
+import { createSpawnDragWatch, reflowAfterClose } from "@/fleet/spawnTree";
 import { adoptCopies } from "@/fleet/terminals";
 import { scheduleWireUpkeep } from "@/fleet/wireUpkeep";
 import { orchestratorLinks } from "@/fleet/wires";
@@ -171,6 +172,7 @@ function LoadedCanvas({ workspaceId, scene }: { workspaceId: string; scene: Load
   }, [workspaceId]);
 
   const trackActivation = useMemo(() => createActivationTracker(), []);
+  const watchSpawnDrags = useMemo(() => createSpawnDragWatch(workspaceId), [workspaceId]);
 
   const onChange = useCallback(
     (elements: readonly ExcalidrawElement[], appState: AppState, files: BinaryFiles) => {
@@ -178,6 +180,9 @@ function LoadedCanvas({ workspaceId, scene }: { workspaceId: string; scene: Load
       const verdict = guardRemovals(elements, removedNow.current);
       removedNow.current = [];
       settleRemovals(verdict);
+      // A closed spawned agent's tree closes up (flowchart layout).
+      reflowAfterClose(workspaceId, verdict.dispose);
+      watchSpawnDrags(elements, appState);
       canvasStore.getState().setView(viewFrom(appState));
       canvasStore.getState().setDrawnSelection(drawnSelectionOf(elements, appState.selectedElementIds));
       canvasStore.getState().setFrames(framesFromScene(elements));
@@ -191,7 +196,7 @@ function LoadedCanvas({ workspaceId, scene }: { workspaceId: string; scene: Load
       // Deferred: changing the view from inside onChange would re-enter it.
       if (activated && api) requestAnimationFrame(() => showAtFullSize(api, activated));
     },
-    [sync, guardRemovals, trackActivation, api],
+    [sync, guardRemovals, trackActivation, watchSpawnDrags, workspaceId, api],
   );
 
   return (
