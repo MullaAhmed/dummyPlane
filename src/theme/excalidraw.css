@@ -63,6 +63,12 @@
   display: none !important;
 }
 
+/* Excalidraw's own properties panel (stroke, fill, widths, layers…) is replaced by SelectionPanel,
+   which keeps only the stroke and background colours and Duplicate and Delete. Its keys and context menu do not go through it. */
+.excalidraw .selected-shape-actions {
+  display: none !important;
+}
+
 /* The properties panel is kept, in dense glass, docked right of the tool rail (spec identité §5.7). */
 .excalidraw .App-menu__left {
   position: fixed;
