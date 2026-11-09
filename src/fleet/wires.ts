@@ -1,14 +1,40 @@
-import type { ExcalidrawArrowElement, ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
+import type {
+  ExcalidrawArrowElement,
+  ExcalidrawElbowArrowElement,
+  ExcalidrawElement,
+  FixedPoint,
+  FixedPointBinding,
+} from "@excalidraw/excalidraw/element/types";
 import { groupAt, groupInfoOf, type SceneFrame } from "@/canvas/groups";
 import { findTerminalAt } from "@/canvas/hitTest";
 import { nodeKindOf } from "@/canvas/nodeElement";
 import type { Point } from "./terminals";
 
-/** The terracotta of the wires (spec identity §4.2, "terracotta"). */
-export const WIRE_COLOR = "#C2603F";
+/**
+ * The orange of the wires: the default palette's accent (`--dp-accent` of
+ * expressive, #FF781B) as stored, `toSceneColor("#FF781B")`. Excalidraw's dark
+ * filter shows it #FC752C, the nearest it can (spec habillage §4.3); the light
+ * palette shows it as stored.
+ */
+export const WIRE_COLOR = "#F25500";
 
-/** Space between a wire's ends and the elements it joins. */
-const GAP = 8;
+/** What wires were drawn with before: a wire still in one of them takes WIRE_COLOR when it is elbowed. */
+const FORMER_WIRE_COLORS = ["#c2603f", "#f4602e"];
+
+// Excalidraw 0.18.1's constants (tests cannot load Excalidraw):
+/**
+ * FIXED_BINDING_DISTANCE: an elbow arrow's end stands this far off the element
+ * it joins. Excalidraw only keeps a fixed point at that distance as it is.
+ */
+const GAP = 5;
+/** The middle of a side as normalizeFixedPoint stores it (0.5 becomes 0.5001): restore() leaves it as is. */
+const MIDDLE = 0.5001;
+/** BASE_PADDING: how far a route keeps off the elements it goes around. */
+const DETOUR = 40;
+/** DEDUP_TRESHOLD: a step shorter than this is no step. */
+const STRAIGHT = 1;
+
+const random = () => Math.floor(Math.random() * 2 ** 31);
 
 /** What an orchestrator is wired to. */
 export interface Links {
@@ -75,48 +101,135 @@ export function sameLinks(a: Record<string, Links>, b: Record<string, Links>): b
   return keys.every((k) => b[k] !== undefined && same(a[k].groupIds, b[k].groupIds) && same(a[k].nodeIds, b[k].nodeIds));
 }
 
+type Side = "left" | "right" | "top" | "bottom";
+type Box = Pick<ExcalidrawElement, "x" | "y" | "width" | "height">;
+
 /**
- * A complete arrow from the side of `orchestrator` facing `target` to the side
- * of `target` facing it, curving gently, without heads (spec §13). Every base
- * field is set here, as for the nodes (Excalidraw's skeletons cannot bind to
- * existing elements).
+ * The sides a wire leaves `from` by and reaches `to` by: facing each other,
+ * side by side first, else one above the other. Boxes that overlap (an
+ * orchestrator dropped on a group's frame) are both reached on the side of
+ * `to` nearer the middle of `from`.
  */
-export function createWire(orchestrator: ExcalidrawElement, target: ExcalidrawElement): ExcalidrawArrowElement {
-  const toRight = target.x + target.width / 2 >= orchestrator.x + orchestrator.width / 2;
-  const start = {
-    x: toRight ? orchestrator.x + orchestrator.width + GAP : orchestrator.x - GAP,
-    y: orchestrator.y + orchestrator.height / 2,
-  };
-  const end = {
-    x: toRight ? target.x - GAP : target.x + target.width + GAP,
-    y: target.y + target.height / 2,
-  };
+function wireSides(from: Box, to: Box): [Side, Side] {
+  const room = 2 * GAP;
+  if (to.x >= from.x + from.width + room) return ["right", "left"];
+  if (to.x + to.width <= from.x - room) return ["left", "right"];
+  if (to.y >= from.y + from.height + room) return ["bottom", "top"];
+  if (to.y + to.height <= from.y - room) return ["top", "bottom"];
+  const middle = from.x + from.width / 2;
+  const side = middle - to.x <= to.x + to.width - middle ? "left" : "right";
+  return [side, side];
+}
+
+/** Excalidraw's fixed point for the middle of a side, GAP out: ratios of the box's width and height. */
+function fixedPointOf(box: Box, side: Side): FixedPoint {
+  const out = (size: number) => GAP / (size || 1);
+  switch (side) {
+    case "left":
+      return [-out(box.width), MIDDLE];
+    case "right":
+      return [1 + out(box.width), MIDDLE];
+    case "top":
+      return [MIDDLE, -out(box.height)];
+    case "bottom":
+      return [MIDDLE, 1 + out(box.height)];
+  }
+}
+
+/** Where a fixed point is on the scene, as Excalidraw places it (nodes and frames are not rotated). */
+function scenePoint(box: Box, [ratioX, ratioY]: FixedPoint): Point {
+  return { x: box.x + box.width * ratioX, y: box.y + box.height * ratioY };
+}
+
+/**
+ * An orthogonal route from `start` to `end`, relative to `start`: out of the
+ * start side, across half way, into the end side; straight when the ends are
+ * level, around DETOUR past the farther one when both are on the same side.
+ */
+function route(start: Point, [startSide, endSide]: [Side, Side], end: Point): [number, number][] {
   const dx = end.x - start.x;
   const dy = end.y - start.y;
-  const points = [
-    [0, 0],
-    [dx / 2, dy / 2 - Math.abs(dx) * 0.12],
-    [dx, dy],
-  ] as const;
+  if (startSide === "top" || startSide === "bottom") {
+    if (Math.abs(dx) < STRAIGHT) return [[0, 0], [0, dy]];
+    return [[0, 0], [0, dy / 2], [dx, dy / 2], [dx, dy]];
+  }
+  if (startSide === endSide) {
+    const across = startSide === "right" ? Math.max(0, dx) + DETOUR : Math.min(0, dx) - DETOUR;
+    return [[0, 0], [across, 0], [across, dy], [dx, dy]];
+  }
+  if (Math.abs(dy) < STRAIGHT) return [[0, 0], [dx, 0]];
+  return [[0, 0], [dx / 2, 0], [dx / 2, dy], [dx, dy]];
+}
+
+type ElbowForm = Pick<
+  ExcalidrawElbowArrowElement,
+  | "x"
+  | "y"
+  | "width"
+  | "height"
+  | "angle"
+  | "points"
+  | "lastCommittedPoint"
+  | "elbowed"
+  | "roundness"
+  | "roughness"
+  | "startBinding"
+  | "endBinding"
+  | "fixedSegments"
+  | "startIsSpecial"
+  | "endIsSpecial"
+>;
+
+/**
+ * An elbow arrow from `from` to `to` as they stand: bound by fixed points at
+ * the middle of the sides that face each other, routed through them. Excalidraw
+ * routes it again from those fixed points whenever one of the two moves.
+ */
+function elbowForm(from: ExcalidrawElement, to: ExcalidrawElement): ElbowForm {
+  const sides = wireSides(from, to);
+  const startPoint = fixedPointOf(from, sides[0]);
+  const endPoint = fixedPointOf(to, sides[1]);
+  const start = scenePoint(from, startPoint);
+  const points = route(start, sides, scenePoint(to, endPoint));
   const xs = points.map(([x]) => x);
   const ys = points.map(([, y]) => y);
-  const random = () => Math.floor(Math.random() * 2 ** 31);
+  // Focus and gap as Excalidraw's bindLinearElement writes them for an elbow arrow: the fixed point says it all.
+  const binding = (elementId: string, fixedPoint: FixedPoint): FixedPointBinding => ({ elementId, focus: 0, gap: 0, fixedPoint });
   return {
-    id: crypto.randomUUID(),
-    type: "arrow",
     x: start.x,
     y: start.y,
     width: Math.max(...xs) - Math.min(...xs),
     height: Math.max(...ys) - Math.min(...ys),
-    angle: 0 as ExcalidrawArrowElement["angle"],
+    angle: 0 as ExcalidrawElbowArrowElement["angle"],
+    points: points as unknown as ExcalidrawElbowArrowElement["points"],
+    lastCommittedPoint: null,
+    elbowed: true,
+    // Excalidraw draws an elbow arrow's corners round whatever this says, and sets it to null.
+    roundness: null,
+    roughness: 0,
+    startBinding: binding(from.id, startPoint),
+    endBinding: binding(to.id, endPoint),
+    fixedSegments: null,
+    startIsSpecial: false,
+    endIsSpecial: false,
+  };
+}
+
+/**
+ * A complete elbow arrow from the side of `orchestrator` facing `target` to the
+ * side of `target` facing it, without heads (spec §13). Every base field is set
+ * here, as for the nodes (Excalidraw's skeletons cannot bind to existing
+ * elements).
+ */
+export function createWire(orchestrator: ExcalidrawElement, target: ExcalidrawElement): ExcalidrawElbowArrowElement {
+  return {
+    id: crypto.randomUUID(),
+    type: "arrow",
     strokeColor: WIRE_COLOR,
     backgroundColor: "transparent",
     fillStyle: "solid",
     strokeWidth: 2,
     strokeStyle: "solid",
-    // Excalidraw's ROUNDNESS.PROPORTIONAL_RADIUS: the line curves through its middle point.
-    roundness: { type: 2 },
-    roughness: 0,
     opacity: 100,
     seed: random(),
     version: 1,
@@ -129,15 +242,43 @@ export function createWire(orchestrator: ExcalidrawElement, target: ExcalidrawEl
     updated: Date.now(),
     link: null,
     locked: false,
-    points: points.map(([x, y]) => [x, y]) as unknown as ExcalidrawArrowElement["points"],
-    lastCommittedPoint: null,
-    startBinding: { elementId: orchestrator.id, focus: 0, gap: GAP },
-    endBinding: { elementId: target.id, focus: 0, gap: GAP },
     startArrowhead: null,
     endArrowhead: null,
-    elbowed: false,
     customData: { dummyplane: { kind: "wire" } },
+    ...elbowForm(orchestrator, target),
   };
+}
+
+/**
+ * The wires of a scene as elbow arrows: those saved before wires were elbowed,
+ * and the hand-drawn ones marked since, get a route between their ends as they
+ * are now, with the same id and the same ends. Excalidraw's restore() unbinds an
+ * elbow arrow whose binding has no fixed point; these have one. A wire whose end
+ * is gone is left to `orphanWires`. The scene itself when nothing changes.
+ */
+export function elbowWires(elements: readonly ExcalidrawElement[]): readonly ExcalidrawElement[] {
+  const byId = new Map(elements.map((e) => [e.id, e]));
+  let changed = false;
+  const next = elements.map((element) => {
+    if (element.type !== "arrow" || !isWire(element)) return element;
+    const wire = element as ExcalidrawArrowElement;
+    if (wire.elbowed) return element;
+    const from = wire.startBinding && byId.get(wire.startBinding.elementId);
+    const to = wire.endBinding && byId.get(wire.endBinding.elementId);
+    if (!from || !to) return element;
+    changed = true;
+    const strokeColor = FORMER_WIRE_COLORS.includes(wire.strokeColor.toLowerCase()) ? WIRE_COLOR : wire.strokeColor;
+    const elbow: ExcalidrawElbowArrowElement = {
+      ...wire,
+      ...elbowForm(from, to),
+      strokeColor,
+      version: wire.version + 1,
+      versionNonce: random(),
+      updated: Date.now(),
+    };
+    return elbow;
+  });
+  return changed ? next : elements;
 }
 
 /** `elements` with a new wire, recorded on both ends, unless one already joins them (spec §13). */

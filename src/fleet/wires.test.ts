@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
-import type { ExcalidrawArrowElement, ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
+import type { ExcalidrawArrowElement, ExcalidrawElbowArrowElement, ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { createGroupFrame, framesFromScene } from "@/canvas/groups";
 import { createNodeElement } from "@/canvas/nodeElement";
+import { toSceneColor } from "@/theme/sceneColors";
 import {
   createWire,
+  elbowWires,
   isWire,
   linkedAgents,
   linkTargetAt,
@@ -29,20 +31,65 @@ function handDrawn(from: ExcalidrawElement, to: ExcalidrawElement): ExcalidrawEl
   return { ...wire, id: `hand-${to.id}`, customData: undefined } as ExcalidrawElement;
 }
 
+/** A wire as createWire made them before they were elbowed: three points curving through the middle one. */
+function curvedWire(from: ExcalidrawElement, to: ExcalidrawElement, strokeColor = "#C2603F"): ExcalidrawElement {
+  const start = { x: from.x + from.width + 8, y: from.y + from.height / 2 };
+  const dx = to.x - 8 - start.x;
+  const dy = to.y + to.height / 2 - start.y;
+  return {
+    ...createWire(from, to),
+    id: `curved-${to.id}`,
+    x: start.x,
+    y: start.y,
+    width: dx,
+    height: Math.abs(dy),
+    strokeColor,
+    roundness: { type: 2 },
+    points: [[0, 0], [dx / 2, dy / 2 - dx * 0.12], [dx, dy]],
+    startBinding: { elementId: from.id, focus: 0, gap: 8 },
+    endBinding: { elementId: to.id, focus: 0, gap: 8 },
+    elbowed: false,
+    fixedSegments: undefined,
+    startIsSpecial: undefined,
+    endIsSpecial: undefined,
+    version: 3,
+    versionNonce: 42,
+  } as unknown as ExcalidrawElement;
+}
+
+/** Every segment runs straight across or straight down. */
+const orthogonal = (points: readonly (readonly number[])[]) => points.slice(1).every(([x, y], i) => x === points[i][0] || y === points[i][1]);
+
+/** A wire's ends on the scene. */
+const ends = (wire: ExcalidrawArrowElement) => {
+  const last = wire.points[wire.points.length - 1];
+  return { start: { x: wire.x + wire.points[0][0], y: wire.y + wire.points[0][1] }, end: { x: wire.x + last[0], y: wire.y + last[1] } };
+};
+
+/** Where Excalidraw puts a fixed point on the scene (getGlobalFixedPointForBindableElement, unrotated). */
+const fixedOnScene = (element: ExcalidrawElement, [rx, ry]: readonly number[]) => ({ x: element.x + element.width * rx, y: element.y + element.height * ry });
+
 describe("withWire / createWire", () => {
-  it("adds an orange curved arrow without heads, bound at both ends", () => {
+  it("adds an orange elbow arrow without heads, bound at both ends", () => {
     const elements = withWire(base, orchestrator.id, frame.id);
-    const wire = elements[elements.length - 1] as ExcalidrawArrowElement;
+    const wire = elements[elements.length - 1] as ExcalidrawElbowArrowElement;
     expect(wire).toMatchObject({
       type: "arrow",
       strokeColor: WIRE_COLOR,
+      strokeWidth: 2,
+      strokeStyle: "solid",
+      roughness: 0,
+      roundness: null,
+      elbowed: true,
+      fixedSegments: null,
+      startIsSpecial: false,
+      endIsSpecial: false,
       startArrowhead: null,
       endArrowhead: null,
       startBinding: { elementId: orchestrator.id },
       endBinding: { elementId: frame.id },
       customData: { dummyplane: { kind: "wire" } },
     });
-    expect(wire.points).toHaveLength(3);
     expect(isWire(wire)).toBe(true);
     const bound = (id: string) => elements.find((e) => e.id === id)?.boundElements;
     expect(bound(orchestrator.id)).toEqual([{ id: wire.id, type: "arrow" }]);
@@ -52,6 +99,136 @@ describe("withWire / createWire", () => {
   it("does not wire the same target twice", () => {
     const once = withWire(base, orchestrator.id, lone.id);
     expect(withWire(once, orchestrator.id, lone.id)).toHaveLength(once.length);
+  });
+
+  it("is drawn in the default palette's accent as the dark filter shows it", () => {
+    expect(WIRE_COLOR.toLowerCase()).toBe(toSceneColor("#FF781B"));
+  });
+
+  it("goes out across, down half way, and in across to a target aside, from the facing sides", () => {
+    const aside = createNodeElement("terminal", { x: 1200, y: 600 }) as unknown as ExcalidrawElement;
+    const wire = createWire(orchestrator, aside);
+    expect(wire.points).toHaveLength(4);
+    expect(orthogonal(wire.points)).toBe(true);
+    const [, bend, , last] = wire.points;
+    expect(bend[1]).toBe(0);
+    expect(bend[0]).toBeCloseTo(last[0] / 2);
+    // Out of the orchestrator's right side, into the target's left side, 5 px off each (Excalidraw's FIXED_BINDING_DISTANCE).
+    expect(wire.startBinding!.fixedPoint).toEqual([1 + 5 / orchestrator.width, 0.5001]);
+    expect(wire.endBinding!.fixedPoint).toEqual([-5 / aside.width, 0.5001]);
+    const { start, end } = ends(wire);
+    expect(start).toEqual(fixedOnScene(orchestrator, wire.startBinding!.fixedPoint));
+    expect(end.x).toBeCloseTo(fixedOnScene(aside, wire.endBinding!.fixedPoint).x);
+    expect(end.y).toBeCloseTo(fixedOnScene(aside, wire.endBinding!.fixedPoint).y);
+    expect(start.x - (orchestrator.x + orchestrator.width)).toBeCloseTo(5);
+    expect(aside.x - end.x).toBeCloseTo(5);
+    expect(wire).toMatchObject({ width: last[0], height: last[1] });
+  });
+
+  it("leaves from the left side for a target on the left", () => {
+    const left = createNodeElement("terminal", { x: -1200, y: -600 }) as unknown as ExcalidrawElement;
+    const wire = createWire(orchestrator, left);
+    expect(orthogonal(wire.points)).toBe(true);
+    expect(wire.points[1][0]).toBeLessThan(0);
+    expect(wire.startBinding!.fixedPoint[0]).toBeLessThan(0);
+    expect(wire.endBinding!.fixedPoint[0]).toBeGreaterThan(1);
+  });
+
+  it("goes down then across for a target under the orchestrator, never back through it", () => {
+    const under = createNodeElement("terminal", { x: 300, y: 1200 }) as unknown as ExcalidrawElement;
+    const wire = createWire(orchestrator, under);
+    expect(wire.points).toHaveLength(4);
+    expect(orthogonal(wire.points)).toBe(true);
+    expect(wire.points[1]).toEqual([0, wire.points[1][1]]);
+    expect(wire.points[1][1]).toBeGreaterThan(0);
+    expect(wire.startBinding!.fixedPoint).toEqual([0.5001, 1 + 5 / orchestrator.height]);
+    expect(wire.endBinding!.fixedPoint).toEqual([0.5001, -5 / under.height]);
+    // Right under it: straight down, out of the bottom.
+    const straight = createWire(orchestrator, lone);
+    expect(straight.points).toHaveLength(2);
+    expect(straight.points[1][0]).toBe(0);
+    expect(straight.points[1][1]).toBeGreaterThan(0);
+    // Above it: up.
+    const above = createWire(orchestrator, createNodeElement("terminal", { x: 300, y: -1200 }) as unknown as ExcalidrawElement);
+    expect(above.points[1][1]).toBeLessThan(0);
+  });
+
+  it("is one straight segment between level sides", () => {
+    const wire = createWire(orchestrator, frame);
+    expect(wire.points).toHaveLength(2);
+    expect(wire.points[1][1]).toBe(0);
+    expect(wire.points[1][0]).toBeGreaterThan(0);
+  });
+
+  it("goes around when the orchestrator stands on its group's frame", () => {
+    const inside = createNodeElement("orchestrator", { x: 1000, y: 0 }) as unknown as ExcalidrawElement;
+    const wire = createWire(inside, frame);
+    expect(orthogonal(wire.points)).toBe(true);
+    // Out to the left of both, then into the frame's left side from outside.
+    const [, out, , last] = wire.points;
+    expect(out[0]).toBeLessThan(last[0]);
+    expect(out[0]).toBeLessThan(0);
+    expect(wire.endBinding!.fixedPoint[0]).toBeLessThan(0);
+  });
+});
+
+describe("elbowWires (wires saved before they were elbowed)", () => {
+  const scene = (...extra: ExcalidrawElement[]) => [...base, ...extra];
+
+  it("elbows a curved wire with the same id and ends, bound by fixed points", () => {
+    const curved = curvedWire(orchestrator, member);
+    const elements = scene(curved);
+    const migrated = elbowWires(elements);
+    const wire = migrated.find((e) => e.id === curved.id) as ExcalidrawElbowArrowElement;
+    expect(wire).toMatchObject({
+      elbowed: true,
+      roundness: null,
+      roughness: 0,
+      fixedSegments: null,
+      strokeColor: WIRE_COLOR,
+      version: 4,
+      startBinding: { elementId: orchestrator.id, fixedPoint: [1 + 5 / orchestrator.width, 0.5001] },
+      endBinding: { elementId: member.id, fixedPoint: [-5 / member.width, 0.5001] },
+      customData: { dummyplane: { kind: "wire" } },
+    });
+    expect(wire.versionNonce).not.toBe(42);
+    expect(orthogonal(wire.points)).toBe(true);
+    expect(ends(wire).start).toEqual(fixedOnScene(orchestrator, wire.startBinding!.fixedPoint));
+    // Everything else is the same element.
+    base.forEach((e, i) => expect(migrated[i]).toBe(e));
+    // Still the same link.
+    expect(orchestratorTargets(migrated, orchestrator.id)).toEqual(orchestratorTargets(elements, orchestrator.id));
+  });
+
+  it("keeps a colour picked for the wire, and its heads", () => {
+    const picked = { ...curvedWire(orchestrator, lone, "#3F74A8"), endArrowhead: "arrow" } as ExcalidrawElement;
+    const wire = elbowWires(scene(picked)).find((e) => e.id === picked.id) as ExcalidrawElbowArrowElement;
+    expect(wire).toMatchObject({ elbowed: true, strokeColor: "#3F74A8", endArrowhead: "arrow" });
+  });
+
+  it("routes a wire drawn from its target from the target, as it is bound", () => {
+    const reversed = { ...curvedWire(orchestrator, lone), startBinding: { elementId: lone.id, focus: 0, gap: 8 }, endBinding: { elementId: orchestrator.id, focus: 0, gap: 8 } } as ExcalidrawElement;
+    const wire = elbowWires(scene(reversed)).find((e) => e.id === reversed.id) as ExcalidrawElbowArrowElement;
+    expect(wire.startBinding!.elementId).toBe(lone.id);
+    expect(wire.endBinding!.elementId).toBe(orchestrator.id);
+    // Up out of the terminal's top, into the orchestrator's bottom.
+    expect(wire.points[wire.points.length - 1][1]).toBeLessThan(0);
+    expect(wire.startBinding!.fixedPoint[1]).toBeLessThan(0);
+    expect(wire.endBinding!.fixedPoint[1]).toBeGreaterThan(1);
+  });
+
+  it("elbows a deleted wire too, which an undo may bring back", () => {
+    const dropped = { ...curvedWire(orchestrator, lone), isDeleted: true } as ExcalidrawElement;
+    expect(elbowWires(scene(dropped)).find((e) => e.id === dropped.id)).toMatchObject({ elbowed: true, isDeleted: true });
+  });
+
+  it("leaves plain arrows, elbowed wires and wires without an end alone", () => {
+    const plainArrow = { ...curvedWire(orchestrator, lone), id: "plain-arrow", customData: undefined } as ExcalidrawElement;
+    const elbowed = withWire(base, orchestrator.id, frame.id)[base.length];
+    const endless = { ...curvedWire(orchestrator, lone), id: "endless", endBinding: null } as ExcalidrawElement;
+    const gone = { ...curvedWire(orchestrator, lone), id: "gone", endBinding: { elementId: "nowhere", focus: 0, gap: 8 } } as ExcalidrawElement;
+    const elements = scene(plainArrow, elbowed, endless, gone);
+    expect(elbowWires(elements)).toBe(elements);
   });
 });
 
