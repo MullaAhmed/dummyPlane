@@ -22,6 +22,8 @@ import { uiStore } from "@/store/ui";
 import { createActivationTracker } from "./activation";
 import { canvasStore, fullSizeView, viewFrom } from "./canvasStore";
 import { framesFromScene } from "./groups";
+import { drawnSelectionOf } from "./drawnSelection";
+import { SelectionPanel } from "./SelectionPanel";
 import { isOpenVibeLink } from "./nodeElement";
 import { classifyAddedNodes } from "./nodeCopies";
 import { createRemovalGuard, type RemovalVerdict } from "./removalGuard";
@@ -101,6 +103,7 @@ function LoadedCanvas({ workspaceId, scene }: { workspaceId: string; scene: Load
       canvasStore.getState().setNodeIds([]);
       canvasStore.getState().setNodeRects({});
       canvasStore.getState().setLinks({});
+      canvasStore.getState().setDrawnSelection([]);
     },
     [],
   );
@@ -163,6 +166,7 @@ function LoadedCanvas({ workspaceId, scene }: { workspaceId: string; scene: Load
       removedNow.current = [];
       settleRemovals(verdict);
       canvasStore.getState().setView(viewFrom(appState));
+      canvasStore.getState().setDrawnSelection(drawnSelectionOf(elements, appState.selectedElementIds));
       canvasStore.getState().setFrames(framesFromScene(elements));
       canvasStore.getState().setNodeIds(liveNodeIds(elements));
       canvasStore.getState().setNodeRects(liveNodeRects(elements));
@@ -193,6 +197,7 @@ function LoadedCanvas({ workspaceId, scene }: { workspaceId: string; scene: Load
           renderEmbeddable={(element) => <NodeHost element={element} />}
         />
       </div>
+      <SelectionPanel />
     </div>
   );
 }
