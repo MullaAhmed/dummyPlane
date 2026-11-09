@@ -1,4 +1,5 @@
 import type { ComponentProps, ReactNode } from "react";
+import { Button } from "@/components/ui/button";
 import { DialogContent } from "@/components/ui/dialog";
 import { useMessages } from "@/i18n";
 import type { FileSession, SessionState } from "./fileSession";
@@ -31,31 +32,30 @@ export function DiskBanner({ session, disk, onDrop }: { session: FileSession; di
   const t = useMessages(studioMessages);
   const { reload, overwrite, dropFile } = session.getState();
   const gone = disk.version === null;
-  const action = "shrink-0 rounded-[6px] px-2 py-0.5 text-[12px] font-medium text-dp-text hover:bg-dp-hover";
   return (
     <div
       role="alert"
-      className="flex shrink-0 items-center gap-2 border-b border-dp-line px-3 py-1.5 text-[12px] text-dp-text"
+      className="flex shrink-0 items-center gap-2 border-b border-dp-line px-3 py-1.5 text-xs text-dp-text"
       style={{ backgroundColor: "color-mix(in srgb, var(--dp-wait) 16%, transparent)" }}
     >
       <span className="min-w-0 flex-1">{gone ? t.deletedOnDisk : t.changedOnDisk}</span>
       {gone ? (
         <>
-          <button type="button" className={action} onClick={onDrop ?? dropFile}>
+          <Button variant="ghost" size="xs" onClick={onDrop ?? dropFile}>
             {t.drop}
-          </button>
-          <button type="button" className={action} onClick={() => void overwrite()}>
+          </Button>
+          <Button variant="ghost" size="xs" onClick={() => void overwrite()}>
             {t.recreate}
-          </button>
+          </Button>
         </>
       ) : (
         <>
-          <button type="button" className={action} onClick={() => void reload()}>
+          <Button variant="ghost" size="xs" onClick={() => void reload()}>
             {t.reload}
-          </button>
-          <button type="button" className={action} onClick={() => void overwrite()}>
+          </Button>
+          <Button variant="ghost" size="xs" onClick={() => void overwrite()}>
             {t.overwrite}
-          </button>
+          </Button>
         </>
       )}
     </div>
