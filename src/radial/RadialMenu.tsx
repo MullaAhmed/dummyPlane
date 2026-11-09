@@ -51,7 +51,7 @@ export function RadialMenu() {
             aria-label={line.label}
             aria-disabled={!line.enabled}
             className={cn(
-              "dp-glass-strong pointer-events-auto absolute grid size-11 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full text-dp-text transition-transform duration-100",
+              "dp-glass-strong pointer-events-auto absolute grid size-11 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full text-dp-text transition-[transform,background-color,opacity] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none",
               ring.hovered === slot && line.enabled && "scale-[1.06] bg-dp-accent-soft ring-1 ring-dp-accent",
               !line.enabled && "opacity-40",
             )}
@@ -61,7 +61,7 @@ export function RadialMenu() {
             onPointerLeave={() => updateRadial({ hovered: null })}
             onClick={() => line.enabled && chooseSlot(slot)}
           >
-            <line.Icon className={cn("size-[18px]", line.danger && "text-dp-danger")} />
+            <line.Icon className={cn("size-4", line.danger && "text-dp-danger")} />
           </button>
         );
       })}
@@ -70,7 +70,7 @@ export function RadialMenu() {
         aria-label={t.closeMenu}
         onPointerDown={keepKeyboard}
         onClick={closeRadial}
-        className="dp-glass-strong pointer-events-auto absolute grid size-8 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full text-dp-text-2"
+        className="dp-glass-strong pointer-events-auto absolute grid size-8 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full text-dp-text-2 transition-[color,background-color,transform] duration-150 ease-out hover:text-dp-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] motion-reduce:transition-none"
         style={{ left: 0, top: 0 }}
       >
         <X className="size-4" />

@@ -71,7 +71,7 @@ export function SelectionPanel() {
     );
 
   return (
-    <div className="dp-glass-strong absolute left-[70px] top-1/2 z-10 w-56 -translate-y-1/2 rounded-[14px] p-3">
+    <div className="dp-glass-strong absolute left-[70px] top-1/2 z-10 w-56 -translate-y-1/2 rounded-lg p-3">
       <Row label={LABEL.stroke}>
         {SWATCHES.map(({ scene, name }) => (
           <Swatch
@@ -126,9 +126,9 @@ function Swatch({ name, color, active, onPick }: { name: string; color: string |
       onMouseDown={keepCanvasFocus}
       onClick={onPick}
       className={cn(
-        "size-6 rounded-full ring-offset-2 ring-offset-dp-surface-2",
-        color === null ? "border border-dashed border-dp-line" : "border border-black/10",
-        active && "ring-2 ring-dp-accent",
+        "size-6 rounded-full ring-offset-2 ring-offset-dp-surface outline-none transition-[transform,box-shadow] duration-150 ease-out motion-reduce:transition-none active:scale-[0.97] focus-visible:ring-2 focus-visible:ring-dp-accent/50",
+        color === null ? "border border-dashed border-dp-line" : "border border-dp-line/60",
+        active ? "ring-2 ring-dp-accent" : "hover:ring-1 hover:ring-dp-text-3",
       )}
       style={color === null ? undefined : { backgroundColor: color }}
     />
@@ -142,7 +142,7 @@ function ActionButton({ icon, label, onClick }: { icon: ReactNode; label: string
       aria-label={label}
       onMouseDown={keepCanvasFocus}
       onClick={onClick}
-      className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-transparent bg-dp-card py-1.5 text-xs text-dp-text-2 hover:text-dp-text"
+      className="flex flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent bg-dp-card py-1.5 text-xs text-dp-text-2 transition-[color,background-color,transform] duration-150 ease-out motion-reduce:transition-none hover:bg-dp-hover hover:text-dp-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97]"
     >
       {icon}
       {label}

@@ -38,7 +38,7 @@ export function HeaderButton(props: { label: string; onClick: () => void; childr
       title={props.label}
       aria-label={props.label}
       onClick={props.onClick}
-      className="grid size-5 place-items-center rounded text-dp-text-2 hover:bg-dp-card hover:text-dp-text [&_svg]:size-3.5"
+      className="grid size-7 shrink-0 place-items-center rounded-md text-dp-text-2 transition-[color,background-color,transform] duration-150 ease-out hover:bg-dp-hover hover:text-dp-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] disabled:opacity-50 disabled:pointer-events-none motion-reduce:transition-none [&_svg]:size-4"
     >
       {props.children}
     </button>
@@ -65,7 +65,7 @@ function RelaunchMenu(props: { nodeId: string; payload: TerminalPayload; running
           type="button"
           title={t.relaunch}
           aria-label={t.relaunch}
-          className="grid size-5 place-items-center rounded text-dp-text-2 hover:bg-dp-card hover:text-dp-text [&_svg]:size-3.5"
+          className="grid size-7 shrink-0 place-items-center rounded-md text-dp-text-2 transition-[color,background-color,transform] duration-150 ease-out hover:bg-dp-hover hover:text-dp-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] motion-reduce:transition-none [&_svg]:size-4"
         >
           <RotateCw />
         </button>
@@ -123,7 +123,7 @@ function ModelChip({ nodeId, model }: { nodeId: string; model: string }) {
           type="button"
           data-model={model}
           title={t.modelChosen(model)}
-          className="rounded px-1 font-mono text-[10px] text-dp-text-2 hover:bg-dp-card hover:text-dp-text"
+          className="rounded-md px-1 font-mono text-[10px] text-dp-text-2 transition-[color,background-color] duration-150 ease-out hover:bg-dp-hover hover:text-dp-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none"
         >
           {modelLabel(model)}
         </button>
@@ -161,11 +161,11 @@ export function TerminalHeader(props: {
   return (
     <header
       title={payload.title}
-      className="flex h-7 shrink-0 items-center gap-1.5 border-b border-dp-line bg-dp-terminal-head px-2 text-xs"
+      className="flex h-9 shrink-0 items-center gap-2 border-b border-dp-line bg-dp-terminal-head px-3 text-xs"
     >
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button type="button" aria-label="Agent" className="flex items-center gap-0.5 rounded px-0.5 hover:bg-dp-card">
+          <button type="button" aria-label="Agent" className="flex h-7 items-center gap-0.5 rounded-md px-1 transition-[background-color] duration-150 ease-out hover:bg-dp-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none">
             <meta.Icon className="size-3.5" style={{ color: agentInk(meta.tint) }} />
             <ChevronDown className="size-3 text-dp-text-2" />
           </button>
@@ -188,7 +188,7 @@ export function TerminalHeader(props: {
       <span
         aria-hidden
         className="size-1.5 shrink-0 rounded-full"
-        style={{ backgroundColor: role ? ROLES[role].color : "var(--dp-idle)" }}
+        style={{ backgroundColor: role ? ROLES[role].color : "var(--dp-text-3)" }}
       />
       {editing ? (
         <Input

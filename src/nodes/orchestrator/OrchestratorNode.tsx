@@ -34,6 +34,7 @@ import { useTerminalHost } from "../terminal/useTerminalHost";
 import { ToolsUnavailable } from "./ToolsUnavailable";
 import { useMessages } from "@/i18n";
 import { nodesMessages } from "@/nodes/messages";
+import { Button } from "@/components/ui/button";
 
 /** The manager of a team: its Claude session, then its mission (spec orchestrateur §6). */
 export function OrchestratorNode({ nodeId }: { nodeId: string }) {
@@ -71,10 +72,10 @@ export function OrchestratorNode({ nodeId }: { nodeId: string }) {
     <div
       ref={rootRef}
       data-orchestrator={nodeId}
-      className="relative flex h-full flex-col overflow-hidden rounded-xl bg-dp-surface-2"
+      className="relative flex h-full flex-col overflow-hidden rounded-xl bg-dp-surface text-dp-text"
       style={frameStyle("var(--dp-accent)", selected, waiting)}
     >
-      <header className="flex h-10 shrink-0 items-center gap-2 border-b border-dp-line px-3">
+      <header className="flex h-9 shrink-0 items-center gap-2 border-b border-dp-line px-3">
         <Network className="size-4 shrink-0 text-dp-accent" />
         <NameField nodeId={nodeId} value={record.payload.name} onCommit={(name) => renameOrchestrator(nodeId, name)} />
         <span className="ml-auto flex items-center gap-2 font-mono text-[11px] text-dp-text-2">
@@ -84,13 +85,9 @@ export function OrchestratorNode({ nodeId }: { nodeId: string }) {
         {session && <RemoteButton nodeId={nodeId} wanted={session.remoteControl === true} running={status.state === "running"} />}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              aria-label={t.menu}
-              className="grid size-5 place-items-center rounded text-dp-text-2 hover:bg-dp-card hover:text-dp-text"
-            >
-              <ChevronDown className="size-3.5" />
-            </button>
+            <Button variant="ghost" size="icon-sm" aria-label={t.menu}>
+              <ChevronDown className="size-4" />
+            </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
             <DropdownMenuItem onSelect={() => void pauseAll(linked.agentIds)}>{t.pauseAll}</DropdownMenuItem>
@@ -173,7 +170,7 @@ function NameInput({ initial, onDone }: { initial: string; onDone: (name: string
       onBlur={() => {
         if (!cancelled.current) onDone(draft);
       }}
-      className="w-36 rounded bg-dp-card px-1 text-[13px] font-semibold text-dp-text outline-none"
+      className="w-36 rounded-md bg-dp-card px-1 text-[13px] font-semibold text-dp-text outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50"
     />
   );
 }

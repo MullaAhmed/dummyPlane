@@ -178,31 +178,27 @@ export function KanbanNode({ nodeId }: { nodeId: string }) {
   const editedColumn = editing?.mode === "new" ? board.columns.find((c) => c.id === editing.columnId) : undefined;
 
   return (
-    <div data-kanban={nodeId} className="flex h-full flex-col overflow-hidden rounded-xl border border-dp-line bg-card text-card-foreground">
-      <header className="flex h-10 shrink-0 items-center gap-2 border-b border-dp-line px-3">
+    <div data-kanban={nodeId} className="flex h-full flex-col overflow-hidden rounded-xl border border-dp-line bg-dp-surface text-dp-text">
+      <header className="flex h-9 shrink-0 items-center gap-2 border-b border-dp-line px-3">
         <KanbanSquare className="size-4 shrink-0 text-dp-accent" />
         <span className="truncate text-[13px] font-semibold text-dp-text">{t.title}</span>
         {board.github && (
-          <span className="truncate font-mono text-[11px] text-muted-foreground" title={t.github.linkedTo(board.github.repo)}>
+          <span className="truncate font-mono text-[11px] text-dp-text-2" title={t.github.linkedTo(board.github.repo)}>
             {board.github.repo}
           </span>
         )}
-        <span className="ml-auto shrink-0 font-mono text-[11px] text-muted-foreground">{t.cardCount(Object.keys(board.cards).length)}</span>
+        <span className="ml-auto shrink-0 font-mono text-[11px] text-dp-text-2">{t.cardCount(Object.keys(board.cards).length)}</span>
         {board.github && (
-          <Button size="sm" variant="ghost" className="h-7 gap-1 px-2 text-[12px]" disabled={syncing} onClick={() => void sync()}>
+          <Button size="sm" variant="ghost" className="h-7 gap-1 px-2 text-xs" disabled={syncing} onClick={() => void sync()}>
             <RefreshCw className={cn("size-3.5", syncing && "animate-spin")} />
             {syncing ? t.github.syncing : t.github.sync}
           </Button>
         )}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              aria-label={t.github.boardMenu}
-              className="grid size-7 shrink-0 place-items-center rounded text-muted-foreground hover:bg-dp-hover hover:text-dp-text"
-            >
+            <Button variant="ghost" size="icon-sm" aria-label={t.github.boardMenu}>
               <MoreHorizontal className="size-4" />
-            </button>
+            </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
             <DropdownMenuItem onSelect={() => setLinking(true)}>{board.github ? t.github.editLink : t.github.link}</DropdownMenuItem>
@@ -222,7 +218,7 @@ export function KanbanNode({ nodeId }: { nodeId: string }) {
       </header>
       <div ref={scroller} className="flex min-h-0 flex-1 gap-3 overflow-x-auto overflow-y-hidden p-3">
         {board.columns.length === 0 ? (
-          <div className="flex flex-1 flex-col items-center justify-center gap-3 text-sm text-muted-foreground">
+          <div className="flex flex-1 flex-col items-center justify-center gap-3 text-sm text-dp-text-2">
             <p>{t.empty}</p>
             <Button size="sm" onClick={newColumn}>
               <Plus />
@@ -261,7 +257,7 @@ export function KanbanNode({ nodeId }: { nodeId: string }) {
             <button
               type="button"
               onClick={newColumn}
-              className="flex h-9 w-56 shrink-0 items-center gap-1.5 rounded-lg border border-dashed border-dp-line px-3 text-[13px] text-muted-foreground hover:bg-dp-hover hover:text-dp-text"
+              className="flex h-9 w-56 shrink-0 items-center gap-1.5 rounded-lg border border-dashed border-dp-line px-3 text-[13px] text-dp-text-2 transition-[color,background-color] duration-150 ease-out hover:bg-dp-hover hover:text-dp-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] motion-reduce:transition-none"
             >
               <Plus className="size-4" />
               {t.addColumn}
@@ -361,7 +357,7 @@ function LinkDialog({
           <DialogHeader>
             <DialogTitle>{t.github.linkTitle}</DialogTitle>
           </DialogHeader>
-          <p className="text-[12px] text-muted-foreground">{t.github.linkHint}</p>
+          <p className="text-xs text-dp-text-2">{t.github.linkHint}</p>
           <div className="grid gap-1.5">
             <Label htmlFor="kanban-github-repo">{t.github.repo}</Label>
             <Input
@@ -371,8 +367,8 @@ function LinkDialog({
               placeholder={detecting ? t.github.detecting : t.github.repoPlaceholder}
               onChange={(e) => setRepo(e.target.value)}
             />
-            {repo.trim() && !repoValid && <p className="text-[12px] text-dp-danger">{t.github.repoInvalid}</p>}
-            {notDetected && !repo.trim() && <p className="text-[12px] text-muted-foreground">{t.github.notDetected}</p>}
+            {repo.trim() && !repoValid && <p className="text-xs text-dp-danger">{t.github.repoInvalid}</p>}
+            {notDetected && !repo.trim() && <p className="text-xs text-dp-text-2">{t.github.notDetected}</p>}
           </div>
           <div className="grid gap-1.5">
             <Label htmlFor="kanban-github-project">{t.github.project}</Label>
@@ -382,7 +378,7 @@ function LinkDialog({
               placeholder={t.github.projectPlaceholder}
               onChange={(e) => setProject(e.target.value)}
             />
-            {!projectValid && <p className="text-[12px] text-dp-danger">{t.github.projectInvalid}</p>}
+            {!projectValid && <p className="text-xs text-dp-danger">{t.github.projectInvalid}</p>}
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>
@@ -425,7 +421,7 @@ function ColumnView(props: ColumnViewProps) {
   return (
     <section
       data-column-id={column.id}
-      className="flex w-60 shrink-0 flex-col rounded-lg bg-dp-surface-2"
+      className="flex w-60 shrink-0 flex-col rounded-lg bg-dp-surface"
       onDragOver={props.onDragOver}
       onDragLeave={props.onDragLeave}
       onDrop={props.onDrop}
@@ -438,28 +434,18 @@ function ColumnView(props: ColumnViewProps) {
             {column.title}
           </h3>
         )}
-        <span data-testid="column-count" className="rounded-full bg-dp-card px-1.5 font-mono text-[11px] text-muted-foreground">
+        <span data-testid="column-count" className="rounded-full bg-dp-card px-1.5 font-mono text-[11px] text-dp-text-2">
           {cards.length}
         </span>
         <span className="ml-auto flex items-center">
-          <button
-            type="button"
-            aria-label={t.newCard}
-            title={t.newCard}
-            onClick={props.onNewCard}
-            className="grid size-6 place-items-center rounded text-muted-foreground hover:bg-dp-hover hover:text-dp-text"
-          >
+          <Button variant="ghost" size="icon-xs" aria-label={t.newCard} title={t.newCard} onClick={props.onNewCard}>
             <Plus className="size-3.5" />
-          </button>
+          </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                aria-label={t.columnMenu(column.title)}
-                className="grid size-6 place-items-center rounded text-muted-foreground hover:bg-dp-hover hover:text-dp-text"
-              >
+              <Button variant="ghost" size="icon-xs" aria-label={t.columnMenu(column.title)}>
                 <MoreHorizontal className="size-3.5" />
-              </button>
+              </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
               <DropdownMenuItem onSelect={props.onRenameStart}>{t.rename}</DropdownMenuItem>
@@ -492,7 +478,7 @@ function ColumnView(props: ColumnViewProps) {
         <button
           type="button"
           onClick={props.onNewCard}
-          className="flex h-8 shrink-0 items-center gap-1.5 rounded-md px-2 text-[12px] text-muted-foreground hover:bg-dp-hover hover:text-dp-text"
+          className="flex h-8 shrink-0 items-center gap-1.5 rounded-md px-2 text-xs text-dp-text-2 transition-[color,background-color] duration-150 ease-out hover:bg-dp-hover hover:text-dp-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] motion-reduce:transition-none"
         >
           <Plus className="size-3.5" />
           {t.newCard}
@@ -528,7 +514,7 @@ function CardView({
       onDragEnd={onDragEnd}
       onClick={onOpen}
       className={cn(
-        "relative shrink-0 cursor-grab overflow-hidden rounded-md border border-dp-line bg-dp-card py-2 pr-2.5 pl-3.5 text-left shadow-dp hover:border-dp-accent/50",
+        "relative shrink-0 cursor-grab overflow-hidden rounded-md border border-dp-line bg-dp-card py-2 pr-2.5 pl-3.5 text-left text-dp-text shadow-dp transition-[border-color,opacity] duration-150 ease-out hover:border-dp-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none",
         dragging && "opacity-40",
       )}
     >
@@ -541,7 +527,7 @@ function CardView({
               title={overdue ? t.overdue : undefined}
               className={cn(
                 "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px]",
-                overdue ? "bg-destructive/15 text-dp-danger" : "bg-dp-surface-2 text-muted-foreground",
+                overdue ? "bg-dp-danger/15 text-dp-danger" : "bg-dp-surface text-dp-text-2",
               )}
             >
               <Calendar className="size-3" />
@@ -557,8 +543,8 @@ function CardView({
                 if (card.github?.url) void openUrl(card.github.url).catch(() => undefined);
               }}
               className={cn(
-                "inline-flex items-center gap-1 rounded bg-dp-surface-2 px-1.5 py-0.5 font-mono text-[11px] hover:text-dp-text",
-                card.github.state === "closed" ? "text-dp-accent" : "text-muted-foreground",
+                "inline-flex items-center gap-1 rounded bg-dp-surface px-1.5 py-0.5 font-mono text-[11px] transition-colors duration-150 ease-out hover:text-dp-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none",
+                card.github.state === "closed" ? "text-dp-accent" : "text-dp-text-2",
               )}
             >
               <CircleDot className="size-3" />#{card.github.number}
@@ -570,7 +556,7 @@ function CardView({
               data-agent-status={card.agentStatus}
               className={cn(
                 "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px]",
-                card.agentStatus ? "bg-destructive/15 text-dp-danger" : "bg-dp-accent/15 text-dp-accent",
+                card.agentStatus ? "bg-dp-danger/15 text-dp-danger" : "bg-dp-accent/15 text-dp-accent",
               )}
             >
               <Bot className="size-3" />
@@ -579,7 +565,7 @@ function CardView({
           )}
         </div>
       )}
-      {card.notes.trim() && <p className="mt-1 line-clamp-2 text-[12px] leading-snug text-muted-foreground">{card.notes}</p>}
+      {card.notes.trim() && <p className="mt-1 line-clamp-2 text-xs leading-snug text-dp-text-2">{card.notes}</p>}
     </div>
   );
 }
@@ -613,7 +599,7 @@ function TitleInput({ initial, onDone }: { initial: string; onDone: (title: stri
       onBlur={() => {
         if (!cancelled.current) onDone(draft);
       }}
-      className="min-w-0 flex-1 rounded bg-dp-card px-1 text-[13px] font-semibold text-dp-text outline-none"
+      className="min-w-0 flex-1 rounded-md bg-dp-card px-1 text-[13px] font-semibold text-dp-text outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50"
     />
   );
 }
@@ -657,8 +643,8 @@ function CardDialog({
 
   const chip = (active: boolean) =>
     cn(
-      "h-7 rounded-md border px-2 text-[12px] transition-colors",
-      active ? "border-dp-accent bg-dp-accent-soft text-dp-text" : "border-dp-line text-muted-foreground hover:bg-dp-hover hover:text-dp-text",
+      "h-7 rounded-md border px-2 text-xs transition-[color,background-color,border-color] duration-150 ease-out motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97]",
+      active ? "border-dp-accent bg-dp-accent-soft text-dp-text" : "border-dp-line text-dp-text-2 hover:bg-dp-hover hover:text-dp-text",
     );
 
   return (
@@ -680,7 +666,7 @@ function CardDialog({
               value={notes}
               placeholder={t.notesPlaceholder}
               onChange={(e) => setNotes(e.target.value)}
-              className="w-full resize-y rounded-lg border border-input bg-transparent px-2.5 py-1.5 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+              className="w-full resize-y rounded-md border border-dp-line bg-transparent px-2.5 py-1.5 text-sm text-dp-text outline-none placeholder:text-dp-text-3 transition-[border-color,box-shadow] duration-150 ease-out focus-visible:border-dp-accent focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none"
             />
           </div>
           <div className="grid gap-1.5">
@@ -714,8 +700,8 @@ function CardDialog({
                   aria-checked={priority === p}
                   onClick={() => setPriority(p)}
                   className={cn(
-                    "flex h-6 items-center gap-1.5 rounded-md px-2.5 text-[12px]",
-                    priority === p ? "bg-dp-card text-dp-text shadow-dp" : "text-muted-foreground hover:text-dp-text",
+                    "flex h-6 items-center gap-1.5 rounded-md px-2.5 text-xs transition-[color,background-color] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none",
+                    priority === p ? "bg-dp-card text-dp-text shadow-dp" : "text-dp-text-2 hover:text-dp-text",
                   )}
                 >
                   {p !== "none" && <span className="size-2 rounded-full" style={{ background: PRIORITY_BAR[p] }} />}

@@ -89,7 +89,7 @@ function GroupLabel(props: { group: SceneGroup; view: CanvasView; working: numbe
         aria-label={folded ? t.unfoldGroup : t.foldGroup}
         title={folded ? t.unfoldGroup : t.foldGroup}
         onClick={() => setGroupFolded(group.id, !folded)}
-        className="pointer-events-auto grid h-full w-4 shrink-0 place-items-center text-dp-text-2 hover:text-dp-text"
+        className="pointer-events-auto grid h-full w-4 shrink-0 place-items-center rounded-md text-dp-text-2 transition-[color,background-color] duration-150 ease-out motion-reduce:transition-none hover:bg-dp-hover hover:text-dp-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50"
       >
         {folded ? <ChevronRight className="size-3.5" /> : <ChevronDown className="size-3.5" />}
       </button>
@@ -105,7 +105,7 @@ function GroupLabel(props: { group: SceneGroup; view: CanvasView; working: numbe
         </span>
       )}
       <span className="ml-2 font-mono text-dp-text-2">{countsText(group.memberIds.length, working)}</span>
-      {waits && <span className="ml-1 font-mono text-dp-waiting">{waits}</span>}
+      {waits && <span className="ml-1 font-mono text-dp-wait">{waits}</span>}
       <GroupMenu groupId={group.id} />
     </div>
   );
@@ -139,7 +139,7 @@ function NameField({ name, onDone }: { name: string; onDone: (name: string | nul
         if (e.key === "Enter") e.currentTarget.blur();
         if (e.key === "Escape") finish(null);
       }}
-      className="pointer-events-auto rounded bg-dp-card px-1 font-semibold tracking-[0.08em] text-dp-text uppercase outline-none ring-1 ring-dp-accent"
+      className="pointer-events-auto rounded-md bg-dp-card px-1 font-semibold tracking-[0.08em] text-dp-text uppercase outline-none ring-1 ring-dp-accent"
     />
   );
 }
