@@ -4,6 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { mockIPC } from "@tauri-apps/api/mocks";
 import { nodesStore } from "@/store/nodes";
+import { terminalStatusStore } from "@/store/terminalStatus";
 import { usageStore } from "@/usage/usageStore";
 import { UsageMeter } from "./UsageMeter";
 
@@ -26,6 +27,7 @@ let root: Root;
 beforeEach(async () => {
   mockIPC(() => undefined);
   usageStore.setState({ sessions: {}, limits: null });
+  terminalStatusStore.setState({ statuses: {} });
   await nodesStore.getState().create("isis", {
     workspaceId: "w1",
     kind: "terminal",
@@ -44,9 +46,29 @@ afterEach(async () => {
 
 const meter = () => host.querySelector<HTMLButtonElement>("[data-usage]")!;
 
-it("waits for a Claude session's first answer before showing the limits (spec maj §6)", () => {
+it("says no Claude session yet when none is running, whatever the Git Bash state", async () => {
+  mockIPC((cmd) => (cmd === "diagnostics" ? { gitBash: null } : undefined));
+  await act(async () => root.render(<UsageMeter />));
+  expect(meter().textContent).toBe("Usage· no Claude session yet");
+  expect(meter().title).toContain("first reply");
+});
+
+it("waits for a Claude session's first answer before showing the limits (spec maj §6)", async () => {
+  await act(async () => terminalStatusStore.getState().set("isis", { state: "running" }));
   expect(meter().textContent).toBe("Usage· waiting for the first answer");
   expect(meter().title).toContain("first reply");
+});
+
+it("says usage needs Git Bash when a running Claude session has none", async () => {
+  mockIPC((cmd) => (cmd === "diagnostics" ? { gitBash: null } : undefined));
+  await act(async () => terminalStatusStore.getState().set("isis", { state: "running" }));
+  expect(meter().textContent).toBe("Usage· usage needs Git Bash");
+});
+
+it("keeps waiting for the first answer when Git Bash is found", async () => {
+  mockIPC((cmd) => (cmd === "diagnostics" ? { gitBash: "C:/Git/bin/bash.exe" } : undefined));
+  await act(async () => terminalStatusStore.getState().set("isis", { state: "running" }));
+  expect(meter().textContent).toBe("Usage· waiting for the first answer");
 });
 
 it("shows the session's and the week's use of the plan in the title bar, then the detail on a click", async () => {

@@ -1,4 +1,6 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { useStore } from "zustand";
+import { loadDiagnostics } from "@/app/diagnostics";
 import { BUDGET_COLOR } from "@/canvas/overlay/timeline";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { AGENTS } from "@/fleet/catalog";
@@ -7,6 +9,7 @@ import { formatClock, formatDecimal } from "@/i18n/format";
 import { formatDuration } from "@/lib/format";
 import { useNow } from "@/lib/useNow";
 import { sessionOf, useNodes } from "@/store/nodes";
+import { terminalStatusStore } from "@/store/terminalStatus";
 import { currentLimit, formatUsd, limitTone, liveCacheSessions, totals, type Limit, type Limits } from "@/usage/usage";
 import { useUsage } from "@/usage/usageStore";
 import { shellMessages } from "./messages";
@@ -28,8 +31,31 @@ function Bar({ limit, wide = false }: { limit: Limit; wide?: boolean }) {
   );
 }
 
-/** Shown until a Claude session's first answer brings the limits. English, a local constant (not in the message catalogue). */
-const WAITING_HINT = "waiting for the first answer";
+/** Whether a Claude session dummyPlane started (an agent or an orchestrator's) is running. */
+function useClaudeSessionRunning(): boolean {
+  const nodes = useNodes((s) => s.nodes);
+  const statuses = useStore(terminalStatusStore, (s) => s.statuses);
+  return Object.keys(nodes).some((id) => sessionOf(nodes[id])?.agent === "claude" && statuses[id]?.state === "running");
+}
+
+/** Whether Git Bash is missing, which keeps Claude's status line (the source of the meter) from running. Asked once, while `enabled`. */
+function useGitBashMissing(enabled: boolean): boolean {
+  const [missing, setMissing] = useState(false);
+  useEffect(() => {
+    if (!enabled) return;
+    let alive = true;
+    loadDiagnostics().then(
+      (d) => {
+        if (alive) setMissing(d?.gitBash === null);
+      },
+      () => {},
+    );
+    return () => {
+      alive = false;
+    };
+  }, [enabled]);
+  return missing;
+}
 
 /**
  * The title bar's usage (spec maj §6): the plan's session and week, from
@@ -52,6 +78,11 @@ export function UsageMeter() {
   const t = useMessages(shellMessages);
   const u = t.usage;
   const limits = useCurrentLimits();
+  const hasLimits = !!(limits?.fiveHour || limits?.sevenDay || limits?.models.length);
+  const running = useClaudeSessionRunning();
+  const gitBashMissing = useGitBashMissing(running && !hasLimits);
+  // The three empty states: no Claude session yet; one running without limits (Git Bash missing, or its first answer pending).
+  const emptyHint = !running ? u.noSession : gitBashMissing ? u.needsGitBash : u.waitingFirstAnswer;
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -61,10 +92,10 @@ export function UsageMeter() {
           title={limits ? u.titleWithLimits : u.titleWithoutLimits}
           className="flex h-6 items-center gap-2 rounded-[6px] px-1.5 font-mono text-[11.5px] text-dp-text-2 hover:bg-dp-hover hover:text-dp-text"
         >
-          {!limits?.fiveHour && !limits?.sevenDay && !limits?.models.length ? (
+          {!hasLimits ? (
             <>
               {u.title}
-              <span className="opacity-70">· {WAITING_HINT}</span>
+              <span className="opacity-70">· {emptyHint}</span>
             </>
           ) : (
             <>
