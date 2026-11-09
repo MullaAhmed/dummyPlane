@@ -13,7 +13,7 @@ function Row({ agent, children }: { agent: WaitingAgent; children: ReactNode }) 
     <button
       type="button"
       onClick={() => goToAgent(agent)}
-      className="flex min-h-8 w-full items-center gap-2 rounded-[10px] px-2 py-1 text-left text-[12.5px] text-dp-text hover:bg-dp-hover"
+      className="flex min-h-8 w-full items-center gap-2 rounded-md px-2 py-1 text-left text-[13px] text-dp-text transition-[background-color,transform] duration-150 ease-out hover:bg-dp-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] motion-reduce:transition-none"
     >
       {children}
     </button>
@@ -38,11 +38,11 @@ export function WaitingNotice() {
         <section
           data-waiting-notice
           aria-label={t.agentCounts.waiting}
-          className="dp-glass-strong absolute bottom-[58px] left-[70px] z-30 flex w-[260px] flex-col rounded-[14px] p-1"
+          className="dp-glass-strong absolute bottom-[58px] left-[70px] z-30 flex w-[260px] animate-in fade-in-0 slide-in-from-bottom-1 duration-200 ease-out motion-reduce:animate-none flex-col rounded-lg p-1"
         >
           {agents.slice(0, MAX_ROWS).map((agent) => (
             <Row key={agent.id} agent={agent}>
-              <span aria-hidden className="size-[7px] shrink-0 rounded-full bg-dp-wait" />
+              <span aria-hidden className="size-2 shrink-0 rounded-full bg-dp-wait" />
               <span className="min-w-0 flex-1">
                 <span className="block truncate">{t.waitingNotice.question(agent.name)}</span>
                 {agent.message && (
@@ -60,7 +60,7 @@ export function WaitingNotice() {
           ))}
           {hidden.length > 0 && (
             <Row agent={hidden[0]}>
-              <span className="pl-[15px] font-mono text-[11.5px] text-dp-text-2">{t.waitingNotice.others(hidden.length)}</span>
+              <span className="pl-4 font-mono text-[11px] text-dp-text-2">{t.waitingNotice.others(hidden.length)}</span>
             </Row>
           )}
         </section>

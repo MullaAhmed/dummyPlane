@@ -21,6 +21,9 @@ import { shellMessages } from "./messages";
 import { showTroubleshooting } from "./troubleshoot";
 import { exportCurrentPng, exportCurrentScene, importIntoScene } from "./sceneActions";
 
+/** Every row of the gear menu eases its highlight; the rows share one icon gap. */
+const ROW = "gap-2 transition-[background-color,color] duration-150 ease-out motion-reduce:transition-none";
+
 /** Gear menu: what Excalidraw's hidden main menu used to offer (spec habillage §5.2), opened from `trigger`. */
 export function SettingsMenu({
   trigger,
@@ -38,47 +41,49 @@ export function SettingsMenu({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
-      <DropdownMenuContent side={side} align={align} className="w-56">
+      <DropdownMenuContent side={side} align={align} className="w-56 shadow-dp ring-dp-line">
         <DropdownMenuLabel className="dp-label">{t.theme}</DropdownMenuLabel>
         <DropdownMenuRadioGroup value={choice} onValueChange={(value) => void setThemeChoice(readThemeChoice(value))}>
           {(Object.keys(PALETTES) as ThemeChoice[]).map((palette) => (
-            <DropdownMenuRadioItem key={palette} value={palette}>
+            <DropdownMenuRadioItem key={palette} className={ROW} value={palette}>
               {PALETTES[palette].name}
             </DropdownMenuRadioItem>
           ))}
         </DropdownMenuRadioGroup>
-        <DropdownMenuCheckboxItem checked={transparency} onCheckedChange={(on) => void setTransparency(on === true)}>
+        <DropdownMenuCheckboxItem className={ROW} checked={transparency} onCheckedChange={(on) => void setTransparency(on === true)}>
           {t.transparency}
         </DropdownMenuCheckboxItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={exportCurrentScene}>
+        <DropdownMenuItem className={ROW} onSelect={exportCurrentScene}>
           <Download /> {t.exportScene}
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={importIntoScene}>
+        <DropdownMenuItem className={ROW} onSelect={importIntoScene}>
           <Upload /> {t.importScene}
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={exportCurrentPng}>
+        <DropdownMenuItem className={ROW} onSelect={exportCurrentPng}>
           <ImageDown /> {t.exportPng}
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuCheckboxItem checked={nativeNotifications} onCheckedChange={(on) => void setNativeNotifications(on === true)}>
+        <DropdownMenuCheckboxItem
+          className={ROW}
+          checked={nativeNotifications}
+          onCheckedChange={(on) => void setNativeNotifications(on === true)}
+        >
           {t.nativeNotifications}
         </DropdownMenuCheckboxItem>
-        <DropdownMenuCheckboxItem checked={autoUpdates} onCheckedChange={(on) => void setAutoUpdates(on === true)}>
+        <DropdownMenuCheckboxItem className={ROW} checked={autoUpdates} onCheckedChange={(on) => void setAutoUpdates(on === true)}>
           {t.autoUpdates}
         </DropdownMenuCheckboxItem>
-        <DropdownMenuItem onSelect={() => void checkForUpdate({ manual: true })}>
+        <DropdownMenuItem className={ROW} onSelect={() => void checkForUpdate({ manual: true })}>
           <ArrowDownCircle /> {t.checkUpdates}
         </DropdownMenuItem>
-        <DropdownMenuItem
-          onSelect={() => void showAbout()}
-        >
+        <DropdownMenuItem className={ROW} onSelect={() => void showAbout()}>
           <Info /> {t.about}
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => void openLogDir()}>
+        <DropdownMenuItem className={ROW} onSelect={() => void openLogDir()}>
           <FileText /> {t.openLogs}
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => void showTroubleshooting()}>
+        <DropdownMenuItem className={ROW} onSelect={() => void showTroubleshooting()}>
           <LifeBuoy /> {t.troubleshoot}
         </DropdownMenuItem>
       </DropdownMenuContent>
