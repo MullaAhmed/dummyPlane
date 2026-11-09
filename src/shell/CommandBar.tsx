@@ -1,14 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
+import { useStore } from "zustand";
+import { useActiveTerminal } from "@/canvas/activeTerminal";
 import { useCanvas } from "@/canvas/canvasStore";
 import { isGroup } from "@/canvas/groups";
 import { AGENTS } from "@/fleet/catalog";
 import { CommandInput } from "@/fleet/CommandInput";
 import { HINT_KEY, historyStore } from "@/fleet/history";
-import { selectionTargets, targetAgents } from "@/fleet/targets";
+import { activeTarget, selectionTargets, targetAgents } from "@/fleet/targets";
 import { useMessages } from "@/i18n";
 import { getSetting, setSetting } from "@/ipc/db";
 import { terminalOf, useNodes } from "@/store/nodes";
+import { terminalStatusStore } from "@/store/terminalStatus";
 import { useWorkspaces } from "@/store/workspaces";
 import { shellMessages } from "./messages";
 
@@ -20,6 +23,12 @@ export function CommandBar() {
   const selectedIds = useCanvas((s) => s.view.selectedIds);
   const nodes = useNodes((s) => s.nodes);
   const projectId = useWorkspaces((s) => s.projectId);
+  const activeId = useActiveTerminal();
+  // A stopped, exited or failed session is no target; one still starting is (Send says it is not ready yet).
+  const activeAlive = useStore(terminalStatusStore, (s) => {
+    const state = activeId ? s.statuses[activeId]?.state : undefined;
+    return state === "running" || state === "starting";
+  });
 
   useEffect(() => {
     if (projectId) void historyStore.getState().load(projectId);
@@ -38,10 +47,17 @@ export function CommandBar() {
     [nodeIds, nodes, frames],
   );
   const groups = useMemo(() => frames.filter(isGroup), [frames]);
-  const fallback = useMemo(
+  // Without `@`: the selection, else the terminal the user last entered if it is still alive.
+  const selected = useMemo(
     () => selectionTargets(selectedIds, frames, agents.map((a) => a.id)),
     [selectedIds, frames, agents],
   );
+  const active = useMemo(
+    () => activeTarget(activeId, agents.map((a) => a.id), () => activeAlive),
+    [activeId, agents, activeAlive],
+  );
+  const fallback = useMemo(() => (selected.length > 0 || active === null ? selected : [active]), [selected, active]);
+  const activeName = selected.length === 0 && active !== null ? agents.find((a) => a.id === active)?.name : undefined;
 
   return (
     <div data-command-bar className="dp-glass-strong pointer-events-auto flex min-h-12 w-[680px] max-w-[calc(100vw-360px)] items-end gap-3 rounded-lg py-2 pl-3.5 pr-2">
@@ -52,8 +68,9 @@ export function CommandBar() {
         agents={agents}
         groups={groups}
         fallback={fallback}
-        placeholder={t.placeholder}
+        placeholder={activeName ? t.placeholderTo(activeName) : t.placeholder}
         emptyHint={t.emptyHint}
+        sendsTo={activeName}
       />
     </div>
   );

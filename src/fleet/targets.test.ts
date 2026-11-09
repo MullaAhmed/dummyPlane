@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { SceneFrame } from "@/canvas/groups";
 import {
+  activeTarget,
   extractMentions,
   keptDismissal,
   matchOptions,
@@ -206,4 +207,18 @@ it("tries a name containing a slash whole before splitting it (backlog 27 oct)",
   expect(mentionPartsFront("front/ba", opts)).toEqual({ typed: [], query: "front/ba" });
   expect(matchOptionsFront(opts, "front/ba")[0].label).toBe("@front/back");
   expect(mentionPartsFront("athena/ze", opts)).toEqual({ typed: ["athena"], query: "ze" });
+});
+
+describe("activeTarget", () => {
+  const alive = () => true;
+
+  it("is the active terminal while it is on the canvas and alive", () => {
+    expect(activeTarget("a", ["a", "b"], alive)).toBe("a");
+  });
+
+  it("is nothing without an active terminal, or once it is closed or stopped", () => {
+    expect(activeTarget(null, ["a", "b"], alive)).toBeNull();
+    expect(activeTarget("c", ["a", "b"], alive)).toBeNull();
+    expect(activeTarget("a", ["a", "b"], () => false)).toBeNull();
+  });
 });

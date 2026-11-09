@@ -176,6 +176,19 @@ export function resolveTargets(
   return [...new Set(ids)].filter((id) => scope.all.includes(id));
 }
 
+/**
+ * Without a selection or an `@`: the terminal the user last entered, as long as
+ * it is still on the canvas and its session is alive (a closed or stopped one
+ * is not a target any more).
+ */
+export function activeTarget(
+  activeId: string | null,
+  terminalIds: readonly string[],
+  isAlive: (id: string) => boolean,
+): string | null {
+  return activeId !== null && terminalIds.includes(activeId) && isAlive(activeId) ? activeId : null;
+}
+
 /** Without `@`: the selected terminals and the members of the selected groups (spec §12). */
 export function selectionTargets(
   selectedIds: readonly string[],

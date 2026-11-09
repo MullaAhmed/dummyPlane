@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ArrowUp, X } from "lucide-react";
 import { useStore } from "zustand";
 import type { SceneFrame } from "@/canvas/groups";
@@ -59,9 +59,13 @@ export function CommandInput(props: {
   placeholder: string;
   /** Why Envoyer is grey when nothing is targeted. */
   emptyHint: string;
+  /** Who `fallback` is, when it is one agent the user did not select (the active terminal): named so Send never surprises. */
+  sendsTo?: string;
   compact?: boolean;
+  /** The field takes the keyboard when it mounts (an orchestrator's field opened by hand). */
+  autoFocus?: boolean;
 }) {
-  const { agents, groups, fallback, placeholder, emptyHint, compact = false } = props;
+  const { agents, groups, fallback, placeholder, emptyHint, sendsTo, compact = false, autoFocus = false } = props;
   const t = useMessages(fleetMessages).command;
   const [text, setText] = useState("");
   const [caret, setCaret] = useState(0);
@@ -116,6 +120,12 @@ export function CommandInput(props: {
   const nothingTargeted = allTargets.length === 0 && fallback.length === 0;
   // Targets were chosen, but they hold no agent (an empty group).
   const noAgents = allTargets.length > 0 && ids.length === 0;
+  // Nothing was typed after `@`: the command goes to who `fallback` names.
+  const namedFallback = allTargets.length === 0 ? sendsTo : undefined;
+
+  useEffect(() => {
+    if (autoFocus) field.current?.focus();
+  }, [autoFocus]);
 
   useLayoutEffect(() => {
     const element = field.current;
@@ -250,6 +260,7 @@ export function CommandInput(props: {
         {(text.trim() || focused) && nothingTargeted && <p className="text-[11px] text-dp-text-2">{emptyHint}</p>}
         {text.trim() && noAgents && !unknown && <p className="text-[11px] text-dp-text-2">{t.noAgents}</p>}
         {unknown && <p className="text-[11px] text-dp-text-2">{t.unknownTarget(unknown)}</p>}
+        {text.trim() && namedFallback && !unknown && <p className="text-[11px] text-dp-text-2">{t.sendsTo(namedFallback)}</p>}
         <div className="flex min-w-0 flex-wrap items-center gap-1">
           {chips.map((target) => (
             <span
@@ -290,7 +301,7 @@ export function CommandInput(props: {
       <button
         type="button"
         aria-label={t.send}
-        title={canSend ? t.send : nothingTargeted ? emptyHint : noAgents ? t.noAgents : t.writeInstruction}
+        title={canSend ? (namedFallback ? t.sendTo(namedFallback) : t.send) : nothingTargeted ? emptyHint : noAgents ? t.noAgents : t.writeInstruction}
         disabled={!canSend}
         onClick={send}
         className={cn(

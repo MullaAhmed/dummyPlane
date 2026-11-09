@@ -43,6 +43,7 @@ export const shellMessages = defineMessages(
     },
     commandBar: {
       placeholder: "Instruction for the agents · @ to target · / command · ↑ history",
+      placeholderTo: (name: string) => `Instruction for ${name} · @ to target · / command · ↑ history`,
       emptyHint: "Select agents or type @",
       hint: 'Try "@all run the tests"',
       hideHint: "Hide the tip",

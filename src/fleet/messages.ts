@@ -149,6 +149,8 @@ export const fleetMessages = defineMessages({
       unknownTarget: (target: string) => `Unknown target: ${target}`,
       remove: (label: string) => `Remove ${label}`,
       send: "Send",
+      sendTo: (name: string) => `Send to ${name}`,
+      sendsTo: (name: string) => `To ${name}`,
       writeInstruction: "Write an instruction",
       noAgents: "No agent in this target",
     },

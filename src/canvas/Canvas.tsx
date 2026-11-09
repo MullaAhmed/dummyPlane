@@ -19,6 +19,7 @@ import { disposeTerminal, focusTerminal } from "@/nodes/terminal/registry";
 import { nodesStore } from "@/store/nodes";
 import { isRunning } from "@/store/terminalStatus";
 import { uiStore } from "@/store/ui";
+import { setActiveTerminal } from "./activeTerminal";
 import { createActivationTracker } from "./activation";
 import { canvasStore, fullSizeView, viewFrom } from "./canvasStore";
 import { framesFromScene } from "./groups";
@@ -176,6 +177,7 @@ function LoadedCanvas({ workspaceId, scene }: { workspaceId: string; scene: Load
       canvasStore.getState().setLinks(orchestratorLinks(elements));
       if (api) scheduleWireUpkeep(api, elements);
       const activated = trackActivation(appState.activeEmbeddable);
+      if (activated) setActiveTerminal(activated);
       // Deferred: changing the view from inside onChange would re-enter it.
       if (activated && api) requestAnimationFrame(() => showAtFullSize(api, activated));
     },

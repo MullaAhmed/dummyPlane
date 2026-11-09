@@ -17,7 +17,8 @@ const LABEL_ROOM = 24;
  * click into a terminal selects it: that selection is cleared, or Suppr
  * would delete the terminal just left), and the keyboard goes to Excalidraw's
  * container, where Excalidraw reads its keys (dummyPlane does not set
- * `handleKeyboardGlobally`).
+ * `handleKeyboardGlobally`). The terminal left stays the one Send goes to
+ * without a selection (see `activeTerminal`): the command bar names it.
  */
 export function releaseToCanvas(doc: Document = document) {
   const active = doc.activeElement;

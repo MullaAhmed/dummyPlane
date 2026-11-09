@@ -1,4 +1,5 @@
 import { nodesStore } from "@/store/nodes";
+import { setActiveTerminal } from "./activeTerminal";
 
 /** Per workspace, the last terminal whose xterm had the keyboard. */
 const lastTerminals = new Map<string, string>();
@@ -24,7 +25,10 @@ export function trackTerminalFocus(doc: Document = document): () => void {
     if (!(event.target instanceof HTMLTextAreaElement)) return;
     const nodeId = terminalOfElement(event.target);
     const workspaceId = nodeId ? nodesStore.getState().nodes[nodeId]?.workspaceId : undefined;
-    if (nodeId && workspaceId) lastTerminals.set(workspaceId, nodeId);
+    if (nodeId && workspaceId) {
+      lastTerminals.set(workspaceId, nodeId);
+      setActiveTerminal(nodeId);
+    }
   };
   doc.addEventListener("focusin", listener);
   return () => doc.removeEventListener("focusin", listener);
