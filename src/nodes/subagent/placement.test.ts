@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { createGroupFrame, groupInfoOf } from "@/canvas/groups";
 import { createNodeElement } from "@/canvas/nodeElement";
-import { cellAt, NODE_GAP } from "@/fleet/groupLayout";
+import { cellAt, freeCell, NODE_GAP } from "@/fleet/groupLayout";
 import { placeSubagent } from "./placement";
 import { withoutSubagents } from "./scene";
 
@@ -23,9 +23,13 @@ describe("placeSubagent", () => {
     const placed = placeSubagent([frame, terminal], sub, terminal.id)!;
     const node = placed.find((e) => e.id === sub.id)!;
     expect(node.frameId).toBe(frame.id);
-    expect({ x: node.x, y: node.y }).toEqual({ x: cellAt(frame, 1, 0).x, y: cellAt(frame, 1, 0).y });
+    // The group's own rule for a new member, whatever its order (src/fleet/groupLayout.ts).
+    const expected = freeCell(frame, [terminal]);
+    expect({ x: node.x, y: node.y }).toEqual({ x: expected.cell.x, y: expected.cell.y });
+    expect(overlaps(node, terminal)).toBe(false);
     const grown = placed.find((e) => e.id === frame.id)!;
-    expect(grown.width).toBeGreaterThan(frame.width);
+    expect({ width: grown.width, height: grown.height }).toEqual({ width: expected.frame.width, height: expected.frame.height });
+    expect(grown.width * grown.height).toBeGreaterThan(frame.width * frame.height);
     expect(groupInfoOf(grown)?.folded).toBeUndefined();
     // Excalidraw keeps a frame above its children: the child goes right under it.
     expect(placed.map((e) => e.id)).toEqual([sub.id, frame.id, terminal.id]);
