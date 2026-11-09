@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
+import { expandTerminal } from "@/nodes/terminal/minimize";
 import { focusTerminal } from "@/nodes/terminal/registry";
 import { activeTerminalStore } from "./activeTerminal";
 import { arrivalStore } from "./arrivalSignal";
@@ -8,6 +9,8 @@ import { arrivalView, arrive, FOCUS_FRAMES, arrivingNode, needsMove, revealNode,
 import { canvasStore } from "./canvasStore";
 
 vi.mock("@/nodes/terminal/registry", () => ({ focusTerminal: vi.fn() }));
+// No terminal here is minimized, but the one a test makes so.
+vi.mock("@/nodes/terminal/minimize", () => ({ expandTerminal: vi.fn(() => false) }));
 
 const viewport = { width: 1400, height: 900 };
 const at100 = { scrollX: 0, scrollY: 0, zoom: 1, ...viewport };
@@ -244,5 +247,41 @@ describe("arriving at a terminal of a folded group (spec replier un groupe §2)"
     expect(arrive("isis")).toBe(true);
     await vi.waitFor(() => expect(setGroupFolded).toHaveBeenCalledWith("g", false));
     canvasStore.setState({ frames: [] });
+  });
+});
+
+describe("arriving at a minimized terminal (src/nodes/terminal/minimize.ts)", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    activeTerminalStore.setState({ id: null });
+  });
+
+  it("expands it first, then moves the view to and activates its element at full size", () => {
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    // The card shows whole where it stands; the full terminal there would run under the bottom band.
+    const full = { ...isis, y: 500 };
+    const card = { ...full, height: 68 };
+    expect(needsMove(card, at100)).toBe(false);
+    let scene = [card, chef];
+    vi.mocked(expandTerminal).mockClear();
+    vi.mocked(expandTerminal).mockImplementationOnce(() => {
+      scene = [full, chef];
+      return true;
+    });
+    const updateScene = vi.fn();
+    canvasStore.setState({
+      frames: [],
+      api: {
+        getSceneElements: () => scene,
+        getAppState: () => ({ ...at100, zoom: { value: 1 } }),
+        updateScene,
+      } as unknown as ExcalidrawImperativeAPI,
+    });
+    expect(arrive("isis")).toBe(true);
+    expect(expandTerminal).toHaveBeenCalledWith("isis");
+    const { appState } = updateScene.mock.calls[0][0];
+    expect(appState.activeEmbeddable.element).toBe(full);
+    expect(appState).toMatchObject(arrivalView(full, viewport));
+    expect(activeTerminalStore.getState().id).toBe("isis");
   });
 });

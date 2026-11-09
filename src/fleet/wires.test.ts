@@ -14,6 +14,7 @@ import {
   orchestratorTargets,
   orphanWires,
   outdatedWires,
+  rerouteWires,
   revivableWires,
   unmarkedWires,
   wireColor,
@@ -409,5 +410,43 @@ describe("revivableWires (plan B3 undo)", () => {
     // Unbound again (the end came back, not the binding): not yet.
     const unbound = { ...dropped, endBinding: null } as ExcalidrawElement;
     expect(revivableWires([...wired.slice(0, -1), unbound])).toEqual([]);
+  });
+});
+
+describe("rerouteWires (a node the app resizes: Excalidraw reroutes only what the user moves)", () => {
+  const wire = createWire(orchestrator, member);
+  const toLone = createWire(orchestrator, lone);
+  const shrunk = { ...member, height: 68 } as ExcalidrawElement;
+
+  it("routes the wires bound to the node again between their ends as they stand, and leaves the rest", () => {
+    const elements = [orchestrator, frame, shrunk, lone, plain, wire, toLone];
+    const next = rerouteWires(elements, new Set([member.id]));
+    const rerouted = next[5] as ExcalidrawElbowArrowElement;
+    expect(rerouted).toMatchObject({
+      id: wire.id,
+      elbowed: true,
+      version: wire.version + 1,
+      startBinding: { elementId: orchestrator.id },
+      endBinding: { elementId: member.id },
+      customData: { dummyplane: { kind: "wire" } },
+    });
+    expect(orthogonal(rerouted.points)).toBe(true);
+    // Its end on the middle of the shrunk node's side, no longer where the full node had it.
+    const end = fixedOnScene(shrunk, rerouted.endBinding!.fixedPoint);
+    expect(ends(rerouted).end.x).toBeCloseTo(end.x);
+    expect(ends(rerouted).end.y).toBeCloseTo(end.y);
+    expect(ends(rerouted).end.y).not.toBeCloseTo(ends(wire).end.y);
+    [0, 1, 2, 3, 4, 6].forEach((i) => expect(next[i]).toBe(elements[i]));
+  });
+
+  it("returns the scene itself when no live wire joins the nodes to a live end", () => {
+    const elements = [orchestrator, frame, shrunk, lone, plain, wire];
+    expect(rerouteWires(elements, new Set([plain.id]))).toBe(elements);
+    expect(rerouteWires(base, new Set([member.id]))).toBe(base);
+    const left = [orchestrator, shrunk, { ...wire, isDeleted: true } as ExcalidrawElement, handDrawn(orchestrator, member)];
+    expect(rerouteWires(left, new Set([member.id]))).toBe(left);
+    // Its other end is gone.
+    const alone = [shrunk, wire];
+    expect(rerouteWires(alone, new Set([member.id]))).toBe(alone);
   });
 });

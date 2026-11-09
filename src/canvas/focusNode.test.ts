@@ -1,11 +1,14 @@
 import { expect, it, vi } from "vitest";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
+import { expandTerminal } from "@/nodes/terminal/minimize";
 import { activeTerminalStore } from "./activeTerminal";
-import { canvasStore } from "./canvasStore";
+import { canvasStore, fullSizeView } from "./canvasStore";
 import { focusNode } from "./focusNode";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
 vi.mock("@/nodes/terminal/registry", () => ({ focusTerminal: vi.fn() }));
+// No terminal here is minimized, but the one a test makes so.
+vi.mock("@/nodes/terminal/minimize", () => ({ expandTerminal: vi.fn(() => false) }));
 
 it("activates the element a fleet panel click centers on (spec habillage §5.5)", () => {
   const element = { id: "t1", x: 0, y: 0, width: 400, height: 300 };
@@ -71,5 +74,29 @@ it("does not make an orchestrator the active terminal", () => {
   });
   focusNode("o1");
   expect(activeTerminalStore.getState().id).toBe("t1");
+  activeTerminalStore.setState({ id: null });
+});
+
+it("expands a minimized terminal first, then centers and activates its element at full size", () => {
+  const full = { id: "t1", type: "embeddable", customData: { kind: "terminal" }, x: 0, y: 0, width: 400, height: 300 };
+  const card = { ...full, height: 68 };
+  let scene = [card];
+  vi.mocked(expandTerminal).mockClear();
+  vi.mocked(expandTerminal).mockImplementationOnce(() => {
+    scene = [full];
+    return true;
+  });
+  const updateScene = vi.fn();
+  const view = { width: 1000, height: 800, zoom: { value: 1 }, scrollX: 0, scrollY: 0 };
+  canvasStore.setState({
+    frames: [],
+    api: { getSceneElements: () => scene, getAppState: () => view, updateScene } as unknown as ExcalidrawImperativeAPI,
+  });
+  focusNode("t1");
+  expect(expandTerminal).toHaveBeenCalledWith("t1");
+  const { appState } = updateScene.mock.calls[0][0];
+  expect(appState.activeEmbeddable.element).toBe(full);
+  expect(appState.scrollY).toBe(fullSizeView(full, view).scrollY);
+  expect(appState.scrollY).not.toBe(fullSizeView(card, view).scrollY);
   activeTerminalStore.setState({ id: null });
 });
