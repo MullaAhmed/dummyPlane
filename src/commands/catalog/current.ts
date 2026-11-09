@@ -9,6 +9,7 @@ import { groupMembers, requestCloseGroup, setGroupFolded, ungroup } from "@/flee
 import { orchestrateGroup } from "@/fleet/orchestrators";
 import { duplicateTerminal, requestClose } from "@/fleet/terminals";
 import type { TerminalPayload } from "@/nodes/types";
+import { expandTerminal, minimizeTerminal } from "@/nodes/terminal/minimize";
 import { pasteIntoTerminal, relaunchTerminal, stopTerminal, terminalSelection } from "@/nodes/terminal/registry";
 import { readClipboardText } from "@/radial/bridges";
 import { openReview } from "@/review/reviewStore";
@@ -116,6 +117,21 @@ export const CURRENT: readonly Command[] = [
     },
     run: async (ctx) => {
       await resumeAgent(terminalId(ctx));
+    },
+  }),
+  command("terminal.minimize", {
+    section: terminalSection,
+    available: (ctx) => payloadOf(ctx)?.minimized !== true && hasTerminal(ctx),
+    run: (ctx) => {
+      minimizeTerminal(terminalId(ctx));
+    },
+  }),
+  command("terminal.expand", {
+    section: terminalSection,
+    available: (ctx) => payloadOf(ctx)?.minimized === true,
+    // Expanded where it is; the view follows if it no longer shows whole.
+    run: (ctx) => {
+      if (expandTerminal(terminalId(ctx))) showNode(terminalId(ctx));
     },
   }),
   command("terminal.close", {

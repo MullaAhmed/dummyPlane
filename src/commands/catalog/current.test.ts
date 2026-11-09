@@ -9,6 +9,7 @@ import { pauseAgents, pauseAll, resumeAgent } from "@/fleet/broadcast";
 import { requestCloseGroup, setGroupFolded, ungroup } from "@/fleet/groups";
 import { orchestrateGroup } from "@/fleet/orchestrators";
 import { duplicateTerminal, requestClose } from "@/fleet/terminals";
+import { expandTerminal, minimizeTerminal } from "@/nodes/terminal/minimize";
 import { pasteIntoTerminal, relaunchTerminal, stopTerminal, terminalSelection } from "@/nodes/terminal/registry";
 import { agentActivityStore } from "@/store/agentActivity";
 import { nodesStore } from "@/store/nodes";
@@ -32,6 +33,7 @@ vi.mock("@/fleet/groups", () => ({ requestCloseGroup: vi.fn(), ungroup: vi.fn(),
 vi.mock("@/fleet/orchestrators", () => ({ orchestrateGroup: vi.fn(() => Promise.resolve()) }));
 vi.mock("@/fleet/terminals", () => ({ duplicateTerminal: vi.fn(() => Promise.resolve()), requestClose: vi.fn() }));
 vi.mock("@/nodes/terminal/registry", () => ({ relaunchTerminal: vi.fn(), stopTerminal: vi.fn(), terminalSelection: vi.fn(() => ""), pasteIntoTerminal: vi.fn() }));
+vi.mock("@/nodes/terminal/minimize", () => ({ minimizeTerminal: vi.fn(() => true), expandTerminal: vi.fn(() => true) }));
 vi.mock("@/radial/bridges", () => ({ readClipboardText: vi.fn(() => Promise.resolve("echo hi")) }));
 
 const ctx = (terminalId: string | null): CommandContext => ({ project: true, workspaceId: "w1", terminalCount: 2, terminalId });
@@ -73,6 +75,8 @@ describe("Terminal · <prénom> and Groupe · <nom> (spec fenêtre §7.3)", () =
       "Stop the process",
       "Pause",
       "Resume",
+      "Minimize terminal",
+      "Expand terminal",
       "Close",
       "Copy",
       "Paste",
@@ -98,6 +102,7 @@ describe("Terminal · <prénom> and Groupe · <nom> (spec fenêtre §7.3)", () =
       "terminal.relaunch",
       "terminal.stop",
       "terminal.pause",
+      "terminal.minimize",
       "terminal.close",
       "terminal.copy",
       "terminal.paste",
@@ -112,7 +117,7 @@ describe("Terminal · <prénom> and Groupe · <nom> (spec fenêtre §7.3)", () =
       "group.frame",
     ]);
     // Thoth is stopped and outside any group.
-    expect(ids(ctx("thot"))).toEqual(["terminal.rename", "terminal.duplicate", "terminal.review", "terminal.relaunch", "terminal.close", "terminal.copy", "terminal.paste"]);
+    expect(ids(ctx("thot"))).toEqual(["terminal.rename", "terminal.duplicate", "terminal.review", "terminal.relaunch", "terminal.minimize", "terminal.close", "terminal.copy", "terminal.paste"]);
   });
 
   it("acts on the terminal of the moment, as its header and the panel's row do", async () => {
@@ -203,5 +208,25 @@ describe("a target that went between the palette and Entrée (plan F2)", () => {
     vi.mocked(relaunchTerminal).mockClear();
     await expect(Promise.resolve(find("terminal.relaunch").run(ctx("closed")))).resolves.toBeUndefined();
     expect(relaunchTerminal).not.toHaveBeenCalled();
+  });
+});
+
+describe("Minimize terminal / Expand terminal", () => {
+  it("offers Minimize on an open terminal and Expand on a minimized one, never both", () => {
+    expect(ids(ctx("thot"))).toContain("terminal.minimize");
+    expect(ids(ctx("thot"))).not.toContain("terminal.expand");
+    nodesStore.getState().update("thot", { minimized: true });
+    expect(ids(ctx("thot"))).toContain("terminal.expand");
+    expect(ids(ctx("thot"))).not.toContain("terminal.minimize");
+    nodesStore.getState().update("thot", { minimized: undefined });
+  });
+
+  it("minimizes the terminal of the moment, and expands it where it is, the view following", async () => {
+    await find("terminal.minimize").run(ctx("thot"));
+    expect(minimizeTerminal).toHaveBeenCalledWith("thot");
+    vi.mocked(showNode).mockClear();
+    await find("terminal.expand").run(ctx("thot"));
+    expect(expandTerminal).toHaveBeenCalledWith("thot");
+    expect(showNode).toHaveBeenCalledWith("thot");
   });
 });
