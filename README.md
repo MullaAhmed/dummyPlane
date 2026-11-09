@@ -108,7 +108,7 @@ The orchestrator talks to dummyPlane through a local MCP server, with tools such
 
 ### Overnight run
 
-Before you leave, open *Mission de nuit…* in the mission panel: how long you will be away, how many agents, and where the tickets come from (GitHub issues with a label, or `BACKLOG.md`). The orchestrator plans and the team works through a queue: when an agent reports done, its branch is merged into the mission branch and it takes the next task. When you are back, a morning report in the panel gives what is done, what failed, what to check by hand and the time spent. Kanban is not a source yet. The PC stays awake during the mission, but closing the lid or asking for sleep still puts it to sleep.
+Before you leave, open *Mission de nuit…* in the mission panel: how long you will be away, how many agents, and where the tickets come from (GitHub issues with a label, or `BACKLOG.md`). The orchestrator plans and the team works through a queue: when an agent reports done, its branch is merged into the mission branch and a new agent takes the next task in a new terminal, so each task starts with a fresh context. When you are back, a morning report in the panel gives what is done, what failed, what to check by hand and the time spent. Kanban is not a source yet. The PC stays awake during the mission, but closing the lid or asking for sleep still puts it to sleep.
 
 Read this before you choose:
 

@@ -22,7 +22,7 @@ export interface SubTask {
   card?: string;
 }
 
-/** A task waiting for a free agent (spec overnight mission §4.1). */
+/** A task waiting for a new agent (spec overnight mission §4.1). */
 export type QueuedTask = Omit<SubTask, "agent">;
 
 /** A sub-task of the plan beyond Max agents, as it waits in the queue. */
@@ -79,6 +79,8 @@ export interface Member {
   overdue?: 1 | 2;
   /** Its sub-task went to this agent (`reattribuer`): its clock stops. */
   handedTo?: string;
+  /** `next_task` started a new agent in its place: its task, blocked or failed, is dropped; `reassign` no longer finds it. */
+  abandoned?: boolean;
   /** Sub-tasks it finished before taking another one (`reattribuer`). */
   done?: string[];
   /** The model the router started it on (spec update §3). */
@@ -115,7 +117,7 @@ export interface Mission {
   globalOverdue?: boolean;
   /** Each agent gets the model of its sub-task's level (spec update §3). */
   router?: boolean;
-  /** Tasks beyond the team, in order; a free agent takes the next one (spec overnight mission §4). */
+  /** Tasks beyond the team, in order; a new agent, in a new terminal, takes the next one (spec overnight mission §4). */
   queue?: QueuedTask[];
   /** Launched for the user's absence: the global budget is the time away, agents' budgets are targets (spec overnight mission §3). */
   overnight?: boolean;
@@ -193,6 +195,7 @@ function readMember(raw: unknown): Member | null {
   if (typeof r.extraMin === "number") member.extraMin = r.extraMin;
   if (r.overdue === 1 || r.overdue === 2) member.overdue = r.overdue;
   if (typeof r.handedTo === "string") member.handedTo = r.handedTo;
+  if (r.abandoned === true) member.abandoned = true;
   if (Array.isArray(r.done)) member.done = r.done.filter((title): title is string => typeof title === "string");
   if (typeof r.model === "string" && r.model) member.model = r.model;
   if (typeof r.group === "string") member.group = r.group;

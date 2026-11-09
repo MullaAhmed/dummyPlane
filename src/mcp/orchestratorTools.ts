@@ -6,7 +6,7 @@ import { ptySendText } from "@/ipc/pty";
 import { endMission, launchMission, mergeMission, reassignTask } from "@/mission/launch";
 import { budgetOf, memberTime, NEW_AGENT, oneLine, proposedPlan, proposedTasks, remainingGlobal, sameName, spentMin, type Member, type Mission } from "@/mission/mission";
 import { activeCount } from "@/mission/active";
-import { freeMembers, giveNext, pumpQueue } from "@/mission/queue";
+import { giveNext, pumpQueue } from "@/mission/queue";
 import { boardView } from "@/kanban/missionLink";
 import { LEVELS, modelLabel } from "@/mission/router";
 import { readTickets } from "@/mission/tickets";
@@ -229,7 +229,6 @@ function addTasks(orchestratorId: string, mission: Mission, args: Record<string,
 function describeQueue(orchestratorId: string, mission: Mission): ToolResult {
   return json({
     waiting: (mission.queue ?? []).map((s) => ({ title: s.title, brief: s.brief, budget_min: s.budgetMin, level: s.level ? outLevel(s.level) : null, group: s.group?.name ?? null, card: s.card ?? null })),
-    free_agents: freeMembers(mission).map((m) => m.name),
     active_agents: activeCount(orchestratorId, mission),
     max_agents: mission.maxAgents,
   });
@@ -269,6 +268,7 @@ function describeTeam(orchestratorId: string, mission: Mission): ToolResult {
       time: timeText(memberTime(mission, m, now), budgetOf(m)),
       overdue: m.overdue ?? 0,
       handed_to: m.handedTo ?? null,
+      abandoned: m.abandoned === true,
       finished: m.done ?? [],
       model: m.model ? modelLabel(m.model) : null,
       branch: m.branch,
@@ -427,7 +427,7 @@ export async function orchestratorTool(orchestratorId: string, name: string, arg
     case "fusionner": {
       if (mission.state !== "en_cours") return refused(t().orchestrator.noMission);
       const merged = await mergeMission(orchestratorId);
-      // A conflict held an agent back: merged now, it can take the next task.
+      // A branch a conflict held back is in now: new agents for the queue start from it.
       void pumpQueue(orchestratorId);
       return said(merged);
     }

@@ -217,7 +217,6 @@ describe("the orchestrator's tools (spec orchestrateur §7.2)", () => {
           { title: "Docs", brief: "Écris la doc", budget_min: 10, level: null, group: null, card: null },
           { title: "Tests", brief: "Écris la doc", budget_min: 10, level: "low", group: null, card: null },
         ],
-        free_agents: [],
         active_agents: 0,
         max_agents: 4,
       });
