@@ -1,6 +1,7 @@
 import { expect, it, vi } from "vitest";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { expandTerminal } from "@/nodes/terminal/minimize";
+import { focusTerminal } from "@/nodes/terminal/registry";
 import { activeTerminalStore } from "./activeTerminal";
 import { canvasStore, fullSizeView } from "./canvasStore";
 import { focusNode } from "./focusNode";
@@ -92,11 +93,20 @@ it("expands a minimized terminal first, then centers and activates its element a
     frames: [],
     api: { getSceneElements: () => scene, getAppState: () => view, updateScene } as unknown as ExcalidrawImperativeAPI,
   });
+  const frames: FrameRequestCallback[] = [];
+  vi.stubGlobal("requestAnimationFrame", (run: FrameRequestCallback) => frames.push(run));
+  vi.mocked(focusTerminal).mockClear();
   focusNode("t1");
   expect(expandTerminal).toHaveBeenCalledWith("t1");
   const { appState } = updateScene.mock.calls[0][0];
   expect(appState.activeEmbeddable.element).toBe(full);
   expect(appState.scrollY).toBe(fullSizeView(full, view).scrollY);
   expect(appState.scrollY).not.toBe(fullSizeView(card, view).scrollY);
+  // Its xterm shows only once React renders it expanded: the keyboard goes to it a frame later.
+  expect(focusTerminal).not.toHaveBeenCalled();
+  frames.forEach((run) => run(0));
+  expect(focusTerminal).toHaveBeenCalledWith("t1");
+  // An earlier test's arrival still runs on a timer: it needs a frame to ask for.
+  vi.stubGlobal("requestAnimationFrame", () => 0);
   activeTerminalStore.setState({ id: null });
 });
