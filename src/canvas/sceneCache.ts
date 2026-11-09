@@ -1,6 +1,7 @@
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { BinaryFileData, BinaryFiles, ExcalidrawInitialDataState } from "@excalidraw/excalidraw/types";
 import { loadWorkspace, saveScene } from "@/ipc/db";
+import { withoutSubagents } from "@/nodes/subagent/scene";
 import { nodesStore } from "@/store/nodes";
 import { liveNodeIds, type SavedAppState } from "./sceneSync";
 
@@ -36,7 +37,8 @@ async function readScene(workspaceId: string): Promise<LoadedScene> {
   );
   const scene: LoadedScene = {
     initialData: {
-      elements: data.elementsJson ? (JSON.parse(data.elementsJson) as ExcalidrawElement[]) : [],
+      // A subagent's node lives only as long as its session: a stored one has ended.
+      elements: data.elementsJson ? withoutSubagents(JSON.parse(data.elementsJson) as ExcalidrawElement[]) : [],
       appState: data.appStateJson ? (JSON.parse(data.appStateJson) as SavedAppState) : {},
       files,
     },
