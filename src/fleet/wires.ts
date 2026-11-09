@@ -306,6 +306,30 @@ export function elbowWires(elements: readonly ExcalidrawElement[], palette: Them
   return changed ? next : elements;
 }
 
+/**
+ * The wires bound to one of `nodeIds` routed again between their ends as they
+ * stand: Excalidraw only reroutes an elbow when the user moves or resizes an
+ * end, not when the app changes its size. The scene itself when no wire moves.
+ */
+export function rerouteWires(elements: readonly ExcalidrawElement[], nodeIds: ReadonlySet<string>): readonly ExcalidrawElement[] {
+  const byId = new Map(elements.map((e) => [e.id, e]));
+  let changed = false;
+  const next = elements.map((element) => {
+    if (element.isDeleted || element.type !== "arrow" || !isWire(element)) return element;
+    const wire = element as ExcalidrawArrowElement;
+    const start = wire.startBinding?.elementId;
+    const end = wire.endBinding?.elementId;
+    if (!start || !end || (!nodeIds.has(start) && !nodeIds.has(end))) return element;
+    const from = byId.get(start);
+    const to = byId.get(end);
+    if (!from || !to || from.isDeleted || to.isDeleted) return element;
+    changed = true;
+    const elbow: ExcalidrawElbowArrowElement = { ...wire, ...elbowForm(from, to), version: wire.version + 1, versionNonce: random(), updated: Date.now() };
+    return elbow;
+  });
+  return changed ? next : elements;
+}
+
 /** `elements` with a new wire, recorded on both ends, unless one already joins them (spec §13). */
 export function withWire(
   elements: readonly ExcalidrawElement[],

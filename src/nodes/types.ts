@@ -31,6 +31,28 @@ export interface TerminalPayload {
   accountId?: string;
   /** A command to run once, an install: only an explicit gesture runs it again (spec installation §7). */
   oneShot?: boolean;
+  /** Shrunk to a card: its process and screen go on (`./terminal/minimize.ts`). */
+  minimized?: boolean;
+  /** Its height before it was minimized, given back when it expands. */
+  expandedHeight?: number;
+  /** What its agent last said with `report`, shown on its card. */
+  lastReport?: TerminalReport;
+}
+
+export type TerminalReportStatus = "done" | "blocked" | "failed";
+
+export interface TerminalReport {
+  status: TerminalReportStatus;
+  summary: string;
+}
+
+const REPORT_STATUSES = new Set<string>(["done", "blocked", "failed"]);
+
+function readTerminalReport(raw: unknown): TerminalReport | undefined {
+  if (typeof raw !== "object" || raw === null) return undefined;
+  const r = raw as Record<string, unknown>;
+  if (typeof r.status !== "string" || !REPORT_STATUSES.has(r.status) || typeof r.summary !== "string") return undefined;
+  return { status: r.status as TerminalReportStatus, summary: r.summary };
 }
 
 /** Content of an orchestrator node (spec habillage §13, spec orchestrateur §6). */
@@ -166,6 +188,10 @@ export function readTerminalPayload(raw: unknown): TerminalPayload | null {
   if (r.permission === "ask" || r.permission === "edits" || r.permission === "work") payload.permission = r.permission;
   if (r.oneShot === true) payload.oneShot = true;
   if (typeof r.accountId === "string" && r.accountId) payload.accountId = r.accountId;
+  if (r.minimized === true) payload.minimized = true;
+  if (typeof r.expandedHeight === "number" && Number.isFinite(r.expandedHeight) && r.expandedHeight > 0) payload.expandedHeight = r.expandedHeight;
+  const lastReport = readTerminalReport(r.lastReport);
+  if (lastReport) payload.lastReport = lastReport;
   return payload;
 }
 

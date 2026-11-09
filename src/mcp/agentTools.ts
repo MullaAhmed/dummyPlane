@@ -6,6 +6,7 @@ import { oneLine } from "@/mission/mission";
 import { finishMissionCard, flagMissionCard } from "@/kanban/orchestrate";
 import { afterReport } from "@/mission/queue";
 import { isOrchestratorClosed, memberOf, missionOf, updateMember } from "@/mission/store";
+import { onAgentReported } from "@/nodes/terminal/minimize";
 import { nodesStore, terminalOf } from "@/store/nodes";
 import { isRunning } from "@/store/terminalStatus";
 import { agentMessages } from "./messages";
@@ -81,6 +82,7 @@ export function markStep(nodeId: string, args: Record<string, unknown>): ToolRes
 
 /** `report`: outside a mission there is no one to tell; inside, its orchestrator hears it (spec §7.5). */
 export function report(nodeId: string, args: Record<string, unknown>): ToolResult {
+  onAgentReported(nodeId, args.statut, args.resume);
   const found = memberOf(nodeId, { evenClosed: true });
   if (!found) return said(t().agent.noMission);
   const summary = typeof args.resume === "string" ? args.resume.trim() : "";

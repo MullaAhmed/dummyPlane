@@ -1,4 +1,5 @@
 import type { NormalizedZoomValue } from "@excalidraw/excalidraw/types";
+import { expandTerminal } from "@/nodes/terminal/minimize";
 import { focusTerminal } from "@/nodes/terminal/registry";
 import { BOTTOM_BAR_HEIGHT, TOP_ROW_HEIGHT } from "@/shell/layout";
 import { setActiveTerminal } from "./activeTerminal";
@@ -95,7 +96,7 @@ function focusNodeInput(nodeId: string, kind: NodeKind | null): boolean {
  */
 export function arrive(nodeId: string): boolean {
   const api = canvasStore.getState().api;
-  const element = api?.getSceneElements().find((e) => e.id === nodeId);
+  let element = api?.getSceneElements().find((e) => e.id === nodeId);
   if (!api || !element) return false;
   // A folded group keeps its terminals off the screen: unfold it, then arrive (spec replier un groupe §2).
   const folded = canvasStore.getState().frames.find((f) => f.group?.folded && f.memberIds.includes(nodeId));
@@ -106,6 +107,8 @@ export function arrive(nodeId: string): boolean {
     });
     return true;
   }
+  // A minimized terminal expands first; the view and the activation take its element at full size.
+  if (expandTerminal(nodeId)) element = api.getSceneElements().find((e) => e.id === nodeId) ?? element;
   const app = api.getAppState();
   const view = { scrollX: app.scrollX, scrollY: app.scrollY, zoom: app.zoom.value, width: app.width, height: app.height };
   const move = needsMove(element, view) || underWaitingNotice(element, view) ? arrivalView(element, view) : {};

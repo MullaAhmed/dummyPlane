@@ -17,6 +17,7 @@ import { bufferText } from "./bufferText";
 import { freshScreen, textSince } from "./freshScreen";
 import { keyAction, NEWLINE_SEQUENCE } from "./keys";
 import { newConversation, type LaunchMode } from "./launch";
+import { onNewWork } from "./minimize";
 import { isTypingKey, startsNewConversation, startsOnKeystroke } from "./pill";
 import { acceptsInput, reattachSession, relaunchSession, restoreSession, startSession, type SessionState } from "./session";
 
@@ -110,6 +111,8 @@ function create(nodeId: string): Entry {
   // Spec habillage §7.3: typing in a terminal where nothing runs starts it again.
   // onKey, not onData: xterm also answers the queries of a restored screen.
   term.onKey(({ domEvent }) => {
+    // The user types in it: new work, its last report no longer stands (./minimize.ts).
+    if (!entry.session.replaying && isTypingKey(domEvent)) onNewWork(nodeId);
     const oneShot = sessionOf(nodesStore.getState().nodes[nodeId])?.oneShot;
     if (!entry.session.replaying && isTypingKey(domEvent) && startsOnKeystroke(statusOf(nodeId), oneShot)) {
       void startFresh(nodeId, entry);
