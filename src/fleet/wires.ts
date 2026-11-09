@@ -5,20 +5,41 @@ import type {
   FixedPoint,
   FixedPointBinding,
 } from "@excalidraw/excalidraw/element/types";
+import { currentPalette, PALETTES, type ThemeChoice } from "@/app/theme";
 import { groupAt, groupInfoOf, type SceneFrame } from "@/canvas/groups";
 import { findTerminalAt } from "@/canvas/hitTest";
 import { nodeKindOf } from "@/canvas/nodeElement";
+import { sceneColorFor } from "@/theme/sceneColors";
 import type { Point } from "./terminals";
 
 /**
- * The orange of the wires: the default palette's accent (`--dp-accent` of
- * expressive, #FF781B) as stored, `toSceneColor("#FF781B")`. Excalidraw's dark
- * filter shows it #FC752C, the nearest it can (spec habillage §4.3); the light
- * palette shows it as stored.
+ * Electric's lime (#B6F52B) is beyond what the dark filter can show: stored the
+ * plain inverse way (#003800) it shows #a8d8a8, a pale mint. The nearest of all
+ * 8-bit colors, #546100, shows #9fab57: an olive of the accent's own hue.
  */
-export const WIRE_COLOR = "#F25500";
+const ELECTRIC_WIRE_SCENE = "#546100";
 
-/** The terracotta wires were drawn with before: a wire still in it takes WIRE_COLOR when it is elbowed. */
+/**
+ * The color a wire is stored in under `palette`: the palette's accent
+ * (`--dp-accent`, the color the light running on the wire is drawn in) as the
+ * canvas must show it. A light palette shows a stored color as is; Excalidraw's
+ * dark filter shows the nearest it can to the accent (spec habillage §4.3), so
+ * the accent goes through `toSceneColor` there: expressive's #FF781B is stored
+ * #F25500 and shown #FC752C.
+ */
+export function wireColor(palette: ThemeChoice): string {
+  if (palette === "electric") return ELECTRIC_WIRE_SCENE;
+  const { accent, scheme } = PALETTES[palette];
+  return sceneColorFor(accent, scheme);
+}
+
+/** Whether `color` is the color some palette draws a wire in: one the user did not pick. */
+function isPaletteWireColor(color: string): boolean {
+  const stored = color.toLowerCase();
+  return (Object.keys(PALETTES) as ThemeChoice[]).some((palette) => wireColor(palette).toLowerCase() === stored);
+}
+
+/** The terracotta wires were drawn with before: a wire still in it takes the palette's color when it is elbowed. */
 const FORMER_WIRE_COLOR = "#c2603f";
 
 // Excalidraw 0.18.1's constants (tests cannot load Excalidraw):
@@ -217,15 +238,19 @@ function elbowForm(from: ExcalidrawElement, to: ExcalidrawElement): ElbowForm {
 
 /**
  * A complete elbow arrow from the side of `orchestrator` facing `target` to the
- * side of `target` facing it, without heads (spec §13). Every base field is set
+ * side of `target` facing it, without heads, in the color of `palette` (spec §13). Every base field is set
  * here, as for the nodes (Excalidraw's skeletons cannot bind to existing
  * elements).
  */
-export function createWire(orchestrator: ExcalidrawElement, target: ExcalidrawElement): ExcalidrawElbowArrowElement {
+export function createWire(
+  orchestrator: ExcalidrawElement,
+  target: ExcalidrawElement,
+  palette: ThemeChoice = currentPalette(),
+): ExcalidrawElbowArrowElement {
   return {
     id: crypto.randomUUID(),
     type: "arrow",
-    strokeColor: WIRE_COLOR,
+    strokeColor: wireColor(palette),
     backgroundColor: "transparent",
     fillStyle: "solid",
     strokeWidth: 2,
@@ -256,7 +281,7 @@ export function createWire(orchestrator: ExcalidrawElement, target: ExcalidrawEl
  * elbow arrow whose binding has no fixed point; these have one. A wire whose end
  * is gone is left to `orphanWires`. The scene itself when nothing changes.
  */
-export function elbowWires(elements: readonly ExcalidrawElement[]): readonly ExcalidrawElement[] {
+export function elbowWires(elements: readonly ExcalidrawElement[], palette: ThemeChoice = currentPalette()): readonly ExcalidrawElement[] {
   const byId = new Map(elements.map((e) => [e.id, e]));
   let changed = false;
   const next = elements.map((element) => {
@@ -267,7 +292,7 @@ export function elbowWires(elements: readonly ExcalidrawElement[]): readonly Exc
     const to = wire.endBinding && byId.get(wire.endBinding.elementId);
     if (!from || !to) return element;
     changed = true;
-    const strokeColor = wire.strokeColor.toLowerCase() === FORMER_WIRE_COLOR ? WIRE_COLOR : wire.strokeColor;
+    const strokeColor = wire.strokeColor.toLowerCase() === FORMER_WIRE_COLOR ? wireColor(palette) : wire.strokeColor;
     const elbow: ExcalidrawElbowArrowElement = {
       ...wire,
       ...elbowForm(from, to),
@@ -282,13 +307,18 @@ export function elbowWires(elements: readonly ExcalidrawElement[]): readonly Exc
 }
 
 /** `elements` with a new wire, recorded on both ends, unless one already joins them (spec §13). */
-export function withWire(elements: readonly ExcalidrawElement[], orchestratorId: string, targetId: string): ExcalidrawElement[] {
+export function withWire(
+  elements: readonly ExcalidrawElement[],
+  orchestratorId: string,
+  targetId: string,
+  palette: ThemeChoice = currentPalette(),
+): ExcalidrawElement[] {
   const orchestrator = elements.find((e) => e.id === orchestratorId && !e.isDeleted);
   const target = elements.find((e) => e.id === targetId && !e.isDeleted);
   if (!orchestrator || !target) return [...elements];
   const links = orchestratorTargets(elements, orchestratorId);
   if (links.groupIds.includes(targetId) || links.nodeIds.includes(targetId)) return [...elements];
-  const wire = createWire(orchestrator, target);
+  const wire = createWire(orchestrator, target, palette);
   const bind = (e: ExcalidrawElement): ExcalidrawElement => ({
     ...e,
     boundElements: [...(e.boundElements ?? []), { id: wire.id, type: "arrow" }],
@@ -312,6 +342,20 @@ export function unmarkedWires(elements: readonly ExcalidrawElement[]): string[] 
       }),
     )
     .map((arrow) => arrow.id);
+}
+
+/**
+ * The live wires still in the color another palette draws them in, which the
+ * palette has left behind: a new palette, a scene saved under another one, an
+ * undo or redo bringing back an older color. A color the user picked is none of
+ * the palettes' and stays.
+ */
+export function outdatedWires(elements: readonly ExcalidrawElement[], palette: ThemeChoice): string[] {
+  const current = wireColor(palette).toLowerCase();
+  return elements
+    .filter((e) => !e.isDeleted && e.type === "arrow" && isWire(e))
+    .filter((wire) => wire.strokeColor.toLowerCase() !== current && isPaletteWireColor(wire.strokeColor))
+    .map((wire) => wire.id);
 }
 
 /** What a click of "Link" designates: a lone terminal, else the group under the pointer (spec §13). */
@@ -346,7 +390,7 @@ function isWireEnd(element: ExcalidrawElement | undefined): boolean {
 
 /**
  * Wires with a missing end: ungrouping, closing a group or a terminal and
- * Suppr on an orchestrator leave the orange arrow behind, unbound or bound to
+ * Suppr on an orchestrator leave the arrow behind, unbound or bound to
  * what is gone (plan B3). They go in the same update.
  */
 export function orphanWires(elements: readonly ExcalidrawElement[]): string[] {

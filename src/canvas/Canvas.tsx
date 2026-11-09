@@ -4,7 +4,7 @@ import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { AppState, BinaryFiles, ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import "@excalidraw/excalidraw/index.css";
 import { toast } from "sonner";
-import { useTheme } from "@/app/theme";
+import { usePalette, useTheme } from "@/app/theme";
 import { completeArrival } from "@/commands/pendingArrival";
 import { assignMissingNames } from "@/fleet/naming";
 import { dismissResumeOffer, offerResumeAll } from "@/fleet/ResumeAllToast";
@@ -73,6 +73,7 @@ function Centered({ children }: { children: ReactNode }) {
 function LoadedCanvas({ workspaceId, scene }: { workspaceId: string; scene: LoadedScene }) {
   const [api, setApi] = useState<ExcalidrawImperativeAPI | null>(null);
   const theme = useTheme();
+  const palette = usePalette();
   const initialData = useMemo(() => withSceneDefaults(scene.initialData), [scene]);
   // A running agent never leaves unasked (retours J8b); sceneSync tells which nodes left.
   const guardRemovals = useMemo(() => createRemovalGuard(isRunning, scene.initialData.elements ?? []), [scene]);
@@ -85,6 +86,11 @@ function LoadedCanvas({ workspaceId, scene }: { workspaceId: string; scene: Load
       if (canvasStore.getState().api === api) canvasStore.getState().setApi(null);
     };
   }, [api]);
+
+  // Switching palettes recolors the wires still in the old accent (the scene's onChange does not fire between two dark palettes).
+  useEffect(() => {
+    if (api) scheduleWireUpkeep(api, api.getSceneElementsIncludingDeleted());
+  }, [api, palette]);
 
   // A box scrolled under the canvas would leave Excalidraw's hit tests off by that much (after a resize).
   useEffect(() => (api ? pinCanvasScroll(api.refresh) : undefined), [api]);
