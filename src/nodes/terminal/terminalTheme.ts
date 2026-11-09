@@ -3,6 +3,8 @@
  * node body's `--dp-terminal` (the palette's deepest color), with the palette's
  * accent as cursor.
  */
+import type { ITheme } from "@xterm/xterm";
+import type { StoreApi } from "zustand";
 import type { ThemeChoice } from "@/app/theme";
 
 export interface TerminalColors {
@@ -19,6 +21,22 @@ const TERMINAL_COLORS: Record<ThemeChoice, TerminalColors> = {
 
 export function terminalThemeFor(palette: ThemeChoice): TerminalColors {
   return { ...TERMINAL_COLORS[palette] };
+}
+
+/**
+ * Every terminal follows the palette: when the choice changes, each terminal
+ * `terminals()` lists gets the new colors at once (xterm applies option changes
+ * live). Returns the unsubscribe function.
+ */
+export function followPalette<S extends { choice: ThemeChoice }>(
+  store: StoreApi<S>,
+  terminals: () => Iterable<{ options: { theme?: ITheme } }>,
+): () => void {
+  return store.subscribe((state, previous) => {
+    if (state.choice === previous.choice) return;
+    const colors = terminalThemeFor(state.choice);
+    for (const term of terminals()) term.options.theme = { ...colors };
+  });
 }
 
 export { TERMINAL_COLORS };

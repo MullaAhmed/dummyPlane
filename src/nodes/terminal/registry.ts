@@ -9,8 +9,8 @@ import type { TerminalPayload } from "@/nodes/types";
 import { nodesStore, sessionOf, updateSession } from "@/store/nodes";
 import { isRunning, statusOf, terminalStatusStore } from "@/store/terminalStatus";
 import { createAutostart } from "./autostart";
-import { currentPalette } from "@/app/theme";
-import { terminalThemeFor } from "./terminalTheme";
+import { currentPalette, themeStore } from "@/app/theme";
+import { followPalette, terminalThemeFor } from "./terminalTheme";
 import { watchDevicePixelRatio } from "./dprWatch";
 import { BASE_FONT_SIZE, canvasMeasure, fontFor, gridFor, renderZoom, type FontMeasure } from "./crisp";
 import { bufferText } from "./bufferText";
@@ -46,6 +46,9 @@ const autostart = createAutostart();
 let livePtys = new Set<string>();
 let measure: FontMeasure | null = null;
 let watchingScale = false;
+
+// Subscribed once for the module's life; a disposed terminal leaves `entries`, so nothing is kept alive.
+followPalette(themeStore, () => Array.from(entries.values(), (entry) => entry.term));
 
 /** A process ended: it no longer awaits re-attachment. */
 export function forgetLivePty(nodeId: string) {

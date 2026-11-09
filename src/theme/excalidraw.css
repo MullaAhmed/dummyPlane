@@ -69,50 +69,6 @@
   display: none !important;
 }
 
-/* The properties panel is kept, in dense glass, docked right of the tool rail (spec identité §5.7). */
-.excalidraw .App-menu__left {
-  position: fixed;
-  left: 70px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 232px;
-  max-height: calc(100vh - 160px) !important;
-  padding: 12px !important;
-  background: var(--dp-glass-strong);
-  backdrop-filter: var(--dp-blur);
-  -webkit-backdrop-filter: var(--dp-blur);
-  border: 1px solid var(--dp-glass-line);
-  border-radius: 14px;
-  box-shadow: var(--dp-glass-hi), var(--dp-glass-edge), var(--dp-shadow);
-}
-
-.excalidraw .App-menu__left legend,
-.excalidraw .App-menu__left h3 {
-  margin-bottom: 6px;
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--dp-text-2);
-}
-
-.excalidraw .App-menu__left .buttonList label,
-.excalidraw .App-menu__left .ToolIcon__icon {
-  border: 1px solid transparent;
-  border-radius: 8px;
-  background: var(--dp-card);
-}
-
-.excalidraw .App-menu__left .buttonList label.active,
-.excalidraw .App-menu__left .ToolIcon_type_radio:checked + .ToolIcon__icon {
-  border-color: var(--dp-accent);
-  background: var(--dp-accent-soft);
-}
-
-.excalidraw .App-menu__left input[type="range"] {
-  accent-color: var(--dp-accent);
-}
-
 .excalidraw .context-menu {
   border: 1px solid var(--dp-line);
   border-radius: 12px;

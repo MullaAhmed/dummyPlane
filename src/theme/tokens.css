@@ -4,7 +4,7 @@
    accent as text (links, active labels) where the accent itself is too pale on the
    canvas. The palettes' own hexes are the main colors; the rest is derived. */
 
-/* Both palettes. */
+/* Shared by the three palettes: calm, electric and expressive. */
 :root {
   --dp-blur: blur(18px) saturate(150%);
   /* Aliases of the habillage tokens: the components reading them are rebuilt
