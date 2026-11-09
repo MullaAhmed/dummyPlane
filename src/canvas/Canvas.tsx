@@ -27,6 +27,7 @@ import { SelectionPanel } from "./SelectionPanel";
 import { isDummyPlaneLink } from "./nodeElement";
 import { classifyAddedNodes } from "./nodeCopies";
 import { createRemovalGuard, type RemovalVerdict } from "./removalGuard";
+import { pinCanvasScroll } from "./scrollPin";
 import { DotGrid } from "./overlay/DotGrid";
 import { GroupBackdrops } from "./overlay/GroupBackdrops";
 import { GroupLabels } from "./overlay/GroupLabels";
@@ -83,6 +84,9 @@ function LoadedCanvas({ workspaceId, scene }: { workspaceId: string; scene: Load
       if (canvasStore.getState().api === api) canvasStore.getState().setApi(null);
     };
   }, [api]);
+
+  // A box scrolled under the canvas would leave Excalidraw's hit tests off by that much (after a resize).
+  useEffect(() => (api ? pinCanvasScroll(api.refresh) : undefined), [api]);
 
   // A Ctrl+P target of this workspace waits for its scene to be on screen (spec fenêtre §7.2).
   useEffect(() => {

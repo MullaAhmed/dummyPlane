@@ -46,7 +46,7 @@ dummyPlane is a local desktop app. It is designed around these rules:
 - **The orchestrator cannot change your files.** Its Claude session is denied `Edit`, `Write`, `NotebookEdit` and `Bash`, and only gets dummyPlane's own MCP tools. If its settings, tools or role cannot be given to it, it does not start, and its node says why.
 - **The interface runs under a strict Content Security Policy.** Only the app's own scripts, styles, fonts and images load. No remote content, frame or plugin.
 - **Git stays local.** Missions create branches and worktrees next to your repository. dummyPlane never pushes, and never merges into your own branch.
-- **No telemetry.** The app's only request of its own is the update check: it reads the latest release's `latest.json` on GitHub, 10 seconds after the start and every 6 hours, and the settings menu turns it off. Fonts and icon libraries are bundled. Links you click, such as a Remote Control link, open in your browser.
+- **No telemetry.** The app's only request of its own is the update check: it reads the latest release's `latest.json` on GitHub, 10 seconds after the start and every 6 hours, and the settings menu turns it off. Fonts are bundled. Links you click, such as a Remote Control link, open in your browser.
 - **Updates are signed.** Each installer is signed with dummyPlane's update key, and the app refuses an update whose signature does not match the public key it ships with.
 - **Inputs to launch commands are checked.** Session ids must be UUIDs, model and Ollama names must match a strict pattern, and terminal titles are stripped of quotes and control characters. A *Custom* agent's command is typed exactly as you wrote it: that is its purpose.
 

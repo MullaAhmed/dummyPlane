@@ -165,3 +165,127 @@ it("says why Send is grey when the chosen group has no agent, not Write an instr
   expect(send.title).toBe("No agent in this target");
   expect(host.textContent).toContain("No agent in this target");
 });
+
+// --- When Send is grey: only when nothing is targeted (fallback empty and no known @mention). ---
+
+const sendButton = () => host.querySelector<HTMLButtonElement>('button[aria-label="Send"]')!;
+
+async function renderWith(props: { agents?: TargetAgent[]; groups?: unknown[]; fallback?: string[] }) {
+  await act(async () =>
+    root.render(
+      <CommandInput
+        agents={props.agents ?? agents}
+        groups={(props.groups ?? []) as never}
+        fallback={props.fallback ?? []}
+        placeholder="Consigne"
+        emptyHint="Tape @"
+      />,
+    ),
+  );
+}
+
+it("enables Send for a selected agent (fallback) and a plain instruction, and sends to it on click", async () => {
+  await renderWith({ fallback: ["b"] });
+  expect(sendButton().disabled).toBe(true);
+  await type("run tests");
+  expect(sendButton().disabled).toBe(false);
+  expect(sendButton().title).toBe("Send");
+  expect(host.textContent).not.toContain("Tape @");
+  await act(async () => sendButton().click());
+  expect(sendCommand).toHaveBeenCalledWith(["b"], "run tests");
+});
+
+it("enables Send with nothing selected when an @agent is typed, and sends to that agent", async () => {
+  await type("@thoth run tests");
+  expect(sendButton().disabled).toBe(false);
+  await act(async () => sendButton().click());
+  expect(sendCommand).toHaveBeenCalledWith(["b"], "run tests");
+});
+
+it("matches an @agent whatever its capitals (@Thoth)", async () => {
+  await type("@Thoth run tests");
+  expect(sendButton().disabled).toBe(false);
+  await act(async () => sendButton().click());
+  expect(sendCommand).toHaveBeenCalledWith(["b"], "run tests");
+});
+
+it("matches an @agent whatever its accents (@HÉRA)", async () => {
+  await type("@HÉRA run tests");
+  expect(sendButton().disabled).toBe(false);
+  await act(async () => sendButton().click());
+  expect(sendCommand).toHaveBeenCalledWith(["h"], "run tests");
+});
+
+it("keeps the targets of a send as chips: the next instruction is enabled without @", async () => {
+  await type("@thoth run tests");
+  await act(async () => sendButton().click());
+  expect(chips()).toEqual(["@thoth"]);
+  await type("run lint");
+  expect(sendButton().disabled).toBe(false);
+  await act(async () => sendButton().click());
+  expect(sendCommand).toHaveBeenLastCalledWith(["b"], "run lint");
+});
+
+it("matches an agent whose name has spaces by its slug (@TeamBack)", async () => {
+  await renderWith({ agents: [...agents, { id: "t", name: "Team Back", groupName: null }] });
+  await type("@TeamBack run tests");
+  expect(sendButton().disabled).toBe(false);
+  await act(async () => sendButton().click());
+  expect(sendCommand).toHaveBeenCalledWith(["t"], "run tests");
+});
+
+it("does not match an agent whose name has spaces when typed with the space (@Team Back, current behaviour)", async () => {
+  await renderWith({ agents: [...agents, { id: "t", name: "Team Back", groupName: null }] });
+  // "@Team" is no known mention: nothing is targeted and the generic hint shows.
+  await type("@Team Back run tests");
+  expect(sendButton().disabled).toBe(true);
+  expect(sendButton().title).toBe("Tape @");
+  expect(host.textContent).toContain("Tape @");
+});
+
+it("enables Send for an @group with nothing selected, and sends to its members", async () => {
+  const group = { id: "g1", name: "Team Back", x: 0, y: 0, width: 10, height: 10, group: { role: "general", pantheon: "egypt" }, memberIds: ["b", "d"] };
+  await renderWith({ groups: [group] });
+  await type("@teamback run tests");
+  expect(sendButton().disabled).toBe(false);
+  await act(async () => sendButton().click());
+  expect(sendCommand).toHaveBeenCalledWith(["b", "d"], "run tests");
+});
+
+it("keeps Send grey with nothing targeted; in an unfocused field the hint shows once text is typed, the title always", async () => {
+  expect(sendButton().disabled).toBe(true);
+  expect(sendButton().title).toBe("Tape @");
+  expect(host.textContent).not.toContain("Tape @");
+  await type("run tests");
+  expect(sendButton().disabled).toBe(true);
+  expect(sendButton().title).toBe("Tape @");
+  expect(host.textContent).toContain("Tape @");
+  await act(async () => sendButton().click());
+  expect(sendCommand).not.toHaveBeenCalled();
+});
+
+it("shows how to target as soon as the field has the keyboard with nothing targeted, before any text", async () => {
+  await act(async () => field().focus());
+  expect(field().value).toBe("");
+  expect(host.textContent).toContain("Tape @");
+  await act(async () => field().blur());
+  expect(host.textContent).not.toContain("Tape @");
+});
+
+it("keeps the hint away from a focused field that already has a target", async () => {
+  await renderWith({ fallback: ["b"] });
+  await act(async () => field().focus());
+  expect(host.textContent).not.toContain("Tape @");
+});
+
+it("treats an @name shared by two agents as ambiguous: with nothing selected, Send stays grey (current behaviour)", async () => {
+  await renderWith({
+    agents: [
+      { id: "c1", name: "Claude Code", groupName: null },
+      { id: "c2", name: "Claude Code", groupName: null },
+    ],
+  });
+  await type("@claudecode run tests");
+  expect(sendButton().disabled).toBe(true);
+  expect(sendButton().title).toBe("Tape @");
+});

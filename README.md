@@ -23,7 +23,7 @@ If you know Symvibe, dummyPlane covers the same ground (driving a fleet of CLI a
 
 <picture>
   <source media="(prefers-color-scheme: light)" srcset="docs/assets/screenshots/board-light.png">
-  <img alt="A team of three Claude Code agents on the canvas, under an architecture sketch made from the icon libraries" src="docs/assets/screenshots/board-dark.png">
+  <img alt="A team of three Claude Code agents on the canvas, under an architecture sketch" src="docs/assets/screenshots/board-dark.png">
 </picture>
 
 ## Contents
@@ -60,7 +60,6 @@ If you know Symvibe, dummyPlane covers the same ground (driving a fleet of CLI a
 - **Several Claude accounts.** A profile is only a name and a folder (Claude Code's `CLAUDE_CONFIG_DIR`). *Comptes Claude…* in the function palette lists them: *Utiliser* makes one the account of the next Claude agents, *Se connecter* opens a visible terminal to sign in, *Retirer* forgets a profile and leaves its folder alone. A terminal keeps the account it started with, and shows it in its header. dummyPlane never reads, copies or stores a credential.
 - **A git window.** Click the branch chip at the bottom left: the files changed in the project, their diff, a tick per file to commit exactly those, the history, and a *Pousser* button that names its target (`Pousser 3 → origin/main`). Discarding a file asks first and says what is lost; this button is the only route to a push inside dummyPlane's own tools: it goes only when you click, and it never forces. An agent running commands in a terminal is limited only by its permissions.
 - **Overnight run.** Say how long you will be away: an orchestrator plans, a team works through a queue of tickets, and a morning report waits for you. See [Overnight run](#overnight-run), and read its warnings first.
-- **Icon libraries.** About 600 icons from the Excalidraw community (system design, AWS, Azure, GCP), bundled with the app, for sketching architecture next to the agents that build it.
 - **Projects and workspaces.** One project per folder, several workspace tabs per project; drag the tabs to reorder them (or `Alt+←` / `Alt+→` on a tab, or its menu), and the order is remembered. dummyPlane saves everything locally and, after a restart, offers to resume your Claude conversations.
 - **Keyboard first.** Use the palettes, jump between terminals, or right-press anywhere for the radial menu. Light and dark themes follow Windows.
 
@@ -81,10 +80,6 @@ If you know Symvibe, dummyPlane covers the same ground (driving a fleet of CLI a
 **Review a change and send it back.** Jump to an agent with `Ctrl+P`, open *Review changes* from `Ctrl+Shift+P`, then click a line to leave a remark. *Send to Hermes* sends every remark in one message.
 
 ![The go-to palette, the function palette, the review panel and a remark on a diff line](docs/assets/demo/review.gif)
-
-**Sketch the architecture.** The *Icônes* button opens the bundled libraries. This sketch links an API Gateway, a Lambda and a DynamoDB table.
-
-![The icon libraries: API Gateway, Lambda and DynamoDB placed and linked with arrows](docs/assets/demo/icons.gif)
 
 **Check your usage.** The meter in the title bar opens the detail: subscription limits and when they reset, cost and durations of dummyPlane's sessions, tokens per model, and each session's prompt cache.
 
@@ -221,6 +216,5 @@ Bug reports, ideas and pull requests are welcome, in English or in French. Start
 
 dummyPlane is released under the [MIT License](LICENSE).
 
-It builds on [Tauri](https://tauri.app/), [Excalidraw](https://github.com/excalidraw/excalidraw), [xterm.js](https://xtermjs.org/), [portable-pty](https://github.com/wezterm/wezterm/tree/main/pty) and [cmdk](https://cmdk.paco.me/). The bundled icon libraries come from the Excalidraw community, under the MIT License; their authors are listed in [`public/libraries/CREDITS.md`](public/libraries/CREDITS.md).
-
+It builds on [Tauri](https://tauri.app/), [Excalidraw](https://github.com/excalidraw/excalidraw), [xterm.js](https://xtermjs.org/), [portable-pty](https://github.com/wezterm/wezterm/tree/main/pty) and [cmdk](https://cmdk.paco.me/).
 dummyPlane is an independent project. It is not affiliated with Symvibe, Anthropic, OpenAI, Google or the makers of the other agents it launches; their names belong to their owners.

@@ -38,7 +38,7 @@ export function ShapesMenu(props: { active: boolean; current: string; onPick: (t
           <Shapes />
         </ToolButton>
       </PopoverTrigger>
-      <PopoverContent side="right" className="w-60">
+      <PopoverContent side="right" className="w-60 rounded-lg">
         <p className="dp-label mb-2">{t.title}</p>
         <div className="grid grid-cols-3 gap-1.5">
           {SHAPES.map(({ tool, Icon }) => (
@@ -52,8 +52,8 @@ export function ShapesMenu(props: { active: boolean; current: string; onPick: (t
                 setOpen(false);
               }}
               className={cn(
-                "flex flex-col items-center gap-1 rounded-lg border border-transparent bg-dp-card py-2 text-[11px] text-dp-text-2 hover:text-dp-text",
-                tool === current && "border-dp-accent bg-dp-accent-soft text-dp-text",
+                "flex flex-col items-center gap-1 rounded-md border border-transparent bg-dp-card py-2 text-[11px] text-dp-text-2 transition-[color,background-color,border-color,transform] duration-150 ease-out hover:text-dp-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] motion-reduce:transition-none",
+                tool === current ? "border-dp-accent bg-dp-accent-soft text-dp-text" : "hover:bg-dp-hover",
               )}
             >
               <Icon className="size-4" />

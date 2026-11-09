@@ -26,7 +26,7 @@ it("names every icon button and marks the active rail tool (spec identité §5.4
   expect(eraser.getAttribute("aria-pressed")).toBe("false");
   expect(plus.getAttribute("aria-label")).toBe("Nouveau workspace");
   expect(accent.className).toContain("text-dp-on-accent");
-  expect(accent.className).toContain("rounded-[10px]");
+  expect(accent.className).toContain("rounded-md");
   await act(async () => root.unmount());
   host.remove();
 });

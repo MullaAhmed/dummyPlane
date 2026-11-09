@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CommandContext } from "./command";
 import { closePalette, modeOf, openPalette, paletteStore, setPaletteQuery, stripPrefix } from "./paletteState";
 
@@ -47,5 +47,15 @@ describe("the palette (spec fenêtre §7.1)", () => {
     closePalette();
     expect(paletteStore.getState().open).toBe(false);
     expect(document.activeElement).toBe(xterm);
+  });
+
+  it("gives it back without scrolling: an xterm's textarea can sit below the window's edge, under the canvas's hidden-overflow boxes", () => {
+    document.body.innerHTML = '<div data-terminal="isis"><textarea></textarea></div>';
+    const xterm = document.querySelector("textarea")!;
+    xterm.focus();
+    openPalette("goTo", ctx);
+    const focus = vi.spyOn(xterm, "focus");
+    closePalette();
+    expect(focus).toHaveBeenCalledWith({ preventScroll: true });
   });
 });

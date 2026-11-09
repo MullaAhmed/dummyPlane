@@ -14,9 +14,9 @@ function Count({ label, color, filter, children }: { label: string; color: strin
       title={label}
       aria-label={label}
       onClick={() => showAgents(filter)}
-      className="flex h-6 items-center gap-1.5 rounded-[6px] px-1.5 font-mono text-[11.5px] text-dp-text-2 hover:bg-dp-hover hover:text-dp-text"
+      className="flex h-6 items-center gap-1.5 rounded-md px-1.5 font-mono text-xs text-dp-text-2 transition-[color,background-color,transform] duration-150 ease-out hover:bg-dp-hover hover:text-dp-text active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none"
     >
-      <span className="size-[7px] rounded-full" style={{ backgroundColor: color }} />
+      <span className="size-1.75 rounded-full" style={{ backgroundColor: color }} />
       {children}
     </button>
   );

@@ -90,7 +90,7 @@ export function UsageMeter() {
           type="button"
           data-usage
           title={limits ? u.titleWithLimits : u.titleWithoutLimits}
-          className="flex h-6 items-center gap-2 rounded-[6px] px-1.5 font-mono text-[11.5px] text-dp-text-2 hover:bg-dp-hover hover:text-dp-text"
+          className="flex h-6 items-center gap-2 rounded-md px-1.5 font-mono text-xs text-dp-text-2 transition-[color,background-color,transform] duration-150 ease-out hover:bg-dp-hover hover:text-dp-text active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none"
         >
           {!hasLimits ? (
             <>
@@ -136,7 +136,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 
 function Row({ label, children }: { label: ReactNode; children: ReactNode }) {
   return (
-    <div className="flex items-center gap-2 text-[12px]">
+    <div className="flex items-center gap-2 text-xs">
       <span className="text-dp-text-2">{label}</span>
       <span className="ml-auto text-right font-mono text-dp-text">{children}</span>
     </div>
@@ -202,7 +202,7 @@ function UsageDetail({ onTokens }: { onTokens: () => void }) {
         <Row label={u.apiTime}>{formatDuration(sum.apiMs)}</Row>
         <Row label={u.wallTime}>{formatDuration(sum.wallMs)}</Row>
         <Row label={u.code}>
-          <span style={{ color: "var(--dp-ok)" }}>+{sum.linesAdded}</span> <span style={{ color: "var(--dp-danger)" }}>−{sum.linesRemoved}</span>
+          <span className="text-dp-ok">+{sum.linesAdded}</span> <span className="text-dp-danger">−{sum.linesRemoved}</span>
         </Row>
         <Row label={<span title={u.co2Hint}>{u.co2}</span>}>
           {sum.co2Grams < 10 ? formatDecimal(sum.co2Grams, 1) : Math.round(sum.co2Grams)} g
@@ -232,11 +232,11 @@ function UsageDetail({ onTokens }: { onTokens: () => void }) {
       <button
         type="button"
         onClick={onTokens}
-        className="self-start rounded-[6px] px-2 py-1 text-[12px] text-dp-accent hover:bg-dp-hover"
+        className="self-start rounded-md px-2 py-1 text-xs text-dp-accent-ink transition-[color,background-color,transform] duration-150 ease-out hover:bg-dp-hover active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none"
       >
         {u.tokensLink} →
       </button>
-      <p className="text-[10.5px] text-dp-text-3">{u.footnote}</p>
+      <p className="text-[11px] text-dp-text-3">{u.footnote}</p>
     </div>
   );
 }

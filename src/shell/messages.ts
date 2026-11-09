@@ -128,15 +128,6 @@ export const shellMessages = defineMessages(
       arrow: "Arrow",
       frame: "Frame",
     },
-    icons: {
-      title: "Icons",
-      search: "Search for an icon",
-      searchPlaceholder: "Search for an icon…",
-      notFound: "Icons not found in the app.",
-      loading: "Loading…",
-      none: "No icons",
-      credits: "Excalidraw community libraries · MIT license",
-    },
     update: {
       chip: (version: string) => `Version ${version} available`,
       willStop: (names: string[]) =>

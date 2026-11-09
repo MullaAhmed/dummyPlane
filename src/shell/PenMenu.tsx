@@ -18,6 +18,8 @@ export function PenMenu({ active }: { active: boolean }) {
   const theme = useTheme();
   const [color, setColor] = useState(PEN_COLORS[0].scene);
   const [width, setWidth] = useState(2);
+  // The "custom" swatch is the palette itself, in the colours of this theme: no colour is written here.
+  const spectrum = `conic-gradient(${PEN_COLORS.map(({ scene }) => displayColorFor(scene, theme)).join(", ")})`;
 
   const choose = (next: { color?: string; width?: number }) => {
     const api = canvasStore.getState().api;
@@ -52,7 +54,7 @@ export function PenMenu({ active }: { active: boolean }) {
           <PenLine />
         </ToolButton>
       </PopoverTrigger>
-      <PopoverContent side="right" className="w-60">
+      <PopoverContent side="right" className="w-60 rounded-lg">
         <p className="dp-label mb-2">{t.color}</p>
         <div className="mb-3 flex flex-wrap gap-2">
           {PEN_COLORS.map(({ scene }, index) => (
@@ -64,7 +66,7 @@ export function PenMenu({ active }: { active: boolean }) {
               aria-label={t.colors[index]}
               onClick={() => choose({ color: scene })}
               className={cn(
-                "size-6 rounded-full ring-offset-2 ring-offset-dp-surface-2",
+                "size-6 rounded-full ring-offset-2 ring-offset-dp-surface transition-[transform,box-shadow] duration-150 ease-out hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] motion-reduce:transition-none",
                 scene === color && "ring-2 ring-dp-accent",
               )}
               style={{ backgroundColor: displayColorFor(scene, theme) }}
@@ -72,7 +74,8 @@ export function PenMenu({ active }: { active: boolean }) {
           ))}
           <label
             title={t.custom}
-            className="relative size-6 cursor-pointer overflow-hidden rounded-full border border-dp-line bg-[conic-gradient(#ef4444,#d9b35a,#5e9a55,#5cc8f0,#a47cf0,#ef4444)]"
+            style={{ backgroundImage: spectrum }}
+            className="relative size-6 cursor-pointer overflow-hidden rounded-full border border-dp-line transition-[transform,filter] duration-150 ease-out hover:brightness-110 active:scale-[0.97] has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-dp-accent/50 motion-reduce:transition-none"
           >
             <input
               type="color"
@@ -90,8 +93,8 @@ export function PenMenu({ active }: { active: boolean }) {
               aria-label={t.widthN(w)}
               onClick={() => choose({ width: w })}
               className={cn(
-                "grid size-8 place-items-center rounded-lg border border-transparent bg-dp-card",
-                w === width && "border-dp-accent bg-dp-accent-soft",
+                "grid size-8 place-items-center rounded-md border border-transparent bg-dp-card transition-[background-color,border-color,transform] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] motion-reduce:transition-none",
+                w === width ? "border-dp-accent bg-dp-accent-soft" : "hover:bg-dp-hover",
               )}
             >
               <span className="rounded-full bg-dp-text" style={{ width: w + 2, height: w + 2 }} />
