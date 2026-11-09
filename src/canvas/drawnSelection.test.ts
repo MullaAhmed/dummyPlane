@@ -1,6 +1,16 @@
 import { describe, expect, it } from "vitest";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
-import { deleteSelection, drawnSelectionOf, duplicateSelection, isDrawn, restyleSelection, sameDrawn } from "./drawnSelection";
+import {
+  arrowTypeOf,
+  deleteSelection,
+  drawnSelectionOf,
+  duplicateSelection,
+  isConnector,
+  isDrawn,
+  restyleSelection,
+  roughnessOf,
+  sameDrawn,
+} from "./drawnSelection";
 
 // Minimal elements: only the fields the rules read.
 const el = (id: string, overrides: Record<string, unknown> = {}) =>
@@ -80,6 +90,121 @@ describe("restyling the selection", () => {
   it("leaves the scene as it was when nothing drawn is selected", () => {
     const scene = [el("a")];
     expect(restyleSelection(scene, select("zz"), { strokeColor: "#000000" })).toEqual(scene);
+  });
+});
+
+describe("sloppiness and arrow type", () => {
+  const arrow = (id: string, overrides: Record<string, unknown> = {}) =>
+    el(id, {
+      type: "arrow",
+      x: 100,
+      y: 100,
+      roughness: 1,
+      roundness: null,
+      elbowed: false,
+      points: [
+        [0, 0],
+        [60, 20],
+        [200, 0],
+      ],
+      startBinding: null,
+      endBinding: null,
+      ...overrides,
+    });
+
+  it("reads lines and arrows as connection strokes, and nothing else", () => {
+    const kinds = [el("r"), el("l", { type: "line" }), el("a", { type: "arrow" }), el("t", { type: "text" })];
+    expect(kinds.map(isConnector)).toEqual([false, true, true, false]);
+  });
+
+  it("reads the arrow type and the sloppiness of an arrow", () => {
+    expect(arrowTypeOf(arrow("a"))).toBe("sharp");
+    expect(arrowTypeOf(arrow("a", { roundness: { type: 2 } }))).toBe("round");
+    expect(arrowTypeOf(arrow("a", { elbowed: true }))).toBe("elbow");
+    expect(roughnessOf(arrow("a"))).toBe(1);
+    expect(roughnessOf(arrow("a", { roughness: 2 }))).toBe(2);
+    expect(roughnessOf(el("r"))).toBe(0);
+  });
+
+  it("sets the sloppiness of lines and arrows, and leaves shapes and unselected strokes alone", () => {
+    const scene = [arrow("a"), el("l", { type: "line", roughness: 2 }), el("r"), arrow("other")];
+    const out = byId(restyleSelection(scene, select("a", "l", "r"), { roughness: 0 }));
+    expect(out.a.roughness).toBe(0);
+    expect(out.l.roughness).toBe(0);
+    expect(out.r).toBe(scene[2]);
+    expect(out.other).toBe(scene[3]);
+  });
+
+  it("makes an arrow sharp or round, keeping its points", () => {
+    const scene = [arrow("a")];
+    const round = byId(restyleSelection(scene, select("a"), { arrowType: "round" })).a;
+    expect(round).toMatchObject({ roundness: { type: 2 }, elbowed: false, width: 200, height: 20 });
+    expect(round.points).toHaveLength(3);
+    const sharp = byId(restyleSelection(scene, select("a"), { arrowType: "sharp" })).a;
+    expect(sharp).toMatchObject({ roundness: null, elbowed: false });
+  });
+
+  it("makes an arrow elbowed from its two ends, and leaves lines and shapes alone", () => {
+    const scene = [arrow("a"), el("l", { type: "line" }), el("r")];
+    const out = byId(restyleSelection(scene, select("a", "l", "r"), { arrowType: "elbow" }));
+    expect(out.a).toMatchObject({
+      roundness: null,
+      elbowed: true,
+      points: [
+        [0, 0],
+        [200, 0],
+      ],
+      width: 200,
+      height: 0,
+    });
+    expect(out.l).toBe(scene[1]);
+    expect(out.r).toBe(scene[2]);
+  });
+
+  it("gives each bound end of an elbow arrow the ratio of the element it sits on, kept inside it", () => {
+    const orchestrator = el("o", { x: 0, y: 0, width: 100, height: 100 });
+    const target = el("t", { x: 400, y: 0, width: 100, height: 200 });
+    // From 8 right of the orchestrator's side to 8 left of the target's, both at mid height.
+    const wire = arrow("w", {
+      x: 108,
+      y: 50,
+      points: [
+        [0, 0],
+        [284, 50],
+      ],
+      startBinding: { elementId: "o", focus: 0, gap: 8 },
+      endBinding: { elementId: "t", focus: 0, gap: 8 },
+    });
+    const out = byId(restyleSelection([orchestrator, target, wire], select("w"), { arrowType: "elbow" })).w;
+    expect((out.startBinding as { fixedPoint: number[] }).fixedPoint).toEqual([1, 0.5]);
+    expect((out.endBinding as { fixedPoint: number[] }).fixedPoint).toEqual([0, 0.5]);
+    expect(out.startBinding).toMatchObject({ elementId: "o", gap: 8 });
+  });
+
+  it("keeps a binding whose element is gone as it was", () => {
+    const wire = arrow("w", { startBinding: { elementId: "gone", focus: 0, gap: 8 } });
+    const out = byId(restyleSelection([wire], select("w"), { arrowType: "elbow" })).w;
+    expect(out.startBinding).toEqual({ elementId: "gone", focus: 0, gap: 8 });
+  });
+
+  it("goes from elbow back to a straight arrow on its two ends", () => {
+    const points = [
+      [0, 0],
+      [100, 0],
+      [100, 50],
+      [200, 50],
+    ];
+    const out = byId(restyleSelection([arrow("a", { elbowed: true, points })], select("a"), { arrowType: "sharp" })).a;
+    expect(out).toMatchObject({
+      elbowed: false,
+      roundness: null,
+      points: [
+        [0, 0],
+        [200, 50],
+      ],
+      width: 200,
+      height: 50,
+    });
   });
 });
 
