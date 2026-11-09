@@ -17,10 +17,10 @@ const agent = (id: string): WaitingAgent => ({ id, kind: "terminal", name: id, w
 
 describe("waitingAgents (spec notification §3)", () => {
   it("names the running agents waiting for an answer, the one waiting longest first", () => {
-    const nodes = { isis: terminal("w1", "Isis"), thot: terminal("w2", "Thot") };
+    const nodes = { isis: terminal("w1", "Isis"), thot: terminal("w2", "Thoth") };
     const list = waitingAgents(["w1", "w2"], nodes, { isis: running, thot: running }, { isis: waiting(20), thot: waiting(10) });
     expect(list).toEqual([
-      { id: "thot", kind: "terminal", name: "Thot", workspaceId: "w2", since: 10 },
+      { id: "thot", kind: "terminal", name: "Thoth", workspaceId: "w2", since: 10 },
       { id: "isis", kind: "terminal", name: "Isis", workspaceId: "w1", since: 20 },
     ]);
   });
@@ -65,7 +65,7 @@ describe("currentWaitingAgents", () => {
 
   it("reads the open project's workspaces from the stores", () => {
     workspacesStore.setState({ workspaces: [{ id: "w1", projectId: "p1", name: "Workspace 1", position: 0, pantheon: null, kind: "canvas" }] });
-    nodesStore.setState({ nodes: { isis: terminal("w1", "Isis"), thot: terminal("w9", "Thot") } });
+    nodesStore.setState({ nodes: { isis: terminal("w1", "Isis"), thot: terminal("w9", "Thoth") } });
     terminalStatusStore.setState({ statuses: { isis: { state: "running" }, thot: { state: "running" } } });
     agentActivityStore.getState().apply({ nodeId: "isis", activity: "waiting", since: 1 });
     agentActivityStore.getState().apply({ nodeId: "thot", activity: "waiting", since: 2 });

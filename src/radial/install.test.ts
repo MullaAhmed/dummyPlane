@@ -115,7 +115,7 @@ describe("opening the ring (spec menu radial §5.2, §6.4)", () => {
     expect(menu.defaultPrevented).toBe(false);
   });
 
-  it("blocks the native menu on the canvas, lets « Plus… » through", () => {
+  it("blocks the native menu on the canvas, lets More… through", () => {
     const excalidraw = vi.fn();
     canvas().addEventListener("contextmenu", excalidraw);
     const blocked = new MouseEvent("contextmenu", { bubbles: true, cancelable: true });

@@ -37,7 +37,7 @@ describe("nextName", () => {
   it("takes the first free name, ignoring case", () => {
     expect(nextName("egyptian", [])).toBe("Isis");
     expect(nextName("egyptian", ["isis", "Horus"])).toBe("Osiris");
-    expect(nextName("greek", [])).toBe("Athéna");
+    expect(nextName("greek", [])).toBe("Athena");
   });
 
   it("adds 2, then 3, once every name is taken", () => {

@@ -47,7 +47,7 @@ pub struct Cleanup {
 
 const MAX_SLUG: usize = 40;
 
-/// Latin letters with accents or macrons, as plain ASCII: "Athéna" → "athena", "Fūjin" → "fujin".
+/// Latin letters with accents or macrons, as plain ASCII: "Zoë" → "zoe", "Fūjin" → "fujin".
 fn fold(c: char) -> Option<&'static str> {
     Some(match c {
         'à' | 'á' | 'â' | 'ã' | 'ä' | 'å' | 'ā' => "a",
@@ -388,7 +388,7 @@ mod tests {
             slug("Ajoute l'Authentification !"),
             "ajoute-l-authentification"
         );
-        assert_eq!(slug("Athéna 2"), "athena-2");
+        assert_eq!(slug("Zoë 2"), "zoe-2");
         assert_eq!(slug("Œuvre complète"), "oeuvre-complete");
         assert_eq!(slug("Ōkuninushi"), "okuninushi");
         assert_eq!(slug("  --  "), "mission");
@@ -443,7 +443,7 @@ mod tests {
         };
         let mission = prepare(&proj, "auth").unwrap();
         commit(Path::new(&mission.path), "m.txt", "m\n", "mission base");
-        let agent = add_agent(&proj, &mission.slug, "Athéna").unwrap();
+        let agent = add_agent(&proj, &mission.slug, "Athena").unwrap();
         assert_eq!(agent.slug, "auth-athena");
         assert_eq!(agent.branch, "dummyplane/auth-athena");
         assert!(same(
@@ -459,10 +459,10 @@ mod tests {
             return;
         };
         let mission = prepare(&proj, "auth").unwrap();
-        let athena = add_agent(&proj, &mission.slug, "Athéna").unwrap();
-        let apollon = add_agent(&proj, &mission.slug, "Apollon").unwrap();
+        let athena = add_agent(&proj, &mission.slug, "Athena").unwrap();
+        let apollo = add_agent(&proj, &mission.slug, "Apollo").unwrap();
         commit(Path::new(&athena.path), "login.txt", "login\n", "login");
-        std::fs::write(Path::new(&apollon.path).join("draft.txt"), "x").unwrap();
+        std::fs::write(Path::new(&apollo.path).join("draft.txt"), "x").unwrap();
         let m = Path::new(&mission.path);
         assert_eq!(
             merge_agent(m, Path::new(&athena.path), &athena.branch).unwrap(),
@@ -473,7 +473,7 @@ mod tests {
         );
         assert!(m.join("login.txt").exists());
         assert_eq!(
-            merge_agent(m, Path::new(&apollon.path), &apollon.branch).unwrap(),
+            merge_agent(m, Path::new(&apollo.path), &apollo.branch).unwrap(),
             MergeReport {
                 merge: Merge::Empty,
                 uncommitted: true
@@ -487,7 +487,7 @@ mod tests {
             return;
         };
         let mission = prepare(&proj, "auth").unwrap();
-        let athena = add_agent(&proj, &mission.slug, "Athéna").unwrap();
+        let athena = add_agent(&proj, &mission.slug, "Athena").unwrap();
         commit(Path::new(&athena.path), "login.txt", "login\n", "login");
         // Worktrees share the repository's config, so its hooks.
         let hooks = parent.path().join("hooks");
@@ -513,7 +513,7 @@ mod tests {
             return;
         };
         let mission = prepare(&proj, "auth").unwrap();
-        let athena = add_agent(&proj, &mission.slug, "Athéna").unwrap();
+        let athena = add_agent(&proj, &mission.slug, "Athena").unwrap();
         let m = Path::new(&mission.path);
         commit(m, "a.txt", "mission\n", "mission side");
         commit(Path::new(&athena.path), "a.txt", "athena\n", "agent side");
@@ -537,22 +537,22 @@ mod tests {
             return;
         };
         let mission = prepare(&proj, "auth").unwrap();
-        let athena = add_agent(&proj, &mission.slug, "Athéna").unwrap();
-        let apollon = add_agent(&proj, &mission.slug, "Apollon").unwrap();
-        commit(Path::new(&apollon.path), "api.txt", "api\n", "api");
-        let done = discard(&proj, &[mission.clone(), athena, apollon]).unwrap();
+        let athena = add_agent(&proj, &mission.slug, "Athena").unwrap();
+        let apollo = add_agent(&proj, &mission.slug, "Apollo").unwrap();
+        commit(Path::new(&apollo.path), "api.txt", "api\n", "api");
+        let done = discard(&proj, &[mission.clone(), athena, apollo]).unwrap();
         assert_eq!(
             done.removed,
             vec!["auth-athena".to_string(), "auth".to_string()]
         );
         assert_eq!(
             done.kept,
-            vec!["dummyplane/auth-apollon (branch not merged)".to_string()]
+            vec!["dummyplane/auth-apollo (branch not merged)".to_string()]
         );
         assert!(!parent.path().join("proj.worktrees").join("auth").exists());
         assert_eq!(
             run(&proj, &["branch", "--list", "dummyplane/*"]),
-            "dummyplane/auth-apollon"
+            "dummyplane/auth-apollo"
         );
         // The same plan can be launched again.
         prepare(&proj, "auth").unwrap();
@@ -564,28 +564,28 @@ mod tests {
             return;
         };
         let mission = prepare(&proj, "auth").unwrap();
-        let athena = add_agent(&proj, &mission.slug, "Athéna").unwrap();
-        let apollon = add_agent(&proj, &mission.slug, "Apollon").unwrap();
+        let athena = add_agent(&proj, &mission.slug, "Athena").unwrap();
+        let apollo = add_agent(&proj, &mission.slug, "Apollo").unwrap();
         commit(Path::new(&athena.path), "login.txt", "login\n", "login");
-        commit(Path::new(&apollon.path), "api.txt", "api\n", "api");
+        commit(Path::new(&apollo.path), "api.txt", "api\n", "api");
         let m = Path::new(&mission.path);
         merge_agent(m, Path::new(&athena.path), &athena.branch).unwrap();
-        let names = vec!["Athéna".to_string(), "Apollon".to_string()];
+        let names = vec!["Athena".to_string(), "Apollo".to_string()];
         let first = cleanup(&proj, &mission.slug, &names).unwrap();
         assert_eq!(first.removed, vec!["auth-athena".to_string()]);
         assert_eq!(
             first.kept,
-            vec!["auth-apollon (branch not merged)".to_string()]
+            vec!["auth-apollo (branch not merged)".to_string()]
         );
         assert!(m.exists());
-        merge_agent(m, Path::new(&apollon.path), &apollon.branch).unwrap();
+        merge_agent(m, Path::new(&apollo.path), &apollo.branch).unwrap();
         let second = cleanup(&proj, &mission.slug, &names).unwrap();
         assert_eq!(
             second.removed,
-            vec!["auth-apollon".to_string(), "auth".to_string()]
+            vec!["auth-apollo".to_string(), "auth".to_string()]
         );
         assert!(!parent.path().join("proj.worktrees").join("auth").exists());
         let branches = run(&proj, &["branch", "--list", "dummyplane/*"]);
-        assert!(branches.contains("dummyplane/auth-apollon") && branches.contains("dummyplane/auth"));
+        assert!(branches.contains("dummyplane/auth-apollo") && branches.contains("dummyplane/auth"));
     }
 }

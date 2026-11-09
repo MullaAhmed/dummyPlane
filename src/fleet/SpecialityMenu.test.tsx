@@ -53,7 +53,7 @@ it("suggests in English too", async () => {
   expect(field().placeholder).toBe("Your own, then Enter");
 });
 
-it("sets a suggestion, and clears with « Aucune »", async () => {
+it("sets a suggestion, and clears with None", async () => {
   await open("API");
   await act(async () => items()[0].click());
   expect(setGroupSpeciality).toHaveBeenLastCalledWith("g1", "Frontend");

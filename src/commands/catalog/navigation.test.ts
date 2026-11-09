@@ -101,7 +101,7 @@ describe("Navigation (spec fenêtre §7.3)", () => {
     const next = find(NAVIGATION, "agent.nextWaiting");
     vi.mocked(currentWaitingAgents).mockReturnValue([]);
     expect(next.available(busy)).toBe(false);
-    vi.mocked(currentWaitingAgents).mockReturnValue([{ id: "thot", kind: "terminal", name: "Thot", workspaceId: "w2", since: 0 }]);
+    vi.mocked(currentWaitingAgents).mockReturnValue([{ id: "thot", kind: "terminal", name: "Thoth", workspaceId: "w2", since: 0 }]);
     expect(next.available(busy)).toBe(true);
     await next.run(busy);
     expect(goToNextWaiting).toHaveBeenCalledWith("isis");

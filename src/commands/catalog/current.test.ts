@@ -48,7 +48,7 @@ beforeAll(async () => {
   await nodesStore.getState().create("thot", {
     workspaceId: "w1",
     kind: "terminal",
-    payload: { title: "Thot", name: "Thot", agent: "codex", cwd: "C:/code", shell: "default", command: "" },
+    payload: { title: "Thoth", name: "Thoth", agent: "codex", cwd: "C:/code", shell: "default", command: "" },
   });
 });
 beforeEach(() => {
@@ -90,7 +90,7 @@ describe("Terminal · <prénom> and Groupe · <nom> (spec fenêtre §7.3)", () =
 
   it("offers each function under the rules of its button", () => {
     expect(ids(ctx(null))).toEqual([]);
-    // Isis runs and works: no Reprendre; in a group.
+    // Isis runs and works: no Resume; in a group.
     expect(ids(ctx("isis"))).toEqual([
       "terminal.rename",
       "terminal.duplicate",
@@ -111,7 +111,7 @@ describe("Terminal · <prénom> and Groupe · <nom> (spec fenêtre §7.3)", () =
       "group.resume",
       "group.frame",
     ]);
-    // Thot is stopped and outside any group.
+    // Thoth is stopped and outside any group.
     expect(ids(ctx("thot"))).toEqual(["terminal.rename", "terminal.duplicate", "terminal.review", "terminal.relaunch", "terminal.close", "terminal.copy", "terminal.paste"]);
   });
 

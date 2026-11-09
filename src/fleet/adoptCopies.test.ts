@@ -55,7 +55,7 @@ it("gives a group copied whole a pantheon of its own and names its agents from i
   const name = terminalOf(nodesStore.getState().nodes.isis2)!.name;
   expect(name).not.toBe("Isis");
   expect(name).toMatch(/\S/);
-  const egyptianNames = ["Isis", "Osiris", "Horus", "Anubis", "Ra", "Thot", "Seth", "Bastet"];
+  const egyptianNames = ["Isis", "Osiris", "Horus", "Anubis", "Ra", "Thoth", "Seth", "Bastet"];
   expect(egyptianNames.some((n) => name === n || name.startsWith(`${n} `))).toBe(false);
 });
 

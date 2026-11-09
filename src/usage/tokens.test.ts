@@ -35,11 +35,11 @@ describe("byAgent", () => {
     { sessionId: "s-thot", model: "claude-haiku-5-5", counts: c(1, 30) },
     { sessionId: "s-other", model: null, counts: c(1, 5) },
   ];
-  const names = new Map([["s-isis", "Isis"], ["s-isis-old", "Isis"], ["s-thot", "Thot"]]);
+  const names = new Map([["s-isis", "Isis"], ["s-isis-old", "Isis"], ["s-thot", "Thoth"]]);
 
   it("names the sessions of dummyPlane's agents, merges an agent's sessions, and groups the rest", () => {
     const rows = byAgent(sessions, names, "Autres sessions");
-    expect(rows.map((r) => [r.label, r.counts.output])).toEqual([["Isis", 150], ["Thot", 30], ["Autres sessions", 5]]);
+    expect(rows.map((r) => [r.label, r.counts.output])).toEqual([["Isis", 150], ["Thoth", 30], ["Autres sessions", 5]]);
     expect(rows[0].model).toBe("claude-opus-5-5");
     expect(rows[2].other).toBe(true);
   });

@@ -48,7 +48,7 @@ describe("goTo (spec fenêtre §7.2)", () => {
   });
 
   it("goes to another workspace first, then arrives once its scene is on screen", () => {
-    goTo(item({ workspaceId: "w2", targetId: "thot", label: "Thot" }));
+    goTo(item({ workspaceId: "w2", targetId: "thot", label: "Thoth" }));
     expect(select).toHaveBeenCalledWith("w2");
     expect(arrive).not.toHaveBeenCalled();
     completeArrival("w2");
@@ -58,7 +58,7 @@ describe("goTo (spec fenêtre §7.2)", () => {
   });
 
   it("abandons an arrival when another workspace's scene comes up first", () => {
-    goTo(item({ workspaceId: "w2", targetId: "thot", label: "Thot" }));
+    goTo(item({ workspaceId: "w2", targetId: "thot", label: "Thoth" }));
     completeArrival("w3");
     completeArrival("w2");
     expect(arrive).not.toHaveBeenCalled();
@@ -96,7 +96,7 @@ describe("goTo (spec fenêtre §7.2)", () => {
   it("waits for the scene when a second click comes during the switch of workspace", () => {
     const error = vi.spyOn(toast, "error").mockImplementation(() => "");
     vi.mocked(arrive).mockReturnValue(false);
-    const agent = { id: "thot", kind: "terminal", name: "Thot", workspaceId: "w2", since: 0 } as const;
+    const agent = { id: "thot", kind: "terminal", name: "Thoth", workspaceId: "w2", since: 0 } as const;
     goToAgent(agent);
     workspacesStore.setState({ activeId: "w2" } as never);
     goToAgent(agent);

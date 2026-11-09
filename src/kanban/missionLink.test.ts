@@ -119,10 +119,10 @@ describe("the agent chip", () => {
   it("names the agent a sub-task went to, its alert cleared", () => {
     const flagged = flagCard(setCardAgent(board(), "a", "Amon"), "a", "failed");
     expect(flagged.cards.a).toMatchObject({ agent: "Amon", agentStatus: "failed" });
-    const handed = setCardAgent(flagged, "a", "Thot");
-    expect(handed.cards.a.agent).toBe("Thot");
+    const handed = setCardAgent(flagged, "a", "Thoth");
+    expect(handed.cards.a.agent).toBe("Thoth");
     expect(handed.cards.a).not.toHaveProperty("agentStatus");
-    expect(setCardAgent(board(), "zzz", "Thot").cards).toEqual(board().cards);
+    expect(setCardAgent(board(), "zzz", "Thoth").cards).toEqual(board().cards);
   });
 
   it("goes on alert for blocked or failed, the card staying in its column", () => {

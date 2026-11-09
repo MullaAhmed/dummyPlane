@@ -71,7 +71,7 @@ describe("the Kanban handed to an orchestrator", () => {
       { title: "Login", brief: "b", agent: "nouveau", budgetMin: 5, card: "c1" },
       { title: "Docs", brief: "b", agent: "nouveau", budgetMin: 5 },
     ];
-    await startMissionCards("chef", [member("Amon", "Login"), member("Thot", "Docs")], plan);
+    await startMissionCards("chef", [member("Amon", "Login"), member("Thoth", "Docs")], plan);
     const started = boardOf();
     expect(started.columns.map((c) => c.title)).toEqual(["To do", "In progress", "Done"]);
     expect(started.columns[1].cardIds).toEqual(["c1"]);

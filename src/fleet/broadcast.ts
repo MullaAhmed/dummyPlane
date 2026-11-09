@@ -172,12 +172,12 @@ export async function resumeAgent(id: string): Promise<boolean> {
   return true;
 }
 
-/** "2 stopped agents ignored: Thot, Anubis" (spec §12). */
+/** "2 stopped agents ignored: Thoth, Anubis" (spec §12). */
 export function skippedText(names: readonly string[]): string | null {
   return names.length === 0 ? null : messages(fleetMessages).broadcast.skipped(names);
 }
 
-/** "1 agent still starting ignored: Thot — try again in a moment". */
+/** "1 agent still starting ignored: Thoth — try again in a moment". */
 export function startingText(names: readonly string[]): string | null {
   return names.length === 0 ? null : messages(fleetMessages).broadcast.starting(names);
 }
@@ -187,7 +187,7 @@ export function waitingText(names: readonly string[]): string | null {
   return names.length === 0 ? null : messages(fleetMessages).broadcast.waiting(names);
 }
 
-/** "1 terminal without an agent ignored: Thot — a / command only goes to agents". */
+/** "1 terminal without an agent ignored: Thoth — a / command only goes to agents". */
 export function unsuitedText(names: readonly string[]): string | null {
   return names.length === 0 ? null : messages(fleetMessages).broadcast.unsuited(names);
 }

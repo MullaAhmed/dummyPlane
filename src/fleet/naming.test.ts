@@ -68,7 +68,7 @@ const groupFrame = (id: string, pantheon: string) => ({
 
 it("keeps the pantheons of the groups for their own agents", async () => {
   canvasStore.getState().setFrames([groupFrame("g", "egyptian")]);
-  expect(await nameForNewAgent("w1")).toBe("Athéna");
+  expect(await nameForNewAgent("w1")).toBe("Athena");
   expect(pantheonSaves).toEqual(["greek"]);
 });
 

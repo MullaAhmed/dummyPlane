@@ -134,7 +134,7 @@ describe("Dessin, sur la sélection (spec menu radial §4.5)", () => {
     expect(labelOf(DRAWING.find((c) => c.id === "drawing.lock")!, busy)).toBe("Unlock");
   });
 
-  it("offers « Déverrouiller » on a mixed selection: Excalidraw's lock unlocks it whole (plan G1)", () => {
+  it("offers Unlock on a mixed selection: Excalidraw's lock unlocks it whole (plan G1)", () => {
     mixed({ r1: true, r2: true });
     expect(labelOf(DRAWING.find((c) => c.id === "drawing.lock")!, busy)).toBe("Unlock");
   });
@@ -151,7 +151,7 @@ describe("Dessin, sur la sélection (spec menu radial §4.5)", () => {
     expect(setActiveTool).toHaveBeenLastCalledWith({ type: "text" });
   });
 
-  it("offers « Plus… » in the radial menu only: Excalidraw's menu at its point", async () => {
+  it("offers More… in the radial menu only: Excalidraw's menu at its point", async () => {
     scene({ r1: true });
     const more = DRAWING.find((c) => c.id === "drawing.more")!;
     expect(more.available(busy)).toBe(false);

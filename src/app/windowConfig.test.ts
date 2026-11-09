@@ -22,9 +22,9 @@ describe("window configuration (spec fenêtre §4.7)", () => {
     );
   });
 
-  it("ships as a per-user NSIS installer in English and French (spec première version §6.3)", () => {
+  it("ships as a per-user NSIS installer in English (spec première version §6.3)", () => {
     expect(conf.bundle.targets).toEqual(["nsis"]);
-    expect(conf.bundle.windows.nsis).toEqual({ installMode: "currentUser", languages: ["English", "French"] });
+    expect(conf.bundle.windows.nsis).toEqual({ installMode: "currentUser", languages: ["English"] });
     expect(conf.identifier).toBe("dev.dummyplane.app");
   });
 });

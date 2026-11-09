@@ -41,7 +41,7 @@ If you know Symvibe, dummyPlane covers the same ground (driving a fleet of CLI a
 ## Features
 
 - **Real terminals on a canvas.** Every agent is a real PTY (ConPTY on Windows) drawn with xterm.js. You can pan, zoom, draw around the agents and annotate their work. The canvas is [Excalidraw](https://github.com/excalidraw/excalidraw), so shapes, arrows, text and images all work.
-- **Teams.** Launch four agents at once, or compose a group with a role (Frontend, Backend, Testers, Reviewers…). Each group takes its names from a pantheon: Athéna, Hermès, Apollon…
+- **Teams.** Launch four agents at once, or compose a group with a role (Frontend, Backend, Testers, Reviewers…). Each group takes its names from a pantheon: Athena, Hermes, Apollo…
   - Give a group a **speciality** (one line, from its menu): a linked orchestrator reads it to hand each sub-task to the right group.
   - **Fold** a group onto its label with the chevron: its terminals leave the screen, nothing stops, and the label keeps its counters. Going to one of its agents unfolds it; a group can't be folded while its agents are still starting.
   - Save the team on screen as a **preset** (*Enregistrer l'équipe comme preset…* in the function palette) and deploy it in any project with *Déployer l'équipe*. A preset keeps the shape only: groups, roles, specialities, agents and links, never instructions or history.
@@ -78,7 +78,7 @@ If you know Symvibe, dummyPlane covers the same ground (driving a fleet of CLI a
 
 ![Typing / after @frontend suggests Claude Code commands; /context runs in all three agents](docs/assets/demo/commands.gif)
 
-**Review a change and send it back.** Jump to an agent with `Ctrl+P`, open *Revue des changements* from `Ctrl+Shift+P`, then click a line to leave a remark. *Envoyer à Hermès* sends every remark in one message.
+**Review a change and send it back.** Jump to an agent with `Ctrl+P`, open *Review changes* from `Ctrl+Shift+P`, then click a line to leave a remark. *Send to Hermes* sends every remark in one message.
 
 ![The go-to palette, the function palette, the review panel and a remark on a diff line](docs/assets/demo/review.gif)
 

@@ -92,7 +92,7 @@ it("shows a group too wide to read whole once, for all its agents to start, then
     { name: "Mission Auth", role: "general", agents: ["claude", "claude", "claude", "claude"] },
     { cwd: "C:/code", shell: "default", title: "", command: "" },
     { x: 0, y: 0 },
-    { pantheon: "egyptian", names: ["Isis", "Horus", "Thot", "Anubis"], cwds: ["C:/a", "C:/b", "C:/c", "C:/d"] },
+    { pantheon: "egyptian", names: ["Isis", "Horus", "Thoth", "Anubis"], cwds: ["C:/a", "C:/b", "C:/c", "C:/d"] },
   );
   const scroll = vi.mocked(api.scrollToContent);
   await vi.waitFor(() => expect(scroll.mock.calls.length).toBeGreaterThan(1));

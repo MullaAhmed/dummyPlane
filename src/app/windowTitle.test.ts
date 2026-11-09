@@ -45,11 +45,11 @@ describe("syncWindowTitle", () => {
     const stop = syncWindowTitle();
     projectsStore.setState({ view: "project", activeId: "p1" });
     projectsStore.setState({ projects: [{ ...hermes }] }); // same title: not set again
-    projectsStore.setState({ projects: [{ ...hermes, name: "Hermès" }] });
+    projectsStore.setState({ projects: [{ ...hermes, name: "Hermes 2" }] });
     projectsStore.setState({ view: "home", activeId: null });
     stop();
     projectsStore.setState({ view: "project", activeId: "p1" });
-    expect(titles).toEqual(["dummyPlane", "dummyPlane — Hermes", "dummyPlane — Hermès", "dummyPlane"]);
+    expect(titles).toEqual(["dummyPlane", "dummyPlane — Hermes", "dummyPlane — Hermes 2", "dummyPlane"]);
     expect(document.title).toBe("dummyPlane");
   });
 });

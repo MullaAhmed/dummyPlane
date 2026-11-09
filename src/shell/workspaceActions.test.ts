@@ -14,17 +14,17 @@ const terminal = (name: string) => ({ title: name, name, agent: "claude" as cons
 
 beforeEach(async () => {
   mockIPC(() => undefined);
-  for (const name of ["Isis", "Thot"]) await nodesStore.getState().create(name, { workspaceId: "w1", kind: "terminal", payload: terminal(name) });
+  for (const name of ["Isis", "Thoth"]) await nodesStore.getState().create(name, { workspaceId: "w1", kind: "terminal", payload: terminal(name) });
   await nodesStore.getState().create("Ra", { workspaceId: "w1", kind: "terminal", payload: terminal("Ra") });
   await nodesStore.getState().create("Autre", { workspaceId: "w2", kind: "terminal", payload: terminal("Autre") });
-  for (const id of ["Isis", "Thot", "Autre"]) terminalStatusStore.getState().set(id, { state: "running" });
+  for (const id of ["Isis", "Thoth", "Autre"]) terminalStatusStore.getState().set(id, { state: "running" });
 });
 
 it("names the agents that deleting the workspace would stop, not only how many", async () => {
   await removeWorkspace(workspace, 2);
   const message = vi.mocked(ask).mock.calls[0][0];
   expect(message).toContain("Isis");
-  expect(message).toContain("Thot");
+  expect(message).toContain("Thoth");
   expect(message).not.toContain("Ra,");
   expect(message).not.toContain("Autre");
 });

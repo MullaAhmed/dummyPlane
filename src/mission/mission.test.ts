@@ -6,12 +6,12 @@ const args = (...sous_taches: object[]) => ({ nom: "Auth", tache: "Ajoute l'auth
 
 describe("proposedPlan (spec orchestrateur §7.2)", () => {
   it("takes a plan of linked agents, named case and accents aside, and new ones", () => {
-    const result = proposedPlan(args(task("athena"), { ...task("nouveau", 30), titre: "API" }), NEW_MISSION, ["Athéna", "Apollon"]);
+    const result = proposedPlan(args(task("athena"), { ...task("nouveau", 30), titre: "API" }), NEW_MISSION, ["Athena", "Apollo"]);
     expect(result).toEqual({
       name: "Auth",
       task: "Ajoute l'authentification",
       plan: [
-        { title: "Login", brief: "Fais le login", agent: "Athéna", budgetMin: 20 },
+        { title: "Login", brief: "Fais le login", agent: "Athena", budgetMin: 20 },
         { title: "API", brief: "Fais le login", agent: "nouveau", budgetMin: 30 },
       ],
     });
@@ -19,8 +19,8 @@ describe("proposedPlan (spec orchestrateur §7.2)", () => {
 
   it("refuses what the team cannot do, with a reason the orchestrator can read", () => {
     const budgeted: Mission = { ...NEW_MISSION, budgetMin: 30, maxAgents: 2 };
-    expect(proposedPlan(args(task("Zeus")), NEW_MISSION, ["Athéna"])).toContain("Zeus");
-    expect(proposedPlan(args(task("Athéna"), task("Athéna")), NEW_MISSION, ["Athéna"])).toContain("one sub-task per agent");
+    expect(proposedPlan(args(task("Zeus")), NEW_MISSION, ["Athena"])).toContain("Zeus");
+    expect(proposedPlan(args(task("Athena"), task("Athena")), NEW_MISSION, ["Athena"])).toContain("one sub-task per agent");
     // Real time: two agents in parallel share it, one sub-task alone must fit (spec mission de nuit §3).
     expect(proposedPlan(args({ ...task("nouveau", 30), titre: "A" }, { ...task("nouveau", 30), titre: "B" }), budgeted, [])).toMatchObject({ name: "Auth" });
     expect(proposedPlan(args(task("nouveau", 31)), budgeted, [])).toBe("Sub-task 1: 31 min do not fit in the overall budget (30 min of real time).");
@@ -55,13 +55,13 @@ describe("a new agent's group (spec groupes spécialisés §3)", () => {
 
   it("refuses an unknown group, and a group for a named agent", () => {
     expect(proposedPlan(args({ ...task("nouveau"), groupe: "Zeus" }), NEW_MISSION, [], groups)).toBe("Sub-task 1: \"Zeus\" is not a linked group.");
-    expect(proposedPlan(args({ ...task("Athéna"), groupe: "Interface" }), NEW_MISSION, ["Athéna"], groups)).toBe("Sub-task 1: group only goes with agent \"new\".");
+    expect(proposedPlan(args({ ...task("Athena"), groupe: "Interface" }), NEW_MISSION, ["Athena"], groups)).toBe("Sub-task 1: group only goes with agent \"new\".");
   });
 
   it("refuses them in English too", () => {
     try {
       expect(proposedPlan(args({ ...task("nouveau"), groupe: "Zeus" }), NEW_MISSION, [], groups)).toBe('Sub-task 1: "Zeus" is not a linked group.');
-      expect(proposedPlan(args({ ...task("Athéna"), groupe: "Interface" }), NEW_MISSION, ["Athéna"], groups)).toBe('Sub-task 1: group only goes with agent "new".');
+      expect(proposedPlan(args({ ...task("Athena"), groupe: "Interface" }), NEW_MISSION, ["Athena"], groups)).toBe('Sub-task 1: group only goes with agent "new".');
     } finally {
     }
   });
@@ -144,7 +144,7 @@ describe("tasks for the queue (spec mission de nuit §4.2)", () => {
 describe("a refused plan in English (spec première version §7.1)", () => {
   it("explains what is wrong in the interface's language", () => {
     try {
-      expect(proposedPlan(args(task("Zeus")), NEW_MISSION, ["Athéna"])).toBe('Sub-task 1: "Zeus" is not a linked Claude agent (a first name, or "new").');
+      expect(proposedPlan(args(task("Zeus")), NEW_MISSION, ["Athena"])).toBe('Sub-task 1: "Zeus" is not a linked Claude agent (a first name, or "new").');
       expect(proposedPlan(args(task("nouveau", 0)), NEW_MISSION, [])).toBe("Sub-task 1: a budget in minutes (a whole number, 1 at least).");
       expect(proposedPlan(args(task("nouveau")), { ...NEW_MISSION, router: true }, [])).toBe("Sub-task 1: a level (low, medium, high or extreme) — the router chooses the agent's model with it.");
     } finally {
@@ -193,7 +193,7 @@ describe("readMission", () => {
 
 it("compares names case and accents aside, and keeps typed text on one line", () => {
   expect(sameName(" HÉRA", "hera")).toBe(true);
-  expect(sameName("Héra", "Hermès")).toBe(false);
+  expect(sameName("Hera", "Hermes")).toBe(false);
   expect(oneLine("Fais ceci\r\n\n  puis cela ")).toBe("Fais ceci puis cela");
 });
 
@@ -222,7 +222,7 @@ describe("the time of a mission (spec orchestrateur §8)", () => {
   it("finds each overrun once per step, 100 % then 200 %, and the end of the global budget", () => {
     const report = { summary: "ok", status: "termine" as const, at: min };
     const mission = running(
-      [member(), member({ nodeId: "n2", name: "Horus", overdue: 1 }), member({ nodeId: "n3", name: "Seth", report }), member({ nodeId: "n4", name: "Thot", handedTo: "Horus" })],
+      [member(), member({ nodeId: "n2", name: "Horus", overdue: 1 }), member({ nodeId: "n3", name: "Seth", report }), member({ nodeId: "n4", name: "Thoth", handedTo: "Horus" })],
       { budgetMin: 30, startedAt: 0 },
     );
     expect(overruns(mission, 11 * min)).toEqual({ members: [{ nodeId: "n1", name: "Isis", task: "Login", level: 1, budget: 10 }], global: false });

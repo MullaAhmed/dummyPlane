@@ -23,7 +23,7 @@ export const launch = {
 };
 
 /** Starts a named group of Claude agents on `model` (setup only, not recorded). */
-export async function team(d, sleep, { name = "Frontend", role = "frontend", names = ["Athéna", "Hermès", "Apollon"], model = "claude-haiku-5-5" } = {}) {
+export async function team(d, sleep, { name = "Frontend", role = "frontend", names = ["Athena", "Hermes", "Apollo"], model = "claude-haiku-5-5" } = {}) {
   await d.eval(`(async () => {
     const { launchGroup } = await import("/src/fleet/groups.ts");
     const { defaultLaunchOptions } = await import("/src/fleet/launchAgent.ts");
@@ -213,7 +213,7 @@ async function missionState(d) {
  * Starts a group of `names` and an orchestrator wired to it, on `model` (setup only).
  * The orchestrator is made the way "Relier un orchestrateur" makes it, with a model.
  */
-export async function orchestratedTeam(d, sleep, { names = ["Athéna", "Hermès"], model = "claude-sonnet-5-5" } = {}) {
+export async function orchestratedTeam(d, sleep, { names = ["Athena", "Hermes"], model = "claude-sonnet-5-5" } = {}) {
   await d.eval(`(async () => {
     const { launchGroup } = await import("/src/fleet/groups.ts");
     const { defaultLaunchOptions } = await import("/src/fleet/launchAgent.ts");

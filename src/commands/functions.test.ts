@@ -51,7 +51,7 @@ describe("functionSections (spec fenêtre §7.3)", () => {
     expect(sections.map((s) => s.label)).toEqual(["Terminal · Isis", "Agents"]);
     expect(sections[0].items[0]).toMatchObject({ label: "Renommer Isis", hint: "F2", disabled: null });
     expect(sections[1].items[0]).toMatchObject({ label: "Launch Codex", hint: null, disabled: "codex introuvable dans le PATH" });
-    expect(labelOf(rename, { ...ctx, terminalId: "Thot" })).toBe("Renommer Thot");
+    expect(labelOf(rename, { ...ctx, terminalId: "Thoth" })).toBe("Renommer Thoth");
     expect(sectionOf(codex, ctx)).toBe("Agents");
   });
 

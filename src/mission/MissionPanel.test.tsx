@@ -75,7 +75,7 @@ it("shows the group a new agent will join (spec groupes spécialisés §3)", asy
   expect(host.textContent).toContain("nouveau → Interface · 20 min");
 });
 
-it("opens « Mission de nuit » from its settings, and marks a night (spec mission de nuit §5.1)", async () => {
+it("opens Night mission from its settings, and marks a night (spec mission de nuit §5.1)", async () => {
   await show();
   expect(host.textContent).toContain("Overnight run…");
   await act(async () => button("Overnight run…").click());
@@ -93,7 +93,7 @@ it("shows the morning report of a night, what to check first (spec mission de nu
     members: [
       { nodeId: "a", name: "Isis", task: "Login", budgetMin: 20, linked: false, branch: "dummyplane/nuit-isis", worktree: "w", sentAt: 0, merged: true, report: { summary: "Login fait", status: "termine", at: 10 * 60_000 } },
       { nodeId: "b", name: "Horus", task: "API", budgetMin: 20, linked: false, branch: "dummyplane/nuit-horus", worktree: "w", sentAt: 0, report: { summary: "Coincé", status: "bloque", at: 5 * 60_000 } },
-      { nodeId: "c", name: "Thot", task: "Tests", budgetMin: 20, linked: false, branch: "b", worktree: "w", sentAt: 0 },
+      { nodeId: "c", name: "Thoth", task: "Tests", budgetMin: 20, linked: false, branch: "b", worktree: "w", sentAt: 0 },
     ],
   });
   const report = host.querySelector("[data-morning]")!.textContent;
@@ -103,7 +103,7 @@ it("shows the morning report of a night, what to check first (spec mission de nu
   expect(report).toContain("Relire la migration");
   expect(report).toContain("Done (1)");
   expect(report).toContain("dummyplane/nuit-isis");
-  expect(report).toContain("Morning report60 / 480 minTo check by hand (1)Relire la migrationDone (1)Login · mergedIsis · 10 / 20 minLogin faitdummyplane/nuit-isisFailed or blocked (1)APIblockedHorus · 5 / 20 minCoincédummyplane/nuit-horusNot finished (1)TestsThot · 60 / 20 minbLeft in the queue: Docs");
+  expect(report).toContain("Morning report60 / 480 minTo check by hand (1)Relire la migrationDone (1)Login · mergedIsis · 10 / 20 minLogin faitdummyplane/nuit-isisFailed or blocked (1)APIblockedHorus · 5 / 20 minCoincédummyplane/nuit-horusNot finished (1)TestsThoth · 60 / 20 minbLeft in the queue: Docs");
   expect(report).toContain("blocked");
   expect(report).toContain("Not finished (1)");
   expect(report).toContain("Left in the queue: Docs");

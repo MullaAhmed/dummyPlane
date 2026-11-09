@@ -95,7 +95,7 @@ Ce qui est reporté. La spec en cours est `docs/superpowers/specs/2026-10-24-dum
 ## Constats du plan D1 (fondations de l'identité, relecture finale)
 
 - `index.html` garde `<html class="dark">` et la variante Tailwind `dark` vaut `&:is(.dark *)` : les `dark:` de shadcn (boutons outline/ghost, champs, listes) s'appliquent aussi en Ivoire. Retirer la classe et redéfinir la variante sur `[data-theme="dark"]` avant que R2 n'écrive des `dark:`.
-- `text-white` sur l'accent à 8 endroits (accueil, menu Agent, saisie de consigne, offre de reprise, orchestrateur, puce git, `ui.tsx`, onglets) au lieu de `text-ov-on-accent` (blanc sur `#D97757` : 3,1:1).
+- `text-white` on the accent in 8 places (home, Agent menu, instruction input, takeover offer, orchestrator, git dot, `ui.tsx`, tabs) instead of `text-dp-on-accent` (white on `#D97757`: 3.1:1).
 - Le voile des dialogues shadcn (`backdrop-blur-xs`) ignore le réglage « Effets de transparence ».
 - Commentaires périmés : « cream strokes » (`sceneDefaults.ts`), « The orange of the wires (spec habillage §13) » (`wires.ts`).
 - `hover:brightness-125` des puces (`ChipButton`) sans effet sur le blanc d'Ivoire (les puces disparaissent en R2).

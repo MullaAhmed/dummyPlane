@@ -14,7 +14,7 @@ vi.mock("@/app/updates", async (original) => ({ ...(await original<typeof import
 
 it("names the agents an update will stop, and installs on demand (spec première version §6.4)", async () => {
   mockIPC(() => undefined);
-  for (const [id, name] of [["isis", "Isis"], ["thot", "Thot"]]) {
+  for (const [id, name] of [["isis", "Isis"], ["thot", "Thoth"]]) {
     await nodesStore.getState().create(id, { workspaceId: "w1", kind: "terminal", payload: { title: name, name, agent: "claude", cwd: "C:/code", shell: "default", command: "" } });
   }
   terminalStatusStore.getState().set("isis", { state: "running" });
@@ -27,7 +27,7 @@ it("names the agents an update will stop, and installs on demand (spec première
   const dialog = document.querySelector('[role="dialog"]')!;
   expect(dialog.textContent).toContain("dummyPlane 1.0.0-beta.2");
   expect(dialog.textContent).toContain("Isis");
-  expect(dialog.textContent).not.toContain("Thot");
+  expect(dialog.textContent).not.toContain("Thoth");
   expect(dialog.textContent).toContain("Things.");
   const install = [...document.querySelectorAll("button")].find((b) => b.textContent === "Install and restart")!;
   await act(async () => install.click());
