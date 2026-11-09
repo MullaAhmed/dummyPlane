@@ -126,6 +126,16 @@ describe("its message field", () => {
     expect(record.kind === "orchestrator" && record.payload.inputOpen).toBe(true);
   });
 
+  it("does not take the keyboard when it mounts already open", async () => {
+    const elsewhere = document.createElement("input");
+    document.body.append(elsewhere);
+    elsewhere.focus();
+    await act(async () => nodesStore.getState().update("chef", { inputOpen: true }));
+    expect(field()).not.toBeNull();
+    expect(document.activeElement).toBe(elsewhere);
+    elsewhere.remove();
+  });
+
   it("is open when the node was left open, and folds again on a second click", async () => {
     await act(async () => nodesStore.getState().update("chef", { inputOpen: true }));
     expect(field()).not.toBeNull();

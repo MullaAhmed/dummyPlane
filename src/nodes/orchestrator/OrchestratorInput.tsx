@@ -1,4 +1,4 @@
-import { useMemo, useRef } from "react";
+import { useMemo, useRef, useState } from "react";
 import { ChevronUp } from "lucide-react";
 import { useCanvas } from "@/canvas/canvasStore";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,8 @@ import { nodesMessages } from "../messages";
 export function OrchestratorInput({ nodeId, open }: { nodeId: string; open: boolean }) {
   const t = useMessages(nodesMessages).orchestrator.input;
   const toggle = useRef<HTMLButtonElement>(null);
+  // Only opening it by hand gives the field the keyboard: a node mounted already open (reload, panned back into view) must not take it from what the user is typing in.
+  const [focusOnOpen, setFocusOnOpen] = useState(false);
   // Keys on the line never reach the canvas: Backspace there would delete the node.
   useNativeKeyDown(toggle, () => undefined);
   return (
@@ -30,19 +32,22 @@ export function OrchestratorInput({ nodeId, open }: { nodeId: string; open: bool
         type="button"
         variant="ghost"
         aria-expanded={open}
-        onClick={() => nodesStore.getState().update(nodeId, { inputOpen: !open })}
+        onClick={() => {
+          setFocusOnOpen(!open);
+          nodesStore.getState().update(nodeId, { inputOpen: !open });
+        }}
         className="h-7 w-full justify-between rounded-none px-3 text-xs font-normal text-dp-text-2 hover:text-dp-text"
       >
         {t.toggle}
         <ChevronUp className={cn("size-3.5 transition-transform duration-150 ease-out motion-reduce:transition-none", open && "rotate-180")} />
       </Button>
-      {open && <OrchestratorField nodeId={nodeId} />}
+      {open && <OrchestratorField nodeId={nodeId} autoFocus={focusOnOpen} />}
     </footer>
   );
 }
 
-/** Mounted while open: the field takes the keyboard, and sends to the wired agents when no `@` is typed. */
-function OrchestratorField({ nodeId }: { nodeId: string }) {
+/** Mounted while open: sends to the wired agents when no `@` is typed. */
+function OrchestratorField({ nodeId, autoFocus }: { nodeId: string; autoFocus: boolean }) {
   const t = useMessages(nodesMessages).orchestrator.input;
   const links = useCanvas((s) => s.links[nodeId] ?? NO_LINKS);
   const frames = useCanvas((s) => s.frames);
@@ -64,7 +69,7 @@ function OrchestratorField({ nodeId }: { nodeId: string }) {
     <div className="px-2 pb-2">
       <CommandInput
         compact
-        autoFocus
+        autoFocus={autoFocus}
         agents={agents}
         groups={linked.groups}
         fallback={linked.agentIds}
