@@ -45,7 +45,7 @@ const byLabel = (label: string) => host.querySelector<HTMLButtonElement>(`[aria-
 
 it("offers the canvas tools in the spec's order, each setting its Excalidraw tool (spec identité §5.4)", async () => {
   const labels = [...host.querySelectorAll("button")].map((b) => b.getAttribute("aria-label"));
-  expect(labels).toEqual(["Select (V)", "Hand (H)", "Shapes", "Text (T)", "Pen (P)", "Eraser (E)", "Image", "Icons", "Launch an agent", "Fit the view"]);
+  expect(labels).toEqual(["Select (V)", "Hand (H)", "Shapes", "Text (T)", "Pen (P)", "Eraser (E)", "Image", "Launch an agent", "Fit the view"]);
   const tools: [string, string][] = [
     ["Select (V)", "selection"],
     ["Hand (H)", "hand"],

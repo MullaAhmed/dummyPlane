@@ -6,7 +6,6 @@ import { AgentMenu } from "@/fleet/AgentMenu";
 import { useMessages } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { ToolButton } from "./buttons";
-import { IconsMenu } from "./IconsMenu";
 import { shellMessages } from "./messages";
 import { PenMenu } from "./PenMenu";
 import { ShapesMenu } from "./ShapesMenu";
@@ -53,7 +52,6 @@ export function ToolRail() {
       <RailButton label={t.image} active={active === "image"} onClick={() => setTool("image")}>
         <ImageIcon />
       </RailButton>
-      <IconsMenu />
       <Separator />
       <AgentMenu
         answersRequests
