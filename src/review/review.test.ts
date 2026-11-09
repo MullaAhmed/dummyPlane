@@ -37,8 +37,8 @@ describe("parseDiff (spec maj §5)", () => {
 
   it("knows a binary file, a cut diff and an empty one", () => {
     expect(parseDiff("diff --git a/i.png b/i.png\nBinary files a/i.png and b/i.png differ\n").binary).toBe(true);
-    const cut = parseDiff(`${DIFF}[diff tronqué]\n`).lines;
-    expect(cut[cut.length - 1]).toEqual({ kind: "meta", text: "[diff tronqué]" });
+    const cut = parseDiff(`${DIFF}[diff truncated]\n`).lines;
+    expect(cut[cut.length - 1]).toEqual({ kind: "meta", text: "[diff truncated]" });
     expect(parseDiff("")).toEqual({ lines: [], binary: false });
   });
 

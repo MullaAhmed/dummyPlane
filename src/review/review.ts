@@ -28,7 +28,7 @@ export function parseDiff(diff: string): { lines: DiffLine[]; binary: boolean } 
       old = Number(hunk[1]);
       next = Number(hunk[2]);
       lines.push({ kind: "hunk", text });
-    } else if (text === "[diff tronqué]") {
+    } else if (text === "[diff truncated]") {
       lines.push({ kind: "meta", text });
     } else if (!inHunk) {
       if (/^Binary files .* differ$/.test(text)) binary = true;
