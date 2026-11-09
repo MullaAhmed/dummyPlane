@@ -1,7 +1,6 @@
 //! What an agent changed, for the review panel (spec maj §5): its files
 //! against a base, each file's diff, and the files of its folder, read-only.
 
-use crate::tr;
 use std::collections::{BTreeSet, HashMap};
 use std::io::Read;
 use std::path::{Component, Path, PathBuf};
@@ -68,7 +67,7 @@ pub(crate) fn command(dir: &Path, args: &[&str]) -> Command {
 fn run(dir: &Path, args: &[&str], codes: &[i32]) -> Result<String, String> {
     let output = command(dir, args)
         .output()
-        .map_err(|err| tr!("git introuvable : {err}", "git not found: {err}"))?;
+        .map_err(|err| format!("git not found: {err}"))?;
     if output
         .status
         .code()
@@ -90,7 +89,7 @@ fn diff_output(dir: &Path, args: &[&str], codes: &[i32]) -> Result<String, Strin
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .map_err(|err| tr!("git introuvable : {err}", "git not found: {err}"))?;
+        .map_err(|err| format!("git not found: {err}"))?;
     let mut bytes = Vec::new();
     if let Some(stdout) = child.stdout.take() {
         stdout
@@ -108,7 +107,7 @@ fn diff_output(dir: &Path, args: &[&str], codes: &[i32]) -> Result<String, Strin
         if text.ends_with('\u{FFFD}') {
             text.pop();
         }
-        text.push_str("\n[diff tronqué]\n");
+        text.push_str("\n[diff truncated]\n");
         return Ok(text);
     }
     let mut stderr = String::new();
@@ -134,7 +133,7 @@ pub(crate) fn relative(path: &str) -> Result<&Path, String> {
         || rel.is_absolute()
         || rel.components().any(|c| !matches!(c, Component::Normal(_)))
     {
-        return Err(tr!("chemin refusé : {path}", "path refused: {path}"));
+        return Err(format!("path refused: {path}"));
     }
     Ok(rel)
 }
@@ -144,9 +143,9 @@ pub(crate) fn inside(root: &Path, path: &str) -> Result<PathBuf, String> {
     let rel = relative(path)?;
     let base = std::fs::canonicalize(root).map_err(|err| err.to_string())?;
     let real = std::fs::canonicalize(base.join(rel))
-        .map_err(|_| tr!("fichier introuvable : {path}", "file not found: {path}"))?;
+        .map_err(|_| format!("file not found: {path}"))?;
     if !real.starts_with(&base) {
-        return Err(tr!("chemin refusé : {path}", "path refused: {path}"));
+        return Err(format!("path refused: {path}"));
     }
     Ok(real)
 }
@@ -166,7 +165,7 @@ fn checked_ref(name: &str) -> Result<&str, String> {
         || name.starts_with('-')
         || name.chars().any(|c| c.is_whitespace() || c.is_control())
     {
-        return Err(tr!("base invalide : {name}", "invalid base: {name}"));
+        return Err(format!("invalid base: {name}"));
     }
     Ok(name)
 }
@@ -178,7 +177,7 @@ fn compared(dir: &Path, base: Option<&str>) -> Result<String, String> {
         let base = checked_ref(base)?;
         return git(dir, &["merge-base", base, "HEAD"])
             .map(|sha| sha.trim().to_string())
-            .map_err(|_| tr!("base introuvable : {base}", "base not found: {base}"));
+            .map_err(|_| format!("base not found: {base}"));
     }
     if git(dir, &["rev-parse", "--verify", "--quiet", "HEAD"]).is_ok() {
         Ok("HEAD".into())
@@ -558,7 +557,7 @@ mod tests {
         assert!(
             changes(dir, Some("nope"))
                 .unwrap_err()
-                .contains("base introuvable")
+                .contains("base not found")
         );
     }
 
@@ -749,7 +748,7 @@ mod tests {
         assert!(read.truncated && read.text.unwrap().len() <= MAX_BYTES);
         assert_eq!(read.size, 2 * MAX_BYTES as u64);
         let diff = file_diff(dir, &big, None).unwrap();
-        assert!(diff.len() <= MAX_BYTES + 32 && diff.ends_with("[diff tronqué]\n"));
+        assert!(diff.len() <= MAX_BYTES + 32 && diff.ends_with("[diff truncated]\n"));
     }
 
     #[test]

@@ -11,7 +11,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::db::settings;
 use crate::error::{AppError, AppResult};
-use crate::tr;
 
 const KEY: &str = "accounts";
 const MAX_NAME: usize = 40;
@@ -43,16 +42,10 @@ pub fn checked_dir(dir: &str) -> AppResult<PathBuf> {
         || !path.is_absolute()
         || path.components().any(|c| matches!(c, Component::ParentDir));
     if bad {
-        return Err(AppError::InvalidInput(tr!(
-            "dossier de profil invalide : {dir}",
-            "invalid profile folder: {dir}"
-        )));
+        return Err(AppError::InvalidInput(format!("invalid profile folder: {dir}")));
     }
     if path.exists() && !path.is_dir() {
-        return Err(AppError::InvalidInput(tr!(
-            "ce n'est pas un dossier : {dir}",
-            "not a folder: {dir}"
-        )));
+        return Err(AppError::InvalidInput(format!("not a folder: {dir}")));
     }
     Ok(path.to_path_buf())
 }
@@ -85,10 +78,7 @@ fn same_folder(a: &str, b: &str) -> bool {
 pub fn add(conn: &Connection, name: &str, config_dir: &str) -> AppResult<Profile> {
     let name = name.trim();
     if name.is_empty() || name.chars().count() > MAX_NAME || name.chars().any(char::is_control) {
-        return Err(AppError::InvalidInput(tr!(
-            "nom de profil invalide (1 à 40 caractères)",
-            "invalid profile name (1 to 40 characters)"
-        )));
+        return Err(AppError::InvalidInput("invalid profile name (1 to 40 characters)".to_string()));
     }
     let dir = checked_dir(config_dir)?;
     let mut accounts = load(conn)?;
@@ -97,10 +87,7 @@ pub fn add(conn: &Connection, name: &str, config_dir: &str) -> AppResult<Profile
         .iter()
         .any(|p| p.name.eq_ignore_ascii_case(name) || same_folder(&p.config_dir, config_dir));
     if taken {
-        return Err(AppError::InvalidInput(tr!(
-            "un profil porte déjà ce nom ou ce dossier",
-            "a profile already has this name or folder"
-        )));
+        return Err(AppError::InvalidInput("a profile already has this name or folder".to_string()));
     }
     std::fs::create_dir_all(&dir)?;
     let profile = Profile {
@@ -129,10 +116,7 @@ pub fn set_active(conn: &Connection, id: Option<&str>) -> AppResult<()> {
     if let Some(id) = id
         && !accounts.profiles.iter().any(|p| p.id == id)
     {
-        return Err(AppError::NotFound(tr!(
-            "profil introuvable : {id}",
-            "profile not found: {id}"
-        )));
+        return Err(AppError::NotFound(format!("profile not found: {id}")));
     }
     accounts.active = id.map(str::to_string);
     store(conn, &accounts)

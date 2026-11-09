@@ -1,7 +1,6 @@
 //! The git window (spec fenêtre git): what the project's repository holds, and
 //! what the user does to it by hand: commit, discard one file, push.
 
-use crate::tr;
 use std::collections::{BTreeMap, HashMap};
 use std::io::Write;
 use std::path::Path;
@@ -71,7 +70,7 @@ fn failure(output: &std::process::Output) -> String {
 fn run(root: &Path, args: &[&str]) -> Result<String, String> {
     let output = command(root, args)
         .output()
-        .map_err(|err| tr!("git introuvable : {err}", "git not found: {err}"))?;
+        .map_err(|err| format!("git not found: {err}"))?;
     if output.status.success() {
         Ok(String::from_utf8_lossy(&output.stdout).into_owned())
     } else {
@@ -87,7 +86,7 @@ fn run_on_paths(root: &Path, args: &[&str], paths: &[&str]) -> Result<(), String
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .map_err(|err| tr!("git introuvable : {err}", "git not found: {err}"))?;
+        .map_err(|err| format!("git not found: {err}"))?;
     let list: Vec<u8> = paths
         .iter()
         .flat_map(|path| path.bytes().chain([0]))
@@ -243,7 +242,7 @@ fn index_listing(root: &Path) -> Result<String, String> {
 pub fn state(dir: &Path) -> Result<RepoState, String> {
     let root = review::root(dir)?;
     let branch = git::status(&root)
-        .ok_or_else(|| tr!("pas un dépôt git", "not a git repository"))?
+        .ok_or_else(|| "not a git repository".to_string())?
         .branch;
     let (upstream, target) = push_target(&root, &branch);
     let (behind, ahead) = match &upstream {
@@ -301,10 +300,7 @@ fn refuse_during_operation(root: &Path) -> Result<(), String> {
         running |= root.join(path.trim()).exists();
     }
     if running {
-        return Err(tr!(
-            "Une fusion ou un rebase est en cours : termine-le dans un terminal, rien n'a été touché.",
-            "A merge or a rebase is in progress: finish it in a terminal, nothing was touched."
-        ));
+        return Err("A merge or a rebase is in progress: finish it in a terminal, nothing was touched.".to_string());
     }
     Ok(())
 }
@@ -318,10 +314,7 @@ fn exists(path: &Path) -> bool {
 /// old path, come back since, would be overwritten.
 fn refuse_what_git_would_replace(root: &Path, file: &ChangedFile) -> Result<(), String> {
     let refused = |path: &str| {
-        Err(tr!(
-            "{path} n'est plus un simple fichier ici : rien n'a été touché, regarde dans un terminal.",
-            "{path} is no longer a plain file here: nothing was touched, have a look in a terminal."
-        ))
+        Err(format!("{path} is no longer a plain file here: nothing was touched, have a look in a terminal."))
     };
     for path in std::iter::once(file.path.as_str()).chain(file.old_path.as_deref()) {
         let is_dir = |at: &Path| at.symlink_metadata().is_ok_and(|meta| meta.is_dir());
@@ -358,10 +351,10 @@ fn all_paths(files: &[ChangedFile]) -> Result<Vec<&str>, String> {
 pub fn commit(dir: &Path, files: &[ChangedFile], message: &str) -> Result<String, String> {
     let message = message.trim();
     if message.is_empty() {
-        return Err(tr!("le message est vide", "the message is empty"));
+        return Err("the message is empty".to_string());
     }
     if files.is_empty() {
-        return Err(tr!("aucun fichier choisi", "no file chosen"));
+        return Err("no file chosen".to_string());
     }
     let root = review::root(dir)?;
     let paths = all_paths(files)?;
@@ -372,10 +365,7 @@ pub fn commit(dir: &Path, files: &[ChangedFile], message: &str) -> Result<String
         .filter_map(|file| file.old_path.as_deref())
         .find(|old| exists(&root.join(old)))
     {
-        return Err(tr!(
-            "{old} a été recréé après son renommage : valide depuis un terminal.",
-            "{old} was created again after its rename: commit from a terminal."
-        ));
+        return Err(format!("{old} was created again after its rename: commit from a terminal."));
     }
     let (present, gone): (Vec<&str>, Vec<&str>) = paths
         .iter()
@@ -412,10 +402,7 @@ pub fn discard(dir: &Path, file: &ChangedFile, confirmed: &str) -> Result<(), St
     let listing = index_listing(&root)?;
     if !current.contains(file) || stamp(&root, file, &parse_index(&listing)) != confirmed {
         let path = &file.path;
-        return Err(tr!(
-            "{path} a changé depuis la confirmation : rien n'a été touché.",
-            "{path} changed since you confirmed: nothing was touched."
-        ));
+        return Err(format!("{path} changed since you confirmed: nothing was touched."));
     }
     refuse_what_git_would_replace(&root, file)?;
     match file.status.as_str() {
@@ -466,19 +453,16 @@ pub fn history(dir: &Path) -> Result<Vec<LogEntry>, String> {
 pub fn push(dir: &Path, branch: &str, target: &str, head: &str) -> Result<(), String> {
     let root = review::root(dir)?;
     let current = git::status(&root)
-        .ok_or_else(|| tr!("pas un dépôt git", "not a git repository"))?
+        .ok_or_else(|| "not a git repository".to_string())?
         .branch;
     let (upstream, resolved) = push_target(&root, &current);
     let Ok(resolved) = resolved else {
-        return Err(tr!("rien vers où pousser", "nowhere to push to"));
+        return Err("nowhere to push to".to_string());
     };
     // An agent may have committed since: the button counted what it showed.
     let now = run(&root, &["rev-parse", "--verify", "--quiet", "HEAD"]).unwrap_or_default();
     if current != branch || resolved.label != target || now.trim() != head {
-        return Err(tr!(
-            "La branche, ses commits ou sa cible ont changé : rien n'a été poussé, regarde à nouveau.",
-            "The branch, its commits or its target changed: nothing was pushed, have another look."
-        ));
+        return Err("The branch, its commits or its target changed: nothing was pushed, have another look.".to_string());
     }
     let refspec = format!("refs/heads/{current}:{}", resolved.dest);
     let mut args = vec![

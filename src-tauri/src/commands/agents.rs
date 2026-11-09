@@ -1,7 +1,6 @@
 //! Agent activity as the frontend sees it (spec habillage §10.2, §15.3): the
 //! hook server, the tracker, the `agent-activity` event and the snapshot.
 
-use crate::tr;
 use std::path::PathBuf;
 use std::sync::Mutex;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -191,7 +190,7 @@ impl HookSink for AppSink {
         let state = self
             .0
             .try_state::<AgentState>()
-            .ok_or_else(|| tr!("OpenVibe ne répond pas", "OpenVibe is not responding"))?;
+            .ok_or_else(|| "OpenVibe is not responding".to_string())?;
         let (call_id, answer) = state.mcp_calls.open();
         let event = McpCallEvent {
             call_id,
@@ -202,7 +201,7 @@ impl HookSink for AppSink {
         let _ = self.0.emit("mcp-call", event);
         let result = answer.recv_timeout(MCP_TIMEOUT);
         state.mcp_calls.close(call_id);
-        result.map_err(|_| tr!("OpenVibe ne répond pas", "OpenVibe is not responding"))
+        result.map_err(|_| "OpenVibe is not responding".to_string())
     }
 }
 
@@ -317,7 +316,7 @@ pub fn hooks_for(
                 node_id,
                 &server.mcp_url(),
                 &token,
-                prompts::for_role(role, crate::i18n::current()),
+                prompts::for_role(role),
             )
             .inspect_err(|err| log::error!("tools of {node_id} not written: {err}"))
             .ok();

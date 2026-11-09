@@ -1,7 +1,6 @@
 //! The settings file given to Claude with `--settings` (spec habillage §8.2,
 //! §10.3): http hooks that report its state, none that could block a decision.
 
-use crate::tr;
 use std::io;
 use std::path::{Path, PathBuf};
 
@@ -95,7 +94,7 @@ pub struct StatusLine {
 /// `$2` the curl config that carries the token, `$3` the user's own status
 /// line command, given the same JSON.
 pub const STATUS_SCRIPT: &str = "#!/usr/bin/env bash\n\
-# OpenVibe : la ligne d'état de Claude transmet l'usage de la session, puis affiche celle de l'utilisateur.\n\
+# OpenVibe: Claude's status line passes the session's usage on, then shows the user's own.\n\
 input=$(cat; printf x); input=${input%x}\n\
 printf '%s' \"$input\" | curl -s -m 1 -K \"$2\" -X POST -H 'Content-Type: application/json' --data-binary @- \"$1\" >/dev/null 2>&1 &\n\
 if [ -n \"${3:-}\" ]; then printf '%s' \"$input\" | bash -c \"$3\"; fi\n";
@@ -205,10 +204,7 @@ pub fn write(
     if !valid_node_id(node_id) {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
-            tr!(
-                "identifiant de nœud invalide : {node_id}",
-                "invalid node id: {node_id}"
-            ),
+            format!("invalid node id: {node_id}"),
         ));
     }
     std::fs::create_dir_all(dir)?;
@@ -322,9 +318,9 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         assert!(write(dir.path(), "../evil", URL, Role::Agent, None, None).is_err());
         assert!(!dir.path().join("../evil.json").exists());
-        let english = crate::i18n::in_english(|| {
+        let english = {
             write(dir.path(), "../evil", URL, Role::Agent, None, None).unwrap_err()
-        });
+        };
         assert_eq!(english.to_string(), "invalid node id: ../evil");
     }
 

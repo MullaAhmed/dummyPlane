@@ -1,7 +1,6 @@
 //! The files that give a Claude session OpenVibe's tools (spec orchestrateur
 //! §4.2): `--mcp-config <nodeId>.json` and `--append-system-prompt-file <nodeId>.md`.
 
-use crate::tr;
 use std::io;
 use std::path::{Path, PathBuf};
 
@@ -33,10 +32,7 @@ pub fn write(
     if !valid_node_id(node_id) {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
-            tr!(
-                "identifiant de nœud invalide : {node_id}",
-                "invalid node id: {node_id}"
-            ),
+            format!("invalid node id: {node_id}"),
         ));
     }
     std::fs::create_dir_all(dir)?;
@@ -111,7 +107,7 @@ mod tests {
         );
         assert!(write(&mcp, "../evil", "u", "t", "p").is_err());
         let english =
-            crate::i18n::in_english(|| write(&mcp, "../evil", "u", "t", "p").err().unwrap());
+            write(&mcp, "../evil", "u", "t", "p").err().unwrap();
         assert_eq!(english.to_string(), "invalid node id: ../evil");
         remove(&mcp, "n1");
         assert!(!files.config.exists() && !files.prompt.exists());

@@ -6,7 +6,6 @@ pub mod scrollback;
 pub mod settings;
 pub mod workspaces;
 
-use crate::tr;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -68,10 +67,7 @@ impl Db {
 }
 
 fn newer_base() -> String {
-    tr!(
-        "Cette base vient d'une version plus récente d'OpenVibe. Installe la dernière version.",
-        "This database comes from a newer version of OpenVibe. Install the latest version."
-    )
+    "This database comes from a newer version of OpenVibe. Install the latest version.".to_string()
 }
 
 /// A base from a newer OpenVibe is left untouched; an older one is copied
@@ -93,10 +89,7 @@ fn prepare_upgrade(conn: &Connection, path: &Path) -> AppResult<()> {
         return Ok(());
     }
     copy_checked(conn, &backup, applied).map_err(|err| {
-        AppError::InvalidInput(tr!(
-            "Copie de la base impossible avant sa mise à jour : {err}",
-            "Could not copy the database before upgrading it: {err}"
-        ))
+        AppError::InvalidInput(format!("Could not copy the database before upgrading it: {err}"))
     })?;
     // The file name only: the log is meant to be sent, without the user's folders.
     log::info!(
@@ -116,7 +109,7 @@ fn copy_checked(conn: &Connection, backup: &Path, version: usize) -> AppResult<(
         Connection::open(&partial)?.query_row("PRAGMA user_version", [], |row| row.get(0))?;
     if copied as usize != version {
         return Err(AppError::InvalidInput(format!(
-            "la copie est en version {copied} au lieu de {version}"
+            "the copy is at version {copied}, not {version}"
         )));
     }
     std::fs::rename(&partial, backup)?;
@@ -488,7 +481,7 @@ mod tests {
             .pragma_update(None, "user_version", MIGRATIONS.len() as i64 + 1)
             .unwrap();
         let err = Db::open(&path).err().unwrap().to_string();
-        assert!(err.contains("version plus récente d'OpenVibe"), "{err}");
+        assert!(err.contains("newer version of OpenVibe"), "{err}");
     }
 
     #[test]

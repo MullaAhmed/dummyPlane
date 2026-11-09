@@ -1,4 +1,3 @@
-use crate::tr;
 use std::collections::HashSet;
 use std::path::Path;
 
@@ -94,10 +93,7 @@ fn existing_folder(path: &str) -> AppResult<()> {
     if Path::new(path).is_dir() {
         Ok(())
     } else {
-        Err(AppError::NotFound(tr!(
-            "dossier introuvable : {path}",
-            "folder not found: {path}"
-        )))
+        Err(AppError::NotFound(format!("folder not found: {path}")))
     }
 }
 
@@ -165,7 +161,7 @@ mod tests {
 
     #[test]
     fn a_missing_folder_is_named_in_english() {
-        let error = crate::i18n::in_english(|| existing_folder(" Z:/not here ").unwrap_err());
+        let error = existing_folder(" Z:/not here ").unwrap_err();
         assert_eq!(error.to_string(), "folder not found: Z:/not here");
     }
 
