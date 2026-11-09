@@ -10,7 +10,7 @@ pub enum AppError {
     NotFound(String),
     #[error("{0}")]
     Pty(String),
-    /// An orchestrator without OpenVibe's tools and guards does not start (spec première version §4.1).
+    /// An orchestrator without dummyPlane's tools and guards does not start (spec première version §4.1).
     #[error("{0}")]
     ToolsUnavailable(String),
     /// The `gh` CLI is missing, not logged in, or failed (Kanban GitHub sync).

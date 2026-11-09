@@ -1,7 +1,6 @@
 //! The settings file given to Claude with `--settings` (spec habillage §8.2,
 //! §10.3): http hooks that report its state, none that could block a decision.
 
-use crate::tr;
 use std::io;
 use std::path::{Path, PathBuf};
 
@@ -16,8 +15,8 @@ const NOTIFICATIONS: &str =
 pub fn settings_json(url: &str, role: Role) -> Value {
     let hook = json!({ "type": "http", "url": url, "timeout": 2 });
     let every = json!([{ "hooks": [hook] }]);
-    // OpenVibe's own tools never ask (spec orchestrateur §4.2).
-    let mut permissions = json!({ "allow": ["mcp__openvibe"] });
+    // dummyPlane's own tools never ask (spec orchestrateur §4.2).
+    let mut permissions = json!({ "allow": ["mcp__dummyplane"] });
     if role == Role::Orchestrator {
         // A manager does not code itself, nor run commands in the user's folder.
         permissions["deny"] = json!(["Edit", "Write", "NotebookEdit", "Bash"]);
@@ -78,24 +77,27 @@ pub fn apply_permission(settings: &mut Value, permission: Option<Permission>) {
     rules["deny"] = Value::Array(deny);
 }
 
-/// The status line OpenVibe gives Claude (spec maj §6): the session's usage
-/// posted to OpenVibe, then the user's own status line, shown as before.
+/// The status line dummyPlane gives Claude (spec maj §6): the session's usage
+/// posted to dummyPlane, then the user's own status line, shown as before.
 #[derive(Debug, Clone, PartialEq)]
 pub struct StatusLine {
     pub script: PathBuf,
-    /// OpenVibe's URL, without the token.
+    /// dummyPlane's URL, without the token.
     pub url: String,
     /// The curl config file that carries the token (`write_curl_config`).
     pub config: PathBuf,
+    /// The bash that runs the script: Git Bash's own on Windows. A bare `bash`
+    /// on the PATH is often WSL's launcher, which cannot read `C:/` paths.
+    pub bash: PathBuf,
     /// The user's `statusLine` setting, when it runs a command.
     pub user: Option<Value>,
 }
 
-/// Run by Claude through bash, Git Bash on Windows: `$1` is OpenVibe's URL,
+/// Run by Claude through bash, Git Bash on Windows: `$1` is dummyPlane's URL,
 /// `$2` the curl config that carries the token, `$3` the user's own status
 /// line command, given the same JSON.
 pub const STATUS_SCRIPT: &str = "#!/usr/bin/env bash\n\
-# OpenVibe : la ligne d'état de Claude transmet l'usage de la session, puis affiche celle de l'utilisateur.\n\
+# dummyPlane: Claude's status line passes the session's usage on, then shows the user's own.\n\
 input=$(cat; printf x); input=${input%x}\n\
 printf '%s' \"$input\" | curl -s -m 1 -K \"$2\" -X POST -H 'Content-Type: application/json' --data-binary @- \"$1\" >/dev/null 2>&1 &\n\
 if [ -n \"${3:-}\" ]; then printf '%s' \"$input\" | bash -c \"$3\"; fi\n";
@@ -126,8 +128,10 @@ pub fn status_line_json(status: &StatusLine) -> Value {
     // bash reads Windows paths with forward slashes.
     let script = status.script.to_string_lossy().replace('\\', "/");
     let config = status.config.to_string_lossy().replace('\\', "/");
+    let bash = status.bash.to_string_lossy().replace('\\', "/");
     let mut command = format!(
-        "bash {} {} {}",
+        "{} {} {} {}",
+        bash_quote(&bash),
         bash_quote(&script),
         bash_quote(&status.url),
         bash_quote(&config)
@@ -182,7 +186,7 @@ pub fn claude_config_dir() -> Option<PathBuf> {
     Some(PathBuf::from(home).join(".claude"))
 }
 
-/// The folder one terminal's Claude uses: its profile's, else OpenVibe's environment's.
+/// The folder one terminal's Claude uses: its profile's, else dummyPlane's environment's.
 pub fn config_dir_for(profile: Option<&Path>) -> Option<PathBuf> {
     profile.map(Path::to_path_buf).or_else(claude_config_dir)
 }
@@ -205,10 +209,7 @@ pub fn write(
     if !valid_node_id(node_id) {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
-            tr!(
-                "identifiant de nœud invalide : {node_id}",
-                "invalid node id: {node_id}"
-            ),
+            format!("invalid node id: {node_id}"),
         ));
     }
     std::fs::create_dir_all(dir)?;
@@ -283,10 +284,10 @@ mod tests {
     }
 
     #[test]
-    fn allows_openvibe_s_tools_without_asking() {
+    fn allows_dummyplane_s_tools_without_asking() {
         assert_eq!(
             settings_json(URL, Role::Agent)["permissions"],
-            serde_json::json!({ "allow": ["mcp__openvibe"] })
+            serde_json::json!({ "allow": ["mcp__dummyplane"] })
         );
     }
 
@@ -322,9 +323,9 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         assert!(write(dir.path(), "../evil", URL, Role::Agent, None, None).is_err());
         assert!(!dir.path().join("../evil.json").exists());
-        let english = crate::i18n::in_english(|| {
+        let english = {
             write(dir.path(), "../evil", URL, Role::Agent, None, None).unwrap_err()
-        });
+        };
         assert_eq!(english.to_string(), "invalid node id: ../evil");
     }
 
@@ -350,27 +351,41 @@ mod tests {
             script: PathBuf::from(r"C:\data\hooks\statusline.sh"),
             url: STATUS_URL.into(),
             config: PathBuf::from(r"C:\data\Jean O'Brien\hooks\curl.cfg"),
+            bash: PathBuf::from(r"C:\Program Files\Git\bin\bash.exe"),
             user,
         }
     }
 
     #[test]
-    fn its_status_line_tells_openvibe_then_shows_the_user_s_own() {
+    fn its_status_line_tells_dummyplane_then_shows_the_user_s_own() {
         let config = "'C:/data/Jean O'\\''Brien/hooks/curl.cfg'";
+        let bash = "'C:/Program Files/Git/bin/bash.exe'";
         assert_eq!(
             status_line_json(&status(None)),
-            json!({ "type": "command", "command": format!("bash 'C:/data/hooks/statusline.sh' '{STATUS_URL}' {config}") })
+            json!({ "type": "command", "command": format!("{bash} 'C:/data/hooks/statusline.sh' '{STATUS_URL}' {config}") })
         );
         let user = json!({ "type": "command", "command": "~/bin/it's.sh --x", "padding": 0, "refreshInterval": 5 });
         assert_eq!(
             status_line_json(&status(Some(user))),
             json!({
                 "type": "command",
-                "command": format!("bash 'C:/data/hooks/statusline.sh' '{STATUS_URL}' {config} '~/bin/it'\\''s.sh --x'"),
+                "command": format!("{bash} 'C:/data/hooks/statusline.sh' '{STATUS_URL}' {config} '~/bin/it'\\''s.sh --x'"),
                 "padding": 0,
                 "refreshInterval": 5
             })
         );
+    }
+
+    /// Regression: on Windows a plain `bash` on the PATH resolves to WSL's launcher,
+    /// which reads `C:/` paths as missing, so the script never ran and the meter stayed empty.
+    #[test]
+    fn the_status_line_names_git_bash_not_a_bash_found_on_the_path() {
+        let command = status_line_json(&status(None))["command"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        assert!(!command.starts_with("bash "), "{command}");
+        assert!(command.starts_with("'C:/Program Files/Git/bin/bash.exe' "), "{command}");
     }
 
     #[test]
@@ -380,14 +395,14 @@ mod tests {
         assert_eq!(path, dir.path().join("hooks").join("curl.cfg"));
         assert_eq!(
             std::fs::read_to_string(&path).unwrap(),
-            "header = \"X-OpenVibe-Token: tok-1\"\n"
+            "header = \"X-dummyPlane-Token: tok-1\"\n"
         );
         let line = status_line_json(&status(None));
         assert!(!line["command"].as_str().unwrap().contains("t="));
     }
 
     #[test]
-    fn a_terminal_reads_its_profile_s_folder_not_openvibe_s_environment() {
+    fn a_terminal_reads_its_profile_s_folder_not_dummyplane_s_environment() {
         let profile = tempfile::tempdir().unwrap();
         assert_eq!(
             config_dir_for(Some(profile.path())),
@@ -474,6 +489,7 @@ mod tests {
             script: dir.path().join("missing").join("statusline.sh"),
             url: STATUS_URL.into(),
             config: dir.path().join("curl.cfg"),
+            bash: PathBuf::from("bash"),
             user: None,
         };
         let path = write(dir.path(), "n1", URL, Role::Agent, Some(&line), None).unwrap();
@@ -490,6 +506,7 @@ mod tests {
             script: dir.path().join("statusline.sh"),
             url: STATUS_URL.into(),
             config: dir.path().join("curl.cfg"),
+            bash: PathBuf::from("bash"),
             user: None,
         };
         let path = write(dir.path(), "n1", URL, Role::Agent, Some(&line), None).unwrap();
@@ -596,7 +613,7 @@ until [ -e release ] || [ ! -e statusline.sh ]; do sleep 0.05; done\n\
     #[test]
     fn an_orchestrator_may_neither_edit_files_nor_run_commands() {
         let manager = settings_json(URL, Role::Orchestrator);
-        assert_eq!(manager["permissions"]["allow"], json!(["mcp__openvibe"]));
+        assert_eq!(manager["permissions"]["allow"], json!(["mcp__dummyplane"]));
         assert_eq!(
             manager["permissions"]["deny"],
             json!(["Edit", "Write", "NotebookEdit", "Bash"])
@@ -618,7 +635,7 @@ until [ -e release ] || [ ! -e statusline.sh ]; do sleep 0.05; done\n\
         assert_eq!(work(None), settings_json(URL, Role::Agent)["permissions"]);
         let full = work(Some(Permission::Work));
         let allow = full["allow"].as_array().unwrap();
-        assert!(allow.contains(&json!("mcp__openvibe")));
+        assert!(allow.contains(&json!("mcp__dummyplane")));
         assert!(allow.contains(&json!("Bash")));
         assert!(allow.contains(&json!("Edit")));
         // Asking and files alone open no command.

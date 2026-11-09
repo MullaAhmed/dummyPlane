@@ -46,7 +46,7 @@ pub trait HookSink: Send + Sync + 'static {
 
 /// The header that carries the token for callers given it through a curl
 /// config file, so it never shows on a command line (spec première version §4.3).
-pub const TOKEN_HEADER: &str = "X-OpenVibe-Token";
+pub const TOKEN_HEADER: &str = "X-dummyPlane-Token";
 
 pub struct HookServer {
     pub port: u16,
@@ -81,7 +81,7 @@ impl HookServer {
         format!("http://127.0.0.1:{}/status/{node_id}", self.port)
     }
 
-    /// The URL of OpenVibe's MCP server (spec orchestrateur §4.1).
+    /// The URL of dummyPlane's MCP server (spec orchestrateur §4.1).
     pub fn mcp_url(&self) -> String {
         format!("http://127.0.0.1:{}/mcp", self.port)
     }
@@ -536,12 +536,12 @@ mod tests {
             params: serde_json::Value,
         ) -> Result<serde_json::Value, String> {
             if node_id == "pending" {
-                // OpenVibe's answer takes its time: the call stays open.
+                // dummyPlane's answer takes its time: the call stays open.
                 std::thread::sleep(Duration::from_millis(1500));
             }
             assert_ne!(node_id, "boom", "a sink that panics");
             if node_id == "slow" {
-                return Err("OpenVibe ne répond pas".into());
+                return Err("dummyPlane is not responding".into());
             }
             Ok(serde_json::json!({ "node": node_id, "method": method, "params": params }))
         }
@@ -693,7 +693,7 @@ mod tests {
             204
         );
         assert_eq!(next().activity, Activity::Idle);
-        // Events OpenVibe does not follow are accepted and ignored.
+        // Events dummyPlane does not follow are accepted and ignored.
         assert_eq!(post(br#"{"hook_event_name":"BeforeTool"}"#), 204);
         assert!(rx.recv_timeout(Duration::from_millis(300)).is_err());
     }
@@ -766,7 +766,7 @@ mod tests {
         assert_eq!(send(server.port, "POST", &path, b"not json"), 400);
         let huge = vec![b' '; MAX_BODY + 1];
         assert_eq!(send(server.port, "POST", &path, &huge), 413);
-        // An event OpenVibe does not track is accepted and ignored.
+        // An event dummyPlane does not track is accepted and ignored.
         assert_eq!(
             send(
                 server.port,
@@ -834,7 +834,7 @@ mod tests {
         );
         assert_eq!(status, 200);
         let json: serde_json::Value = serde_json::from_str(&body).unwrap();
-        assert_eq!(json["result"]["serverInfo"]["name"], "openvibe");
+        assert_eq!(json["result"]["serverInfo"]["name"], "dummyplane");
         let (status, body) = exchange(
             server.port,
             "POST",
@@ -865,7 +865,7 @@ mod tests {
             br#"{"jsonrpc":"2.0","id":3,"method":"tools/list"}"#,
         );
         let json: serde_json::Value = serde_json::from_str(&body).unwrap();
-        assert_eq!(json["error"]["message"], "OpenVibe ne répond pas");
+        assert_eq!(json["error"]["message"], "dummyPlane is not responding");
     }
 
     #[test]

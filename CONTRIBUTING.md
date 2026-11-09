@@ -1,6 +1,6 @@
-# Contributing to OpenVibe
+# Contributing to dummyPlane
 
-Thank you for your interest in OpenVibe! Bug reports, ideas, documentation and code are all welcome. You can write in English or in French.
+Thank you for your interest in dummyPlane! Bug reports, ideas, documentation and code are all welcome. You can write in English or in French.
 
 By taking part, you agree to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
 
@@ -23,16 +23,16 @@ You need Windows 10/11 and:
 
 ```powershell
 git clone https://github.com/Mideky-hub/openvibe.git
-cd openvibe
+cd dummyplane
 pnpm install
-pnpm tauri dev --config '{"identifier":"dev.openvibe.probe"}'
+pnpm tauri dev --config '{"identifier":"dev.dummyplane.probe"}'
 ```
 
-The `--config` flag gives the development build its own data folder (`%APPDATA%\dev.openvibe.probe\`), so your experiments never touch the projects you use OpenVibe for. Use it whenever you try a change in the app. It also lets the development build run next to an installed OpenVibe: only one instance runs per identifier, and a second launch just brings the first one's window back.
+The `--config` flag gives the development build its own data folder (`%APPDATA%\dev.dummyplane.probe\`), so your experiments never touch the projects you use dummyPlane for. Use it whenever you try a change in the app. It also lets the development build run next to an installed dummyPlane: only one instance runs per identifier, and a second launch just brings the first one's window back.
 
 ### Testing your agent setup safely
 
-Keep in mind that OpenVibe drives real agents with your real accounts:
+Keep in mind that dummyPlane drives real agents with your real accounts:
 
 - **Agents spend real usage.** Each prompt you send consumes your subscription or API credits. Keep test prompts short, and prefer a small model.
 - **Some commands change your agent's own settings.** In Claude Code, for example, `/effort` and `/model` save a new default for future sessions, and `/remote-control` registers the session in your claude.ai account. Back up `~/.claude/settings.json` before you test them, and put things back afterwards.
@@ -88,4 +88,4 @@ The maintainer reviews pull requests when time allows. Small, focused pull reque
 
 ## License
 
-OpenVibe is released under the [MIT License](LICENSE). By contributing, you agree that your contributions are licensed under the same terms.
+dummyPlane is released under the [MIT License](LICENSE). By contributing, you agree that your contributions are licensed under the same terms.

@@ -1,5 +1,5 @@
 //! The log file a user can send (spec première version §3.6):
-//! `%LOCALAPPDATA%\dev.openvibe.app\logs\openvibe.log`. Never a token, a
+//! `%LOCALAPPDATA%\dev.dummyplane.app\logs\dummyplane.log`. Never a token, a
 //! terminal's text, an instruction or a file's content.
 
 use tauri::Runtime;
@@ -17,7 +17,7 @@ pub fn plugin<R: Runtime>() -> TauriPlugin<R> {
         log::LevelFilter::Info
     };
     let mut targets = vec![Target::new(TargetKind::LogDir {
-        file_name: Some("openvibe".into()),
+        file_name: Some("dummyplane".into()),
     })];
     if cfg!(debug_assertions) {
         targets.push(Target::new(TargetKind::Stdout));

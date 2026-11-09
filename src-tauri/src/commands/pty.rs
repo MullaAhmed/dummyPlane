@@ -53,7 +53,7 @@ pub async fn pty_spawn(
     // second one's token would replace the live session's (backlog B2).
     let _claim = pty.claim_start(&node_id)?;
     let mut spec = spec;
-    // The profile's folder, else OpenVibe's environment (spec comptes §4): where
+    // The profile's folder, else dummyPlane's environment (spec comptes §4): where
     // this terminal's Claude keeps its conversations and settings.
     let profile_dir = match spec.claude.as_ref().and_then(|c| c.config_dir.as_deref()) {
         Some(dir) => Some(crate::accounts::checked_dir(dir)?),
@@ -86,7 +86,7 @@ pub async fn pty_spawn(
         agents::ended(&app, &node_id);
         log::warn!("orchestrator {node_id} not started: {cause}");
         return Err(AppError::ToolsUnavailable(format!(
-            "Outils OpenVibe indisponibles : {cause}."
+            "Outils dummyPlane indisponibles : {cause}."
         )));
     }
     let plan = match build_plan(&node_id, &spec, &which_locate, &hooks) {

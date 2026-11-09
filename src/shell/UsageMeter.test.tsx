@@ -45,7 +45,7 @@ afterEach(async () => {
 const meter = () => host.querySelector<HTMLButtonElement>("[data-usage]")!;
 
 it("waits for a Claude session's first answer before showing the limits (spec maj §6)", () => {
-  expect(meter().textContent).toBe("Usage");
+  expect(meter().textContent).toBe("Usage· waiting for the first answer");
   expect(meter().title).toContain("first reply");
 });
 

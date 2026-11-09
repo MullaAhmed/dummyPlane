@@ -8,7 +8,7 @@ import sys
 import tempfile
 
 EDGE = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
-PROFILE = pathlib.Path(tempfile.gettempdir()) / "openvibe-media" / "edge-profile"
+PROFILE = pathlib.Path(tempfile.gettempdir()) / "dummyplane-media" / "edge-profile"
 html, png, w, h = sys.argv[1:5]
 scale = sys.argv[5] if len(sys.argv) > 5 else "1"
 path, _, query = html.partition("?")

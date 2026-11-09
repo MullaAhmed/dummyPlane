@@ -1,4 +1,3 @@
-use crate::tr;
 use rusqlite::{Connection, OptionalExtension, params};
 use serde::Serialize;
 
@@ -54,10 +53,7 @@ pub fn list(conn: &Connection, project_id: &str) -> AppResult<Vec<Workspace>> {
 pub fn create(conn: &Connection, project_id: &str, name: &str, kind: &str) -> AppResult<Workspace> {
     let name = valid_name(name)?;
     if kind != CANVAS && kind != CODE {
-        return Err(AppError::InvalidInput(tr!(
-            "type de workspace inconnu : {kind}",
-            "unknown workspace kind: {kind}"
-        )));
+        return Err(AppError::InvalidInput(format!("unknown workspace kind: {kind}")));
     }
     if kind == CODE {
         let existing = conn
@@ -131,10 +127,7 @@ pub fn delete(conn: &Connection, id: &str) -> AppResult<()> {
         |row| row.get(0),
     )?;
     if read_kind(kind) == CANVAS && canvases <= 1 {
-        return Err(AppError::InvalidInput(tr!(
-            "impossible de supprimer le dernier workspace du projet",
-            "cannot delete the project's last workspace"
-        )));
+        return Err(AppError::InvalidInput("cannot delete the project's last workspace".to_string()));
     }
     conn.execute("DELETE FROM workspaces WHERE id = ?1", [id])?;
     Ok(())
@@ -143,10 +136,7 @@ pub fn delete(conn: &Connection, id: &str) -> AppResult<()> {
 pub fn set_pantheon(conn: &Connection, id: &str, pantheon: &str) -> AppResult<()> {
     let pantheon = pantheon.trim();
     if pantheon.is_empty() {
-        return Err(AppError::InvalidInput(tr!(
-            "panthéon vide",
-            "empty pantheon"
-        )));
+        return Err(AppError::InvalidInput("empty pantheon".to_string()));
     }
     let changed = conn.execute(
         "UPDATE workspaces SET pantheon = ?2 WHERE id = ?1",
@@ -161,19 +151,13 @@ pub fn set_pantheon(conn: &Connection, id: &str, pantheon: &str) -> AppResult<()
 fn valid_name(name: &str) -> AppResult<String> {
     let name = name.trim();
     if name.is_empty() {
-        return Err(AppError::InvalidInput(tr!(
-            "le nom du workspace est vide",
-            "the workspace name is empty"
-        )));
+        return Err(AppError::InvalidInput("the workspace name is empty".to_string()));
     }
     Ok(name.to_string())
 }
 
 fn not_found(id: &str) -> AppError {
-    AppError::NotFound(tr!(
-        "workspace introuvable : {id}",
-        "workspace not found: {id}"
-    ))
+    AppError::NotFound(format!("workspace not found: {id}"))
 }
 
 #[cfg(test)]
@@ -237,7 +221,7 @@ mod tests {
 
     #[test]
     fn explains_its_refusals_in_english() {
-        crate::i18n::in_english(|| {
+        {
             Db::open_in_memory()
                 .unwrap()
                 .with(|conn| {
@@ -254,7 +238,7 @@ mod tests {
                     Ok(())
                 })
                 .unwrap();
-        });
+        };
     }
 
     #[test]
@@ -354,7 +338,7 @@ mod tests {
 
     #[test]
     fn rejects_unknown_kinds() {
-        crate::i18n::in_english(|| {
+        {
             Db::open_in_memory()
                 .unwrap()
                 .with(|conn| {
@@ -366,7 +350,7 @@ mod tests {
                     Ok(())
                 })
                 .unwrap();
-        });
+        };
     }
 
     #[test]

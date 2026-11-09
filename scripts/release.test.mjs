@@ -13,28 +13,28 @@ describe("isSemver", () => {
 
 describe("version bumps", () => {
   it("changes the package's version only", () => {
-    const text = '{\n  "name": "openvibe",\n  "version": "0.1.0",\n  "dependencies": { "x": "0.1.0" }\n}\n';
-    expect(bumpPackageJson(text, "1.0.0-beta.1")).toBe('{\n  "name": "openvibe",\n  "version": "1.0.0-beta.1",\n  "dependencies": { "x": "0.1.0" }\n}\n');
+    const text = '{\n  "name": "dummyplane",\n  "version": "0.1.0",\n  "dependencies": { "x": "0.1.0" }\n}\n';
+    expect(bumpPackageJson(text, "1.0.0-beta.1")).toBe('{\n  "name": "dummyplane",\n  "version": "1.0.0-beta.1",\n  "dependencies": { "x": "0.1.0" }\n}\n');
   });
 
   it("changes the crate's version, not a dependency's", () => {
-    const text = '[package]\nname = "openvibe"\nversion = "0.1.0"\n\n[dependencies]\nlog = { version = "0.1.0" }\n';
-    expect(bumpCargoToml(text, "1.0.0-beta.1")).toBe('[package]\nname = "openvibe"\nversion = "1.0.0-beta.1"\n\n[dependencies]\nlog = { version = "0.1.0" }\n');
+    const text = '[package]\nname = "dummyplane"\nversion = "0.1.0"\n\n[dependencies]\nlog = { version = "0.1.0" }\n';
+    expect(bumpCargoToml(text, "1.0.0-beta.1")).toBe('[package]\nname = "dummyplane"\nversion = "1.0.0-beta.1"\n\n[dependencies]\nlog = { version = "0.1.0" }\n');
   });
 
-  it("changes the openvibe entry of Cargo.lock, not its neighbours", () => {
-    const text = '[[package]]\nname = "num"\nversion = "0.1.0"\n\n[[package]]\nname = "openvibe"\nversion = "0.1.0"\ndependencies = [\n "num",\n]\n';
-    expect(bumpCargoLock(text, "1.0.0")).toBe('[[package]]\nname = "num"\nversion = "0.1.0"\n\n[[package]]\nname = "openvibe"\nversion = "1.0.0"\ndependencies = [\n "num",\n]\n');
+  it("changes the dummyplane entry of Cargo.lock, not its neighbours", () => {
+    const text = '[[package]]\nname = "num"\nversion = "0.1.0"\n\n[[package]]\nname = "dummyplane"\nversion = "0.1.0"\ndependencies = [\n "num",\n]\n';
+    expect(bumpCargoLock(text, "1.0.0")).toBe('[[package]]\nname = "num"\nversion = "0.1.0"\n\n[[package]]\nname = "dummyplane"\nversion = "1.0.0"\ndependencies = [\n "num",\n]\n');
   });
 
   it("keeps Windows line ends", () => {
-    expect(bumpCargoToml('[package]\r\nname = "openvibe"\r\nversion = "0.1.0"\r\n', "1.0.0")).toBe('[package]\r\nname = "openvibe"\r\nversion = "1.0.0"\r\n');
+    expect(bumpCargoToml('[package]\r\nname = "dummyplane"\r\nversion = "0.1.0"\r\n', "1.0.0")).toBe('[package]\r\nname = "dummyplane"\r\nversion = "1.0.0"\r\n');
   });
 });
 
 const CHANGELOG = `# Changelog
 
-All notable changes to OpenVibe are documented here.
+All notable changes to dummyPlane are documented here.
 
 ## [Unreleased]
 
@@ -85,11 +85,11 @@ describe("latest.json of a drafted release", () => {
       },
     };
     const assets = [
-      { name: "OpenVibe_1.0.0-beta.2_x64-setup.exe", apiUrl: "https://api.github.com/repos/Mideky-hub/openvibe/releases/assets/682035832" },
+      { name: "dummyPlane_1.0.0-beta.2_x64-setup.exe", apiUrl: "https://api.github.com/repos/Mideky-hub/openvibe/releases/assets/682035832" },
       { name: "latest.json", apiUrl: "https://api.github.com/repos/Mideky-hub/openvibe/releases/assets/682035833" },
     ];
     const fixed = directDownloadUrls(latest, assets, "Mideky-hub/openvibe", "v1.0.0-beta.2");
-    const url = "https://github.com/Mideky-hub/openvibe/releases/download/v1.0.0-beta.2/OpenVibe_1.0.0-beta.2_x64-setup.exe";
+    const url = "https://github.com/Mideky-hub/openvibe/releases/download/v1.0.0-beta.2/dummyPlane_1.0.0-beta.2_x64-setup.exe";
     expect(Object.values(fixed.platforms).map((p) => p.url)).toEqual([url, url]);
     expect(fixed.platforms["windows-x86_64"].signature).toBe("s");
     expect(fixed.version).toBe("1.0.0-beta.2");

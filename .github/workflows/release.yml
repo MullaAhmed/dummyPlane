@@ -66,7 +66,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ github.ref_name }}
-          releaseName: OpenVibe __VERSION__
+          releaseName: dummyPlane __VERSION__
           releaseBody: ${{ steps.notes.outputs.body }}
           releaseDraft: true
           # A pre-release would not be "latest", and the updater reads latest.json from the latest release.
@@ -95,5 +95,5 @@ jobs:
         if: "!startsWith(github.ref, 'refs/tags/v')"
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
-          name: openvibe-windows
+          name: dummyplane-windows
           path: src-tauri/target/release/bundle/nsis/*

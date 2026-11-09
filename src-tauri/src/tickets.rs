@@ -1,5 +1,5 @@
 //! Where an overnight mission takes its tasks (spec mission de nuit §5.1). The
-//! orchestrator may not run commands: OpenVibe reads the source for it.
+//! orchestrator may not run commands: dummyPlane reads the source for it.
 
 use std::path::Path;
 use std::process::Command;
@@ -8,7 +8,6 @@ use serde::Serialize;
 
 use crate::process::hide_window;
 use crate::pty::shell::which_locate;
-use crate::tr;
 
 /// A backlog is a text file; past this it is not one to read whole.
 const MAX_BACKLOG: u64 = 4 * 1024 * 1024;
@@ -19,14 +18,11 @@ pub fn backlog(project: &Path) -> Result<String, String> {
     let path = project.join("BACKLOG.md");
     let size = std::fs::metadata(&path)
         .map_err(|_| {
-            tr!(
-                "pas de BACKLOG.md dans ce projet",
-                "no BACKLOG.md in this project"
-            )
+            "no BACKLOG.md in this project".to_string()
         })?
         .len();
     if size > MAX_BACKLOG {
-        return Err(tr!("BACKLOG.md est trop gros", "BACKLOG.md is too large"));
+        return Err("BACKLOG.md is too large".to_string());
     }
     std::fs::read_to_string(&path).map_err(|err| err.to_string())
 }
@@ -54,13 +50,10 @@ fn issue_args(label: &str) -> Vec<String> {
 pub fn github_issues(project: &Path, label: &str) -> Result<String, String> {
     let label = label.trim();
     if label.is_empty() {
-        return Err(tr!("il faut un label", "a label is needed"));
+        return Err("a label is needed".to_string());
     }
     let gh = which_locate("gh").ok_or_else(|| {
-        tr!(
-            "gh introuvable : installe GitHub CLI",
-            "gh not found: install GitHub CLI"
-        )
+        "gh not found: install GitHub CLI".to_string()
     })?;
     let output = hide_window(
         Command::new(gh)

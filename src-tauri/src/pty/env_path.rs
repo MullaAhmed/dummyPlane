@@ -1,4 +1,4 @@
-//! Windows' PATH, re-read from the registry: an agent installed while OpenVibe
+//! Windows' PATH, re-read from the registry: an agent installed while dummyPlane
 //! runs is on the PATH of new terminals, not of this process.
 
 use std::ffi::OsString;
@@ -66,7 +66,7 @@ fn unquote(entry: &str) -> &str {
 
 /// This process's PATH in its order, then the registry's entries it lacks,
 /// machine then user (as Windows orders them): a new install is found and
-/// what OpenVibe was started with still comes first (final review R5d).
+/// what dummyPlane was started with still comes first (final review R5d).
 pub fn merge(machine: &str, user: &str, process: &str) -> String {
     let mut seen = std::collections::HashSet::new();
     let mut entries: Vec<&str> = Vec::new();

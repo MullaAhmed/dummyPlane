@@ -28,6 +28,9 @@ function Bar({ limit, wide = false }: { limit: Limit; wide?: boolean }) {
   );
 }
 
+/** Shown until a Claude session's first answer brings the limits. English, a local constant (not in the message catalogue). */
+const WAITING_HINT = "waiting for the first answer";
+
 /**
  * The title bar's usage (spec maj §6): the plan's session and week, from
  * Claude's status lines; the detail of this run's sessions on a click.
@@ -59,7 +62,10 @@ export function UsageMeter() {
           className="flex h-6 items-center gap-2 rounded-[6px] px-1.5 font-mono text-[11.5px] text-ov-text-2 hover:bg-ov-hover hover:text-ov-text"
         >
           {!limits?.fiveHour && !limits?.sevenDay && !limits?.models.length ? (
-            u.title
+            <>
+              {u.title}
+              <span className="opacity-70">· {WAITING_HINT}</span>
+            </>
           ) : (
             <>
               {limits.fiveHour && (

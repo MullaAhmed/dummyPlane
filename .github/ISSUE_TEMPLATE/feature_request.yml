@@ -1,5 +1,5 @@
 name: Feature request
-description: An idea to make OpenVibe more useful.
+description: An idea to make dummyPlane more useful.
 labels: ["enhancement"]
 body:
   - type: markdown
@@ -18,7 +18,7 @@ body:
     id: idea
     attributes:
       label: Your idea
-      description: How could OpenVibe help? Sketches and examples are welcome.
+      description: How could dummyPlane help? Sketches and examples are welcome.
     validations:
       required: true
   - type: textarea

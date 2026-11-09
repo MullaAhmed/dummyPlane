@@ -1,8 +1,7 @@
 //! Worktrees and branches of a mission (spec orchestrateur §7.4, §7.6, §7.7).
-//! OpenVibe works beside the user's folder, never in their branch: no push,
+//! dummyPlane works beside the user's folder, never in their branch: no push,
 //! no force.
 
-use crate::tr;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -10,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::process::hide_window;
 
-/// A worktree OpenVibe made, on a branch of its own.
+/// A worktree dummyPlane made, on a branch of its own.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Worktree {
@@ -91,7 +90,7 @@ pub fn slug(name: &str) -> String {
 fn git(dir: &Path, args: &[&str]) -> Result<String, String> {
     let output = hide_window(Command::new("git").arg("-C").arg(dir).args(args))
         .output()
-        .map_err(|err| tr!("git introuvable : {err}", "git not found: {err}"))?;
+        .map_err(|err| format!("git not found: {err}"))?;
     if output.status.success() {
         Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
     } else {
@@ -102,10 +101,7 @@ fn git(dir: &Path, args: &[&str]) -> Result<String, String> {
 /// The repository's root, and the folder of its worktrees: `<parent>/<folder>.worktrees`.
 fn locate(project: &Path) -> Result<(PathBuf, PathBuf), String> {
     let root = git(project, &["rev-parse", "--show-toplevel"]).map_err(|_| {
-        tr!(
-            "Le dossier du projet n'est pas un dépôt git.",
-            "The project folder is not a git repository."
-        )
+        "The project folder is not a git repository.".to_string()
     })?;
     // git answers with forward slashes, even on Windows.
     let root = PathBuf::from(if cfg!(windows) {
@@ -116,25 +112,19 @@ fn locate(project: &Path) -> Result<(PathBuf, PathBuf), String> {
     let name = root
         .file_name()
         .ok_or_else(|| {
-            tr!(
-                "Le dépôt n'a pas de nom de dossier.",
-                "The repository has no folder name."
-            )
+            "The repository has no folder name.".to_string()
         })?
         .to_string_lossy()
         .into_owned();
     let parent = root.parent().ok_or_else(|| {
-        tr!(
-            "Le dépôt n'a pas de dossier parent.",
-            "The repository has no parent folder."
-        )
+        "The repository has no parent folder.".to_string()
     })?;
     let dir = parent.join(format!("{name}.worktrees"));
     Ok((root, dir))
 }
 
 fn add_worktree(root: &Path, dir: &Path, slug: &str, from: &str) -> Result<Worktree, String> {
-    let branch = format!("openvibe/{slug}");
+    let branch = format!("dummyplane/{slug}");
     if git(
         root,
         &[
@@ -146,18 +136,12 @@ fn add_worktree(root: &Path, dir: &Path, slug: &str, from: &str) -> Result<Workt
     )
     .is_ok()
     {
-        return Err(tr!(
-            "La branche {branch} existe déjà.",
-            "The branch {branch} already exists."
-        ));
+        return Err(format!("The branch {branch} already exists."));
     }
     let path = dir.join(slug);
     if path.exists() {
         let shown = path.display();
-        return Err(tr!(
-            "Le dossier {shown} existe déjà.",
-            "The folder {shown} already exists."
-        ));
+        return Err(format!("The folder {shown} already exists."));
     }
     let shown = path.to_string_lossy().into_owned();
     git(root, &["worktree", "add", "-b", &branch, &shown, from])?;
@@ -169,10 +153,7 @@ fn add_worktree(root: &Path, dir: &Path, slug: &str, from: &str) -> Result<Workt
 }
 
 fn no_commit() -> String {
-    tr!(
-        "Le dépôt n'a pas encore de commit : fais un premier commit, puis relance la mission.",
-        "The repository has no commit yet: make a first commit, then launch the mission again."
-    )
+    "The repository has no commit yet: make a first commit, then launch the mission again.".to_string()
 }
 
 /// The mission's branch, from the project's current commit, and its worktree (where merges happen).
@@ -189,7 +170,7 @@ pub fn prepare(project: &Path, name: &str) -> Result<Worktree, String> {
 pub fn add_agent(project: &Path, mission: &str, agent: &str) -> Result<Worktree, String> {
     let (root, dir) = locate(project)?;
     let name = format!("{mission}-{}", slug(agent));
-    add_worktree(&root, &dir, &name, &format!("openvibe/{mission}"))
+    add_worktree(&root, &dir, &name, &format!("dummyplane/{mission}"))
 }
 
 /// Merges an agent's branch into the mission's, in the mission's worktree; a conflict is undone.
@@ -223,10 +204,7 @@ pub fn merge_agent(mission: &Path, agent: &Path, branch: &str) -> Result<MergeRe
                 // the next merges would all fail on it (final review H2).
                 if git(mission, &["rev-parse", "-q", "--verify", "MERGE_HEAD"]).is_ok() {
                     let _ = git(mission, &["merge", "--abort"]);
-                    return Err(tr!(
-                        "La fusion de {branch} a échoué et a été annulée : {err}",
-                        "Merging {branch} failed and was cancelled: {err}"
-                    ));
+                    return Err(format!("Merging {branch} failed and was cancelled: {err}"));
                 }
                 return Err(err);
             }
@@ -251,10 +229,7 @@ fn remove_worktree(root: &Path, name: String, path: &Path, done: &mut Cleanup) {
 /// (a folder locked by a process) that git's own message then names.
 fn kept_worktree(name: &str, git_error: &str) -> String {
     if git_error.contains("modified or untracked files") {
-        return tr!(
-            "{name} (changements non commités)",
-            "{name} (uncommitted changes)"
-        );
+        return format!("{name} (uncommitted changes)");
     }
     let cause = git_error.lines().next().unwrap_or_default().trim();
     format!("{name} ({cause})")
@@ -277,10 +252,7 @@ pub fn discard(project: &Path, trees: &[Worktree]) -> Result<Cleanup, String> {
             Ok(_) => done.removed.push(tree.slug.clone()),
             Err(_) => {
                 let branch = &tree.branch;
-                done.kept.push(tr!(
-                    "{branch} (branche non fusionnée)",
-                    "{branch} (branch not merged)"
-                ));
+                done.kept.push(format!("{branch} (branch not merged)"));
             }
         }
     }
@@ -297,7 +269,7 @@ pub fn cleanup(project: &Path, mission: &str, agents: &[String]) -> Result<Clean
             "branch",
             "--format=%(refname:short)",
             "--merged",
-            &format!("openvibe/{mission}"),
+            &format!("dummyplane/{mission}"),
         ],
     )?;
     let merged: Vec<&str> = merged.lines().map(str::trim).collect();
@@ -308,13 +280,10 @@ pub fn cleanup(project: &Path, mission: &str, agents: &[String]) -> Result<Clean
         if !path.exists() {
             continue;
         }
-        if merged.contains(&format!("openvibe/{name}").as_str()) {
+        if merged.contains(&format!("dummyplane/{name}").as_str()) {
             remove_worktree(&root, name, &path, &mut done);
         } else {
-            done.kept.push(tr!(
-                "{name} (branche non fusionnée)",
-                "{name} (branch not merged)"
-            ));
+            done.kept.push(format!("{name} (branch not merged)"));
         }
     }
     let path = dir.join(mission);
@@ -332,7 +301,7 @@ mod tests {
     fn a_worktree_kept_for_another_reason_than_changes_says_so() {
         let changes = "fatal: 'x' contains modified or untracked files, use --force to delete it";
         assert_eq!(
-            crate::i18n::in_english(|| super::kept_worktree("isis", changes)),
+            super::kept_worktree("isis", changes),
             "isis (uncommitted changes)"
         );
         let locked = "error: failed to delete 'C:/w/isis': Permission denied\nmore";
@@ -405,7 +374,7 @@ mod tests {
         };
         assert_eq!(
             prepare(&proj, "auth").unwrap_err(),
-            "Le dépôt n'a pas encore de commit : fais un premier commit, puis relance la mission."
+            "The repository has no commit yet: make a first commit, then launch the mission again."
         );
     }
 
@@ -434,7 +403,7 @@ mod tests {
         };
         let tree = prepare(&proj, "Ajoute l'Authentification").unwrap();
         assert_eq!(tree.slug, "ajoute-l-authentification");
-        assert_eq!(tree.branch, "openvibe/ajoute-l-authentification");
+        assert_eq!(tree.branch, "dummyplane/ajoute-l-authentification");
         assert!(same(
             &tree.path,
             parent
@@ -458,12 +427,12 @@ mod tests {
             return;
         };
         prepare(&proj, "auth").unwrap();
-        assert!(prepare(&proj, "auth").unwrap_err().contains("existe déjà"));
+        assert!(prepare(&proj, "auth").unwrap_err().contains("already exists"));
         let plain = parent.path().join("plain");
         std::fs::create_dir(&plain).unwrap();
         assert_eq!(
             prepare(&plain, "auth").unwrap_err(),
-            "Le dossier du projet n'est pas un dépôt git."
+            "The project folder is not a git repository."
         );
     }
 
@@ -476,7 +445,7 @@ mod tests {
         commit(Path::new(&mission.path), "m.txt", "m\n", "mission base");
         let agent = add_agent(&proj, &mission.slug, "Athéna").unwrap();
         assert_eq!(agent.slug, "auth-athena");
-        assert_eq!(agent.branch, "openvibe/auth-athena");
+        assert_eq!(agent.branch, "dummyplane/auth-athena");
         assert!(same(
             &agent.path,
             parent.path().join("proj.worktrees").join("auth-athena")
@@ -530,7 +499,7 @@ mod tests {
         );
         let m = Path::new(&mission.path);
         let err = merge_agent(m, Path::new(&athena.path), &athena.branch).unwrap_err();
-        assert!(err.contains("annulée"), "{err}");
+        assert!(err.contains("was cancelled"), "{err}");
         assert!(git(m, &["rev-parse", "-q", "--verify", "MERGE_HEAD"]).is_err());
         assert_eq!(run(m, &["status", "--porcelain"]), "");
         std::fs::remove_file(hooks.join("pre-merge-commit")).unwrap();
@@ -578,12 +547,12 @@ mod tests {
         );
         assert_eq!(
             done.kept,
-            vec!["openvibe/auth-apollon (branche non fusionnée)".to_string()]
+            vec!["dummyplane/auth-apollon (branch not merged)".to_string()]
         );
         assert!(!parent.path().join("proj.worktrees").join("auth").exists());
         assert_eq!(
-            run(&proj, &["branch", "--list", "openvibe/*"]),
-            "openvibe/auth-apollon"
+            run(&proj, &["branch", "--list", "dummyplane/*"]),
+            "dummyplane/auth-apollon"
         );
         // The same plan can be launched again.
         prepare(&proj, "auth").unwrap();
@@ -606,7 +575,7 @@ mod tests {
         assert_eq!(first.removed, vec!["auth-athena".to_string()]);
         assert_eq!(
             first.kept,
-            vec!["auth-apollon (branche non fusionnée)".to_string()]
+            vec!["auth-apollon (branch not merged)".to_string()]
         );
         assert!(m.exists());
         merge_agent(m, Path::new(&apollon.path), &apollon.branch).unwrap();
@@ -616,7 +585,7 @@ mod tests {
             vec!["auth-apollon".to_string(), "auth".to_string()]
         );
         assert!(!parent.path().join("proj.worktrees").join("auth").exists());
-        let branches = run(&proj, &["branch", "--list", "openvibe/*"]);
-        assert!(branches.contains("openvibe/auth-apollon") && branches.contains("openvibe/auth"));
+        let branches = run(&proj, &["branch", "--list", "dummyplane/*"]);
+        assert!(branches.contains("dummyplane/auth-apollon") && branches.contains("dummyplane/auth"));
     }
 }

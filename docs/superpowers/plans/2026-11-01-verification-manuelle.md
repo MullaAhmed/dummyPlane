@@ -11,7 +11,7 @@ Règles : lancer le build de développement avec `--config` (ses propres donnée
 3. **CodeMirror sous la CSP dans WebView2.** Ouvrir le studio de code sur un fichier : coloration, recherche, saisie, annuler. Console de la webview sans erreur de CSP (`unsafe-eval`, `blob:`, polices).
 4. **Lancer 4 agents à 1440×900.** « Lancer 4 » : la vue s'ajuste à un zoom lisible (pas 40 %), les quatre terminaux démarrent, aucun n'est caché sous une barre.
 5. **Un studio « sale » pendant une mise à jour.** Modifier un fichier dans le studio sans l'enregistrer, déclencher l'installation d'une mise à jour : elle refuse tant que les changements ne sont pas enregistrés ou abandonnés, et ne perd rien.
-6. **Une vraie mise à jour avec l'instance unique.** Bêta précédente vers cette version par l'installeur : OpenVibe redémarre seul, une seconde instance lancée pendant ce temps rend la main à la première, aucune donnée perdue.
+6. **Une vraie mise à jour avec l'instance unique.** Bêta précédente vers cette version par l'installeur : dummyPlane redémarre seul, une seconde instance lancée pendant ce temps rend la main à la première, aucune donnée perdue.
 7. **Les boucles sur un shell.** Une boucle sur un terminal Shell : déclenchement par planning, par inactivité, par texte dans la sortie ; arrêt par nombre et par durée ; « Tout arrêter » ; rien n'est tapé dans un shell dont Claude a quitté.
 8. **Les comptes avec une vraie connexion.** Créer un profil, « Se connecter » dans son terminal : l'agent répond avec ce compte, un terminal du profil Par défaut garde l'autre. « Reprendre » après redémarrage retrouve la conversation du bon profil. `~/.claude` n'a pas été modifié par la création du profil.
 9. **Pousser et abandonner sur un dépôt jetable.** Fenêtre git : cocher deux fichiers sur trois, valider, vérifier que seuls ces deux sont dans le commit ; abandonner un fichier (la confirmation dit ce qui est perdu) ; « Pousser N → origin/branche » n'envoie que les commits annoncés, ne force jamais, et dit pourquoi si le remote refuse.
@@ -31,7 +31,7 @@ Règles : lancer le build de développement avec `--config` (ses propres donnée
 - Créer, modifier, lier deux notes : une seule ligne entre deux notes qui se citent.
 - Ouvrir depuis le rail, la palette et le menu d'un groupe.
 - Sur un gros carnet (plus de 300 notes), le graphe reste fluide (disposition en O(n²), bornée à 1000).
-- Les fichiers sont bien dans `.openvibe/notes/` du projet et un agent est informé des notes.
+- Les fichiers sont bien dans `.dummyplane/notes/` du projet et un agent est informé des notes.
 
 ### Installer des agents et des modèles Ollama
 - Depuis l'accueil et la palette : la commande officielle tourne dans un terminal visible, rien ne s'installe sans confirmation, copier un terminal d'installation ne relance pas l'installation.
@@ -93,5 +93,5 @@ Règles : lancer le build de développement avec `--config` (ses propres donnée
 - Le bouton de sortie discret apparaît et ramène à l'affichage normal ; Alt+Z et Alt+R aussi.
 
 ### Instance unique et fenêtre
-- Lancer un second OpenVibe : la fenêtre du premier revient au premier plan.
+- Lancer un second dummyPlane : la fenêtre du premier revient au premier plan.
 - Build de développement avec `--config` à côté d'une version installée : les deux vivent côte à côte.

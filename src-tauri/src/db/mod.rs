@@ -6,7 +6,6 @@ pub mod scrollback;
 pub mod settings;
 pub mod workspaces;
 
-use crate::tr;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -68,13 +67,10 @@ impl Db {
 }
 
 fn newer_base() -> String {
-    tr!(
-        "Cette base vient d'une version plus récente d'OpenVibe. Installe la dernière version.",
-        "This database comes from a newer version of OpenVibe. Install the latest version."
-    )
+    "This database comes from a newer version of dummyPlane. Install the latest version.".to_string()
 }
 
-/// A base from a newer OpenVibe is left untouched; an older one is copied
+/// A base from a newer dummyPlane is left untouched; an older one is copied
 /// before its first missing migration (spec première version §3.3). A copy
 /// already there is the one made before a first, failed attempt: it is kept.
 /// The copy is written aside and renamed once checked, so a copy cut short
@@ -93,10 +89,7 @@ fn prepare_upgrade(conn: &Connection, path: &Path) -> AppResult<()> {
         return Ok(());
     }
     copy_checked(conn, &backup, applied).map_err(|err| {
-        AppError::InvalidInput(tr!(
-            "Copie de la base impossible avant sa mise à jour : {err}",
-            "Could not copy the database before upgrading it: {err}"
-        ))
+        AppError::InvalidInput(format!("Could not copy the database before upgrading it: {err}"))
     })?;
     // The file name only: the log is meant to be sent, without the user's folders.
     log::info!(
@@ -116,16 +109,16 @@ fn copy_checked(conn: &Connection, backup: &Path, version: usize) -> AppResult<(
         Connection::open(&partial)?.query_row("PRAGMA user_version", [], |row| row.get(0))?;
     if copied as usize != version {
         return Err(AppError::InvalidInput(format!(
-            "la copie est en version {copied} au lieu de {version}"
+            "the copy is at version {copied}, not {version}"
         )));
     }
     std::fs::rename(&partial, backup)?;
     Ok(())
 }
 
-/// `openvibe.v<N>-backup.db` next to the base: its copy before it left version `N`.
+/// `dummyplane.v<N>-backup.db` next to the base: its copy before it left version `N`.
 pub fn backup_path(db: &Path, version: usize) -> PathBuf {
-    let stem = db.file_stem().map_or("openvibe".into(), |stem| {
+    let stem = db.file_stem().map_or("dummyplane".into(), |stem| {
         stem.to_string_lossy().into_owned()
     });
     db.with_file_name(format!("{stem}.v{version}-backup.db"))
@@ -190,7 +183,7 @@ pub fn now_ms() -> i64 {
 #[cfg(test)]
 pub fn test_workspace(conn: &Connection, name: &str) -> AppResult<workspaces::Workspace> {
     use rusqlite::OptionalExtension;
-    const PATH: &str = "C:/openvibe-tests";
+    const PATH: &str = "C:/dummyplane-tests";
     let existing: Option<String> = conn
         .query_row("SELECT id FROM projects WHERE path = ?1", [PATH], |row| {
             row.get(0)
@@ -337,11 +330,11 @@ mod tests {
     #[test]
     fn copies_an_existing_base_before_upgrading_it() {
         let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("openvibe.db");
+        let path = dir.path().join("dummyplane.db");
         base_at_version(&path, 1);
         Db::open(&path).unwrap();
         let backup = backup_path(&path, 1);
-        assert_eq!(backup, dir.path().join("openvibe.v1-backup.db"));
+        assert_eq!(backup, dir.path().join("dummyplane.v1-backup.db"));
         let copy = Connection::open(&backup).unwrap();
         let version: i64 = copy
             .query_row("PRAGMA user_version", [], |r| r.get(0))
@@ -352,7 +345,7 @@ mod tests {
     #[test]
     fn keeps_the_copy_made_before_a_first_attempt() {
         let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("openvibe.db");
+        let path = dir.path().join("dummyplane.db");
         base_at_version(&path, 1);
         std::fs::write(backup_path(&path, 1), b"first copy").unwrap();
         Db::open(&path).unwrap();
@@ -362,7 +355,7 @@ mod tests {
     #[test]
     fn a_copy_cut_short_is_never_taken_for_the_backup() {
         let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("openvibe.db");
+        let path = dir.path().join("dummyplane.db");
         base_at_version(&path, 1);
         // What a VACUUM INTO stopped by a full disk or a crash leaves behind.
         let partial = backup_path(&path, 1).with_extension("db.tmp");
@@ -379,7 +372,7 @@ mod tests {
     #[test]
     fn no_copy_for_a_new_or_current_base() {
         let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("openvibe.db");
+        let path = dir.path().join("dummyplane.db");
         drop(Db::open(&path).unwrap());
         drop(Db::open(&path).unwrap());
         assert_eq!(backups_in(dir.path()), 0);
@@ -389,7 +382,7 @@ mod tests {
     #[test]
     fn a_base_of_the_first_beta_climbs_to_the_last_schema_without_loss() {
         let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("openvibe.db");
+        let path = dir.path().join("dummyplane.db");
         base_at_version(&path, 2);
         {
             let conn = Connection::open(&path).unwrap();
@@ -440,7 +433,7 @@ mod tests {
     #[test]
     fn a_base_of_the_published_version_opens_as_it_is() {
         let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("openvibe.db");
+        let path = dir.path().join("dummyplane.db");
         base_at_version(&path, 4);
         {
             let conn = Connection::open(&path).unwrap();
@@ -482,13 +475,13 @@ mod tests {
     #[test]
     fn refuses_a_base_from_a_newer_version() {
         let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("openvibe.db");
+        let path = dir.path().join("dummyplane.db");
         Connection::open(&path)
             .unwrap()
             .pragma_update(None, "user_version", MIGRATIONS.len() as i64 + 1)
             .unwrap();
         let err = Db::open(&path).err().unwrap().to_string();
-        assert!(err.contains("version plus récente d'OpenVibe"), "{err}");
+        assert!(err.contains("newer version of dummyPlane"), "{err}");
     }
 
     #[test]
@@ -520,7 +513,7 @@ mod tests {
     #[test]
     fn reopening_a_database_file_keeps_its_data() {
         let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("nested").join("openvibe.db");
+        let path = dir.path().join("nested").join("dummyplane.db");
         let created = Db::open(&path)
             .unwrap()
             .with(|conn| test_workspace(conn, "Persisté"))

@@ -1,12 +1,12 @@
-"""The throwaway repository the recordings work in: %TEMP%/openvibe-media/acme-shop,
+"""The throwaway repository the recordings work in: %TEMP%/dummyplane-media/acme-shop,
 one commit, then an uncommitted change for the review scene. Prints its path."""
 import os
 import subprocess
 import tempfile
 
-ROOT = os.path.join(tempfile.gettempdir(), "openvibe-media", "acme-shop")
+ROOT = os.path.join(tempfile.gettempdir(), "dummyplane-media", "acme-shop")
 COMMITTED = {
-    "README.md": "# acme-shop\n\nA tiny storefront API used to demo OpenVibe.\n",
+    "README.md": "# acme-shop\n\nA tiny storefront API used to demo dummyPlane.\n",
     "package.json": '{\n  "name": "acme-shop",\n  "private": true,\n  "type": "module",\n  "scripts": { "test": "vitest run" }\n}\n',
     "src/cart.ts": """export interface Item {
   sku: string;
@@ -89,7 +89,7 @@ def write(files):
         open(path, "w", encoding="utf8", newline="\n").write(text)
 
 
-git = ["git", "-C", ROOT, "-c", "user.name=OpenVibe Demo", "-c", "user.email=demo@example.com"]
+git = ["git", "-C", ROOT, "-c", "user.name=dummyPlane Demo", "-c", "user.email=demo@example.com"]
 if not os.path.isdir(os.path.join(ROOT, ".git")):
     os.makedirs(ROOT, exist_ok=True)
     subprocess.run(["git", "init", "-q", "-b", "main", ROOT], check=True)

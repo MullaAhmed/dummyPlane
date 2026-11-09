@@ -277,6 +277,11 @@ export function focusTerminal(nodeId: string) {
   entries.get(nodeId)?.term.focus();
 }
 
+/** The node's xterm, for the canvas wheel (terminalWheel.ts). */
+export function xtermOf(nodeId: string): Terminal | undefined {
+  return entries.get(nodeId)?.term;
+}
+
 /** The terminal's selection, empty without one ("Copy" of its radial menu). */
 export function terminalSelection(nodeId: string): string {
   return entries.get(nodeId)?.term.getSelection() ?? "";

@@ -45,3 +45,12 @@ it("unfolds the group it joins: in a folded group the agent would never mount, n
   expect(frame.customData.openvibe.folded).toBeUndefined();
   expect(frame.customData.openvibe).toMatchObject({ kind: "group", pantheon: "egyptian" });
 });
+
+it("two launches at the same center, outside any group, do not overlap one another (placement)", async () => {
+  const payload = { title: "T", name: "T", agent: "shell", cwd: "C:/code", shell: "default", command: "" } as const;
+  await addTerminal("w1", payload, { x: 0, y: 0 });
+  await addTerminal("w1", payload, { x: 0, y: 0 });
+  const [first, second] = scene as unknown as { x: number; y: number; width: number; height: number }[];
+  const overlaps = first.x < second.x + second.width && second.x < first.x + first.width && first.y < second.y + second.height && second.y < first.y + first.height;
+  expect(overlaps).toBe(false);
+});

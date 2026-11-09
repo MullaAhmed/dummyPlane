@@ -1,4 +1,4 @@
-"""OpenVibe logo set: the wave mark (identity spec §4.1) and wordmark lockups,
+"""dummyPlane logo set: the wave mark (identity spec §4.1) and wordmark lockups,
 the text outlined from Inter SemiBold so the SVGs render the same everywhere."""
 import io
 import os
@@ -68,14 +68,14 @@ def write(name, body, w, h):
 
 
 # The mark alone, and the wave alone (for places that already have a dark ground).
-write("openvibe-mark.svg", mark(), 64, 64)
-write("openvibe-wave.svg", f'<path d="{WAVE}" transform="translate(-6 -12)" stroke="{CLAY}" stroke-width="7" fill="none" stroke-linecap="round"/>', 52, 40)
+write("dummyplane-mark.svg", mark(), 64, 64)
+write("dummyplane-wave.svg", f'<path d="{WAVE}" transform="translate(-6 -12)" stroke="{CLAY}" stroke-width="7" fill="none" stroke-linecap="round"/>', 52, 40)
 
 # Lockups: the app pairs an 22 px mark with 15 px SemiBold text and an 8 px gap.
 M, GAP, SIZE = 64, 22, 44
 for theme, color in (("dark", IVORY_TEXT), ("light", INK)):
-    probe, width, cap = outline("OpenVibe", 600, SIZE, 0, 0, tracking=-0.012)
+    probe, width, cap = outline("dummyPlane", 600, SIZE, 0, 0, tracking=-0.012)
     baseline = M / 2 + cap / 2
-    d, width, cap = outline("OpenVibe", 600, SIZE, M + GAP, baseline, tracking=-0.012)
+    d, width, cap = outline("dummyPlane", 600, SIZE, M + GAP, baseline, tracking=-0.012)
     body = mark() + f'<path d="{d}" fill="{color}"/>'
-    write(f"openvibe-lockup-{theme}.svg", body, round(M + GAP + width + 2, 1), M)
+    write(f"dummyplane-lockup-{theme}.svg", body, round(M + GAP + width + 2, 1), M)

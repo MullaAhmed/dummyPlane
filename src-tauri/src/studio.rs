@@ -3,7 +3,6 @@
 //! and never over what an agent wrote meanwhile (spec studio code §4).
 
 use crate::review::{self, MAX_FILES};
-use crate::tr;
 use std::collections::BTreeSet;
 use std::hash::{DefaultHasher, Hasher};
 use std::io::{ErrorKind, Read, Write};
@@ -70,22 +69,19 @@ pub enum WriteOutcome {
 }
 
 fn refused(file: &str) -> String {
-    tr!("chemin refusé : {file}", "path refused: {file}")
+    format!("path refused: {file}")
 }
 
 fn not_found(file: &str) -> String {
-    tr!("fichier introuvable : {file}", "file not found: {file}")
+    format!("file not found: {file}")
 }
 
 fn too_big(file: &str) -> String {
-    tr!(
-        "fichier trop gros (2 Mo au plus) : {file}",
-        "file too big (2 MB at most): {file}"
-    )
+    format!("file too big (2 MB at most): {file}")
 }
 
 fn binary(file: &str) -> String {
-    tr!("fichier binaire : {file}", "binary file: {file}")
+    format!("binary file: {file}")
 }
 
 /// Windows ignores the spaces and what follows a dot; `COM¹` to `COM³` are ports
@@ -191,7 +187,7 @@ fn disk_version(path: &Path, file: &str) -> Result<Option<String>, String> {
 fn replace(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     let folder = path.parent().ok_or(ErrorKind::NotFound)?;
     let permissions = std::fs::metadata(path).ok().map(|m| m.permissions());
-    let temporary = folder.join(format!(".openvibe-{}.tmp", Uuid::new_v4()));
+    let temporary = folder.join(format!(".dummyplane-{}.tmp", Uuid::new_v4()));
     let written = (|| {
         let mut file = std::fs::File::create(&temporary)?;
         file.write_all(bytes)?;
@@ -289,10 +285,7 @@ fn walk(dir: &Path, prefix: &str, depth: usize, out: &mut Vec<TreeEntry>) {
 pub fn tree(project: &Path) -> Result<Vec<TreeEntry>, String> {
     if !project.is_dir() {
         let shown = project.display();
-        return Err(tr!(
-            "dossier introuvable : {shown}",
-            "folder not found: {shown}"
-        ));
+        return Err(format!("folder not found: {shown}"));
     }
     if let Some(entries) = git_tree(project) {
         return Ok(entries);
@@ -323,7 +316,7 @@ pub fn read(root: &Path, file: &str) -> Result<OpenedFile, String> {
     }
     let version = version_of(&bytes);
     let text = String::from_utf8(bytes)
-        .map_err(|_| tr!("fichier non UTF-8 : {file}", "file not in UTF-8: {file}"))?;
+        .map_err(|_| format!("file not in UTF-8: {file}"))?;
     Ok(OpenedFile { text, version })
 }
 
@@ -355,10 +348,7 @@ pub fn write(
     }
     // Said plainly, rather than leaving it to what the rename makes of it.
     if std::fs::metadata(&path).is_ok_and(|m| m.permissions().readonly()) {
-        return Err(tr!(
-            "fichier en lecture seule : {file}",
-            "read-only file: {file}"
-        ));
+        return Err(format!("read-only file: {file}"));
     }
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|err| err.to_string())?;
@@ -466,14 +456,10 @@ mod tests {
     }
 
     #[test]
-    fn refuses_a_message_in_the_interface_language() {
+    fn explains_a_refused_path() {
         let dir = project(&[]);
         assert_eq!(
             read(dir.path(), "../a").unwrap_err(),
-            "chemin refusé : ../a"
-        );
-        assert_eq!(
-            crate::i18n::in_english(|| read(dir.path(), "../a").unwrap_err()),
             "path refused: ../a"
         );
     }
@@ -633,7 +619,7 @@ mod tests {
         assert!(version(dir.path(), "sub").is_err());
         assert_eq!(
             read(dir.path(), "no.txt").unwrap_err(),
-            "fichier introuvable : no.txt"
+            "file not found: no.txt"
         );
     }
 

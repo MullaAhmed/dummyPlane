@@ -115,6 +115,37 @@ export function clearSpot(spot: Rect, obstacles: readonly Rect[]): Rect {
   }
 }
 
+/** Space kept between a new node and the nodes or groups it is placed beside. */
+export const NODE_GAP = GAP;
+
+/** The rect of `size` centered on `center`. */
+export function rectAround(center: Point, size: { width: number; height: number }): Rect {
+  return { x: center.x - size.width / 2, y: center.y - size.height / 2, width: size.width, height: size.height };
+}
+
+/**
+ * Where a node without a group goes: `spot` when it keeps NODE_GAP from every
+ * obstacle, else the nearest free spot. Candidates sit right of or below an
+ * obstacle's edge (preferred: left or above costs double distance), so the
+ * node stays close to the one the user asked for. Always finds one: the spot
+ * just right of every obstacle is free.
+ */
+export function freeSpot(spot: Rect, obstacles: readonly Rect[]): Rect {
+  // Obstacles grown by the gap: a spot is free when it overlaps none of them.
+  const grown = obstacles.map((o) => ({ x: o.x - NODE_GAP, y: o.y - NODE_GAP, width: o.width + 2 * NODE_GAP, height: o.height + 2 * NODE_GAP }));
+  const isFree = (r: Rect) => grown.every((o) => overlap(r, o) === 0);
+  if (isFree(spot)) return spot;
+  const xs = [spot.x, ...grown.flatMap((o) => [o.x + o.width, o.x - spot.width])];
+  const ys = [spot.y, ...grown.flatMap((o) => [o.y + o.height, o.y - spot.height])];
+  const cost = (r: Rect) => {
+    const dx = r.x - spot.x;
+    const dy = r.y - spot.y;
+    return Math.hypot(dx < 0 ? 2 * dx : dx, dy < 0 ? 2 * dy : dy);
+  };
+  const candidates = xs.flatMap((x) => ys.map((y) => ({ ...spot, x, y }))).sort((a, b) => cost(a) - cost(b));
+  return candidates.find(isFree) ?? spot;
+}
+
 /** Where "Link an orchestrator" puts it: left of the group, tops aligned (spec theme §11.4). */
 export function orchestratorSpot(frame: Rect): Point {
   const { width, height } = NODE_SIZE.orchestrator;

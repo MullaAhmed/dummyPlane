@@ -1,9 +1,8 @@
-//! OpenVibe's MCP server (spec orchestrateur §4.1): JSON-RPC over one HTTP
+//! dummyPlane's MCP server (spec orchestrateur §4.1): JSON-RPC over one HTTP
 //! POST, answered at once. Rust holds the transport and the caller's identity;
 //! `tools/list` and `tools/call` are answered by the interface.
 
 use crate::sync::lock;
-use crate::tr;
 use std::collections::HashMap;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -39,7 +38,7 @@ pub fn action(message: &Value) -> Action {
         return Action::Reply(failure(
             &Value::Null,
             -32600,
-            &tr!("requête invalide", "invalid request"),
+            "invalid request",
         ));
     }
     let Some(id) = message.get("id").cloned() else {
@@ -56,7 +55,7 @@ pub fn action(message: &Value) -> Action {
             return Action::Reply(failure(
                 &id,
                 -32602,
-                &tr!("paramètres invalides", "invalid params"),
+                "invalid params",
             ));
         }
     };
@@ -72,7 +71,7 @@ pub fn action(message: &Value) -> Action {
                 json!({
                     "protocolVersion": version,
                     "capabilities": { "tools": {} },
-                    "serverInfo": { "name": "openvibe", "version": env!("CARGO_PKG_VERSION") },
+                    "serverInfo": { "name": "dummyplane", "version": env!("CARGO_PKG_VERSION") },
                 }),
             ))
         }
@@ -85,7 +84,7 @@ pub fn action(message: &Value) -> Action {
         other => Action::Reply(failure(
             &id,
             -32601,
-            &tr!("méthode inconnue : {other}", "unknown method: {other}"),
+            &format!("unknown method: {other}"),
         )),
     }
 }
@@ -102,7 +101,7 @@ pub fn handle(
             Some(failure(
                 &Value::Null,
                 -32700,
-                &tr!("JSON invalide", "parse error"),
+                "parse error",
             )),
         );
     };
@@ -120,7 +119,7 @@ pub fn handle(
             Some(failure(
                 &Value::Null,
                 -32600,
-                &tr!("lot vide", "empty batch"),
+                "empty batch",
             )),
         ),
         Value::Array(batch) => {

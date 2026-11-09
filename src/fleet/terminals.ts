@@ -15,7 +15,7 @@ import { uiStore } from "@/store/ui";
 import { workspacesStore } from "@/store/workspaces";
 import { claudeInstalled } from "./agentsStore";
 import { cloneTerminalPayload } from "./clone";
-import { arrangeInFrame, freeCell } from "./groupLayout";
+import { arrangeInFrame, freeCell, freeSpot, NODE_GAP } from "./groupLayout";
 import { fleetMessages } from "./messages";
 import { nameForNewAgent, pantheonsForCopiedGroups } from "./naming";
 import { sceneAccess } from "./sceneAccess";
@@ -46,11 +46,23 @@ export async function addTerminal(
   if (!scene) return null;
   const elements = scene.elements();
   const frame = groupId ? elements.find((e) => e.id === groupId && !e.isDeleted && groupInfoOf(e)) : undefined;
-  scene.write(frame ? joinGroup(elements, element, frame) : [...elements, element]);
+  scene.write(frame ? joinGroup(elements, element, frame) : [...elements, placeFree(elements, element)]);
   // Out of sight, Excalidraw would neither show it nor start its agent; in another workspace nothing mounts it at all (spec overnight mission §6.1).
   if (scene.shown) revealNode(element.id);
   else void relaunchTerminal(element.id, payload, "new");
   return element.id;
+}
+
+/**
+ * `element` moved to the nearest spot that covers no node nor group frame of
+ * `elements` (NODE_GAP apart), so two terminals never end up one on top of the other.
+ */
+function placeFree(elements: readonly ExcalidrawElement[], element: ExcalidrawElement): ExcalidrawElement {
+  const obstacles = elements
+    .filter((e) => !e.isDeleted && (nodeKindOf(e) !== null || e.type === "frame"))
+    .map(({ x, y, width, height }) => ({ x, y, width, height }));
+  const spot = freeSpot(element, obstacles);
+  return spot.x === element.x && spot.y === element.y ? element : newElementWith(element, { x: spot.x, y: spot.y });
 }
 
 /** `elements` with `element` in the first free cell of `frame`, grown if it was full. */
@@ -70,7 +82,8 @@ export async function duplicateTerminal(workspaceId: string, nodeId: string) {
   const source = terminalOf(nodesStore.getState().nodes[nodeId]);
   if (!element || !source) return;
   const group = groupOf(canvasStore.getState().frames, nodeId);
-  const center = { x: element.x + element.width * 1.5 + 24, y: element.y + element.height / 2 };
+  // Right of the source, NODE_GAP apart; addTerminal then moves it clear of any neighbour.
+  const center = { x: element.x + element.width * 1.5 + NODE_GAP, y: element.y + element.height / 2 };
   const name = await nameForNewAgent(workspaceId, group?.group.pantheon);
   await addTerminal(workspaceId, cloneTerminalPayload(source, name), center, group?.id ?? null);
 }

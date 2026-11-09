@@ -1,7 +1,9 @@
 import { createStore, useStore } from "zustand";
+import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { AppState, ExcalidrawImperativeAPI, NormalizedZoomValue } from "@excalidraw/excalidraw/types";
 import { sameLinks, type Links } from "@/fleet/wires";
 import { sameFrames, type Rect, type SceneFrame } from "./groups";
+import { sameDrawn } from "./drawnSelection";
 
 /** The part of Excalidraw's state that the shell around the canvas shows. */
 export interface CanvasView {
@@ -104,6 +106,9 @@ interface CanvasState {
   /** The scene rectangle of each node: where the overlays anchor (spec orchestrateur §5.1). */
   nodeRects: Record<string, Rect>;
   setNodeRects: (rects: Record<string, Rect>) => void;
+  /** The drawn (non-node) elements selected on screen: what the selection panel acts on. */
+  drawnSelection: ExcalidrawElement[];
+  setDrawnSelection: (elements: ExcalidrawElement[]) => void;
 }
 
 export const canvasStore = createStore<CanvasState>()((set, get) => ({
@@ -134,6 +139,10 @@ export const canvasStore = createStore<CanvasState>()((set, get) => ({
         return b !== undefined && a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
       });
     if (!same) set({ nodeRects: rects });
+  },
+  drawnSelection: [],
+  setDrawnSelection: (elements) => {
+    if (!sameDrawn(get().drawnSelection, elements)) set({ drawnSelection: elements });
   },
   links: {},
   setLinks: (links) => {

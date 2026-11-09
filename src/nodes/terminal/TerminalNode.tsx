@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { Copy, X } from "lucide-react";
 import { toast } from "sonner";
 import { useCanvas } from "@/canvas/canvasStore";
@@ -13,6 +13,8 @@ import { MissingNode } from "./MissingNode";
 import { ResumeCard } from "./ResumeCard";
 import { HeaderButton, TerminalHeader } from "./TerminalHeader";
 import { useTerminalHost } from "./useTerminalHost";
+import { xtermOf } from "./registry";
+import { keepTerminalWheel } from "./terminalWheel";
 import { useMessages } from "@/i18n";
 import { nodesMessages } from "@/nodes/messages";
 
@@ -23,10 +25,19 @@ export function TerminalNode({ nodeId }: { nodeId: string }) {
   const workspaceId = useNodes((s) => s.nodes[nodeId]?.workspaceId);
   const selected = useCanvas((s) => s.view.selectedIds.includes(nodeId));
   const hostRef = useRef<HTMLDivElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
   const hasPayload = payload !== undefined;
   const t = useMessages(nodesMessages).terminal;
 
   useTerminalHost(nodeId, hostRef, hasPayload);
+
+  // Excalidraw would pan the canvas on a wheel over this terminal (terminalWheel.ts).
+  useEffect(() => {
+    const root = rootRef.current;
+    const canvas = root?.closest<HTMLElement>(".excalidraw");
+    if (!root || !canvas) return;
+    return keepTerminalWheel(root, canvas, () => xtermOf(nodeId));
+  }, [nodeId, hasPayload]);
 
   if (!payload) {
     return <MissingNode text={t.notFound} />;
@@ -35,6 +46,7 @@ export function TerminalNode({ nodeId }: { nodeId: string }) {
   const waiting = status.state === "running" && activity?.activity === "waiting";
   return (
     <div
+      ref={rootRef}
       data-terminal={nodeId}
       className="relative flex h-full flex-col overflow-hidden rounded-xl bg-ov-terminal"
       style={frameStyle(AGENTS[payload.agent].tint, selected, waiting)}

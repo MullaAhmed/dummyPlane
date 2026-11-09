@@ -26,7 +26,7 @@ it("moves the window from its empty space only, with the logo, its content and t
   expect(regions.map((r) => r.getAttribute("data-tauri-drag-region"))).toEqual(["", "", "", ""]);
   expect(regions[0]).toBe(bar);
   for (const spacer of regions.slice(1)) expect(spacer.querySelector("button")).toBeNull();
-  expect(bar.querySelector("svg path")!.getAttribute("stroke")).toBe("#D97757");
+  expect(bar.querySelector("svg rect")!.getAttribute("fill")).toBe("currentColor");
   for (const label of ["Minimize", "Maximize", "Close OpenVibe"]) expect(host.querySelector(`[aria-label="${label}"]`)).not.toBeNull();
   await act(async () => root.unmount());
   host.remove();

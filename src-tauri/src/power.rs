@@ -1,6 +1,6 @@
 //! Keeps the PC awake during an overnight mission (spec mission de nuit §5.4).
 //! The execution state belongs to the thread that set it and ends with it: a
-//! thread of its own holds it, and OpenVibe's exit releases it in any case.
+//! thread of its own holds it, and dummyPlane's exit releases it in any case.
 
 use std::sync::Mutex;
 use std::sync::mpsc::{Sender, channel};
