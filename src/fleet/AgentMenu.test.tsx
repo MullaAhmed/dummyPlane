@@ -12,7 +12,7 @@ import { installAgent, pullOllamaModel } from "./installAgent";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
 vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: vi.fn(() => Promise.resolve()) }));
-vi.mock("./quickActions", () => ({ newConsole: vi.fn(), launchFour: vi.fn(), placeOrchestrator: vi.fn() }));
+vi.mock("./quickActions", () => ({ newConsole: vi.fn(), placeOrchestrator: vi.fn() }));
 vi.mock("./installAgent", () => ({ installAgent: vi.fn(() => Promise.resolve("node")), pullOllamaModel: vi.fn(() => Promise.resolve("node")) }));
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

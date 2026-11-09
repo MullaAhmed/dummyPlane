@@ -26,7 +26,7 @@ import { useGoToData } from "./useGoToData";
 const HEADING =
   "[&_[cmdk-group-heading]]:px-2.5 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:pt-2 [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.06em] [&_[cmdk-group-heading]]:text-dp-text-2";
 const ITEM =
-  "flex h-8 cursor-default items-center gap-2 rounded-[8px] px-2.5 text-[12.5px] text-dp-text-2 data-[selected=true]:bg-dp-accent-soft";
+  "flex h-8 cursor-default items-center gap-2 rounded-md px-2.5 text-[13px] text-dp-text-2 transition-[background-color] duration-150 ease-out hover:bg-dp-hover data-[selected=true]:bg-dp-accent-soft motion-reduce:transition-none";
 
 /** The palette (spec window §7.1), under the title bar, centered; rendered only while open. */
 export function Palette() {
@@ -76,7 +76,7 @@ function PaletteBody() {
   return (
     <div data-palette-backdrop className="fixed inset-0 z-50" onPointerDown={(e) => e.target === e.currentTarget && closePalette()}>
       <div
-        className="dp-glass-strong absolute left-1/2 -translate-x-1/2 overflow-hidden rounded-[14px]"
+        className="dp-glass-strong absolute left-1/2 -translate-x-1/2 overflow-hidden rounded-lg"
         style={{ top: TITLE_BAR_HEIGHT + 6, width: "min(560px, calc(100vw - 32px))", boxShadow: "var(--dp-glass-hi), var(--dp-glass-edge), var(--dp-shadow)" }}
       >
         <Command
@@ -101,7 +101,7 @@ function PaletteBody() {
             value={query}
             onValueChange={setPaletteQuery}
             placeholder={mode === "goTo" ? t.placeholderGoTo : t.placeholderFunctions}
-            className="h-11 w-full border-b border-dp-line bg-transparent px-3.5 text-[13.5px] text-dp-text outline-none placeholder:text-dp-text-3"
+            className="h-11 w-full border-b border-dp-line bg-transparent px-3.5 text-[13px] text-dp-text outline-none placeholder:text-dp-text-3 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-dp-accent/50"
           />
           <Command.List className={`max-h-[420px] overflow-y-auto p-1.5 ${HEADING}`}>
             {filesFirst && <FileSection files={files} line={fileQuery.line} column={fileQuery.column} />}
@@ -142,7 +142,7 @@ function PaletteBody() {
                     >
                       <span className="truncate text-dp-text">{line.label}</span>
                       {/* A recent line tells where it comes from: "Rename" of which terminal. */}
-                      {section.label === recentSection() && <span className="shrink-0 text-[11.5px] text-dp-text-3">{line.section}</span>}
+                      {section.label === recentSection() && <span className="shrink-0 text-xs text-dp-text-3">{line.section}</span>}
                       {line.disabled !== null ? (
                         <span className="ml-auto shrink-0 text-[11px] text-dp-text-3">{line.disabled}</span>
                       ) : (
@@ -152,10 +152,10 @@ function PaletteBody() {
                   ))}
                 </Command.Group>
               ))}
-            {goToBusy && <div className="px-2.5 py-1.5 text-[11.5px] text-dp-text-3">{t.loading}</div>}
-            {!goToBusy && <Command.Empty className="px-2.5 py-3 text-[12.5px] text-dp-text-3">{t.empty}</Command.Empty>}
+            {goToBusy && <div className="px-2.5 py-1.5 text-xs text-dp-text-3">{t.loading}</div>}
+            {!goToBusy && <Command.Empty className="px-2.5 py-3 text-[13px] text-dp-text-3">{t.empty}</Command.Empty>}
           </Command.List>
-          <footer className="border-t border-dp-line px-3.5 py-1.5 text-[11px] text-dp-text-2">{t.footer}</footer>
+          <footer className="border-t border-dp-line px-3.5 py-1.5 text-[11px] text-dp-text-3">{t.footer}</footer>
         </Command>
       </div>
     </div>

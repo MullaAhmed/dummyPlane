@@ -48,7 +48,7 @@ export function TerminalNode({ nodeId }: { nodeId: string }) {
     <div
       ref={rootRef}
       data-terminal={nodeId}
-      className="relative flex h-full flex-col overflow-hidden rounded-xl bg-dp-terminal"
+      className="relative flex h-full flex-col overflow-hidden rounded-lg bg-dp-terminal"
       style={frameStyle(AGENTS[payload.agent].tint, selected, waiting)}
     >
       <TerminalHeader
@@ -81,7 +81,7 @@ export function TerminalNode({ nodeId }: { nodeId: string }) {
         <div ref={hostRef} className="relative h-full w-full overflow-hidden" />
         <ResumeCard nodeId={nodeId} payload={payload} status={status} />
       </div>
-      {waiting && <div className="pointer-events-none absolute inset-0 z-20 rounded-xl" style={{ boxShadow: WAITING_GLOW }} />}
+      {waiting && <div className="pointer-events-none absolute inset-0 z-20 rounded-lg" style={{ boxShadow: WAITING_GLOW }} />}
       <ArrivalFlash nodeId={nodeId} />
     </div>
   );

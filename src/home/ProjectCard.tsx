@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { ask, open } from "@tauri-apps/plugin-dialog";
 import { Ellipsis, Folder } from "lucide-react";
+import { ask, open } from "@tauri-apps/plugin-dialog";
 import { toast } from "sonner";
 import {
   DropdownMenu,
@@ -46,12 +46,12 @@ export function ProjectCard({ project }: { project: Project }) {
       onClick={openProject}
       onKeyDown={(e) => e.key === "Enter" && openProject()}
       className={cn(
-        "dp-glass-strong group rounded-[14px] p-4 transition-colors",
-        openable && "cursor-pointer hover:border-dp-accent/60",
+        "dp-glass-strong group rounded-lg p-4 transition-[color,background-color,border-color] duration-150 ease-out motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50",
+        openable && "cursor-pointer hover:border-dp-accent/60 hover:bg-dp-hover",
       )}
     >
       <div className="mb-3 flex items-start gap-3">
-        <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-dp-accent-soft text-dp-accent">
+        <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-dp-accent-soft text-dp-accent-ink">
           <Folder className="size-4" />
         </div>
         <div className="min-w-0 flex-1">
@@ -84,9 +84,9 @@ export function ProjectCard({ project }: { project: Project }) {
               type="button"
               aria-label={t.actions}
               onClick={(e) => e.stopPropagation()}
-              className="grid size-7 place-items-center rounded-full text-dp-text-2 opacity-0 group-hover:opacity-100 hover:bg-dp-card hover:text-dp-text data-[state=open]:opacity-100"
+              className="grid size-7 place-items-center rounded-full text-dp-text-2 opacity-0 transition-[color,background-color,opacity] duration-150 ease-out hover:bg-dp-hover hover:text-dp-text focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] group-hover:opacity-100 motion-reduce:transition-none data-[state=open]:opacity-100 [&_svg]:size-4"
             >
-              <Ellipsis className="size-4" />
+              <Ellipsis />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
@@ -106,8 +106,8 @@ export function ProjectCard({ project }: { project: Project }) {
         <div className="flex items-center gap-3 font-mono text-[11px] text-dp-text-2">
           <span>{t.workspaces(project.workspaceCount)}</span>
           {project.liveAgents > 0 && (
-            <span className="flex items-center gap-1 text-dp-live">
-              <span className="size-1.5 rounded-full bg-dp-live" />
+            <span className="flex items-center gap-1 text-dp-ok">
+              <span className="size-1.5 rounded-full bg-dp-ok" />
               {t.liveAgents(project.liveAgents)}
             </span>
           )}

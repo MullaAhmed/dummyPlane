@@ -14,3 +14,10 @@ describe("withSceneDefaults", () => {
 it("lets dummyPlane draw frame outlines and group labels", () => {
   expect(SCENE_DEFAULTS.frameRendering).toEqual({ enabled: true, name: true, outline: false, clip: true });
 });
+
+it("draws new connection strokes clean and elbowed, and lets a saved view keep its own settings", () => {
+  expect(SCENE_DEFAULTS.currentItemRoughness).toBe(0);
+  expect(SCENE_DEFAULTS.currentItemArrowType).toBe("elbow");
+  const data = withSceneDefaults({ elements: [], appState: { currentItemRoughness: 2 } });
+  expect(data.appState).toMatchObject({ currentItemRoughness: 2, currentItemArrowType: "elbow" });
+});

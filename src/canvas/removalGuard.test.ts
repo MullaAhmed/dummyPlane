@@ -42,7 +42,7 @@ describe("the removal guard (retours J8b: Annuler never ends a running agent una
     expect(verdict.ask).toEqual({ agents: ["isis"], remove: ["isis"] });
   });
 
-  it("brings a whole group back, frame and members, and asks to close the group (undoing Launch 4 agents)", () => {
+  it("brings a whole group back, frame and members, and asks to close the group (undoing a group launch)", () => {
     running.add("ra");
     const group = frame("g");
     const members = [element("ra", { frameId: "g" }), element("thot", { frameId: "g" }), element("note", { type: "text", frameId: "g" })];

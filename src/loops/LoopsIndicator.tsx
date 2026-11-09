@@ -1,4 +1,5 @@
 import { Repeat } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { requestUi } from "@/commands/uiRequests";
 import { useMessages } from "@/i18n";
 import { useLoops } from "./live";
@@ -20,18 +21,13 @@ export function LoopsIndicator() {
       data-loops-indicator
       className="dp-glass-strong fixed bottom-[76px] left-4 z-30 flex items-center gap-2 rounded-full py-1 pl-3 pr-1 text-xs text-dp-text"
     >
-      <Repeat className="size-3.5 text-dp-accent" />
-      <button type="button" aria-label={t.open} onClick={() => requestUi({ kind: "loops" })} className="font-mono">
+      <Repeat className="size-3.5 text-dp-accent-ink" />
+      <button type="button" aria-label={t.open} onClick={() => requestUi({ kind: "loops" })} className="rounded-md px-1 font-mono transition-[background-color] duration-150 ease-out hover:bg-dp-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none">
         {t.label(running.length, runs)}
       </button>
-      <button
-        type="button"
-        data-stop-all
-        onClick={stopAll}
-        className="h-6 rounded-full bg-dp-danger px-2.5 text-[11px] font-semibold text-white hover:brightness-110"
-      >
+      <Button size="sm" variant="destructive" data-stop-all onClick={stopAll} className="rounded-full">
         {t.stopAll}
-      </button>
+      </Button>
     </div>
   );
 }

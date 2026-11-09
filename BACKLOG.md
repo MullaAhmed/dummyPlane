@@ -25,7 +25,6 @@ Ce qui est reporté. La spec en cours est `docs/superpowers/specs/2026-10-24-dum
 - **Checklist d'objectifs** : état vide « Aucun objectif », « Ajouter un objectif ». Vidéo : node-kanban.
 - **Post-it** : papier ligné ocre, coin corné, police manuscrite, panneau PAPIER (9 couleurs, ordre, dupliquer, supprimer) ; remplace le nœud Note. Vidéo : node-kanban.
 - **Tuile web** : dessinée à la souris ; onglets, navigation, barre d'adresse ; lanceur « Ouvrir une page » avec détection des ports localhost actifs (:3000, :5173…) et accès rapide ; préréglages d'écran et de téléphone ; pas d'inspecteur par tuile sous WebView2. Vidéo : node-webtiles.
-- **Icônes cloud** (spec V1 §7) : import des packs officiels AWS, Azure, GCP, recherche et insertion ; migration ultérieure pour les tables `icon_packs` et `icons`.
 
 ### Git
 
@@ -146,10 +145,6 @@ Ce qui est reporté. La spec en cours est `docs/superpowers/specs/2026-10-24-dum
 ### Routeur de modèles
 - Supprimer un orchestrateur en pleine mission laisse ses agents reliés dans leur worktree, avec le modèle du routeur (la puce de l'en-tête permet de revenir au modèle par défaut).
 
-### Icônes Excalidraw
-- Rien ne filtre ce qu'une bibliothèque apporterait de plus lors d'un prochain téléchargement : retirer embeddable, iframe, frame, image et `customData`/`link` dans `readLibrary`. Les fichiers actuels sont propres. « Auto Scaling group » (AWS) contient des éléments verrouillés.
-- Sans canvas, le clic ne pose rien mais ferme quand même le panneau ; le panneau se vide pendant l'animation de fermeture ; chaque copie d'une icône garde les mêmes graines de dessin.
-
 ### Revue des changements
 - Une erreur de lecture reste affichée si le dossier de l'agent change (les clés des onglets n'incluent pas le dossier).
 
@@ -203,7 +198,7 @@ Ce qui est reporté. La spec en cours est `docs/superpowers/specs/2026-10-24-dum
 - Le commit prend le contenu des fichiers au moment du clic, pas à celui où l'utilisateur a coché.
 - `pushurl` n'est pas pris en compte pour nommer la cible du bouton.
 - Un renommage qui ne change que la casse, et un fichier remplacé par un dossier, ne sont pas traités.
-- Restes de pastilles en pilule dans `MissionPanel`, `ReviewPanel`, `IconsMenu`, `UpdateDialog` et `CommandInput`.
+- Restes de pastilles en pilule dans `MissionPanel`, `ReviewPanel`, `UpdateDialog` et `CommandInput`.
 - Le repère « [diff tronqué] » est écrit en dur par Rust, en français.
 
 ### Studio de code et notes

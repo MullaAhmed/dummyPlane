@@ -6,15 +6,13 @@ import { returnKeyboardToCanvas } from "@/canvas/keyboardFocus";
 import { canvasStore } from "@/canvas/canvasStore";
 import { workspacesStore } from "@/store/workspaces";
 import { closeGroup, ungroup } from "./groups";
-import { launchFour } from "./quickActions";
 
 vi.mock("@excalidraw/excalidraw", () => ({ CaptureUpdateAction: { IMMEDIATELY: "i" }, newElementWith: (e: object, patch: object) => ({ ...e, ...patch }) }));
 vi.mock("@/nodes/terminal/registry", () => ({ markForAutostart: vi.fn() }));
 vi.mock("@/canvas/keyboardFocus", () => ({ returnKeyboardToCanvas: vi.fn() }));
 
 beforeEach(() => {
-  // The agent list is awaited before a group of four: it must answer a list.
-  mockIPC((cmd) => (cmd === "list_agents" || cmd === "list_shells" ? [] : undefined));
+  mockIPC(() => undefined);
   vi.mocked(returnKeyboardToCanvas).mockClear();
   canvasStore.setState({
     api: {
@@ -28,11 +26,9 @@ beforeEach(() => {
   workspacesStore.setState({ activeId: "w1" });
 });
 
-it("gives Excalidraw its keyboard back after Dégrouper, Fermer le groupe and Lancer 4 (plan B1)", async () => {
+it("gives Excalidraw its keyboard back after Dégrouper and Fermer le groupe (plan B1)", () => {
   ungroup("g");
   expect(returnKeyboardToCanvas).toHaveBeenCalledTimes(1);
   closeGroup("g");
   expect(returnKeyboardToCanvas).toHaveBeenCalledTimes(2);
-  await launchFour();
-  expect(returnKeyboardToCanvas).toHaveBeenCalledTimes(3);
 });

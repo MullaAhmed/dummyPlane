@@ -35,7 +35,7 @@ export function GitDiff({ path, file, refresh }: { path: string; file: ChangedFi
   if (diff.binary) return <GitMessage>{t.binaryNoDiff}</GitMessage>;
   if (diff.lines.length === 0) return <GitMessage>{t.noContentDiff}</GitMessage>;
   return (
-    <div className="min-w-0 flex-1 overflow-auto font-mono text-[12px] leading-[18px]">
+    <div className="min-w-0 flex-1 overflow-auto font-mono text-xs leading-[18px]">
       {diff.lines.slice(0, MAX_LINES).map((line, i) => (
         <DiffRow key={i} line={line} />
       ))}

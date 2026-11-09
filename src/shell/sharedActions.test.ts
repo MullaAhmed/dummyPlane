@@ -5,8 +5,7 @@ import { toast } from "sonner";
 import { showAbout } from "@/app/about";
 import { canvasStore, EMPTY_VIEW } from "@/canvas/canvasStore";
 import { agentsStore } from "@/fleet/agentsStore";
-import { launchAt, launchFour, newConsole, placeOrchestrator } from "@/fleet/quickActions";
-import { launchGroup } from "@/fleet/groups";
+import { launchAt, newConsole, placeOrchestrator } from "@/fleet/quickActions";
 import { launchAgent } from "@/fleet/launchAgent";
 import { addOrchestrator } from "@/fleet/orchestrators";
 import { workspacesStore } from "@/store/workspaces";
@@ -17,10 +16,6 @@ vi.mock("@excalidraw/excalidraw", () => ({}));
 vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { error: vi.fn() }) }));
 vi.mock("@/fleet/launchAgent", () => ({ launchAgent: vi.fn(() => Promise.resolve()), defaultLaunchOptions: () => ({ cwd: "C:/code", shell: "default", title: "", command: "" }) }));
 vi.mock("@/fleet/orchestrators", () => ({ addOrchestrator: vi.fn(() => Promise.resolve()) }));
-vi.mock("@/fleet/groups", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/fleet/groups")>()),
-  launchGroup: vi.fn(() => Promise.resolve()),
-}));
 
 beforeEach(() => {
   mockIPC((cmd) => (cmd === "plugin:app|version" ? "0.1.0" : undefined));
@@ -47,13 +42,11 @@ it("launches an agent, or places an orchestrator, at the center of the view", ()
   expect(addOrchestrator).toHaveBeenCalledWith("w1", { x: 500, y: 400 });
 });
 
-it("launches an agent, places an orchestrator or a group of four where the radial menu was opened", async () => {
+it("launches an agent or places an orchestrator where the radial menu was opened", () => {
   launchAt("codex", { x: 10, y: 20 });
   expect(vi.mocked(launchAgent).mock.lastCall?.[2]).toEqual({ x: 10, y: 20 });
   placeOrchestrator({ x: 30, y: 40 });
   expect(addOrchestrator).toHaveBeenLastCalledWith("w1", { x: 30, y: 40 });
-  await launchFour({ x: 50, y: 60 });
-  expect(vi.mocked(launchGroup).mock.lastCall?.[2]).toEqual({ x: 50, y: 60 });
 });
 
 it("puts the cursor in the command bar's field (\"Write an instruction\")", () => {

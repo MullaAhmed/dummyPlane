@@ -49,7 +49,7 @@ const button = (label: string) => [...host.querySelectorAll("button")].find((b) 
 it("sets the mission's global budget and team size before the plan (spec §7.1)", async () => {
   await show();
   await act(async () => type(host.querySelector('[aria-label="Global budget (minutes)"]')!, "90"));
-  await act(async () => type(host.querySelector(`[aria-label="Maximum number of agents"]`)!, "12"));
+  await act(async () => type(host.querySelector(`[aria-label="Maximum number of agents working at once"]`)!, "12"));
   expect(missionOf(nodesStore.getState().nodes.chef)).toMatchObject({ state: "redaction", budgetMin: 90, maxAgents: 8 });
 });
 

@@ -43,6 +43,7 @@ export const shellMessages = defineMessages(
     },
     commandBar: {
       placeholder: "Instruction for the agents · @ to target · / command · ↑ history",
+      placeholderTo: (name: string) => `Instruction for ${name} · @ to target · / command · ↑ history`,
       emptyHint: "Select agents or type @",
       hint: 'Try "@all run the tests"',
       hideHint: "Hide the tip",
@@ -127,15 +128,6 @@ export const shellMessages = defineMessages(
       line: "Line",
       arrow: "Arrow",
       frame: "Frame",
-    },
-    icons: {
-      title: "Icons",
-      search: "Search for an icon",
-      searchPlaceholder: "Search for an icon…",
-      notFound: "Icons not found in the app.",
-      loading: "Loading…",
-      none: "No icons",
-      credits: "Excalidraw community libraries · MIT license",
     },
     update: {
       chip: (version: string) => `Version ${version} available`,

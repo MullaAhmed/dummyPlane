@@ -10,7 +10,6 @@ import {
   groupPantheons,
   insertIntoFrame,
   MAX_SPECIALITY,
-  nextGroupName,
   withGroupFolded,
   withGroupSpeciality,
   hiddenNodeIds,
@@ -75,11 +74,6 @@ describe("groups of the scene", () => {
   it("finds the group of a terminal", () => {
     expect(groupOf(frames, "a")?.id).toBe("g2");
     expect(groupOf(frames, "zzz")).toBeNull();
-  });
-
-  it("names a new group with the smallest free number", () => {
-    expect(nextGroupName(frames)).toBe("Group 2");
-    expect(nextGroupName([])).toBe("Group 1");
   });
 
   it("lists the pantheons the groups use", () => {

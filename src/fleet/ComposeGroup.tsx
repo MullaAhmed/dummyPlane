@@ -39,7 +39,7 @@ function SlotButton(props: { agent: AgentId; choices: AgentId[]; onPick: (agent:
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className="flex h-[72px] flex-col items-center justify-center gap-1.5 rounded-[10px] border border-dp-line bg-dp-card hover:border-dp-text-2"
+          className="flex h-18 flex-col items-center justify-center gap-1.5 rounded-lg border border-dp-line bg-dp-card px-1 transition-[border-color,transform] duration-150 ease-out hover:border-dp-text-2 hover:bg-dp-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] motion-reduce:transition-none"
         >
           <AgentLogo agent={props.agent} />
           <span className="max-w-full truncate px-1 text-[11px] text-dp-text">{AGENTS[props.agent].label}</span>
@@ -117,7 +117,7 @@ export function ComposeGroup({
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
       <PopoverContent side={side} sideOffset={10} className="flex w-[360px] flex-col gap-3 p-3">
         <p className="dp-label">{t.title}</p>
-        <label className="flex h-9 items-center gap-2 rounded-lg border border-dp-line bg-dp-card px-2.5">
+        <label className="flex h-9 items-center gap-2 rounded-lg border border-dp-line bg-dp-card px-2.5 transition-[border-color] duration-150 ease-out focus-within:border-dp-accent/60 motion-reduce:transition-none">
           <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: color }} />
           <input
             autoFocus
@@ -141,8 +141,8 @@ export function ComposeGroup({
                 type="button"
                 onClick={() => pickRole(id)}
                 className={cn(
-                  "flex h-7 items-center gap-1.5 rounded-[9px] border px-2.5 text-xs",
-                  active ? "font-semibold text-dp-on-role" : "border-dp-line text-dp-text-2 hover:text-dp-text",
+                  "flex h-7 items-center gap-1.5 rounded-md border px-2.5 text-xs transition-[background-color,color,transform] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] motion-reduce:transition-none",
+                  active ? "font-semibold text-dp-on-role" : "border-dp-line text-dp-text-2 hover:bg-dp-hover hover:text-dp-text",
                 )}
                 style={active ? { backgroundColor: ROLES[id].color, borderColor: ROLES[id].color } : undefined}
               >
@@ -175,7 +175,7 @@ export function ComposeGroup({
                 title={AGENTS[id].label}
                 aria-label={t.fillAllWith(AGENTS[id].label)}
                 onClick={() => setSlots((current) => current.map(() => id))}
-                className="rounded-md hover:brightness-125"
+                className="rounded-md transition-[filter] duration-150 ease-out hover:brightness-125 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none"
               >
                 <AgentLogo agent={id} className="size-6" />
               </button>
@@ -189,7 +189,7 @@ export function ComposeGroup({
               aria-label={t.fewer}
               disabled={slots.length <= 1}
               onClick={() => setSlots((current) => resizeSlots(current, current.length - 1))}
-              className="grid size-7 place-items-center rounded-[9px] text-dp-text-2 hover:bg-dp-card hover:text-dp-text disabled:opacity-40"
+              className="grid size-7 place-items-center rounded-md text-dp-text-2 transition-[background-color,color,transform] duration-150 ease-out hover:bg-dp-hover hover:text-dp-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50 motion-reduce:transition-none"
             >
               <Minus className="size-3.5" />
             </button>
@@ -199,7 +199,7 @@ export function ComposeGroup({
               aria-label={t.more}
               disabled={slots.length >= MAX_GROUP_SIZE}
               onClick={() => setSlots((current) => resizeSlots(current, current.length + 1))}
-              className="grid size-7 place-items-center rounded-[9px] text-dp-text-2 hover:bg-dp-card hover:text-dp-text disabled:opacity-40"
+              className="grid size-7 place-items-center rounded-md text-dp-text-2 transition-[background-color,color,transform] duration-150 ease-out hover:bg-dp-hover hover:text-dp-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50 motion-reduce:transition-none"
             >
               <Plus className="size-3.5" />
             </button>
@@ -207,7 +207,7 @@ export function ComposeGroup({
           <button
             type="button"
             onClick={launch}
-            className="h-8 rounded-[10px] px-4 text-[13px] font-semibold text-dp-on-role hover:brightness-110"
+            className="h-8 rounded-md px-4 text-[13px] font-semibold text-dp-on-role transition-[filter,transform] duration-150 ease-out hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] motion-reduce:transition-none"
             style={{ backgroundColor: color }}
           >
             {t.launch(slots.length)}

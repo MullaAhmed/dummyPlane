@@ -45,7 +45,7 @@ it("the tool rail speaks English", async () => {
   canvasStore.setState({ api: null });
   await act(async () => root.render(<ToolRail />));
   const labels = [...host.querySelectorAll("button")].map((b) => b.getAttribute("aria-label"));
-  expect(labels).toEqual(["Select (V)", "Hand (H)", "Shapes", "Text (T)", "Pen (P)", "Eraser (E)", "Image", "Icons", "Launch an agent", "Fit the view"]);
+  expect(labels).toEqual(["Select (V)", "Hand (H)", "Shapes", "Text (T)", "Pen (P)", "Eraser (E)", "Image", "Launch an agent", "Fit the view"]);
 });
 
 it("the project picker menu speaks English", async () => {

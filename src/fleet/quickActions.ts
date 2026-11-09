@@ -1,13 +1,10 @@
 import { toast } from "sonner";
 import { canvasStore } from "@/canvas/canvasStore";
-import { returnKeyboardToCanvas } from "@/canvas/keyboardFocus";
-import { nextGroupName } from "@/canvas/groups";
 import { messages } from "@/i18n";
 import type { AgentId } from "@/ipc/pty";
 import { workspacesStore } from "@/store/workspaces";
 import { loadedAgents } from "./agentsStore";
 import { defaultAgent } from "./catalog";
-import { launchGroup } from "./groups";
 import { defaultLaunchOptions, launchAgent } from "./launchAgent";
 import { fleetMessages } from "./messages";
 import { addOrchestrator } from "./orchestrators";
@@ -25,14 +22,6 @@ export function launchAt(agent: AgentId, at?: Point) {
 /** "New console": the default agent (spec theme §5.6). */
 export async function newConsole(at?: Point) {
   launchAt(defaultAgent(await loadedAgents()), at);
-}
-
-/** "Launch 4 agents": a General group of four default agents (spec theme §11.3). */
-export async function launchFour(at?: Point) {
-  const agent = defaultAgent(await loadedAgents());
-  const name = nextGroupName(canvasStore.getState().frames);
-  void launchGroup({ name, role: "general", agents: [agent, agent, agent, agent] }, defaultLaunchOptions(), at).catch(reportLaunchError);
-  returnKeyboardToCanvas();
 }
 
 /** "Orchestrator": at `at`, else at the center of the view, like a launch (plan F2, decision 3). */

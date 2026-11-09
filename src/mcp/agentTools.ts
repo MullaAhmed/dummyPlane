@@ -1,3 +1,4 @@
+import { signalWire } from "@/canvas/wireActivity";
 import { messages } from "@/i18n";
 import { declaredSteps, markedSteps, MAX_STEPS } from "@/nodes/steps";
 import { notify } from "@/mission/events";
@@ -62,6 +63,7 @@ export function declareSteps(nodeId: string, args: Record<string, unknown>): Too
   const steps = declaredSteps(args.etapes);
   if (typeof steps === "string") return refused(steps);
   nodesStore.getState().update(nodeId, { steps });
+  signalWire(nodeId, "toOrchestrator", memberOf(nodeId)?.orchestratorId);
   return said(t().agent.declared(steps.length));
 }
 
@@ -70,6 +72,8 @@ export function markStep(nodeId: string, args: Record<string, unknown>): ToolRes
   const steps = markedSteps(current, args.titre, args.etat);
   if (typeof steps === "string") return refused(steps);
   nodesStore.getState().update(nodeId, { steps });
+  // Its orchestrator's wire shows the news coming up, whether or not a mission runs.
+  signalWire(nodeId, "toOrchestrator", memberOf(nodeId)?.orchestratorId);
   const step = steps.find((s) => s.title.toLowerCase() === String(args.titre).trim().toLowerCase())!;
   const state = outStep(step.state);
   return said(t().agent.marked(step.title, state));
@@ -86,6 +90,7 @@ export function report(nodeId: string, args: Record<string, unknown>): ToolResul
   // `merge` merges every "done" branch again: a merged one stays so until then (final review H2).
   const check = typeof args.check === "string" ? oneLine(args.check) : "";
   updateMember(found.orchestratorId, nodeId, { report: { summary, status, at: Date.now(), ...(check ? { check } : {}) } });
+  signalWire(nodeId, "toOrchestrator", found.orchestratorId);
   // Its Kanban card follows: done, or on alert in "In progress".
   const plan = missionOf(nodesStore.getState().nodes[found.orchestratorId])?.plan;
   if (status === "termine") void finishMissionCard(found.orchestratorId, plan, found.member.task).catch(() => undefined);

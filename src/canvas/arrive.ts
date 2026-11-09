@@ -1,6 +1,7 @@
 import type { NormalizedZoomValue } from "@excalidraw/excalidraw/types";
 import { focusTerminal } from "@/nodes/terminal/registry";
 import { BOTTOM_BAR_HEIGHT, TOP_ROW_HEIGHT } from "@/shell/layout";
+import { setActiveTerminal } from "./activeTerminal";
 import { signalArrival } from "./arrivalSignal";
 import { canvasStore } from "./canvasStore";
 import { terminalWithKeyboard } from "./keyboardFocus";
@@ -112,6 +113,8 @@ export function arrive(nodeId: string): boolean {
     appState: { ...move, activeEmbeddable: { element, state: "active" }, selectedElementIds: {}, selectedGroupIds: {} },
   });
   const kind = nodeKindOf(element);
+  // Send goes here from now on (the activation reaches the command bar a frame later, and not at all for a repeat).
+  if (kind === "terminal") setActiveTerminal(nodeId);
   generation += 1;
   arriving = nodeId;
   focusSoon(() => focusNodeInput(nodeId, kind), generation);

@@ -7,6 +7,7 @@ import { reviewChanges, reviewDefaultBase, reviewFileDiff, reviewFiles, reviewRe
 import { cn } from "@/lib/utils";
 import { BOTTOM_BAR_HEIGHT, TOP_ROW_HEIGHT } from "@/shell/layout";
 import { messages, useMessages } from "@/i18n";
+import { Button } from "@/components/ui/button";
 import { AccentButton, IconButton } from "@/shell/buttons";
 import { sessionOf, useNodes } from "@/store/nodes";
 import { DiffRow, FILE_STATUS, MAX_LINES } from "./DiffRow";
@@ -66,7 +67,7 @@ function ReviewDrawer({ nodeId }: { nodeId: string }) {
   return (
     <aside
       data-review={nodeId}
-      className="dp-glass-strong absolute right-[72px] z-20 flex w-[min(920px,calc(100vw-180px))] flex-col overflow-hidden rounded-[14px] text-dp-text"
+      className="dp-glass-strong absolute right-[72px] z-20 flex w-[min(920px,calc(100vw-180px))] flex-col overflow-hidden rounded-lg text-dp-text"
       style={{ top: TOP_ROW_HEIGHT + 14, bottom: BOTTOM_BAR_HEIGHT + 14 }}
     >
       <header className="flex h-10 shrink-0 items-center gap-2 border-b border-dp-line px-3">
@@ -121,7 +122,10 @@ function Tab({ active, onClick, children }: { active: boolean; onClick: () => vo
       role="tab"
       aria-selected={active}
       onClick={onClick}
-      className={cn("rounded-full px-2.5 py-0.5 text-[12px] text-dp-text-2 hover:text-dp-text", active && "bg-dp-accent-soft text-dp-text")}
+      className={cn(
+        "rounded-full px-2.5 py-0.5 text-xs text-dp-text-2 transition-[background-color,color] duration-150 ease-out hover:bg-dp-hover hover:text-dp-text motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50",
+        active && "bg-dp-accent-soft text-dp-text",
+      )}
     >
       {children}
     </button>
@@ -173,7 +177,7 @@ function ChangesTab({ cwd, base, refresh }: { cwd: string; base: string | null; 
                 title={`${file.oldPath ? `${file.oldPath} → ` : ""}${file.path} · ${t.status[file.status]}`}
                 onClick={() => setSelected(file)}
                 className={cn(
-                  "flex w-full items-center gap-2 px-3 py-1 text-left text-[12px] text-dp-text-2 hover:bg-dp-hover",
+                  "flex w-full items-center gap-2 px-3 py-1 text-left text-xs text-dp-text-2 transition-[background-color,color] duration-150 ease-out hover:bg-dp-hover motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50",
                   selected?.path === file.path && "bg-dp-hover text-dp-text",
                 )}
               >
@@ -235,12 +239,12 @@ function FileDiffView({ cwd, file, base, refresh }: { cwd: string; file: Changed
   const placed = here.map((r) => remarkRow(shown, r));
   const remarkFor = (row: number) => here.filter((_, k) => placed[k] === row);
   return (
-    <div className="min-w-0 flex-1 overflow-auto font-mono text-[12px] leading-[18px]">
+    <div className="min-w-0 flex-1 overflow-auto font-mono text-xs leading-[18px]">
       {shown.map((line, i) => (
         <div key={i}>
           <DiffRow line={line} onClick={line.kind === "add" || line.kind === "ctx" || line.kind === "del" ? () => setCommenting(i) : undefined} />
           {remarkFor(i).map((remark, j) => (
-            <p key={j} className="ml-[88px] border-l-2 border-dp-accent bg-dp-card px-2 py-0.5 font-sans text-[12px] text-dp-text">
+            <p key={j} className="ml-[88px] border-l-2 border-dp-accent bg-dp-card px-2 py-0.5 font-sans text-xs text-dp-text">
               {remark.text}
             </p>
           ))}
@@ -281,7 +285,7 @@ function RemarkField({ value: text, onChange: setText, onDone }: { value: string
           if (e.key === "Enter") onDone(text.trim());
           if (e.key === "Escape") onDone("");
         }}
-        className="h-7 flex-1 rounded-[6px] bg-dp-field px-2 text-[12px] text-dp-text outline-none placeholder:text-dp-text-3"
+        className="h-7 flex-1 rounded-md bg-dp-field px-2 text-xs text-dp-text outline-none placeholder:text-dp-text-3 focus-visible:ring-2 focus-visible:ring-dp-accent/50"
       />
     </div>
   );
@@ -325,7 +329,7 @@ function FilesTab({ cwd, refresh }: { cwd: string; refresh: number }) {
           placeholder={t.filterPlaceholder(files.length)}
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
-          className="m-2 h-7 rounded-[6px] bg-dp-field px-2 text-[12px] text-dp-text outline-none placeholder:text-dp-text-3"
+          className="m-2 h-7 rounded-md bg-dp-field px-2 text-xs text-dp-text outline-none placeholder:text-dp-text-3 focus-visible:ring-2 focus-visible:ring-dp-accent/50"
         />
         <ul className="min-h-0 flex-1 overflow-y-auto pb-1">
           {cut && <li className="px-3 py-1 text-[11px] text-dp-text-3">{t.filesCut(found.length)}</li>}
@@ -336,7 +340,7 @@ function FilesTab({ cwd, refresh }: { cwd: string; refresh: number }) {
                 title={file}
                 onClick={() => setSelected(file)}
                 className={cn(
-                  "block w-full truncate px-3 py-0.5 text-left text-[12px] text-dp-text-2 hover:bg-dp-hover",
+                  "block w-full truncate px-3 py-1 text-left text-xs text-dp-text-2 transition-[background-color,color] duration-150 ease-out hover:bg-dp-hover motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50",
                   selected === file && "bg-dp-hover text-dp-text",
                 )}
                 style={{ direction: "rtl", textAlign: "left" }}
@@ -374,7 +378,7 @@ function FileView({ cwd, file }: { cwd: string; file: string }) {
   const lines = content.text.split("\n");
   if (lines[lines.length - 1] === "") lines.pop();
   return (
-    <div className="min-w-0 flex-1 overflow-auto font-mono text-[12px] leading-[18px]">
+    <div className="min-w-0 flex-1 overflow-auto font-mono text-xs leading-[18px]">
       {lines.slice(0, MAX_LINES).map((line, i) => (
         <div key={i} className="flex">
           <span className="w-12 shrink-0 select-none pr-2 text-right text-dp-text-3">{i + 1}</span>
@@ -402,7 +406,7 @@ function Remarks({ nodeId, name }: { nodeId: string; name: string }) {
   };
   return (
     <footer className="flex max-h-[30%] shrink-0 flex-col gap-1.5 border-t border-dp-line px-3 py-2">
-      <ul className="flex min-h-0 flex-col gap-0.5 overflow-y-auto text-[12px]">
+      <ul className="flex min-h-0 flex-col gap-0.5 overflow-y-auto text-xs">
         {remarks.map((remark, i) => (
           <li key={i} className="flex items-center gap-2 text-dp-text-2">
             <span className="shrink-0 font-mono text-[11px] text-dp-text-3">
@@ -417,12 +421,12 @@ function Remarks({ nodeId, name }: { nodeId: string; name: string }) {
         ))}
       </ul>
       <div className="flex items-center gap-2">
-        <span className="text-[12px] text-dp-text-2">
+        <span className="text-xs text-dp-text-2">
           {t.remarkCount(remarks.length)}
         </span>
-        <button type="button" onClick={() => reviewStore.getState().clear()} className="ml-auto text-[12px] text-dp-text-2 hover:text-dp-text">
+        <Button variant="ghost" size="sm" className="ml-auto text-dp-text-2 hover:text-dp-text" onClick={() => reviewStore.getState().clear()}>
           {t.clear}
-        </button>
+        </Button>
         <AccentButton onClick={() => void send()}>{t.sendTo(name)}</AccentButton>
       </div>
     </footer>

@@ -40,6 +40,8 @@ export interface OrchestratorPayload {
   session?: TerminalPayload;
   /** Its mission (spec orchestrateur §7). */
   mission?: Mission;
+  /** Its message field, folded unless the user opened it. */
+  inputOpen?: boolean;
 }
 
 export const ORCHESTRATOR_NAME = "Orchestrateur";
@@ -125,6 +127,7 @@ export function readOrchestratorPayload(raw: unknown): OrchestratorPayload {
   if (session?.agent === "claude") payload.session = { ...session, role: "orchestrator" };
   const mission = readMission(r.mission);
   if (mission) payload.mission = mission;
+  if (r.inputOpen === true) payload.inputOpen = true;
   return payload;
 }
 

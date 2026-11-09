@@ -1,27 +1,5 @@
 // The README recordings. Each scene: optional setup (not recorded), play (recorded).
 
-/** Right-click the canvas, "Lancer 4 agents": a group of four Claude Code sessions boots. */
-export const launch = {
-  async setup(d, sleep) {
-    await d.move(760, 560, 10);
-    await sleep(300);
-  },
-  async play(d, sleep) {
-    await sleep(700);
-    await d.move(640, 440, 700);
-    await sleep(250);
-    await d.click(null, { button: "right" });
-    await sleep(900);
-    const four = await d.at('button[aria-label="Lancer 4 agents"]');
-    await d.move(four.x, four.y, 650);
-    await sleep(900);
-    await d.click();
-    await sleep(800);
-    await d.move(980, 620, 900);
-    await sleep(9500);
-  },
-};
-
 /** Starts a named group of Claude agents on `model` (setup only, not recorded). */
 export async function team(d, sleep, { name = "Frontend", role = "frontend", names = ["Athena", "Hermes", "Apollo"], model = "claude-haiku-5-5" } = {}) {
   await d.eval(`(async () => {
@@ -140,61 +118,6 @@ export const review = {
     const send = await d.at("button", "Envoyer à").catch(() => null);
     if (send) await d.move(send.x, send.y, 900);
     await sleep(2500);
-  },
-};
-
-/** Picks one icon from the library: category, search, click (inserted at the view's center). */
-async function icon(d, sleep, category, query, slot = 0) {
-  await d.key("Escape");
-  await sleep(250);
-  await d.click(await d.at('button[aria-label="Icônes"]'), { ms: 550 });
-  await sleep(800);
-  if (category) {
-    await d.click(await d.at("[data-radix-popper-content-wrapper] button, [role=dialog] button", category), { ms: 500 });
-    await sleep(500);
-  }
-  await d.click(await d.at('input[placeholder^="Chercher une"]'), { ms: 450 });
-  await sleep(150);
-  await d.type(query, 12);
-  await sleep(800);
-  const hits = await d.eval(`[...document.querySelector('input[placeholder^="Chercher une"]').closest("[role=dialog]").querySelectorAll("button")].filter(b => b.querySelector("img, svg, canvas")).map(b => { const r = b.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2, t: b.textContent.trim() }; })`);
-  if (!hits.length) throw new Error("no icon for " + query);
-  await d.click(hits[slot], { ms: 600 });
-  await sleep(900);
-}
-
-/** An architecture sketch from the community libraries: API Gateway → Lambda → DynamoDB, then arrows. */
-export const icons = {
-  async setup(d, sleep) {
-    await d.eval(`(async () => {
-      const { canvasStore } = await import("/src/canvas/canvasStore.ts");
-      canvasStore.getState().api.updateScene({ appState: { zoom: { value: 1 }, scrollX: 0, scrollY: 0 } });
-    })()`);
-    await d.move(900, 650, 10);
-  },
-  async play(d, sleep) {
-    await sleep(700);
-    await icon(d, sleep, "AWS", "api gateway");
-    await d.drag({ x: 720, y: 440 }, { x: 460, y: 440 }, 800);
-    await sleep(500);
-    await icon(d, sleep, null, "lambda");
-    await sleep(300);
-    await icon(d, sleep, null, "dynamodb");
-    await d.drag({ x: 720, y: 440 }, { x: 980, y: 440 }, 800);
-    await sleep(600);
-    await d.key("Escape");
-    await d.click({ x: 760, y: 700 }, { ms: 400 });
-    await d.key("A");
-    await sleep(300);
-    await d.drag({ x: 537, y: 440 }, { x: 643, y: 440 }, 700);
-    await sleep(300);
-    await d.key("A");
-    await sleep(300);
-    await d.drag({ x: 797, y: 440 }, { x: 903, y: 440 }, 700);
-    await sleep(400);
-    await d.key("Escape");
-    await d.move(860, 640, 700);
-    await sleep(1800);
   },
 };
 

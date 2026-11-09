@@ -1,9 +1,11 @@
+import { signalWire } from "@/canvas/wireActivity";
 import { pauseAgents } from "@/fleet/broadcast";
 import { setRemoteControl } from "@/fleet/remoteControl";
 import { messages } from "@/i18n";
 import { ptySendText } from "@/ipc/pty";
 import { endMission, launchMission, mergeMission, reassignTask } from "@/mission/launch";
 import { budgetOf, memberTime, NEW_AGENT, oneLine, proposedPlan, proposedTasks, remainingGlobal, sameName, spentMin, type Member, type Mission } from "@/mission/mission";
+import { activeCount } from "@/mission/active";
 import { freeMembers, giveNext, pumpQueue } from "@/mission/queue";
 import { boardView } from "@/kanban/missionLink";
 import { LEVELS, modelLabel } from "@/mission/router";
@@ -151,6 +153,7 @@ function describeMission(orchestratorId: string, mission: Mission): ToolResult {
     task: mission.task ?? null,
     global_budget_min: mission.budgetMin ?? null,
     max_agents: mission.maxAgents,
+    active_agents: mission.state === "en_cours" ? activeCount(orchestratorId, mission) : null,
     router: mission.router === true,
     branch: mission.branch ?? null,
     plan:
@@ -196,7 +199,7 @@ function proposePlan(orchestratorId: string, mission: Mission, args: Record<stri
     void launchMission(orchestratorId);
     return said(t().orchestrator.launchingNight);
   }
-  return said(t().orchestrator.proposed(result.plan.length));
+  return said(t().orchestrator.proposed(result.plan.length, mission.maxAgents));
 }
 
 /** `tickets`: dummyPlane reads the source, the orchestrator may not run commands (spec overnight mission §5.1). */
@@ -223,10 +226,12 @@ function addTasks(orchestratorId: string, mission: Mission, args: Record<string,
   return said(t().orchestrator.queued(tasks.length, queue.length));
 }
 
-function describeQueue(mission: Mission): ToolResult {
+function describeQueue(orchestratorId: string, mission: Mission): ToolResult {
   return json({
     waiting: (mission.queue ?? []).map((s) => ({ title: s.title, brief: s.brief, budget_min: s.budgetMin, level: s.level ? outLevel(s.level) : null, group: s.group?.name ?? null, card: s.card ?? null })),
     free_agents: freeMembers(mission).map((m) => m.name),
+    active_agents: activeCount(orchestratorId, mission),
+    max_agents: mission.maxAgents,
   });
 }
 
@@ -280,7 +285,7 @@ function readOutput(mission: Mission, args: Record<string, unknown>): ToolResult
   return said(terminalText(member.nodeId, lines) || t().orchestrator.emptyTerminal);
 }
 
-async function write(mission: Mission, args: Record<string, unknown>): Promise<ToolResult> {
+async function write(orchestratorId: string, mission: Mission, args: Record<string, unknown>): Promise<ToolResult> {
   const member = memberNamed(mission, args.agent);
   if (typeof member === "string") return refused(member);
   const text = typeof args.texte === "string" ? oneLine(args.texte) : "";
@@ -288,6 +293,7 @@ async function write(mission: Mission, args: Record<string, unknown>): Promise<T
   if (!isRunning(member.nodeId)) return refused(t().orchestrator.stopped(member.name));
   if (agentActivityStore.getState().activities[member.nodeId]?.activity === "waiting") return refused(t().orchestrator.waiting(member.name));
   await ptySendText(member.nodeId, text);
+  signalWire(member.nodeId, "toAgent", orchestratorId);
   return said(t().orchestrator.written(member.name));
 }
 
@@ -401,7 +407,7 @@ export async function orchestratorTool(orchestratorId: string, name: string, arg
     case "add_tasks":
       return addTasks(orchestratorId, mission, args);
     case "queue":
-      return describeQueue(mission);
+      return describeQueue(orchestratorId, mission);
     case "next_task":
       return nextTask(orchestratorId, mission, args);
     case "tickets":
@@ -411,7 +417,7 @@ export async function orchestratorTool(orchestratorId: string, name: string, arg
     case "lire_sortie":
       return readOutput(mission, args);
     case "ecrire":
-      return write(mission, args);
+      return write(orchestratorId, mission, args);
     case "prolonger":
       return prolong(orchestratorId, mission, args);
     case "interrompre":

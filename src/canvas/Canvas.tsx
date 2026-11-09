@@ -19,6 +19,7 @@ import { disposeTerminal, focusTerminal } from "@/nodes/terminal/registry";
 import { nodesStore } from "@/store/nodes";
 import { isRunning } from "@/store/terminalStatus";
 import { uiStore } from "@/store/ui";
+import { setActiveTerminal } from "./activeTerminal";
 import { createActivationTracker } from "./activation";
 import { canvasStore, fullSizeView, viewFrom } from "./canvasStore";
 import { framesFromScene } from "./groups";
@@ -27,10 +28,13 @@ import { SelectionPanel } from "./SelectionPanel";
 import { isDummyPlaneLink } from "./nodeElement";
 import { classifyAddedNodes } from "./nodeCopies";
 import { createRemovalGuard, type RemovalVerdict } from "./removalGuard";
+import { pinCanvasScroll } from "./scrollPin";
 import { DotGrid } from "./overlay/DotGrid";
 import { GroupBackdrops } from "./overlay/GroupBackdrops";
 import { GroupLabels } from "./overlay/GroupLabels";
 import { StepTimelines } from "./overlay/StepTimelines";
+import { WireActivity } from "./overlay/WireActivity";
+import { wirePaths } from "./overlay/wirePaths";
 import { loadScene, rememberScene, type LoadedScene } from "./sceneCache";
 import { EXCALIDRAW_UI_OPTIONS, withSceneDefaults } from "./sceneDefaults";
 import { sceneGone, sceneReady } from "./sceneReady";
@@ -82,6 +86,9 @@ function LoadedCanvas({ workspaceId, scene }: { workspaceId: string; scene: Load
     };
   }, [api]);
 
+  // A box scrolled under the canvas would leave Excalidraw's hit tests off by that much (after a resize).
+  useEffect(() => (api ? pinCanvasScroll(api.refresh) : undefined), [api]);
+
   // A Ctrl+P target of this workspace waits for its scene to be on screen (spec fenêtre §7.2).
   useEffect(() => {
     if (!api) return;
@@ -102,6 +109,7 @@ function LoadedCanvas({ workspaceId, scene }: { workspaceId: string; scene: Load
       canvasStore.getState().setNodeIds([]);
       canvasStore.getState().setNodeRects({});
       canvasStore.getState().setLinks({});
+      canvasStore.getState().setWires([]);
       canvasStore.getState().setDrawnSelection([]);
     },
     [],
@@ -170,8 +178,10 @@ function LoadedCanvas({ workspaceId, scene }: { workspaceId: string; scene: Load
       canvasStore.getState().setNodeIds(liveNodeIds(elements));
       canvasStore.getState().setNodeRects(liveNodeRects(elements));
       canvasStore.getState().setLinks(orchestratorLinks(elements));
+      canvasStore.getState().setWires(wirePaths(elements));
       if (api) scheduleWireUpkeep(api, elements);
       const activated = trackActivation(appState.activeEmbeddable);
+      if (activated) setActiveTerminal(activated);
       // Deferred: changing the view from inside onChange would re-enter it.
       if (activated && api) requestAnimationFrame(() => showAtFullSize(api, activated));
     },
@@ -195,6 +205,7 @@ function LoadedCanvas({ workspaceId, scene }: { workspaceId: string; scene: Load
           renderEmbeddable={(element) => <NodeHost element={element} />}
         />
       </div>
+      <WireActivity />
       <SelectionPanel />
     </div>
   );

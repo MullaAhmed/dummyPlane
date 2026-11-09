@@ -15,7 +15,7 @@ import { newConsole } from "./quickActions";
 
 // Excalidraw does not load under Vitest (roughjs); the panel only reaches it through menu actions.
 vi.mock("@excalidraw/excalidraw", () => ({}));
-vi.mock("./quickActions", () => ({ newConsole: vi.fn(), launchFour: vi.fn(), placeOrchestrator: vi.fn() }));
+vi.mock("./quickActions", () => ({ newConsole: vi.fn(), placeOrchestrator: vi.fn() }));
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 

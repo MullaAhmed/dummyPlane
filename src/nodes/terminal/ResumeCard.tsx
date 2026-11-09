@@ -21,13 +21,13 @@ export function ResumeCard(props: { nodeId: string; payload: TerminalPayload; st
   if (!offer || dismissed) return null;
   const resume = offer === "resume";
   return (
-    <div className="absolute inset-x-3 top-3 z-10 flex items-center gap-2 rounded-lg border border-dp-line bg-dp-surface-2/95 px-3 py-2 text-xs shadow-dp">
+    <div className="absolute inset-x-3 top-3 z-10 flex items-center gap-2 rounded-lg border border-dp-line bg-dp-surface/95 px-3 py-2 text-xs shadow-dp">
       <button
         type="button"
-        className="flex min-w-0 flex-1 items-center gap-2 text-left"
+        className="flex min-w-0 flex-1 items-center gap-2 rounded-md text-left transition-[color,background-color] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none"
         onClick={() => relaunchTerminal(nodeId, payload, resume ? "resume" : "new")}
       >
-        <History className="size-4 shrink-0 text-dp-accent" />
+        <History className="size-4 shrink-0 text-dp-accent-ink" />
         <span className="min-w-0">
           <span className="block font-medium text-dp-text">
             {resume ? t.resumeTitle : t.relaunchTitle}
@@ -37,8 +37,13 @@ export function ResumeCard(props: { nodeId: string; payload: TerminalPayload; st
           </span>
         </span>
       </button>
-      <button type="button" aria-label={t.hide} className="text-dp-text-2 hover:text-dp-text" onClick={() => setDismissed(true)}>
-        <X className="size-3.5" />
+      <button
+        type="button"
+        aria-label={t.hide}
+        className="grid size-7 shrink-0 place-items-center rounded-md text-dp-text-2 transition-[color,background-color,transform] duration-150 ease-out hover:bg-dp-hover hover:text-dp-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] motion-reduce:transition-none"
+        onClick={() => setDismissed(true)}
+      >
+        <X className="size-4" />
       </button>
     </div>
   );

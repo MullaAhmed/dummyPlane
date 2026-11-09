@@ -212,8 +212,10 @@ describe("the orchestrator's tools (spec orchestrateur §7.2)", () => {
           { title: "Tests", brief: "Écris la doc", budget_min: 10, level: "low", group: null, card: null },
         ],
         free_agents: [],
+        active_agents: 0,
+        max_agents: 4,
       });
-      expect(JSON.parse(textOf(await call("file", "mission", {})))).toMatchObject({ queue_waiting: 2 });
+      expect(JSON.parse(textOf(await call("file", "mission", {})))).toMatchObject({ queue_waiting: 2, active_agents: null });
     });
 
     it("refuses what a plan would refuse, and a finished mission", async () => {
@@ -221,6 +223,15 @@ describe("the orchestrator's tools (spec orchestrateur §7.2)", () => {
       expect(textOf(await call("isis", "add_tasks", { tasks: [task] }))).toBe("This tool is for the orchestrator.");
       setMission("file", { state: "terminee" });
       expect(textOf(await call("file", "add_tasks", { tasks: [{ ...task, title: "Autre" }] }))).toContain("finished");
+    });
+
+    it("takes a plan longer than Max agents and says the rest waits in the queue", async () => {
+      await nodesStore.getState().create("long", { workspaceId: "w1", kind: "orchestrator", payload: { name: "Long" } });
+      const subtasks = ["A", "B", "C", "D", "E"].map((title) => ({ title, brief: "b", agent: "new", budget_min: 10 }));
+      expect(textOf(await call("long", "propose_plan", { name: "Long", task: "t", subtasks }))).toContain(
+        "Plan proposed: 5 sub-tasks. The first 4 start at the go-ahead, the rest wait in the queue for a seat.",
+      );
+      expect(textOf(await call("long", "propose_plan", { name: "Long", task: "t", subtasks: subtasks.slice(0, 4) }))).not.toContain("go-ahead, the rest");
     });
 
     it("says next_task needs a formed team", async () => {
@@ -305,6 +316,19 @@ describe("the orchestrator's tools (spec orchestrateur §7.2)", () => {
       expect(isis.name).toBe("Isis");
       expect(isis).not.toHaveProperty("group");
       expect(isis).not.toHaveProperty("speciality");
+    });
+
+    it("counts the agents at work against Max agents in mission() and queue()", async () => {
+      terminalStatusStore.getState().set("isis", { state: "running" });
+      try {
+        expect(JSON.parse(textOf(await call("chef", "mission", {})))).toMatchObject({ max_agents: 4, active_agents: 1 });
+        expect(JSON.parse(textOf(await call("chef", "queue", {})))).toMatchObject({ max_agents: 4, active_agents: 1 });
+        // Stopped after its sub-task was typed, it is at work no more.
+        terminalStatusStore.getState().set("isis", { state: "stopped" });
+        expect(JSON.parse(textOf(await call("chef", "mission", {})))).toMatchObject({ active_agents: 0 });
+      } finally {
+        terminalStatusStore.getState().set("isis", { state: "stopped" });
+      }
     });
 
     it("reports the team and reads an agent's terminal", async () => {

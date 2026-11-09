@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ArrowUp, X } from "lucide-react";
 import { useStore } from "zustand";
 import type { SceneFrame } from "@/canvas/groups";
@@ -59,9 +59,13 @@ export function CommandInput(props: {
   placeholder: string;
   /** Why Envoyer is grey when nothing is targeted. */
   emptyHint: string;
+  /** Who `fallback` is, when it is one agent the user did not select (the active terminal): named so Send never surprises. */
+  sendsTo?: string;
   compact?: boolean;
+  /** The field takes the keyboard when it mounts (an orchestrator's field opened by hand). */
+  autoFocus?: boolean;
 }) {
-  const { agents, groups, fallback, placeholder, emptyHint, compact = false } = props;
+  const { agents, groups, fallback, placeholder, emptyHint, sendsTo, compact = false, autoFocus = false } = props;
   const t = useMessages(fleetMessages).command;
   const [text, setText] = useState("");
   const [caret, setCaret] = useState(0);
@@ -70,6 +74,8 @@ export function CommandInput(props: {
   // Escape closes the list for the mention typed at that position.
   const [dismissed, setDismissed] = useState<Dismissal | null>(null);
   const [browsing, setBrowsing] = useState<{ index: number; draft: string } | null>(null);
+  // The field has the keyboard: how to target shows before the first word, not after it.
+  const [focused, setFocused] = useState(false);
   const field = useRef<HTMLTextAreaElement>(null);
   const history = useStore(historyStore, (s) => s.entries);
 
@@ -114,6 +120,12 @@ export function CommandInput(props: {
   const nothingTargeted = allTargets.length === 0 && fallback.length === 0;
   // Targets were chosen, but they hold no agent (an empty group).
   const noAgents = allTargets.length > 0 && ids.length === 0;
+  // Nothing was typed after `@`: the command goes to who `fallback` names.
+  const namedFallback = allTargets.length === 0 ? sendsTo : undefined;
+
+  useEffect(() => {
+    if (autoFocus) field.current?.focus();
+  }, [autoFocus]);
 
   useLayoutEffect(() => {
     const element = field.current;
@@ -219,7 +231,7 @@ export function CommandInput(props: {
         <ul
           role="listbox"
           className={cn(
-            "absolute bottom-full left-0 z-10 mb-2 overflow-hidden rounded-xl border border-dp-line bg-dp-surface-2 py-1 shadow-dp",
+            "absolute bottom-full left-0 z-10 mb-2 overflow-hidden rounded-lg border border-dp-line bg-dp-surface py-1 shadow-dp",
             parts ? "w-64" : "w-96 max-w-full",
           )}
         >
@@ -234,7 +246,7 @@ export function CommandInput(props: {
                 suggestion.pick();
               }}
               className={cn(
-                "flex cursor-pointer items-center gap-2 px-3 py-1 text-xs",
+                "mx-1 flex cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-xs transition-[background-color] duration-150 ease-out motion-reduce:transition-none",
                 i === row ? "bg-dp-hover text-dp-text" : "text-dp-text-2",
               )}
             >
@@ -245,9 +257,10 @@ export function CommandInput(props: {
         </ul>
       )}
       <div className="flex min-w-0 flex-1 flex-col gap-1">
-        {text.trim() && nothingTargeted && <p className="text-[11px] text-dp-text-2">{emptyHint}</p>}
+        {(text.trim() || focused) && nothingTargeted && <p className="text-[11px] text-dp-text-2">{emptyHint}</p>}
         {text.trim() && noAgents && !unknown && <p className="text-[11px] text-dp-text-2">{t.noAgents}</p>}
         {unknown && <p className="text-[11px] text-dp-text-2">{t.unknownTarget(unknown)}</p>}
+        {text.trim() && namedFallback && !unknown && <p className="text-[11px] text-dp-text-2">{t.sendsTo(namedFallback)}</p>}
         <div className="flex min-w-0 flex-wrap items-center gap-1">
           {chips.map((target) => (
             <span
@@ -259,9 +272,9 @@ export function CommandInput(props: {
                 type="button"
                 aria-label={t.remove(labels.get(targetKey(target)) ?? "")}
                 onClick={() => setTargets(chips.filter((c) => targetKey(c) !== targetKey(target)))}
-                className="grid size-4 place-items-center rounded-full text-dp-text-2 hover:text-dp-text"
+                className="grid size-4 place-items-center rounded-full text-dp-text-2 transition-[background-color,color] duration-150 ease-out hover:bg-dp-hover hover:text-dp-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none"
               >
-                <X className="size-3" />
+                <X className="size-3.5" />
               </button>
             </span>
           ))}
@@ -271,6 +284,8 @@ export function CommandInput(props: {
             value={text}
             placeholder={chips.length > 0 ? "" : placeholder}
             onChange={(e) => edit(e.target.value, e.target.selectionStart)}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
             onSelect={(e) => {
               const at = e.currentTarget.selectionStart;
               if (at !== caret) setActive(0);
@@ -286,13 +301,13 @@ export function CommandInput(props: {
       <button
         type="button"
         aria-label={t.send}
-        title={canSend ? t.send : nothingTargeted ? emptyHint : noAgents ? t.noAgents : t.writeInstruction}
+        title={canSend ? (namedFallback ? t.sendTo(namedFallback) : t.send) : nothingTargeted ? emptyHint : noAgents ? t.noAgents : t.writeInstruction}
         disabled={!canSend}
         onClick={send}
         className={cn(
-          "flex shrink-0 items-center justify-center gap-1.5 font-semibold",
-          compact ? "size-7 rounded-[8px]" : "h-8 rounded-[10px] px-3 text-[12.5px]",
-          canSend ? "bg-dp-accent text-dp-on-accent" : "bg-dp-field text-dp-text-3",
+          "flex shrink-0 items-center justify-center gap-1.5 font-semibold transition-[background-color,filter,transform] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] disabled:pointer-events-none motion-reduce:transition-none",
+          compact ? "size-7 rounded-[8px]" : "h-8 rounded-[10px] px-3 text-[13px]",
+          canSend ? "bg-dp-accent text-dp-on-accent hover:brightness-110" : "bg-dp-field text-dp-text-3",
         )}
       >
         <ArrowUp className="size-4" />

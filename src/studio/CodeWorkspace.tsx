@@ -5,6 +5,7 @@ import { useTheme } from "@/app/theme";
 import { useMessages } from "@/i18n";
 import { studioTree, type TreeEntry } from "@/ipc/studio";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import { AccentButton, IconButton, ToolButton } from "@/shell/buttons";
 import { TOP_ROW_HEIGHT } from "@/shell/layout";
 import { useProjects } from "@/store/projects";
@@ -65,13 +66,13 @@ function StudioContent({ project }: { project: string }) {
       className="absolute inset-0 flex gap-2.5 pb-3 pl-3 pr-[66px] text-dp-text"
       style={{ paddingTop: TOP_ROW_HEIGHT + 12 }}
     >
-      <nav className="dp-glass z-30 flex shrink-0 flex-col items-center gap-0.5 self-center rounded-[14px] p-[5px]">
+      <nav className="dp-glass z-30 flex shrink-0 flex-col items-center gap-0.5 self-center rounded-lg p-1">
         <ToolButton label={treeOpen ? t.hideFiles : t.showFiles} active={treeOpen} onClick={() => setTreeOpen(!treeOpen)}>
           <FolderTree />
         </ToolButton>
       </nav>
       {treeOpen && <FileTree project={project} active={active} expanded={expanded} setExpanded={setExpanded} onOpen={open} />}
-      <section className="dp-glass-strong flex min-w-0 flex-1 flex-col overflow-hidden rounded-[14px]">
+      <section className="dp-glass-strong flex min-w-0 flex-1 flex-col overflow-hidden rounded-lg">
         <Tabs tabs={tabs} active={active} />
         {tab ? <FilePane key={tab.path} tab={tab} /> : <Message>{t.pickFile}</Message>}
       </section>
@@ -111,14 +112,14 @@ function FileTree({ project, active, expanded, setExpanded, onOpen }: FileTreePr
   const rows = useMemo(() => visibleRows(tree, expanded, query), [tree, expanded, query]);
 
   return (
-    <aside data-files className="dp-glass flex w-[280px] shrink-0 flex-col overflow-hidden rounded-[14px]">
+    <aside data-files className="dp-glass flex w-[280px] shrink-0 flex-col overflow-hidden rounded-lg">
       <div className="flex h-10 shrink-0 items-center gap-1 border-b border-dp-line px-2">
         <input
           aria-label={t.filterLabel}
           placeholder={t.filterPlaceholder}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          className="h-7 min-w-0 flex-1 rounded-[7px] bg-dp-field px-2 text-[12px] text-dp-text outline-none placeholder:text-dp-text-3 focus:ring-1 focus:ring-dp-accent"
+          className="h-7 min-w-0 flex-1 rounded-md bg-dp-field px-2 text-xs text-dp-text outline-none transition-[box-shadow] duration-150 ease-out motion-reduce:transition-none placeholder:text-dp-text-3 focus-visible:ring-2 focus-visible:ring-dp-accent/50"
         />
         <IconButton label={t.refresh} onClick={() => setRefresh((n) => n + 1)}>
           <RotateCw />
@@ -143,7 +144,7 @@ function FileTree({ project, active, expanded, setExpanded, onOpen }: FileTreePr
               title={node.path}
               onClick={() => (node.kind === "dir" ? setExpanded(toggle(expanded, node.path)) : onOpen(node.path))}
               className={cn(
-                "flex h-[26px] w-full items-center gap-1 pr-2 text-left text-[12.5px] text-dp-text-2 hover:bg-dp-hover hover:text-dp-text [&_svg]:size-3.5 [&_svg]:shrink-0",
+                "flex h-6 w-full items-center gap-1 pr-2 text-left text-[13px] text-dp-text-2 transition-[color,background-color] duration-150 ease-out motion-reduce:transition-none hover:bg-dp-hover hover:text-dp-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-dp-accent/50 [&_svg]:size-3.5 [&_svg]:shrink-0",
                 node.path === active && "bg-dp-accent-soft text-dp-text",
               )}
               style={{ paddingLeft: 8 + depth * 12 }}
@@ -186,21 +187,22 @@ function Tabs({ tabs, active }: { tabs: StudioTab[]; active: string | null }) {
         ))}
       </div>
       {pending && (
-        <div role="alert" className="flex shrink-0 flex-wrap items-center gap-2 border-b border-dp-line bg-dp-surface-2 px-3 py-2 text-[12.5px]">
+        <div role="alert" className="flex shrink-0 flex-wrap items-center gap-2 border-b border-dp-line bg-dp-surface px-3 py-2 text-[13px]">
           <span className="mr-auto">{t.discardTitle(baseName(pending.path))}</span>
-          <button type="button" className="rounded-[8px] px-2.5 py-1 text-dp-text-2 hover:bg-dp-hover" onClick={() => setConfirming(null)}>
+          <Button variant="ghost" size="sm" className="text-dp-text-2" onClick={() => setConfirming(null)}>
             {t.cancel}
-          </button>
-          <button
-            type="button"
-            className="rounded-[8px] px-2.5 py-1 text-dp-danger hover:bg-dp-hover"
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-dp-danger"
             onClick={() => {
               setConfirming(null);
               closeTab(pending.path);
             }}
           >
             {t.discard}
-          </button>
+          </Button>
           <AccentButton
             className="h-7"
             onClick={async () => {
@@ -229,7 +231,7 @@ function TabItem({ tab, active, onClose }: { tab: StudioTab; active: boolean; on
       data-tab={tab.path}
       title={tab.path}
       className={cn(
-        "group flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-t-[8px] pl-3 pr-1 text-[12.5px] text-dp-text-2 hover:bg-dp-hover",
+        "group flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-t-md pl-3 pr-1 text-[13px] text-dp-text-2 transition-[color,background-color] duration-150 ease-out motion-reduce:transition-none hover:bg-dp-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-dp-accent/50",
         active && "bg-dp-tab-on text-dp-text",
       )}
       onClick={() => void openFile(tab.path)}
@@ -266,13 +268,13 @@ function FilePane({ tab }: { tab: StudioTab }) {
     <>
       {disk && <DiskBanner session={tab.session} disk={disk} onDrop={() => closeTab(tab.path)} />}
       {error && (
-        <p role="status" className="shrink-0 border-b border-dp-line px-3 py-1.5 text-[12px] text-dp-danger">
+        <p role="status" className="shrink-0 border-b border-dp-line px-3 py-1.5 text-xs text-dp-danger">
           {t.failed(error)}
         </p>
       )}
       <div className="flex h-9 shrink-0 items-center gap-1.5 border-b border-dp-line px-3">
         <span className="min-w-0 truncate font-mono text-[11px] text-dp-text-3">{tab.path}</span>
-        {dirty && <span className="shrink-0 text-[11px] text-dp-accent">{t.modified}</span>}
+        {dirty && <span className="shrink-0 text-[11px] text-dp-accent-ink">{t.modified}</span>}
         <span className="ml-auto flex shrink-0 items-center gap-1">
           {markdown && (
             <ToolbarButton label={previewing ? t.edit : t.preview} active={previewing} onClick={() => setPreview(!preview)}>
@@ -290,7 +292,7 @@ function FilePane({ tab }: { tab: StudioTab }) {
       </div>
       <div className="min-h-0 flex-1 overflow-hidden">
         {previewing ? (
-          <div data-preview className="h-full overflow-auto px-6 py-4 text-[13.5px] leading-relaxed">
+          <div data-preview className="h-full overflow-auto px-6 py-4 text-sm leading-relaxed">
             {renderMarkdown(draft)}
           </div>
         ) : (
@@ -328,8 +330,8 @@ function ToolbarButton({
       aria-pressed={active}
       onClick={onClick}
       className={cn(
-        "flex h-7 items-center gap-1.5 rounded-[8px] px-2.5 text-[12.5px] text-dp-text-2 hover:bg-dp-hover hover:text-dp-text [&_svg]:size-3.5",
-        active && "bg-dp-accent-soft text-dp-accent",
+        "flex h-7 items-center gap-1.5 rounded-md px-2.5 text-[13px] text-dp-text-2 transition-[color,background-color,transform] duration-150 ease-out motion-reduce:transition-none hover:bg-dp-hover hover:text-dp-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] [&_svg]:size-3.5",
+        active && "bg-dp-accent-soft text-dp-accent-ink",
       )}
     >
       {children}
@@ -339,5 +341,5 @@ function ToolbarButton({
 }
 
 function Message({ children }: { children: ReactNode }) {
-  return <p className="px-4 py-6 text-center text-[12.5px] text-dp-text-3">{children}</p>;
+  return <p className="px-4 py-6 text-center text-[13px] text-dp-text-3">{children}</p>;
 }

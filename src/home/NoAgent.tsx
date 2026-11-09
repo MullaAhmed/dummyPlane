@@ -16,7 +16,8 @@ import { homeMessages } from "./messages";
 const CLAUDE = AGENT_INSTALLS.claude!;
 const OTHERS = (Object.keys(AGENT_INSTALLS) as AgentId[]).filter((id) => id !== "claude");
 
-const linkClass = "flex items-center gap-1 rounded-md px-2 py-1 text-xs text-dp-text hover:bg-dp-hover [&_svg]:size-3 [&_svg]:text-dp-text-2";
+const linkClass =
+  "flex items-center gap-1 rounded-md px-2 py-1 text-xs text-dp-text transition-[color,background-color] duration-150 ease-out hover:bg-dp-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] motion-reduce:transition-none [&_svg]:size-3.5 [&_svg]:text-dp-text-2";
 
 /** "No code agent found": Claude Code first, then the others (spec installation §4.2). */
 export function NoAgent() {
@@ -50,11 +51,11 @@ export function NoAgent() {
     <div data-no-agent className="mt-5 border-t border-dp-line pt-5">
       <p className="font-semibold text-dp-text">{t.title}</p>
       <p className="mb-4 text-sm text-dp-text-2">{t.hint}</p>
-      <div className="rounded-[10px] border border-dp-line bg-dp-card p-3">
+      <div className="rounded-lg border border-dp-line bg-dp-card p-3">
         <div className="flex items-center gap-2">
           <claude.Icon className="size-4" style={{ color: agentInk(claude.tint) }} />
           <span className="text-[13px] font-semibold text-dp-text">Claude Code</span>
-          <span className="rounded-md bg-dp-accent-soft px-2 py-0.5 text-[10px] font-semibold text-dp-accent">{t.recommended}</span>
+          <span className="rounded-md bg-dp-accent-soft px-2 py-0.5 text-[11px] font-semibold text-dp-accent-ink">{t.recommended}</span>
         </div>
         <p className="mt-1 text-xs text-dp-text-2">{t.claudeWhy}</p>
         <p className="mt-3 text-xs text-dp-text-2">{t.claudeHow}</p>
@@ -68,7 +69,7 @@ export function NoAgent() {
           <AccentButton onClick={() => install("claude")}>
             <Download /> {t.installAgent("Claude Code")}
           </AccentButton>
-          <button type="button" data-link onClick={() => void openUrl(CLAUDE.docs)} className={`${linkClass} text-dp-accent`}>
+          <button type="button" data-link onClick={() => void openUrl(CLAUDE.docs)} className={`${linkClass} text-dp-accent-ink`}>
             {t.guide} <ExternalLink />
           </button>
         </div>
@@ -87,7 +88,7 @@ export function NoAgent() {
                 data-install={id}
                 aria-label={t.installAgent(agent.label)}
                 onClick={() => setAsked(id)}
-                className="rounded-[9px] bg-dp-accent-soft px-2 py-0.5 text-[11px] font-semibold text-dp-accent hover:underline"
+                className="rounded-[9px] bg-dp-accent-soft px-2 py-0.5 text-[11px] font-semibold text-dp-accent-ink transition-[color,background-color] duration-150 ease-out hover:bg-dp-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] motion-reduce:transition-none"
               >
                 {t.install}
               </button>
@@ -96,7 +97,7 @@ export function NoAgent() {
         })}
       </ul>
       {asked && (
-        <div className="mt-2 max-w-md rounded-[10px] border border-dp-line bg-dp-card p-2">
+        <div className="mt-2 max-w-md rounded-lg border border-dp-line bg-dp-card p-2">
           <InstallPrompt key={asked} agent={asked} onBack={() => setAsked(null)} onRun={() => install(asked)} />
         </div>
       )}

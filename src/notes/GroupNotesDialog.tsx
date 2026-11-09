@@ -56,13 +56,13 @@ function Chooser({ groupId }: { groupId: string }) {
           <ul className="flex max-h-64 flex-col gap-0.5 overflow-y-auto">
             {rows.map((name) => (
               <li key={name}>
-                <label className="flex items-center gap-2 rounded-[6px] px-1.5 py-1 text-[12.5px] text-dp-text hover:bg-dp-hover">
+                <label className="flex items-center gap-2 rounded-md px-1.5 py-1 text-[13px] text-dp-text transition-[background-color] duration-150 ease-out hover:bg-dp-hover has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-dp-accent/50 motion-reduce:transition-none">
                   <input
                     type="checkbox"
                     data-attach={name}
                     checked={chosen.some((n) => n.toLowerCase() === name.toLowerCase())}
                     onChange={() => toggle(chosen.find((n) => n.toLowerCase() === name.toLowerCase()) ?? name)}
-                    className="accent-dp-accent"
+                    className="accent-dp-accent focus-visible:outline-none"
                   />
                   <span className="min-w-0 truncate">{name}</span>
                   {gone.includes(name) && <span className="shrink-0 text-[11px] text-dp-text-3">{t.missing}</span>}

@@ -57,7 +57,7 @@ function Timeline(props: { nodeId: string; steps: Step[]; budget?: { spent: numb
       {steps.length > 0 && <div className="absolute inset-x-0 top-[3px] h-px bg-dp-line" />}
       {dots.map((dot, i) => (
         <div key={i} className="absolute top-0 flex -translate-x-1/2 flex-col items-center" style={{ left: dot.x, width: dot.slot }}>
-          <span className={dot.state === "en_cours" && alive ? "size-[7px] animate-pulse rounded-full" : "size-[7px] rounded-full"} style={{ backgroundColor: dot.color }} />
+          <span className={dot.state === "en_cours" && alive ? "size-[7px] animate-pulse rounded-full motion-reduce:animate-none" : "size-[7px] rounded-full"} style={{ backgroundColor: dot.color }} />
           <span className="mt-px flex max-w-full px-1 text-[9px] leading-[11px] text-dp-text-2">
             <span className="truncate">{dot.title}</span>
             {dot.state === "en_cours" && running > 0 && <span className="shrink-0">{` ×${running}`}</span>}
