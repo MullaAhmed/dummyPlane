@@ -6,7 +6,7 @@ import { reviewMessages } from "@/review/messages";
 import { parseDiff, type DiffLine } from "@/review/review";
 
 export function GitMessage({ children }: { children: ReactNode }) {
-  return <p className="grid flex-1 place-items-center p-6 text-center text-xs text-ov-text-2">{children}</p>;
+  return <p className="grid flex-1 place-items-center p-6 text-center text-xs text-dp-text-2">{children}</p>;
 }
 
 /** A file's changes against HEAD, read-only: the review panel's rows, without its remarks. */
@@ -39,7 +39,7 @@ export function GitDiff({ path, file, refresh }: { path: string; file: ChangedFi
       {diff.lines.slice(0, MAX_LINES).map((line, i) => (
         <DiffRow key={i} line={line} />
       ))}
-      {diff.lines.length > MAX_LINES && <p className="px-3 py-2 font-sans text-xs text-ov-text-2">{t.moreLines(diff.lines.length - MAX_LINES)}</p>}
+      {diff.lines.length > MAX_LINES && <p className="px-3 py-2 font-sans text-xs text-dp-text-2">{t.moreLines(diff.lines.length - MAX_LINES)}</p>}
     </div>
   );
 }

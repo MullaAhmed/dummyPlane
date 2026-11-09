@@ -22,10 +22,10 @@ it("names every icon button and marks the active rail tool (spec identité §5.4
   );
   const [text, eraser, plus, accent] = [...host.querySelectorAll("button")];
   expect([text.title, text.getAttribute("aria-label"), text.getAttribute("aria-pressed")]).toEqual(["Texte (T)", "Texte (T)", "true"]);
-  expect(text.className).toContain("bg-ov-accent-soft");
+  expect(text.className).toContain("bg-dp-accent-soft");
   expect(eraser.getAttribute("aria-pressed")).toBe("false");
   expect(plus.getAttribute("aria-label")).toBe("Nouveau workspace");
-  expect(accent.className).toContain("text-ov-on-accent");
+  expect(accent.className).toContain("text-dp-on-accent");
   expect(accent.className).toContain("rounded-[10px]");
   await act(async () => root.unmount());
   host.remove();

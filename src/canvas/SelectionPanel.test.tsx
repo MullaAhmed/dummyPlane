@@ -64,7 +64,7 @@ it("stays hidden in reading mode, where nothing can change", async () => {
 
 it("shows only the stroke and background colours and the Duplicate and Delete actions", async () => {
   await mount({}, [box("a")]);
-  expect(host.querySelectorAll(".ov-label")).toHaveLength(2);
+  expect(host.querySelectorAll(".dp-label")).toHaveLength(2);
   expect(host.querySelector("button[aria-label='Stroke: Ink']")).not.toBeNull();
   expect(host.querySelector("button[aria-label='Background: Transparent']")).not.toBeNull();
   expect(host.querySelectorAll("button[aria-label^='Stroke: ']")).toHaveLength(8);

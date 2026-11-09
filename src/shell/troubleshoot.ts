@@ -34,7 +34,7 @@ export async function checkAgain() {
   try {
     await refreshPath();
   } catch {
-    // The diagnostics still say what the PATH OpenVibe has finds.
+    // The diagnostics still say what the PATH dummyPlane has finds.
   }
   await Promise.all([load(), agentsStore.getState().load().catch(() => undefined)]);
 }

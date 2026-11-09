@@ -19,7 +19,7 @@ describe("terminalOrder (spec fenêtre §6.3)", () => {
       terminal("sekhmet", "front", 940, 480),
       terminal("horus", "front", 940, 40),
       terminal("bastet", "front", 940, 260),
-      frame("backend", 0, 0, 800, 500, { customData: { openvibe: { kind: "group", role: "backend", pantheon: "egypt" } } }),
+      frame("backend", 0, 0, 800, 500, { customData: { dummyplane: { kind: "group", role: "backend", pantheon: "egypt" } } }),
       terminal("osiris", "backend", 420, 280),
       terminal("isis", "backend", 40, 40),
       terminal("anubis", "backend", 40, 280),

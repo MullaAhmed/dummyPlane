@@ -9,10 +9,10 @@ export const TIMELINE_GAP = 3;
 
 /** Done, running, to come, failed (spec orchestrateur §5.1; tokens of spec identité). */
 export const STEP_COLOR: Record<StepState, string> = {
-  fait: "var(--ov-ok)",
-  en_cours: "var(--ov-working)",
-  a_venir: "var(--ov-text-3)",
-  echec: "var(--ov-danger)",
+  fait: "var(--dp-ok)",
+  en_cours: "var(--dp-working)",
+  a_venir: "var(--dp-text-3)",
+  echec: "var(--dp-danger)",
 };
 
 export interface Dot {
@@ -31,4 +31,4 @@ export function dotsOf(steps: readonly Step[], width: number): Dot[] {
 }
 
 /** A budget's bar (spec orchestrateur §8.3): green, orange past 80 %, red past 100 %. */
-export const BUDGET_COLOR: Record<BudgetTone, string> = { ok: "var(--ov-ok)", late: "var(--ov-accent)", over: "var(--ov-danger)" };
+export const BUDGET_COLOR: Record<BudgetTone, string> = { ok: "var(--dp-ok)", late: "var(--dp-accent)", over: "var(--dp-danger)" };

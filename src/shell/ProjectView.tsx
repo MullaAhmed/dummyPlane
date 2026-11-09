@@ -59,7 +59,7 @@ export function ProjectView() {
   }, []);
 
   return (
-    <div className="ov-ambient relative h-screen w-screen overflow-hidden">
+    <div className="dp-ambient relative h-screen w-screen overflow-hidden">
       {status === "ready" && activeId ? (
         <>
           <ErrorBoundary
@@ -115,7 +115,7 @@ export function ProjectView() {
           </ErrorBoundary>
         </>
       ) : (
-        <div className="grid h-full place-items-center text-sm text-ov-text-2">
+        <div className="grid h-full place-items-center text-sm text-dp-text-2">
           {status === "error" ? t.projectView.loadFailed(String(error)) : t.loading}
         </div>
       )}

@@ -43,7 +43,7 @@ export function NoteGraph({ notes, current, onOpen }: Props) {
 
   const near = useMemo(() => (hovered ? neighbours(hovered, links) : null), [hovered, links]);
 
-  if (notes.length === 0) return <p className="grid flex-1 place-items-center p-6 text-center text-xs text-ov-text-2">{t.graphEmpty}</p>;
+  if (notes.length === 0) return <p className="grid flex-1 place-items-center p-6 text-center text-xs text-dp-text-2">{t.graphEmpty}</p>;
 
   const pointerOf = (event: { clientX: number; clientY: number }): Point => {
     const box = svg.current?.getBoundingClientRect();
@@ -105,7 +105,7 @@ export function NoteGraph({ notes, current, onOpen }: Props) {
                 y1={from.y}
                 x2={to.x}
                 y2={to.y}
-                stroke={lit ? "var(--ov-accent)" : "var(--ov-text-3)"}
+                stroke={lit ? "var(--dp-accent)" : "var(--dp-text-3)"}
                 strokeOpacity={lit ? 1 : near ? 0.15 : 0.45}
                 strokeWidth={1 / view.scale}
               />
@@ -140,12 +140,12 @@ export function NoteGraph({ notes, current, onOpen }: Props) {
               >
                 <circle
                   r={radius}
-                  fill={open ? "var(--ov-accent)" : hovered === name ? "var(--ov-text)" : "var(--ov-text-3)"}
-                  stroke={hovered === name ? "var(--ov-accent)" : "transparent"}
+                  fill={open ? "var(--dp-accent)" : hovered === name ? "var(--dp-text)" : "var(--dp-text-3)"}
+                  stroke={hovered === name ? "var(--dp-accent)" : "transparent"}
                   strokeWidth={2}
                 />
                 {(view.scale >= LABELS_FROM || hovered === name || open) && (
-                  <text y={radius + 13 / view.scale} textAnchor="middle" fontSize={11.5 / view.scale} fill={open ? "var(--ov-text)" : "var(--ov-text-2)"}>
+                  <text y={radius + 13 / view.scale} textAnchor="middle" fontSize={11.5 / view.scale} fill={open ? "var(--dp-text)" : "var(--dp-text-2)"}>
                     {name}
                   </text>
                 )}

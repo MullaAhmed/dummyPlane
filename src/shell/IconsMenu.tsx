@@ -71,14 +71,14 @@ export function IconsPanel({ onPick }: { onPick: (item: IconItem) => void }) {
   const shown = found !== undefined && found.length === 0 && stillLoading ? undefined : found;
   return (
     <div className="flex flex-col gap-2">
-      <p className="ov-label">{t.title}</p>
+      <p className="dp-label">{t.title}</p>
       <input
         type="search"
         aria-label={t.search}
         placeholder={t.searchPlaceholder}
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        className="h-8 rounded-[8px] bg-ov-field px-2.5 text-[13px] text-ov-text outline-none placeholder:text-ov-text-3"
+        className="h-8 rounded-[8px] bg-dp-field px-2.5 text-[13px] text-dp-text outline-none placeholder:text-dp-text-3"
       />
       <div role="tablist" className="flex gap-1">
         {ICON_CATEGORIES.map((c) => (
@@ -92,8 +92,8 @@ export function IconsPanel({ onPick }: { onPick: (item: IconItem) => void }) {
               setQuery("");
             }}
             className={cn(
-              "rounded-full px-2.5 py-0.5 text-[11.5px] text-ov-text-2 hover:text-ov-text",
-              !searching && c.id === category && "bg-ov-accent-soft text-ov-text",
+              "rounded-full px-2.5 py-0.5 text-[11.5px] text-dp-text-2 hover:text-dp-text",
+              !searching && c.id === category && "bg-dp-accent-soft text-dp-text",
             )}
           >
             {c.label}
@@ -102,16 +102,16 @@ export function IconsPanel({ onPick }: { onPick: (item: IconItem) => void }) {
       </div>
       <div className="grid max-h-[420px] grid-cols-4 gap-1.5 overflow-y-auto pr-1">
         {someFailed && !stillLoading && !shown?.length ? (
-          <p className="col-span-4 py-6 text-center text-xs text-ov-text-2">{t.notFound}</p>
+          <p className="col-span-4 py-6 text-center text-xs text-dp-text-2">{t.notFound}</p>
         ) : shown === undefined ? (
-          <p className="col-span-4 py-6 text-center text-xs text-ov-text-2">{t.loading}</p>
+          <p className="col-span-4 py-6 text-center text-xs text-dp-text-2">{t.loading}</p>
         ) : shown.length === 0 ? (
-          <p className="col-span-4 py-6 text-center text-xs text-ov-text-2">{t.none}</p>
+          <p className="col-span-4 py-6 text-center text-xs text-dp-text-2">{t.none}</p>
         ) : (
           shown.map((item) => <IconTile key={item.id} item={item} dark={dark} onPick={onPick} />)
         )}
       </div>
-      <p className="text-[10.5px] text-ov-text-3" title={CREDITS}>
+      <p className="text-[10.5px] text-dp-text-3" title={CREDITS}>
         {t.credits}
       </p>
     </div>
@@ -157,7 +157,7 @@ function IconTile({ item, dark, onPick }: { item: IconItem; dark: boolean; onPic
       aria-label={item.name}
       title={`${item.name} — ${item.library}`}
       onClick={() => onPick(item)}
-      className="flex min-w-0 flex-col items-center gap-1 rounded-lg border border-transparent bg-ov-card p-1.5 text-[10.5px] text-ov-text-2 hover:border-ov-line hover:text-ov-text"
+      className="flex min-w-0 flex-col items-center gap-1 rounded-lg border border-transparent bg-dp-card p-1.5 text-[10.5px] text-dp-text-2 hover:border-dp-line hover:text-dp-text"
     >
       <div ref={box} className="grid h-12 w-full place-items-center" />
       <span className="w-full truncate text-center">{item.name}</span>

@@ -41,7 +41,7 @@ export function CloseGroupDialog() {
             {t.cancel}
           </Button>
           <Button
-            className="bg-ov-danger text-white hover:bg-ov-danger/90"
+            className="bg-dp-danger text-white hover:bg-dp-danger/90"
             onClick={() => {
               if (groupId) closeGroup(groupId);
               close();

@@ -73,11 +73,11 @@ export function AgentsPanel() {
 
   return (
     <aside
-      className="ov-glass-strong absolute right-[72px] z-30 flex w-[318px] flex-col overflow-hidden rounded-[14px]"
+      className="dp-glass-strong absolute right-[72px] z-30 flex w-[318px] flex-col overflow-hidden rounded-[14px]"
       style={{ top: TOP_ROW_HEIGHT + 14, maxHeight: `calc(100% - ${TOP_ROW_HEIGHT + 14 + (offer ? RESUME_OFFER_ROOM : BOTTOM_BAR_HEIGHT) + 14}px)` }}
     >
-      <header className="flex h-9 shrink-0 items-center border-b border-ov-line pl-3 pr-1.5">
-        <span className="ov-label">{t.title}</span>
+      <header className="flex h-9 shrink-0 items-center border-b border-dp-line pl-3 pr-1.5">
+        <span className="dp-label">{t.title}</span>
         <div className="ml-auto flex items-center">
           <AgentMenu
             side="left"
@@ -134,7 +134,7 @@ export function AgentsPanel() {
             onClick={() => setAgentsFilter(id)}
             className={cn(
               "whitespace-nowrap rounded-[4px] px-1.5 py-0.5 text-[11.5px]",
-              id === filter ? "bg-ov-accent-soft text-ov-accent" : "text-ov-text-2 hover:bg-ov-hover",
+              id === filter ? "bg-dp-accent-soft text-dp-accent" : "text-dp-text-2 hover:bg-dp-hover",
             )}
           >
             {label}
@@ -144,7 +144,7 @@ export function AgentsPanel() {
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-1.5 pb-2">
         {sections.length === 0 && orchestrators.length === 0 && (
-          <p className="py-4 text-center text-xs text-ov-text-2">
+          <p className="py-4 text-center text-xs text-dp-text-2">
             {agents.length > 0 ? t.noneInFilter : t.none}
           </p>
         )}
@@ -153,17 +153,17 @@ export function AgentsPanel() {
           const open = !folded.has(key);
           return (
             <section key={key}>
-              <div data-group-header className="group/section flex items-center rounded-[6px] pr-0.5 hover:bg-ov-hover">
+              <div data-group-header className="group/section flex items-center rounded-[6px] pr-0.5 hover:bg-dp-hover">
                 <button
                   type="button"
                   data-section={key}
                   onClick={() => fold(key)}
                   className="flex h-[26px] min-w-0 flex-1 items-center gap-1.5 px-1.5 text-left text-[11.5px]"
                 >
-                  <ChevronDown className={cn("size-3.5 text-ov-text-2 transition-transform", !open && "-rotate-90")} />
-                  <span className="size-2 shrink-0 rounded-[2px]" style={{ backgroundColor: section.color ?? "var(--ov-text-3)" }} />
-                  <span className="truncate font-semibold tracking-[0.03em] text-ov-text uppercase">{section.name}</span>
-                  <span className="ml-auto shrink-0 font-mono text-[10.5px] text-ov-text-2">
+                  <ChevronDown className={cn("size-3.5 text-dp-text-2 transition-transform", !open && "-rotate-90")} />
+                  <span className="size-2 shrink-0 rounded-[2px]" style={{ backgroundColor: section.color ?? "var(--dp-text-3)" }} />
+                  <span className="truncate font-semibold tracking-[0.03em] text-dp-text uppercase">{section.name}</span>
+                  <span className="ml-auto shrink-0 font-mono text-[10.5px] text-dp-text-2">
                     {countsText(section.agents.length, section.agents.filter((a) => a.state === "working").length)}
                   </span>
                 </button>
@@ -189,7 +189,7 @@ export function AgentsPanel() {
                     id={a.id}
                     onOpen={() => focusNode(a.id)}
                     trailing={
-                      <span className="w-10 shrink-0 text-right font-mono text-[10.5px] text-ov-text-2">
+                      <span className="w-10 shrink-0 text-right font-mono text-[10.5px] text-dp-text-2">
                         {a.since !== undefined ? formatDuration(now - a.since) : ""}
                       </span>
                     }
@@ -204,13 +204,13 @@ export function AgentsPanel() {
               type="button"
               data-section="orchestrators"
               onClick={() => fold("orchestrators")}
-              className="flex h-[26px] w-full items-center gap-1.5 rounded-[6px] px-1.5 text-left text-[11.5px] hover:bg-ov-hover"
+              className="flex h-[26px] w-full items-center gap-1.5 rounded-[6px] px-1.5 text-left text-[11.5px] hover:bg-dp-hover"
             >
               <ChevronDown
-                className={cn("size-3.5 text-ov-text-2 transition-transform", folded.has("orchestrators") && "-rotate-90")}
+                className={cn("size-3.5 text-dp-text-2 transition-transform", folded.has("orchestrators") && "-rotate-90")}
               />
-              <span className="font-semibold tracking-[0.03em] text-ov-text uppercase">{t.orchestrators}</span>
-              <span className="ml-auto font-mono text-[10.5px] text-ov-text-2">{orchestrators.length}</span>
+              <span className="font-semibold tracking-[0.03em] text-dp-text uppercase">{t.orchestrators}</span>
+              <span className="ml-auto font-mono text-[10.5px] text-dp-text-2">{orchestrators.length}</span>
             </button>
             {!folded.has("orchestrators") &&
               orchestrators.map((o) => (
@@ -218,10 +218,10 @@ export function AgentsPanel() {
                   key={o.id}
                   type="button"
                   onClick={() => focusNode(o.id)}
-                  className="flex h-[26px] w-full items-center gap-2 rounded-[6px] pl-6 pr-2 text-left text-[12.5px] hover:bg-ov-hover"
+                  className="flex h-[26px] w-full items-center gap-2 rounded-[6px] pl-6 pr-2 text-left text-[12.5px] hover:bg-dp-hover"
                 >
-                  <Network className="size-3.5 text-ov-accent" />
-                  <span className="truncate font-semibold text-ov-text">{o.name}</span>
+                  <Network className="size-3.5 text-dp-accent" />
+                  <span className="truncate font-semibold text-dp-text">{o.name}</span>
                 </button>
               ))}
           </section>

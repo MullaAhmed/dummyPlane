@@ -53,7 +53,7 @@ export function GroupMenu({ groupId, trigger, answersRequests = false }: { group
           <button
             type="button"
             aria-label={t.panel.groupMenu}
-            className="pointer-events-auto ml-1 grid size-5 place-items-center rounded text-ov-text-2 hover:bg-ov-card hover:text-ov-text"
+            className="pointer-events-auto ml-1 grid size-5 place-items-center rounded text-dp-text-2 hover:bg-dp-card hover:text-dp-text"
           >
             <ChevronDown className="size-3.5" />
           </button>

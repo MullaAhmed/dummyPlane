@@ -199,7 +199,7 @@ function proposePlan(orchestratorId: string, mission: Mission, args: Record<stri
   return said(t().orchestrator.proposed(result.plan.length));
 }
 
-/** `tickets`: OpenVibe reads the source, the orchestrator may not run commands (spec overnight mission §5.1). */
+/** `tickets`: dummyPlane reads the source, the orchestrator may not run commands (spec overnight mission §5.1). */
 async function tickets(orchestratorId: string, mission: Mission): Promise<ToolResult> {
   const project = sessionOf(nodesStore.getState().nodes[orchestratorId])?.cwd;
   if (!mission.tickets || !project) return refused(t().orchestrator.noTickets);

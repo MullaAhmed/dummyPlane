@@ -9,7 +9,7 @@ export const appMessages = defineMessages(
     logsFailed: "Could not open the logs folder",
     dataFailed: "Could not open the data folder",
     settingNotSaved: (error: string) => `Setting not saved: ${error}`,
-    upToDate: "OpenVibe is up to date.",
+    upToDate: "dummyPlane is up to date.",
     updateCheckFailed: "Could not check for updates",
     updateWaitsForSave: "Update on hold: save your changes first, then start it again.",
     startInterrupted: (message: string) => `start interrupted (${message})`,

@@ -44,7 +44,7 @@ const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve,
 
 /**
  * True once the agent can take its sub-task: it runs, its trust prompt was
- * accepted (once — only OpenVibe's fresh worktrees ask), Claude's prompt is up
+ * accepted (once — only dummyPlane's fresh worktrees ask), Claude's prompt is up
  * and quiet for 2 s. False after 60 s. `acceptTrust`: false outside those
  * worktrees — the prompt then waits for the user.
  */

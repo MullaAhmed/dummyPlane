@@ -39,7 +39,7 @@ export function SettingsMenu({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
       <DropdownMenuContent side={side} align={align} className="w-56">
-        <DropdownMenuLabel className="ov-label">{t.theme}</DropdownMenuLabel>
+        <DropdownMenuLabel className="dp-label">{t.theme}</DropdownMenuLabel>
         <DropdownMenuRadioGroup value={choice} onValueChange={(value) => void setThemeChoice(readThemeChoice(value))}>
           {(Object.keys(PALETTES) as ThemeChoice[]).map((palette) => (
             <DropdownMenuRadioItem key={palette} value={palette}>

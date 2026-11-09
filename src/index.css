@@ -12,37 +12,37 @@
   --font-heading: var(--font-sans);
   --font-sans: "Inter Variable", sans-serif;
   --font-mono: "JetBrains Mono Variable", ui-monospace, monospace;
-  --color-ov-canvas: var(--ov-canvas);
-  --color-ov-dot: var(--ov-dot);
-  --color-ov-surface: var(--ov-surface);
-  --color-ov-surface-2: var(--ov-surface-2);
-  --color-ov-card: var(--ov-card);
-  --color-ov-command: var(--ov-command);
-  --color-ov-line: var(--ov-line);
-  --color-ov-hover: var(--ov-hover);
-  --color-ov-selected: var(--ov-selected);
-  --color-ov-text: var(--ov-text);
-  --color-ov-text-2: var(--ov-text-2);
-  --color-ov-accent: var(--ov-accent);
-  --color-ov-accent-ink: var(--ov-accent-ink);
-  --color-ov-accent-soft: var(--ov-accent-soft);
-  --color-ov-danger: var(--ov-danger);
-  --color-ov-terminal: var(--ov-terminal);
-  --color-ov-terminal-head: var(--ov-terminal-head);
-  --color-ov-working: var(--ov-working);
-  --color-ov-waiting: var(--ov-waiting);
-  --color-ov-idle: var(--ov-idle);
-  --color-ov-done: var(--ov-done);
-  --color-ov-live: var(--ov-live);
-  --color-ov-field: var(--ov-field);
-  --color-ov-text-3: var(--ov-text-3);
-  --color-ov-on-accent: var(--ov-on-accent);
-  --color-ov-on-role: var(--ov-on-role);
-  --color-ov-wait: var(--ov-wait);
-  --color-ov-ok: var(--ov-ok);
-  --color-ov-tab-on: var(--ov-tab-on);
-  --shadow-ov: var(--ov-shadow);
-  --shadow-ov-float: var(--ov-float-shadow);
+  --color-dp-canvas: var(--dp-canvas);
+  --color-dp-dot: var(--dp-dot);
+  --color-dp-surface: var(--dp-surface);
+  --color-dp-surface-2: var(--dp-surface-2);
+  --color-dp-card: var(--dp-card);
+  --color-dp-command: var(--dp-command);
+  --color-dp-line: var(--dp-line);
+  --color-dp-hover: var(--dp-hover);
+  --color-dp-selected: var(--dp-selected);
+  --color-dp-text: var(--dp-text);
+  --color-dp-text-2: var(--dp-text-2);
+  --color-dp-accent: var(--dp-accent);
+  --color-dp-accent-ink: var(--dp-accent-ink);
+  --color-dp-accent-soft: var(--dp-accent-soft);
+  --color-dp-danger: var(--dp-danger);
+  --color-dp-terminal: var(--dp-terminal);
+  --color-dp-terminal-head: var(--dp-terminal-head);
+  --color-dp-working: var(--dp-working);
+  --color-dp-waiting: var(--dp-waiting);
+  --color-dp-idle: var(--dp-idle);
+  --color-dp-done: var(--dp-done);
+  --color-dp-live: var(--dp-live);
+  --color-dp-field: var(--dp-field);
+  --color-dp-text-3: var(--dp-text-3);
+  --color-dp-on-accent: var(--dp-on-accent);
+  --color-dp-on-role: var(--dp-on-role);
+  --color-dp-wait: var(--dp-wait);
+  --color-dp-ok: var(--dp-ok);
+  --color-dp-tab-on: var(--dp-tab-on);
+  --shadow-dp: var(--dp-shadow);
+  --shadow-dp-float: var(--dp-float-shadow);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -78,35 +78,35 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-/* shadcn components read these; they are mapped onto the OpenVibe tokens. */
+/* shadcn components read these; they are mapped onto the dummyPlane tokens. */
 :root {
-  --background: var(--ov-canvas);
-  --foreground: var(--ov-text);
-  --card: var(--ov-surface);
-  --card-foreground: var(--ov-text);
-  --popover: var(--ov-surface-2);
-  --popover-foreground: var(--ov-text);
-  --primary: var(--ov-accent);
-  --primary-foreground: var(--ov-on-accent);
-  --secondary: var(--ov-card);
-  --secondary-foreground: var(--ov-text);
-  --muted: var(--ov-card);
-  --muted-foreground: var(--ov-text-2);
-  --accent: var(--ov-hover);
-  --accent-foreground: var(--ov-text);
-  --destructive: var(--ov-danger);
-  --border: var(--ov-line);
-  --input: var(--ov-line);
-  --ring: var(--ov-accent);
+  --background: var(--dp-canvas);
+  --foreground: var(--dp-text);
+  --card: var(--dp-surface);
+  --card-foreground: var(--dp-text);
+  --popover: var(--dp-surface-2);
+  --popover-foreground: var(--dp-text);
+  --primary: var(--dp-accent);
+  --primary-foreground: var(--dp-on-accent);
+  --secondary: var(--dp-card);
+  --secondary-foreground: var(--dp-text);
+  --muted: var(--dp-card);
+  --muted-foreground: var(--dp-text-2);
+  --accent: var(--dp-hover);
+  --accent-foreground: var(--dp-text);
+  --destructive: var(--dp-danger);
+  --border: var(--dp-line);
+  --input: var(--dp-line);
+  --ring: var(--dp-accent);
   --radius: 0.75rem;
-  --sidebar: var(--ov-surface);
-  --sidebar-foreground: var(--ov-text);
-  --sidebar-primary: var(--ov-accent);
-  --sidebar-primary-foreground: var(--ov-on-accent);
-  --sidebar-accent: var(--ov-hover);
-  --sidebar-accent-foreground: var(--ov-text);
-  --sidebar-border: var(--ov-line);
-  --sidebar-ring: var(--ov-accent);
+  --sidebar: var(--dp-surface);
+  --sidebar-foreground: var(--dp-text);
+  --sidebar-primary: var(--dp-accent);
+  --sidebar-primary-foreground: var(--dp-on-accent);
+  --sidebar-accent: var(--dp-hover);
+  --sidebar-accent-foreground: var(--dp-text);
+  --sidebar-border: var(--dp-line);
+  --sidebar-ring: var(--dp-accent);
 }
 
 @layer base {
@@ -123,36 +123,36 @@
 
 @layer components {
   /* Section titles of menus and panels. */
-  .ov-label {
-    @apply text-[11px] font-medium tracking-[0.06em] text-ov-text-2 uppercase;
+  .dp-label {
+    @apply text-[11px] font-medium tracking-[0.06em] text-dp-text-2 uppercase;
   }
 
   /* Glass (spec identité §4.2): light glass for rails and floating bars… */
-  .ov-glass {
-    background: var(--ov-glass);
-    backdrop-filter: var(--ov-blur);
-    -webkit-backdrop-filter: var(--ov-blur);
-    border: 1px solid var(--ov-glass-line);
-    box-shadow: var(--ov-glass-hi), var(--ov-glass-edge), var(--ov-float-shadow);
+  .dp-glass {
+    background: var(--dp-glass);
+    backdrop-filter: var(--dp-blur);
+    -webkit-backdrop-filter: var(--dp-blur);
+    border: 1px solid var(--dp-glass-line);
+    box-shadow: var(--dp-glass-hi), var(--dp-glass-edge), var(--dp-float-shadow);
   }
 
   /* …dense glass for everything that carries text. */
-  .ov-glass-strong {
-    background: var(--ov-glass-strong);
-    backdrop-filter: var(--ov-blur);
-    -webkit-backdrop-filter: var(--ov-blur);
-    border: 1px solid var(--ov-glass-line);
-    box-shadow: var(--ov-glass-hi), var(--ov-glass-edge), var(--ov-float-shadow);
+  .dp-glass-strong {
+    background: var(--dp-glass-strong);
+    backdrop-filter: var(--dp-blur);
+    -webkit-backdrop-filter: var(--dp-blur);
+    border: 1px solid var(--dp-glass-line);
+    box-shadow: var(--dp-glass-hi), var(--dp-glass-edge), var(--dp-float-shadow);
   }
 
   /* The canvas color and three soft lights, fixed to the screen, that give
      the glass something to blur (spec identité §4.2). */
-  .ov-ambient {
-    background-color: var(--ov-canvas);
+  .dp-ambient {
+    background-color: var(--dp-canvas);
     background-image:
-      radial-gradient(760px 520px at 16% 28%, var(--ov-glow-1), transparent 70%),
-      radial-gradient(720px 560px at 86% 84%, var(--ov-glow-2), transparent 70%),
-      radial-gradient(520px 420px at 62% 12%, var(--ov-glow-3), transparent 70%);
+      radial-gradient(760px 520px at 16% 28%, var(--dp-glow-1), transparent 70%),
+      radial-gradient(720px 560px at 86% 84%, var(--dp-glow-2), transparent 70%),
+      radial-gradient(520px 420px at 62% 12%, var(--dp-glow-3), transparent 70%);
   }
 }
 
@@ -162,21 +162,21 @@
 [data-slot="dropdown-menu-sub-content"],
 [data-slot="popover-content"],
 [data-slot="select-content"] {
-  background: var(--ov-glass-strong);
-  backdrop-filter: var(--ov-blur);
-  -webkit-backdrop-filter: var(--ov-blur);
-  border: 1px solid var(--ov-glass-line);
+  background: var(--dp-glass-strong);
+  backdrop-filter: var(--dp-blur);
+  -webkit-backdrop-filter: var(--dp-blur);
+  border: 1px solid var(--dp-glass-line);
   border-radius: 12px;
-  box-shadow: var(--ov-glass-hi), var(--ov-glass-edge), var(--ov-shadow);
+  box-shadow: var(--dp-glass-hi), var(--dp-glass-edge), var(--dp-shadow);
 }
 
 [data-slot="dialog-content"] {
-  background: var(--ov-glass-strong);
-  backdrop-filter: var(--ov-blur);
-  -webkit-backdrop-filter: var(--ov-blur);
-  border: 1px solid var(--ov-glass-line);
+  background: var(--dp-glass-strong);
+  backdrop-filter: var(--dp-blur);
+  -webkit-backdrop-filter: var(--dp-blur);
+  border: 1px solid var(--dp-glass-line);
   border-radius: 16px;
-  box-shadow: var(--ov-glass-hi), var(--ov-glass-edge), var(--ov-shadow);
+  box-shadow: var(--dp-glass-hi), var(--dp-glass-edge), var(--dp-shadow);
 }
 
 [data-slot="dialog-overlay"] {
@@ -200,30 +200,30 @@
 
 /* Toasts, in the bottom-right corner (spec identité §5.8). */
 [data-sonner-toaster] [data-sonner-toast][data-styled="true"] {
-  background: var(--ov-glass-strong);
-  backdrop-filter: var(--ov-blur);
-  -webkit-backdrop-filter: var(--ov-blur);
-  border-color: var(--ov-glass-line);
+  background: var(--dp-glass-strong);
+  backdrop-filter: var(--dp-blur);
+  -webkit-backdrop-filter: var(--dp-blur);
+  border-color: var(--dp-glass-line);
   border-radius: 14px;
-  box-shadow: var(--ov-glass-hi), var(--ov-glass-edge), var(--ov-shadow);
+  box-shadow: var(--dp-glass-hi), var(--dp-glass-edge), var(--dp-shadow);
 }
 
 /* Arrival on a terminal: its border takes the accent, then fades back (spec fenêtre §6.4). */
-@keyframes ov-arrival {
+@keyframes dp-arrival {
   from {
-    box-shadow: inset 0 0 0 2px var(--ov-accent);
+    box-shadow: inset 0 0 0 2px var(--dp-accent);
   }
   to {
     box-shadow: inset 0 0 0 2px transparent;
   }
 }
 
-.ov-arrival {
-  animation: ov-arrival 600ms ease-out forwards;
+.dp-arrival {
+  animation: dp-arrival 600ms ease-out forwards;
 }
 
 /* The radial menu opens from its center (spec menu radial §5.1). */
-@keyframes ov-radial-in {
+@keyframes dp-radial-in {
   from {
     opacity: 0;
     transform: scale(0.85);
@@ -234,12 +234,12 @@
   }
 }
 
-.ov-radial-in {
-  animation: ov-radial-in 120ms ease-out;
+.dp-radial-in {
+  animation: dp-radial-in 120ms ease-out;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .ov-radial-in {
+  .dp-radial-in {
     animation: none;
   }
 }

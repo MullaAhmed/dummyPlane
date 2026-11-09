@@ -16,7 +16,7 @@ const LABEL_ROOM = 24;
  * loses it, the active terminal is deactivated, nothing gets selected (a
  * click into a terminal selects it: that selection is cleared, or Suppr
  * would delete the terminal just left), and the keyboard goes to Excalidraw's
- * container, where Excalidraw reads its keys (OpenVibe does not set
+ * container, where Excalidraw reads its keys (dummyPlane does not set
  * `handleKeyboardGlobally`).
  */
 export function releaseToCanvas(doc: Document = document) {

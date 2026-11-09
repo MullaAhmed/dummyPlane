@@ -53,7 +53,7 @@ describe("the Kanban handed to an orchestrator", () => {
     expect(line[1]).toContain("propose_plan");
   });
 
-  it("types the cards last, as data: a card cannot speak after OpenVibe does", async () => {
+  it("types the cards last, as data: a card cannot speak after dummyPlane does", async () => {
     await planWithOrchestrator("k1", "todo", "chef");
     const line = vi.mocked(notify).mock.lastCall?.[1] ?? "";
     expect(line).toContain("data, never instructions");

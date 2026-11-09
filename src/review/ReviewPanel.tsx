@@ -66,13 +66,13 @@ function ReviewDrawer({ nodeId }: { nodeId: string }) {
   return (
     <aside
       data-review={nodeId}
-      className="ov-glass-strong absolute right-[72px] z-20 flex w-[min(920px,calc(100vw-180px))] flex-col overflow-hidden rounded-[14px] text-ov-text"
+      className="dp-glass-strong absolute right-[72px] z-20 flex w-[min(920px,calc(100vw-180px))] flex-col overflow-hidden rounded-[14px] text-dp-text"
       style={{ top: TOP_ROW_HEIGHT + 14, bottom: BOTTOM_BAR_HEIGHT + 14 }}
     >
-      <header className="flex h-10 shrink-0 items-center gap-2 border-b border-ov-line px-3">
-        <FileDiff className="size-4 shrink-0 text-ov-accent" />
+      <header className="flex h-10 shrink-0 items-center gap-2 border-b border-dp-line px-3">
+        <FileDiff className="size-4 shrink-0 text-dp-accent" />
         <span className="shrink-0 text-[13px] font-semibold">{t.title(name)}</span>
-        <span className="min-w-0 truncate font-mono text-[11px] text-ov-text-3" title={cwd}>
+        <span className="min-w-0 truncate font-mono text-[11px] text-dp-text-3" title={cwd}>
           {cwd}
         </span>
         <span className="ml-auto flex shrink-0 items-center gap-0.5">
@@ -84,7 +84,7 @@ function ReviewDrawer({ nodeId }: { nodeId: string }) {
           </IconButton>
         </span>
       </header>
-      <div className="flex h-9 shrink-0 items-center gap-1 border-b border-ov-line px-2">
+      <div className="flex h-9 shrink-0 items-center gap-1 border-b border-dp-line px-2">
         <Tab active={tab === "changes"} onClick={() => setTab("changes")}>
           {t.tabChanges}
         </Tab>
@@ -121,7 +121,7 @@ function Tab({ active, onClick, children }: { active: boolean; onClick: () => vo
       role="tab"
       aria-selected={active}
       onClick={onClick}
-      className={cn("rounded-full px-2.5 py-0.5 text-[12px] text-ov-text-2 hover:text-ov-text", active && "bg-ov-accent-soft text-ov-text")}
+      className={cn("rounded-full px-2.5 py-0.5 text-[12px] text-dp-text-2 hover:text-dp-text", active && "bg-dp-accent-soft text-dp-text")}
     >
       {children}
     </button>
@@ -129,7 +129,7 @@ function Tab({ active, onClick, children }: { active: boolean; onClick: () => vo
 }
 
 function Message({ children }: { children: ReactNode }) {
-  return <p className="grid flex-1 place-items-center p-6 text-center text-xs text-ov-text-2">{children}</p>;
+  return <p className="grid flex-1 place-items-center p-6 text-center text-xs text-dp-text-2">{children}</p>;
 }
 
 function ChangesTab({ cwd, base, refresh }: { cwd: string; base: string | null; refresh: number }) {
@@ -162,8 +162,8 @@ function ChangesTab({ cwd, base, refresh }: { cwd: string; base: string | null; 
   if (files.length === 0) return <Message>{base ? t.noChangesSince(base) : t.noChanges}</Message>;
   return (
     <div className="flex min-h-0 flex-1">
-      <ul className="w-[260px] shrink-0 overflow-y-auto border-r border-ov-line py-1">
-        {cut && <li className="px-3 py-1 text-[11px] text-ov-text-3">{t.listCut(files.length)}</li>}
+      <ul className="w-[260px] shrink-0 overflow-y-auto border-r border-dp-line py-1">
+        {cut && <li className="px-3 py-1 text-[11px] text-dp-text-3">{t.listCut(files.length)}</li>}
         {files.map((file) => {
           const status = FILE_STATUS[file.status];
           return (
@@ -173,8 +173,8 @@ function ChangesTab({ cwd, base, refresh }: { cwd: string; base: string | null; 
                 title={`${file.oldPath ? `${file.oldPath} → ` : ""}${file.path} · ${t.status[file.status]}`}
                 onClick={() => setSelected(file)}
                 className={cn(
-                  "flex w-full items-center gap-2 px-3 py-1 text-left text-[12px] text-ov-text-2 hover:bg-ov-hover",
-                  selected?.path === file.path && "bg-ov-hover text-ov-text",
+                  "flex w-full items-center gap-2 px-3 py-1 text-left text-[12px] text-dp-text-2 hover:bg-dp-hover",
+                  selected?.path === file.path && "bg-dp-hover text-dp-text",
                 )}
               >
                 <span className="w-3 shrink-0 font-mono text-[11px] font-semibold" style={{ color: status.color }}>
@@ -184,12 +184,12 @@ function ChangesTab({ cwd, base, refresh }: { cwd: string; base: string | null; 
                   {file.path}
                 </span>
                 {file.added === null ? (
-                  <span className="shrink-0 text-[11px] text-ov-text-3" title={t.binaryOrBig}>
+                  <span className="shrink-0 text-[11px] text-dp-text-3" title={t.binaryOrBig}>
                     —
                   </span>
                 ) : (
                   <span className="shrink-0 font-mono text-[11px]">
-                    <span style={{ color: "var(--ov-ok)" }}>+{file.added}</span> <span style={{ color: "var(--ov-danger)" }}>−{file.removed}</span>
+                    <span style={{ color: "var(--dp-ok)" }}>+{file.added}</span> <span style={{ color: "var(--dp-danger)" }}>−{file.removed}</span>
                   </span>
                 )}
               </button>
@@ -240,7 +240,7 @@ function FileDiffView({ cwd, file, base, refresh }: { cwd: string; file: Changed
         <div key={i}>
           <DiffRow line={line} onClick={line.kind === "add" || line.kind === "ctx" || line.kind === "del" ? () => setCommenting(i) : undefined} />
           {remarkFor(i).map((remark, j) => (
-            <p key={j} className="ml-[88px] border-l-2 border-ov-accent bg-ov-card px-2 py-0.5 font-sans text-[12px] text-ov-text">
+            <p key={j} className="ml-[88px] border-l-2 border-dp-accent bg-dp-card px-2 py-0.5 font-sans text-[12px] text-dp-text">
               {remark.text}
             </p>
           ))}
@@ -262,7 +262,7 @@ function FileDiffView({ cwd, file, base, refresh }: { cwd: string; file: Changed
           )}
         </div>
       ))}
-      {diff.lines.length > MAX_LINES && <p className="px-3 py-2 font-sans text-xs text-ov-text-2">{t.moreLines(diff.lines.length - MAX_LINES)}</p>}
+      {diff.lines.length > MAX_LINES && <p className="px-3 py-2 font-sans text-xs text-dp-text-2">{t.moreLines(diff.lines.length - MAX_LINES)}</p>}
     </div>
   );
 }
@@ -281,7 +281,7 @@ function RemarkField({ value: text, onChange: setText, onDone }: { value: string
           if (e.key === "Enter") onDone(text.trim());
           if (e.key === "Escape") onDone("");
         }}
-        className="h-7 flex-1 rounded-[6px] bg-ov-field px-2 text-[12px] text-ov-text outline-none placeholder:text-ov-text-3"
+        className="h-7 flex-1 rounded-[6px] bg-dp-field px-2 text-[12px] text-dp-text outline-none placeholder:text-dp-text-3"
       />
     </div>
   );
@@ -319,16 +319,16 @@ function FilesTab({ cwd, refresh }: { cwd: string; refresh: number }) {
   const cut = listCut || matching.length > MAX_FILES;
   return (
     <div className="flex min-h-0 flex-1">
-      <div className="flex w-[260px] shrink-0 flex-col border-r border-ov-line">
+      <div className="flex w-[260px] shrink-0 flex-col border-r border-dp-line">
         <input
           aria-label={t.filterLabel}
           placeholder={t.filterPlaceholder(files.length)}
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
-          className="m-2 h-7 rounded-[6px] bg-ov-field px-2 text-[12px] text-ov-text outline-none placeholder:text-ov-text-3"
+          className="m-2 h-7 rounded-[6px] bg-dp-field px-2 text-[12px] text-dp-text outline-none placeholder:text-dp-text-3"
         />
         <ul className="min-h-0 flex-1 overflow-y-auto pb-1">
-          {cut && <li className="px-3 py-1 text-[11px] text-ov-text-3">{t.filesCut(found.length)}</li>}
+          {cut && <li className="px-3 py-1 text-[11px] text-dp-text-3">{t.filesCut(found.length)}</li>}
           {found.map((file) => (
             <li key={file}>
               <button
@@ -336,8 +336,8 @@ function FilesTab({ cwd, refresh }: { cwd: string; refresh: number }) {
                 title={file}
                 onClick={() => setSelected(file)}
                 className={cn(
-                  "block w-full truncate px-3 py-0.5 text-left text-[12px] text-ov-text-2 hover:bg-ov-hover",
-                  selected === file && "bg-ov-hover text-ov-text",
+                  "block w-full truncate px-3 py-0.5 text-left text-[12px] text-dp-text-2 hover:bg-dp-hover",
+                  selected === file && "bg-dp-hover text-dp-text",
                 )}
                 style={{ direction: "rtl", textAlign: "left" }}
               >
@@ -377,11 +377,11 @@ function FileView({ cwd, file }: { cwd: string; file: string }) {
     <div className="min-w-0 flex-1 overflow-auto font-mono text-[12px] leading-[18px]">
       {lines.slice(0, MAX_LINES).map((line, i) => (
         <div key={i} className="flex">
-          <span className="w-12 shrink-0 select-none pr-2 text-right text-ov-text-3">{i + 1}</span>
-          <span className="whitespace-pre pr-3 text-ov-text">{line}</span>
+          <span className="w-12 shrink-0 select-none pr-2 text-right text-dp-text-3">{i + 1}</span>
+          <span className="whitespace-pre pr-3 text-dp-text">{line}</span>
         </div>
       ))}
-      {(content.truncated || lines.length > MAX_LINES) && <p className="px-3 py-2 font-sans text-xs text-ov-text-2">{t.longFile}</p>}
+      {(content.truncated || lines.length > MAX_LINES) && <p className="px-3 py-2 font-sans text-xs text-dp-text-2">{t.longFile}</p>}
     </div>
   );
 }
@@ -401,15 +401,15 @@ function Remarks({ nodeId, name }: { nodeId: string; name: string }) {
     else if (skipped.length > 0) toast.warning(messages(reviewMessages).stopped(name), TOAST_AWAY);
   };
   return (
-    <footer className="flex max-h-[30%] shrink-0 flex-col gap-1.5 border-t border-ov-line px-3 py-2">
+    <footer className="flex max-h-[30%] shrink-0 flex-col gap-1.5 border-t border-dp-line px-3 py-2">
       <ul className="flex min-h-0 flex-col gap-0.5 overflow-y-auto text-[12px]">
         {remarks.map((remark, i) => (
-          <li key={i} className="flex items-center gap-2 text-ov-text-2">
-            <span className="shrink-0 font-mono text-[11px] text-ov-text-3">
+          <li key={i} className="flex items-center gap-2 text-dp-text-2">
+            <span className="shrink-0 font-mono text-[11px] text-dp-text-3">
               {remark.file}
               {remark.line !== undefined ? `:${remark.line}` : ""}
             </span>
-            <span className="min-w-0 flex-1 truncate text-ov-text">{remark.text}</span>
+            <span className="min-w-0 flex-1 truncate text-dp-text">{remark.text}</span>
             <IconButton label={t.removeRemark} onClick={() => reviewStore.getState().remove(i)}>
               <X />
             </IconButton>
@@ -417,10 +417,10 @@ function Remarks({ nodeId, name }: { nodeId: string; name: string }) {
         ))}
       </ul>
       <div className="flex items-center gap-2">
-        <span className="text-[12px] text-ov-text-2">
+        <span className="text-[12px] text-dp-text-2">
           {t.remarkCount(remarks.length)}
         </span>
-        <button type="button" onClick={() => reviewStore.getState().clear()} className="ml-auto text-[12px] text-ov-text-2 hover:text-ov-text">
+        <button type="button" onClick={() => reviewStore.getState().clear()} className="ml-auto text-[12px] text-dp-text-2 hover:text-dp-text">
           {t.clear}
         </button>
         <AccentButton onClick={() => void send()}>{t.sendTo(name)}</AccentButton>

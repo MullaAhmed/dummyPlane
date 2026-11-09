@@ -17,7 +17,7 @@ vi.mock("@/nodes/terminal/registry", () => ({ markForAutostart: vi.fn() }));
 vi.mock("@/canvas/arrive", () => ({ revealNode: vi.fn() }));
 
 const group = (id: string, pantheon: string) =>
-  ({ id, type: "frame", x: 0, y: 0, width: 800, height: 400, isDeleted: false, frameId: null, groupIds: [], customData: { openvibe: { kind: "group", role: "backend", pantheon } } }) as unknown as ExcalidrawElement;
+  ({ id, type: "frame", x: 0, y: 0, width: 800, height: 400, isDeleted: false, frameId: null, groupIds: [], customData: { dummyplane: { kind: "group", role: "backend", pantheon } } }) as unknown as ExcalidrawElement;
 const terminal = (id: string, frameId: string, link: string | null) =>
   ({ id, type: "embeddable", x: 0, y: 0, width: 300, height: 200, isDeleted: false, frameId, groupIds: [], link, customData: { kind: "terminal" } }) as unknown as ExcalidrawElement;
 
@@ -31,7 +31,7 @@ beforeEach(async () => {
     kind: "terminal",
     payload: { title: "Isis", name: "Isis", agent: "shell", cwd: "C:/code", shell: "default", command: "" },
   });
-  scene = [group("g1", "egyptian"), terminal("isis", "g1", "openvibe://terminal/isis"), group("copy", "egyptian"), terminal("isis2", "copy", "openvibe://terminal/isis")];
+  scene = [group("g1", "egyptian"), terminal("isis", "g1", "dummyplane://terminal/isis"), group("copy", "egyptian"), terminal("isis2", "copy", "dummyplane://terminal/isis")];
   canvasStore.setState({
     api: {
       getSceneElementsIncludingDeleted: () => scene,
@@ -47,7 +47,7 @@ beforeEach(async () => {
 
 it("gives a group copied whole a pantheon of its own and names its agents from it (plan B1)", async () => {
   await adoptCopies("w1", [{ id: "isis2", sourceId: "isis" }]);
-  const pantheonOf = (id: string) => (scene.find((e) => e.id === id)!.customData!.openvibe as { pantheon: string }).pantheon;
+  const pantheonOf = (id: string) => (scene.find((e) => e.id === id)!.customData!.dummyplane as { pantheon: string }).pantheon;
   expect(pantheonOf("g1")).toBe("egyptian");
   const copied = pantheonOf("copy");
   expect(["egyptian", "greek"]).not.toContain(copied);
@@ -61,9 +61,9 @@ it("gives a group copied whole a pantheon of its own and names its agents from i
 
 it("unfolds a folded group copied whole: its copies would never mount, nor start (review)", async () => {
   const folded = group("copy", "egyptian");
-  scene = [group("g1", "egyptian"), terminal("isis", "g1", "openvibe://terminal/isis"), { ...folded, customData: { openvibe: { ...(folded.customData!.openvibe as object), folded: true } } } as ExcalidrawElement, terminal("isis2", "copy", "openvibe://terminal/isis")];
+  scene = [group("g1", "egyptian"), terminal("isis", "g1", "dummyplane://terminal/isis"), { ...folded, customData: { dummyplane: { ...(folded.customData!.dummyplane as object), folded: true } } } as ExcalidrawElement, terminal("isis2", "copy", "dummyplane://terminal/isis")];
   canvasStore.setState({ frames: framesFromScene(scene) });
   await adoptCopies("w1", [{ id: "isis2", sourceId: "isis" }]);
   const copy = scene.find((e) => e.id === "copy")!;
-  expect((copy.customData!.openvibe as Record<string, unknown>).folded).toBeUndefined();
+  expect((copy.customData!.dummyplane as Record<string, unknown>).folded).toBeUndefined();
 });

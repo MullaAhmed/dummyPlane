@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { co2Grams, currentLimit, limitTone, liveCacheSessions, mergeLimits, readStatus, totals, formatUsd, type Limits, type SessionUsage } from "./usage";
 
-/** A status line's JSON as Claude Code 2.1.304 sent it in OpenVibe, after one answer. */
+/** A status line's JSON as Claude Code 2.1.304 sent it in dummyPlane, after one answer. */
 const STATUS = {
   session_id: "s1",
   model: { id: "claude-haiku-5-5", display_name: "Haiku 5.5" },

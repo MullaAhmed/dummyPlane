@@ -38,7 +38,7 @@ export function HeaderButton(props: { label: string; onClick: () => void; childr
       title={props.label}
       aria-label={props.label}
       onClick={props.onClick}
-      className="grid size-5 place-items-center rounded text-ov-text-2 hover:bg-ov-card hover:text-ov-text [&_svg]:size-3.5"
+      className="grid size-5 place-items-center rounded text-dp-text-2 hover:bg-dp-card hover:text-dp-text [&_svg]:size-3.5"
     >
       {props.children}
     </button>
@@ -65,7 +65,7 @@ function RelaunchMenu(props: { nodeId: string; payload: TerminalPayload; running
           type="button"
           title={t.relaunch}
           aria-label={t.relaunch}
-          className="grid size-5 place-items-center rounded text-ov-text-2 hover:bg-ov-card hover:text-ov-text [&_svg]:size-3.5"
+          className="grid size-5 place-items-center rounded text-dp-text-2 hover:bg-dp-card hover:text-dp-text [&_svg]:size-3.5"
         >
           <RotateCw />
         </button>
@@ -106,7 +106,7 @@ export function AccountChip({ accountId }: { accountId?: string }) {
     <span
       data-account={profile?.id ?? "default"}
       title={t.chipTitle(profile?.configDir ?? t.defaultHint)}
-      className="max-w-[90px] truncate rounded px-1 text-[10px] text-ov-text-2"
+      className="max-w-[90px] truncate rounded px-1 text-[10px] text-dp-text-2"
     >
       {profile?.name ?? t.defaultName}
     </span>
@@ -123,7 +123,7 @@ function ModelChip({ nodeId, model }: { nodeId: string; model: string }) {
           type="button"
           data-model={model}
           title={t.modelChosen(model)}
-          className="rounded px-1 font-mono text-[10px] text-ov-text-2 hover:bg-ov-card hover:text-ov-text"
+          className="rounded px-1 font-mono text-[10px] text-dp-text-2 hover:bg-dp-card hover:text-dp-text"
         >
           {modelLabel(model)}
         </button>
@@ -161,13 +161,13 @@ export function TerminalHeader(props: {
   return (
     <header
       title={payload.title}
-      className="flex h-7 shrink-0 items-center gap-1.5 border-b border-ov-line bg-ov-terminal-head px-2 text-xs"
+      className="flex h-7 shrink-0 items-center gap-1.5 border-b border-dp-line bg-dp-terminal-head px-2 text-xs"
     >
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button type="button" aria-label="Agent" className="flex items-center gap-0.5 rounded px-0.5 hover:bg-ov-card">
+          <button type="button" aria-label="Agent" className="flex items-center gap-0.5 rounded px-0.5 hover:bg-dp-card">
             <meta.Icon className="size-3.5" style={{ color: agentInk(meta.tint) }} />
-            <ChevronDown className="size-3 text-ov-text-2" />
+            <ChevronDown className="size-3 text-dp-text-2" />
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start">
@@ -177,7 +177,7 @@ export function TerminalHeader(props: {
             return (
               <DropdownMenuItem key={id} onSelect={() => switchAgent(nodeId, payload, id)}>
                 <Icon style={{ color: agentInk(AGENTS[id].tint) }} /> {AGENTS[id].label}
-                {id === payload.agent && <span className="ml-auto text-ov-text-2">{t.current}</span>}
+                {id === payload.agent && <span className="ml-auto text-dp-text-2">{t.current}</span>}
               </DropdownMenuItem>
             );
           })}
@@ -188,7 +188,7 @@ export function TerminalHeader(props: {
       <span
         aria-hidden
         className="size-1.5 shrink-0 rounded-full"
-        style={{ backgroundColor: role ? ROLES[role].color : "var(--ov-idle)" }}
+        style={{ backgroundColor: role ? ROLES[role].color : "var(--dp-idle)" }}
       />
       {editing ? (
         <Input
@@ -207,7 +207,7 @@ export function TerminalHeader(props: {
         />
       ) : (
         <span
-          className="truncate font-semibold text-ov-text"
+          className="truncate font-semibold text-dp-text"
           onDoubleClick={() => setEditing(true)}
           title={t.doubleClickRename}
         >

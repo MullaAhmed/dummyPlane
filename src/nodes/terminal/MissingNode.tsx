@@ -10,7 +10,7 @@ export function MissingNode({ text }: { text: string }) {
     return () => clearTimeout(timer);
   }, []);
   return (
-    <div className="grid h-full place-items-center rounded-xl border border-ov-line bg-ov-surface text-sm text-ov-text-2">
+    <div className="grid h-full place-items-center rounded-xl border border-dp-line bg-dp-surface text-sm text-dp-text-2">
       {late ? text : null}
     </div>
   );

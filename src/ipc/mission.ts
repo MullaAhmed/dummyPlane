@@ -1,6 +1,6 @@
 import { call } from "./invoke";
 
-/** A worktree OpenVibe made for a mission, on its own branch (spec orchestrateur §7.4). */
+/** A worktree dummyPlane made for a mission, on its own branch (spec orchestrateur §7.4). */
 export interface Worktree {
   slug: string;
   branch: string;

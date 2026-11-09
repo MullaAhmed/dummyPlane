@@ -48,7 +48,7 @@ function triggerOf(form: Form): LoopTrigger {
   return { kind: "interval", minutes: Number(form.minutes) };
 }
 
-const FIELD = "h-8 w-full rounded-lg border border-ov-line bg-ov-field px-2.5 text-[13px] text-ov-text outline-none focus-visible:border-ov-accent";
+const FIELD = "h-8 w-full rounded-lg border border-dp-line bg-dp-field px-2.5 text-[13px] text-dp-text outline-none focus-visible:border-dp-accent";
 
 /** The loops: the list and the form (loops spec §4), opened by the palette or the indicator. */
 export function LoopsDialog() {
@@ -118,7 +118,7 @@ export function LoopsDialog() {
         </DialogHeader>
         {form === null ? (
           <div className="flex flex-col gap-2">
-            {loops.length === 0 && <p className="text-sm text-ov-text-2">{t.empty}</p>}
+            {loops.length === 0 && <p className="text-sm text-dp-text-2">{t.empty}</p>}
             {loops.map((loop) => {
               const state = runtime[loop.id];
               const running = state?.running === true;
@@ -127,13 +127,13 @@ export function LoopsDialog() {
                   ? Math.max(0, Math.ceil(loop.maxMinutes - (Date.now() - state.startedAt) / 60_000))
                   : null;
               return (
-                <div key={loop.id} className="flex items-center gap-2 rounded-lg border border-ov-line px-3 py-2">
+                <div key={loop.id} className="flex items-center gap-2 rounded-lg border border-dp-line px-3 py-2">
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-[13px] font-medium text-ov-text">{loop.name}</p>
-                    <p className="truncate text-[11.5px] text-ov-text-2">
+                    <p className="truncate text-[13px] font-medium text-dp-text">{loop.name}</p>
+                    <p className="truncate text-[11.5px] text-dp-text-2">
                       {t.triggerSummary(loop.trigger)} · {t.cost(loop)}
                     </p>
-                    <p className="text-[11.5px] text-ov-text-2">
+                    <p className="text-[11.5px] text-dp-text-2">
                       {running
                         ? `${t.round(state.runs, loop.maxRuns)}${left === null ? "" : ` · ${t.untilEnd(left)}`}`
                         : state?.stoppedBecause
@@ -157,7 +157,7 @@ export function LoopsDialog() {
         ) : (
           <div className="flex flex-col gap-3">
             <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-[11.5px] text-ov-text-2">{t.templates}</span>
+              <span className="text-[11.5px] text-dp-text-2">{t.templates}</span>
               {LOOP_TEMPLATES.map((tpl) => (
                 <Button key={tpl.id} size="sm" variant="outline" onClick={() => fromTemplate(tpl.id)}>
                   {t.template[tpl.id]}
@@ -171,13 +171,13 @@ export function LoopsDialog() {
               value={form.instruction}
               onChange={(e) => change({ instruction: e.currentTarget.value })}
               rows={3}
-              className="w-full resize-none rounded-lg border border-ov-line bg-ov-field px-2.5 py-1.5 text-[13px] text-ov-text outline-none focus-visible:border-ov-accent"
+              className="w-full resize-none rounded-lg border border-dp-line bg-dp-field px-2.5 py-1.5 text-[13px] text-dp-text outline-none focus-visible:border-dp-accent"
             />
             <fieldset className="flex flex-col gap-1">
-              <legend className="text-[11.5px] text-ov-text-2">{t.targets}</legend>
-              {terminals.length === 0 && <p className="text-[12px] text-ov-text-3">{t.noTargets}</p>}
+              <legend className="text-[11.5px] text-dp-text-2">{t.targets}</legend>
+              {terminals.length === 0 && <p className="text-[12px] text-dp-text-3">{t.noTargets}</p>}
               {terminals.map(([id, node]) => (
-                <label key={id} className="flex items-center gap-2 text-[13px] text-ov-text">
+                <label key={id} className="flex items-center gap-2 text-[13px] text-dp-text">
                   <input
                     type="checkbox"
                     data-target={id}
@@ -189,9 +189,9 @@ export function LoopsDialog() {
               ))}
             </fieldset>
             <fieldset className="flex flex-col gap-1.5">
-              <legend className="text-[11.5px] text-ov-text-2">{t.trigger}</legend>
+              <legend className="text-[11.5px] text-dp-text-2">{t.trigger}</legend>
               {(["interval", "idle", "output"] as const).map((kind) => (
-                <label key={kind} className="flex items-center gap-2 text-[13px] text-ov-text">
+                <label key={kind} className="flex items-center gap-2 text-[13px] text-dp-text">
                   <input type="radio" name="loop-trigger" checked={form.trigger === kind} onChange={() => change({ trigger: kind })} />
                   {t.triggers[kind]}
                 </label>
@@ -204,12 +204,12 @@ export function LoopsDialog() {
               )}
             </fieldset>
             <fieldset className="flex flex-col gap-1.5">
-              <legend className="text-[11.5px] text-ov-text-2">{t.stop}</legend>
+              <legend className="text-[11.5px] text-dp-text-2">{t.stop}</legend>
               <input aria-label={t.maxRuns} placeholder={t.maxRuns} type="number" min={1} max={1000} value={form.maxRuns} onChange={(e) => change({ maxRuns: e.currentTarget.value })} className={FIELD} />
               <input aria-label={t.maxMinutes} placeholder={t.maxMinutes} type="number" min={1} max={1440} value={form.maxMinutes} onChange={(e) => change({ maxMinutes: e.currentTarget.value })} className={FIELD} />
             </fieldset>
             {error && (
-              <p role="alert" className="text-xs text-ov-danger">
+              <p role="alert" className="text-xs text-dp-danger">
                 {t.errors[error]}
               </p>
             )}

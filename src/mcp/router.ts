@@ -35,7 +35,7 @@ export async function answer(call: McpCall): Promise<unknown> {
   }
 }
 
-/** A handler slower than this is logged: Rust gives up on a call after 30 s ("OpenVibe is not responding"). */
+/** A handler slower than this is logged: Rust gives up on a call after 30 s ("dummyPlane is not responding"). */
 const SLOW_MS = 2000;
 
 /** What Rust can take as a reply: JSON. `undefined` or a cycle would make `mcp_reply` itself fail, and the call time out. */

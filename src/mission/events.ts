@@ -43,7 +43,7 @@ function flush(orchestratorId: string) {
   queues.delete(orchestratorId);
   // ptySendText keeps a node's writes in order; Claude queues what comes while it works.
   for (const entry of queue) {
-    void ptySendText(orchestratorId, `[OpenVibe] ${entry.line}`).then(
+    void ptySendText(orchestratorId, `[dummyPlane] ${entry.line}`).then(
       () => entry.typed?.(),
       () => {
         // Not typed (its session ended meanwhile): back in line for its next start.

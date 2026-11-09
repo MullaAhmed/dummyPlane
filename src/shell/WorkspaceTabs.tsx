@@ -84,8 +84,8 @@ function WorkspaceTab(props: { workspace: Workspace; active: boolean; canRemove:
       className={cn(
         "group relative top-px flex h-[30px] shrink-0 items-center rounded-t-[6px] border border-b-0 pl-3.5 pr-1 text-[12.5px]",
         active
-          ? "border-ov-glass-line bg-ov-tab-on text-ov-text before:absolute before:inset-x-2.5 before:-top-px before:h-0.5 before:rounded-full before:bg-ov-accent"
-          : "border-transparent text-ov-text-2 hover:bg-ov-hover hover:text-ov-text",
+          ? "border-dp-glass-line bg-dp-tab-on text-dp-text before:absolute before:inset-x-2.5 before:-top-px before:h-0.5 before:rounded-full before:bg-dp-accent"
+          : "border-transparent text-dp-text-2 hover:bg-dp-hover hover:text-dp-text",
       )}
     >
       {/* The whole tab selects, padding and badge included, like a browser tab. */}
@@ -101,7 +101,7 @@ function WorkspaceTab(props: { workspace: Workspace; active: boolean; canRemove:
           void workspacesStore.getState().move(workspace.id, index + (e.key === "ArrowLeft" ? -1 : 1));
         }}
       >
-        {isCode(workspace) && <Code2 data-code-icon aria-hidden className="mr-1.5 size-3.5 shrink-0 text-ov-accent" />}
+        {isCode(workspace) && <Code2 data-code-icon aria-hidden className="mr-1.5 size-3.5 shrink-0 text-dp-accent" />}
         <span className="max-w-40 truncate">{workspace.name}</span>
         {(active || running > 0) && (
           <span
@@ -109,7 +109,7 @@ function WorkspaceTab(props: { workspace: Workspace; active: boolean; canRemove:
             title={t.activeAgents(running)}
             className={cn(
               "ml-2 rounded-full px-1.5 font-mono text-[10px]",
-              active ? "bg-ov-accent-soft text-ov-accent" : "bg-ov-field text-ov-text-2",
+              active ? "bg-dp-accent-soft text-dp-accent" : "bg-dp-field text-dp-text-2",
             )}
           >
             {running}
@@ -122,7 +122,7 @@ function WorkspaceTab(props: { workspace: Workspace; active: boolean; canRemove:
           aria-label={t.deleteWorkspace}
           title={t.deleteWorkspace}
           onClick={() => void removeWorkspace(workspace, running).catch(fail("deleteFailed"))}
-          className="ml-1 grid size-5 place-items-center rounded-[4px] text-ov-text-2 opacity-0 group-hover:opacity-100 hover:bg-ov-hover hover:text-ov-text focus-visible:opacity-100"
+          className="ml-1 grid size-5 place-items-center rounded-[4px] text-dp-text-2 opacity-0 group-hover:opacity-100 hover:bg-dp-hover hover:text-dp-text focus-visible:opacity-100"
         >
           <X className="size-3.5" />
         </button>
@@ -168,7 +168,7 @@ export function WorkspaceTabs() {
       onWheel={(e) => {
         if (e.deltaX === 0) e.currentTarget.scrollLeft += e.deltaY;
       }}
-      className="ov-glass-strong flex w-full items-end gap-0.5 overflow-x-auto overflow-y-hidden rounded-none border-x-0 border-t-0 px-2.5 [scrollbar-width:none]"
+      className="dp-glass-strong flex w-full items-end gap-0.5 overflow-x-auto overflow-y-hidden rounded-none border-x-0 border-t-0 px-2.5 [scrollbar-width:none]"
       style={{ height: TABS_HEIGHT }}
     >
       {workspaces.map((workspace, index) => (

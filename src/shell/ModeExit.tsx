@@ -18,7 +18,7 @@ export function ModeExit() {
       type="button"
       onClick={leave}
       style={{ top: TOP_ROW_HEIGHT + 10 }}
-      className="ov-glass-strong absolute right-3 z-30 flex h-7 items-center gap-1.5 rounded-full px-3 text-[11.5px] text-ov-text-2 hover:text-ov-text"
+      className="dp-glass-strong absolute right-3 z-30 flex h-7 items-center gap-1.5 rounded-full px-3 text-[11.5px] text-dp-text-2 hover:text-dp-text"
     >
       <X className="size-3.5" />
       {mode === "zen" ? t.zen : t.reading}

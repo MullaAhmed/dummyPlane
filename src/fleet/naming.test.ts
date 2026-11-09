@@ -85,7 +85,7 @@ it("gives a new group the first pantheon nobody in the workspace uses", async ()
 
 it("gives a copied group a pantheon of its own, the original keeping its own (plan B1)", () => {
   const group = (id: string, pantheon: string) =>
-    ({ id, type: "frame", isDeleted: false, frameId: null, customData: { openvibe: { kind: "group", role: "backend", pantheon } } }) as unknown as import("@excalidraw/excalidraw/element/types").ExcalidrawElement;
+    ({ id, type: "frame", isDeleted: false, frameId: null, customData: { dummyplane: { kind: "group", role: "backend", pantheon } } }) as unknown as import("@excalidraw/excalidraw/element/types").ExcalidrawElement;
   const member = (id: string, frameId: string) =>
     ({ id, type: "embeddable", isDeleted: false, frameId, customData: { kind: "terminal" } }) as unknown as import("@excalidraw/excalidraw/element/types").ExcalidrawElement;
   const scene = [group("g1", "egypt"), member("a", "g1"), group("copy", "egypt"), member("a2", "copy")];

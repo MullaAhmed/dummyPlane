@@ -14,7 +14,7 @@ async function alertFor(nodeId: string) {
   if (!nativeNotificationsStore.getState().enabled) return;
   const agent = currentWaitingAgents().find((a) => a.id === nodeId);
   if (!agent || (await getCurrentWindow().isFocused())) return;
-  sendNotification({ title: "OpenVibe", body: messages(shellMessages).waitingNotice.question(agent.name), extra: { nodeId } });
+  sendNotification({ title: "dummyPlane", body: messages(shellMessages).waitingNotice.question(agent.name), extra: { nodeId } });
 }
 
 /** A click on the notification: back to the window, on the agent if it still waits and a canvas can show it. */

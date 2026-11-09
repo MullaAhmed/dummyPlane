@@ -14,7 +14,7 @@ vi.mock("@/fleet/quickActions", () => ({ launchLogin: vi.fn(() => Promise.resolv
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-const WORK = { id: "p1", name: "Travail", configDir: "C:/tmp/openvibe-test/work" };
+const WORK = { id: "p1", name: "Travail", configDir: "C:/tmp/dummyplane-test/work" };
 let state: { profiles: (typeof WORK)[]; active: string | null };
 let calls: { cmd: string; args: Record<string, unknown> }[];
 

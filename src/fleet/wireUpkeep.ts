@@ -25,9 +25,9 @@ export function scheduleWireUpkeep(api: ExcalidrawImperativeAPI, elements: reado
     api.updateScene({
       elements: current.map((e) => {
         // Marked, so that an undo bringing its ends back brings the wire back too.
-        if (orphans.has(e.id)) return newElementWith(e, { isDeleted: true, customData: { ...e.customData, openvibe: { kind: "wire", orphaned: true } } });
-        if (revived.has(e.id)) return newElementWith(e, { isDeleted: false, customData: { ...e.customData, openvibe: { kind: "wire" } } });
-        if (marked.has(e.id)) return newElementWith(e, { customData: { ...e.customData, openvibe: { kind: "wire" } } });
+        if (orphans.has(e.id)) return newElementWith(e, { isDeleted: true, customData: { ...e.customData, dummyplane: { kind: "wire", orphaned: true } } });
+        if (revived.has(e.id)) return newElementWith(e, { isDeleted: false, customData: { ...e.customData, dummyplane: { kind: "wire" } } });
+        if (marked.has(e.id)) return newElementWith(e, { customData: { ...e.customData, dummyplane: { kind: "wire" } } });
         return e;
       }),
       captureUpdate: CaptureUpdateAction.NEVER,

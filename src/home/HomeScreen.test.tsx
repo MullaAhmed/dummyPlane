@@ -30,7 +30,7 @@ it("puts the title bar on top and scrolls the projects under it, never into it (
   await act(async () => root.render(<HomeScreen />));
   const bar = host.querySelector("[data-tauri-drag-region]")!;
   expect(bar.querySelector("svg rect")!.getAttribute("fill")).toBe("currentColor");
-  expect(bar.textContent).toContain("OpenVibe");
+  expect(bar.textContent).toContain("dummyPlane");
   const header = host.querySelector("header")!;
   expect(header.textContent).toContain("Projects");
   expect(header.textContent).toContain("Add a project");
@@ -38,7 +38,7 @@ it("puts the title bar on top and scrolls the projects under it, never into it (
   while (scroller && !scroller.className.includes("overflow-auto")) scroller = scroller.parentElement;
   expect(bar.compareDocumentPosition(scroller!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   expect(scroller!.contains(bar)).toBe(false);
-  expect(host.innerHTML).not.toContain("var(--ov-dot)");
+  expect(host.innerHTML).not.toContain("var(--dp-dot)");
   await act(async () => root.unmount());
   host.remove();
 });

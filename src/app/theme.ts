@@ -25,8 +25,8 @@ export const PALETTES: Record<ThemeChoice, { name: string; scheme: Theme; canvas
 function mirror() {
   const { choice, transparency } = themeStore.getState();
   try {
-    localStorage.setItem("ov.theme", choice);
-    localStorage.setItem("ov.transparency", transparency ? "on" : "off");
+    localStorage.setItem("dp.theme", choice);
+    localStorage.setItem("dp.transparency", transparency ? "on" : "off");
   } catch {
     // No storage: the next start paints the default palette until the settings are read.
   }

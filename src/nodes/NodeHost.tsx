@@ -12,7 +12,7 @@ import { useMessages } from "@/i18n";
 import { nodesMessages } from "./messages";
 
 /**
- * Renders the OpenVibe node behind an Excalidraw embeddable, chosen by its kind.
+ * Renders the dummyPlane node behind an Excalidraw embeddable, chosen by its kind.
  * A render error stays in the node's frame; its process keeps running.
  */
 export const NodeHost = memo(function NodeHost({ element }: { element: NonDeleted<ExcalidrawEmbeddableElement> }) {

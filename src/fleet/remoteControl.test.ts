@@ -6,7 +6,7 @@ import { disableRemote, draftOf, enableRemote, remoteErrorText, remoteScreen, ty
 const URL = "https://claude.ai/code/session_014egvikPZf3oUfnmUBm3aoD";
 const PROMPT = ["────────────────────────────── Claude · demo ─", "❯ ", "──────────────────────────────", "  demo ⌥ main | Opus 5.5"];
 
-/** Screens copied from Claude Code 2.1.304 in OpenVibe. */
+/** Screens copied from Claude Code 2.1.304 in dummyPlane. */
 const ACTIVE = ["❯ /effort xhigh", "  ⎿  Set effort level to xhigh", "❯ /remote-control", "  /remote-control is active · Continue here, on your phone, or at", `  ${URL}`, ...PROMPT].join("\n");
 const MENU = [
   "❯ /remote-control",

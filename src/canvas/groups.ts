@@ -11,7 +11,7 @@ export interface Rect {
   height: number;
 }
 
-/** What a group frame carries in `customData.openvibe` (spec habillage §11.1). */
+/** What a group frame carries in `customData.dummyplane` (spec habillage §11.1). */
 export interface GroupInfo {
   role: RoleId;
   pantheon: string;
@@ -37,7 +37,7 @@ export interface SceneFrame extends Rect {
 export type SceneGroup = SceneFrame & { group: GroupInfo };
 
 export function groupInfoOf(element: ExcalidrawElement): GroupInfo | null {
-  const data = element.customData?.openvibe as Record<string, unknown> | undefined;
+  const data = element.customData?.dummyplane as Record<string, unknown> | undefined;
   if (element.type !== "frame" || data?.kind !== "group") return null;
   if (!isRoleId(data.role) || typeof data.pantheon !== "string") return null;
   const speciality = readSpeciality(data.speciality);
@@ -46,15 +46,15 @@ export function groupInfoOf(element: ExcalidrawElement): GroupInfo | null {
 
 /** A group frame's `customData` with `speciality`, or without one when it is blank. */
 export function withGroupSpeciality(customData: ExcalidrawElement["customData"], speciality: string): Record<string, unknown> {
-  const { speciality: _previous, ...openvibe } = (customData?.openvibe ?? {}) as Record<string, unknown>;
+  const { speciality: _previous, ...dummyplane } = (customData?.dummyplane ?? {}) as Record<string, unknown>;
   const next = readSpeciality(speciality);
-  return { ...customData, openvibe: next ? { ...openvibe, speciality: next } : openvibe };
+  return { ...customData, dummyplane: next ? { ...dummyplane, speciality: next } : dummyplane };
 }
 
 /** A group frame's `customData` folded, or unfolded without a trace. */
 export function withGroupFolded(customData: ExcalidrawElement["customData"], folded: boolean): Record<string, unknown> {
-  const { folded: _previous, ...openvibe } = (customData?.openvibe ?? {}) as Record<string, unknown>;
-  return { ...customData, openvibe: folded ? { ...openvibe, folded: true } : openvibe };
+  const { folded: _previous, ...dummyplane } = (customData?.dummyplane ?? {}) as Record<string, unknown>;
+  return { ...customData, dummyplane: folded ? { ...dummyplane, folded: true } : dummyplane };
 }
 
 /** The terminals that folded groups keep off the screen. */
@@ -156,7 +156,7 @@ export function createGroupFrame(rect: Rect, name: string, info: GroupInfo): Exc
     updated: Date.now(),
     link: null,
     locked: false,
-    customData: withGroupSpeciality({ openvibe: { kind: "group", role: info.role, pantheon: info.pantheon } }, info.speciality ?? ""),
+    customData: withGroupSpeciality({ dummyplane: { kind: "group", role: info.role, pantheon: info.pantheon } }, info.speciality ?? ""),
   };
 }
 

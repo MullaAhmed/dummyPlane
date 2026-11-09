@@ -31,7 +31,7 @@ export interface AgentMeta {
  * Clay (spec identity §3, "readable in both").
  */
 export function agentInk(tint: string): string {
-  return `color-mix(in srgb, ${tint} 65%, var(--ov-text))`;
+  return `color-mix(in srgb, ${tint} 65%, var(--dp-text))`;
 }
 
 /** `label` and `vendor` of the three agents with words of their own are read when used, so they follow the language. */

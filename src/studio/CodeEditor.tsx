@@ -29,7 +29,7 @@ const flashLine = StateField.define({
   create: () => Decoration.none,
   update(lit, tr) {
     for (const effect of tr.effects)
-      if (effect.is(flash)) lit = effect.value === null ? Decoration.none : Decoration.set([Decoration.line({ class: "cm-ov-flash" }).range(effect.value)]);
+      if (effect.is(flash)) lit = effect.value === null ? Decoration.none : Decoration.set([Decoration.line({ class: "cm-dp-flash" }).range(effect.value)]);
     return tr.docChanged ? lit.map(tr.changes) : lit;
   },
   provide: (field) => EditorView.decorations.from(field),
@@ -56,28 +56,28 @@ function themeFor(theme: Theme): Extension {
   return [
     EditorView.theme(
       {
-        "&": { height: "100%", backgroundColor: "transparent", color: "var(--ov-text)", fontSize: "12.5px" },
+        "&": { height: "100%", backgroundColor: "transparent", color: "var(--dp-text)", fontSize: "12.5px" },
         ".cm-scroller": { fontFamily: "var(--font-mono, 'JetBrains Mono Variable', monospace)", lineHeight: "1.55" },
-        ".cm-content": { caretColor: "var(--ov-accent)" },
-        ".cm-cursor, .cm-dropCursor": { borderLeftColor: "var(--ov-accent)" },
+        ".cm-content": { caretColor: "var(--dp-accent)" },
+        ".cm-cursor, .cm-dropCursor": { borderLeftColor: "var(--dp-accent)" },
         "&.cm-focused": { outline: "none" },
         "&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground, .cm-selectionBackground": {
-          backgroundColor: "var(--ov-selected)",
+          backgroundColor: "var(--dp-selected)",
         },
-        ".cm-gutters": { backgroundColor: "transparent", color: "var(--ov-text-3)", border: "none" },
-        ".cm-activeLine, .cm-activeLineGutter": { backgroundColor: "var(--ov-hover)" },
-        ".cm-foldPlaceholder": { backgroundColor: "var(--ov-field)", border: "none", color: "var(--ov-text-2)" },
-        ".cm-selectionMatch": { backgroundColor: "var(--ov-hover)" },
-        ".cm-searchMatch": { backgroundColor: "var(--ov-accent-soft)", outline: "1px solid var(--ov-line)" },
-        ".cm-searchMatch.cm-searchMatch-selected": { backgroundColor: "var(--ov-accent-soft)", outline: "1px solid var(--ov-accent)" },
-        ".cm-panels": { backgroundColor: "var(--ov-surface)", color: "var(--ov-text)" },
-        ".cm-panels.cm-panels-top": { borderBottom: "1px solid var(--ov-line)" },
-        ".cm-panels.cm-panels-bottom": { borderTop: "1px solid var(--ov-line)" },
-        ".cm-textfield": { backgroundColor: "var(--ov-field)", border: "1px solid var(--ov-line)", borderRadius: "6px" },
-        ".cm-button": { backgroundImage: "none", backgroundColor: "var(--ov-field)", border: "1px solid var(--ov-line)", borderRadius: "6px" },
-        ".cm-tooltip": { backgroundColor: "var(--ov-surface)", border: "1px solid var(--ov-line)", borderRadius: "9px" },
-        ".cm-tooltip-autocomplete ul li[aria-selected]": { backgroundColor: "var(--ov-accent-soft)", color: "var(--ov-text)" },
-        ".cm-ov-flash": { backgroundColor: "var(--ov-accent-soft)" },
+        ".cm-gutters": { backgroundColor: "transparent", color: "var(--dp-text-3)", border: "none" },
+        ".cm-activeLine, .cm-activeLineGutter": { backgroundColor: "var(--dp-hover)" },
+        ".cm-foldPlaceholder": { backgroundColor: "var(--dp-field)", border: "none", color: "var(--dp-text-2)" },
+        ".cm-selectionMatch": { backgroundColor: "var(--dp-hover)" },
+        ".cm-searchMatch": { backgroundColor: "var(--dp-accent-soft)", outline: "1px solid var(--dp-line)" },
+        ".cm-searchMatch.cm-searchMatch-selected": { backgroundColor: "var(--dp-accent-soft)", outline: "1px solid var(--dp-accent)" },
+        ".cm-panels": { backgroundColor: "var(--dp-surface)", color: "var(--dp-text)" },
+        ".cm-panels.cm-panels-top": { borderBottom: "1px solid var(--dp-line)" },
+        ".cm-panels.cm-panels-bottom": { borderTop: "1px solid var(--dp-line)" },
+        ".cm-textfield": { backgroundColor: "var(--dp-field)", border: "1px solid var(--dp-line)", borderRadius: "6px" },
+        ".cm-button": { backgroundImage: "none", backgroundColor: "var(--dp-field)", border: "1px solid var(--dp-line)", borderRadius: "6px" },
+        ".cm-tooltip": { backgroundColor: "var(--dp-surface)", border: "1px solid var(--dp-line)", borderRadius: "9px" },
+        ".cm-tooltip-autocomplete ul li[aria-selected]": { backgroundColor: "var(--dp-accent-soft)", color: "var(--dp-text)" },
+        ".cm-dp-flash": { backgroundColor: "var(--dp-accent-soft)" },
       },
       { dark: theme === "dark" },
     ),

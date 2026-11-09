@@ -30,7 +30,7 @@ const HEADING_CLASSES = [
   "text-base font-semibold",
   "text-sm font-semibold",
   "text-sm font-medium",
-  "text-sm font-medium text-ov-text-2",
+  "text-sm font-medium text-dp-text-2",
 ];
 
 /** Returns the href if it is http(s), mailto or relative; otherwise null. */
@@ -55,12 +55,12 @@ function renderInline(text: string): ReactNode[] {
     const k = key++;
     if (m[1] !== undefined) {
       out.push(
-        <code key={k} className="rounded bg-ov-field px-1 font-mono text-[0.9em]">
+        <code key={k} className="rounded bg-dp-field px-1 font-mono text-[0.9em]">
           {m[1]}
         </code>,
       );
     } else if (m[2] !== undefined) {
-      out.push(<span key={k} className="text-ov-text-3">[{m[2] || "image"}]</span>);
+      out.push(<span key={k} className="text-dp-text-3">[{m[2] || "image"}]</span>);
     } else if (m[4] !== undefined) {
       const href = safeHref(m[5]);
       out.push(
@@ -72,7 +72,7 @@ function renderInline(text: string): ReactNode[] {
             href={href}
             target="_blank"
             rel="noreferrer noopener"
-            className="text-ov-accent underline"
+            className="text-dp-accent underline"
           >
             {renderInline(m[4])}
           </a>
@@ -118,7 +118,7 @@ export function renderMarkdown(source: string): ReactNode {
       while (i < lines.length && !/^\s*```\s*$/.test(lines[i])) code.push(lines[i++]);
       i++;
       blocks.push(
-        <pre key={key} className="overflow-x-auto rounded border border-ov-line bg-ov-field p-2">
+        <pre key={key} className="overflow-x-auto rounded border border-dp-line bg-dp-field p-2">
           <code className="font-mono text-xs" data-lang={m[1] || undefined}>
             {code.join("\n")}
           </code>
@@ -127,10 +127,10 @@ export function renderMarkdown(source: string): ReactNode {
     } else if ((m = HEADING.exec(line))) {
       const level = m[1].length;
       const Tag = `h${level}` as "h1";
-      blocks.push(<Tag key={key} className={`text-ov-text ${HEADING_CLASSES[level - 1]}`}>{renderInline(m[2])}</Tag>);
+      blocks.push(<Tag key={key} className={`text-dp-text ${HEADING_CLASSES[level - 1]}`}>{renderInline(m[2])}</Tag>);
       i++;
     } else if (HR.test(line)) {
-      blocks.push(<hr key={key} className="border-ov-line" />);
+      blocks.push(<hr key={key} className="border-dp-line" />);
       i++;
     } else if (QUOTE.test(line)) {
       const inner: string[] = [];
@@ -139,7 +139,7 @@ export function renderMarkdown(source: string): ReactNode {
         i++;
       }
       blocks.push(
-        <blockquote key={key} className="border-l-2 border-ov-line pl-3 text-ov-text-2">
+        <blockquote key={key} className="border-l-2 border-dp-line pl-3 text-dp-text-2">
           {renderMarkdown(inner.join("\n"))}
         </blockquote>,
       );
@@ -167,11 +167,11 @@ export function renderMarkdown(source: string): ReactNode {
       blocks.push(
         <table key={key} className="border-collapse text-sm">
           <thead>
-            <tr>{head.map((c, n) => <th key={n} className="border border-ov-line px-2 py-1 text-left">{renderInline(c)}</th>)}</tr>
+            <tr>{head.map((c, n) => <th key={n} className="border border-dp-line px-2 py-1 text-left">{renderInline(c)}</th>)}</tr>
           </thead>
           <tbody>
             {rows.map((row, r) => (
-              <tr key={r}>{row.map((c, n) => <td key={n} className="border border-ov-line px-2 py-1">{renderInline(c)}</td>)}</tr>
+              <tr key={r}>{row.map((c, n) => <td key={n} className="border border-dp-line px-2 py-1">{renderInline(c)}</td>)}</tr>
             ))}
           </tbody>
         </table>,
@@ -183,5 +183,5 @@ export function renderMarkdown(source: string): ReactNode {
       blocks.push(<p key={key}>{renderInline(para.join(" "))}</p>);
     }
   }
-  return <div className="flex flex-col gap-2 text-sm text-ov-text">{blocks}</div>;
+  return <div className="flex flex-col gap-2 text-sm text-dp-text">{blocks}</div>;
 }

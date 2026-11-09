@@ -27,7 +27,7 @@ it("flashes the border of the terminal that arrives, anew on each arrival (spec 
   expect(host.querySelector("[data-arrival]")).toBeNull();
   await act(async () => signalArrival("isis"));
   const first = host.querySelector('[data-node="isis"] [data-arrival]')!;
-  expect(first.className).toContain("ov-arrival");
+  expect(first.className).toContain("dp-arrival");
   expect(host.querySelector('[data-node="thot"] [data-arrival]')).toBeNull();
   await act(async () => signalArrival("isis"));
   // A new element restarts the animation.
@@ -65,7 +65,7 @@ it("plays once: the ring is gone after 600 ms, so scrolling back or returning to
 });
 
 it("fades the accent back in 600 ms, inside every terminal", () => {
-  expect(readSource("index.css")).toMatch(/@keyframes ov-arrival \{[^}]*var\(--ov-accent\)/);
-  expect(readSource("index.css")).toMatch(/\.ov-arrival \{[^}]*ov-arrival 600ms/);
+  expect(readSource("index.css")).toMatch(/@keyframes dp-arrival \{[^}]*var\(--dp-accent\)/);
+  expect(readSource("index.css")).toMatch(/\.dp-arrival \{[^}]*dp-arrival 600ms/);
   expect(readSource("nodes/terminal/TerminalNode.tsx")).toContain("<ArrivalFlash nodeId={nodeId} />");
 });

@@ -30,7 +30,7 @@ export function AgentRow(props: { id: string; onOpen?: () => void; trailing?: Re
   const name = payload.name || meta.label;
   const facts = { agent: payload.agent, running: status.state === "running", activity: activity?.activity };
   return (
-    <div className="group flex items-center gap-2 rounded-lg px-1.5 py-1 hover:bg-ov-hover">
+    <div className="group flex items-center gap-2 rounded-lg px-1.5 py-1 hover:bg-dp-hover">
       <button type="button" onClick={onOpen} className="flex min-w-0 flex-1 items-center gap-2 text-left">
         <span
           className="grid size-6 shrink-0 place-items-center rounded-md"
@@ -38,12 +38,12 @@ export function AgentRow(props: { id: string; onOpen?: () => void; trailing?: Re
         >
           <meta.Icon className="size-3.5" />
         </span>
-        <span className="min-w-0 flex-1 truncate text-[13px] text-ov-text">
-          {name} <span className="text-ov-text-2">{meta.label}</span>
+        <span className="min-w-0 flex-1 truncate text-[13px] text-dp-text">
+          {name} <span className="text-dp-text-2">{meta.label}</span>
         </span>
       </button>
       {remote?.state === "on" && (
-        <span title={t.remoteOn} aria-label={t.remoteOn} className="text-ov-accent">
+        <span title={t.remoteOn} aria-label={t.remoteOn} className="text-dp-accent">
           <Smartphone className="size-3.5" />
         </span>
       )}

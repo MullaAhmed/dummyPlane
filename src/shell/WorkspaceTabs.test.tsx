@@ -48,7 +48,7 @@ it("shows the workspaces as browser tabs, then +, then empty space that moves th
   expect(row().style.height).toBe(`${TABS_HEIGHT}px`);
   expect(tabs().map((t) => t.dataset.tab)).toEqual(["w1", "w2"]);
   expect(tabs()[1].dataset.active).toBe("true");
-  expect(tabs()[1].className).toContain("bg-ov-tab-on");
+  expect(tabs()[1].className).toContain("bg-dp-tab-on");
   expect(row().querySelector('[aria-label="New workspace"]')).not.toBeNull();
   // The scrolling row itself never drags: a press on it would move the window instead of scrolling.
   expect(row().hasAttribute("data-tauri-drag-region")).toBe(false);

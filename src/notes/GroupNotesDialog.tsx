@@ -47,25 +47,25 @@ function Chooser({ groupId }: { groupId: string }) {
           <DialogDescription>{t.description}</DialogDescription>
         </DialogHeader>
         {failure ? (
-          <p className="text-xs text-ov-danger">{failure}</p>
+          <p className="text-xs text-dp-danger">{failure}</p>
         ) : names === null ? (
-          <p className="text-xs text-ov-text-2">{t.reading}</p>
+          <p className="text-xs text-dp-text-2">{t.reading}</p>
         ) : rows.length === 0 ? (
-          <p className="text-xs text-ov-text-2">{t.empty}</p>
+          <p className="text-xs text-dp-text-2">{t.empty}</p>
         ) : (
           <ul className="flex max-h-64 flex-col gap-0.5 overflow-y-auto">
             {rows.map((name) => (
               <li key={name}>
-                <label className="flex items-center gap-2 rounded-[6px] px-1.5 py-1 text-[12.5px] text-ov-text hover:bg-ov-hover">
+                <label className="flex items-center gap-2 rounded-[6px] px-1.5 py-1 text-[12.5px] text-dp-text hover:bg-dp-hover">
                   <input
                     type="checkbox"
                     data-attach={name}
                     checked={chosen.some((n) => n.toLowerCase() === name.toLowerCase())}
                     onChange={() => toggle(chosen.find((n) => n.toLowerCase() === name.toLowerCase()) ?? name)}
-                    className="accent-ov-accent"
+                    className="accent-dp-accent"
                   />
                   <span className="min-w-0 truncate">{name}</span>
-                  {gone.includes(name) && <span className="shrink-0 text-[11px] text-ov-text-3">{t.missing}</span>}
+                  {gone.includes(name) && <span className="shrink-0 text-[11px] text-dp-text-3">{t.missing}</span>}
                 </label>
               </li>
             ))}

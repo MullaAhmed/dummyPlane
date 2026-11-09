@@ -23,7 +23,7 @@ export const homeMessages = defineMessages({
     troubleshoot: "Something wrong? Troubleshooting",
     noAgent: {
       title: "No coding agent found",
-      hint: "OpenVibe launches the agents installed on this PC. Install at least one, then check again.",
+      hint: "dummyPlane launches the agents installed on this PC. Install at least one, then check again.",
       recommended: "recommended",
       claudeWhy: "Required for the orchestrator, missions and the usage meter.",
       claudeHow: "In PowerShell:",
@@ -38,7 +38,7 @@ export const homeMessages = defineMessages({
       openFailed: (error: string) => `Could not open the project: ${error}`,
       others: "The other agents:",
       recheck: "Check again",
-      recheckHint: "Reads Windows' PATH again: no need to restart OpenVibe.",
+      recheckHint: "Reads Windows' PATH again: no need to restart dummyPlane.",
       recheckFailed: (error: string) => `Could not check: ${error}`,
     },
     card: {

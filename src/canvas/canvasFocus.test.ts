@@ -9,7 +9,7 @@ import { focusGroup, overview, overviewTargets, releaseToCanvas } from "./canvas
 const element = (fields: Record<string, unknown>) =>
   ({ x: 0, y: 0, width: 100, height: 100, isDeleted: false, frameId: null, ...fields }) as unknown as ExcalidrawElement;
 const node = (id: string, kind: string, frameId: string | null = null) => element({ id, type: "embeddable", customData: { kind }, frameId });
-const groupFrame = (id: string) => element({ id, type: "frame", customData: { openvibe: { kind: "group", role: "backend", pantheon: "egypt" } } });
+const groupFrame = (id: string) => element({ id, type: "frame", customData: { dummyplane: { kind: "group", role: "backend", pantheon: "egypt" } } });
 
 const updateScene = vi.fn();
 const scrollToContent = vi.fn();

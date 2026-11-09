@@ -18,18 +18,18 @@ function Check({ id, ok, label, value, hint, plain = false }: { id: string; ok: 
   const Icon = ok ? CircleCheck : CircleAlert;
   return (
     <div data-check={id} className="flex items-start gap-2">
-      <Icon className={cn("mt-0.5 size-3.5 shrink-0", ok ? "text-ov-ok" : "text-ov-wait")} />
+      <Icon className={cn("mt-0.5 size-3.5 shrink-0", ok ? "text-dp-ok" : "text-dp-wait")} />
       <div className="min-w-0">
-        <p className="text-ov-text">
-          {label} · <span className={plain ? "text-ov-text-2" : "font-mono text-[11px] text-ov-text-2"}>{value}</span>
+        <p className="text-dp-text">
+          {label} · <span className={plain ? "text-dp-text-2" : "font-mono text-[11px] text-dp-text-2"}>{value}</span>
         </p>
-        {hint && <p className="text-xs text-ov-text-2">{hint}</p>}
+        {hint && <p className="text-xs text-dp-text-2">{hint}</p>}
       </div>
     </div>
   );
 }
 
-/** Troubleshooting (spec première version §7.3): what OpenVibe sees, and where to go from there. */
+/** Troubleshooting (spec première version §7.3): what dummyPlane sees, and where to go from there. */
 export function TroubleshootingDialog() {
   const t = useMessages(shellMessages).troubleshoot;
   const { open, diagnostics: d, error } = useTroubleshoot((s) => s);
@@ -56,25 +56,25 @@ export function TroubleshootingDialog() {
           <DialogTitle>{t.title}</DialogTitle>
           <DialogDescription>{t.description}</DialogDescription>
         </DialogHeader>
-        {error && <p className="text-sm text-ov-danger">{t.failed(error)}</p>}
-        {!d && !error && <p className="text-sm text-ov-text-2">{t.loading}</p>}
+        {error && <p className="text-sm text-dp-danger">{t.failed(error)}</p>}
+        {!d && !error && <p className="text-sm text-dp-text-2">{t.loading}</p>}
         {d && (
           <div className="grid gap-3 text-[13px]">
-            <p className="text-ov-text">
-              OpenVibe {d.version} <span className="text-ov-text-2">· {d.os}</span>
+            <p className="text-dp-text">
+              dummyPlane {d.version} <span className="text-dp-text-2">· {d.os}</span>
             </p>
             <div>
-              <p className="ov-label mb-1">{t.agents}</p>
+              <p className="dp-label mb-1">{t.agents}</p>
               <ul className="grid gap-0.5">
                 {d.agents.map((a) => (
                   <li key={a.id} data-agent={a.id} className="flex items-baseline gap-2">
-                    <span className={cn("w-20 shrink-0", a.path ? "text-ov-text" : "text-ov-text-2")}>{AGENTS[a.id]?.label ?? a.id}</span>
+                    <span className={cn("w-20 shrink-0", a.path ? "text-dp-text" : "text-dp-text-2")}>{AGENTS[a.id]?.label ?? a.id}</span>
                     {a.path ? (
-                      <span className="truncate font-mono text-[11px] text-ov-text-2" title={a.path}>
+                      <span className="truncate font-mono text-[11px] text-dp-text-2" title={a.path}>
                         {a.path}
                       </span>
                     ) : (
-                      <span className="text-xs text-ov-text-2">{t.notFound}</span>
+                      <span className="text-xs text-dp-text-2">{t.notFound}</span>
                     )}
                   </li>
                 ))}

@@ -17,5 +17,5 @@ it("keeps the accent's own text color in the agent menu", () => {
 });
 
 it("keeps the accent's own text color in the mission panel", () => {
-  expect(readSource("mission/MissionPanel.tsx")).not.toMatch(/bg-ov-accent[^"]*text-white/);
+  expect(readSource("mission/MissionPanel.tsx")).not.toMatch(/bg-dp-accent[^"]*text-white/);
 });

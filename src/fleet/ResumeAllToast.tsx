@@ -54,23 +54,23 @@ function ResumeAllToast({ workspaceId }: { workspaceId: string }) {
   };
 
   return (
-    <div className="ov-glass-strong flex w-[360px] items-start gap-3 rounded-[14px] p-3 text-ov-text">
-      <History className="mt-0.5 size-4 shrink-0 text-ov-accent" />
+    <div className="dp-glass-strong flex w-[360px] items-start gap-3 rounded-[14px] p-3 text-dp-text">
+      <History className="mt-0.5 size-4 shrink-0 text-dp-accent" />
       <div className="min-w-0 flex-1">
         <p className="text-sm font-medium">{t.title}</p>
-        <p className="text-xs text-ov-text-2">
+        <p className="text-xs text-dp-text-2">
           {t.body(ids.length)}
         </p>
         <div className="mt-2 flex gap-2">
-          <button type="button" className="h-7 rounded-[8px] bg-ov-accent px-3 text-xs font-semibold text-ov-on-accent" onClick={resumeAll}>
+          <button type="button" className="h-7 rounded-[8px] bg-dp-accent px-3 text-xs font-semibold text-dp-on-accent" onClick={resumeAll}>
             {t.yes}
           </button>
-          <button type="button" className="h-7 rounded-[8px] bg-ov-field px-3 text-xs text-ov-text" onClick={answer}>
+          <button type="button" className="h-7 rounded-[8px] bg-dp-field px-3 text-xs text-dp-text" onClick={answer}>
             {t.no}
           </button>
         </div>
       </div>
-      <button type="button" aria-label={t.close} className="text-ov-text-2 hover:text-ov-text" onClick={answer}>
+      <button type="button" aria-label={t.close} className="text-dp-text-2 hover:text-dp-text" onClick={answer}>
         <X className="size-3.5" />
       </button>
     </div>

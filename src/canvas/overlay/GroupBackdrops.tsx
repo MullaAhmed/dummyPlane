@@ -29,7 +29,7 @@ export function GroupBackdrops() {
               borderRadius: 12 * view.zoom,
               borderColor: color
                 ? `color-mix(in srgb, ${color} 60%, transparent)`
-                : "color-mix(in srgb, var(--ov-text-2) 45%, transparent)",
+                : "color-mix(in srgb, var(--dp-text-2) 45%, transparent)",
               backgroundColor: color ? `color-mix(in srgb, ${color} 4%, transparent)` : undefined,
             }}
           />

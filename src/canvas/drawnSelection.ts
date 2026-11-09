@@ -14,7 +14,7 @@ export function isDrawn(element: ExcalidrawElement): boolean {
 }
 
 /**
- * The drawn elements of the selection, in scene order. OpenVibe's nodes are
+ * The drawn elements of the selection, in scene order. dummyPlane's nodes are
  * embeddables and frames keep their own names and children: neither is drawn.
  */
 export function drawnSelectionOf(elements: readonly ExcalidrawElement[], selected: Selected): ExcalidrawElement[] {

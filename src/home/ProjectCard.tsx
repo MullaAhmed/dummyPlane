@@ -46,12 +46,12 @@ export function ProjectCard({ project }: { project: Project }) {
       onClick={openProject}
       onKeyDown={(e) => e.key === "Enter" && openProject()}
       className={cn(
-        "ov-glass-strong group rounded-[14px] p-4 transition-colors",
-        openable && "cursor-pointer hover:border-ov-accent/60",
+        "dp-glass-strong group rounded-[14px] p-4 transition-colors",
+        openable && "cursor-pointer hover:border-dp-accent/60",
       )}
     >
       <div className="mb-3 flex items-start gap-3">
-        <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-ov-accent-soft text-ov-accent">
+        <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-dp-accent-soft text-dp-accent">
           <Folder className="size-4" />
         </div>
         <div className="min-w-0 flex-1">
@@ -72,9 +72,9 @@ export function ProjectCard({ project }: { project: Project }) {
               }}
             />
           ) : (
-            <p className="truncate font-semibold text-ov-text">{project.name}</p>
+            <p className="truncate font-semibold text-dp-text">{project.name}</p>
           )}
-          <p className="truncate font-mono text-[11px] text-ov-text-2" title={project.path}>
+          <p className="truncate font-mono text-[11px] text-dp-text-2" title={project.path}>
             {project.path}
           </p>
         </div>
@@ -84,7 +84,7 @@ export function ProjectCard({ project }: { project: Project }) {
               type="button"
               aria-label={t.actions}
               onClick={(e) => e.stopPropagation()}
-              className="grid size-7 place-items-center rounded-full text-ov-text-2 opacity-0 group-hover:opacity-100 hover:bg-ov-card hover:text-ov-text data-[state=open]:opacity-100"
+              className="grid size-7 place-items-center rounded-full text-dp-text-2 opacity-0 group-hover:opacity-100 hover:bg-dp-card hover:text-dp-text data-[state=open]:opacity-100"
             >
               <Ellipsis className="size-4" />
             </button>
@@ -101,13 +101,13 @@ export function ProjectCard({ project }: { project: Project }) {
         </DropdownMenu>
       </div>
       {project.missing ? (
-        <p className="text-xs text-ov-danger">{t.missing}</p>
+        <p className="text-xs text-dp-danger">{t.missing}</p>
       ) : (
-        <div className="flex items-center gap-3 font-mono text-[11px] text-ov-text-2">
+        <div className="flex items-center gap-3 font-mono text-[11px] text-dp-text-2">
           <span>{t.workspaces(project.workspaceCount)}</span>
           {project.liveAgents > 0 && (
-            <span className="flex items-center gap-1 text-ov-live">
-              <span className="size-1.5 rounded-full bg-ov-live" />
+            <span className="flex items-center gap-1 text-dp-live">
+              <span className="size-1.5 rounded-full bg-dp-live" />
               {t.liveAgents(project.liveAgents)}
             </span>
           )}

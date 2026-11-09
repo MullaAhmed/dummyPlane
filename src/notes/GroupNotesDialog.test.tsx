@@ -19,7 +19,7 @@ vi.mock("@excalidraw/excalidraw", () => ({
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 const frame = (notes?: string[]) =>
-  ({ id: "g1", type: "frame", name: "Team", isDeleted: false, customData: { openvibe: { kind: "group", role: "custom", pantheon: "egypt", ...(notes ? { notes } : {}) } } }) as unknown as ExcalidrawElement;
+  ({ id: "g1", type: "frame", name: "Team", isDeleted: false, customData: { dummyplane: { kind: "group", role: "custom", pantheon: "egypt", ...(notes ? { notes } : {}) } } }) as unknown as ExcalidrawElement;
 
 let elements: ExcalidrawElement[];
 const updateScene = vi.fn((update: { elements: ExcalidrawElement[] }) => void (elements = update.elements));
@@ -58,14 +58,14 @@ describe("the notes of a group (spec notes §3)", () => {
     setGroupNotes("g1", ["Auth"]);
     expect(groupNotesOf("g1")).toEqual(["Auth"]);
     expect(updateScene).toHaveBeenCalledOnce();
-    const data = elements[0].customData?.openvibe as Record<string, unknown>;
+    const data = elements[0].customData?.dummyplane as Record<string, unknown>;
     expect(data).toMatchObject({ kind: "group", role: "custom", pantheon: "egypt", notes: ["Auth"] });
   });
 
   it("has none by default, and ignores what is not a name", () => {
     expect(groupNotesOf("g1")).toEqual([]);
     expect(groupNotesOf("nope")).toEqual([]);
-    elements = [{ ...frame(), customData: { openvibe: { notes: ["ok", 3, "a/b"] } } } as unknown as ExcalidrawElement];
+    elements = [{ ...frame(), customData: { dummyplane: { notes: ["ok", 3, "a/b"] } } } as unknown as ExcalidrawElement];
     expect(groupNotesOf("g1")).toEqual(["ok"]);
   });
 

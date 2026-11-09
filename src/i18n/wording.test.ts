@@ -31,7 +31,7 @@ it("tells that the local server is down, and names a new orchestrator", () => {
   expect(messages(nodesMessages).orchestrator.defaultName).toBe("Orchestrator");
 });
 
-it("says what OpenVibe really reads in a Claude profile's folder (review)", () => {
+it("says what dummyPlane really reads in a Claude profile's folder (review)", () => {
   const text = accountsMessages.description;
   expect(text).not.toContain("reads nothing");
   expect(text).toContain("settings.json");

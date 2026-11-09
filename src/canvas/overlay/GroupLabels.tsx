@@ -75,7 +75,7 @@ function GroupLabel(props: { group: SceneGroup; view: CanvasView; working: numbe
   const role = ROLES[roleId];
   return (
     <div
-      className="absolute flex items-center rounded-t-lg border border-b-0 bg-ov-surface pr-1.5 text-[11px] whitespace-nowrap"
+      className="absolute flex items-center rounded-t-lg border border-b-0 bg-dp-surface pr-1.5 text-[11px] whitespace-nowrap"
       style={{
         // One pixel left so the name lines up with the native one under it, despite the border.
         left: rect.x + LABEL_INSET - 1,
@@ -89,7 +89,7 @@ function GroupLabel(props: { group: SceneGroup; view: CanvasView; working: numbe
         aria-label={folded ? t.unfoldGroup : t.foldGroup}
         title={folded ? t.unfoldGroup : t.foldGroup}
         onClick={() => setGroupFolded(group.id, !folded)}
-        className="pointer-events-auto grid h-full w-4 shrink-0 place-items-center text-ov-text-2 hover:text-ov-text"
+        className="pointer-events-auto grid h-full w-4 shrink-0 place-items-center text-dp-text-2 hover:text-dp-text"
       >
         {folded ? <ChevronRight className="size-3.5" /> : <ChevronDown className="size-3.5" />}
       </button>
@@ -97,15 +97,15 @@ function GroupLabel(props: { group: SceneGroup; view: CanvasView; working: numbe
       {renaming ? (
         <NameField name={group.name} onDone={(name) => name !== null && renameGroup(group.id, name)} />
       ) : (
-        <span className="font-semibold tracking-[0.08em] text-ov-text uppercase">{group.name}</span>
+        <span className="font-semibold tracking-[0.08em] text-dp-text uppercase">{group.name}</span>
       )}
       {speciality && (
-        <span title={speciality} className="pointer-events-auto ml-2 max-w-40 truncate text-ov-text-2">
+        <span title={speciality} className="pointer-events-auto ml-2 max-w-40 truncate text-dp-text-2">
           {speciality}
         </span>
       )}
-      <span className="ml-2 font-mono text-ov-text-2">{countsText(group.memberIds.length, working)}</span>
-      {waits && <span className="ml-1 font-mono text-ov-waiting">{waits}</span>}
+      <span className="ml-2 font-mono text-dp-text-2">{countsText(group.memberIds.length, working)}</span>
+      {waits && <span className="ml-1 font-mono text-dp-waiting">{waits}</span>}
       <GroupMenu groupId={group.id} />
     </div>
   );
@@ -139,7 +139,7 @@ function NameField({ name, onDone }: { name: string; onDone: (name: string | nul
         if (e.key === "Enter") e.currentTarget.blur();
         if (e.key === "Escape") finish(null);
       }}
-      className="pointer-events-auto rounded bg-ov-card px-1 font-semibold tracking-[0.08em] text-ov-text uppercase outline-none ring-1 ring-ov-accent"
+      className="pointer-events-auto rounded bg-dp-card px-1 font-semibold tracking-[0.08em] text-dp-text uppercase outline-none ring-1 ring-dp-accent"
     />
   );
 }

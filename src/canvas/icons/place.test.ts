@@ -47,7 +47,7 @@ it("ships the full MIT notice of the libraries with their credits (final review 
 });
 
 it("puts an icon dropped on a group into its frame, under it in the scene, as Excalidraw would (plan D1)", () => {
-  const frame = { id: "g1", type: "frame", x: 300, y: 200, width: 400, height: 400, isDeleted: false, frameId: null, groupIds: [], customData: { openvibe: { kind: "group", role: "backend", pantheon: "egypt" } } };
+  const frame = { id: "g1", type: "frame", x: 300, y: 200, width: 400, height: 400, isDeleted: false, frameId: null, groupIds: [], customData: { dummyplane: { kind: "group", role: "backend", pantheon: "egypt" } } };
   const other = { id: "z", type: "rectangle", x: 0, y: 0, width: 5, height: 5, isDeleted: false, groupIds: [], frameId: null };
   canvasStore.setState({
     api: {

@@ -20,13 +20,13 @@ export function ActivityRail() {
   const inProject = useProjects((s) => s.activeId !== null);
   const codeOnScreen = useWorkspaces((s) => isCode(s.workspaces.find((w) => w.id === s.activeId)));
   return (
-    <nav className="ov-glass absolute right-3 top-1/2 z-30 flex -translate-y-1/2 flex-col items-center gap-0.5 rounded-[14px] p-[5px]">
+    <nav className="dp-glass absolute right-3 top-1/2 z-30 flex -translate-y-1/2 flex-col items-center gap-0.5 rounded-[14px] p-[5px]">
       <ToolButton label={t.agents} active={open} onClick={() => setAgentsPanel(!open)}>
         <Users />
         {waiting > 0 && (
           <span
             data-pip
-            className="absolute right-0.5 top-0.5 min-w-3.5 rounded-full bg-ov-wait px-1 font-mono text-[9.5px] font-semibold leading-3.5 text-ov-on-role"
+            className="absolute right-0.5 top-0.5 min-w-3.5 rounded-full bg-dp-wait px-1 font-mono text-[9.5px] font-semibold leading-3.5 text-dp-on-role"
           >
             {waiting}
           </span>
@@ -43,7 +43,7 @@ export function ActivityRail() {
       <ToolButton label={t.notes} onClick={openNotes}>
         <BookOpen />
       </ToolButton>
-      <span aria-hidden className="my-1 h-px w-6 bg-ov-line" />
+      <span aria-hidden className="my-1 h-px w-6 bg-dp-line" />
       <SettingsMenu
         side="left"
         align="start"

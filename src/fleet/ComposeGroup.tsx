@@ -39,10 +39,10 @@ function SlotButton(props: { agent: AgentId; choices: AgentId[]; onPick: (agent:
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className="flex h-[72px] flex-col items-center justify-center gap-1.5 rounded-[10px] border border-ov-line bg-ov-card hover:border-ov-text-2"
+          className="flex h-[72px] flex-col items-center justify-center gap-1.5 rounded-[10px] border border-dp-line bg-dp-card hover:border-dp-text-2"
         >
           <AgentLogo agent={props.agent} />
-          <span className="max-w-full truncate px-1 text-[11px] text-ov-text">{AGENTS[props.agent].label}</span>
+          <span className="max-w-full truncate px-1 text-[11px] text-dp-text">{AGENTS[props.agent].label}</span>
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">
@@ -116,8 +116,8 @@ export function ComposeGroup({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
       <PopoverContent side={side} sideOffset={10} className="flex w-[360px] flex-col gap-3 p-3">
-        <p className="ov-label">{t.title}</p>
-        <label className="flex h-9 items-center gap-2 rounded-lg border border-ov-line bg-ov-card px-2.5">
+        <p className="dp-label">{t.title}</p>
+        <label className="flex h-9 items-center gap-2 rounded-lg border border-dp-line bg-dp-card px-2.5">
           <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: color }} />
           <input
             autoFocus
@@ -129,7 +129,7 @@ export function ComposeGroup({
             }}
             onFocus={(e) => e.currentTarget.select()}
             aria-label={t.groupName}
-            className="min-w-0 flex-1 bg-transparent text-[13px] font-medium text-ov-text outline-none"
+            className="min-w-0 flex-1 bg-transparent text-[13px] font-medium text-dp-text outline-none"
           />
         </label>
         <div className="flex flex-wrap gap-1.5">
@@ -142,13 +142,13 @@ export function ComposeGroup({
                 onClick={() => pickRole(id)}
                 className={cn(
                   "flex h-7 items-center gap-1.5 rounded-[9px] border px-2.5 text-xs",
-                  active ? "font-semibold text-ov-on-role" : "border-ov-line text-ov-text-2 hover:text-ov-text",
+                  active ? "font-semibold text-dp-on-role" : "border-dp-line text-dp-text-2 hover:text-dp-text",
                 )}
                 style={active ? { backgroundColor: ROLES[id].color, borderColor: ROLES[id].color } : undefined}
               >
                 <span
                   className="size-1.5 rounded-full"
-                  style={{ backgroundColor: active ? "var(--ov-on-role)" : ROLES[id].color }}
+                  style={{ backgroundColor: active ? "var(--dp-on-role)" : ROLES[id].color }}
                 />
                 {ROLES[id].label}
               </button>
@@ -166,7 +166,7 @@ export function ComposeGroup({
           ))}
         </div>
         {choices.length > 0 && (
-          <div className="flex items-center gap-1.5 text-[11px] text-ov-text-2">
+          <div className="flex items-center gap-1.5 text-[11px] text-dp-text-2">
             <span className="mr-1">{t.fillWith}</span>
             {choices.map((id) => (
               <button
@@ -182,24 +182,24 @@ export function ComposeGroup({
             ))}
           </div>
         )}
-        <div className="flex items-center justify-between border-t border-ov-line pt-3">
+        <div className="flex items-center justify-between border-t border-dp-line pt-3">
           <div className="flex items-center gap-1">
             <button
               type="button"
               aria-label={t.fewer}
               disabled={slots.length <= 1}
               onClick={() => setSlots((current) => resizeSlots(current, current.length - 1))}
-              className="grid size-7 place-items-center rounded-[9px] text-ov-text-2 hover:bg-ov-card hover:text-ov-text disabled:opacity-40"
+              className="grid size-7 place-items-center rounded-[9px] text-dp-text-2 hover:bg-dp-card hover:text-dp-text disabled:opacity-40"
             >
               <Minus className="size-3.5" />
             </button>
-            <span className="w-6 text-center font-mono text-[13px] text-ov-text">{slots.length}</span>
+            <span className="w-6 text-center font-mono text-[13px] text-dp-text">{slots.length}</span>
             <button
               type="button"
               aria-label={t.more}
               disabled={slots.length >= MAX_GROUP_SIZE}
               onClick={() => setSlots((current) => resizeSlots(current, current.length + 1))}
-              className="grid size-7 place-items-center rounded-[9px] text-ov-text-2 hover:bg-ov-card hover:text-ov-text disabled:opacity-40"
+              className="grid size-7 place-items-center rounded-[9px] text-dp-text-2 hover:bg-dp-card hover:text-dp-text disabled:opacity-40"
             >
               <Plus className="size-3.5" />
             </button>
@@ -207,7 +207,7 @@ export function ComposeGroup({
           <button
             type="button"
             onClick={launch}
-            className="h-8 rounded-[10px] px-4 text-[13px] font-semibold text-ov-on-role hover:brightness-110"
+            className="h-8 rounded-[10px] px-4 text-[13px] font-semibold text-dp-on-role hover:brightness-110"
             style={{ backgroundColor: color }}
           >
             {t.launch(slots.length)}

@@ -55,12 +55,12 @@ export function LinkMode() {
     >
       {rect && (
         <div
-          className="pointer-events-none fixed rounded-xl border-2 border-dashed border-ov-accent/80 bg-ov-accent/5"
+          className="pointer-events-none fixed rounded-xl border-2 border-dashed border-dp-accent/80 bg-dp-accent/5"
           style={clientRectOf(rect, view)}
         />
       )}
       <div
-        className="ov-glass-strong pointer-events-none fixed left-1/2 -translate-x-1/2 rounded-[10px] px-3 py-1 text-xs text-ov-text-2"
+        className="dp-glass-strong pointer-events-none fixed left-1/2 -translate-x-1/2 rounded-[10px] px-3 py-1 text-xs text-dp-text-2"
         style={{ top: TOP_ROW_HEIGHT + 14 }}
       >
         {t.link.hint}

@@ -39,7 +39,7 @@ export const notesMessages = defineMessages({
     cancel: "Cancel",
   },
   tool: {
-    description: "The project's Markdown notes, its memory (.openvibe/notes/). Without arguments: the list, with those attached to your group. With name: the text of a note. Read-only.",
+    description: "The project's Markdown notes, its memory (.dummyplane/notes/). Without arguments: the list, with those attached to your group. With name: the text of a note. Read-only.",
     name: "Name of a note from the list, without extension.",
     noName: "name must be a text.",
     none: "No notes in this project.",

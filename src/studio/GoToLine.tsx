@@ -52,8 +52,8 @@ function GoToLineField() {
   return (
     <div data-goto-line className="fixed inset-0 z-50" onPointerDown={(e) => e.target === e.currentTarget && closeGoToLine(true)}>
       <form
-        className="ov-glass-strong absolute left-1/2 -translate-x-1/2 overflow-hidden rounded-[12px]"
-        style={{ top: TITLE_BAR_HEIGHT + 6, width: "min(320px, calc(100vw - 32px))", boxShadow: "var(--ov-glass-hi), var(--ov-glass-edge), var(--ov-shadow)" }}
+        className="dp-glass-strong absolute left-1/2 -translate-x-1/2 overflow-hidden rounded-[12px]"
+        style={{ top: TITLE_BAR_HEIGHT + 6, width: "min(320px, calc(100vw - 32px))", boxShadow: "var(--dp-glass-hi), var(--dp-glass-edge), var(--dp-shadow)" }}
         onSubmit={(e) => {
           e.preventDefault();
           // The editor takes the keyboard when it reaches the line.
@@ -73,9 +73,9 @@ function GoToLineField() {
             }
           }}
           placeholder={t.goToLinePlaceholder}
-          className="h-10 w-full bg-transparent px-3.5 text-[13px] text-ov-text outline-none placeholder:text-ov-text-3"
+          className="h-10 w-full bg-transparent px-3.5 text-[13px] text-dp-text outline-none placeholder:text-dp-text-3"
         />
-        {invalid && <div className="border-t border-ov-line px-3.5 py-1.5 text-[11px] text-ov-text-3">{t.goToLineInvalid}</div>}
+        {invalid && <div className="border-t border-dp-line px-3.5 py-1.5 text-[11px] text-dp-text-3">{t.goToLineInvalid}</div>}
       </form>
     </div>
   );

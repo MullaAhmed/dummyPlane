@@ -14,19 +14,19 @@ function paint(stored: Record<string, string>) {
 
 it("paints the saved palette before the app loads, expressive by default", () => {
   expect(paint({})).toMatchObject({ dataset: { palette: "expressive", theme: "dark" }, style: { colorScheme: "dark" } });
-  expect(paint({ "ov.theme": "calm" })).toMatchObject({ dataset: { palette: "calm", theme: "light" }, style: { colorScheme: "light" } });
-  expect(paint({ "ov.theme": "electric" })).toMatchObject({ dataset: { palette: "electric", theme: "dark" }, style: { colorScheme: "dark" } });
+  expect(paint({ "dp.theme": "calm" })).toMatchObject({ dataset: { palette: "calm", theme: "light" }, style: { colorScheme: "light" } });
+  expect(paint({ "dp.theme": "electric" })).toMatchObject({ dataset: { palette: "electric", theme: "dark" }, style: { colorScheme: "dark" } });
 });
 
 it("falls back to expressive for unknown or old choices", () => {
   for (const old of ["system", "light", "dark", "bleu"]) {
-    expect(paint({ "ov.theme": old })).toMatchObject({ dataset: { palette: "expressive", theme: "dark" } });
+    expect(paint({ "dp.theme": old })).toMatchObject({ dataset: { palette: "expressive", theme: "dark" } });
   }
 });
 
 it("paints transparency off only when it was turned off", () => {
-  expect(paint({ "ov.transparency": "off" }).dataset.transparency).toBe("off");
-  expect(paint({ "ov.transparency": "on" }).dataset.transparency).toBeUndefined();
+  expect(paint({ "dp.transparency": "off" }).dataset.transparency).toBe("off");
+  expect(paint({ "dp.transparency": "on" }).dataset.transparency).toBeUndefined();
 });
 
 it("is loaded by the page, from its own origin (the CSP forbids inline scripts)", () => {
@@ -35,6 +35,6 @@ it("is loaded by the page, from its own origin (the CSP forbids inline scripts)"
 
 it("is fed by the theme module", () => {
   const theme = readSource("app/theme.ts");
-  expect(theme).toContain('"ov.theme"');
-  expect(theme).toContain('"ov.transparency"');
+  expect(theme).toContain('"dp.theme"');
+  expect(theme).toContain('"dp.transparency"');
 });

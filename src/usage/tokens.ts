@@ -43,12 +43,12 @@ export interface AgentRow {
   label: string;
   model: string | null;
   counts: TokenCounts;
-  /** The sessions OpenVibe does not know, or the rows past the list. */
+  /** The sessions dummyPlane does not know, or the rows past the list. */
   other: boolean;
 }
 
 /**
- * The sessions of the last 30 days by OpenVibe agent: `names` maps the session
+ * The sessions of the last 30 days by dummyPlane agent: `names` maps the session
  * ids of its terminals to their names; an agent's sessions merge, the unknown
  * ones group under `otherLabel`. Biggest first, `MAX_AGENT_ROWS` rows, then "…".
  */

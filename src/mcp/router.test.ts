@@ -20,7 +20,7 @@ import { terminalStatusStore } from "@/store/terminalStatus";
 vi.mock("@/ipc/pty", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/ipc/pty")>()), ptySendText: vi.fn(() => Promise.resolve()) }));
 vi.mock("@/nodes/terminal/registry", () => ({ terminalText: vi.fn(() => "ligne 1\nligne 2") }));
 vi.mock("@/mission/launch", () => ({
-  mergeMission: vi.fn(() => Promise.resolve("Branche openvibe/auth :\nIsis : fusionné")),
+  mergeMission: vi.fn(() => Promise.resolve("Branche dummyplane/auth :\nIsis : fusionné")),
   endMission: vi.fn(),
   reassignTask: vi.fn(() => Promise.resolve({ name: "Horus" })),
 }));
@@ -190,7 +190,7 @@ describe("the orchestrator's tools (spec orchestrateur §7.2)", () => {
   describe("a workspace not on screen whose scene is known (spec mission de nuit §6.1)", () => {
     it("reads its linked agents and groups as on screen", async () => {
       await nodesStore.getState().create("ailleurs", { workspaceId: "w8", kind: "orchestrator", payload: { name: "Ailleurs" } });
-      rememberScene("w8", [{ id: "g", type: "frame", name: "Interface", isDeleted: false, frameId: null, x: 0, y: 0, width: 1, height: 1, customData: { openvibe: { kind: "group", role: "frontend", pantheon: "norse", speciality: "Frontend" } } }, { id: "ailleurs", type: "embeddable", isDeleted: false, frameId: null, x: 0, y: 0, width: 1, height: 1, customData: { kind: "orchestrator" } }, { id: "a", type: "arrow", isDeleted: false, frameId: null, startBinding: { elementId: "ailleurs" }, endBinding: { elementId: "g" } }] as never, {} as never, {}, []);
+      rememberScene("w8", [{ id: "g", type: "frame", name: "Interface", isDeleted: false, frameId: null, x: 0, y: 0, width: 1, height: 1, customData: { dummyplane: { kind: "group", role: "frontend", pantheon: "norse", speciality: "Frontend" } } }, { id: "ailleurs", type: "embeddable", isDeleted: false, frameId: null, x: 0, y: 0, width: 1, height: 1, customData: { kind: "orchestrator" } }, { id: "a", type: "arrow", isDeleted: false, frameId: null, startBinding: { elementId: "ailleurs" }, endBinding: { elementId: "g" } }] as never, {} as never, {}, []);
       const mission = JSON.parse(textOf(await call("ailleurs", "mission", {})));
       expect(mission.linked_groups).toEqual([{ name: "Interface", speciality: "Frontend" }]);
       expect(mission.linked_agents).toEqual(expect.any(Array));
@@ -285,8 +285,8 @@ describe("the orchestrator's tools (spec orchestrateur §7.2)", () => {
     beforeAll(() =>
       setMission("chef", {
         state: "en_cours",
-        branch: "openvibe/auth",
-        members: [{ nodeId: "isis", name: "Isis", task: "Login", budgetMin: 20, linked: true, branch: "openvibe/auth-isis", worktree: "C:/w/isis", sentAt: Date.now() }],
+        branch: "dummyplane/auth",
+        members: [{ nodeId: "isis", name: "Isis", task: "Login", budgetMin: 20, linked: true, branch: "dummyplane/auth-isis", worktree: "C:/w/isis", sentAt: Date.now() }],
       }),
     );
 
@@ -383,14 +383,14 @@ describe("the orchestrator's tools (spec orchestrateur §7.2)", () => {
       expect(textOf(await call("chef", "interrupt", { agent: "Isis" }))).toBe("Isis is not at work: nothing to interrupt.");
     });
 
-    it("hands a sub-task over through OpenVibe (spec §7.2)", async () => {
+    it("hands a sub-task over through dummyPlane (spec §7.2)", async () => {
       expect(textOf(await call("chef", "reassign", { subtask: "login", agent: "new" }))).toBe('"Login" goes to Horus.');
       expect(reassignTask).toHaveBeenCalledWith("chef", "isis", "nouveau");
       expect(await call("chef", "reassign", { subtask: "Paiement", agent: "new" })).toMatchObject({ isError: true });
     });
 
-    it("merges and ends the mission through OpenVibe; no new plan meanwhile", async () => {
-      expect(textOf(await call("chef", "merge", {}))).toBe("Branche openvibe/auth :\nIsis : fusionné");
+    it("merges and ends the mission through dummyPlane; no new plan meanwhile", async () => {
+      expect(textOf(await call("chef", "merge", {}))).toBe("Branche dummyplane/auth :\nIsis : fusionné");
       expect(await call("chef", "propose_plan", plan)).toMatchObject({ isError: true });
       expect(await call("chef", "finish", {})).toMatchObject({ isError: true });
       expect(textOf(await call("chef", "finish", { summary: "Fini" }))).toContain("Mission finished");

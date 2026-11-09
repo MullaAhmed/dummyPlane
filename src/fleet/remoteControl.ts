@@ -11,7 +11,7 @@ import { fleetMessages } from "./messages";
 
 /**
  * Claude Code's Remote Control (spec update §2): a session followed from
- * claude.ai or the phone. OpenVibe types `/remote-control` and reads the
+ * claude.ai or the phone. dummyPlane types `/remote-control` and reads the
  * answer on the terminal's screen; a terminal that has it on starts with it.
  */
 const COMMAND = "/remote-control";
@@ -166,7 +166,7 @@ export async function disableRemote(io: RemoteIo, timeoutMs = ANSWER_MS): Promis
   return done ? { on: false } : { error: messages(fleetMessages).remote.disconnectNotConfirmed };
 }
 
-/** What OpenVibe knows of a running session's Remote Control. */
+/** What dummyPlane knows of a running session's Remote Control. */
 export interface RemoteLink {
   state: "pending" | "connecting" | "on" | "error";
   url?: string;
@@ -301,7 +301,7 @@ export async function setRemoteControlAll(nodeIds: readonly string[], on: boolea
   });
 }
 
-/** A session started with Remote Control shows its link: OpenVibe reads it. */
+/** A session started with Remote Control shows its link: dummyPlane reads it. */
 async function watchStart(nodeId: string) {
   remoteStore.getState().set(nodeId, { state: "connecting" });
   const seen = await waitFor(ioOf(nodeId), (s) => s.kind === "active" || s.kind === "error" || s.kind === "consent" || !isRunning(nodeId), LAUNCH_MS);

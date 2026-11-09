@@ -30,7 +30,7 @@ function TabButton({ active, onClick, children }: { active: boolean; onClick: ()
       role="tab"
       aria-selected={active}
       onClick={onClick}
-      className={cn("rounded-full px-2.5 py-0.5 text-[12px] text-ov-text-2 hover:text-ov-text", active && "bg-ov-accent-soft text-ov-text")}
+      className={cn("rounded-full px-2.5 py-0.5 text-[12px] text-dp-text-2 hover:text-dp-text", active && "bg-dp-accent-soft text-dp-text")}
     >
       {children}
     </button>
@@ -148,17 +148,17 @@ export default function NotesDialog({ projectId }: { projectId: string }) {
           if (tab !== "edit" || !editor.current?.escape()) state.requestClose();
         }}
       >
-        <header className="flex h-11 shrink-0 items-center gap-2 border-b border-ov-line px-3">
-          <BookOpen className="size-4 shrink-0 text-ov-accent" />
+        <header className="flex h-11 shrink-0 items-center gap-2 border-b border-dp-line px-3">
+          <BookOpen className="size-4 shrink-0 text-dp-accent" />
           <DialogTitle className="shrink-0" style={{ fontSize: 13, fontWeight: 600 }}>
             {t.title}
           </DialogTitle>
           {file && (
-            <span className="min-w-0 truncate font-mono text-[11px] text-ov-text-3" title={file}>
+            <span className="min-w-0 truncate font-mono text-[11px] text-dp-text-3" title={file}>
               {file}
             </span>
           )}
-          {dirty && <span data-dirty title={t.modified} aria-label={t.modified} className="size-2 shrink-0 rounded-full bg-ov-accent" />}
+          {dirty && <span data-dirty title={t.modified} aria-label={t.modified} className="size-2 shrink-0 rounded-full bg-dp-accent" />}
           <span role="tablist" className="ml-auto flex shrink-0 items-center gap-1">
             <TabButton active={tab === "edit"} onClick={() => setTab("edit")}>
               {t.tabEdit}
@@ -183,14 +183,14 @@ export default function NotesDialog({ projectId }: { projectId: string }) {
           </span>
         </header>
         <div className="flex min-h-0 flex-1">
-          <div className="flex w-[260px] shrink-0 flex-col border-r border-ov-line">
+          <div className="flex w-[260px] shrink-0 flex-col border-r border-dp-line">
             <div className="flex shrink-0 items-center gap-1 p-2">
               <input
                 aria-label={t.searchLabel}
                 placeholder={t.searchPlaceholder(notes.length)}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                className="h-7 min-w-0 flex-1 rounded-[6px] bg-ov-field px-2 text-[12px] text-ov-text outline-none placeholder:text-ov-text-3"
+                className="h-7 min-w-0 flex-1 rounded-[6px] bg-dp-field px-2 text-[12px] text-dp-text outline-none placeholder:text-dp-text-3"
               />
               <IconButton label={t.newNote} onClick={() => askName("")}>
                 <Plus />
@@ -212,20 +212,20 @@ export default function NotesDialog({ projectId }: { projectId: string }) {
                   onKeyDown={(e) => {
                     if (e.key === "Enter") void create();
                   }}
-                  className="h-7 w-full rounded-[6px] bg-ov-field px-2 text-[12px] text-ov-text outline-none placeholder:text-ov-text-3"
+                  className="h-7 w-full rounded-[6px] bg-dp-field px-2 text-[12px] text-dp-text outline-none placeholder:text-dp-text-3"
                 />
-                {badName && <p className="pt-1 text-[11px] text-ov-danger">{t.badName}</p>}
+                {badName && <p className="pt-1 text-[11px] text-dp-danger">{t.badName}</p>}
               </div>
             )}
             <div className="min-h-0 flex-1 overflow-y-auto pb-1">
               {listError ? (
-                <p className="px-3 py-2 text-xs text-ov-danger">{listError}</p>
+                <p className="px-3 py-2 text-xs text-dp-danger">{listError}</p>
               ) : !list ? (
-                <p className="px-3 py-2 text-xs text-ov-text-2">{t.reading}</p>
+                <p className="px-3 py-2 text-xs text-dp-text-2">{t.reading}</p>
               ) : list.notes.length === 0 ? (
-                <p className="px-3 py-2 text-xs text-ov-text-2">{t.empty}</p>
+                <p className="px-3 py-2 text-xs text-dp-text-2">{t.empty}</p>
               ) : hits.length === 0 ? (
-                <p className="px-3 py-2 text-xs text-ov-text-2">{t.noResult}</p>
+                <p className="px-3 py-2 text-xs text-dp-text-2">{t.noResult}</p>
               ) : (
                 hits.map((hit) => (
                   <button
@@ -235,20 +235,20 @@ export default function NotesDialog({ projectId }: { projectId: string }) {
                     title={hit.name}
                     aria-current={hit.name === file}
                     onClick={() => open(hit.name)}
-                    className={cn("block w-full px-3 py-1 text-left hover:bg-ov-hover", hit.name === file && "bg-ov-accent-soft hover:bg-ov-accent-soft")}
+                    className={cn("block w-full px-3 py-1 text-left hover:bg-dp-hover", hit.name === file && "bg-dp-accent-soft hover:bg-dp-accent-soft")}
                   >
-                    <span className="block truncate text-[12.5px] text-ov-text">{hit.name}</span>
-                    {hit.excerpt && <span className="block truncate text-[11px] text-ov-text-3">{hit.excerpt}</span>}
+                    <span className="block truncate text-[12.5px] text-dp-text">{hit.name}</span>
+                    {hit.excerpt && <span className="block truncate text-[11px] text-dp-text-3">{hit.excerpt}</span>}
                   </button>
                 ))
               )}
             </div>
-            {list !== null && list.skipped > 0 && <p className="shrink-0 border-t border-ov-line px-3 py-1.5 text-[11px] text-ov-text-3">{t.skipped(list.skipped)}</p>}
+            {list !== null && list.skipped > 0 && <p className="shrink-0 border-t border-dp-line px-3 py-1.5 text-[11px] text-dp-text-3">{t.skipped(list.skipped)}</p>}
           </div>
           <div className="flex min-w-0 flex-1 flex-col">
             {disk && <DiskBanner session={session} disk={disk} />}
             {error && (
-              <p role="status" className="shrink-0 border-b border-ov-line px-3 py-1.5 text-[12px] text-ov-danger">
+              <p role="status" className="shrink-0 border-b border-dp-line px-3 py-1.5 text-[12px] text-dp-danger">
                 {error}
               </p>
             )}
@@ -270,15 +270,15 @@ export default function NotesDialog({ projectId }: { projectId: string }) {
               </div>
             )}
             {file && !loading && !refused && tab !== "graph" && (
-              <section data-backlinks aria-label={t.backlinks} className="max-h-[30%] shrink-0 overflow-y-auto border-t border-ov-line px-3 py-2">
-                <h3 className="pb-1 text-[11px] font-semibold text-ov-text-2">{t.backlinks}</h3>
+              <section data-backlinks aria-label={t.backlinks} className="max-h-[30%] shrink-0 overflow-y-auto border-t border-dp-line px-3 py-2">
+                <h3 className="pb-1 text-[11px] font-semibold text-dp-text-2">{t.backlinks}</h3>
                 {linking.length === 0 ? (
-                  <p className="text-[11.5px] text-ov-text-3">{t.noBacklinks}</p>
+                  <p className="text-[11.5px] text-dp-text-3">{t.noBacklinks}</p>
                 ) : (
                   <ul className="flex flex-wrap gap-x-3 gap-y-0.5">
                     {linking.map((note) => (
                       <li key={note.name}>
-                        <button type="button" onClick={() => open(note.name)} className="text-[12px] text-ov-accent underline underline-offset-2">
+                        <button type="button" onClick={() => open(note.name)} className="text-[12px] text-dp-accent underline underline-offset-2">
                           {note.name}
                         </button>
                       </li>

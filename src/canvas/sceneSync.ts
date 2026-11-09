@@ -23,7 +23,7 @@ export interface SceneSyncDeps {
   delayMs?: number;
 }
 
-/** Ids of the OpenVibe nodes still on the canvas (deleted elements excluded). */
+/** Ids of the dummyPlane nodes still on the canvas (deleted elements excluded). */
 export function liveNodeIds(elements: readonly ExcalidrawElement[]): string[] {
   return elements.filter((e) => !e.isDeleted && nodeKindOf(e) !== null).map((e) => e.id);
 }

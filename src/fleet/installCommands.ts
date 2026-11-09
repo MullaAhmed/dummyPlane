@@ -10,7 +10,7 @@ export interface AgentInstall {
 }
 
 /**
- * Every install OpenVibe can run (spec installation §3). This table is fixed:
+ * Every install dummyPlane can run (spec installation §3). This table is fixed:
  * nothing here comes from the network, and a command only enters it once
  * checked on the vendor's documentation.
  */

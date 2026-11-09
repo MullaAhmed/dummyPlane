@@ -18,9 +18,9 @@ export function LoopsIndicator() {
   return (
     <div
       data-loops-indicator
-      className="ov-glass-strong fixed bottom-[76px] left-4 z-30 flex items-center gap-2 rounded-full py-1 pl-3 pr-1 text-xs text-ov-text"
+      className="dp-glass-strong fixed bottom-[76px] left-4 z-30 flex items-center gap-2 rounded-full py-1 pl-3 pr-1 text-xs text-dp-text"
     >
-      <Repeat className="size-3.5 text-ov-accent" />
+      <Repeat className="size-3.5 text-dp-accent" />
       <button type="button" aria-label={t.open} onClick={() => requestUi({ kind: "loops" })} className="font-mono">
         {t.label(running.length, runs)}
       </button>
@@ -28,7 +28,7 @@ export function LoopsIndicator() {
         type="button"
         data-stop-all
         onClick={stopAll}
-        className="h-6 rounded-full bg-ov-danger px-2.5 text-[11px] font-semibold text-white hover:brightness-110"
+        className="h-6 rounded-full bg-dp-danger px-2.5 text-[11px] font-semibold text-white hover:brightness-110"
       >
         {t.stopAll}
       </button>

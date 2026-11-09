@@ -24,5 +24,5 @@ it("lists the agents that start without options, in catalog order", () => {
 
 it("draws an agent's icon in its tint pulled toward the theme's text, readable on light and dark", () => {
   // Ollama's cream would vanish on Ivoire's white; Codex's indigo on Argile's dark.
-  expect(agentInk(AGENTS.ollama.tint)).toBe(`color-mix(in srgb, ${AGENTS.ollama.tint} 65%, var(--ov-text))`);
+  expect(agentInk(AGENTS.ollama.tint)).toBe(`color-mix(in srgb, ${AGENTS.ollama.tint} 65%, var(--dp-text))`);
 });

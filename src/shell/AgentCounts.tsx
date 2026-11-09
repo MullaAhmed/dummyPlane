@@ -14,7 +14,7 @@ function Count({ label, color, filter, children }: { label: string; color: strin
       title={label}
       aria-label={label}
       onClick={() => showAgents(filter)}
-      className="flex h-6 items-center gap-1.5 rounded-[6px] px-1.5 font-mono text-[11.5px] text-ov-text-2 hover:bg-ov-hover hover:text-ov-text"
+      className="flex h-6 items-center gap-1.5 rounded-[6px] px-1.5 font-mono text-[11.5px] text-dp-text-2 hover:bg-dp-hover hover:text-dp-text"
     >
       <span className="size-[7px] rounded-full" style={{ backgroundColor: color }} />
       {children}
@@ -31,16 +31,16 @@ export function AgentCounts() {
   return (
     <div className="flex items-center gap-0.5">
       {working > 0 && (
-        <Count label={t.working} color="var(--ov-accent)" filter="working">
+        <Count label={t.working} color="var(--dp-accent)" filter="working">
           {working}
         </Count>
       )}
       {waiting > 0 && (
-        <Count label={t.waiting} color="var(--ov-wait)" filter="waiting">
+        <Count label={t.waiting} color="var(--dp-wait)" filter="waiting">
           {waiting}
         </Count>
       )}
-      <Count label={t.active} color="var(--ov-ok)" filter="all">
+      <Count label={t.active} color="var(--dp-ok)" filter="all">
         {t.activeCount(running)}
       </Count>
     </div>

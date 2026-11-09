@@ -1,5 +1,5 @@
 /** The data type of a Kanban card being dragged: JSON `{ nodeId, cardId }`. */
-export const KANBAN_CARD_MIME = "application/x-openvibe-kanban-card";
+export const KANBAN_CARD_MIME = "application/x-dummyplane-kanban-card";
 
 export interface KanbanCardDrag {
   nodeId: string;

@@ -62,16 +62,16 @@ function StudioContent({ project }: { project: string }) {
     <div
       data-code-workspace
       aria-label={t.title(name)}
-      className="absolute inset-0 flex gap-2.5 pb-3 pl-3 pr-[66px] text-ov-text"
+      className="absolute inset-0 flex gap-2.5 pb-3 pl-3 pr-[66px] text-dp-text"
       style={{ paddingTop: TOP_ROW_HEIGHT + 12 }}
     >
-      <nav className="ov-glass z-30 flex shrink-0 flex-col items-center gap-0.5 self-center rounded-[14px] p-[5px]">
+      <nav className="dp-glass z-30 flex shrink-0 flex-col items-center gap-0.5 self-center rounded-[14px] p-[5px]">
         <ToolButton label={treeOpen ? t.hideFiles : t.showFiles} active={treeOpen} onClick={() => setTreeOpen(!treeOpen)}>
           <FolderTree />
         </ToolButton>
       </nav>
       {treeOpen && <FileTree project={project} active={active} expanded={expanded} setExpanded={setExpanded} onOpen={open} />}
-      <section className="ov-glass-strong flex min-w-0 flex-1 flex-col overflow-hidden rounded-[14px]">
+      <section className="dp-glass-strong flex min-w-0 flex-1 flex-col overflow-hidden rounded-[14px]">
         <Tabs tabs={tabs} active={active} />
         {tab ? <FilePane key={tab.path} tab={tab} /> : <Message>{t.pickFile}</Message>}
       </section>
@@ -111,14 +111,14 @@ function FileTree({ project, active, expanded, setExpanded, onOpen }: FileTreePr
   const rows = useMemo(() => visibleRows(tree, expanded, query), [tree, expanded, query]);
 
   return (
-    <aside data-files className="ov-glass flex w-[280px] shrink-0 flex-col overflow-hidden rounded-[14px]">
-      <div className="flex h-10 shrink-0 items-center gap-1 border-b border-ov-line px-2">
+    <aside data-files className="dp-glass flex w-[280px] shrink-0 flex-col overflow-hidden rounded-[14px]">
+      <div className="flex h-10 shrink-0 items-center gap-1 border-b border-dp-line px-2">
         <input
           aria-label={t.filterLabel}
           placeholder={t.filterPlaceholder}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          className="h-7 min-w-0 flex-1 rounded-[7px] bg-ov-field px-2 text-[12px] text-ov-text outline-none placeholder:text-ov-text-3 focus:ring-1 focus:ring-ov-accent"
+          className="h-7 min-w-0 flex-1 rounded-[7px] bg-dp-field px-2 text-[12px] text-dp-text outline-none placeholder:text-dp-text-3 focus:ring-1 focus:ring-dp-accent"
         />
         <IconButton label={t.refresh} onClick={() => setRefresh((n) => n + 1)}>
           <RotateCw />
@@ -143,20 +143,20 @@ function FileTree({ project, active, expanded, setExpanded, onOpen }: FileTreePr
               title={node.path}
               onClick={() => (node.kind === "dir" ? setExpanded(toggle(expanded, node.path)) : onOpen(node.path))}
               className={cn(
-                "flex h-[26px] w-full items-center gap-1 pr-2 text-left text-[12.5px] text-ov-text-2 hover:bg-ov-hover hover:text-ov-text [&_svg]:size-3.5 [&_svg]:shrink-0",
-                node.path === active && "bg-ov-accent-soft text-ov-text",
+                "flex h-[26px] w-full items-center gap-1 pr-2 text-left text-[12.5px] text-dp-text-2 hover:bg-dp-hover hover:text-dp-text [&_svg]:size-3.5 [&_svg]:shrink-0",
+                node.path === active && "bg-dp-accent-soft text-dp-text",
               )}
               style={{ paddingLeft: 8 + depth * 12 }}
             >
               {node.kind === "dir" ? (
                 <>
                   {isOpen ? <ChevronDown /> : <ChevronRight />}
-                  <Folder className="text-ov-accent" />
+                  <Folder className="text-dp-accent" />
                 </>
               ) : (
                 <>
                   <span className="w-3.5 shrink-0" />
-                  <File className="text-ov-text-3" />
+                  <File className="text-dp-text-3" />
                 </>
               )}
               <span className="truncate">{node.name}</span>
@@ -180,20 +180,20 @@ function Tabs({ tabs, active }: { tabs: StudioTab[]; active: string | null }) {
 
   return (
     <>
-      <div role="tablist" className="flex h-10 shrink-0 items-end gap-0.5 overflow-x-auto border-b border-ov-line px-2">
+      <div role="tablist" className="flex h-10 shrink-0 items-end gap-0.5 overflow-x-auto border-b border-dp-line px-2">
         {tabs.map((tab) => (
           <TabItem key={tab.path} tab={tab} active={tab.path === active} onClose={() => close(tab)} />
         ))}
       </div>
       {pending && (
-        <div role="alert" className="flex shrink-0 flex-wrap items-center gap-2 border-b border-ov-line bg-ov-surface-2 px-3 py-2 text-[12.5px]">
+        <div role="alert" className="flex shrink-0 flex-wrap items-center gap-2 border-b border-dp-line bg-dp-surface-2 px-3 py-2 text-[12.5px]">
           <span className="mr-auto">{t.discardTitle(baseName(pending.path))}</span>
-          <button type="button" className="rounded-[8px] px-2.5 py-1 text-ov-text-2 hover:bg-ov-hover" onClick={() => setConfirming(null)}>
+          <button type="button" className="rounded-[8px] px-2.5 py-1 text-dp-text-2 hover:bg-dp-hover" onClick={() => setConfirming(null)}>
             {t.cancel}
           </button>
           <button
             type="button"
-            className="rounded-[8px] px-2.5 py-1 text-ov-danger hover:bg-ov-hover"
+            className="rounded-[8px] px-2.5 py-1 text-dp-danger hover:bg-dp-hover"
             onClick={() => {
               setConfirming(null);
               closeTab(pending.path);
@@ -229,14 +229,14 @@ function TabItem({ tab, active, onClose }: { tab: StudioTab; active: boolean; on
       data-tab={tab.path}
       title={tab.path}
       className={cn(
-        "group flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-t-[8px] pl-3 pr-1 text-[12.5px] text-ov-text-2 hover:bg-ov-hover",
-        active && "bg-ov-tab-on text-ov-text",
+        "group flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-t-[8px] pl-3 pr-1 text-[12.5px] text-dp-text-2 hover:bg-dp-hover",
+        active && "bg-dp-tab-on text-dp-text",
       )}
       onClick={() => void openFile(tab.path)}
       onAuxClick={(e) => e.button === 1 && onClose()}
     >
       <span className="max-w-48 truncate">{name}</span>
-      {dirty && <span data-dirty aria-label={t.modified} title={t.modified} className="size-2 rounded-full bg-ov-accent" />}
+      {dirty && <span data-dirty aria-label={t.modified} title={t.modified} className="size-2 rounded-full bg-dp-accent" />}
       <IconButton
         label={t.closeTab(name)}
         className="size-5"
@@ -266,13 +266,13 @@ function FilePane({ tab }: { tab: StudioTab }) {
     <>
       {disk && <DiskBanner session={tab.session} disk={disk} onDrop={() => closeTab(tab.path)} />}
       {error && (
-        <p role="status" className="shrink-0 border-b border-ov-line px-3 py-1.5 text-[12px] text-ov-danger">
+        <p role="status" className="shrink-0 border-b border-dp-line px-3 py-1.5 text-[12px] text-dp-danger">
           {t.failed(error)}
         </p>
       )}
-      <div className="flex h-9 shrink-0 items-center gap-1.5 border-b border-ov-line px-3">
-        <span className="min-w-0 truncate font-mono text-[11px] text-ov-text-3">{tab.path}</span>
-        {dirty && <span className="shrink-0 text-[11px] text-ov-accent">{t.modified}</span>}
+      <div className="flex h-9 shrink-0 items-center gap-1.5 border-b border-dp-line px-3">
+        <span className="min-w-0 truncate font-mono text-[11px] text-dp-text-3">{tab.path}</span>
+        {dirty && <span className="shrink-0 text-[11px] text-dp-accent">{t.modified}</span>}
         <span className="ml-auto flex shrink-0 items-center gap-1">
           {markdown && (
             <ToolbarButton label={previewing ? t.edit : t.preview} active={previewing} onClick={() => setPreview(!preview)}>
@@ -328,8 +328,8 @@ function ToolbarButton({
       aria-pressed={active}
       onClick={onClick}
       className={cn(
-        "flex h-7 items-center gap-1.5 rounded-[8px] px-2.5 text-[12.5px] text-ov-text-2 hover:bg-ov-hover hover:text-ov-text [&_svg]:size-3.5",
-        active && "bg-ov-accent-soft text-ov-accent",
+        "flex h-7 items-center gap-1.5 rounded-[8px] px-2.5 text-[12.5px] text-dp-text-2 hover:bg-dp-hover hover:text-dp-text [&_svg]:size-3.5",
+        active && "bg-dp-accent-soft text-dp-accent",
       )}
     >
       {children}
@@ -339,5 +339,5 @@ function ToolbarButton({
 }
 
 function Message({ children }: { children: ReactNode }) {
-  return <p className="px-4 py-6 text-center text-[12.5px] text-ov-text-3">{children}</p>;
+  return <p className="px-4 py-6 text-center text-[12.5px] text-dp-text-3">{children}</p>;
 }

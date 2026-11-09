@@ -42,7 +42,7 @@ export interface ScenePick {
   /** Live elements, bottom to top. */
   elements: readonly ExcalidrawElement[];
   selectedIds: readonly string[];
-  /** Frames that are OpenVibe groups. */
+  /** Frames that are dummyPlane groups. */
   groupIds: ReadonlySet<string>;
 }
 

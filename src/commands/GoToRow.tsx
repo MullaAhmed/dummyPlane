@@ -8,7 +8,7 @@ import type { GoToItem } from "./goTo";
 import { commandsMessages } from "./messages";
 
 const Elsewhere = ({ item }: { item: GoToItem }) =>
-  item.elsewhere ? <span className="shrink-0 text-ov-text-3">{item.elsewhere}</span> : null;
+  item.elsewhere ? <span className="shrink-0 text-dp-text-3">{item.elsewhere}</span> : null;
 
 function TerminalLine({ item }: { item: GoToItem }) {
   const id = item.targetId ?? "";
@@ -23,10 +23,10 @@ function TerminalLine({ item }: { item: GoToItem }) {
       >
         <meta.Icon className="size-3" />
       </span>
-      <span className="truncate font-medium text-ov-text">{item.label}</span>
-      <span className="shrink-0 text-ov-text-2">{meta.label}</span>
+      <span className="truncate font-medium text-dp-text">{item.label}</span>
+      <span className="shrink-0 text-dp-text-2">{meta.label}</span>
       {item.group && (
-        <span className="flex shrink-0 items-center gap-1 text-ov-text-2">
+        <span className="flex shrink-0 items-center gap-1 text-dp-text-2">
           <span className="size-1.5 rounded-full" style={{ backgroundColor: item.group.color }} />
           {item.group.name}
         </span>
@@ -49,36 +49,36 @@ export function GoToRow({ item }: { item: GoToItem }) {
       return (
         <>
           <span className="size-2 shrink-0 rounded-[2px]" style={{ backgroundColor: item.group?.color }} />
-          <span className="truncate font-medium text-ov-text">{item.label}</span>
-          <span className="shrink-0 text-ov-text-2">{t.members(item.members ?? 0)}</span>
+          <span className="truncate font-medium text-dp-text">{item.label}</span>
+          <span className="shrink-0 text-dp-text-2">{t.members(item.members ?? 0)}</span>
           <Elsewhere item={item} />
-          <Layers className="ml-auto size-3.5 shrink-0 text-ov-text-3" />
+          <Layers className="ml-auto size-3.5 shrink-0 text-dp-text-3" />
         </>
       );
     case "orchestrator":
       return (
         <>
-          <Network className="size-3.5 shrink-0 text-ov-accent" />
-          <span className="truncate font-medium text-ov-text">{item.label}</span>
-          <span className="shrink-0 text-ov-text-2">{t.linked(item.links ?? 0)}</span>
+          <Network className="size-3.5 shrink-0 text-dp-accent" />
+          <span className="truncate font-medium text-dp-text">{item.label}</span>
+          <span className="shrink-0 text-dp-text-2">{t.linked(item.links ?? 0)}</span>
           <Elsewhere item={item} />
         </>
       );
     case "workspace":
       return (
         <>
-          <LayoutGrid className="size-3.5 shrink-0 text-ov-text-2" />
-          <span className="truncate font-medium text-ov-text">{item.label}</span>
-          <span className="shrink-0 font-mono text-[11px] text-ov-text-2">{t.live(item.live ?? 0)}</span>
-          {item.current && <span className="ml-auto shrink-0 text-ov-text-3">{t.shown}</span>}
+          <LayoutGrid className="size-3.5 shrink-0 text-dp-text-2" />
+          <span className="truncate font-medium text-dp-text">{item.label}</span>
+          <span className="shrink-0 font-mono text-[11px] text-dp-text-2">{t.live(item.live ?? 0)}</span>
+          {item.current && <span className="ml-auto shrink-0 text-dp-text-3">{t.shown}</span>}
         </>
       );
     case "project":
       return (
         <>
-          <Folder className="size-3.5 shrink-0 text-ov-text-2" />
-          <span className="truncate font-medium text-ov-text">{item.label}</span>
-          <span className="ml-auto truncate font-mono text-[11px] text-ov-text-3">{item.path}</span>
+          <Folder className="size-3.5 shrink-0 text-dp-text-2" />
+          <span className="truncate font-medium text-dp-text">{item.label}</span>
+          <span className="ml-auto truncate font-mono text-[11px] text-dp-text-3">{item.path}</span>
         </>
       );
   }

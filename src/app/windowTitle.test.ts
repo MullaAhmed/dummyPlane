@@ -18,13 +18,13 @@ const hermes: Project = {
 
 describe("titleFor", () => {
   it("names the open project after the app", () => {
-    expect(titleFor("project", [hermes], "p1")).toBe("OpenVibe — Hermes");
+    expect(titleFor("project", [hermes], "p1")).toBe("dummyPlane — Hermes");
   });
 
   it("is the app's name outside a project, or when the project is gone", () => {
-    expect(titleFor("home", [hermes], "p1")).toBe("OpenVibe");
-    expect(titleFor("loading", [], null)).toBe("OpenVibe");
-    expect(titleFor("project", [hermes], "gone")).toBe("OpenVibe");
+    expect(titleFor("home", [hermes], "p1")).toBe("dummyPlane");
+    expect(titleFor("loading", [], null)).toBe("dummyPlane");
+    expect(titleFor("project", [hermes], "gone")).toBe("dummyPlane");
   });
 });
 
@@ -49,7 +49,7 @@ describe("syncWindowTitle", () => {
     projectsStore.setState({ view: "home", activeId: null });
     stop();
     projectsStore.setState({ view: "project", activeId: "p1" });
-    expect(titles).toEqual(["OpenVibe", "OpenVibe — Hermes", "OpenVibe — Hermès", "OpenVibe"]);
-    expect(document.title).toBe("OpenVibe");
+    expect(titles).toEqual(["dummyPlane", "dummyPlane — Hermes", "dummyPlane — Hermès", "dummyPlane"]);
+    expect(document.title).toBe("dummyPlane");
   });
 });

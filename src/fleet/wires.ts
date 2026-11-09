@@ -19,7 +19,7 @@ export interface Links {
 export const NO_LINKS: Links = { groupIds: [], nodeIds: [] };
 
 export function isWire(element: ExcalidrawElement): boolean {
-  const data = element.customData?.openvibe as { kind?: unknown } | undefined;
+  const data = element.customData?.dummyplane as { kind?: unknown } | undefined;
   return data?.kind === "wire";
 }
 
@@ -136,7 +136,7 @@ export function createWire(orchestrator: ExcalidrawElement, target: ExcalidrawEl
     startArrowhead: null,
     endArrowhead: null,
     elbowed: false,
-    customData: { openvibe: { kind: "wire" } },
+    customData: { dummyplane: { kind: "wire" } },
   };
 }
 
@@ -228,7 +228,7 @@ export function orphanWires(elements: readonly ExcalidrawElement[]): string[] {
 export function revivableWires(elements: readonly ExcalidrawElement[]): string[] {
   const byId = new Map(elements.map((e) => [e.id, e]));
   return elements
-    .filter((e) => e.isDeleted && e.type === "arrow" && isWire(e) && (e.customData?.openvibe as { orphaned?: unknown }).orphaned === true)
+    .filter((e) => e.isDeleted && e.type === "arrow" && isWire(e) && (e.customData?.dummyplane as { orphaned?: unknown }).orphaned === true)
     .filter((arrow) => {
       const { startBinding, endBinding } = arrow as ExcalidrawArrowElement;
       return [startBinding, endBinding].every((b) => b && isWireEnd(byId.get(b.elementId)));

@@ -13,7 +13,7 @@ it("draws only the dots, so the ambient lights under it show through", async () 
   await act(async () => root.render(<DotGridBackground step={20} x={0} y={0} />));
   const grid = host.firstElementChild as HTMLElement;
   expect(grid.className).not.toMatch(/\bbg-/);
-  expect(grid.style.backgroundImage).toContain("var(--ov-dot)");
+  expect(grid.style.backgroundImage).toContain("var(--dp-dot)");
   await act(async () => root.unmount());
   host.remove();
 });

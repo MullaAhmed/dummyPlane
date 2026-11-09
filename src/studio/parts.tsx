@@ -23,7 +23,7 @@ export const FULL_WINDOW: ComponentProps<typeof DialogContent>["style"] = {
 export const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
 export function Message({ children }: { children: ReactNode }) {
-  return <p className="grid flex-1 place-items-center p-6 text-center text-xs text-ov-text-2">{children}</p>;
+  return <p className="grid flex-1 place-items-center p-6 text-center text-xs text-dp-text-2">{children}</p>;
 }
 
 /** The disk no longer holds what the buffer knows: only the user decides (spec studio code §3). */
@@ -31,12 +31,12 @@ export function DiskBanner({ session, disk, onDrop }: { session: FileSession; di
   const t = useMessages(studioMessages);
   const { reload, overwrite, dropFile } = session.getState();
   const gone = disk.version === null;
-  const action = "shrink-0 rounded-[6px] px-2 py-0.5 text-[12px] font-medium text-ov-text hover:bg-ov-hover";
+  const action = "shrink-0 rounded-[6px] px-2 py-0.5 text-[12px] font-medium text-dp-text hover:bg-dp-hover";
   return (
     <div
       role="alert"
-      className="flex shrink-0 items-center gap-2 border-b border-ov-line px-3 py-1.5 text-[12px] text-ov-text"
-      style={{ backgroundColor: "color-mix(in srgb, var(--ov-wait) 16%, transparent)" }}
+      className="flex shrink-0 items-center gap-2 border-b border-dp-line px-3 py-1.5 text-[12px] text-dp-text"
+      style={{ backgroundColor: "color-mix(in srgb, var(--dp-wait) 16%, transparent)" }}
     >
       <span className="min-w-0 flex-1">{gone ? t.deletedOnDisk : t.changedOnDisk}</span>
       {gone ? (

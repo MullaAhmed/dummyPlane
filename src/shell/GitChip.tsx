@@ -44,13 +44,13 @@ export function GitChip() {
       title={path}
       aria-label={t.open(status.branch)}
       onClick={() => gitWindowStore.getState().open(path)}
-      className="ov-glass-strong pointer-events-auto flex h-8 items-center gap-1.5 rounded-[14px] px-2.5 font-mono text-[11.5px] text-ov-text-2 hover:text-ov-text"
+      className="dp-glass-strong pointer-events-auto flex h-8 items-center gap-1.5 rounded-[14px] px-2.5 font-mono text-[11.5px] text-dp-text-2 hover:text-dp-text"
     >
       <GitBranch className="size-3.5" />
       <span title={status.branch} className="max-w-[150px] truncate">
         {status.branch}
       </span>
-      {status.changed > 0 && <span className="text-ov-accent">{status.changed}</span>}
+      {status.changed > 0 && <span className="text-dp-accent">{status.changed}</span>}
     </button>
   );
 }

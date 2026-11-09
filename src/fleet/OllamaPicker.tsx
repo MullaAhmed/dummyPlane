@@ -49,8 +49,8 @@ export function OllamaPicker(props: { aiderAvailable: boolean; onBack: () => voi
       title={disabled ? t.aiderNotFound : undefined}
       onClick={() => setMode(value)}
       className={cn(
-        "flex-1 rounded-lg border border-transparent bg-ov-card py-1.5 text-xs disabled:opacity-40",
-        mode === value && "border-ov-accent bg-ov-accent-soft",
+        "flex-1 rounded-lg border border-transparent bg-dp-card py-1.5 text-xs disabled:opacity-40",
+        mode === value && "border-dp-accent bg-dp-accent-soft",
       )}
     >
       {label}
@@ -59,7 +59,7 @@ export function OllamaPicker(props: { aiderAvailable: boolean; onBack: () => voi
 
   return (
     <div className="grid gap-3 p-1">
-      <button type="button" onClick={onBack} className="flex items-center gap-1.5 text-xs text-ov-text-2 hover:text-ov-text">
+      <button type="button" onClick={onBack} className="flex items-center gap-1.5 text-xs text-dp-text-2 hover:text-dp-text">
         <ArrowLeft className="size-3.5" /> {t.title}
       </button>
       <div className="flex gap-1.5">
@@ -67,32 +67,32 @@ export function OllamaPicker(props: { aiderAvailable: boolean; onBack: () => voi
         {modeButton("chat", t.chat)}
       </div>
       <div className="grid max-h-40 gap-0.5 overflow-auto">
-        {models === null && <p className="px-2 py-1 text-xs text-ov-text-2">{t.reading}</p>}
+        {models === null && <p className="px-2 py-1 text-xs text-dp-text-2">{t.reading}</p>}
         {models && "error" in models && (
           <div className="grid justify-items-start gap-1 px-2 py-1">
-            <p title={models.error} className="text-xs text-ov-danger">
+            <p title={models.error} className="text-xs text-dp-danger">
               {t.serverDown}
             </p>
-            <button type="button" onClick={() => void read()} className="text-xs text-ov-accent hover:underline">
+            <button type="button" onClick={() => void read()} className="text-xs text-dp-accent hover:underline">
               {t.retry}
             </button>
           </div>
         )}
-        {models && "models" in models && models.models.length === 0 && <p className="px-2 py-1 text-xs text-ov-text-2">{t.noModels}</p>}
+        {models && "models" in models && models.models.length === 0 && <p className="px-2 py-1 text-xs text-dp-text-2">{t.noModels}</p>}
         {installed.map((model) => (
           <button
             key={model}
             type="button"
             data-model={model}
             onClick={() => onPick({ model, mode })}
-            className="rounded-lg px-2 py-1.5 text-left font-mono text-xs text-ov-text hover:bg-ov-hover"
+            className="rounded-lg px-2 py-1.5 text-left font-mono text-xs text-dp-text hover:bg-dp-hover"
           >
             {model}
           </button>
         ))}
       </div>
-      <form onSubmit={pull} className="grid gap-1.5 border-t border-ov-line pt-2">
-        <p className="ov-label">{t.pullLabel}</p>
+      <form onSubmit={pull} className="grid gap-1.5 border-t border-dp-line pt-2">
+        <p className="dp-label">{t.pullLabel}</p>
         <div className="flex gap-1.5">
           <Input
             value={name}
@@ -108,26 +108,26 @@ export function OllamaPicker(props: { aiderAvailable: boolean; onBack: () => voi
             {t.pull}
           </AccentButton>
         </div>
-        {invalid && <p className="text-xs text-ov-danger">{t.pullInvalid}</p>}
-        <p className="text-[11px] text-ov-text-2">{t.pullHint}</p>
+        {invalid && <p className="text-xs text-dp-danger">{t.pullInvalid}</p>}
+        <p className="text-[11px] text-dp-text-2">{t.pullHint}</p>
       </form>
       {suggestions.length > 0 && (
         <div className="grid gap-0.5">
-          <p className="ov-label px-2">{t.suggestions}</p>
+          <p className="dp-label px-2">{t.suggestions}</p>
           {suggestions.map(({ model, sizeGb, use }) => (
             <button
               key={model}
               type="button"
               data-suggestion={model}
               onClick={() => onPull(model)}
-              className="flex items-center gap-2 rounded-lg px-2 py-1 text-left hover:bg-ov-hover"
+              className="flex items-center gap-2 rounded-lg px-2 py-1 text-left hover:bg-dp-hover"
             >
-              <Download className="size-3 shrink-0 text-ov-text-2" />
+              <Download className="size-3 shrink-0 text-dp-text-2" />
               <span className="min-w-0 flex-1">
-                <span className="block truncate font-mono text-xs text-ov-text">{model}</span>
-                <span className="block text-[11px] text-ov-text-2">{t.uses[use]}</span>
+                <span className="block truncate font-mono text-xs text-dp-text">{model}</span>
+                <span className="block text-[11px] text-dp-text-2">{t.uses[use]}</span>
               </span>
-              <span className="shrink-0 font-mono text-[11px] text-ov-text-2">{t.sizeGb(sizeGb)}</span>
+              <span className="shrink-0 font-mono text-[11px] text-dp-text-2">{t.sizeGb(sizeGb)}</span>
             </button>
           ))}
         </div>

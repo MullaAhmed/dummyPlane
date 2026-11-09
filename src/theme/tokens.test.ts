@@ -14,9 +14,9 @@ export type PaletteId = keyof typeof PALETTE_SELECTORS;
 
 /** The user's hex values, kept exactly: 60% canvas, 30% text and surfaces, 10% accent. */
 const MAIN: Record<PaletteId, Record<string, string>> = {
-  calm: { "--ov-canvas": "#EDE3CC", "--ov-secondary": "#173F32", "--ov-accent": "#F52B94" },
-  electric: { "--ov-canvas": "#263CF5", "--ov-secondary": "#F4F4F1", "--ov-accent": "#B6F52B" },
-  expressive: { "--ov-canvas": "#101014", "--ov-secondary": "#2864F5", "--ov-accent": "#FF781B" },
+  calm: { "--dp-canvas": "#EDE3CC", "--dp-secondary": "#173F32", "--dp-accent": "#F52B94" },
+  electric: { "--dp-canvas": "#263CF5", "--dp-secondary": "#F4F4F1", "--dp-accent": "#B6F52B" },
+  expressive: { "--dp-canvas": "#101014", "--dp-secondary": "#2864F5", "--dp-accent": "#FF781B" },
 };
 
 const SCHEME: Record<PaletteId, "light" | "dark"> = { calm: "light", electric: "dark", expressive: "dark" };
@@ -27,9 +27,9 @@ const REQUIRED = [
   "accent", "accent-ink", "accent-soft", "on-accent", "on-role", "wait", "ok", "danger", "terminal", "terminal-head",
   "glass", "glass-strong", "glass-line", "glass-hi", "glass-edge", "tray", "head", "tab-on",
   "glow-1", "glow-2", "glow-3", "shadow", "float-shadow", "draw",
-].map((name) => `--ov-${name}`);
+].map((name) => `--dp-${name}`);
 
-const OPAQUE = { "--ov-glass": "var(--ov-surface)", "--ov-glass-strong": "var(--ov-surface)", "--ov-head": "var(--ov-terminal-head)", "--ov-blur": "none" };
+const OPAQUE = { "--dp-glass": "var(--dp-surface)", "--dp-glass-strong": "var(--dp-surface)", "--dp-head": "var(--dp-terminal-head)", "--dp-blur": "none" };
 
 /** The `color-scheme` a palette's block declares (cssBlock reads custom properties only). */
 function schemeOf(palette: PaletteId): string {
@@ -63,10 +63,10 @@ describe("design tokens (spec identité §4.2)", () => {
 
   it("keeps the habillage names as aliases until R2 and R3 rebuild their components", () => {
     const shared = cssBlock(tokens, ":root");
-    for (const alias of ["--ov-surface-2", "--ov-command", "--ov-selected", "--ov-working", "--ov-waiting", "--ov-idle", "--ov-done", "--ov-live"]) {
-      expect(shared[alias], alias).toMatch(/^var\(--ov-/);
+    for (const alias of ["--dp-surface-2", "--dp-command", "--dp-selected", "--dp-working", "--dp-waiting", "--dp-idle", "--dp-done", "--dp-live"]) {
+      expect(shared[alias], alias).toMatch(/^var\(--dp-/);
     }
-    expect(shared["--ov-blur"]).toBe("blur(18px) saturate(150%)");
+    expect(shared["--dp-blur"]).toBe("blur(18px) saturate(150%)");
   });
 
   it("no longer defines the old Argile and Ivoire themes", () => {
@@ -74,7 +74,7 @@ describe("design tokens (spec identité §4.2)", () => {
     expect(tokens).not.toMatch(/Argile|Ivoire/);
   });
 
-  it("turns every glass opaque without transparency, from the reduced-transparency setting or from OpenVibe's", () => {
+  it("turns every glass opaque without transparency, from the reduced-transparency setting or from dummyPlane's", () => {
     expect(tokens).toContain("@media (prefers-reduced-transparency: reduce)");
     expect(
       cssBlock(
@@ -87,8 +87,8 @@ describe("design tokens (spec identité §4.2)", () => {
   });
 
   it("offers the glass and ambient utilities built on these tokens", () => {
-    expect(index).toMatch(/\.ov-glass \{[^}]*var\(--ov-glass\)[^}]*var\(--ov-blur\)/);
-    expect(index).toMatch(/\.ov-glass-strong \{[^}]*var\(--ov-glass-strong\)[^}]*var\(--ov-blur\)/);
-    expect(index).toMatch(/\.ov-ambient \{[^}]*var\(--ov-glow-1\)[^}]*var\(--ov-glow-2\)[^}]*var\(--ov-glow-3\)/);
+    expect(index).toMatch(/\.dp-glass \{[^}]*var\(--dp-glass\)[^}]*var\(--dp-blur\)/);
+    expect(index).toMatch(/\.dp-glass-strong \{[^}]*var\(--dp-glass-strong\)[^}]*var\(--dp-blur\)/);
+    expect(index).toMatch(/\.dp-ambient \{[^}]*var\(--dp-glow-1\)[^}]*var\(--dp-glow-2\)[^}]*var\(--dp-glow-3\)/);
   });
 });

@@ -12,8 +12,8 @@ export function ToolButton({ label, active = false, className, ...props }: Compo
       aria-label={label}
       aria-pressed={active}
       className={cn(
-        "relative grid h-[34px] w-9 shrink-0 place-items-center rounded-[9px] text-ov-text-2 transition-colors hover:bg-ov-hover hover:text-ov-text [&_svg]:size-4",
-        active && "bg-ov-accent-soft text-ov-accent hover:bg-ov-accent-soft hover:text-ov-accent",
+        "relative grid h-[34px] w-9 shrink-0 place-items-center rounded-[9px] text-dp-text-2 transition-colors hover:bg-dp-hover hover:text-dp-text [&_svg]:size-4",
+        active && "bg-dp-accent-soft text-dp-accent hover:bg-dp-accent-soft hover:text-dp-accent",
         className,
       )}
       {...props}
@@ -29,7 +29,7 @@ export function IconButton({ label, className, ...props }: ComponentProps<"butto
       title={label}
       aria-label={label}
       className={cn(
-        "grid size-[26px] shrink-0 place-items-center rounded-[6px] text-ov-text-2 transition-colors hover:bg-ov-hover hover:text-ov-text [&_svg]:size-3.5",
+        "grid size-[26px] shrink-0 place-items-center rounded-[6px] text-dp-text-2 transition-colors hover:bg-dp-hover hover:text-dp-text [&_svg]:size-3.5",
         className,
       )}
       {...props}
@@ -43,7 +43,7 @@ export function AccentButton({ className, ...props }: ComponentProps<"button">) 
     <button
       type="button"
       className={cn(
-        "flex h-8 shrink-0 items-center gap-1.5 rounded-[10px] bg-ov-accent px-3.5 text-[13px] font-semibold text-ov-on-accent transition-[filter] hover:brightness-110 disabled:opacity-40 [&_svg]:size-3.5",
+        "flex h-8 shrink-0 items-center gap-1.5 rounded-[10px] bg-dp-accent px-3.5 text-[13px] font-semibold text-dp-on-accent transition-[filter] hover:brightness-110 disabled:opacity-40 [&_svg]:size-3.5",
         className,
       )}
       {...props}
