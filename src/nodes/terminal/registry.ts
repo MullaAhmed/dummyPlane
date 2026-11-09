@@ -9,7 +9,8 @@ import type { TerminalPayload } from "@/nodes/types";
 import { nodesStore, sessionOf, updateSession } from "@/store/nodes";
 import { isRunning, statusOf, terminalStatusStore } from "@/store/terminalStatus";
 import { createAutostart } from "./autostart";
-import { TERMINAL_THEME } from "./terminalTheme";
+import { currentPalette } from "@/app/theme";
+import { terminalThemeFor } from "./terminalTheme";
 import { watchDevicePixelRatio } from "./dprWatch";
 import { BASE_FONT_SIZE, canvasMeasure, fontFor, gridFor, renderZoom, type FontMeasure } from "./crisp";
 import { bufferText } from "./bufferText";
@@ -71,7 +72,7 @@ function create(nodeId: string): Entry {
     cursorBlink: true,
     fontFamily: FONT_FAMILY,
     fontSize: BASE_FONT_SIZE,
-    theme: { ...TERMINAL_THEME },
+    theme: terminalThemeFor(currentPalette()),
     windowsPty: { backend: "conpty" },
   });
   term.loadAddon(new Unicode11Addon());

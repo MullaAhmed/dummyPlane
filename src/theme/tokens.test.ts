@@ -4,80 +4,61 @@ import { cssBlock, readSource } from "./cssBlocks";
 const tokens = readSource("theme/tokens.css");
 const index = readSource("index.css");
 
-// Spec identité §4.2, column by column.
-const DARK: Record<string, string> = {
-  "--ov-canvas": "#232220",
-  "--ov-dot": "rgba(255,255,255,.07)",
-  "--ov-surface": "#2B2A27",
-  "--ov-field": "rgba(255,255,255,.05)",
-  "--ov-line": "rgba(255,255,255,.09)",
-  "--ov-hover": "rgba(255,255,255,.07)",
-  "--ov-text": "#F5F4EF",
-  "--ov-text-2": "#B3B0A8",
-  "--ov-text-3": "#86837C",
-  "--ov-accent": "#D97757",
-  "--ov-accent-soft": "rgba(217,119,87,.18)",
-  "--ov-on-accent": "#1F1E1D",
-  "--ov-wait": "#D4A27F",
-  "--ov-ok": "#8FA876",
-  "--ov-danger": "#E5534B",
-  "--ov-terminal": "#1A1918",
-  "--ov-glass": "rgba(40,39,36,.52)",
-  "--ov-glass-strong": "rgba(42,41,38,.84)",
-  "--ov-glass-line": "rgba(255,255,255,.10)",
-  "--ov-glass-hi": "inset 0 1px 0 rgba(255,255,255,.07)",
-  "--ov-glass-edge": "0 0 0 1px rgba(0,0,0,.28)",
-  "--ov-tray": "rgba(255,255,255,.028)",
-  "--ov-head": "rgba(32,31,29,.70)",
-  "--ov-tab-on": "rgba(255,255,255,.08)",
-  "--ov-glow-1": "rgba(217,119,87,.16)",
-  "--ov-glow-2": "rgba(143,168,118,.12)",
-  "--ov-glow-3": "rgba(106,155,204,.08)",
-  "--ov-shadow": "0 12px 40px rgba(0,0,0,.45)",
-  "--ov-float-shadow": "0 8px 28px rgba(0,0,0,.32)",
-  "--ov-draw": "#E8E5DD",
+/** The selector of each palette's block. `expressive` is also the `:root` default. */
+export const PALETTE_SELECTORS = {
+  calm: ':root[data-palette="calm"]',
+  electric: ':root[data-palette="electric"]',
+  expressive: ':root, :root[data-palette="expressive"]',
+} as const;
+export type PaletteId = keyof typeof PALETTE_SELECTORS;
+
+/** The user's hex values, kept exactly: 60% canvas, 30% text and surfaces, 10% accent. */
+const MAIN: Record<PaletteId, Record<string, string>> = {
+  calm: { "--ov-canvas": "#EDE3CC", "--ov-secondary": "#173F32", "--ov-accent": "#F52B94" },
+  electric: { "--ov-canvas": "#263CF5", "--ov-secondary": "#F4F4F1", "--ov-accent": "#B6F52B" },
+  expressive: { "--ov-canvas": "#101014", "--ov-secondary": "#2864F5", "--ov-accent": "#FF781B" },
 };
-const LIGHT: Record<string, string> = {
-  "--ov-canvas": "#F7F5EF",
-  "--ov-dot": "rgba(41,38,27,.10)",
-  "--ov-surface": "#FFFFFF",
-  "--ov-field": "rgba(255,255,255,.60)",
-  "--ov-line": "rgba(41,38,27,.10)",
-  "--ov-hover": "rgba(41,38,27,.06)",
-  "--ov-text": "#29261B",
-  "--ov-text-2": "#625F57",
-  "--ov-text-3": "#8F8C83",
-  "--ov-accent": "#C2603F",
-  "--ov-accent-soft": "rgba(194,96,63,.13)",
-  "--ov-on-accent": "#FFFFFF",
-  "--ov-wait": "#B07D3A",
-  "--ov-ok": "#5E7A43",
-  "--ov-danger": "#C93C37",
-  "--ov-terminal": "#1A1918",
-  "--ov-glass": "rgba(255,255,255,.50)",
-  "--ov-glass-strong": "rgba(252,251,248,.88)",
-  "--ov-glass-line": "rgba(255,255,255,.80)",
-  "--ov-glass-hi": "inset 0 1px 0 rgba(255,255,255,.90)",
-  "--ov-glass-edge": "0 0 0 1px rgba(41,38,27,.08)",
-  "--ov-tray": "rgba(255,255,255,.38)",
-  "--ov-head": "rgba(255,255,255,.66)",
-  "--ov-tab-on": "rgba(255,255,255,.88)",
-  "--ov-glow-1": "rgba(217,119,87,.16)",
-  "--ov-glow-2": "rgba(106,155,204,.14)",
-  "--ov-glow-3": "rgba(143,168,118,.12)",
-  "--ov-shadow": "0 12px 40px rgba(41,38,27,.16)",
-  "--ov-float-shadow": "0 8px 28px rgba(41,38,27,.10)",
-  "--ov-draw": "#29261B",
-};
+
+const SCHEME: Record<PaletteId, "light" | "dark"> = { calm: "light", electric: "dark", expressive: "dark" };
+
+/** Every token the components read, in each palette. */
+const REQUIRED = [
+  "canvas", "dot", "surface", "card", "field", "line", "hover", "text", "text-2", "text-3", "secondary",
+  "accent", "accent-ink", "accent-soft", "on-accent", "on-role", "wait", "ok", "danger", "terminal", "terminal-head",
+  "glass", "glass-strong", "glass-line", "glass-hi", "glass-edge", "tray", "head", "tab-on",
+  "glow-1", "glow-2", "glow-3", "shadow", "float-shadow", "draw",
+].map((name) => `--ov-${name}`);
+
 const OPAQUE = { "--ov-glass": "var(--ov-surface)", "--ov-glass-strong": "var(--ov-surface)", "--ov-head": "var(--ov-terminal-head)", "--ov-blur": "none" };
 
+/** The `color-scheme` a palette's block declares (cssBlock reads custom properties only). */
+function schemeOf(palette: PaletteId): string {
+  const at = tokens.indexOf(`${PALETTE_SELECTORS[palette]} {`);
+  expect(at, `${palette} has its block`).toBeGreaterThanOrEqual(0);
+  return /color-scheme:\s*(\w+);/.exec(tokens.slice(at))![1];
+}
+
 describe("design tokens (spec identité §4.2)", () => {
-  it("defines every token of the dark theme, Clay, with the spec's value", () => {
-    expect(cssBlock(tokens, ':root, :root[data-theme="dark"]')).toMatchObject(DARK);
+  it("defines every token in each of the three palettes", () => {
+    for (const palette of Object.keys(PALETTE_SELECTORS) as PaletteId[]) {
+      const block = cssBlock(tokens, PALETTE_SELECTORS[palette]);
+      for (const name of REQUIRED) expect(block, `${palette} ${name}`).toHaveProperty(name);
+    }
   });
 
-  it("defines every token of the light theme, Ivory, with the spec's value", () => {
-    expect(cssBlock(tokens, ':root[data-theme="light"]')).toMatchObject(LIGHT);
+  it("keeps the user's main hexes exactly in each palette", () => {
+    for (const palette of Object.keys(MAIN) as PaletteId[]) {
+      expect(cssBlock(tokens, PALETTE_SELECTORS[palette])).toMatchObject(MAIN[palette]);
+    }
+  });
+
+  it("declares the color scheme of each palette: calm light, electric and expressive dark", () => {
+    for (const palette of Object.keys(SCHEME) as PaletteId[]) expect(schemeOf(palette), palette).toBe(SCHEME[palette]);
+  });
+
+  it("makes expressive the :root default, so nothing paints unstyled before the palette is set", () => {
+    expect(cssBlock(tokens, PALETTE_SELECTORS.expressive)).toMatchObject(MAIN.expressive);
+    expect(tokens).toContain(':root, :root[data-palette="expressive"] {');
   });
 
   it("keeps the habillage names as aliases until R2 and R3 rebuild their components", () => {
@@ -85,17 +66,24 @@ describe("design tokens (spec identité §4.2)", () => {
     for (const alias of ["--ov-surface-2", "--ov-command", "--ov-selected", "--ov-working", "--ov-waiting", "--ov-idle", "--ov-done", "--ov-live"]) {
       expect(shared[alias], alias).toMatch(/^var\(--ov-/);
     }
-    for (const themed of [':root, :root[data-theme="dark"]', ':root[data-theme="light"]']) {
-      expect(cssBlock(tokens, themed)).toHaveProperty("--ov-card");
-      expect(cssBlock(tokens, themed)).toHaveProperty("--ov-terminal-head");
-    }
     expect(shared["--ov-blur"]).toBe("blur(18px) saturate(150%)");
   });
 
-  it("turns every glass opaque without transparency, from Windows or from the setting", () => {
+  it("no longer defines the old Argile and Ivoire themes", () => {
+    expect(tokens).not.toMatch(/data-theme=/);
+    expect(tokens).not.toMatch(/Argile|Ivoire/);
+  });
+
+  it("turns every glass opaque without transparency, from the reduced-transparency setting or from OpenVibe's", () => {
     expect(tokens).toContain("@media (prefers-reduced-transparency: reduce)");
-    expect(cssBlock(tokens, ':root[data-theme="dark"], :root[data-theme="light"]', "@media (prefers-reduced-transparency: reduce)")).toMatchObject(OPAQUE);
-    expect(cssBlock(tokens, ':root[data-theme][data-transparency="off"]')).toMatchObject(OPAQUE);
+    expect(
+      cssBlock(
+        tokens,
+        ':root[data-palette="calm"], :root[data-palette="electric"], :root[data-palette="expressive"]',
+        "@media (prefers-reduced-transparency: reduce)",
+      ),
+    ).toMatchObject(OPAQUE);
+    expect(cssBlock(tokens, ':root[data-palette][data-transparency="off"]')).toMatchObject(OPAQUE);
   });
 
   it("offers the glass and ambient utilities built on these tokens", () => {

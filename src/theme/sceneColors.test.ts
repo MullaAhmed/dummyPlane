@@ -32,8 +32,9 @@ describe("colors in each theme", () => {
     expect(sceneColorFor("#3F74A8", "dark")).toBe(toSceneColor("#3F74A8"));
   });
 
-  it("exports a PNG in the theme on screen, on its canvas color", () => {
-    expect(exportBackground("light")).toEqual({ exportWithDarkMode: false, viewBackgroundColor: "#F7F5EF" });
-    expect(exportBackground("dark")).toEqual({ exportWithDarkMode: true, viewBackgroundColor: toSceneColor("#232220") });
+  it("exports a PNG in the palette on screen: its scheme and its canvas color", () => {
+    expect(exportBackground("calm")).toEqual({ exportWithDarkMode: false, viewBackgroundColor: "#EDE3CC" });
+    expect(exportBackground("electric")).toEqual({ exportWithDarkMode: true, viewBackgroundColor: toSceneColor("#263CF5") });
+    expect(exportBackground("expressive")).toEqual({ exportWithDarkMode: true, viewBackgroundColor: toSceneColor("#101014") });
   });
 });

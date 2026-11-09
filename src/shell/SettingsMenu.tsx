@@ -4,7 +4,7 @@ import { showAbout } from "@/app/about";
 import { openLogDir } from "@/app/logs";
 import { setNativeNotifications, useNativeNotifications } from "@/app/nativeNotifications";
 import { checkForUpdate, setAutoUpdates, useUpdates } from "@/app/updates";
-import { readThemeChoice, setThemeChoice, setTransparency, useThemeSettings } from "@/app/theme";
+import { PALETTES, readThemeChoice, setThemeChoice, setTransparency, useThemeSettings, type ThemeChoice } from "@/app/theme";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -41,9 +41,11 @@ export function SettingsMenu({
       <DropdownMenuContent side={side} align={align} className="w-56">
         <DropdownMenuLabel className="ov-label">{t.theme}</DropdownMenuLabel>
         <DropdownMenuRadioGroup value={choice} onValueChange={(value) => void setThemeChoice(readThemeChoice(value))}>
-          <DropdownMenuRadioItem value="system">{t.system}</DropdownMenuRadioItem>
-          <DropdownMenuRadioItem value="light">{t.light}</DropdownMenuRadioItem>
-          <DropdownMenuRadioItem value="dark">{t.dark}</DropdownMenuRadioItem>
+          {(Object.keys(PALETTES) as ThemeChoice[]).map((palette) => (
+            <DropdownMenuRadioItem key={palette} value={palette}>
+              {PALETTES[palette].name}
+            </DropdownMenuRadioItem>
+          ))}
         </DropdownMenuRadioGroup>
         <DropdownMenuCheckboxItem checked={transparency} onCheckedChange={(on) => void setTransparency(on === true)}>
           {t.transparency}

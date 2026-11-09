@@ -15,7 +15,7 @@ import "./index.css";
 // First: what follows can already write to the log file.
 installLogging();
 document.documentElement.lang = "en";
-startTheme(matchMedia("(prefers-color-scheme: dark)"));
+startTheme();
 // For the app's whole life (spec fenêtre §6.2, §8).
 installShortcuts(window);
 trackTerminalFocus(document);

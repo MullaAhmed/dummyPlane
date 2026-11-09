@@ -1,7 +1,10 @@
-/* Design tokens (spec identité §4.2): Clay (dark) and Ivory (light). The
-   theme is written on <html data-theme> by src/app/theme.ts. */
+/* Design tokens (spec identité §4.2): three palettes, each 60/30/10 (60% canvas,
+   30% text and surfaces, 10% accent). src/app/theme.ts writes the palette on
+   <html data-palette> and its scheme on <html data-theme>. --ov-accent-ink is the
+   accent as text (links, active labels) where the accent itself is too pale on the
+   canvas. The palettes' own hexes are the main colors; the rest is derived. */
 
-/* Both themes. */
+/* Both palettes. */
 :root {
   --ov-blur: blur(18px) saturate(150%);
   /* Aliases of the habillage tokens: the components reading them are rebuilt
@@ -16,84 +19,125 @@
   --ov-live: var(--ov-ok);
 }
 
-:root, :root[data-theme="dark"] {
-  color-scheme: dark;
-  --ov-canvas: #232220;
-  --ov-dot: rgba(255,255,255,.07);
-  --ov-surface: #2B2A27;
-  --ov-field: rgba(255,255,255,.05);
-  --ov-line: rgba(255,255,255,.09);
-  --ov-hover: rgba(255,255,255,.07);
-  --ov-text: #F5F4EF;
-  --ov-text-2: #B3B0A8;
-  --ov-text-3: #86837C;
-  --ov-accent: #D97757;
-  --ov-accent-soft: rgba(217,119,87,.18);
-  --ov-on-accent: #1F1E1D;
-  /* Role colors do not change with the theme, nor does the ink written on them. */
-  --ov-on-role: #1F1E1D;
-  --ov-wait: #D4A27F;
-  --ov-ok: #8FA876;
-  --ov-danger: #E5534B;
-  --ov-terminal: #1A1918;
-  --ov-glass: rgba(40,39,36,.52);
-  --ov-glass-strong: rgba(42,41,38,.84);
-  --ov-glass-line: rgba(255,255,255,.10);
-  --ov-glass-hi: inset 0 1px 0 rgba(255,255,255,.07);
-  --ov-glass-edge: 0 0 0 1px rgba(0,0,0,.28);
-  --ov-tray: rgba(255,255,255,.028);
-  --ov-head: rgba(32,31,29,.70);
-  --ov-tab-on: rgba(255,255,255,.08);
-  --ov-glow-1: rgba(217,119,87,.16);
-  --ov-glow-2: rgba(143,168,118,.12);
-  --ov-glow-3: rgba(106,155,204,.08);
-  --ov-shadow: 0 12px 40px rgba(0,0,0,.45);
-  --ov-float-shadow: 0 8px 28px rgba(0,0,0,.32);
-  --ov-draw: #E8E5DD;
-  --ov-card: #30302D;
-  --ov-terminal-head: #232220;
-}
-
-:root[data-theme="light"] {
+:root[data-palette="calm"] {
   color-scheme: light;
-  --ov-canvas: #F7F5EF;
-  --ov-dot: rgba(41,38,27,.10);
-  --ov-surface: #FFFFFF;
-  --ov-field: rgba(255,255,255,.60);
-  --ov-line: rgba(41,38,27,.10);
-  --ov-hover: rgba(41,38,27,.06);
-  --ov-text: #29261B;
-  --ov-text-2: #625F57;
-  --ov-text-3: #8F8C83;
-  --ov-accent: #C2603F;
-  --ov-accent-soft: rgba(194,96,63,.13);
-  --ov-on-accent: #FFFFFF;
+  --ov-canvas: #EDE3CC;
+  --ov-dot: rgba(23,63,50,0.12);
+  --ov-surface: #F7F2E8;
+  --ov-card: #F2EBDB;
+  --ov-field: rgba(255,255,255,.6);
+  --ov-line: rgba(23,63,50,0.14);
+  --ov-hover: rgba(23,63,50,0.07);
+  --ov-text: #173F32;
+  --ov-text-2: #315344;
+  --ov-text-3: #4D6859;
+  --ov-secondary: #173F32;
+  --ov-accent: #F52B94;
+  --ov-accent-ink: #913468;
+  --ov-accent-soft: rgba(245,43,148,0.16);
+  --ov-on-accent: #0A0F0C;
   --ov-on-role: #1F1E1D;
-  --ov-wait: #B07D3A;
-  --ov-ok: #5E7A43;
-  --ov-danger: #C93C37;
-  --ov-terminal: #1A1918;
-  --ov-glass: rgba(255,255,255,.50);
-  --ov-glass-strong: rgba(252,251,248,.88);
-  --ov-glass-line: rgba(255,255,255,.80);
-  --ov-glass-hi: inset 0 1px 0 rgba(255,255,255,.90);
-  --ov-glass-edge: 0 0 0 1px rgba(41,38,27,.08);
-  --ov-tray: rgba(255,255,255,.38);
-  --ov-head: rgba(255,255,255,.66);
-  --ov-tab-on: rgba(255,255,255,.88);
-  --ov-glow-1: rgba(217,119,87,.16);
-  --ov-glow-2: rgba(106,155,204,.14);
-  --ov-glow-3: rgba(143,168,118,.12);
-  --ov-shadow: 0 12px 40px rgba(41,38,27,.16);
-  --ov-float-shadow: 0 8px 28px rgba(41,38,27,.10);
-  --ov-draw: #29261B;
-  --ov-card: #F5F3EC;
-  --ov-terminal-head: #F0EEE6;
+  --ov-wait: #7A4E0E;
+  --ov-ok: #2D6A3A;
+  --ov-danger: #A3251F;
+  --ov-terminal: #0F2921;
+  --ov-terminal-head: #F6F1E6;
+  --ov-glass: rgba(255,255,255,0.5);
+  --ov-glass-strong: rgba(255,255,255,0.88);
+  --ov-glass-line: rgba(255,255,255,.8);
+  --ov-glass-hi: inset 0 1px 0 rgba(255,255,255,0.9);
+  --ov-glass-edge: 0 0 0 1px rgba(15,41,33,0.08);
+  --ov-tray: rgba(255,255,255,0.38);
+  --ov-head: rgba(255,255,255,0.66);
+  --ov-tab-on: rgba(255,255,255,0.88);
+  --ov-glow-1: rgba(245,43,148,0.16);
+  --ov-glow-2: rgba(23,63,50,0.1);
+  --ov-glow-3: rgba(245,43,148,0.08);
+  --ov-shadow: 0 12px 40px rgba(15,41,33,0.16);
+  --ov-float-shadow: 0 8px 28px rgba(15,41,33,0.1);
+  --ov-draw: #173F32;
 }
 
+:root[data-palette="electric"] {
+  color-scheme: dark;
+  --ov-canvas: #263CF5;
+  --ov-dot: rgba(255,255,255,0.07);
+  --ov-surface: #1C2ECC;
+  --ov-card: #2034DE;
+  --ov-field: rgba(255,255,255,.05);
+  --ov-line: rgba(255,255,255,0.09);
+  --ov-hover: rgba(255,255,255,0.07);
+  --ov-text: #F4F4F1;
+  --ov-text-2: #E4E5F1;
+  --ov-text-3: #CBCFF2;
+  --ov-secondary: #F4F4F1;
+  --ov-accent: #B6F52B;
+  --ov-accent-ink: #B6F52B;
+  --ov-accent-soft: rgba(182,245,43,0.16);
+  --ov-on-accent: #0A0F0C;
+  --ov-on-role: #1F1E1D;
+  --ov-wait: #FFD27A;
+  --ov-ok: #8CF0A0;
+  --ov-danger: #FFC4C4;
+  --ov-terminal: #0D1556;
+  --ov-terminal-head: #1D2DB8;
+  --ov-glass: rgba(10,20,128,0.52);
+  --ov-glass-strong: rgba(10,20,128,0.84);
+  --ov-glass-line: rgba(255,255,255,0.1);
+  --ov-glass-hi: inset 0 1px 0 rgba(255,255,255,0.07);
+  --ov-glass-edge: 0 0 0 1px rgba(0,0,20,0.28);
+  --ov-tray: rgba(255,255,255,0.03);
+  --ov-head: rgba(38,60,245,0.7);
+  --ov-tab-on: rgba(255,255,255,0.08);
+  --ov-glow-1: rgba(182,245,43,0.16);
+  --ov-glow-2: rgba(255,255,255,0.12);
+  --ov-glow-3: rgba(38,60,245,0.08);
+  --ov-shadow: 0 12px 40px rgba(0,0,20,0.45);
+  --ov-float-shadow: 0 8px 28px rgba(0,0,20,0.32);
+  --ov-draw: #F4F4F1;
+}
+
+:root, :root[data-palette="expressive"] {
+  color-scheme: dark;
+  --ov-canvas: #101014;
+  --ov-dot: rgba(255,255,255,0.07);
+  --ov-surface: #141D38;
+  --ov-card: #16264F;
+  --ov-field: rgba(255,255,255,.05);
+  --ov-line: rgba(255,255,255,0.09);
+  --ov-hover: rgba(255,255,255,0.07);
+  --ov-text: #F4F4F1;
+  --ov-text-2: #C2C2C0;
+  --ov-text-3: #949494;
+  --ov-secondary: #2864F5;
+  --ov-accent: #FF781B;
+  --ov-accent-ink: #FF781B;
+  --ov-accent-soft: rgba(255,120,27,0.16);
+  --ov-on-accent: #0A0F0C;
+  --ov-on-role: #1F1E1D;
+  --ov-wait: #F5B25B;
+  --ov-ok: #7BD389;
+  --ov-danger: #FF6B6B;
+  --ov-terminal: #0B0B0E;
+  --ov-terminal-head: #1C1C23;
+  --ov-glass: rgba(20,29,56,0.52);
+  --ov-glass-strong: rgba(20,29,56,0.84);
+  --ov-glass-line: rgba(255,255,255,0.1);
+  --ov-glass-hi: inset 0 1px 0 rgba(255,255,255,0.07);
+  --ov-glass-edge: 0 0 0 1px rgba(0,0,0,0.28);
+  --ov-tray: rgba(255,255,255,0.03);
+  --ov-head: rgba(16,16,20,0.7);
+  --ov-tab-on: rgba(255,255,255,0.08);
+  --ov-glow-1: rgba(255,120,27,0.16);
+  --ov-glow-2: rgba(40,100,245,0.12);
+  --ov-glow-3: rgba(40,100,245,0.08);
+  --ov-shadow: 0 12px 40px rgba(0,0,0,0.45);
+  --ov-float-shadow: 0 8px 28px rgba(0,0,0,0.32);
+  --ov-draw: #F4F4F1;
+}
 /* Without transparency (spec identité §4.2): Windows' setting… */
 @media (prefers-reduced-transparency: reduce) {
-  :root[data-theme="dark"], :root[data-theme="light"] {
+  :root[data-palette="calm"], :root[data-palette="electric"], :root[data-palette="expressive"] {
     --ov-glass: var(--ov-surface);
     --ov-glass-strong: var(--ov-surface);
     --ov-head: var(--ov-terminal-head);
@@ -102,7 +146,7 @@
 }
 
 /* …or OpenVibe's (Settings › Transparency effects). */
-:root[data-theme][data-transparency="off"] {
+:root[data-palette][data-transparency="off"] {
   --ov-glass: var(--ov-surface);
   --ov-glass-strong: var(--ov-surface);
   --ov-head: var(--ov-terminal-head);

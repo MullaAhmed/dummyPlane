@@ -1,6 +1,6 @@
 import { toast } from "sonner";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
-import { currentTheme } from "@/app/theme";
+import { currentPalette } from "@/app/theme";
 import { messages } from "@/i18n";
 import { canvasStore } from "@/canvas/canvasStore";
 import { workspacesStore } from "@/store/workspaces";
@@ -26,4 +26,4 @@ export const exportCurrentScene = () => run((api) => exportScene(api, sceneName(
 export const importIntoScene = () => run(importScene, "importFailed");
 
 /** "Export as PNG…", in the app's theme. */
-export const exportCurrentPng = () => run((api) => exportPng(api, sceneName(), currentTheme()), "exportFailed");
+export const exportCurrentPng = () => run((api) => exportPng(api, sceneName(), currentPalette()), "exportFailed");
