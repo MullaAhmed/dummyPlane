@@ -8,6 +8,7 @@ import { usePalette, useTheme } from "@/app/theme";
 import { completeArrival } from "@/commands/pendingArrival";
 import { assignMissingNames } from "@/fleet/naming";
 import { dismissResumeOffer, offerResumeAll } from "@/fleet/ResumeAllToast";
+import { withSpawnedChildren } from "@/fleet/spawnFamily";
 import { adoptCopies } from "@/fleet/terminals";
 import { scheduleWireUpkeep } from "@/fleet/wireUpkeep";
 import { orchestratorLinks } from "@/fleet/wires";
@@ -252,7 +253,7 @@ function settleRemovals({ dispose, restore, ask }: RemovalVerdict) {
       captureUpdate: CaptureUpdateAction.NEVER,
     });
     if (ask && "group" in ask) uiStore.getState().setClosingGroup(ask.group);
-    else if (ask) uiStore.getState().setClosing(ask);
+    else if (ask) uiStore.getState().setClosing(withSpawnedChildren(ask));
   });
 }
 

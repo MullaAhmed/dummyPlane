@@ -19,6 +19,7 @@ import { arrangeInFrame, freeCell, freeSpot, NODE_GAP } from "./groupLayout";
 import { fleetMessages } from "./messages";
 import { nameForNewAgent, pantheonsForCopiedGroups } from "./naming";
 import { sceneAccess } from "./sceneAccess";
+import { withSpawnedChildren } from "./spawnFamily";
 
 export interface Point {
   x: number;
@@ -196,8 +197,13 @@ export function removeNode(nodeId: string) {
   removeNodes([nodeId]);
 }
 
-/** "Close" of the header: a running agent asks for confirmation first (spec theme §7.5). */
+/**
+ * "Close" of the header: a running agent asks for confirmation first (spec
+ * theme §7.5), and so does one whose sub-agents (spawn_agent) are still on the
+ * canvas: they may close with it.
+ */
 export function requestClose(nodeId: string) {
-  if (isRunning(nodeId)) uiStore.getState().setClosing({ agents: [nodeId], remove: [nodeId] });
+  const closing = withSpawnedChildren({ agents: [nodeId], remove: [nodeId] });
+  if (isRunning(nodeId) || closing.children) uiStore.getState().setClosing(closing);
   else removeNode(nodeId);
 }
