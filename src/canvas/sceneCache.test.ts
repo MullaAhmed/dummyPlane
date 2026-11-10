@@ -39,10 +39,10 @@ it("elbows the wires saved curved, before Excalidraw restores them", async () =>
     version: 1,
     isDeleted: false,
     startBinding: { elementId: "chef", focus: 0, gap: 8 },
-    endBinding: { elementId: "isis", focus: 0, gap: 8 },
+    endBinding: { elementId: "batman", focus: 0, gap: 8 },
     customData: { dummyplane: { kind: "wire" } },
   };
-  const elementsJson = JSON.stringify([box("chef", 0, "fleet"), box("isis", 800, "terminal"), curved]);
+  const elementsJson = JSON.stringify([box("chef", 0, "fleet"), box("batman", 800, "terminal"), curved]);
   mockIPC((cmd) => (cmd === "load_workspace" ? { nodes: [], files: [], elementsJson, appStateJson: null } : undefined));
   const { initialData } = await loadScene("w1");
   const wire = initialData.elements?.find((e) => e.id === "w");
@@ -50,7 +50,7 @@ it("elbows the wires saved curved, before Excalidraw restores them", async () =>
     elbowed: true,
     roundness: null,
     startBinding: { elementId: "chef", fixedPoint: [1 + 5 / 400, 0.5001] },
-    endBinding: { elementId: "isis", fixedPoint: [-5 / 400, 0.5001] },
+    endBinding: { elementId: "batman", fixedPoint: [-5 / 400, 0.5001] },
   });
 });
 
@@ -70,13 +70,13 @@ it("drops the stored nodes of subagents, which ended with their session, and sti
     version: 1,
     isDeleted: false,
     startBinding: { elementId: "chef", focus: 0, gap: 8 },
-    endBinding: { elementId: "isis", focus: 0, gap: 8 },
+    endBinding: { elementId: "batman", focus: 0, gap: 8 },
     customData: { dummyplane: { kind: "wire" } },
   };
-  const elementsJson = JSON.stringify([box("chef", 0, "fleet"), box("isis", 800, "terminal"), box("sub", 800, "subagent"), wire]);
+  const elementsJson = JSON.stringify([box("chef", 0, "fleet"), box("batman", 800, "terminal"), box("sub", 800, "subagent"), wire]);
   mockIPC((cmd) => (cmd === "load_workspace" ? { nodes: [], files: [], elementsJson, appStateJson: null } : undefined));
   const { initialData } = await loadScene("w1");
-  expect(initialData.elements?.map((e) => e.id)).toEqual(["chef", "isis", "w"]);
+  expect(initialData.elements?.map((e) => e.id)).toEqual(["chef", "batman", "w"]);
   expect(initialData.elements?.find((e) => e.id === "w")).toMatchObject({ elbowed: true });
 });
 

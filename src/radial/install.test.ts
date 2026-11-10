@@ -24,21 +24,21 @@ let uninstall: () => void;
 
 beforeAll(async () => {
   mockIPC(() => undefined);
-  await nodesStore.getState().create("isis", {
+  await nodesStore.getState().create("batman", {
     workspaceId: "w1",
     kind: "terminal",
-    payload: { title: "Isis", name: "Isis", agent: "claude", cwd: "C:/code", shell: "default", command: "" },
+    payload: { title: "Batman", name: "Batman", agent: "claude", cwd: "C:/code", shell: "default", command: "" },
   });
 });
 beforeEach(() => {
   document.body.innerHTML =
-    '<div class="excalidraw"><div class="excalidraw-container" tabindex="0"><canvas class="excalidraw__canvas interactive"></canvas><div id="ex-frame-name-g1"><span id="dot"></span></div><div class="excalidraw__embeddable-container"><div data-terminal="isis"><div class="xterm"><span id="text">PS C:\\&gt;</span></div><input id="name" /></div></div></div></div>';
+    '<div class="excalidraw"><div class="excalidraw-container" tabindex="0"><canvas class="excalidraw__canvas interactive"></canvas><div id="ex-frame-name-g1"><span id="dot"></span></div><div class="excalidraw__embeddable-container"><div data-terminal="batman"><div class="xterm"><span id="text">PS C:\\&gt;</span></div><input id="name" /></div></div></div></div>';
   updateScene.mockClear();
   canvasStore.setState({
     api: { getSceneElements: () => [rect], getAppState: () => ({ selectedElementIds: {} }), updateScene } as unknown as ExcalidrawImperativeAPI,
     view: { scrollX: 0, scrollY: 0, zoom: 1, width: 1000, height: 800, offsetLeft: 0, offsetTop: 0, tool: "selection", selectedIds: [], editingFrame: null, mode: null },
     frames: [],
-    nodeIds: ["isis"],
+    nodeIds: ["batman"],
   });
   projectsStore.setState({ view: "project" } as never);
   workspacesStore.setState({ status: "ready", activeId: "w1" } as never);
@@ -63,7 +63,7 @@ describe("opening the ring (spec menu radial §5.2, §6.4)", () => {
     const press = pointer(text(), "pointerdown", 300, 300);
     expect(xterm).not.toHaveBeenCalled();
     expect(press.defaultPrevented).toBe(true);
-    expect(radialStore.getState().ring).toMatchObject({ kind: "terminal", client: { x: 300, y: 300 }, context: { terminalId: "isis", at: { x: 300, y: 300 } } });
+    expect(radialStore.getState().ring).toMatchObject({ kind: "terminal", client: { x: 300, y: 300 }, context: { terminalId: "batman", at: { x: 300, y: 300 } } });
   });
 
   describe("a terminal of a multi-selection", () => {
@@ -71,22 +71,22 @@ describe("opening the ring (spec menu radial §5.2, §6.4)", () => {
       canvasStore.setState({ api: { getSceneElements: () => [rect], getAppState: () => ({ selectedElementIds: selected }), updateScene } as unknown as ExcalidrawImperativeAPI });
 
     it("opens the selection's ring, not its own, and keeps the selection (so Group takes them all)", () => {
-      selecting({ isis: true, r1: true });
+      selecting({ batman: true, r1: true });
       pointer(text(), "pointerdown", 300, 300);
-      expect(radialStore.getState().ring).toMatchObject({ kind: "selection", context: { selectionIds: ["isis", "r1"], at: { x: 300, y: 300 } } });
+      expect(radialStore.getState().ring).toMatchObject({ kind: "selection", context: { selectionIds: ["batman", "r1"], at: { x: 300, y: 300 } } });
       expect(updateScene).toHaveBeenCalledTimes(2);
       expect(updateScene).toHaveBeenCalledWith({ appState: { activeEmbeddable: null } });
       expect(updateScene).not.toHaveBeenCalledWith(expect.objectContaining({ appState: expect.objectContaining({ selectedElementIds: expect.anything() }) }));
     });
 
     it("keeps the terminal's own ring when it is the only one selected, or is not in the selection", () => {
-      selecting({ isis: true });
+      selecting({ batman: true });
       pointer(text(), "pointerdown", 300, 300);
-      expect(radialStore.getState().ring).toMatchObject({ kind: "terminal", context: { terminalId: "isis" } });
+      expect(radialStore.getState().ring).toMatchObject({ kind: "terminal", context: { terminalId: "batman" } });
       radialStore.setState({ ring: null });
       selecting({ r1: true, other: true });
       pointer(text(), "pointerdown", 300, 300);
-      expect(radialStore.getState().ring).toMatchObject({ kind: "terminal", context: { terminalId: "isis" } });
+      expect(radialStore.getState().ring).toMatchObject({ kind: "terminal", context: { terminalId: "batman" } });
     });
   });
 
@@ -160,7 +160,7 @@ describe("choosing in the ring", () => {
     expect(radialStore.getState().ring).toBeNull();
     expect(requestClose).not.toHaveBeenCalled();
     await nextFrame();
-    expect(requestClose).toHaveBeenCalledWith("isis");
+    expect(requestClose).toHaveBeenCalledWith("batman");
   });
 
   it("points at nothing for a jitter when the ring moved off the window's edge (final review)", () => {
@@ -220,7 +220,7 @@ describe("choosing in the ring", () => {
     key("Enter");
     expect(radialStore.getState().ring).toBeNull();
     await nextFrame();
-    expect(requestClose).toHaveBeenCalledWith("isis");
+    expect(requestClose).toHaveBeenCalledWith("batman");
     // Closed, the ring lets the keys go by again.
     expect(key("ArrowRight").defaultPrevented).toBe(false);
     expect(xterm).toHaveBeenCalledTimes(1);

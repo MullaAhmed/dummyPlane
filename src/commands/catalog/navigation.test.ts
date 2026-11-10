@@ -36,7 +36,7 @@ vi.mock("@/shell/windowState", async (importOriginal) => ({
 }));
 
 const home: CommandContext = { project: false, workspaceId: null, terminalCount: 0, terminalId: null };
-const busy: CommandContext = { project: true, workspaceId: "w1", terminalCount: 2, terminalId: "isis" };
+const busy: CommandContext = { project: true, workspaceId: "w1", terminalCount: 2, terminalId: "batman" };
 const find = (list: readonly Command[], id: string) => list.find((c) => c.id === id)!;
 const goHome = vi.fn();
 const close = vi.fn(() => Promise.resolve());
@@ -101,10 +101,10 @@ describe("Navigation (spec fenêtre §7.3)", () => {
     const next = find(NAVIGATION, "agent.nextWaiting");
     vi.mocked(currentWaitingAgents).mockReturnValue([]);
     expect(next.available(busy)).toBe(false);
-    vi.mocked(currentWaitingAgents).mockReturnValue([{ id: "thot", kind: "terminal", name: "Thoth", workspaceId: "w2", since: 0 }]);
+    vi.mocked(currentWaitingAgents).mockReturnValue([{ id: "cyborg", kind: "terminal", name: "Cyborg", workspaceId: "w2", since: 0 }]);
     expect(next.available(busy)).toBe(true);
     await next.run(busy);
-    expect(goToNextWaiting).toHaveBeenCalledWith("isis");
+    expect(goToNextWaiting).toHaveBeenCalledWith("batman");
   });
 
   it("offers nothing but « Go to… » outside a project", () => {

@@ -14,11 +14,11 @@ vi.mock("@/app/updates", async (original) => ({ ...(await original<typeof import
 
 it("names the agents an update will stop, and installs on demand (spec première version §6.4)", async () => {
   mockIPC(() => undefined);
-  for (const [id, name] of [["isis", "Isis"], ["thot", "Thoth"]]) {
+  for (const [id, name] of [["batman", "Batman"], ["cyborg", "Cyborg"]]) {
     await nodesStore.getState().create(id, { workspaceId: "w1", kind: "terminal", payload: { title: name, name, agent: "claude", cwd: "C:/code", shell: "default", command: "" } });
   }
-  terminalStatusStore.getState().set("isis", { state: "running" });
-  terminalStatusStore.getState().set("thot", { state: "stopped" });
+  terminalStatusStore.getState().set("batman", { state: "running" });
+  terminalStatusStore.getState().set("cyborg", { state: "stopped" });
   updatesStore.setState({ available: { version: "1.0.0-beta.2", notes: "### Fixed\n- Things." }, dialogOpen: true, progress: null });
   const host = document.createElement("div");
   document.body.append(host);
@@ -26,8 +26,8 @@ it("names the agents an update will stop, and installs on demand (spec première
   await act(async () => root.render(<UpdateDialog />));
   const dialog = document.querySelector('[role="dialog"]')!;
   expect(dialog.textContent).toContain("dummyPlane 1.0.0-beta.2");
-  expect(dialog.textContent).toContain("Isis");
-  expect(dialog.textContent).not.toContain("Thoth");
+  expect(dialog.textContent).toContain("Batman");
+  expect(dialog.textContent).not.toContain("Cyborg");
   expect(dialog.textContent).toContain("Things.");
   const install = [...document.querySelectorAll("button")].find((b) => b.textContent === "Install and restart")!;
   await act(async () => install.click());

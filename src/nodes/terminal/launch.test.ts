@@ -14,10 +14,10 @@ describe("defaultTitle", () => {
 
 describe("newTerminalPayload", () => {
   it("fills a blank title, trims the custom command and keeps the given name", () => {
-    const payload = newTerminalPayload({ ...base, agent: "custom", command: "  npm run dev " }, "Thoth");
+    const payload = newTerminalPayload({ ...base, agent: "custom", command: "  npm run dev " }, "Cyborg");
     expect(payload.title).toBe("Custom · dummyplane");
     expect(payload.command).toBe("npm run dev");
-    expect(payload.name).toBe("Thoth");
+    expect(payload.name).toBe("Cyborg");
     expect(payload.claudeSessionId).toBeUndefined();
   });
 
@@ -68,8 +68,8 @@ describe("buildSpawnSpec", () => {
   });
 
   it("starts Claude with Remote Control, under the agent's name, when it is on (spec maj §2)", () => {
-    const payload = { ...newTerminalPayload({ ...base, agent: "claude", title: "Agent" }, "Isis"), remoteControl: true };
-    expect(buildSpawnSpec(payload, "new").claude?.remoteControl).toBe("Isis");
+    const payload = { ...newTerminalPayload({ ...base, agent: "claude", title: "Agent" }, "Batman"), remoteControl: true };
+    expect(buildSpawnSpec(payload, "new").claude?.remoteControl).toBe("Batman");
     expect(buildSpawnSpec({ ...payload, name: "" }, "new").claude?.remoteControl).toBe("Agent");
   });
 
@@ -101,7 +101,7 @@ describe("a new conversation (final review H1)", () => {
   });
 
   it("drops the steps when the terminal switches agent, a conversation id given to Claude if it has none", () => {
-    const base = { title: "", name: "Isis", agent: "codex" as const, cwd: "C:/code", shell: "default" as const, command: "", steps: [{ title: "Plan", state: "fait" as const }] };
+    const base = { title: "", name: "Batman", agent: "codex" as const, cwd: "C:/code", shell: "default" as const, command: "", steps: [{ title: "Plan", state: "fait" as const }] };
     expect(switchedAgent(base, "shell")).toEqual({ agent: "shell", steps: undefined });
     expect(switchedAgent(base, "shell")).toHaveProperty("lastReport", undefined);
     const claude = switchedAgent(base, "claude");

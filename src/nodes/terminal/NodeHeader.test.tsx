@@ -77,9 +77,9 @@ describe("NameField", () => {
 
   it("shows the name as quiet text that a double-click edits", async () => {
     const onEditingChange = vi.fn();
-    const view = await mount(<NameField value="Isis" editing={false} onEditingChange={onEditingChange} onCommit={() => {}} />);
+    const view = await mount(<NameField value="Batman" editing={false} onEditingChange={onEditingChange} onCommit={() => {}} />);
     const name = view.host.querySelector("span")!;
-    expect(name.textContent).toBe("Isis");
+    expect(name.textContent).toBe("Batman");
     expect(name.className).toContain("truncate");
     await act(async () => void name.dispatchEvent(new MouseEvent("dblclick", { bubbles: true })));
     expect(onEditingChange).toHaveBeenCalledWith(true);
@@ -88,7 +88,7 @@ describe("NameField", () => {
 
   it("does not take the Enter that accepts an IME's candidate for a rename", async () => {
     const onEditingChange = vi.fn();
-    const view = await mount(<NameField value="Isis" editing onEditingChange={onEditingChange} onCommit={() => {}} />);
+    const view = await mount(<NameField value="Batman" editing onEditingChange={onEditingChange} onCommit={() => {}} />);
     const field = view.host.querySelector("input")!;
     await act(async () => void press(field, { key: "Enter", isComposing: true }));
     expect(onEditingChange).not.toHaveBeenCalled();
@@ -97,7 +97,7 @@ describe("NameField", () => {
   });
 
   it("selects the name when it opens, so typing replaces it", async () => {
-    const view = await mount(<NameField value="Isis" editing onEditingChange={() => {}} onCommit={() => {}} />);
+    const view = await mount(<NameField value="Luke" editing onEditingChange={() => {}} onCommit={() => {}} />);
     const field = view.host.querySelector("input")!;
     expect(document.activeElement).toBe(field);
     expect(field.selectionStart).toBe(0);
@@ -122,7 +122,7 @@ describe("StatusPill", () => {
 
 describe("RemoteButton in a header", () => {
   it("is the header's own 28px icon button with a 16px glyph, with no wrapper to size it", async () => {
-    const view = await mount(<RemoteButton nodeId="isis" wanted={false} running />);
+    const view = await mount(<RemoteButton nodeId="batman" wanted={false} running />);
     const button = view.host.firstElementChild!;
     expect(button.matches("button[data-remote]")).toBe(true);
     expect(button.getAttribute("data-size")).toBe("icon-sm");

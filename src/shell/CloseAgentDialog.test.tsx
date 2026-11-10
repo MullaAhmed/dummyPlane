@@ -19,7 +19,7 @@ let root: Root;
 
 beforeAll(async () => {
   mockIPC(() => undefined);
-  for (const [id, name] of [["isis", "Isis"], ["thot", "Thoth"]]) {
+  for (const [id, name] of [["batman", "Batman"], ["cyborg", "Cyborg"]]) {
     await nodesStore.getState().create(id, {
       workspaceId: "w1",
       kind: "terminal",
@@ -41,25 +41,25 @@ afterEach(async () => {
 const button = (text: string) => [...document.querySelectorAll("button")].find((b) => b.textContent === text)!;
 
 it("names the agent it would end, and closes it once confirmed (spec habillage §7.5)", async () => {
-  await act(async () => uiStore.getState().setClosing({ agents: ["isis"], remove: ["isis"] }));
-  expect(document.querySelector('[role="dialog"]')!.textContent).toContain("Close Isis?");
+  await act(async () => uiStore.getState().setClosing({ agents: ["batman"], remove: ["batman"] }));
+  expect(document.querySelector('[role="dialog"]')!.textContent).toContain("Close Batman?");
   await act(async () => button("Close the agent").click());
-  expect(removeNodes).toHaveBeenLastCalledWith(["isis"]);
+  expect(removeNodes).toHaveBeenLastCalledWith(["batman"]);
   expect(uiStore.getState().closing).toBeNull();
 });
 
 it("lists the agents an undo or Delete would end together, and removes all that left with them", async () => {
-  await act(async () => uiStore.getState().setClosing({ agents: ["isis", "thot"], remove: ["isis", "thot", "g"] }));
+  await act(async () => uiStore.getState().setClosing({ agents: ["batman", "cyborg"], remove: ["batman", "cyborg", "g"] }));
   const dialog = document.querySelector('[role="dialog"]')!;
   expect(dialog.textContent).toContain("Close 2 agents?");
-  expect(dialog.textContent).toContain("Isis, Thoth");
+  expect(dialog.textContent).toContain("Batman, Cyborg");
   await act(async () => button("Close the agents").click());
-  expect(removeNodes).toHaveBeenLastCalledWith(["isis", "thot", "g"]);
+  expect(removeNodes).toHaveBeenLastCalledWith(["batman", "cyborg", "g"]);
 });
 
 it("keeps them when cancelled", async () => {
   vi.mocked(removeNodes).mockClear();
-  await act(async () => uiStore.getState().setClosing({ agents: ["isis"], remove: ["isis"] }));
+  await act(async () => uiStore.getState().setClosing({ agents: ["batman"], remove: ["batman"] }));
   await act(async () => button("Cancel").click());
   expect(removeNodes).not.toHaveBeenCalled();
   expect(uiStore.getState().closing).toBeNull();
@@ -79,11 +79,11 @@ it("tells what closing a fleet in mission leaves behind (spec première version 
 });
 
 it("says whether the agent is at work or ready, as the spec asks (§7.5)", async () => {
-  agentActivityStore.getState().apply({ nodeId: "isis", activity: "working", since: 1 });
-  await act(async () => uiStore.getState().setClosing({ agents: ["isis"], remove: ["isis"] }));
-  expect(document.querySelector('[role="dialog"]')!.textContent).toContain("Isis is working.");
-  await act(async () => agentActivityStore.getState().apply({ nodeId: "isis", activity: "idle", since: 2 }));
-  expect(document.querySelector('[role="dialog"]')!.textContent).toContain("Isis is ready.");
+  agentActivityStore.getState().apply({ nodeId: "batman", activity: "working", since: 1 });
+  await act(async () => uiStore.getState().setClosing({ agents: ["batman"], remove: ["batman"] }));
+  expect(document.querySelector('[role="dialog"]')!.textContent).toContain("Batman is working.");
+  await act(async () => agentActivityStore.getState().apply({ nodeId: "batman", activity: "idle", since: 2 }));
+  expect(document.querySelector('[role="dialog"]')!.textContent).toContain("Batman is ready.");
 });
 
 describe("an agent that opened sub-agents (spawn_agent)", () => {
@@ -93,14 +93,14 @@ describe("an agent that opened sub-agents (spawn_agent)", () => {
       kind: "terminal" as const,
       payload: { title: name, name, agent: "claude" as const, cwd: "C:/code", shell: "default" as const, command: "", ...(spawnedBy ? { spawnedBy } : {}) },
     });
-    await nodesStore.getState().create("osiris", terminal("Osiris"));
-    await nodesStore.getState().create("horus", terminal("Horus", "osiris"));
-    await nodesStore.getState().create("seth", terminal("Seth", "horus"));
+    await nodesStore.getState().create("superman", terminal("Superman"));
+    await nodesStore.getState().create("aquaman", terminal("Aquaman", "superman"));
+    await nodesStore.getState().create("shazam", terminal("Shazam", "aquaman"));
   });
   beforeEach(() => vi.mocked(removeNodes).mockClear());
-  afterEach(() => terminalStatusStore.getState().remove("osiris"));
+  afterEach(() => terminalStatusStore.getState().remove("superman"));
 
-  const asked = { agents: ["osiris"], remove: ["osiris"], children: ["horus", "seth"] };
+  const asked = { agents: ["superman"], remove: ["superman"], children: ["aquaman", "shazam"] };
   // The shadcn checkbox: a button that carries its state in aria-checked, named by its label.
   const checkbox = () => {
     const box = document.querySelector<HTMLButtonElement>('[role="dialog"] [role="checkbox"]');
@@ -110,12 +110,12 @@ describe("an agent that opened sub-agents (spawn_agent)", () => {
   it("offers to close them too, ticked, and closes them with it once confirmed", async () => {
     await act(async () => uiStore.getState().setClosing(asked));
     const dialog = document.querySelector('[role="dialog"]')!;
-    expect(dialog.textContent).toContain("Close Osiris?");
-    expect(dialog.textContent).toContain("Also close the sub-agents it opened: Horus, Seth");
+    expect(dialog.textContent).toContain("Close Superman?");
+    expect(dialog.textContent).toContain("Also close the sub-agents it opened: Aquaman, Shazam");
     expect(checkbox()!.checked).toBe(true);
-    expect(checkbox()!.label).toBe("Also close the sub-agents it opened: Horus, Seth");
+    expect(checkbox()!.label).toBe("Also close the sub-agents it opened: Aquaman, Shazam");
     await act(async () => button("Close the agent").click());
-    expect(removeNodes).toHaveBeenLastCalledWith(["osiris", "horus", "seth"]);
+    expect(removeNodes).toHaveBeenLastCalledWith(["superman", "aquaman", "shazam"]);
     expect(uiStore.getState().closing).toBeNull();
   });
 
@@ -124,7 +124,7 @@ describe("an agent that opened sub-agents (spawn_agent)", () => {
     await act(async () => checkbox()!.click());
     expect(checkbox()!.checked).toBe(false);
     await act(async () => button("Close the agent").click());
-    expect(removeNodes).toHaveBeenLastCalledWith(["osiris"]);
+    expect(removeNodes).toHaveBeenLastCalledWith(["superman"]);
     expect(uiStore.getState().closing).toBeNull();
   });
 
@@ -141,26 +141,26 @@ describe("an agent that opened sub-agents (spawn_agent)", () => {
   it("says a stopped agent is stopped: only its sub-agents made it ask", async () => {
     await act(async () => uiStore.getState().setClosing(asked));
     const dialog = document.querySelector('[role="dialog"]')!;
-    expect(dialog.textContent).toContain("Osiris is stopped.");
+    expect(dialog.textContent).toContain("Superman is stopped.");
     expect(dialog.textContent).not.toContain("still running");
     await act(async () => button("Cancel").click());
   });
 
   it("says a running one is running", async () => {
-    terminalStatusStore.getState().set("osiris", { state: "running" });
+    terminalStatusStore.getState().set("superman", { state: "running" });
     await act(async () => uiStore.getState().setClosing(asked));
     const dialog = document.querySelector('[role="dialog"]')!;
-    expect(dialog.textContent).toContain("Osiris is still running. Closing it ends its session.");
+    expect(dialog.textContent).toContain("Superman is still running. Closing it ends its session.");
     expect(dialog.textContent).not.toContain("is stopped");
     await act(async () => button("Cancel").click());
   });
 
   it("shows no checkbox for an agent without sub-agents to close", async () => {
-    await act(async () => uiStore.getState().setClosing({ agents: ["osiris"], remove: ["osiris"], children: [] }));
+    await act(async () => uiStore.getState().setClosing({ agents: ["superman"], remove: ["superman"], children: [] }));
     expect(document.querySelector('[role="dialog"]')).not.toBeNull();
     expect(checkbox()).toBeNull();
     expect(document.querySelector('[role="dialog"]')!.textContent).not.toContain("Also close");
     await act(async () => button("Close the agent").click());
-    expect(removeNodes).toHaveBeenLastCalledWith(["osiris"]);
+    expect(removeNodes).toHaveBeenLastCalledWith(["superman"]);
   });
 });

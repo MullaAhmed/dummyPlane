@@ -14,8 +14,8 @@ describe("countsText", () => {
 
 describe("livingAgents", () => {
   it("names the members still running, in group order", () => {
-    const names: Record<string, string> = { a: "Isis", b: "Osiris", c: "Horus" };
-    expect(livingAgents(["a", "b", "c"], (id) => names[id], (id) => id !== "b")).toEqual(["Isis", "Horus"]);
+    const names: Record<string, string> = { a: "Batman", b: "Superman", c: "Aquaman" };
+    expect(livingAgents(["a", "b", "c"], (id) => names[id], (id) => id !== "b")).toEqual(["Batman", "Aquaman"]);
   });
 });
 

@@ -27,7 +27,7 @@ vi.mock("@/studio/navigate", () => ({ openInCodeStudio: vi.fn(async () => undefi
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 const home: CommandContext = { project: false, workspaceId: null, terminalCount: 0, terminalId: null };
-const busy: CommandContext = { project: true, workspaceId: "w1", terminalCount: 1, terminalId: "isis" };
+const busy: CommandContext = { project: true, workspaceId: "w1", terminalCount: 1, terminalId: "batman" };
 let host: HTMLDivElement;
 let root: Root;
 
@@ -137,13 +137,13 @@ describe("the palette (spec fenêtre §7.1, §7.2)", () => {
       if (cmd === "load_workspace" && (args as { id: string }).id === "w2") throw new Error("corrompu");
       return undefined;
     });
-    await nodesStore.getState().create("isis", {
+    await nodesStore.getState().create("batman", {
       workspaceId: "w1",
       kind: "terminal",
-      payload: { title: "Isis", name: "Isis", agent: "claude", cwd: "C:/code", shell: "default", command: "" },
+      payload: { title: "Batman", name: "Batman", agent: "claude", cwd: "C:/code", shell: "default", command: "" },
     });
-    const isis = { id: "isis", type: "embeddable", customData: { kind: "terminal" }, x: 0, y: 0, width: 300, height: 200, isDeleted: false, frameId: null };
-    canvasStore.setState({ api: { getSceneElements: () => [isis], getAppState: () => ({ selectedElementIds: {} }) } as unknown as ExcalidrawImperativeAPI });
+    const batman = { id: "batman", type: "embeddable", customData: { kind: "terminal" }, x: 0, y: 0, width: 300, height: 200, isDeleted: false, frameId: null };
+    canvasStore.setState({ api: { getSceneElements: () => [batman], getAppState: () => ({ selectedElementIds: {} }) } as unknown as ExcalidrawImperativeAPI });
     projectsStore.setState({ view: "project", activeId: "p1" } as never);
     workspacesStore.setState({
       workspaces: [
@@ -155,7 +155,7 @@ describe("the palette (spec fenêtre §7.1, §7.2)", () => {
     await act(async () => openPalette("goTo", busy));
     await act(async () => new Promise<void>((resolve) => setTimeout(resolve, 0)));
     expect(error).toHaveBeenCalledWith("Workspace Backend is unreadable");
-    expect(items()[0].textContent).toContain("Isis");
+    expect(items()[0].textContent).toContain("Batman");
     expect(document.body.textContent).not.toContain("Loading…");
   });
 

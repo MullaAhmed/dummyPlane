@@ -43,7 +43,7 @@ vi.mock("./ready", () => ({ whenReady: vi.fn(() => Promise.resolve(true)) }));
 vi.mock("./events", () => ({ notify: vi.fn() }));
 vi.mock("./store", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./store")>()),
-  linkedClaudeAgents: vi.fn(() => [{ nodeId: "isis", name: "Isis" }]),
+  linkedClaudeAgents: vi.fn(() => [{ nodeId: "batman", name: "Batman" }]),
 }));
 
 // How agents arrive: the go-ahead's team comes into view (the user just asked for it), a replacement's agent never does.
@@ -52,7 +52,7 @@ const quiet = { reveal: false, source: "mission" };
 
 const session: TerminalPayload = { title: "Chef", name: "Chef", agent: "claude", cwd: "C:/code/proj", shell: "default", command: "", claudeSessionId: "s0", role: "orchestrator" };
 const plan = [
-  { title: "Login", brief: "Fais le login.", agent: "Isis", budgetMin: 20 },
+  { title: "Login", brief: "Fais le login.", agent: "Batman", budgetMin: 20 },
   { title: "API", brief: "Fais l'API\npuis teste", agent: "nouveau", budgetMin: 30 },
 ];
 const tree = (slug: string): Worktree => ({ slug, branch: `dummyplane/${slug}`, path: `C:/code/proj.worktrees/${slug}` });
@@ -67,10 +67,10 @@ async function setup(mission: Partial<Mission> = {}) {
     kind: "fleet",
     payload: { name: "Chef", session, mission: { state: "plan", maxAgents: 4, members: [], name: "Auth", plan, ...mission } },
   });
-  await nodesStore.getState().create("isis", {
+  await nodesStore.getState().create("batman", {
     workspaceId: "w1",
     kind: "terminal",
-    payload: { ...session, role: undefined, name: "Isis", claudeSessionId: "old", steps: [{ title: "Plan", state: "fait" }] },
+    payload: { ...session, role: undefined, name: "Batman", claudeSessionId: "old", steps: [{ title: "Plan", state: "fait" }] },
   });
 }
 
@@ -81,14 +81,14 @@ beforeEach(() => {
   vi.mocked(missionPrepare).mockResolvedValue(tree("auth"));
   vi.mocked(missionAddAgent).mockImplementation(async (_project, mission, agent) => tree(`${mission}-${agent.toLowerCase()}`));
   vi.mocked(launchGroup).mockResolvedValue({ frameId: "f1", nodeIds: ["n1"] });
-  for (const id of ["chef", "isis", "n1"]) terminalStatusStore.getState().set(id, { state: "running" });
+  for (const id of ["chef", "batman", "n1"]) terminalStatusStore.getState().set(id, { state: "running" });
   workspacesStore.setState({ activeId: "w1" });
   canvasStore.setState({ api: { getSceneElementsIncludingDeleted: () => [] } as never, frames: [], links: {} });
 });
 
 it("writes an agent's sub-task on one line, with its budget, branch and duties (spec §7.3)", () => {
-  expect(subTaskText("Auth", plan[1], "dummyplane/auth-horus")).toBe(
-    "[dummyPlane · mission Auth] API — Fais l'API puis teste. Budget: 30 min. Branch: dummyplane/auth-horus. This worktree is new: its dependencies (node_modules…) are not installed. Declare your steps, delegate to your sub-agents, commit on your branch, then report with report.",
+  expect(subTaskText("Auth", plan[1], "dummyplane/auth-aquaman")).toBe(
+    "[dummyPlane · mission Auth] API — Fais l'API puis teste. Budget: 30 min. Branch: dummyplane/auth-aquaman. This worktree is new: its dependencies (node_modules…) are not installed. Declare your steps, delegate to your sub-agents, commit on your branch, then report with report.",
   );
 });
 
@@ -102,13 +102,13 @@ describe("what dummyPlane types to agents, in English (spec première version §
 
   it("writes the sub-task and the handover in the interface's language", () =>
     english(() => {
-      expect(subTaskText("Auth", plan[1], "dummyplane/auth-horus")).toBe(
-        "[dummyPlane · mission Auth] API — Fais l'API puis teste. Budget: 30 min. Branch: dummyplane/auth-horus. This worktree is new: its dependencies (node_modules…) are not installed. Declare your steps, delegate to your sub-agents, commit on your branch, then report with report.",
+      expect(subTaskText("Auth", plan[1], "dummyplane/auth-aquaman")).toBe(
+        "[dummyPlane · mission Auth] API — Fais l'API puis teste. Budget: 30 min. Branch: dummyplane/auth-aquaman. This worktree is new: its dependencies (node_modules…) are not installed. Declare your steps, delegate to your sub-agents, commit on your branch, then report with report.",
       );
-      expect(handoverText(member("n1", "Horus", false, { report: { summary: "API done", status: "termine", at: 1 } }))).toBe(
-        'Taking over Horus\'s work: its report (done): "API done". Its branch dummyplane/auth-n1: merge it into yours to start from its work.',
+      expect(handoverText(member("n1", "Aquaman", false, { report: { summary: "API done", status: "termine", at: 1 } }))).toBe(
+        'Taking over Aquaman\'s work: its report (done): "API done". Its branch dummyplane/auth-n1: merge it into yours to start from its work.',
       );
-      expect(handoverText(member("n1", "Horus", false))).toContain("it did not report");
+      expect(handoverText(member("n1", "Aquaman", false))).toContain("it did not report");
     }));
 
   it("tells the fleet in English that the mission could not start", () =>
@@ -122,20 +122,20 @@ describe("what dummyPlane types to agents, in English (spec première version §
   it("says what was merged in English", () =>
     english(async () => {
       const done = { summary: "ok", status: "termine" as const, at: 1 };
-      await setup({ state: "en_cours", worktree: "C:/w/auth", branch: "dummyplane/auth", members: [member("isis", "Isis", true, { report: done }), member("n1", "Horus", false, { report: done })] });
+      await setup({ state: "en_cours", worktree: "C:/w/auth", branch: "dummyplane/auth", members: [member("batman", "Batman", true, { report: done }), member("n1", "Aquaman", false, { report: done })] });
       vi.mocked(missionMerge).mockImplementation(async (_mission, _agent, branch) =>
-        branch.endsWith("isis") ? { merge: { kind: "merged" }, uncommitted: true } : { merge: { kind: "conflict", files: ["a.ts"] }, uncommitted: false },
+        branch.endsWith("batman") ? { merge: { kind: "merged" }, uncommitted: true } : { merge: { kind: "conflict", files: ["a.ts"] }, uncommitted: false },
       );
-      expect(await mergeMission("chef")).toBe("Branch dummyplane/auth:\nIsis: merged (uncommitted changes in its worktree are not merged)\nHorus: conflict, merge undone — a.ts");
+      expect(await mergeMission("chef")).toBe("Branch dummyplane/auth:\nBatman: merged (uncommitted changes in its worktree are not merged)\nAquaman: conflict, merge undone — a.ts");
     }));
 
   it("refuses a reassignment in English, and tells the previous agent in English", () =>
     english(async () => {
       const report = { summary: "API done", status: "termine" as const, at: 1 };
-      await setup({ state: "en_cours", project: "C:/code/proj", slug: "auth", frameId: "f1", members: [member("isis", "Isis", true, { task: "Login" }), member("n1", "Horus", false, { task: "API", report, merged: true })] });
-      expect(await reassignTask("chef", "n1", "Isis")).toBe('Isis has not finished its sub-task: choose an agent that has reported, or "new".');
-      expect(await reassignTask("chef", "isis", "Horus")).toEqual({ name: "Horus" });
-      expect(ptySendText).toHaveBeenCalledWith("isis", '[dummyPlane] Your sub-task "Login" goes to Horus: stop it and commit nothing more on it.');
+      await setup({ state: "en_cours", project: "C:/code/proj", slug: "auth", frameId: "f1", members: [member("batman", "Batman", true, { task: "Login" }), member("n1", "Aquaman", false, { task: "API", report, merged: true })] });
+      expect(await reassignTask("chef", "n1", "Batman")).toBe('Batman has not finished its sub-task: choose an agent that has reported, or "new".');
+      expect(await reassignTask("chef", "batman", "Aquaman")).toEqual({ name: "Aquaman" });
+      expect(ptySendText).toHaveBeenCalledWith("batman", '[dummyPlane] Your sub-task "Login" goes to Aquaman: stop it and commit nothing more on it.');
     }));
 });
 
@@ -144,12 +144,12 @@ describe("the model router (spec maj §3)", () => {
     await setup({ router: true, plan: [{ ...plan[0], level: "eleve" }, { ...plan[1], level: "faible" }] });
     await launchMission("chef");
     expect(launchGroup).toHaveBeenCalledWith(expect.anything(), expect.anything(), undefined, expect.objectContaining({ models: ["claude-haiku-5-5"] }), inView);
-    expect(terminalOf(nodesStore.getState().nodes.isis)?.model).toBe("claude-opus-5-5");
-    expect(relaunchTerminal).toHaveBeenCalledWith("isis", expect.objectContaining({ model: "claude-opus-5-5" }), "new");
+    expect(terminalOf(nodesStore.getState().nodes.batman)?.model).toBe("claude-opus-5-5");
+    expect(relaunchTerminal).toHaveBeenCalledWith("batman", expect.objectContaining({ model: "claude-opus-5-5" }), "new");
     expect(missionNow().members.map((m) => m.model)).toEqual(["claude-opus-5-5", "claude-haiku-5-5"]);
     endMission("chef", "Fini.");
-    expect(terminalOf(nodesStore.getState().nodes.isis)?.model).toBeUndefined();
-    expect(relaunchTerminal).toHaveBeenLastCalledWith("isis", expect.objectContaining({ cwd: "C:/code/proj", model: undefined }), "new");
+    expect(terminalOf(nodesStore.getState().nodes.batman)?.model).toBeUndefined();
+    expect(relaunchTerminal).toHaveBeenLastCalledWith("batman", expect.objectContaining({ cwd: "C:/code/proj", model: undefined }), "new");
   });
 
   it("does not launch with the router on and a sub-task without a level: it would run on the default model (final review maj §3)", async () => {
@@ -164,7 +164,7 @@ describe("the model router (spec maj §3)", () => {
     await setup({ plan: [{ ...plan[0], level: "eleve" }, { ...plan[1], level: "faible" }] });
     await launchMission("chef");
     expect(launchGroup).toHaveBeenCalledWith(expect.anything(), expect.anything(), undefined, expect.objectContaining({ models: [undefined] }), inView);
-    expect(terminalOf(nodesStore.getState().nodes.isis)?.model).toBeUndefined();
+    expect(terminalOf(nodesStore.getState().nodes.batman)?.model).toBeUndefined();
     expect(missionNow().members.map((m) => m.model)).toEqual([undefined, undefined]);
   });
 });
@@ -177,14 +177,14 @@ describe("launchMission (spec §7.3)", () => {
     const fresh = mission.members[1].name;
     expect(missionPrepare).toHaveBeenCalledWith("C:/code/proj", "Auth");
     expect(vi.mocked(missionAddAgent).mock.calls).toEqual([
-      ["C:/code/proj", "auth", "Isis"],
+      ["C:/code/proj", "auth", "Batman"],
       ["C:/code/proj", "auth", fresh],
     ]);
-    const isis = terminalOf(nodesStore.getState().nodes.isis)!;
-    expect(isis.cwd).toBe("C:/code/proj.worktrees/auth-isis");
-    expect(isis.claudeSessionId).not.toBe("old");
-    expect(isis.steps).toBeUndefined();
-    expect(relaunchTerminal).toHaveBeenCalledWith("isis", expect.objectContaining({ cwd: isis.cwd, claudeSessionId: isis.claudeSessionId }), "new");
+    const batman = terminalOf(nodesStore.getState().nodes.batman)!;
+    expect(batman.cwd).toBe("C:/code/proj.worktrees/auth-batman");
+    expect(batman.claudeSessionId).not.toBe("old");
+    expect(batman.steps).toBeUndefined();
+    expect(relaunchTerminal).toHaveBeenCalledWith("batman", expect.objectContaining({ cwd: batman.cwd, claudeSessionId: batman.claudeSessionId }), "new");
     expect(launchGroup).toHaveBeenCalledWith(
       { name: "Mission Auth", role: "general", agents: ["claude"] },
       expect.anything(),
@@ -196,12 +196,12 @@ describe("launchMission (spec §7.3)", () => {
     expect(mission).toMatchObject({ state: "en_cours", project: "C:/code/proj", slug: "auth", branch: "dummyplane/auth", frameId: "f1" });
     expect(mission.startedAt).toEqual(expect.any(Number));
     expect(mission.members.map((m) => [m.nodeId, m.linked, m.branch])).toEqual([
-      ["isis", true, "dummyplane/auth-isis"],
+      ["batman", true, "dummyplane/auth-batman"],
       ["n1", false, tree(`auth-${fresh.toLowerCase()}`).branch],
     ]);
     expect(vi.mocked(notify).mock.calls[0]).toEqual(["chef", expect.stringContaining("Go-ahead")]);
     await vi.waitFor(() => expect(missionNow().members.every((m) => m.sentAt !== undefined)).toBe(true));
-    expect(ptySendText).toHaveBeenCalledWith("isis", subTaskText("Auth", plan[0], "dummyplane/auth-isis"));
+    expect(ptySendText).toHaveBeenCalledWith("batman", subTaskText("Auth", plan[0], "dummyplane/auth-batman"));
     expect(ptySendText).toHaveBeenCalledWith("n1", subTaskText("Auth", plan[1], tree(`auth-${fresh.toLowerCase()}`).branch));
   });
 
@@ -238,9 +238,9 @@ describe("launchMission (spec §7.3)", () => {
     await launchMission("chef");
     await vi.waitFor(() => expect(ptySendText).toHaveBeenCalledWith("n1", expect.any(String)));
     expect(whenReady).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(ptySendText).mock.calls.some(([id]) => id === "isis")).toBe(false);
+    expect(vi.mocked(ptySendText).mock.calls.some(([id]) => id === "batman")).toBe(false);
     relaunched();
-    await vi.waitFor(() => expect(ptySendText).toHaveBeenCalledWith("isis", expect.any(String)));
+    await vi.waitFor(() => expect(ptySendText).toHaveBeenCalledWith("batman", expect.any(String)));
     expect(whenReady).toHaveBeenCalledTimes(2);
   });
 
@@ -259,7 +259,7 @@ describe("launchMission (spec §7.3)", () => {
     await launchMission("chef");
     expect(missionNow()).toMatchObject({ state: "plan", error: "The project folder is not a git repository.", members: [] });
     expect(notify).toHaveBeenCalledWith("chef", "The mission could not start: The project folder is not a git repository.");
-    vi.mocked(missionAddAgent).mockResolvedValueOnce(tree("auth-isis")).mockRejectedValueOnce(new Error("La branche dummyplane/auth-x existe déjà."));
+    vi.mocked(missionAddAgent).mockResolvedValueOnce(tree("auth-batman")).mockRejectedValueOnce(new Error("La branche dummyplane/auth-x existe déjà."));
     await launchMission("chef");
     expect(missionNow()).toMatchObject({ state: "plan", error: "La branche dummyplane/auth-x existe déjà." });
     expect(relaunchTerminal).not.toHaveBeenCalled();
@@ -312,7 +312,7 @@ describe("a new agent in a chosen group (spec groupes spécialisés §4)", () =>
     const mission = missionNow();
     const joined = mission.members[0];
     expect(launchGroup).not.toHaveBeenCalled();
-    expect(joined).toMatchObject({ nodeId: "n9", name: nextName("norse", ["Isis"]), linked: false, group: "g1" });
+    expect(joined).toMatchObject({ nodeId: "n9", name: nextName("norse", ["Batman"]), linked: false, group: "g1" });
     expect(addTerminal).toHaveBeenCalledWith("w1", expect.objectContaining({ name: joined.name, cwd: joined.worktree, agent: "claude", model: "claude-haiku-5-5" }), { x: 200, y: 150 }, "g1", inView);
     expect(mission.frameId).toBeUndefined();
     expect(showGroups).toHaveBeenCalledWith(["g1"]);
@@ -325,7 +325,7 @@ describe("a new agent in a chosen group (spec groupes spécialisés §4)", () =>
     terminalStatusStore.getState().set("n8", { state: "running" });
     await launchMission("chef");
     expect(launchGroup).toHaveBeenCalledWith(expect.objectContaining({ agents: ["claude"] }), expect.anything(), undefined, expect.anything(), inView);
-    expect(missionNow().members.map((m) => m.nodeId)).toEqual(["isis", "n1", "n9", "n8"]);
+    expect(missionNow().members.map((m) => m.nodeId)).toEqual(["batman", "n1", "n9", "n8"]);
     expect(new Set(missionNow().members.map((m) => m.name)).size).toBe(4);
     expect(showGroups).toHaveBeenCalledWith(["g1", "f1"]);
     expect(missionNow().frameId).toBe("f1");
@@ -343,7 +343,7 @@ describe("a new agent in a chosen group (spec groupes spécialisés §4)", () =>
     expect(showGroups).not.toHaveBeenCalled();
     // The mission still runs: the team is there, and its sub-tasks are sent.
     expect(missionNow().state).toBe("en_cours");
-    expect(missionNow().members.map((m) => m.nodeId)).toEqual(["isis", "n1", "n9", "n8"]);
+    expect(missionNow().members.map((m) => m.nodeId)).toEqual(["batman", "n1", "n9", "n8"]);
   });
 
   it("frames nothing more when nobody joins a group, as before", async () => {
@@ -404,7 +404,7 @@ describe("a new agent in a chosen group (spec groupes spécialisés §4)", () =>
   });
 
   it("closes both kinds at the end of a mixed team", async () => {
-    await setup({ state: "en_cours", project: "C:/code/proj", frameId: "f1", members: [member("n1", "Horus", false), member("n9", "Thor", false, { group: "g1" })] });
+    await setup({ state: "en_cours", project: "C:/code/proj", frameId: "f1", members: [member("n1", "Aquaman", false), member("n9", "Thor", false, { group: "g1" })] });
     endMission("chef", "Fini.");
     expect(closeGroup).toHaveBeenCalledWith("f1");
     expect(removeNodes).toHaveBeenCalledWith(["n9"]);
@@ -451,7 +451,7 @@ describe("a new agent in a chosen group (spec groupes spécialisés §4)", () =>
 describe("a mission whose workspace is not on screen (spec mission de nuit §6.1)", () => {
   const wired = [
     { id: "chef", type: "embeddable", isDeleted: false, frameId: null, x: 0, y: 0, width: 640, height: 760, customData: { kind: STORED_FLEET_KIND } },
-    { id: "isis", type: "embeddable", isDeleted: false, frameId: null, x: 0, y: 0, width: 10, height: 10, customData: { kind: "terminal" } },
+    { id: "batman", type: "embeddable", isDeleted: false, frameId: null, x: 0, y: 0, width: 10, height: 10, customData: { kind: "terminal" } },
   ];
 
   beforeEach(() => {
@@ -472,28 +472,28 @@ describe("a mission whose workspace is not on screen (spec mission de nuit §6.1
   });
 
   it("closes the created agents in the stored scene at the end, the group that a member joined staying", async () => {
-    await setup({ state: "en_cours", project: "C:/code/proj", frameId: "f1", members: [member("isis", "Isis", true), member("n1", "Horus", false), member("n9", "Thor", false, { group: "g1" })] });
+    await setup({ state: "en_cours", project: "C:/code/proj", frameId: "f1", members: [member("batman", "Batman", true), member("n1", "Aquaman", false), member("n9", "Thor", false, { group: "g1" })] });
     endMission("chef", "Fini.");
     expect(closeStoredGroup).toHaveBeenCalledWith("w1", "f1");
     expect(removeFromStoredScene).toHaveBeenCalledWith("w1", new Set(["n9"]));
     expect(closeGroup).not.toHaveBeenCalled();
     expect(removeNodes).not.toHaveBeenCalled();
     expect(stopTerminal).not.toHaveBeenCalled();
-    expect(relaunchTerminal).toHaveBeenCalledWith("isis", expect.objectContaining({ cwd: "C:/code/proj" }), "new");
+    expect(relaunchTerminal).toHaveBeenCalledWith("batman", expect.objectContaining({ cwd: "C:/code/proj" }), "new");
   });
 
   it("creates a replacement agent there too", async () => {
-    const running = { state: "en_cours" as const, project: "C:/code/proj", slug: "auth", frameId: "f1", plan: [{ title: "t", brief: "b", agent: "Isis", budgetMin: 5 }], members: [member("isis", "Isis", true)] };
+    const running = { state: "en_cours" as const, project: "C:/code/proj", slug: "auth", frameId: "f1", plan: [{ title: "t", brief: "b", agent: "Batman", budgetMin: 5 }], members: [member("batman", "Batman", true)] };
     rememberScene("w1", [...wired, { id: "f1", type: "frame", name: "Mission", x: 0, y: 0, width: 800, height: 500, isDeleted: false, frameId: null, customData: { dummyplane: { kind: "group", role: "general", pantheon: "norse" } } }] as never, {} as never, {}, []);
     await setup(running);
-    expect(await reassignTask("chef", "isis", "nouveau")).toEqual({ name: expect.any(String) });
+    expect(await reassignTask("chef", "batman", "nouveau")).toEqual({ name: expect.any(String) });
     expect(addTerminal).toHaveBeenCalledWith("w1", expect.anything(), { x: 400, y: 250 }, "f1", quiet);
   });
 
   it("closes them too from the home screen: no canvas is mounted to do it, and they would run on (review)", async () => {
     workspacesStore.setState({ activeId: "w1" });
     canvasStore.setState({ api: null });
-    await setup({ state: "en_cours", project: "C:/code/proj", frameId: "f1", members: [member("n1", "Horus", false)] });
+    await setup({ state: "en_cours", project: "C:/code/proj", frameId: "f1", members: [member("n1", "Aquaman", false)] });
     endMission("chef", "Fini.");
     expect(closeGroup).not.toHaveBeenCalled();
     expect(closeStoredGroup).toHaveBeenCalledWith("w1", "f1");
@@ -501,7 +501,7 @@ describe("a mission whose workspace is not on screen (spec mission de nuit §6.1
 
   it("still stops the agents when the scene was never read", async () => {
     forgetScene("w1");
-    await setup({ state: "en_cours", project: "C:/code/proj", frameId: "f1", members: [member("n1", "Horus", false)] });
+    await setup({ state: "en_cours", project: "C:/code/proj", frameId: "f1", members: [member("n1", "Aquaman", false)] });
     endMission("chef", "Fini.");
     expect(closeStoredGroup).not.toHaveBeenCalled();
     expect(stopTerminal).toHaveBeenCalledWith("n1");
@@ -542,28 +542,28 @@ describe("a mission's permissions (spec mission de nuit §5.3)", () => {
     await setup({ permission: "work" });
     await launchMission("chef");
     expect(launchGroup).toHaveBeenCalledWith(expect.anything(), expect.anything(), undefined, expect.objectContaining({ permission: "work" }), inView);
-    expect(terminalOf(nodesStore.getState().nodes.isis)?.permission).toBe("work");
-    expect(relaunchTerminal).toHaveBeenCalledWith("isis", expect.objectContaining({ permission: "work" }), "new");
+    expect(terminalOf(nodesStore.getState().nodes.batman)?.permission).toBe("work");
+    expect(relaunchTerminal).toHaveBeenCalledWith("batman", expect.objectContaining({ permission: "work" }), "new");
     endMission("chef", "Fini.");
-    expect(terminalOf(nodesStore.getState().nodes.isis)?.permission).toBeUndefined();
-    expect(relaunchTerminal).toHaveBeenLastCalledWith("isis", expect.objectContaining({ permission: undefined }), "new");
+    expect(terminalOf(nodesStore.getState().nodes.batman)?.permission).toBeUndefined();
+    expect(relaunchTerminal).toHaveBeenLastCalledWith("batman", expect.objectContaining({ permission: undefined }), "new");
   });
 
   it("add nothing to a mission without a choice", async () => {
     await setup();
     await launchMission("chef");
-    expect(terminalOf(nodesStore.getState().nodes.isis)?.permission).toBeUndefined();
+    expect(terminalOf(nodesStore.getState().nodes.batman)?.permission).toBeUndefined();
     expect(vi.mocked(launchGroup).mock.calls[0][3]?.permission).toBeUndefined();
   });
 });
 
 it("ends the mission: created agents closed, linked ones back in the project in a new conversation (spec §7.7)", async () => {
-  await setup({ state: "en_cours", project: "C:/code/proj", frameId: "f1", members: [member("isis", "Isis", true), member("n1", "Horus", false)] });
+  await setup({ state: "en_cours", project: "C:/code/proj", frameId: "f1", members: [member("batman", "Batman", true), member("n1", "Aquaman", false)] });
   vi.spyOn(Date, "now").mockReturnValue(1_234_567);
   endMission("chef", "Tout est fait.");
   vi.mocked(Date.now).mockRestore();
   expect(missionNow()).toMatchObject({ state: "terminee", summary: "Tout est fait.", endedAt: 1_234_567 });
-  expect(relaunchTerminal).toHaveBeenCalledWith("isis", expect.objectContaining({ cwd: "C:/code/proj" }), "new");
+  expect(relaunchTerminal).toHaveBeenCalledWith("batman", expect.objectContaining({ cwd: "C:/code/proj" }), "new");
   expect(closeGroup).toHaveBeenCalledWith("f1");
 });
 
@@ -573,43 +573,43 @@ it("merges the branches of the agents done, and says what happened to each (spec
     state: "en_cours",
     worktree: "C:/w/auth",
     branch: "dummyplane/auth",
-    members: [member("isis", "Isis", true, { report: done }), member("n1", "Horus", false, { report: done }), member("n2", "Anubis", false, { report: { ...done, status: "bloque" } })],
+    members: [member("batman", "Batman", true, { report: done }), member("n1", "Aquaman", false, { report: done }), member("n2", "Flash", false, { report: { ...done, status: "bloque" } })],
   });
   vi.mocked(missionMerge).mockImplementation(async (_mission, _agent, branch) =>
-    branch.endsWith("isis") ? { merge: { kind: "merged" }, uncommitted: true } : { merge: { kind: "conflict", files: ["a.ts"] }, uncommitted: false },
+    branch.endsWith("batman") ? { merge: { kind: "merged" }, uncommitted: true } : { merge: { kind: "conflict", files: ["a.ts"] }, uncommitted: false },
   );
   expect(await mergeMission("chef")).toBe(
-    "Branch dummyplane/auth:\nIsis: merged (uncommitted changes in its worktree are not merged)\nHorus: conflict, merge undone — a.ts",
+    "Branch dummyplane/auth:\nBatman: merged (uncommitted changes in its worktree are not merged)\nAquaman: conflict, merge undone — a.ts",
   );
   expect(vi.mocked(missionMerge).mock.calls.map(([mission, agent, branch]) => [mission, agent, branch])).toEqual([
-    ["C:/w/auth", "C:/w/isis", "dummyplane/auth-isis"],
+    ["C:/w/auth", "C:/w/batman", "dummyplane/auth-batman"],
     ["C:/w/auth", "C:/w/n1", "dummyplane/auth-n1"],
   ]);
   expect(missionNow().members.map((m) => m.merged === true)).toEqual([true, false, false]);
 });
 
 it("cleans a finished mission and frees the fleet for the next, its settings kept", async () => {
-  await setup({ state: "terminee", budgetMin: 90, maxAgents: 3, project: "C:/code/proj", slug: "auth", summary: "ok", members: [member("isis", "Isis", true)] });
-  vi.mocked(missionCleanup).mockResolvedValue({ removed: ["auth-isis", "auth"], kept: [] });
-  expect(await cleanMission("chef")).toEqual({ removed: ["auth-isis", "auth"], kept: [] });
-  expect(missionCleanup).toHaveBeenCalledWith("C:/code/proj", "auth", ["Isis"]);
+  await setup({ state: "terminee", budgetMin: 90, maxAgents: 3, project: "C:/code/proj", slug: "auth", summary: "ok", members: [member("batman", "Batman", true)] });
+  vi.mocked(missionCleanup).mockResolvedValue({ removed: ["auth-batman", "auth"], kept: [] });
+  expect(await cleanMission("chef")).toEqual({ removed: ["auth-batman", "auth"], kept: [] });
+  expect(missionCleanup).toHaveBeenCalledWith("C:/code/proj", "auth", ["Batman"]);
   expect(missionNow()).toEqual({ state: "redaction", budgetMin: 90, maxAgents: 3, members: [] });
 });
 
 it("cleans the worktree of every agent of the mission, those the queue started in new terminals included", async () => {
   const members = [
-    member("isis", "Isis", true, { report: { summary: "ok", status: "termine", at: 1 }, merged: true }),
-    member("n1", "Horus", false, { report: { summary: "ko", status: "bloque", at: 2 }, abandoned: true }),
-    member("n2", "Thot", false, { group: "g1" }),
+    member("batman", "Batman", true, { report: { summary: "ok", status: "termine", at: 1 }, merged: true }),
+    member("n1", "Aquaman", false, { report: { summary: "ko", status: "bloque", at: 2 }, abandoned: true }),
+    member("n2", "Cyborg", false, { group: "g1" }),
   ];
   await setup({ state: "terminee", project: "C:/code/proj", slug: "auth", summary: "ok", members });
   vi.mocked(missionCleanup).mockResolvedValue({ removed: [], kept: [] });
   await cleanMission("chef");
-  expect(missionCleanup).toHaveBeenCalledWith("C:/code/proj", "auth", ["Isis", "Horus", "Thot"]);
+  expect(missionCleanup).toHaveBeenCalledWith("C:/code/proj", "auth", ["Batman", "Aquaman", "Cyborg"]);
 });
 
 it("keeps the router setting when the mission is cleaned (backlog 27 oct)", async () => {
-  await setup({ state: "terminee", budgetMin: 90, maxAgents: 3, router: true, project: "C:/code/proj", slug: "auth", summary: "ok", members: [member("isis", "Isis", true)] });
+  await setup({ state: "terminee", budgetMin: 90, maxAgents: 3, router: true, project: "C:/code/proj", slug: "auth", summary: "ok", members: [member("batman", "Batman", true)] });
   vi.mocked(missionCleanup).mockResolvedValue({ removed: [], kept: [] });
   await cleanMission("chef");
   expect(missionNow()).toMatchObject({ state: "redaction", router: true });
@@ -622,9 +622,9 @@ describe("what the final review of H2 found", () => {
     await launchMission("chef");
     expect(missionNow()).toMatchObject({ state: "plan", error: "The new agents' group could not be created." });
     expect(relaunchTerminal).not.toHaveBeenCalled();
-    expect(terminalOf(nodesStore.getState().nodes.isis)?.cwd).toBe("C:/code/proj");
+    expect(terminalOf(nodesStore.getState().nodes.batman)?.cwd).toBe("C:/code/proj");
     const fresh = vi.mocked(missionAddAgent).mock.calls[1][2];
-    expect(missionDiscard).toHaveBeenCalledWith("C:/code/proj", [tree("auth"), tree("auth-isis"), tree(`auth-${fresh.toLowerCase()}`)]);
+    expect(missionDiscard).toHaveBeenCalledWith("C:/code/proj", [tree("auth"), tree("auth-batman"), tree(`auth-${fresh.toLowerCase()}`)]);
   });
 
   it("forms no team once the user left the fleet's workspace", async () => {
@@ -641,16 +641,16 @@ describe("what the final review of H2 found", () => {
   });
 
   it("stops the created agents when the mission ends away from its workspace", async () => {
-    await setup({ state: "en_cours", project: "C:/code/proj", frameId: "f1", members: [member("isis", "Isis", true), member("n1", "Horus", false)] });
+    await setup({ state: "en_cours", project: "C:/code/proj", frameId: "f1", members: [member("batman", "Batman", true), member("n1", "Aquaman", false)] });
     workspacesStore.setState({ activeId: "w2" });
     endMission("chef", "Fini.");
     expect(closeGroup).not.toHaveBeenCalled();
     expect(stopTerminal).toHaveBeenCalledWith("n1");
-    expect(relaunchTerminal).toHaveBeenCalledWith("isis", expect.objectContaining({ cwd: "C:/code/proj" }), "new");
+    expect(relaunchTerminal).toHaveBeenCalledWith("batman", expect.objectContaining({ cwd: "C:/code/proj" }), "new");
   });
 
   it("frees the fleet even when the cleanup fails", async () => {
-    await setup({ state: "terminee", project: "C:/gone", slug: "auth", members: [member("isis", "Isis", true)] });
+    await setup({ state: "terminee", project: "C:/gone", slug: "auth", members: [member("batman", "Batman", true)] });
     vi.mocked(missionCleanup).mockRejectedValueOnce(new Error("The project folder is not a git repository."));
     expect(await cleanMission("chef")).toBe("The project folder is not a git repository.");
     expect(missionNow().state).toBe("redaction");
@@ -658,9 +658,9 @@ describe("what the final review of H2 found", () => {
 
   it("keeps a merged branch merged when nothing new came since", async () => {
     const done = { summary: "ok", status: "termine" as const, at: 1 };
-    await setup({ state: "en_cours", worktree: "C:/w/auth", branch: "dummyplane/auth", members: [member("isis", "Isis", true, { report: done, merged: true })] });
+    await setup({ state: "en_cours", worktree: "C:/w/auth", branch: "dummyplane/auth", members: [member("batman", "Batman", true, { report: done, merged: true })] });
     vi.mocked(missionMerge).mockResolvedValue({ merge: { kind: "empty" }, uncommitted: false });
-    expect(await mergeMission("chef")).toBe("Branch dummyplane/auth:\nIsis: already merged, nothing new");
+    expect(await mergeMission("chef")).toBe("Branch dummyplane/auth:\nBatman: already merged, nothing new");
     expect(missionNow().members[0].merged).toBe(true);
   });
 });
@@ -668,35 +668,35 @@ describe("what the final review of H2 found", () => {
 describe("reassignTask (spec §7.2 reattribuer)", () => {
   const report = { summary: "API faite", status: "termine" as const, at: 1 };
   const team = () =>
-    setup({ state: "en_cours", project: "C:/code/proj", slug: "auth", frameId: "f1", members: [member("isis", "Isis", true, { task: "Login" }), member("n1", "Horus", false, { task: "API", report, merged: true })] });
+    setup({ state: "en_cours", project: "C:/code/proj", slug: "auth", frameId: "f1", members: [member("batman", "Batman", true, { task: "Login" }), member("n1", "Aquaman", false, { task: "API", report, merged: true })] });
 
   it("gives a sub-task to an agent who is done, with the previous one's report and branch", async () => {
     await team();
-    expect(await reassignTask("chef", "isis", "horus")).toEqual({ name: "Horus" });
-    const [isis, horus] = missionNow().members;
-    expect(isis.handedTo).toBe("Horus");
-    expect(horus).toMatchObject({ task: "Login", budgetMin: 20, report: undefined, overdue: undefined, extraMin: undefined, merged: undefined, done: ["API"] });
+    expect(await reassignTask("chef", "batman", "aquaman")).toEqual({ name: "Aquaman" });
+    const [batman, aquaman] = missionNow().members;
+    expect(batman.handedTo).toBe("Aquaman");
+    expect(aquaman).toMatchObject({ task: "Login", budgetMin: 20, report: undefined, overdue: undefined, extraMin: undefined, merged: undefined, done: ["API"] });
     // The previous agent stops: its sub-task is another's now (final review H3).
-    expect(pauseAgents).toHaveBeenCalledWith(["isis"]);
-    expect(ptySendText).toHaveBeenCalledWith("isis", "[dummyPlane] Your sub-task \"Login\" goes to Horus: stop it and commit nothing more on it.");
-    await vi.waitFor(() => expect(ptySendText).toHaveBeenCalledWith("n1", expect.stringContaining("Taking over Isis's work")));
+    expect(pauseAgents).toHaveBeenCalledWith(["batman"]);
+    expect(ptySendText).toHaveBeenCalledWith("batman", "[dummyPlane] Your sub-task \"Login\" goes to Aquaman: stop it and commit nothing more on it.");
+    await vi.waitFor(() => expect(ptySendText).toHaveBeenCalledWith("n1", expect.stringContaining("Taking over Batman's work")));
     const text = vi.mocked(ptySendText).mock.calls.find(([id]) => id === "n1")![1];
     expect(text.startsWith(subTaskText("Auth", plan[0], "dummyplane/auth-n1"))).toBe(true);
-    expect(text).toContain("dummyplane/auth-isis");
-    expect(handoverText(member("n1", "Horus", false, { report }))).toContain("\"API faite\"");
+    expect(text).toContain("dummyplane/auth-batman");
+    expect(handoverText(member("n1", "Aquaman", false, { report }))).toContain("\"API faite\"");
   });
 
   it("refuses an agent who is not done, the same agent, or a stranger; nothing changes", async () => {
     await team();
     const before = missionNow();
-    expect(await reassignTask("chef", "n1", "Isis")).toContain("has not finished");
-    expect(await reassignTask("chef", "isis", "Isis")).toContain("is not another agent of the mission");
-    expect(await reassignTask("chef", "isis", "Zeus")).toContain("is not another agent of the mission");
+    expect(await reassignTask("chef", "n1", "Batman")).toContain("has not finished");
+    expect(await reassignTask("chef", "batman", "Batman")).toContain("is not another agent of the mission");
+    expect(await reassignTask("chef", "batman", "Deadpool")).toContain("is not another agent of the mission");
     expect(missionNow()).toEqual(before);
     // Its finished work must reach the mission's branch before its entry takes another sub-task (final review H3).
     updateMember("chef", "n1", { merged: false });
     const unmerged = missionNow();
-    expect(await reassignTask("chef", "isis", "Horus")).toContain("Horus finished \"API\" but its branch is not merged: call merge first.");
+    expect(await reassignTask("chef", "batman", "Aquaman")).toContain("Aquaman finished \"API\" but its branch is not merged: call merge first.");
     expect(missionNow()).toEqual(unmerged);
     expect(pauseAgents).not.toHaveBeenCalled();
   });
@@ -704,24 +704,24 @@ describe("reassignTask (spec §7.2 reattribuer)", () => {
   it("refuses at once an agent that is stopped, instead of failing a minute later", async () => {
     await team();
     terminalStatusStore.getState().set("n1", { state: "stopped" });
-    expect(await reassignTask("chef", "isis", "Horus")).toContain("is stopped");
+    expect(await reassignTask("chef", "batman", "Aquaman")).toContain("is stopped");
     expect(missionNow().members[0].handedTo).toBeUndefined();
     expect(pauseAgents).not.toHaveBeenCalled();
   });
 
   it("does not open a new agent while Max agents are at work", async () => {
-    await setup({ state: "en_cours", maxAgents: 2, project: "C:/code/proj", slug: "auth", frameId: "f1", members: [member("isis", "Isis", true, { task: "Login" }), member("n1", "Horus", false, { task: "API" })] });
-    expect(await reassignTask("chef", "isis", "nouveau")).toBe('2 agents are already at work (Max active agents): reassign to an agent that has reported instead of "new", or wait for one to finish.');
+    await setup({ state: "en_cours", maxAgents: 2, project: "C:/code/proj", slug: "auth", frameId: "f1", members: [member("batman", "Batman", true, { task: "Login" }), member("n1", "Aquaman", false, { task: "API" })] });
+    expect(await reassignTask("chef", "batman", "nouveau")).toBe('2 agents are already at work (Max active agents): reassign to an agent that has reported instead of "new", or wait for one to finish.');
     expect(missionAddAgent).not.toHaveBeenCalled();
     expect(pauseAgents).not.toHaveBeenCalled();
   });
 
   it("still refuses one when two others are at work, the one handing over having reported", async () => {
     const blocked = { summary: "bloqué", status: "bloque" as const, at: 1 };
-    // Its sub-task not typed yet, Seth's terminal is still starting: it holds its seat.
-    const members = [member("isis", "Isis", true, { task: "Login", report: blocked }), member("n1", "Horus", false, { task: "API" }), member("n2", "Seth", false, { task: "Docs", sentAt: undefined })];
+    // Its sub-task not typed yet, Shazam's terminal is still starting: it holds its seat.
+    const members = [member("batman", "Batman", true, { task: "Login", report: blocked }), member("n1", "Aquaman", false, { task: "API" }), member("n2", "Shazam", false, { task: "Docs", sentAt: undefined })];
     await setup({ state: "en_cours", maxAgents: 2, project: "C:/code/proj", slug: "auth", frameId: "f1", members });
-    expect(await reassignTask("chef", "isis", "nouveau")).toContain("Max active agents");
+    expect(await reassignTask("chef", "batman", "nouveau")).toContain("Max active agents");
     expect(missionAddAgent).not.toHaveBeenCalled();
   });
 
@@ -735,24 +735,24 @@ describe("reassignTask (spec §7.2 reattribuer)", () => {
       slug: "auth",
       frameId: "f1",
       members: [
-        member("isis", "Isis", true, { task: "Login" }),
-        member("n1", "Horus", false, { task: "API", report: done, merged: true }),
-        member("n2", "Seth", false, { task: "Docs", report: blocked }),
-        member("n3", "Thot", false, { task: "Tests", handedTo: "Horus" }),
+        member("batman", "Batman", true, { task: "Login" }),
+        member("n1", "Aquaman", false, { task: "API", report: done, merged: true }),
+        member("n2", "Shazam", false, { task: "Docs", report: blocked }),
+        member("n3", "Cyborg", false, { task: "Tests", handedTo: "Aquaman" }),
       ],
     });
     // Still running: a report, not a stopped terminal, frees the seat.
     for (const id of ["n2", "n3"]) terminalStatusStore.getState().set(id, { state: "running" });
     canvasStore.setState({ frames: [{ id: "f1", x: 0, y: 0, width: 800, height: 500, name: "Mission Auth", group: { role: "general", pantheon: "egyptian" }, memberIds: ["n1", "n2", "n3"] }] });
-    const result = await reassignTask("chef", "isis", "nouveau");
+    const result = await reassignTask("chef", "batman", "nouveau");
     expect(typeof result).toBe("object");
     const name = (result as { name: string }).name;
     expect(missionAddAgent).toHaveBeenCalledWith("C:/code/proj", "auth", name);
     expect(missionNow().members.map((m) => [m.nodeId, m.task, m.handedTo])).toEqual([
-      ["isis", "Login", name],
+      ["batman", "Login", name],
       ["n1", "API", undefined],
       ["n2", "Docs", undefined],
-      ["n3", "Tests", "Horus"],
+      ["n3", "Tests", "Aquaman"],
       ["n9", "Login", undefined],
     ]);
     for (const id of ["n2", "n3"]) terminalStatusStore.getState().set(id, { state: "stopped" });
@@ -761,14 +761,14 @@ describe("reassignTask (spec §7.2 reattribuer)", () => {
   it("gives a sub-task to a new agent in the mission's group, started at once", async () => {
     await team();
     canvasStore.setState({ frames: [{ id: "f1", x: 0, y: 0, width: 800, height: 500, name: "Mission Auth", group: { role: "general", pantheon: "egyptian" }, memberIds: ["n1"] }] });
-    const result = await reassignTask("chef", "isis", "nouveau");
+    const result = await reassignTask("chef", "batman", "nouveau");
     expect(typeof result === "object" && result.name).toBeTruthy();
     const name = (result as { name: string }).name;
     expect(missionAddAgent).toHaveBeenCalledWith("C:/code/proj", "auth", name);
     expect(addTerminal).toHaveBeenCalledWith("w1", expect.objectContaining({ name, cwd: tree(`auth-${name.toLowerCase()}`).path, agent: "claude" }), { x: 400, y: 250 }, "f1", quiet);
     expect(relaunchTerminal).not.toHaveBeenCalled();
     expect(missionNow().members.map((m) => [m.nodeId, m.task, m.handedTo])).toEqual([
-      ["isis", "Login", name],
+      ["batman", "Login", name],
       ["n1", "API", undefined],
       ["n9", "Login", undefined],
     ]);
@@ -777,7 +777,7 @@ describe("reassignTask (spec §7.2 reattribuer)", () => {
 
 it("leaves a handed-over agent's branch to its successor when merging (final review H3)", async () => {
   const done = { summary: "ok", status: "termine" as const, at: 1 };
-  await setup({ state: "en_cours", worktree: "C:/w/auth", branch: "dummyplane/auth", members: [member("isis", "Isis", true, { report: done, handedTo: "Horus" }), member("n1", "Horus", false, { report: done })] });
+  await setup({ state: "en_cours", worktree: "C:/w/auth", branch: "dummyplane/auth", members: [member("batman", "Batman", true, { report: done, handedTo: "Aquaman" }), member("n1", "Aquaman", false, { report: done })] });
   vi.mocked(missionMerge).mockResolvedValue({ merge: { kind: "merged" }, uncommitted: false });
   await mergeMission("chef");
   expect(vi.mocked(missionMerge).mock.calls.map(([, , branch]) => branch)).toEqual(["dummyplane/auth-n1"]);
@@ -788,14 +788,14 @@ it("gives a reassigned new agent the model of the sub-task's level when the rout
   await setup({
     state: "en_cours",
     router: true,
-    plan: [{ title: "Login", brief: "b", agent: "Isis", budgetMin: 20, level: "eleve" }],
+    plan: [{ title: "Login", brief: "b", agent: "Batman", budgetMin: 20, level: "eleve" }],
     project: "C:/code/proj",
     slug: "auth",
     frameId: "f1",
-    members: [member("isis", "Isis", true, { task: "Login" })],
+    members: [member("batman", "Batman", true, { task: "Login" })],
   });
-  canvasStore.setState({ frames: [{ id: "f1", x: 0, y: 0, width: 800, height: 500, name: "Mission Auth", group: { role: "general", pantheon: "egyptian" }, memberIds: ["isis"] }] });
-  const result = await reassignTask("chef", "isis", "nouveau");
+  canvasStore.setState({ frames: [{ id: "f1", x: 0, y: 0, width: 800, height: 500, name: "Mission Auth", group: { role: "general", pantheon: "egyptian" }, memberIds: ["batman"] }] });
+  const result = await reassignTask("chef", "batman", "nouveau");
   expect(typeof result).toBe("object");
   expect(addTerminal).toHaveBeenCalledWith("w1", expect.objectContaining({ model: "claude-opus-5-5" }), expect.anything(), "f1", quiet);
   expect(missionNow().members[missionNow().members.length - 1]?.model).toBe("claude-opus-5-5");

@@ -14,7 +14,7 @@ vi.mock("@excalidraw/excalidraw", () => ({}));
 vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { error: vi.fn() }) }));
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open: vi.fn() }));
 vi.mock("@/fleet/fleets", () => ({ addFleet: vi.fn(() => Promise.resolve()) }));
-vi.mock("./naming", async (importOriginal) => ({ ...(await importOriginal<typeof import("./naming")>()), nameForNewAgent: vi.fn(() => Promise.resolve("Isis")) }));
+vi.mock("./naming", async (importOriginal) => ({ ...(await importOriginal<typeof import("./naming")>()), nameForNewAgent: vi.fn(() => Promise.resolve("Batman")) }));
 vi.mock("./terminals", async (importOriginal) => ({ ...(await importOriginal<typeof import("./terminals")>()), addTerminal: vi.fn(() => Promise.resolve("node")) }));
 
 const project = { id: "p1", name: "api", path: "D:\\code\\api", lastOpenedAt: 0, missing: false } as Project;

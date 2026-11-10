@@ -33,13 +33,13 @@ const input = (fields: Partial<GoToInput> = {}): GoToInput => ({
   workspaces,
   activeWorkspaceId: "w2",
   scenes: {
-    w1: [terminal("isis", 0), fleet("chef")],
-    w2: [group("g", "Serveurs"), terminal("thot", 500, "g"), terminal("hermes", 0, "g")],
+    w1: [terminal("batman", 0), fleet("chef")],
+    w2: [group("g", "Serveurs"), terminal("cyborg", 500, "g"), terminal("cyclops", 0, "g")],
   },
   nodes: {
-    isis: node("w1", "Isis"),
-    thot: node("w2", "Thoth", "codex"),
-    hermes: node("w2", "Hermes"),
+    batman: node("w1", "Batman"),
+    cyborg: node("w2", "Cyborg", "codex"),
+    cyclops: node("w2", "Cyclops"),
     chef: { workspaceId: "w1", kind: "fleet", payload: { name: "chef de backend" } } as NodeRecord,
   },
   live: { w1: 1, w2: 2 },
@@ -49,21 +49,21 @@ const input = (fields: Partial<GoToInput> = {}): GoToInput => ({
 describe("goToItems (spec fenêtre §7.2)", () => {
   it("lists the workspace on screen first, then the others in tab order, terminals in Ctrl+Tab order", () => {
     const items = goToItems(input());
-    expect(items.filter((i) => i.kind === "terminal").map((i) => i.label)).toEqual(["Hermes", "Thoth", "Isis"]);
+    expect(items.filter((i) => i.kind === "terminal").map((i) => i.label)).toEqual(["Cyclops", "Cyborg", "Batman"]);
     expect(items.map((i) => i.kind)).toEqual(["terminal", "terminal", "terminal", "group", "fleet", "workspace", "workspace", "project", "project"]);
   });
 
   it("names the workspace of an item only when it is not the one on screen", () => {
     const items = goToItems(input());
-    expect(items.find((i) => i.label === "Thoth")!.elsewhere).toBeUndefined();
-    expect(items.find((i) => i.label === "Isis")!.elsewhere).toBe("Workspace 1");
+    expect(items.find((i) => i.label === "Cyborg")!.elsewhere).toBeUndefined();
+    expect(items.find((i) => i.label === "Batman")!.elsewhere).toBe("Workspace 1");
     expect(items.find((i) => i.kind === "fleet")!).toMatchObject({ label: "chef de backend", elsewhere: "Workspace 1", targetId: "chef", workspaceId: "w1" });
   });
 
   it("tells a terminal's agent and group, a group's members, a workspace's live agents and whether it is on screen", () => {
     const items = goToItems(input());
-    expect(items.find((i) => i.label === "Thoth")).toMatchObject({ agent: "codex", group: { name: "Serveurs" }, targetId: "thot", workspaceId: "w2" });
-    expect(items.find((i) => i.label === "Thoth")!.keywords).toEqual(expect.arrayContaining(["Codex", "Serveurs", "Backend"]));
+    expect(items.find((i) => i.label === "Cyborg")).toMatchObject({ agent: "codex", group: { name: "Serveurs" }, targetId: "cyborg", workspaceId: "w2" });
+    expect(items.find((i) => i.label === "Cyborg")!.keywords).toEqual(expect.arrayContaining(["Codex", "Serveurs", "Backend"]));
     expect(items.find((i) => i.kind === "group")).toMatchObject({ label: "Serveurs", members: 2, targetId: "g" });
     expect(items.filter((i) => i.kind === "workspace").map((i) => [i.label, i.live, i.current])).toEqual([
       ["Workspace 1", 1, false],
@@ -77,7 +77,7 @@ describe("goToItems (spec fenêtre §7.2)", () => {
 
   it("lists a workspace's items once its scene is read", () => {
     const items = goToItems(input({ scenes: { w2: input().scenes.w2 } }));
-    expect(items.some((i) => i.label === "Isis")).toBe(false);
+    expect(items.some((i) => i.label === "Batman")).toBe(false);
   });
 
   it("at home, only the projects", () => {
@@ -95,8 +95,8 @@ describe("goToSections", () => {
   });
 
   it("ranks each section by the search", () => {
-    const sections = goToSections(goToItems(input()), "isis cl");
-    expect(sections.map((s) => [s.label, s.items.map((i) => i.label)])).toEqual([["Terminals", ["Isis"]]]);
+    const sections = goToSections(goToItems(input()), "batman cl");
+    expect(sections.map((s) => [s.label, s.items.map((i) => i.label)])).toEqual([["Terminals", ["Batman"]]]);
   });
 
   it("finds a fleet by the word fleet, and by fleet, its former name", () => {
@@ -106,7 +106,7 @@ describe("goToSections", () => {
   });
 
   it("puts the section of the best match first while searching", () => {
-    // Thoth and Hermes are found by their group's name, the group by its own.
+    // Cyborg and Cyclops are found by their group's name, the group by its own.
     expect(goToSections(goToItems(input()), "servers").map((s) => s.label)).toEqual(["Terminals", "Groups"]);
   });
 });

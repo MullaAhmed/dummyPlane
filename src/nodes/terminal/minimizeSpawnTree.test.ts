@@ -24,7 +24,7 @@ const terminal = (name: string, spawnedBy?: string): TerminalPayload => ({
   ...(spawnedBy ? { spawnedBy } : {}),
 });
 const node = (id: string) => ({ ...createNodeElement("terminal", { x: 0, y: 0 }), id }) as ExcalidrawElement;
-const parentOf = (id: string) => (id === "anubis" || id === "bastet" ? "ra" : null);
+const parentOf = (id: string) => (id === "flash" || id === "batgirl" ? "robin" : null);
 
 // The canvas on screen: a scene that `updateScene` really changes.
 let scene: readonly ExcalidrawElement[];
@@ -40,13 +40,13 @@ const at = (id: string) => scene.find((e) => e.id === id)!;
 
 beforeEach(async () => {
   mockIPC(() => undefined);
-  // Ra spawned Anubis then Bastet: the flowchart puts them one under the other, right of Ra.
-  scene = layoutSpawnTree([node("ra"), node("anubis"), node("bastet")], parentOf, "anubis")!;
+  // Robin spawned Flash then Batgirl: the flowchart puts them one under the other, right of Robin.
+  scene = layoutSpawnTree([node("robin"), node("flash"), node("batgirl")], parentOf, "flash")!;
   canvasStore.setState({ api });
   workspacesStore.setState({ activeId: "w1" } as never);
-  await nodesStore.getState().create("ra", { workspaceId: "w1", kind: "terminal", payload: terminal("Ra") });
-  await nodesStore.getState().create("anubis", { workspaceId: "w1", kind: "terminal", payload: terminal("Anubis", "ra") });
-  await nodesStore.getState().create("bastet", { workspaceId: "w1", kind: "terminal", payload: terminal("Bastet", "ra") });
+  await nodesStore.getState().create("robin", { workspaceId: "w1", kind: "terminal", payload: terminal("Robin") });
+  await nodesStore.getState().create("flash", { workspaceId: "w1", kind: "terminal", payload: terminal("Flash", "robin") });
+  await nodesStore.getState().create("batgirl", { workspaceId: "w1", kind: "terminal", payload: terminal("Batgirl", "robin") });
 });
 afterEach(() => {
   nodesStore.getState().forgetWorkspace("w1");
@@ -56,14 +56,14 @@ afterEach(() => {
 });
 
 it("moves a minimized sub-agent's sibling up into the room it freed, and down again when it expands", async () => {
-  const bastetBefore = at("bastet").y;
-  expect(bastetBefore).toBeGreaterThan(at("anubis").y + at("anubis").height);
-  minimizeTerminal("anubis");
-  expect(at("anubis").height).toBe(MINIMIZED_HEIGHT);
-  await vi.waitFor(() => expect(at("bastet").y).toBeLessThan(bastetBefore));
+  const batgirlBefore = at("batgirl").y;
+  expect(batgirlBefore).toBeGreaterThan(at("flash").y + at("flash").height);
+  minimizeTerminal("flash");
+  expect(at("flash").height).toBe(MINIMIZED_HEIGHT);
+  await vi.waitFor(() => expect(at("batgirl").y).toBeLessThan(batgirlBefore));
   // Still below the card, clear of it.
-  expect(at("bastet").y).toBeGreaterThan(at("anubis").y + MINIMIZED_HEIGHT);
-  expect(at("ra").x).toBe(node("ra").x);
-  expandTerminal("anubis");
-  await vi.waitFor(() => expect(at("bastet").y).toBe(bastetBefore));
+  expect(at("batgirl").y).toBeGreaterThan(at("flash").y + MINIMIZED_HEIGHT);
+  expect(at("robin").x).toBe(node("robin").x);
+  expandTerminal("flash");
+  await vi.waitFor(() => expect(at("batgirl").y).toBe(batgirlBefore));
 });

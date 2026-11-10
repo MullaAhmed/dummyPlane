@@ -15,23 +15,23 @@ vi.mock("@excalidraw/excalidraw", () => ({}));
 
 it("draws each terminal's steps under it, following the view, with its running subagents", async () => {
   mockIPC(() => undefined);
-  await nodesStore.getState().create("isis", {
+  await nodesStore.getState().create("batman", {
     workspaceId: "w1",
     kind: "terminal",
-    payload: { title: "", name: "Isis", agent: "claude", cwd: "C:/code", shell: "default", command: "", steps: [{ title: "Plan", state: "fait" }, { title: "Code", state: "en_cours" }] },
+    payload: { title: "", name: "Batman", agent: "claude", cwd: "C:/code", shell: "default", command: "", steps: [{ title: "Plan", state: "fait" }, { title: "Code", state: "en_cours" }] },
   });
-  await nodesStore.getState().create("thot", { workspaceId: "w1", kind: "terminal", payload: { title: "", name: "Thoth", agent: "claude", cwd: "C:/code", shell: "default", command: "" } });
+  await nodesStore.getState().create("cyborg", { workspaceId: "w1", kind: "terminal", payload: { title: "", name: "Cyborg", agent: "claude", cwd: "C:/code", shell: "default", command: "" } });
   canvasStore.setState({
     view: { ...EMPTY_VIEW, zoom: 0.5, scrollX: 100, scrollY: 0 },
-    nodeRects: { isis: { x: 0, y: 0, width: 800, height: 400 }, thot: { x: 900, y: 0, width: 800, height: 400 } },
+    nodeRects: { batman: { x: 0, y: 0, width: 800, height: 400 }, cyborg: { x: 900, y: 0, width: 800, height: 400 } },
   });
-  subagentsStore.getState().set("isis", 3);
+  subagentsStore.getState().set("batman", 3);
   const host = document.createElement("div");
   document.body.append(host);
   const root = createRoot(host);
   await act(async () => root.render(<StepTimelines />));
   const friezes = host.querySelectorAll<HTMLElement>("[data-steps]");
-  expect([...friezes].map((f) => f.dataset.steps)).toEqual(["isis"]);
+  expect([...friezes].map((f) => f.dataset.steps)).toEqual(["batman"]);
   // (0 + 100) * 0.5 = 50; 400 * 0.5 = 200 below the top, then the gap at the view's scale;
   // drawn at the scene's size (800 wide) and scaled like the nodes (final review H1).
   expect([friezes[0].style.left, friezes[0].style.top, friezes[0].style.width, friezes[0].style.transform]).toEqual(["50px", "201.5px", "800px", "scale(0.5)"]);
@@ -47,7 +47,7 @@ it("draws each terminal's steps under it, following the view, with its running s
 
 describe("the frieze and the bar of an agent that reported", () => {
   const min = 60_000;
-  const claude = { title: "", name: "Ra", agent: "claude" as const, cwd: "C:/code", shell: "default" as const, command: "" };
+  const claude = { title: "", name: "Robin", agent: "claude" as const, cwd: "C:/code", shell: "default" as const, command: "" };
   const stale = [
     { title: "Plan", state: "fait" as const },
     { title: "Commit and report", state: "en_cours" as const },
@@ -57,7 +57,7 @@ describe("the frieze and the bar of an agent that reported", () => {
   async function show(report: "termine" | "bloque" | "echec", lastReport: "done" | "blocked" | "failed") {
     mockIPC(() => undefined);
     // Its payload still holds the steps it left when it reported (an older saved one, or an agent that never marked its last).
-    await nodesStore.getState().create("ra", { workspaceId: "w1", kind: "terminal", payload: { ...claude, steps: stale, lastReport: { status: lastReport, summary: "s" } } });
+    await nodesStore.getState().create("robin", { workspaceId: "w1", kind: "terminal", payload: { ...claude, steps: stale, lastReport: { status: lastReport, summary: "s" } } });
     await nodesStore.getState().create("chef", {
       workspaceId: "w1",
       kind: "fleet",
@@ -66,11 +66,11 @@ describe("the frieze and the bar of an agent that reported", () => {
         mission: {
           ...NEW_MISSION,
           state: "en_cours",
-          members: [{ nodeId: "ra", name: "Ra", task: "t", budgetMin: 50, linked: false, branch: "b", worktree: "w", sentAt: 0, report: { summary: "s", status: report, at: 22 * min } }],
+          members: [{ nodeId: "robin", name: "Robin", task: "t", budgetMin: 50, linked: false, branch: "b", worktree: "w", sentAt: 0, report: { summary: "s", status: report, at: 22 * min } }],
         },
       },
     });
-    canvasStore.setState({ view: { ...EMPTY_VIEW }, nodeRects: { ra: { x: 0, y: 0, width: 800, height: 400 } } });
+    canvasStore.setState({ view: { ...EMPTY_VIEW }, nodeRects: { robin: { x: 0, y: 0, width: 800, height: 400 } } });
     const host = document.createElement("div");
     document.body.append(host);
     const root = createRoot(host);

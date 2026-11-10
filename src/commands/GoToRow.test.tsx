@@ -10,11 +10,11 @@ import { GoToRow } from "./GoToRow";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-const item: GoToItem = { key: "t:a", kind: "terminal", label: "Thoth", keywords: [], targetId: "a", agent: "claude" };
+const item: GoToItem = { key: "t:a", kind: "terminal", label: "Cyborg", keywords: [], targetId: "a", agent: "claude" };
 const terminal = (lastReport?: { status: "done" | "blocked" | "failed"; summary: string }) => ({
   workspaceId: "w1",
   kind: "terminal",
-  payload: { title: "Thoth", name: "Thoth", agent: "claude", cwd: "C:/code", shell: "default", command: "", lastReport },
+  payload: { title: "Cyborg", name: "Cyborg", agent: "claude", cwd: "C:/code", shell: "default", command: "", lastReport },
 });
 
 let root: Root;

@@ -71,17 +71,17 @@ describe("the Kanban handed to a fleet", () => {
       { title: "Login", brief: "b", agent: "nouveau", budgetMin: 5, card: "c1" },
       { title: "Docs", brief: "b", agent: "nouveau", budgetMin: 5 },
     ];
-    await startMissionCards("chef", [member("Amon", "Login"), member("Thoth", "Docs")], plan);
+    await startMissionCards("chef", [member("Hawkgirl", "Login"), member("Cyborg", "Docs")], plan);
     const started = boardOf();
     expect(started.columns.map((c) => c.title)).toEqual(["To do", "In progress", "Done"]);
     expect(started.columns[1].cardIds).toEqual(["c1"]);
-    expect(started.cards.c1.agent).toBe("Amon");
+    expect(started.cards.c1.agent).toBe("Hawkgirl");
     // Blocked: it stays "In progress", on alert; handed over: the new agent, the alert gone.
     flagMissionCard("chef", plan, "Login", "blocked");
     expect(boardOf().cards.c1.agentStatus).toBe("blocked");
     expect(boardOf().columns[1].cardIds).toEqual(["c1"]);
-    reassignMissionCard("chef", plan, "Login", "Horus");
-    expect(boardOf().cards.c1).toMatchObject({ agent: "Horus" });
+    reassignMissionCard("chef", plan, "Login", "Aquaman");
+    expect(boardOf().cards.c1).toMatchObject({ agent: "Aquaman" });
     expect(boardOf().cards.c1.agentStatus).toBeUndefined();
     flagMissionCard("chef", plan, "Login", "failed");
     await finishMissionCard("chef", plan, "Login");
@@ -96,7 +96,7 @@ describe("the Kanban handed to a fleet", () => {
 
   it("moves a mission's card from the mission's project, whichever is on screen", async () => {
     nodesStore.getState().update("chef", { mission: { state: "en_cours", maxAgents: 4, members: [], project: "C:/code/mission" } });
-    await startMissionCards("chef", [member("Amon", "API")], [{ title: "API", brief: "b", agent: "nouveau", budgetMin: 5, card: "c2" }]);
+    await startMissionCards("chef", [member("Hawkgirl", "API")], [{ title: "API", brief: "b", agent: "nouveau", budgetMin: 5, card: "c2" }]);
     expect(vi.mocked(moveCardWithGithub).mock.lastCall?.[4]).toBe("C:/code/mission");
     await finishMissionCard("chef", [{ title: "API", brief: "b", agent: "nouveau", budgetMin: 5, card: "c2" }], "API");
     expect(vi.mocked(moveCardWithGithub).mock.lastCall?.[4]).toBe("C:/code/mission");

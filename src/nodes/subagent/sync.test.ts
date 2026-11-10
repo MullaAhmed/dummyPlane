@@ -24,7 +24,7 @@ beforeEach(() => {
   captures.length = 0;
   workspacesStore.setState({ activeId: "w1" });
   nodesStore.setState({
-    nodes: { n1: { workspaceId: "w1", kind: "terminal", payload: { title: "T", name: "Horus", agent: "claude", cwd: "C:/code", shell: "default", command: "" } } },
+    nodes: { n1: { workspaceId: "w1", kind: "terminal", payload: { title: "T", name: "Aquaman", agent: "claude", cwd: "C:/code", shell: "default", command: "" } } },
   });
   subagentNodesStore.setState({ agents: {}, dismissed: {} });
   canvasStore.setState({

@@ -31,7 +31,7 @@ beforeAll(async () => {
   await nodesStore.getState().create("chef", {
     workspaceId: "w1",
     kind: "fleet",
-    payload: { name: "Chef", mission: { state: "en_cours", maxAgents: 4, members: [member("isis", "Isis", 1), member("horus", "Horus")] } },
+    payload: { name: "Chef", mission: { state: "en_cours", maxAgents: 4, members: [member("batman", "Batman", 1), member("aquaman", "Aquaman")] } },
   });
   uninstall = installMissionEvents();
 });
@@ -40,8 +40,8 @@ beforeEach(async () => {
   status("chef", "running");
   await tick();
   activity("chef", "idle");
-  status("isis", "running");
-  activity("isis", "working");
+  status("batman", "running");
+  activity("batman", "working");
   vi.mocked(ptySendText).mockClear();
 });
 
@@ -49,26 +49,26 @@ describe("events to the fleet (spec orchestrateur §7.5)", () => {
   it("holds a line while a Remote Control flow is typing in the fleet (backlog 27 oct)", async () => {
     vi.useFakeTimers();
     vi.mocked(remoteBusy).mockReturnValueOnce(true).mockReturnValue(false);
-    notify("chef", "Isis a rendu compte");
+    notify("chef", "Batman a rendu compte");
     expect(sent()).toEqual([]);
     await vi.advanceTimersByTimeAsync(1000);
-    expect(sent()).toEqual(["chef: [dummyPlane] Isis a rendu compte"]);
+    expect(sent()).toEqual(["chef: [dummyPlane] Batman a rendu compte"]);
     vi.useRealTimers();
   });
 
   it("waits for the user to stop typing before it types a line (backlog H2)", async () => {
     vi.useFakeTimers();
     vi.mocked(typedAgo).mockReturnValueOnce(1000).mockReturnValue(Infinity);
-    notify("chef", "Isis a rendu compte");
+    notify("chef", "Batman a rendu compte");
     expect(sent()).toEqual([]);
     await vi.advanceTimersByTimeAsync(4000);
-    expect(sent()).toEqual(["chef: [dummyPlane] Isis a rendu compte"]);
+    expect(sent()).toEqual(["chef: [dummyPlane] Batman a rendu compte"]);
     vi.useRealTimers();
   });
 
   it("types a line in a free fleet at once", () => {
-    notify("chef", "Isis a rendu compte (termine) : fait");
-    expect(sent()).toEqual(["chef: [dummyPlane] Isis a rendu compte (termine) : fait"]);
+    notify("chef", "Batman a rendu compte (termine) : fait");
+    expect(sent()).toEqual(["chef: [dummyPlane] Batman a rendu compte (termine) : fait"]);
   });
 
   it("holds the lines while it waits for the user or is stopped, then sends them in order", async () => {
@@ -87,31 +87,31 @@ describe("events to the fleet (spec orchestrateur §7.5)", () => {
   });
 
   it("tells it when a member waits for the user or stops, once its sub-task is sent", () => {
-    activity("isis", "waiting");
-    status("isis", "exited");
-    status("horus", "running");
-    activity("horus", "waiting");
+    activity("batman", "waiting");
+    status("batman", "exited");
+    status("aquaman", "running");
+    activity("aquaman", "waiting");
     expect(sent()).toEqual([
-      "chef: [dummyPlane] Isis is waiting for the user (a dialog is open in its terminal).",
-      "chef: [dummyPlane] Isis stopped: its terminal is no longer running.",
+      "chef: [dummyPlane] Batman is waiting for the user (a dialog is open in its terminal).",
+      "chef: [dummyPlane] Batman stopped: its terminal is no longer running.",
     ]);
   });
 
   it("tells it in English when the interface is (spec première version §7.1)", () => {
     try {
-      activity("isis", "waiting");
-      status("isis", "exited");
+      activity("batman", "waiting");
+      status("batman", "exited");
       expect(sent()).toEqual([
-        "chef: [dummyPlane] Isis is waiting for the user (a dialog is open in its terminal).",
-        "chef: [dummyPlane] Isis stopped: its terminal is no longer running.",
+        "chef: [dummyPlane] Batman is waiting for the user (a dialog is open in its terminal).",
+        "chef: [dummyPlane] Batman stopped: its terminal is no longer running.",
       ]);
     } finally {
     }
   });
 
   it("counts a member's terminal removed from the canvas as stopped", () => {
-    terminalStatusStore.getState().remove("isis");
-    expect(sent()).toEqual(["chef: [dummyPlane] Isis stopped: its terminal is no longer running."]);
+    terminalStatusStore.getState().remove("batman");
+    expect(sent()).toEqual(["chef: [dummyPlane] Batman stopped: its terminal is no longer running."]);
   });
 
   it("waits for a restarted fleet's Claude to be up, never typing into its trust dialog (final review H2)", async () => {
@@ -119,13 +119,13 @@ describe("events to the fleet (spec orchestrateur §7.5)", () => {
     vi.mocked(whenReady).mockImplementationOnce(() => new Promise((resolve) => (up = resolve)));
     status("chef", "stopped");
     status("chef", "running");
-    notify("chef", "Isis a rendu compte");
+    notify("chef", "Batman a rendu compte");
     await tick();
     expect(sent()).toEqual([]);
     const calls = vi.mocked(whenReady).mock.calls;
     expect(calls[calls.length - 1][2]).toBe(false);
     up(true);
-    await vi.waitFor(() => expect(sent()).toEqual(["chef: [dummyPlane] Isis a rendu compte"]));
+    await vi.waitFor(() => expect(sent()).toEqual(["chef: [dummyPlane] Batman a rendu compte"]));
   });
 
   it("puts back a line that could not be typed, for the fleet's next start (final review H2)", async () => {

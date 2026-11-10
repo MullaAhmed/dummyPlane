@@ -380,9 +380,9 @@ describe("fleetAt (an agent's Link)", () => {
 describe("fleetsOf (linkedAgents the other way round)", () => {
   it("names the fleets wired to an agent, directly or through its group", () => {
     const frames = framesFromScene(base);
-    const links = { atlas: { groupIds: [frame.id], nodeIds: [] }, hermes: { groupIds: [], nodeIds: [lone.id] }, idle: { groupIds: [], nodeIds: [] } };
+    const links = { atlas: { groupIds: [frame.id], nodeIds: [] }, cyclops: { groupIds: [], nodeIds: [lone.id] }, idle: { groupIds: [], nodeIds: [] } };
     expect(fleetsOf(member.id, links, frames)).toEqual(["atlas"]);
-    expect(fleetsOf(lone.id, links, frames)).toEqual(["hermes"]);
+    expect(fleetsOf(lone.id, links, frames)).toEqual(["cyclops"]);
     expect(fleetsOf("nobody", links, frames)).toEqual([]);
   });
 });

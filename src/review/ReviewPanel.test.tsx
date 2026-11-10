@@ -41,17 +41,17 @@ beforeEach(async () => {
     return undefined;
   });
   vi.mocked(sendToAgents).mockClear();
-  await nodesStore.getState().create("isis", {
+  await nodesStore.getState().create("batman", {
     workspaceId: "w1",
     kind: "terminal",
-    payload: { title: "Isis", name: "Isis", agent: "claude", cwd: "C:/code/proj", shell: "default", command: "" },
+    payload: { title: "Batman", name: "Batman", agent: "claude", cwd: "C:/code/proj", shell: "default", command: "" },
   });
   reviewStore.setState({ nodeId: null, remarks: [] });
   host = document.createElement("div");
   document.body.append(host);
   root = createRoot(host);
   await act(async () => root.render(<ReviewPanel />));
-  await act(async () => reviewStore.getState().open("isis"));
+  await act(async () => reviewStore.getState().open("batman"));
 });
 afterEach(async () => {
   await act(async () => root.unmount());
@@ -64,7 +64,7 @@ const button = (label: string) => [...host.querySelectorAll("button")].find((b) 
 
 it("lists what the agent changed since its base, and shows a file's diff (spec maj §5)", async () => {
   await vi.waitFor(() => expect(text()).toContain("src/a.ts"));
-  expect(text()).toContain("Isis");
+  expect(text()).toContain("Batman");
   expect(text()).toContain("Since main");
   expect(calls.find((c) => c.cmd === "review_changes")?.args).toEqual({ path: "C:/code/proj", base: "main" });
   await vi.waitFor(() => expect(host.querySelectorAll("[data-diff-line]").length).toBe(4));
@@ -91,8 +91,8 @@ it("takes remarks on lines and sends them to the agent in one message", async ()
   });
   await act(async () => field.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
   expect(reviewStore.getState().remarks).toEqual([{ file: "src/a.ts", line: 2, lineText: "const y = 3;", text: "Why 3?" }]);
-  await act(async () => button("Send to Isis").click());
-  expect(sendToAgents).toHaveBeenCalledWith(["isis"], expect.stringContaining("- src/a.ts:2 `const y = 3;` — Why 3?"));
+  await act(async () => button("Send to Batman").click());
+  expect(sendToAgents).toHaveBeenCalledWith(["batman"], expect.stringContaining("- src/a.ts:2 `const y = 3;` — Why 3?"));
   await vi.waitFor(() => expect(reviewStore.getState().remarks).toEqual([]));
 });
 
@@ -107,9 +107,9 @@ it("browses the repository's files, read-only", async () => {
 it("keeps its remarks when closed and opened again on the same agent (final review maj §5)", async () => {
   await act(async () => reviewStore.getState().add({ file: "src/a.ts", line: 2, text: "Why 3?" }));
   await act(async () => reviewStore.getState().close());
-  await act(async () => reviewStore.getState().open("isis"));
+  await act(async () => reviewStore.getState().open("batman"));
   expect(reviewStore.getState().remarks).toHaveLength(1);
-  await act(async () => reviewStore.getState().open("thot"));
+  await act(async () => reviewStore.getState().open("cyborg"));
   expect(reviewStore.getState().remarks).toEqual([]);
 });
 
@@ -118,27 +118,27 @@ it("closes on Escape, unless another part of the window already used it (final r
   document.body.append(menu);
   menu.addEventListener("keydown", (e) => e.preventDefault());
   await act(async () => menu.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })));
-  expect(reviewStore.getState().nodeId).toBe("isis");
+  expect(reviewStore.getState().nodeId).toBe("batman");
   const area = document.createElement("textarea");
   document.body.append(area);
   await act(async () => area.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })));
-  expect(reviewStore.getState().nodeId).toBe("isis");
+  expect(reviewStore.getState().nodeId).toBe("batman");
   await act(async () => document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })));
   expect(reviewStore.getState().nodeId).toBeNull();
 });
 
 it("shows the review's labels", async () => {
   await vi.waitFor(() => expect(text()).toContain("src/a.ts"));
-  expect(text()).toContain("Review · Isis");
+  expect(text()).toContain("Review · Batman");
   expect(text()).toContain("Since main");
   expect(text()).toContain("Uncommitted");
   expect(host.querySelector('[title*="modified"]')).not.toBeNull();
   await vi.waitFor(() => expect(host.querySelectorAll("[data-diff-line]").length).toBe(4));
   await act(async () => reviewStore.getState().add({ file: "src/a.ts", line: 2, text: "Why 3?" }));
   expect(text()).toContain("1 remark");
-  expect(button("Send to Isis")).toBeDefined();
-  await act(async () => button("Send to Isis").click());
-  expect(toast).toHaveBeenCalledWith("Review sent to Isis", { position: "top-center" });
+  expect(button("Send to Batman")).toBeDefined();
+  await act(async () => button("Send to Batman").click());
+  expect(toast).toHaveBeenCalledWith("Review sent to Batman", { position: "top-center" });
 });
 
 it("keeps the file read and the remark being typed through Refresh and a click on another line (backlog 27 oct)", async () => {
@@ -158,10 +158,10 @@ it("keeps the file read and the remark being typed through Refresh and a click o
 });
 
 it("tells the remarks wait when the agent is still starting, and keeps them (plan B3)", async () => {
-  vi.mocked(sendToAgents).mockResolvedValueOnce({ sent: 0, skipped: [], waiting: [], unsuited: [], starting: ["Isis"] });
+  vi.mocked(sendToAgents).mockResolvedValueOnce({ sent: 0, skipped: [], waiting: [], unsuited: [], starting: ["Batman"] });
   vi.mocked(toast.warning).mockClear();
   await act(async () => reviewStore.getState().add({ file: "src/a.ts", line: 2, text: "Why 3?" }));
-  await act(async () => button("Send to Isis").click());
-  expect(toast.warning).toHaveBeenCalledWith("Isis is still starting: try again in a moment to send it the review");
+  await act(async () => button("Send to Batman").click());
+  expect(toast.warning).toHaveBeenCalledWith("Batman is still starting: try again in a moment to send it the review");
   expect(reviewStore.getState().remarks).toHaveLength(1);
 });

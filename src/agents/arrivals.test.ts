@@ -59,10 +59,10 @@ it("names two agents without counting, and an agent that comes later has a notic
 });
 
 it("words a sub-agent's arrival, apart from a mission's", () => {
-  announceArrival("w1", "spawn", [{ nodeId: "n1", name: "Ra" }]);
+  announceArrival("w1", "spawn", [{ nodeId: "n1", name: "Robin" }]);
   announceArrival("w1", "mission", [{ nodeId: "n2", name: "Storm" }]);
   vi.advanceTimersByTime(500);
-  expect(vi.mocked(toast).mock.calls.map(([text]) => text)).toEqual(["Ra joined as a sub-agent", "Storm joined the mission"]);
+  expect(vi.mocked(toast).mock.calls.map(([text]) => text)).toEqual(["Robin joined as a sub-agent", "Storm joined the mission"]);
 });
 
 it("says which workspace it is when it is not the one on screen, and Show leads there", async () => {

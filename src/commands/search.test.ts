@@ -3,34 +3,34 @@ import { matchScore, normalize, rank, rankSections } from "./search";
 
 describe("normalize", () => {
   it("drops case and accents", () => {
-    expect(normalize("Hermès ÉCOLE")).toBe("hermes ecole");
+    expect(normalize("Padmé ÉCOLE")).toBe("padme ecole");
   });
 });
 
 describe("matchScore (spec fenêtre §7.1)", () => {
   it("finds regardless of case and accents, with letters in order, not necessarily together", () => {
-    expect(matchScore("hermes", "Hermès")).not.toBeNull();
-    expect(matchScore("ISIS", "Isis")).not.toBeNull();
-    expect(matchScore("hrms", "Hermès")).not.toBeNull();
-    expect(matchScore("smreh", "Hermès")).toBeNull();
+    expect(matchScore("padme", "Padmé")).not.toBeNull();
+    expect(matchScore("BATMAN", "Batman")).not.toBeNull();
+    expect(matchScore("pdm", "Padmé")).not.toBeNull();
+    expect(matchScore("emdap", "Padmé")).toBeNull();
   });
 
   it("reads the keywords too, every term having to match", () => {
-    expect(matchScore("isis cl", "Isis", ["Claude", "Backend", "Workspace 1"])).not.toBeNull();
-    expect(matchScore("isis co", "Isis", ["Claude"])).toBeNull();
+    expect(matchScore("batman cl", "Batman", ["Claude", "Backend", "Workspace 1"])).not.toBeNull();
+    expect(matchScore("batman co", "Batman", ["Claude"])).toBeNull();
   });
 
   it("puts a word start before a match inside a word, and the label before the keywords", () => {
-    expect(matchScore("th", "Thot")!).toBeGreaterThan(matchScore("th", "Arthur")!);
-    expect(matchScore("ba", "Bastet", ["Claude"])!).toBeGreaterThan(matchScore("ba", "Isis", ["Backend"])!);
+    expect(matchScore("th", "Thor")!).toBeGreaterThan(matchScore("th", "Arthur")!);
+    expect(matchScore("ba", "Batgirl", ["Claude"])!).toBeGreaterThan(matchScore("ba", "Flash", ["Backend"])!);
   });
 });
 
 describe("rank", () => {
   const items = [
     { label: "Arthur", keywords: [] },
-    { label: "Thot", keywords: [] },
-    { label: "Isis", keywords: ["Claude"] },
+    { label: "Thor", keywords: [] },
+    { label: "Batman", keywords: ["Claude"] },
   ];
   const textOf = (item: { label: string; keywords: string[] }) => item;
 
@@ -39,7 +39,7 @@ describe("rank", () => {
   });
 
   it("keeps the matches only, best first, ties in their order", () => {
-    expect(rank(items, "th", textOf).map((i) => i.label)).toEqual(["Thot", "Arthur"]);
+    expect(rank(items, "th", textOf).map((i) => i.label)).toEqual(["Thor", "Arthur"]);
     expect(rank(items, "zz", textOf)).toEqual([]);
   });
 
@@ -60,15 +60,15 @@ describe("rankSections", () => {
   const sections = [
     { label: "Navigation", items: [{ label: "Hide the Agents panel", keywords: [] }] },
     { label: "Agents", items: [{ label: "Pause all", keywords: [] }] },
-    { label: "Terminal · Isis", items: [{ label: "Pause", keywords: [] }] },
+    { label: "Terminal · Batman", items: [{ label: "Pause", keywords: [] }] },
   ];
 
   it("puts the section of the best match first while searching: its first line is the one chosen", () => {
-    expect(rankSections(sections, "pause", textOf).map((s) => s.label)).toEqual(["Terminal · Isis", "Agents", "Navigation"]);
+    expect(rankSections(sections, "pause", textOf).map((s) => s.label)).toEqual(["Terminal · Batman", "Agents", "Navigation"]);
   });
 
   it("keeps the sections in their order without a search", () => {
-    expect(rankSections(sections, " ", textOf).map((s) => s.label)).toEqual(["Navigation", "Agents", "Terminal · Isis"]);
+    expect(rankSections(sections, " ", textOf).map((s) => s.label)).toEqual(["Navigation", "Agents", "Terminal · Batman"]);
   });
 });
 

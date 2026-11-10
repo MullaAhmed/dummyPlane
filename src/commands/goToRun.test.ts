@@ -18,7 +18,7 @@ vi.mock("@/canvas/canvasFocus", () => ({ focusGroup: vi.fn(() => true) }));
 
 const select = vi.fn();
 const open = vi.fn(() => Promise.resolve());
-const item = (fields: Partial<GoToItem>): GoToItem => ({ key: "k", kind: "terminal", label: "Isis", keywords: [], ...fields });
+const item = (fields: Partial<GoToItem>): GoToItem => ({ key: "k", kind: "terminal", label: "Batman", keywords: [], ...fields });
 
 beforeEach(() => {
   vi.mocked(arrive).mockClear().mockReturnValue(true);
@@ -31,8 +31,8 @@ afterEach(() => vi.restoreAllMocks());
 
 describe("goTo (spec fenêtre §7.2)", () => {
   it("arrives on a terminal or a fleet of the workspace on screen, fits a group", () => {
-    goTo(item({ workspaceId: "w1", targetId: "isis" }));
-    expect(arrive).toHaveBeenCalledWith("isis");
+    goTo(item({ workspaceId: "w1", targetId: "batman" }));
+    expect(arrive).toHaveBeenCalledWith("batman");
     goTo(item({ kind: "fleet", workspaceId: "w1", targetId: "chef" }));
     expect(arrive).toHaveBeenLastCalledWith("chef");
     goTo(item({ kind: "group", workspaceId: "w1", targetId: "g" }));
@@ -48,17 +48,17 @@ describe("goTo (spec fenêtre §7.2)", () => {
   });
 
   it("goes to another workspace first, then arrives once its scene is on screen", () => {
-    goTo(item({ workspaceId: "w2", targetId: "thot", label: "Thoth" }));
+    goTo(item({ workspaceId: "w2", targetId: "cyborg", label: "Cyborg" }));
     expect(select).toHaveBeenCalledWith("w2");
     expect(arrive).not.toHaveBeenCalled();
     completeArrival("w2");
-    expect(arrive).toHaveBeenCalledWith("thot");
+    expect(arrive).toHaveBeenCalledWith("cyborg");
     completeArrival("w2");
     expect(arrive).toHaveBeenCalledTimes(1);
   });
 
   it("abandons an arrival when another workspace's scene comes up first", () => {
-    goTo(item({ workspaceId: "w2", targetId: "thot", label: "Thoth" }));
+    goTo(item({ workspaceId: "w2", targetId: "cyborg", label: "Cyborg" }));
     completeArrival("w3");
     completeArrival("w2");
     expect(arrive).not.toHaveBeenCalled();
@@ -67,9 +67,9 @@ describe("goTo (spec fenêtre §7.2)", () => {
   it("says so when the target is gone (spec fenêtre §9)", async () => {
     const error = vi.spyOn(toast, "error").mockImplementation(() => "");
     vi.mocked(arrive).mockReturnValue(false);
-    goTo(item({ workspaceId: "w2", targetId: "isis", label: "Isis" }));
+    goTo(item({ workspaceId: "w2", targetId: "batman", label: "Batman" }));
     completeArrival("w2");
-    expect(error).toHaveBeenCalledWith("Isis no longer exists");
+    expect(error).toHaveBeenCalledWith("Batman no longer exists");
     goTo(item({ kind: "group", workspaceId: "w1", targetId: "g", label: "Serveurs" }));
     vi.mocked(focusGroup).mockReturnValue(false);
     goTo(item({ kind: "group", workspaceId: "w1", targetId: "g", label: "Serveurs" }));
@@ -79,14 +79,14 @@ describe("goTo (spec fenêtre §7.2)", () => {
   it("says so in English too", () => {
     const error = vi.spyOn(toast, "error").mockImplementation(() => "");
     vi.mocked(arrive).mockReturnValue(false);
-    goTo(item({ workspaceId: "w2", targetId: "isis", label: "Isis" }));
+    goTo(item({ workspaceId: "w2", targetId: "batman", label: "Batman" }));
     completeArrival("w2");
-    expect(error).toHaveBeenCalledWith("Isis no longer exists");
+    expect(error).toHaveBeenCalledWith("Batman no longer exists");
   });
 
   it("goes to a waiting agent like a line of Go to", () => {
-    goToAgent({ id: "isis", kind: "terminal", name: "Isis", workspaceId: "w1", since: 0 });
-    expect(arrive).toHaveBeenCalledWith("isis");
+    goToAgent({ id: "batman", kind: "terminal", name: "Batman", workspaceId: "w1", since: 0 });
+    expect(arrive).toHaveBeenCalledWith("batman");
     goToAgent({ id: "chef", kind: "fleet", name: "Chef", workspaceId: "w2", since: 0 });
     expect(select).toHaveBeenCalledWith("w2");
     completeArrival("w2");
@@ -96,7 +96,7 @@ describe("goTo (spec fenêtre §7.2)", () => {
   it("waits for the scene when a second click comes during the switch of workspace", () => {
     const error = vi.spyOn(toast, "error").mockImplementation(() => "");
     vi.mocked(arrive).mockReturnValue(false);
-    const agent = { id: "thot", kind: "terminal", name: "Thoth", workspaceId: "w2", since: 0 } as const;
+    const agent = { id: "cyborg", kind: "terminal", name: "Cyborg", workspaceId: "w2", since: 0 } as const;
     goToAgent(agent);
     workspacesStore.setState({ activeId: "w2" } as never);
     goToAgent(agent);

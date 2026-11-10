@@ -302,13 +302,13 @@ mod tests {
     fn a_worktree_kept_for_another_reason_than_changes_says_so() {
         let changes = "fatal: 'x' contains modified or untracked files, use --force to delete it";
         assert_eq!(
-            super::kept_worktree("isis", changes),
-            "isis (uncommitted changes)"
+            super::kept_worktree("batman", changes),
+            "batman (uncommitted changes)"
         );
-        let locked = "error: failed to delete 'C:/w/isis': Permission denied\nmore";
+        let locked = "error: failed to delete 'C:/w/batman': Permission denied\nmore";
         assert_eq!(
-            super::kept_worktree("isis", locked),
-            "isis (error: failed to delete 'C:/w/isis': Permission denied)"
+            super::kept_worktree("batman", locked),
+            "batman (error: failed to delete 'C:/w/batman': Permission denied)"
         );
     }
 
@@ -444,12 +444,12 @@ mod tests {
         };
         let mission = prepare(&proj, "auth").unwrap();
         commit(Path::new(&mission.path), "m.txt", "m\n", "mission base");
-        let agent = add_agent(&proj, &mission.slug, "Athena").unwrap();
-        assert_eq!(agent.slug, "auth-athena");
-        assert_eq!(agent.branch, "dummyplane/auth-athena");
+        let agent = add_agent(&proj, &mission.slug, "Hulk").unwrap();
+        assert_eq!(agent.slug, "auth-hulk");
+        assert_eq!(agent.branch, "dummyplane/auth-hulk");
         assert!(same(
             &agent.path,
-            parent.path().join("proj.worktrees").join("auth-athena")
+            parent.path().join("proj.worktrees").join("auth-hulk")
         ));
         assert!(Path::new(&agent.path).join("m.txt").exists());
     }
@@ -460,13 +460,13 @@ mod tests {
             return;
         };
         let mission = prepare(&proj, "auth").unwrap();
-        let athena = add_agent(&proj, &mission.slug, "Athena").unwrap();
-        let apollo = add_agent(&proj, &mission.slug, "Apollo").unwrap();
-        commit(Path::new(&athena.path), "login.txt", "login\n", "login");
-        std::fs::write(Path::new(&apollo.path).join("draft.txt"), "x").unwrap();
+        let hulk = add_agent(&proj, &mission.slug, "Hulk").unwrap();
+        let wolverine = add_agent(&proj, &mission.slug, "Wolverine").unwrap();
+        commit(Path::new(&hulk.path), "login.txt", "login\n", "login");
+        std::fs::write(Path::new(&wolverine.path).join("draft.txt"), "x").unwrap();
         let m = Path::new(&mission.path);
         assert_eq!(
-            merge_agent(m, Path::new(&athena.path), &athena.branch).unwrap(),
+            merge_agent(m, Path::new(&hulk.path), &hulk.branch).unwrap(),
             MergeReport {
                 merge: Merge::Merged,
                 uncommitted: false
@@ -474,7 +474,7 @@ mod tests {
         );
         assert!(m.join("login.txt").exists());
         assert_eq!(
-            merge_agent(m, Path::new(&apollo.path), &apollo.branch).unwrap(),
+            merge_agent(m, Path::new(&wolverine.path), &wolverine.branch).unwrap(),
             MergeReport {
                 merge: Merge::Empty,
                 uncommitted: true
@@ -488,8 +488,8 @@ mod tests {
             return;
         };
         let mission = prepare(&proj, "auth").unwrap();
-        let athena = add_agent(&proj, &mission.slug, "Athena").unwrap();
-        commit(Path::new(&athena.path), "login.txt", "login\n", "login");
+        let hulk = add_agent(&proj, &mission.slug, "Hulk").unwrap();
+        commit(Path::new(&hulk.path), "login.txt", "login\n", "login");
         // Worktrees share the repository's config, so its hooks.
         let hooks = parent.path().join("hooks");
         std::fs::create_dir(&hooks).unwrap();
@@ -499,12 +499,12 @@ mod tests {
             &["config", "core.hooksPath", &hooks.to_string_lossy()],
         );
         let m = Path::new(&mission.path);
-        let err = merge_agent(m, Path::new(&athena.path), &athena.branch).unwrap_err();
+        let err = merge_agent(m, Path::new(&hulk.path), &hulk.branch).unwrap_err();
         assert!(err.contains("was cancelled"), "{err}");
         assert!(git(m, &["rev-parse", "-q", "--verify", "MERGE_HEAD"]).is_err());
         assert_eq!(run(m, &["status", "--porcelain"]), "");
         std::fs::remove_file(hooks.join("pre-merge-commit")).unwrap();
-        let again = merge_agent(m, Path::new(&athena.path), &athena.branch).unwrap();
+        let again = merge_agent(m, Path::new(&hulk.path), &hulk.branch).unwrap();
         assert_eq!(again.merge, Merge::Merged);
     }
 
@@ -514,11 +514,11 @@ mod tests {
             return;
         };
         let mission = prepare(&proj, "auth").unwrap();
-        let athena = add_agent(&proj, &mission.slug, "Athena").unwrap();
+        let hulk = add_agent(&proj, &mission.slug, "Hulk").unwrap();
         let m = Path::new(&mission.path);
         commit(m, "a.txt", "mission\n", "mission side");
-        commit(Path::new(&athena.path), "a.txt", "athena\n", "agent side");
-        let report = merge_agent(m, Path::new(&athena.path), &athena.branch).unwrap();
+        commit(Path::new(&hulk.path), "a.txt", "hulk\n", "agent side");
+        let report = merge_agent(m, Path::new(&hulk.path), &hulk.branch).unwrap();
         assert_eq!(
             report.merge,
             Merge::Conflict {
@@ -538,22 +538,22 @@ mod tests {
             return;
         };
         let mission = prepare(&proj, "auth").unwrap();
-        let athena = add_agent(&proj, &mission.slug, "Athena").unwrap();
-        let apollo = add_agent(&proj, &mission.slug, "Apollo").unwrap();
-        commit(Path::new(&apollo.path), "api.txt", "api\n", "api");
-        let done = discard(&proj, &[mission.clone(), athena, apollo]).unwrap();
+        let hulk = add_agent(&proj, &mission.slug, "Hulk").unwrap();
+        let wolverine = add_agent(&proj, &mission.slug, "Wolverine").unwrap();
+        commit(Path::new(&wolverine.path), "api.txt", "api\n", "api");
+        let done = discard(&proj, &[mission.clone(), hulk, wolverine]).unwrap();
         assert_eq!(
             done.removed,
-            vec!["auth-athena".to_string(), "auth".to_string()]
+            vec!["auth-hulk".to_string(), "auth".to_string()]
         );
         assert_eq!(
             done.kept,
-            vec!["dummyplane/auth-apollo (branch not merged)".to_string()]
+            vec!["dummyplane/auth-wolverine (branch not merged)".to_string()]
         );
         assert!(!parent.path().join("proj.worktrees").join("auth").exists());
         assert_eq!(
             run(&proj, &["branch", "--list", "dummyplane/*"]),
-            "dummyplane/auth-apollo"
+            "dummyplane/auth-wolverine"
         );
         // The same plan can be launched again.
         prepare(&proj, "auth").unwrap();
@@ -565,28 +565,28 @@ mod tests {
             return;
         };
         let mission = prepare(&proj, "auth").unwrap();
-        let athena = add_agent(&proj, &mission.slug, "Athena").unwrap();
-        let apollo = add_agent(&proj, &mission.slug, "Apollo").unwrap();
-        commit(Path::new(&athena.path), "login.txt", "login\n", "login");
-        commit(Path::new(&apollo.path), "api.txt", "api\n", "api");
+        let hulk = add_agent(&proj, &mission.slug, "Hulk").unwrap();
+        let wolverine = add_agent(&proj, &mission.slug, "Wolverine").unwrap();
+        commit(Path::new(&hulk.path), "login.txt", "login\n", "login");
+        commit(Path::new(&wolverine.path), "api.txt", "api\n", "api");
         let m = Path::new(&mission.path);
-        merge_agent(m, Path::new(&athena.path), &athena.branch).unwrap();
-        let names = vec!["Athena".to_string(), "Apollo".to_string()];
+        merge_agent(m, Path::new(&hulk.path), &hulk.branch).unwrap();
+        let names = vec!["Hulk".to_string(), "Wolverine".to_string()];
         let first = cleanup(&proj, &mission.slug, &names).unwrap();
-        assert_eq!(first.removed, vec!["auth-athena".to_string()]);
+        assert_eq!(first.removed, vec!["auth-hulk".to_string()]);
         assert_eq!(
             first.kept,
-            vec!["auth-apollo (branch not merged)".to_string()]
+            vec!["auth-wolverine (branch not merged)".to_string()]
         );
         assert!(m.exists());
-        merge_agent(m, Path::new(&apollo.path), &apollo.branch).unwrap();
+        merge_agent(m, Path::new(&wolverine.path), &wolverine.branch).unwrap();
         let second = cleanup(&proj, &mission.slug, &names).unwrap();
         assert_eq!(
             second.removed,
-            vec!["auth-apollo".to_string(), "auth".to_string()]
+            vec!["auth-wolverine".to_string(), "auth".to_string()]
         );
         assert!(!parent.path().join("proj.worktrees").join("auth").exists());
         let branches = run(&proj, &["branch", "--list", "dummyplane/*"]);
-        assert!(branches.contains("dummyplane/auth-apollo") && branches.contains("dummyplane/auth"));
+        assert!(branches.contains("dummyplane/auth-wolverine") && branches.contains("dummyplane/auth"));
     }
 }

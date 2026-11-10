@@ -5,8 +5,8 @@ import type { NodeRecord } from "@/store/nodes";
 import { folderChange, folderLockOf, sameFolder } from "./folder";
 
 const terminal = (patch: Partial<TerminalPayload> = {}): TerminalPayload => ({
-  title: "Isis",
-  name: "Isis",
+  title: "Batman",
+  name: "Batman",
   agent: "claude",
   cwd: "D:/work/api",
   shell: "default",
@@ -51,9 +51,9 @@ const mission = (state: Mission["state"], nodeIds: string[]): Mission => ({
   members: nodeIds.map((nodeId) => ({ nodeId, name: nodeId, task: "", budgetMin: 10, linked: false, branch: `m/${nodeId}`, worktree: `D:/wt/${nodeId}` })),
 });
 const nodes = (state: Mission["state"]): Record<string, NodeRecord> => ({
-  fleet: { workspaceId: "w", kind: "fleet", payload: { name: "Fleet", mission: mission(state, ["isis"]) } },
-  isis: { workspaceId: "w", kind: "terminal", payload: terminal() },
-  thoth: { workspaceId: "w", kind: "terminal", payload: terminal({ name: "Thoth" }) },
+  fleet: { workspaceId: "w", kind: "fleet", payload: { name: "Fleet", mission: mission(state, ["batman"]) } },
+  batman: { workspaceId: "w", kind: "terminal", payload: terminal() },
+  cyborg: { workspaceId: "w", kind: "terminal", payload: terminal({ name: "Cyborg" }) },
   board: { workspaceId: "w", kind: "kanban", payload: { columns: [], cards: {} } },
 });
 
@@ -62,14 +62,14 @@ it("keeps a Fleet where it is, in the project", () => {
 });
 
 it("keeps the agent of a running mission in its worktree, and only that one", () => {
-  expect(folderLockOf("isis", nodes("en_cours"))).toBe("mission");
-  expect(folderLockOf("thoth", nodes("en_cours"))).toBeNull();
+  expect(folderLockOf("batman", nodes("en_cours"))).toBe("mission");
+  expect(folderLockOf("cyborg", nodes("en_cours"))).toBeNull();
 });
 
 it("frees the agents once the mission has ended, and before it has a team", () => {
-  expect(folderLockOf("isis", nodes("terminee"))).toBeNull();
-  expect(folderLockOf("isis", nodes("plan"))).toBeNull();
-  expect(folderLockOf("isis", nodes("lancement"))).toBeNull();
+  expect(folderLockOf("batman", nodes("terminee"))).toBeNull();
+  expect(folderLockOf("batman", nodes("plan"))).toBeNull();
+  expect(folderLockOf("batman", nodes("lancement"))).toBeNull();
 });
 
 it("has no lock for a node that is none of those, or is gone", () => {

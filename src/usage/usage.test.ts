@@ -14,10 +14,10 @@ const STATUS = {
 
 describe("readStatus (spec maj §6)", () => {
   it("reads a session's usage and the plan's limits", () => {
-    const { session, limits } = readStatus(STATUS, "isis", 1000);
+    const { session, limits } = readStatus(STATUS, "batman", 1000);
     expect(session).toEqual({
       sessionId: "s1",
-      nodeId: "isis",
+      nodeId: "batman",
       model: { id: "claude-haiku-5-5", name: "Haiku 5.5" },
       costUsd: 0.00738418,
       apiMs: 1588,
@@ -39,14 +39,14 @@ describe("readStatus (spec maj §6)", () => {
   });
 
   it("reads a model's own weekly limit if Claude Code sends one", () => {
-    const { limits } = readStatus({ ...STATUS, rate_limits: { ...STATUS.rate_limits, seven_day_fable: { used_percentage: 12, resets_at: 1 } } }, "isis", 0);
+    const { limits } = readStatus({ ...STATUS, rate_limits: { ...STATUS.rate_limits, seven_day_fable: { used_percentage: 12, resets_at: 1 } } }, "batman", 0);
     expect(limits?.models).toEqual([{ key: "seven_day_fable", label: "Fable", limit: { usedPercent: 12, resetsAt: 1000 } }]);
   });
 
   it("has no limits before the first answer, and nothing without a session id", () => {
-    expect(readStatus({ ...STATUS, rate_limits: undefined }, "isis", 0).limits).toBeNull();
-    expect(readStatus({ cost: {} }, "isis", 0)).toEqual({ session: null, limits: null });
-    expect(readStatus("x", "isis", 0)).toEqual({ session: null, limits: null });
+    expect(readStatus({ ...STATUS, rate_limits: undefined }, "batman", 0).limits).toBeNull();
+    expect(readStatus({ cost: {} }, "batman", 0)).toEqual({ session: null, limits: null });
+    expect(readStatus("x", "batman", 0)).toEqual({ session: null, limits: null });
   });
 });
 
@@ -133,8 +133,8 @@ describe("the prompt cache section (backlog 27 oct)", () => {
     ({ sessionId, nodeId, at, cache: { warm: true, hitRatio: 0.5, expiresAt: null, ttl: "5m" } }) as unknown as SessionUsage;
 
   it("keeps the latest session of each node still on the canvas, not the closed agents' or the earlier runs'", () => {
-    const list = [cached("s1", "athena", 1), cached("s2", "athena", 3), cached("s3", "gone", 2), { ...cached("s4", "hermes", 2), cache: null } as SessionUsage];
-    expect(liveCacheSessions(list, new Set(["athena", "hermes"])).map((s) => s.sessionId)).toEqual(["s2"]);
+    const list = [cached("s1", "hulk", 1), cached("s2", "hulk", 3), cached("s3", "gone", 2), { ...cached("s4", "cyclops", 2), cache: null } as SessionUsage];
+    expect(liveCacheSessions(list, new Set(["hulk", "cyclops"])).map((s) => s.sessionId)).toEqual(["s2"]);
   });
 });
 

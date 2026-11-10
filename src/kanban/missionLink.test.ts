@@ -49,16 +49,16 @@ describe("linkFleet", () => {
 
   it("reads a card's agent chip", () => {
     const raw = JSON.parse(JSON.stringify(board()));
-    raw.cards.a.agent = "Amon";
+    raw.cards.a.agent = "Hawkgirl";
     raw.cards.b.agent = 4;
     const read = readKanbanPayload(raw);
-    expect(read.cards.a.agent).toBe("Amon");
+    expect(read.cards.a.agent).toBe("Hawkgirl");
     expect(read.cards.b.agent).toBeUndefined();
   });
 
   it("reads a chip's alert, never without an agent", () => {
     const raw = JSON.parse(JSON.stringify(board()));
-    raw.cards.a = { ...raw.cards.a, agent: "Amon", agentStatus: "blocked" };
+    raw.cards.a = { ...raw.cards.a, agent: "Hawkgirl", agentStatus: "blocked" };
     raw.cards.b = { ...raw.cards.b, agentStatus: "failed" };
     const read = readKanbanPayload(raw);
     expect(read.cards.a.agentStatus).toBe("blocked");
@@ -89,10 +89,10 @@ describe("planRequest", () => {
 
 describe("startCard", () => {
   it("creates In progress before the done column and sets the agent chip", () => {
-    const started = startCard(board(), "a", "Amon", "In progress", ids())!;
+    const started = startCard(board(), "a", "Hawkgirl", "In progress", ids())!;
     expect(started.columnId).toBe("new1");
     expect(started.board.columns.map((c) => c.title)).toEqual(["To do", "In progress", "Done"]);
-    expect(started.board.cards.a.agent).toBe("Amon");
+    expect(started.board.cards.a.agent).toBe("Hawkgirl");
     // The move is the caller's (GitHub follows it).
     expect(started.board.columns[0].cardIds).toContain("a");
   });
@@ -101,12 +101,12 @@ describe("startCard", () => {
     const b = board();
     b.columns.splice(1, 0, { id: "doing", title: "In Progress", cardIds: [] });
     expect(inProgressColumn(b)?.id).toBe("doing");
-    expect(startCard(b, "a", "Amon", "In progress", ids())!.columnId).toBe("doing");
+    expect(startCard(b, "a", "Hawkgirl", "In progress", ids())!.columnId).toBe("doing");
     expect(withInProgressColumn(b, "In progress").board).toBe(b);
   });
 
   it("is null for an unknown card", () => {
-    expect(startCard(board(), "zzz", "Amon", "In progress")).toBeNull();
+    expect(startCard(board(), "zzz", "Hawkgirl", "In progress")).toBeNull();
   });
 
   it("adds the column at the end of a board without columns", () => {
@@ -117,16 +117,16 @@ describe("startCard", () => {
 
 describe("the agent chip", () => {
   it("names the agent a sub-task went to, its alert cleared", () => {
-    const flagged = flagCard(setCardAgent(board(), "a", "Amon"), "a", "failed");
-    expect(flagged.cards.a).toMatchObject({ agent: "Amon", agentStatus: "failed" });
-    const handed = setCardAgent(flagged, "a", "Thoth");
-    expect(handed.cards.a.agent).toBe("Thoth");
+    const flagged = flagCard(setCardAgent(board(), "a", "Hawkgirl"), "a", "failed");
+    expect(flagged.cards.a).toMatchObject({ agent: "Hawkgirl", agentStatus: "failed" });
+    const handed = setCardAgent(flagged, "a", "Cyborg");
+    expect(handed.cards.a.agent).toBe("Cyborg");
     expect(handed.cards.a).not.toHaveProperty("agentStatus");
-    expect(setCardAgent(board(), "zzz", "Thoth").cards).toEqual(board().cards);
+    expect(setCardAgent(board(), "zzz", "Cyborg").cards).toEqual(board().cards);
   });
 
   it("goes on alert for blocked or failed, the card staying in its column", () => {
-    const started = startCard(board(), "a", "Amon", "In progress", ids())!.board;
+    const started = startCard(board(), "a", "Hawkgirl", "In progress", ids())!.board;
     const blocked = flagCard(started, "a", "blocked");
     expect(blocked.cards.a.agentStatus).toBe("blocked");
     expect(blocked.columns).toBe(started.columns);
@@ -141,8 +141,8 @@ describe("the agent chip", () => {
   });
 
   it("is cleared when the card starts again", () => {
-    const flagged = flagCard(setCardAgent(board(), "a", "Amon"), "a", "blocked");
-    expect(startCard(flagged, "a", "Amon", "In progress", ids())!.board.cards.a).not.toHaveProperty("agentStatus");
+    const flagged = flagCard(setCardAgent(board(), "a", "Hawkgirl"), "a", "blocked");
+    expect(startCard(flagged, "a", "Hawkgirl", "In progress", ids())!.board.cards.a).not.toHaveProperty("agentStatus");
   });
 });
 

@@ -54,56 +54,56 @@ async function agent(id: string, agentId: AgentId, state: "running" | "stopped" 
 
 describe("sendToAgents", () => {
   it("types the command into the running agents and names the stopped ones", async () => {
-    await agent("isis", "claude", "running", "idle");
-    await agent("thoth", "claude", "stopped");
-    await agent("anubis", "codex", "stopped");
-    expect(await sendToAgents(["isis", "thoth", "anubis"], "lance les tests")).toEqual({ sent: 1, skipped: ["Thoth", "Anubis"], waiting: [], unsuited: [], starting: [] });
-    expect(calls).toEqual([{ cmd: "pty_send_text", nodeId: "isis", text: "lance les tests" }]);
+    await agent("batman", "claude", "running", "idle");
+    await agent("cyborg", "claude", "stopped");
+    await agent("flash", "codex", "stopped");
+    expect(await sendToAgents(["batman", "cyborg", "flash"], "lance les tests")).toEqual({ sent: 1, skipped: ["Cyborg", "Flash"], waiting: [], unsuited: [], starting: [] });
+    expect(calls).toEqual([{ cmd: "pty_send_text", nodeId: "batman", text: "lance les tests" }]);
   });
 
   it("names an agent still in its staggered start apart from the stopped ones (plan B3)", async () => {
-    await agent("isis", "claude", "running", "idle");
-    await agent("thoth", "claude", "starting");
-    expect(await sendToAgents(["isis", "thoth"], "go")).toEqual({ sent: 1, skipped: [], waiting: [], unsuited: [], starting: ["Thoth"] });
-    expect(startingText(["Thoth"])).toBe("1 agent still starting ignored: Thoth — try again in a moment");
+    await agent("batman", "claude", "running", "idle");
+    await agent("cyborg", "claude", "starting");
+    expect(await sendToAgents(["batman", "cyborg"], "go")).toEqual({ sent: 1, skipped: [], waiting: [], unsuited: [], starting: ["Cyborg"] });
+    expect(startingText(["Cyborg"])).toBe("1 agent still starting ignored: Cyborg — try again in a moment");
     expect(startingText([])).toBeNull();
   });
 
   it("counts an agent whose process just died as ignored", async () => {
-    await agent("osiris", "claude", "running", "idle");
-    dead.add("osiris");
-    expect(await sendToAgents(["osiris"], "x")).toEqual({ sent: 0, skipped: ["Osiris"], waiting: [], unsuited: [], starting: [] });
+    await agent("superman", "claude", "running", "idle");
+    dead.add("superman");
+    expect(await sendToAgents(["superman"], "x")).toEqual({ sent: 0, skipped: ["Superman"], waiting: [], unsuited: [], starting: [] });
   });
 
   it("leaves an agent waiting for an answer alone: Enter would approve its dialog", async () => {
-    await agent("horus", "claude", "running", "waiting");
-    await agent("seth2", "codex", "running", "working");
-    expect(await sendToAgents(["horus", "seth2"], "lance les tests")).toEqual({ sent: 1, skipped: [], waiting: ["Horus"], unsuited: [], starting: [] });
-    expect(calls.map((c) => c.nodeId)).toEqual(["seth2"]);
+    await agent("aquaman", "claude", "running", "waiting");
+    await agent("shazam2", "codex", "running", "working");
+    expect(await sendToAgents(["aquaman", "shazam2"], "lance les tests")).toEqual({ sent: 1, skipped: [], waiting: ["Aquaman"], unsuited: [], starting: [] });
+    expect(calls.map((c) => c.nodeId)).toEqual(["shazam2"]);
   });
 
   it("types a /command to the agents only: a shell would run it as a program", async () => {
-    await agent("isis", "claude", "running", "idle");
-    await agent("thoth", "shell", "running");
-    await agent("anubis", "codex", "running", "idle");
-    expect(await sendToAgents(["isis", "thoth", "anubis"], "/effort ultracode")).toEqual({ sent: 2, skipped: [], waiting: [], unsuited: ["Thoth"], starting: [] });
-    expect(calls.map((c) => c.nodeId)).toEqual(["isis", "anubis"]);
+    await agent("batman", "claude", "running", "idle");
+    await agent("cyborg", "shell", "running");
+    await agent("flash", "codex", "running", "idle");
+    expect(await sendToAgents(["batman", "cyborg", "flash"], "/effort ultracode")).toEqual({ sent: 2, skipped: [], waiting: [], unsuited: ["Cyborg"], starting: [] });
+    expect(calls.map((c) => c.nodeId)).toEqual(["batman", "flash"]);
     calls = [];
-    expect((await sendToAgents(["thoth"], "npm test")).sent).toBe(1);
+    expect((await sendToAgents(["cyborg"], "npm test")).sent).toBe(1);
   });
 });
 
 describe("skippedText / pausedText / resumedText", () => {
   it("says who was ignored and how many were paused or resumed", () => {
     expect(skippedText([])).toBeNull();
-    expect(skippedText(["Thoth"])).toBe("1 stopped agent ignored: Thoth");
-    expect(skippedText(["Thoth", "Anubis"])).toBe("2 stopped agents ignored: Thoth, Anubis");
+    expect(skippedText(["Cyborg"])).toBe("1 stopped agent ignored: Cyborg");
+    expect(skippedText(["Cyborg", "Flash"])).toBe("2 stopped agents ignored: Cyborg, Flash");
     expect(unsuitedText([])).toBeNull();
-    expect(unsuitedText(["Thoth"])).toBe("1 terminal without an agent ignored: Thoth — a / command only goes to agents");
-    expect(unsuitedText(["Thoth", "Ra"])).toBe("2 terminals without an agent ignored: Thoth, Ra — a / command only goes to agents");
+    expect(unsuitedText(["Cyborg"])).toBe("1 terminal without an agent ignored: Cyborg — a / command only goes to agents");
+    expect(unsuitedText(["Cyborg", "Robin"])).toBe("2 terminals without an agent ignored: Cyborg, Robin — a / command only goes to agents");
     expect(waitingText([])).toBeNull();
-    expect(waitingText(["Horus"])).toBe("1 waiting agent ignored: Horus — answer it in its terminal");
-    expect(waitingText(["Horus", "Isis"])).toBe("2 waiting agents ignored: Horus, Isis — answer them in their terminals");
+    expect(waitingText(["Aquaman"])).toBe("1 waiting agent ignored: Aquaman — answer it in its terminal");
+    expect(waitingText(["Aquaman", "Batman"])).toBe("2 waiting agents ignored: Aquaman, Batman — answer them in their terminals");
     expect(pausedText(0)).toBe("No running agent to pause");
     expect(pausedText(1)).toBe("1 agent paused");
     expect(pausedText(5)).toBe("5 agents paused");
@@ -131,54 +131,54 @@ describe("canPause / canResume", () => {
 
 describe("pauseAgents / resumeAgents", () => {
   it("forgets a pause once the agent works or waits again, or its process stops", async () => {
-    await agent("min", "claude", "running", "idle");
-    await agent("amon", "claude", "running", "idle");
-    await agent("mout", "claude", "running", "idle");
-    await agent("khonsu", "claude", "running", "idle");
-    pausedStore.getState().mark(["min", "amon", "mout", "khonsu"], 1000);
+    await agent("wanda", "claude", "running", "idle");
+    await agent("hawkgirl", "claude", "running", "idle");
+    await agent("hawkeye", "claude", "running", "idle");
+    await agent("groot", "claude", "running", "idle");
+    pausedStore.getState().mark(["wanda", "hawkgirl", "hawkeye", "groot"], 1000);
     // Restarted by hand, or sent a command from the bar.
-    agentActivityStore.getState().apply({ nodeId: "min", activity: "working", since: 2000 });
-    agentActivityStore.getState().apply({ nodeId: "mout", activity: "waiting", since: 2000 });
-    terminalStatusStore.getState().set("amon", { state: "exited", code: 0 });
+    agentActivityStore.getState().apply({ nodeId: "wanda", activity: "working", since: 2000 });
+    agentActivityStore.getState().apply({ nodeId: "hawkeye", activity: "waiting", since: 2000 });
+    terminalStatusStore.getState().set("hawkgirl", { state: "exited", code: 0 });
     const { pausedAt } = pausedStore.getState();
-    expect([pausedAt.min, pausedAt.amon, pausedAt.mout]).toEqual([undefined, undefined, undefined]);
-    expect(pausedAt.khonsu).toBe(1000);
+    expect([pausedAt.wanda, pausedAt.hawkgirl, pausedAt.hawkeye]).toEqual([undefined, undefined, undefined]);
+    expect(pausedAt.groot).toBe(1000);
   });
 
   it("pauses the agents at work and remembers when", async () => {
-    await agent("hera", "claude", "running", "working");
-    await agent("zeus", "claude", "running", "idle");
-    await agent("ares", "shell", "running", "working");
-    expect(await pauseAgents(["hera", "zeus", "ares"], 1000)).toBe(1);
-    expect(calls).toEqual([{ cmd: "pty_interrupt", nodeId: "hera", text: undefined }]);
-    expect(pausedStore.getState().pausedAt.hera).toBe(1000);
+    await agent("ironman", "claude", "running", "working");
+    await agent("deadpool", "claude", "running", "idle");
+    await agent("daredevil", "shell", "running", "working");
+    expect(await pauseAgents(["ironman", "deadpool", "daredevil"], 1000)).toBe(1);
+    expect(calls).toEqual([{ cmd: "pty_interrupt", nodeId: "ironman", text: undefined }]);
+    expect(pausedStore.getState().pausedAt.ironman).toBe(1000);
   });
 
   it("resumes only the agents it paused less than a day ago, once idle", async () => {
     const now = 10 * RESUME_WINDOW_MS;
-    await agent("ra", "claude", "running", "idle");
-    await agent("ptah", "claude", "running", "idle");
-    await agent("seth", "claude", "running", "idle");
-    await agent("bastet", "claude", "running", "working");
-    pausedStore.getState().mark(["ra", "bastet"], now - 3_600_000);
-    pausedStore.getState().mark(["seth"], now - RESUME_WINDOW_MS - 1);
-    expect(await resumeAgents(["ra", "ptah", "seth", "bastet"], now)).toBe(1);
+    await agent("robin", "claude", "running", "idle");
+    await agent("zatanna", "claude", "running", "idle");
+    await agent("shazam", "claude", "running", "idle");
+    await agent("batgirl", "claude", "running", "working");
+    pausedStore.getState().mark(["robin", "batgirl"], now - 3_600_000);
+    pausedStore.getState().mark(["shazam"], now - RESUME_WINDOW_MS - 1);
+    expect(await resumeAgents(["robin", "zatanna", "shazam", "batgirl"], now)).toBe(1);
     // On its own line: Claude Code puts a prompt interrupted before any answer back in its input.
-    expect(calls).toEqual([{ cmd: "pty_send_text", nodeId: "ra", text: "\ncontinue" }]);
-    expect(pausedStore.getState().pausedAt.ra).toBeUndefined();
-    expect(pausedStore.getState().pausedAt.bastet).toBeDefined();
+    expect(calls).toEqual([{ cmd: "pty_send_text", nodeId: "robin", text: "\ncontinue" }]);
+    expect(pausedStore.getState().pausedAt.robin).toBeUndefined();
+    expect(pausedStore.getState().pausedAt.batgirl).toBeDefined();
   });
 });
 
 describe("resumeAgent when the process just died (plan B3)", () => {
   it("says so instead of leaving the rejection unhandled, and stays paused", async () => {
     const warning = vi.spyOn(toast, "warning").mockImplementation(() => "");
-    await agent("anubis2", "claude", "running", "idle");
-    pausedStore.getState().mark(["anubis2"], 1);
-    dead.add("anubis2");
-    await expect(resumeAgent("anubis2")).resolves.toBe(false);
-    expect(warning).toHaveBeenCalledWith("Anubis2 could not resume: its process just stopped");
-    expect(pausedStore.getState().pausedAt.anubis2).toBe(1);
+    await agent("flash2", "claude", "running", "idle");
+    pausedStore.getState().mark(["flash2"], 1);
+    dead.add("flash2");
+    await expect(resumeAgent("flash2")).resolves.toBe(false);
+    expect(warning).toHaveBeenCalledWith("Flash2 could not resume: its process just stopped");
+    expect(pausedStore.getState().pausedAt.flash2).toBe(1);
     warning.mockRestore();
   });
 });
@@ -186,13 +186,13 @@ describe("resumeAgent when the process just died (plan B3)", () => {
 describe("sendCommand and agents still starting (plan B3)", () => {
   it("warns about them apart from the stopped ones", async () => {
     const warning = vi.spyOn(toast, "warning").mockImplementation(() => "");
-    await agent("isis", "claude", "running", "idle");
-    await agent("thoth", "claude", "starting");
-    await agent("anubis", "claude", "stopped");
-    await sendCommand(["isis", "thoth", "anubis"], "go");
+    await agent("batman", "claude", "running", "idle");
+    await agent("cyborg", "claude", "starting");
+    await agent("flash", "claude", "stopped");
+    await sendCommand(["batman", "cyborg", "flash"], "go");
     expect(warning.mock.calls.map(([text]) => text)).toEqual([
-      "1 stopped agent ignored: Anubis",
-      "1 agent still starting ignored: Thoth — try again in a moment",
+      "1 stopped agent ignored: Flash",
+      "1 agent still starting ignored: Cyborg — try again in a moment",
     ]);
     warning.mockRestore();
   });
@@ -200,10 +200,10 @@ describe("sendCommand and agents still starting (plan B3)", () => {
   it("lights the wires of the agents the command was typed into, and only those", async () => {
     clearWirePulses();
     const warning = vi.spyOn(toast, "warning").mockImplementation(() => "");
-    await agent("isis", "claude", "running", "idle");
-    await agent("anubis", "claude", "stopped");
-    await sendCommand(["isis", "anubis"], "go");
-    expect(wireActivityStore.getState().pulses).toEqual({ isis: { direction: "toAgent", at: expect.any(Number) } });
+    await agent("batman", "claude", "running", "idle");
+    await agent("flash", "claude", "stopped");
+    await sendCommand(["batman", "flash"], "go");
+    expect(wireActivityStore.getState().pulses).toEqual({ batman: { direction: "toAgent", at: expect.any(Number) } });
     warning.mockRestore();
     clearWirePulses();
   });

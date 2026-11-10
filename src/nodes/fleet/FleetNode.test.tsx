@@ -85,10 +85,10 @@ describe("its message field", () => {
       kind: "terminal" as const,
       payload: { title: name, name, agent: "claude" as const, cwd: "C:/code", shell: "default" as const, command: "" },
     });
-    await nodesStore.getState().create("t1", terminal("Thoth"));
-    await nodesStore.getState().create("t2", terminal("Zeus"));
+    await nodesStore.getState().create("t1", terminal("Cyborg"));
+    await nodesStore.getState().create("t2", terminal("Deadpool"));
     await nodesStore.getState().create("chef", { workspaceId: "w1", kind: "fleet", payload: { name: "Chef" } });
-    // Wired to Thoth only: Zeus is not its agent.
+    // Wired to Cyborg only: Deadpool is not its agent.
     canvasStore.setState({ nodeIds: ["t1", "t2", "chef"], frames: [], view: EMPTY_VIEW, links: { chef: { nodeIds: ["t1"], groupIds: [] } } });
     host = document.createElement("div");
     document.body.append(host);
@@ -159,7 +159,7 @@ describe("its message field", () => {
 
   it("targets with @ and sends with the button", async () => {
     await act(async () => toggle().click());
-    await type("@thoth run tests");
+    await type("@cyborg run tests");
     await act(async () => host.querySelector<HTMLButtonElement>('[data-fleet-input] button[aria-label="Send"]')!.click());
     expect(sendCommand).toHaveBeenCalledWith(["t1"], "run tests");
   });

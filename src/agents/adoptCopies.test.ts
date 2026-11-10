@@ -26,12 +26,12 @@ let scene: ExcalidrawElement[] = [];
 beforeEach(async () => {
   mockIPC(() => undefined);
   nodesStore.getState().forgetWorkspace("w1");
-  await nodesStore.getState().create("isis", {
+  await nodesStore.getState().create("batman", {
     workspaceId: "w1",
     kind: "terminal",
-    payload: { title: "Isis", name: "Isis", agent: "shell", cwd: "C:/code", shell: "default", command: "" },
+    payload: { title: "Batman", name: "Batman", agent: "shell", cwd: "C:/code", shell: "default", command: "" },
   });
-  scene = [group("g1", "egyptian"), terminal("isis", "g1", "dummyplane://terminal/isis"), group("copy", "egyptian"), terminal("isis2", "copy", "dummyplane://terminal/isis")];
+  scene = [group("g1", "egyptian"), terminal("batman", "g1", "dummyplane://terminal/batman"), group("copy", "egyptian"), terminal("batman2", "copy", "dummyplane://terminal/batman")];
   canvasStore.setState({
     api: {
       getSceneElementsIncludingDeleted: () => scene,
@@ -46,33 +46,33 @@ beforeEach(async () => {
 });
 
 it("gives a group copied whole a pantheon of its own and names its agents from it (plan B1)", async () => {
-  await adoptCopies("w1", [{ id: "isis2", sourceId: "isis" }]);
+  await adoptCopies("w1", [{ id: "batman2", sourceId: "batman" }]);
   const pantheonOf = (id: string) => (scene.find((e) => e.id === id)!.customData!.dummyplane as { pantheon: string }).pantheon;
   expect(pantheonOf("g1")).toBe("egyptian");
   const copied = pantheonOf("copy");
   expect(["egyptian", "greek"]).not.toContain(copied);
-  // The copy's agent is named from the new pantheon, not Isis again or another Egyptian name.
-  const name = terminalOf(nodesStore.getState().nodes.isis2)!.name;
-  expect(name).not.toBe("Isis");
+  // The copy's agent is named from the new pantheon, not Batman again or another Egyptian name.
+  const name = terminalOf(nodesStore.getState().nodes.batman2)!.name;
+  expect(name).not.toBe("Batman");
   expect(name).toMatch(/\S/);
-  const egyptianNames = ["Isis", "Osiris", "Horus", "Anubis", "Ra", "Thoth", "Seth", "Bastet"];
+  const egyptianNames = ["Batman", "Superman", "Aquaman", "Flash", "Robin", "Cyborg", "Shazam", "Batgirl"];
   expect(egyptianNames.some((n) => name === n || name.startsWith(`${n} `))).toBe(false);
 });
 
 it("unfolds a folded group copied whole: its copies would never mount, nor start (review)", async () => {
   const folded = group("copy", "egyptian");
-  scene = [group("g1", "egyptian"), terminal("isis", "g1", "dummyplane://terminal/isis"), { ...folded, customData: { dummyplane: { ...(folded.customData!.dummyplane as object), folded: true } } } as ExcalidrawElement, terminal("isis2", "copy", "dummyplane://terminal/isis")];
+  scene = [group("g1", "egyptian"), terminal("batman", "g1", "dummyplane://terminal/batman"), { ...folded, customData: { dummyplane: { ...(folded.customData!.dummyplane as object), folded: true } } } as ExcalidrawElement, terminal("batman2", "copy", "dummyplane://terminal/batman")];
   canvasStore.setState({ frames: framesFromScene(scene) });
-  await adoptCopies("w1", [{ id: "isis2", sourceId: "isis" }]);
+  await adoptCopies("w1", [{ id: "batman2", sourceId: "batman" }]);
   const copy = scene.find((e) => e.id === "copy")!;
   expect((copy.customData!.dummyplane as Record<string, unknown>).folded).toBeUndefined();
 });
 
 it("gives a minimized terminal's copy the height its card stood for: the copy starts open", async () => {
-  nodesStore.getState().update("isis", { minimized: true, expandedHeight: 520 });
-  scene = scene.map((e) => (e.id === "isis" || e.id === "isis2" ? ({ ...e, height: 68 } as ExcalidrawElement) : e));
-  await adoptCopies("w1", [{ id: "isis2", sourceId: "isis" }]);
-  expect(scene.find((e) => e.id === "isis2")!.height).toBe(520);
-  expect(scene.find((e) => e.id === "isis")!.height).toBe(68);
-  expect(terminalOf(nodesStore.getState().nodes.isis2)?.minimized).toBeUndefined();
+  nodesStore.getState().update("batman", { minimized: true, expandedHeight: 520 });
+  scene = scene.map((e) => (e.id === "batman" || e.id === "batman2" ? ({ ...e, height: 68 } as ExcalidrawElement) : e));
+  await adoptCopies("w1", [{ id: "batman2", sourceId: "batman" }]);
+  expect(scene.find((e) => e.id === "batman2")!.height).toBe(520);
+  expect(scene.find((e) => e.id === "batman")!.height).toBe(68);
+  expect(terminalOf(nodesStore.getState().nodes.batman2)?.minimized).toBeUndefined();
 });

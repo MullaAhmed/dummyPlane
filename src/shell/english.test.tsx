@@ -76,12 +76,12 @@ it("the close agent dialog speaks English", async () => {
   await nodesStore.getState().create("t1", {
     workspaceId: "w1",
     kind: "terminal",
-    payload: { title: "Isis", name: "Isis", agent: "claude", cwd: "C:/code", shell: "default", command: "" },
+    payload: { title: "Batman", name: "Batman", agent: "claude", cwd: "C:/code", shell: "default", command: "" },
   });
   uiStore.getState().setClosing({ agents: ["t1"], remove: ["t1"] } as never);
   await act(async () => root.render(<CloseAgentDialog />));
-  expect(document.body.textContent).toContain("Close Isis?");
-  expect(document.body.textContent).toContain("Isis is still running. Closing it ends its session.");
+  expect(document.body.textContent).toContain("Close Batman?");
+  expect(document.body.textContent).toContain("Batman is still running. Closing it ends its session.");
   expect(document.body.textContent).toContain("Cancel");
   expect(document.body.textContent).toContain("Close the agent");
   uiStore.getState().setClosing(null);

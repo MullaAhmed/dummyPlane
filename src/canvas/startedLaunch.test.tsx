@@ -9,8 +9,8 @@ import { forgetStartedLaunch, launchSettingsOf, noteLaunchChange, useLaunchResta
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 const terminal = (patch: Partial<TerminalPayload> = {}): TerminalPayload => ({
-  title: "Isis",
-  name: "Isis",
+  title: "Batman",
+  name: "Batman",
   agent: "claude",
   cwd: "D:/work/api",
   shell: "default",
@@ -36,7 +36,7 @@ afterEach(async () => {
 });
 
 it("reads the command only for a Custom terminal, which is the only one that runs it", () => {
-  expect(launchSettingsOf(terminal())).toEqual({ cwd: "D:/work/api", shell: "default", title: "Isis", command: "" });
+  expect(launchSettingsOf(terminal())).toEqual({ cwd: "D:/work/api", shell: "default", title: "Batman", command: "" });
   expect(launchSettingsOf(terminal({ agent: "custom" })).command).toBe("npm run dev");
 });
 

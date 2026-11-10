@@ -17,7 +17,7 @@ const report = {
     { date: "2026-10-31", counts: counts(500, 500) },
   ],
   sessions: [
-    { sessionId: "s-isis", model: "claude-opus-5-5", counts: counts(400, 400) },
+    { sessionId: "s-batman", model: "claude-opus-5-5", counts: counts(400, 400) },
     { sessionId: "s-ext", model: "claude-haiku-5-5", counts: counts(100, 100) },
   ],
   models: [{ model: "claude-opus-5-5", counts: counts(400, 400) }],
@@ -27,10 +27,10 @@ const report = {
 
 async function show(answer: () => unknown) {
   mockIPC((cmd) => (cmd === "token_usage" ? answer() : undefined));
-  await nodesStore.getState().create("isis", {
+  await nodesStore.getState().create("batman", {
     workspaceId: "w1",
     kind: "terminal",
-    payload: { title: "Isis", name: "Isis", agent: "claude", cwd: "C:/code", shell: "default", command: "", claudeSessionId: "s-isis" },
+    payload: { title: "Batman", name: "Batman", agent: "claude", cwd: "C:/code", shell: "default", command: "", claudeSessionId: "s-batman" },
   });
   const host = document.createElement("div");
   document.body.append(host);
@@ -44,7 +44,7 @@ it("shows a column per day and the part of each agent, named by dummyPlane's own
   const { host, done } = await show(() => report);
   expect(host.querySelectorAll("[data-day]")).toHaveLength(2);
   const rows = [...host.querySelectorAll("[data-agent-row]")].map((row) => row.textContent);
-  expect(rows[0]).toContain("Isis");
+  expect(rows[0]).toContain("Batman");
   expect(rows[0]).toContain("800");
   expect(rows[1]).toContain("Other Claude sessions");
   expect(host.textContent).toContain("3 files read");

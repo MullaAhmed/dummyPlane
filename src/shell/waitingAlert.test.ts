@@ -40,10 +40,10 @@ beforeEach(() => {
   workspacesStore.setState({ workspaces: [{ id: "w1", projectId: "p1", name: "Workspace 1", position: 0, pantheon: null, kind: "canvas", folder: null }] });
   nodesStore.setState({
     nodes: {
-      isis: { workspaceId: "w1", kind: "terminal", payload: { title: "Isis", name: "Isis", agent: "claude", cwd: "C:/code", shell: "default", command: "" } },
+      batman: { workspaceId: "w1", kind: "terminal", payload: { title: "Batman", name: "Batman", agent: "claude", cwd: "C:/code", shell: "default", command: "" } },
     },
   });
-  terminalStatusStore.setState({ statuses: { isis: { state: "running" } } });
+  terminalStatusStore.setState({ statuses: { batman: { state: "running" } } });
   agentActivityStore.setState({ activities: {} });
   uninstall = installWaitingAlerts();
 });
@@ -54,37 +54,37 @@ afterEach(() => {
 
 describe("the Windows notification (spec notification §8)", () => {
   it("tells when an agent starts waiting and the window is not focused", async () => {
-    apply("isis", "waiting");
+    apply("batman", "waiting");
     await settled();
-    expect(sendNotification).toHaveBeenCalledExactlyOnceWith({ title: "dummyPlane", body: "Isis has a question", extra: { nodeId: "isis" } });
+    expect(sendNotification).toHaveBeenCalledExactlyOnceWith({ title: "dummyPlane", body: "Batman has a question", extra: { nodeId: "batman" } });
   });
 
   it("keeps the preview in the window: a toast can show on the lock screen (spec notification §7)", async () => {
-    agentActivityStore.getState().apply({ nodeId: "isis", activity: "waiting", since: 1, message: "Run rm on C:/secret?" });
+    agentActivityStore.getState().apply({ nodeId: "batman", activity: "waiting", since: 1, message: "Run rm on C:/secret?" });
     await settled();
-    expect(sendNotification).toHaveBeenCalledExactlyOnceWith({ title: "dummyPlane", body: "Isis has a question", extra: { nodeId: "isis" } });
+    expect(sendNotification).toHaveBeenCalledExactlyOnceWith({ title: "dummyPlane", body: "Batman has a question", extra: { nodeId: "batman" } });
   });
 
   it("stays silent when the window is focused: the notice is on screen", async () => {
     win.isFocused.mockResolvedValue(true);
-    apply("isis", "waiting");
+    apply("batman", "waiting");
     await settled();
     expect(sendNotification).not.toHaveBeenCalled();
   });
 
   it("stays silent when the setting is off, and a click still comes back (spec notification §11)", async () => {
     nativeNotificationsStore.setState({ enabled: false });
-    apply("isis", "waiting");
+    apply("batman", "waiting");
     await settled();
     expect(sendNotification).not.toHaveBeenCalled();
-    await click("isis");
-    expect(goToAgent).toHaveBeenCalledWith(expect.objectContaining({ id: "isis" }));
+    await click("batman");
+    expect(goToAgent).toHaveBeenCalledWith(expect.objectContaining({ id: "batman" }));
   });
 
   it("tells once per wait, not for every change around it", async () => {
-    apply("isis", "working");
-    apply("isis", "waiting");
-    agentActivityStore.getState().apply({ nodeId: "isis", activity: "waiting", since: 2 });
+    apply("batman", "working");
+    apply("batman", "waiting");
+    agentActivityStore.getState().apply({ nodeId: "batman", activity: "waiting", since: 2 });
     await settled();
     expect(sendNotification).toHaveBeenCalledTimes(1);
   });
@@ -97,9 +97,9 @@ describe("the Windows notification (spec notification §8)", () => {
 
   it("does not replay the agents already waiting when the interface reloads", async () => {
     uninstall();
-    agentActivityStore.getState().load([{ nodeId: "isis", activity: "waiting", since: 1 }]);
+    agentActivityStore.getState().load([{ nodeId: "batman", activity: "waiting", since: 1 }]);
     uninstall = installWaitingAlerts();
-    agentActivityStore.getState().apply({ nodeId: "isis", activity: "waiting", since: 1 });
+    agentActivityStore.getState().apply({ nodeId: "batman", activity: "waiting", since: 1 });
     await settled();
     expect(sendNotification).not.toHaveBeenCalled();
     const boot = readSource("app/boot.ts");
@@ -109,7 +109,7 @@ describe("the Windows notification (spec notification §8)", () => {
   it("never lets a failure reach the app: the notice still shows", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     win.isFocused.mockRejectedValue(new Error("no window"));
-    apply("isis", "waiting");
+    apply("batman", "waiting");
     await settled();
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();
@@ -117,7 +117,7 @@ describe("the Windows notification (spec notification §8)", () => {
 
   it("stops when uninstalled", async () => {
     uninstall();
-    apply("isis", "waiting");
+    apply("batman", "waiting");
     await settled();
     expect(sendNotification).not.toHaveBeenCalled();
     expect(unregister).toHaveBeenCalled();
@@ -126,45 +126,45 @@ describe("the Windows notification (spec notification §8)", () => {
 
 describe("a click on the Windows notification (spec notification §8)", () => {
   it("brings the window back and goes to the agent", async () => {
-    apply("isis", "waiting");
-    await click("isis");
+    apply("batman", "waiting");
+    await click("batman");
     expect(win.unminimize).toHaveBeenCalled();
     expect(win.setFocus).toHaveBeenCalled();
-    expect(goToAgent).toHaveBeenCalledWith(expect.objectContaining({ id: "isis" }));
+    expect(goToAgent).toHaveBeenCalledWith(expect.objectContaining({ id: "batman" }));
   });
 
   it("only brings the window back when the agent no longer waits", async () => {
-    apply("isis", "working");
-    await click("isis");
+    apply("batman", "working");
+    await click("batman");
     expect(win.setFocus).toHaveBeenCalled();
     expect(goToAgent).not.toHaveBeenCalled();
   });
 
   it("only brings the window back at home: no canvas to arrive on", async () => {
     projectsStore.setState({ view: "home" });
-    apply("isis", "waiting");
-    await click("isis");
+    apply("batman", "waiting");
+    await click("batman");
     expect(win.setFocus).toHaveBeenCalled();
     expect(goToAgent).not.toHaveBeenCalled();
   });
 
   it("copes with a click that names no agent", async () => {
-    apply("isis", "waiting");
+    apply("batman", "waiting");
     await click(undefined);
     expect(win.setFocus).toHaveBeenCalled();
     expect(goToAgent).not.toHaveBeenCalled();
   });
 
   it("ignores anything but a click on the notification itself", async () => {
-    apply("isis", "waiting");
-    await click("isis", "dismiss");
+    apply("batman", "waiting");
+    await click("batman", "dismiss");
     expect(win.setFocus).not.toHaveBeenCalled();
   });
 
   it("logs a window that cannot come back", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     win.setFocus.mockRejectedValueOnce(new Error("no window"));
-    await click("isis");
+    await click("batman");
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();
   });

@@ -73,7 +73,7 @@ describe("Excalidraw's own actions, driven from outside (spec menu radial §6.3)
   });
 
   it("does not paste over a node and says so: Excalidraw would paste nothing (plan G1)", async () => {
-    document.body.insertAdjacentHTML("beforeend", '<div data-terminal="isis"><span id="body"></span></div>');
+    document.body.insertAdjacentHTML("beforeend", '<div data-terminal="batman"><span id="body"></span></div>');
     vi.spyOn(document, "elementFromPoint").mockReturnValue(document.getElementById("body"));
     clipboard(async () => [textItem("hello")]);
     await pasteOnCanvasAt({ x: 40, y: 50 });

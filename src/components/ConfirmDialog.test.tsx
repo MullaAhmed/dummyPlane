@@ -21,7 +21,7 @@ afterEach(async () => {
   document.body.replaceChildren();
 });
 
-const request = { title: "Delete “API”?", description: "Isis will be stopped.", confirm: "Delete", cancel: "Cancel", destructive: true };
+const request = { title: "Delete “API”?", description: "Batman will be stopped.", confirm: "Delete", cancel: "Cancel", destructive: true };
 const button = (text: string) => [...document.querySelectorAll("button")].find((b) => b.textContent === text)!;
 
 it("asks in the app's own dialog, not the system's, and answers yes on its action", async () => {
@@ -31,7 +31,7 @@ it("asks in the app's own dialog, not the system's, and answers yes on its actio
   });
   const dialog = document.querySelector('[role="dialog"]')!;
   expect(dialog.textContent).toContain("Delete “API”?");
-  expect(dialog.textContent).toContain("Isis will be stopped.");
+  expect(dialog.textContent).toContain("Batman will be stopped.");
   await act(async () => button("Delete").click());
   await expect(answer).resolves.toBe(true);
   expect(document.querySelector('[role="dialog"]')).toBeNull();

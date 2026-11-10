@@ -30,16 +30,16 @@ describe("bars", () => {
 
 describe("byAgent", () => {
   const sessions: TokenReport["sessions"] = [
-    { sessionId: "s-isis", model: "claude-opus-5-5", counts: c(1, 100) },
-    { sessionId: "s-isis-old", model: "claude-opus-5-5", counts: c(1, 50) },
-    { sessionId: "s-thot", model: "claude-haiku-5-5", counts: c(1, 30) },
+    { sessionId: "s-batman", model: "claude-opus-5-5", counts: c(1, 100) },
+    { sessionId: "s-batman-old", model: "claude-opus-5-5", counts: c(1, 50) },
+    { sessionId: "s-cyborg", model: "claude-haiku-5-5", counts: c(1, 30) },
     { sessionId: "s-other", model: null, counts: c(1, 5) },
   ];
-  const names = new Map([["s-isis", "Isis"], ["s-isis-old", "Isis"], ["s-thot", "Thoth"]]);
+  const names = new Map([["s-batman", "Batman"], ["s-batman-old", "Batman"], ["s-cyborg", "Cyborg"]]);
 
   it("names the sessions of dummyPlane's agents, merges an agent's sessions, and groups the rest", () => {
     const rows = byAgent(sessions, names, "Autres sessions");
-    expect(rows.map((r) => [r.label, r.counts.output])).toEqual([["Isis", 150], ["Thoth", 30], ["Autres sessions", 5]]);
+    expect(rows.map((r) => [r.label, r.counts.output])).toEqual([["Batman", 150], ["Cyborg", 30], ["Autres sessions", 5]]);
     expect(rows[0].model).toBe("claude-opus-5-5");
     expect(rows[2].other).toBe(true);
   });

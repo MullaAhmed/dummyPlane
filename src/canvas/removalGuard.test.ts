@@ -17,67 +17,67 @@ beforeEach(() => {
 
 describe("the removal guard (retours J8b: Annuler never ends a running agent unasked)", () => {
   it("lets a stopped agent go", () => {
-    const isis = element("isis");
-    const check = createRemovalGuard(isRunning, [isis]);
-    expect(check([gone(isis)], ["isis"])).toEqual({ dispose: ["isis"], restore: [], ask: null });
+    const batman = element("batman");
+    const check = createRemovalGuard(isRunning, [batman]);
+    expect(check([gone(batman)], ["batman"])).toEqual({ dispose: ["batman"], restore: [], ask: null });
   });
 
   it("lets a running agent go once its closing was confirmed, once only", () => {
-    running.add("isis");
-    const isis = element("isis");
-    const check = createRemovalGuard(isRunning, [isis]);
-    allowRemoval(["isis"]);
-    expect(check([gone(isis)], ["isis"]).dispose).toEqual(["isis"]);
-    expect(check([isis], []).dispose).toEqual([]);
-    expect(check([gone(isis)], ["isis"]).ask).toEqual({ agents: ["isis"], remove: ["isis"] });
+    running.add("batman");
+    const batman = element("batman");
+    const check = createRemovalGuard(isRunning, [batman]);
+    allowRemoval(["batman"]);
+    expect(check([gone(batman)], ["batman"]).dispose).toEqual(["batman"]);
+    expect(check([batman], []).dispose).toEqual([]);
+    expect(check([gone(batman)], ["batman"]).ask).toEqual({ agents: ["batman"], remove: ["batman"] });
   });
 
   it("puts back a running agent that left unasked (Ctrl+Z, Rétablir, Suppr) as it was, and asks", () => {
-    running.add("isis");
-    const isis = element("isis", { x: 120 });
-    const check = createRemovalGuard(isRunning, [isis]);
-    const verdict = check([gone(isis)], ["isis"]);
+    running.add("batman");
+    const batman = element("batman", { x: 120 });
+    const check = createRemovalGuard(isRunning, [batman]);
+    const verdict = check([gone(batman)], ["batman"]);
     expect(verdict.dispose).toEqual([]);
-    expect(verdict.restore).toEqual([isis]);
-    expect(verdict.ask).toEqual({ agents: ["isis"], remove: ["isis"] });
+    expect(verdict.restore).toEqual([batman]);
+    expect(verdict.ask).toEqual({ agents: ["batman"], remove: ["batman"] });
   });
 
   it("brings a whole group back, frame and members, and asks to close the group (undoing a group launch)", () => {
-    running.add("ra");
+    running.add("robin");
     const group = frame("g");
-    const members = [element("ra", { frameId: "g" }), element("thot", { frameId: "g" }), element("note", { type: "text", frameId: "g" })];
+    const members = [element("robin", { frameId: "g" }), element("superman", { frameId: "g" }), element("note", { type: "text", frameId: "g" })];
     const check = createRemovalGuard(isRunning, [group, ...members]);
-    const verdict = check([group, ...members].map(gone), ["ra", "thot"]);
-    expect(ids(verdict.restore)).toEqual(["g", "note", "ra", "thot"]);
+    const verdict = check([group, ...members].map(gone), ["robin", "superman"]);
+    expect(ids(verdict.restore)).toEqual(["g", "note", "robin", "superman"]);
     expect(verdict.dispose).toEqual([]);
     expect(verdict.ask).toEqual({ group: "g" });
   });
 
   it("brings back the group's frame as it was when the undo shrank it, so the agent is not cut off", () => {
-    running.add("ra");
+    running.add("robin");
     const group = frame("g", { width: 2000 });
-    const ra = element("ra", { frameId: "g", x: 1700 });
-    const check = createRemovalGuard(isRunning, [group, ra]);
-    const verdict = check([frame("g", { width: 1400, version: 2 }), gone(ra)], ["ra"]);
-    expect(verdict.restore).toEqual([ra, group]);
-    expect(verdict.ask).toEqual({ agents: ["ra"], remove: ["ra"] });
+    const robin = element("robin", { frameId: "g", x: 1700 });
+    const check = createRemovalGuard(isRunning, [group, robin]);
+    const verdict = check([frame("g", { width: 1400, version: 2 }), gone(robin)], ["robin"]);
+    expect(verdict.restore).toEqual([robin, group]);
+    expect(verdict.ask).toEqual({ agents: ["robin"], remove: ["robin"] });
   });
 
   it("asks for all the running agents at once when several left, without their group", () => {
-    running.add("isis").add("thot");
-    const loose = [element("isis"), element("thot"), element("anubis")];
+    running.add("batman").add("cyborg");
+    const loose = [element("batman"), element("cyborg"), element("flash")];
     const check = createRemovalGuard(isRunning, loose);
-    const verdict = check(loose.map(gone), ["isis", "thot", "anubis"]);
-    expect(ids(verdict.restore)).toEqual(["isis", "thot"]);
-    expect(verdict.dispose).toEqual(["anubis"]);
-    expect(verdict.ask).toEqual({ agents: ["isis", "thot"], remove: ["isis", "thot"] });
+    const verdict = check(loose.map(gone), ["batman", "cyborg", "flash"]);
+    expect(ids(verdict.restore)).toEqual(["batman", "cyborg"]);
+    expect(verdict.dispose).toEqual(["flash"]);
+    expect(verdict.ask).toEqual({ agents: ["batman", "cyborg"], remove: ["batman", "cyborg"] });
   });
 
   it("puts back an agent a new scene replaced (Importer une scène), from the scene before", () => {
-    running.add("isis");
-    const isis = element("isis");
-    const check = createRemovalGuard(isRunning, [isis]);
-    const verdict = check([element("drawing", { type: "rectangle" })], ["isis"]);
-    expect(verdict.restore).toEqual([isis]);
+    running.add("batman");
+    const batman = element("batman");
+    const check = createRemovalGuard(isRunning, [batman]);
+    const verdict = check([element("drawing", { type: "rectangle" })], ["batman"]);
+    expect(verdict.restore).toEqual([batman]);
   });
 });

@@ -24,10 +24,10 @@ let root: Root;
 
 beforeAll(async () => {
   mockIPC(() => undefined);
-  await nodesStore.getState().create("isis", {
+  await nodesStore.getState().create("batman", {
     workspaceId: "w1",
     kind: "terminal",
-    payload: { title: "Isis", name: "Isis", agent: "claude", cwd: "C:/code", shell: "default", command: "" },
+    payload: { title: "Batman", name: "Batman", agent: "claude", cwd: "C:/code", shell: "default", command: "" },
   });
 });
 beforeEach(async () => {
@@ -49,7 +49,7 @@ const open = () =>
       kind: "terminal",
       client: { x: 300, y: 300 },
       center: { x: 300, y: 300 },
-      context: { project: true, workspaceId: "w1", terminalCount: 1, terminalId: "isis", at: { x: 300, y: 300 } },
+      context: { project: true, workspaceId: "w1", terminalCount: 1, terminalId: "batman", at: { x: 300, y: 300 } },
       pressed: false,
       sliding: false,
       hovered: null,
@@ -142,7 +142,7 @@ it("runs the wedge a click on the wheel points at, a gap included; the hub close
   await act(async () => {
     await new Promise((resolve) => requestAnimationFrame(resolve));
   });
-  expect(pendingUiRequest()).toEqual({ kind: "renameTerminal", id: "isis" });
+  expect(pendingUiRequest()).toEqual({ kind: "renameTerminal", id: "batman" });
   await open();
   await act(async () => hub().click());
   expect(radialStore.getState().ring).toBeNull();
@@ -162,7 +162,7 @@ it("closes, then runs the chosen function on the next frame (« Rename » opens 
   await act(async () => {
     await new Promise((resolve) => requestAnimationFrame(resolve));
   });
-  expect(pendingUiRequest()).toEqual({ kind: "renameTerminal", id: "isis" });
+  expect(pendingUiRequest()).toEqual({ kind: "renameTerminal", id: "batman" });
 });
 
 it("leaves the keyboard where it was: a press on its buttons or the wheel never takes it (final review)", async () => {
@@ -190,7 +190,7 @@ it("closes on its ×, and when the workspace changes or a dialog opens (spec men
   await act(async () => workspacesStore.setState({ activeId: "w2" } as never));
   expect(radialStore.getState().ring).toBeNull();
   await open();
-  await act(async () => uiStore.getState().setClosing({ agents: ["isis"], remove: ["isis"] }));
+  await act(async () => uiStore.getState().setClosing({ agents: ["batman"], remove: ["batman"] }));
   expect(radialStore.getState().ring).toBeNull();
   uiStore.getState().setClosing(null);
 });

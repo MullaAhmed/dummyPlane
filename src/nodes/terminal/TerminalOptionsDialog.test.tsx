@@ -11,8 +11,8 @@ import { TerminalOptionsDialog } from "./TerminalOptionsDialog";
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 const terminal = (patch: Partial<TerminalPayload> = {}): TerminalPayload => ({
-  title: "Isis",
-  name: "Isis",
+  title: "Batman",
+  name: "Batman",
   agent: "claude",
   cwd: "C:/code",
   shell: "powershell",
@@ -37,11 +37,11 @@ afterEach(async () => {
 });
 
 async function openFor(payload: TerminalPayload) {
-  nodesStore.setState({ nodes: { isis: { workspaceId: "w1", kind: "terminal", payload } } });
+  nodesStore.setState({ nodes: { batman: { workspaceId: "w1", kind: "terminal", payload } } });
   const host = document.createElement("div");
   document.body.append(host);
   root = createRoot(host);
-  await act(async () => root.render(<TerminalOptionsDialog nodeId="isis" payload={payload} onClose={onClose} />));
+  await act(async () => root.render(<TerminalOptionsDialog nodeId="batman" payload={payload} onClose={onClose} />));
 }
 
 /** The field a label names, through its `for`. */
@@ -60,7 +60,7 @@ const apply = async () => {
   const button = [...document.body.querySelectorAll("button")].find((b) => b.textContent === "Apply at next launch")!;
   await act(async () => button.click());
 };
-const stored = () => terminalOf(nodesStore.getState().nodes.isis)!;
+const stored = () => terminalOf(nodesStore.getState().nodes.batman)!;
 
 it("shows no command for a Claude terminal, which never runs one, and leaves its stored command alone", async () => {
   // A terminal switched from Custom to Claude keeps the command it had.
@@ -70,10 +70,10 @@ it("shows no command for a Claude terminal, which never runs one, and leaves its
   expect(labels()).toEqual(["Folder", "Shell", "Title"]);
   expect(document.body.querySelector('input[placeholder="npm run dev"]')).toBeNull();
   const update = vi.spyOn(nodesStore.getState(), "update");
-  await type(field("Title")!, "  Isis · api  ");
+  await type(field("Title")!, "  Batman · api  ");
   await apply();
-  expect(update).toHaveBeenCalledWith("isis", expect.not.objectContaining({ command: expect.anything() }));
-  expect(stored()).toMatchObject({ title: "Isis · api", command: "npm run dev" });
+  expect(update).toHaveBeenCalledWith("batman", expect.not.objectContaining({ command: expect.anything() }));
+  expect(stored()).toMatchObject({ title: "Batman · api", command: "npm run dev" });
   expect(onClose).toHaveBeenCalled();
 });
 
@@ -122,7 +122,7 @@ it("moves another agent by its folder alone, and an empty folder changes nothing
   await apply();
   expect(stored().cwd).toBe("D:/other");
   expect("claudeSessionId" in stored()).toBe(false);
-  nodesStore.setState({ nodes: { isis: { workspaceId: "w1", kind: "terminal", payload: terminal() } } });
+  nodesStore.setState({ nodes: { batman: { workspaceId: "w1", kind: "terminal", payload: terminal() } } });
   await act(async () => root.unmount());
   await openFor(terminal());
   await type(field("Folder")!, "   ");
@@ -130,7 +130,7 @@ it("moves another agent by its folder alone, and an empty folder changes nothing
   expect(stored().cwd).toBe("C:/code");
 });
 
-/** A Fleet whose running mission has put the terminal "isis" in its own worktree. */
+/** A Fleet whose running mission has put the terminal "batman" in its own worktree. */
 const missionOf = (worktree: string) => ({
   workspaceId: "w1",
   kind: "fleet" as const,
@@ -139,7 +139,7 @@ const missionOf = (worktree: string) => ({
     mission: {
       state: "en_cours" as const,
       maxAgents: 3,
-      members: [{ nodeId: "isis", name: "Isis", task: "", budgetMin: 10, linked: false, branch: "m/isis", worktree }],
+      members: [{ nodeId: "batman", name: "Batman", task: "", budgetMin: 10, linked: false, branch: "m/batman", worktree }],
     },
   },
 });
@@ -148,24 +148,24 @@ const browse = () => document.body.querySelector('[aria-label="Browse"]');
 const hintOf = (input: HTMLInputElement) => document.getElementById(input.getAttribute("aria-describedby") ?? "")?.textContent;
 
 it("shows the folder of a mission's agent read-only, with the reason and no Browse, and applies the shell and title as usual", async () => {
-  const payload = terminal({ cwd: "D:/wt/isis", claudeSessionId: "old-conversation" });
-  nodesStore.setState({ nodes: { fleet: missionOf("D:/wt/isis"), isis: { workspaceId: "w1", kind: "terminal", payload } } });
+  const payload = terminal({ cwd: "D:/wt/batman", claudeSessionId: "old-conversation" });
+  nodesStore.setState({ nodes: { fleet: missionOf("D:/wt/batman"), batman: { workspaceId: "w1", kind: "terminal", payload } } });
   const host = document.createElement("div");
   document.body.append(host);
   root = createRoot(host);
-  await act(async () => root.render(<TerminalOptionsDialog nodeId="isis" payload={payload} onClose={onClose} />));
+  await act(async () => root.render(<TerminalOptionsDialog nodeId="batman" payload={payload} onClose={onClose} />));
   const folder = field("Folder")!;
-  expect(folder.value).toBe("D:/wt/isis");
+  expect(folder.value).toBe("D:/wt/batman");
   expect(folder.readOnly).toBe(true);
   expect(hintOf(folder)).toBe(WORKTREE_REASON);
   expect(browse()).toBeNull();
   // Nothing typed into it counts: the field keeps showing the worktree, and the apply leaves it, without a word.
   const info = vi.spyOn(toast, "info");
   await type(folder, "D:/elsewhere");
-  expect(folder.value).toBe("D:/wt/isis");
+  expect(folder.value).toBe("D:/wt/batman");
   await type(field("Title")!, "Review");
   await apply();
-  expect(stored()).toMatchObject({ cwd: "D:/wt/isis", claudeSessionId: "old-conversation", title: "Review" });
+  expect(stored()).toMatchObject({ cwd: "D:/wt/batman", claudeSessionId: "old-conversation", title: "Review" });
   expect(info).not.toHaveBeenCalled();
   expect(onClose).toHaveBeenCalled();
 });

@@ -16,9 +16,9 @@ vi.mock("./broadcast", () => ({ sendCommand: vi.fn(() => Promise.resolve()) }));
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 const agents: TargetAgent[] = [
-  { id: "b", name: "Thoth", groupName: null },
-  { id: "d", name: "Zeus", groupName: null },
-  { id: "h", name: "Hera", groupName: null },
+  { id: "b", name: "Cyborg", groupName: null },
+  { id: "d", name: "Deadpool", groupName: null },
+  { id: "h", name: "Ironman", groupName: null },
 ];
 
 let root: Root;
@@ -58,57 +58,57 @@ async function press(key: string) {
 }
 
 it("suggests Claude Code's commands after the targets, and Tab completes one", async () => {
-  await type("@thoth /ef");
+  await type("@cyborg /ef");
   expect(options()).toEqual([expect.stringContaining("/effort")]);
   await press("Tab");
-  expect(field().value).toBe("@thoth /effort ");
+  expect(field().value).toBe("@cyborg /effort ");
   expect(options()).toEqual([]);
 });
 
-it("completes the last name of @thoth/ze, the names before it becoming targets too", async () => {
-  await type("@thoth/ze");
-  expect(options()).toEqual([expect.stringContaining("@zeus")]);
+it("completes the last name of @cyborg/de, the names before it becoming targets too", async () => {
+  await type("@cyborg/de");
+  expect(options()).toEqual([expect.stringContaining("@deadpool")]);
   await press("Tab");
-  expect(chips()).toEqual(["@thoth", "@zeus"]);
+  expect(chips()).toEqual(["@cyborg", "@deadpool"]);
   expect(field().value).toBe("");
 });
 
-it("sends a /command to every agent of @thoth/zeus/hera", async () => {
-  await type("@thoth/zeus/hera /effort ultracode");
+it("sends a /command to every agent of @cyborg/deadpool/ironman", async () => {
+  await type("@cyborg/deadpool/ironman /effort ultracode");
   await press("Enter");
   expect(sendCommand).toHaveBeenCalledWith(["b", "d", "h"], "/effort ultracode");
 });
 
 it("sends a command typed in full on Enter, instead of completing it (final review maj §1)", async () => {
-  await type("@thoth /clear");
+  await type("@cyborg /clear");
   await press("Enter");
   expect(sendCommand).toHaveBeenCalledWith(["b"], "/clear");
 });
 
 it("goes on through the history past a command, its list closed (final review maj §1)", async () => {
-  await act(async () => historyStore.setState({ entries: ["@zeus lance les tests", "@thoth/zeus /compact"] }));
+  await act(async () => historyStore.setState({ entries: ["@deadpool lance les tests", "@cyborg/deadpool /compact"] }));
   await press("ArrowUp");
-  expect(field().value).toBe("@thoth/zeus /compact");
+  expect(field().value).toBe("@cyborg/deadpool /compact");
   expect(options()).toEqual([]);
   await press("ArrowUp");
-  expect(field().value).toBe("@zeus lance les tests");
+  expect(field().value).toBe("@deadpool lance les tests");
 });
 
 it("does not send a /command whose target is unknown to the selection instead (final review maj §1)", async () => {
   await act(async () => root.render(<CommandInput agents={agents} groups={[]} fallback={["d"]} placeholder="Consigne" emptyHint="Tape @" />));
-  await type("/clear @thoth/zues");
+  await type("/clear @cyborg/deadpoll");
   await press("Enter");
   expect(sendCommand).not.toHaveBeenCalled();
-  expect(host.textContent).toContain("Unknown target: @thoth/zues");
+  expect(host.textContent).toContain("Unknown target: @cyborg/deadpoll");
   // The command stays in the field, to be corrected.
-  expect(field().value).toBe("/clear @thoth/zues");
+  expect(field().value).toBe("/clear @cyborg/deadpoll");
 });
 
 
-it("keeps an unknown name of @nobody/ze when Tab completes the last one (backlog 27 oct)", async () => {
-  await type("@nobody/ze");
+it("keeps an unknown name of @nobody/de when Tab completes the last one (backlog 27 oct)", async () => {
+  await type("@nobody/de");
   await press("Tab");
-  expect(field().value).toBe("@nobody/zeus");
+  expect(field().value).toBe("@nobody/deadpool");
   expect(chips()).toEqual([]);
 });
 
@@ -130,9 +130,9 @@ it("leaves one space when a command is completed before the text (backlog 27 oct
   expect(field().value).toBe("/effort lance");
 });
 
-it("does not send a command after an unfinished mention (@thoth/ /clear, backlog 27 oct)", async () => {
+it("does not send a command after an unfinished mention (@cyborg/ /clear, backlog 27 oct)", async () => {
   await act(async () => root.render(<CommandInput agents={agents} groups={[]} fallback={["d"]} placeholder="Consigne" emptyHint="Tape @" />));
-  await type("@thoth/ /clear");
+  await type("@cyborg/ /clear");
   await press("Enter");
   expect(sendCommand).not.toHaveBeenCalled();
 });
@@ -152,7 +152,7 @@ it("starts the highlight again at the top when the caret moves (backlog 27 oct)"
 });
 
 it("does not send on the Enter that ends an IME composition (plan B3)", async () => {
-  await type("@thoth lance");
+  await type("@cyborg lance");
   await act(async () => {
     field().dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true, isComposing: true }));
   });
@@ -201,30 +201,30 @@ it("enables Send for a selected agent (fallback) and a plain instruction, and se
 });
 
 it("enables Send with nothing selected when an @agent is typed, and sends to that agent", async () => {
-  await type("@thoth run tests");
+  await type("@cyborg run tests");
   expect(sendButton().disabled).toBe(false);
   await act(async () => sendButton().click());
   expect(sendCommand).toHaveBeenCalledWith(["b"], "run tests");
 });
 
-it("matches an @agent whatever its capitals (@Thoth)", async () => {
-  await type("@Thoth run tests");
+it("matches an @agent whatever its capitals (@Cyborg)", async () => {
+  await type("@Cyborg run tests");
   expect(sendButton().disabled).toBe(false);
   await act(async () => sendButton().click());
   expect(sendCommand).toHaveBeenCalledWith(["b"], "run tests");
 });
 
-it("matches an @agent whatever its accents (@HÉRA)", async () => {
-  await type("@HÉRA run tests");
+it("matches an @agent whatever its accents (@IRONMÁN)", async () => {
+  await type("@IRONMÁN run tests");
   expect(sendButton().disabled).toBe(false);
   await act(async () => sendButton().click());
   expect(sendCommand).toHaveBeenCalledWith(["h"], "run tests");
 });
 
 it("keeps the targets of a send as chips: the next instruction is enabled without @", async () => {
-  await type("@thoth run tests");
+  await type("@cyborg run tests");
   await act(async () => sendButton().click());
-  expect(chips()).toEqual(["@thoth"]);
+  expect(chips()).toEqual(["@cyborg"]);
   await type("run lint");
   expect(sendButton().disabled).toBe(false);
   await act(async () => sendButton().click());
@@ -306,11 +306,11 @@ it("is an assistant-ui composer: its form, its field, its Send", () => {
 
 it("empties the field once sent, and keeps the command in the history as typed", async () => {
   await act(async () => historyStore.setState({ entries: [] }));
-  await type("@thoth run tests");
+  await type("@cyborg run tests");
   await press("Enter");
   expect(sendCommand).toHaveBeenCalledWith(["b"], "run tests");
   expect(field().value).toBe("");
-  expect(historyStore.getState().entries.slice(-1)).toEqual(["@thoth run tests"]);
+  expect(historyStore.getState().entries.slice(-1)).toEqual(["@cyborg run tests"]);
 });
 
 it("sends one command after another: nothing waits for an answer", async () => {
@@ -345,10 +345,10 @@ it("keeps every key from what holds the field (the canvas, in a fleet)", async (
 });
 
 it("keeps the keys of Send and of a chip's ✕ from the canvas too, when Tab brought the keyboard there", async () => {
-  await type("@thoth run tests");
+  await type("@cyborg run tests");
   await act(async () => sendButton().click());
   await type("run lint");
-  const remove = host.querySelector<HTMLButtonElement>('button[aria-label="Remove @thoth"]')!;
+  const remove = host.querySelector<HTMLButtonElement>('button[aria-label="Remove @cyborg"]')!;
   const seen = vi.fn();
   host.addEventListener("keydown", seen);
   for (const button of [sendButton(), remove]) {
@@ -365,14 +365,14 @@ it("keeps the keys of Send and of a chip's ✕ from the canvas too, when Tab bro
 });
 
 it("leaves the caret in the field on a click on Send or on a chip's ✕", async () => {
-  await type("@thoth run tests");
+  await type("@cyborg run tests");
   await act(async () => sendButton().click());
   const pressed = (element: Element) => {
     const down = new MouseEvent("mousedown", { bubbles: true, cancelable: true });
     element.dispatchEvent(down);
     return down.defaultPrevented;
   };
-  expect(pressed(host.querySelector('button[aria-label="Remove @thoth"]')!)).toBe(true);
+  expect(pressed(host.querySelector('button[aria-label="Remove @cyborg"]')!)).toBe(true);
   await type("run lint");
   expect(pressed(sendButton())).toBe(true);
 });
@@ -380,7 +380,7 @@ it("leaves the caret in the field on a click on Send or on a chip's ✕", async 
 it("lists targets as plain rows: an icon each, and an agent's live status dot", async () => {
   await act(async () => {
     nodesStore.setState({
-      nodes: { b: { workspaceId: "w1", kind: "terminal", payload: { title: "Thoth", name: "Thoth", agent: "claude", cwd: "C:/code", shell: "default", command: "" } } },
+      nodes: { b: { workspaceId: "w1", kind: "terminal", payload: { title: "Cyborg", name: "Cyborg", agent: "claude", cwd: "C:/code", shell: "default", command: "" } } },
     });
     terminalStatusStore.setState({ statuses: { b: { state: "running" } } });
     agentActivityStore.setState({ activities: { b: { activity: "waiting", since: 0 } } });
@@ -389,7 +389,7 @@ it("lists targets as plain rows: an icon each, and an agent's live status dot", 
   const rows = [...host.querySelectorAll('[role="option"]')];
   expect(rows.map((r) => r.querySelectorAll("svg").length)).toEqual([1, 1, 1, 1]);
   const dots = () => rows.map((r) => r.querySelector("[data-status-dot]")?.getAttribute("data-status-dot") ?? null);
-  // @all has no dot; Thoth waits for an answer; Zeus and Hera have no session.
+  // @all has no dot; Cyborg waits for an answer; Deadpool and Ironman have no session.
   expect(dots()).toEqual([null, "waiting", "stopped", "stopped"]);
   expect(rows[1].querySelector("[data-status-dot]")!.getAttribute("aria-label")).toBe("Waiting");
   await act(async () => {
@@ -403,7 +403,7 @@ it("shows an agent that reported and rests as Done, not Ready, in the list's dot
   await act(async () => {
     nodesStore.setState({
       nodes: {
-        b: { workspaceId: "w1", kind: "terminal", payload: { title: "Thoth", name: "Thoth", agent: "claude", cwd: "C:/code", shell: "default", command: "", lastReport: { status: "done", summary: "All green" } } },
+        b: { workspaceId: "w1", kind: "terminal", payload: { title: "Cyborg", name: "Cyborg", agent: "claude", cwd: "C:/code", shell: "default", command: "", lastReport: { status: "done", summary: "All green" } } },
       },
     });
     terminalStatusStore.setState({ statuses: { b: { state: "running" } } });

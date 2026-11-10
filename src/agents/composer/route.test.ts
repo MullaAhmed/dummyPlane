@@ -3,8 +3,8 @@ import { targetOptions, type TargetAgent } from "../targets";
 import { routeCommand, type RouteScope } from "./route";
 
 const agents: TargetAgent[] = [
-  { id: "b", name: "Thoth", groupName: null },
-  { id: "d", name: "Zeus", groupName: null },
+  { id: "b", name: "Cyborg", groupName: null },
+  { id: "d", name: "Deadpool", groupName: null },
 ];
 const scope = (patch: Partial<RouteScope> = {}): RouteScope => ({
   chips: [],
@@ -17,7 +17,7 @@ const scope = (patch: Partial<RouteScope> = {}): RouteScope => ({
 
 describe("routeCommand", () => {
   it("sends the text without its mentions to the agents named after @", () => {
-    expect(routeCommand("@thoth/zeus run tests", scope())).toMatchObject({ ids: ["b", "d"], instruction: "run tests", canSend: true });
+    expect(routeCommand("@cyborg/deadpool run tests", scope())).toMatchObject({ ids: ["b", "d"], instruction: "run tests", canSend: true });
   });
 
   it("falls back on the selection without @, and on nothing without a selection", () => {
@@ -26,17 +26,17 @@ describe("routeCommand", () => {
   });
 
   it("adds the chips to the typed names, once each", () => {
-    expect(routeCommand("@zeus lint", scope({ chips: [{ kind: "agent", id: "b" }, { kind: "agent", id: "d" }] })).targets).toEqual([
+    expect(routeCommand("@deadpool lint", scope({ chips: [{ kind: "agent", id: "b" }, { kind: "agent", id: "d" }] })).targets).toEqual([
       { kind: "agent", id: "b" },
       { kind: "agent", id: "d" },
     ]);
   });
 
   it("holds back a /command whose target is mistyped, rather than sending it to the selection", () => {
-    expect(routeCommand("/clear @thoth/zues", scope({ fallback: ["d"] }))).toMatchObject({ unknown: "@thoth/zues", canSend: false });
+    expect(routeCommand("/clear @cyborg/deadpoll", scope({ fallback: ["d"] }))).toMatchObject({ unknown: "@cyborg/deadpoll", canSend: false });
   });
 
   it("has nothing to send with targets only", () => {
-    expect(routeCommand("@thoth ", scope())).toMatchObject({ instruction: "", canSend: false });
+    expect(routeCommand("@cyborg ", scope())).toMatchObject({ instruction: "", canSend: false });
   });
 });

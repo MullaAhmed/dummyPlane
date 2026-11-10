@@ -51,26 +51,26 @@ it("runs the other way from an agent's foot: a click on a fleet wires the agent 
   mockIPC(() => undefined);
   Object.defineProperty(document, "elementsFromPoint", { value: () => [], configurable: true });
   const atlas = { ...createNodeElement("fleet", { x: 400, y: 400 }), id: "atlas" } as unknown as ExcalidrawElement;
-  const isis = { ...createNodeElement("terminal", { x: 1600, y: 400 }), id: "isis" } as unknown as ExcalidrawElement;
-  await nodesStore.getState().create("isis", {
+  const batman = { ...createNodeElement("terminal", { x: 1600, y: 400 }), id: "batman" } as unknown as ExcalidrawElement;
+  await nodesStore.getState().create("batman", {
     workspaceId: "w1",
     kind: "terminal",
-    payload: { title: "Isis", name: "Isis", agent: "claude", cwd: "C:/code", shell: "default", command: "" },
+    payload: { title: "Batman", name: "Batman", agent: "claude", cwd: "C:/code", shell: "default", command: "" },
   });
   await act(async () => {
-    canvasStore.setState({ api: { getSceneElements: () => [atlas, isis] } as never, view: EMPTY_VIEW, frames: [], links: { atlas: { nodeIds: [], groupIds: [] } } });
-    uiStore.setState({ linking: "isis" });
+    canvasStore.setState({ api: { getSceneElements: () => [atlas, batman] } as never, view: EMPTY_VIEW, frames: [], links: { atlas: { nodeIds: [], groupIds: [] } } });
+    uiStore.setState({ linking: "batman" });
   });
   expect(document.body.textContent).toContain("Click another agent or a fleet to link this agent");
   const layer = host.ownerDocument.querySelector<HTMLElement>(".cursor-crosshair")!;
   // A click on the agent itself designates nothing from its end: it ends the mode without a wire.
-  await act(async () => layer.dispatchEvent(new MouseEvent("click", { bubbles: true, clientX: isis.x + 10, clientY: isis.y + 10 })));
+  await act(async () => layer.dispatchEvent(new MouseEvent("click", { bubbles: true, clientX: batman.x + 10, clientY: batman.y + 10 })));
   expect(linkFleet).not.toHaveBeenCalled();
   expect(uiStore.getState().linking).toBeNull();
-  await act(async () => uiStore.setState({ linking: "isis" }));
+  await act(async () => uiStore.setState({ linking: "batman" }));
   const layerAgain = host.ownerDocument.querySelector<HTMLElement>(".cursor-crosshair")!;
   await act(async () => layerAgain.dispatchEvent(new MouseEvent("click", { bubbles: true, clientX: atlas.x + 10, clientY: atlas.y + 10 })));
-  expect(linkFleet).toHaveBeenCalledWith("atlas", "isis");
+  expect(linkFleet).toHaveBeenCalledWith("atlas", "batman");
   expect(linkAgents).not.toHaveBeenCalled();
   expect(uiStore.getState().linking).toBeNull();
   await act(async () => canvasStore.setState({ api: null, links: {} }));
@@ -81,17 +81,17 @@ it("links two agents from an agent's foot with no fleet on the canvas, and never
   vi.mocked(linkFleet).mockClear();
   vi.mocked(linkAgents).mockClear();
   Object.defineProperty(document, "elementsFromPoint", { value: () => [], configurable: true });
-  const isis = { ...createNodeElement("terminal", { x: 400, y: 400 }), id: "isis" } as unknown as ExcalidrawElement;
-  const thot = { ...createNodeElement("terminal", { x: 1600, y: 400 }), id: "thot" } as unknown as ExcalidrawElement;
+  const batman = { ...createNodeElement("terminal", { x: 400, y: 400 }), id: "batman" } as unknown as ExcalidrawElement;
+  const cyborg = { ...createNodeElement("terminal", { x: 1600, y: 400 }), id: "cyborg" } as unknown as ExcalidrawElement;
   const sh = { ...createNodeElement("terminal", { x: 400, y: 1600 }), id: "sh" } as unknown as ExcalidrawElement;
   const terminal = (id: string, agent: "claude" | "shell") =>
     nodesStore.getState().create(id, { workspaceId: "w1", kind: "terminal", payload: { title: id, name: id, agent, cwd: "C:/code", shell: "default", command: "" } });
-  await terminal("isis", "claude");
-  await terminal("thot", "claude");
+  await terminal("batman", "claude");
+  await terminal("cyborg", "claude");
   await terminal("sh", "shell");
   await act(async () => {
-    canvasStore.setState({ api: { getSceneElements: () => [isis, thot, sh] } as never, view: EMPTY_VIEW, frames: [], links: {} });
-    uiStore.setState({ linking: "isis" });
+    canvasStore.setState({ api: { getSceneElements: () => [batman, cyborg, sh] } as never, view: EMPTY_VIEW, frames: [], links: {} });
+    uiStore.setState({ linking: "batman" });
   });
   const click = async (at: ExcalidrawElement) => {
     const layer = host.ownerDocument.querySelector<HTMLElement>(".cursor-crosshair")!;
@@ -101,9 +101,9 @@ it("links two agents from an agent's foot with no fleet on the canvas, and never
   await click(sh);
   expect(linkAgents).not.toHaveBeenCalled();
   expect(uiStore.getState().linking).toBeNull();
-  await act(async () => uiStore.setState({ linking: "isis" }));
-  await click(thot);
-  expect(linkAgents).toHaveBeenCalledWith("isis", "thot");
+  await act(async () => uiStore.setState({ linking: "batman" }));
+  await click(cyborg);
+  expect(linkAgents).toHaveBeenCalledWith("batman", "cyborg");
   expect(linkFleet).not.toHaveBeenCalled();
   expect(uiStore.getState().linking).toBeNull();
   await act(async () => canvasStore.setState({ api: null, links: {} }));
@@ -113,10 +113,10 @@ it("takes another node's Link for a place on that node, not for the linker's Don
   mockIPC(() => undefined);
   vi.mocked(linkFleet).mockClear();
   const atlas = { ...createNodeElement("fleet", { x: 400, y: 400 }), id: "atlas" } as unknown as ExcalidrawElement;
-  await nodesStore.getState().create("isis", {
+  await nodesStore.getState().create("batman", {
     workspaceId: "w1",
     kind: "terminal",
-    payload: { title: "Isis", name: "Isis", agent: "claude", cwd: "C:/code", shell: "default", command: "" },
+    payload: { title: "Batman", name: "Batman", agent: "claude", cwd: "C:/code", shell: "default", command: "" },
   });
   // The fleet's "+ Link" lies under the pointer, inside the fleet.
   const atlasLink = document.createElement("button");
@@ -126,12 +126,12 @@ it("takes another node's Link for a place on that node, not for the linker's Don
   Object.defineProperty(document, "elementsFromPoint", { value: () => [atlasLink], configurable: true });
   await act(async () => {
     canvasStore.setState({ api: { getSceneElements: () => [atlas] } as never, view: EMPTY_VIEW, frames: [], links: { atlas: { nodeIds: [], groupIds: [] } } });
-    uiStore.setState({ linking: "isis" });
+    uiStore.setState({ linking: "batman" });
   });
   const layer = host.ownerDocument.querySelector<HTMLElement>(".cursor-crosshair")!;
   await act(async () => layer.dispatchEvent(new MouseEvent("click", { bubbles: true, clientX: atlas.x + 10, clientY: atlas.y + 10 })));
   expect(toggle).not.toHaveBeenCalled();
-  expect(linkFleet).toHaveBeenCalledWith("atlas", "isis");
+  expect(linkFleet).toHaveBeenCalledWith("atlas", "batman");
   await act(async () => canvasStore.setState({ api: null, links: {} }));
 });
 

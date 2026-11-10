@@ -15,25 +15,25 @@ it("flashes the border of the terminal that arrives, anew on each arrival (spec 
   await act(async () =>
     root.render(
       <>
-        <div data-node="isis">
-          <ArrivalFlash nodeId="isis" />
+        <div data-node="batman">
+          <ArrivalFlash nodeId="batman" />
         </div>
-        <div data-node="thot">
-          <ArrivalFlash nodeId="thot" />
+        <div data-node="cyborg">
+          <ArrivalFlash nodeId="cyborg" />
         </div>
       </>,
     ),
   );
   expect(host.querySelector("[data-arrival]")).toBeNull();
-  await act(async () => signalArrival("isis"));
-  const first = host.querySelector('[data-node="isis"] [data-arrival]')!;
+  await act(async () => signalArrival("batman"));
+  const first = host.querySelector('[data-node="batman"] [data-arrival]')!;
   expect(first.className).toContain("dp-arrival");
-  expect(host.querySelector('[data-node="thot"] [data-arrival]')).toBeNull();
-  await act(async () => signalArrival("isis"));
+  expect(host.querySelector('[data-node="cyborg"] [data-arrival]')).toBeNull();
+  await act(async () => signalArrival("batman"));
   // A new element restarts the animation.
-  expect(host.querySelector('[data-node="isis"] [data-arrival]')).not.toBe(first);
-  await act(async () => signalArrival("thot"));
-  expect(host.querySelector('[data-node="isis"] [data-arrival]')).toBeNull();
+  expect(host.querySelector('[data-node="batman"] [data-arrival]')).not.toBe(first);
+  await act(async () => signalArrival("cyborg"));
+  expect(host.querySelector('[data-node="batman"] [data-arrival]')).toBeNull();
   await act(async () => root.unmount());
   host.remove();
 });

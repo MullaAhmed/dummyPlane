@@ -30,10 +30,10 @@ beforeEach(() => {
 });
 
 it("refuses to extend an agent that handed its sub-task over or has already reported (backlog H3)", async () => {
-  await setup([member("a", "Isis", { handedTo: "Horus" }), member("b", "Horus", { report: { summary: "ok", status: "termine", at: 1 } }), member("c", "Seth")]);
-  const handed = await fleetTool("chef", "prolonger", { agent: "Isis", minutes: 5 });
-  const reported = await fleetTool("chef", "prolonger", { agent: "Horus", minutes: 5 });
-  const fine = await fleetTool("chef", "prolonger", { agent: "Seth", minutes: 5 });
+  await setup([member("a", "Batman", { handedTo: "Aquaman" }), member("b", "Aquaman", { report: { summary: "ok", status: "termine", at: 1 } }), member("c", "Shazam")]);
+  const handed = await fleetTool("chef", "prolonger", { agent: "Batman", minutes: 5 });
+  const reported = await fleetTool("chef", "prolonger", { agent: "Aquaman", minutes: 5 });
+  const fine = await fleetTool("chef", "prolonger", { agent: "Shazam", minutes: 5 });
   expect(handed.isError).toBe(true);
   expect(reported.isError).toBe(true);
   expect(fine.isError).not.toBe(true);
@@ -49,8 +49,8 @@ it("mission() gives the model of the agent that holds a sub-task, not the planne
         state: "en_cours",
         maxAgents: 4,
         router: true,
-        plan: [{ title: "Login", brief: "b", agent: "Horus", budgetMin: 10, level: "faible" }],
-        members: [member("a", "Isis", { task: "Login", handedTo: "Horus" }), member("b", "Horus", { task: "Login", model: "claude-opus-5-5" })],
+        plan: [{ title: "Login", brief: "b", agent: "Aquaman", budgetMin: 10, level: "faible" }],
+        members: [member("a", "Batman", { task: "Login", handedTo: "Aquaman" }), member("b", "Aquaman", { task: "Login", model: "claude-opus-5-5" })],
       },
     },
   });
@@ -59,17 +59,17 @@ it("mission() gives the model of the agent that holds a sub-task, not the planne
 });
 
 it("remote_control refuses a first name two agents share instead of taking the first (backlog 27 oct)", async () => {
-  await setup([member("a", "Isis"), member("b", "Isis")]);
-  const result = await fleetTool("chef", "remote_control", { actif: true, agents: ["Isis"] });
+  await setup([member("a", "Batman"), member("b", "Batman")]);
+  const result = await fleetTool("chef", "remote_control", { actif: true, agents: ["Batman"] });
   expect(result.isError).toBe(true);
   expect(result.content[0].text).toContain("Several agents");
 });
 
 it("ecrire lights the wire from the fleet down to the agent it wrote to", async () => {
   clearWirePulses();
-  await setup([member("a", "Isis")]);
+  await setup([member("a", "Batman")]);
   terminalStatusStore.getState().set("a", { state: "running" });
-  const result = await fleetTool("chef", "ecrire", { agent: "Isis", texte: "go on" });
+  const result = await fleetTool("chef", "ecrire", { agent: "Batman", texte: "go on" });
   expect(result.isError).not.toBe(true);
   expect(wireActivityStore.getState().pulses).toEqual({ a: { direction: "toAgent", at: expect.any(Number), fleetId: "chef" } });
   clearWirePulses();

@@ -24,10 +24,10 @@ let root: Root;
 
 beforeAll(async () => {
   mockIPC(() => undefined);
-  await nodesStore.getState().create("isis", {
+  await nodesStore.getState().create("batman", {
     workspaceId: "w1",
     kind: "terminal",
-    payload: { title: "Isis", name: "Isis", agent: "claude", cwd: "C:/code", shell: "default", command: "" },
+    payload: { title: "Batman", name: "Batman", agent: "claude", cwd: "C:/code", shell: "default", command: "" },
   });
 });
 beforeEach(async () => {
@@ -49,7 +49,7 @@ const open = () =>
       kind: "terminal",
       client: { x: 300, y: 300 },
       center: { x: 300, y: 300 },
-      context: { project: true, workspaceId: "w1", terminalCount: 1, terminalId: "isis", at: { x: 300, y: 300 } },
+      context: { project: true, workspaceId: "w1", terminalCount: 1, terminalId: "batman", at: { x: 300, y: 300 } },
       pressed: false,
       sliding: false,
       hovered: null,

@@ -20,7 +20,7 @@ beforeEach(() => {
   updateScene.mockClear();
   scrollToContent.mockClear();
   document.body.innerHTML =
-    '<div class="excalidraw excalidraw-container" tabindex="0"><div data-terminal="isis"><textarea></textarea></div></div>';
+    '<div class="excalidraw excalidraw-container" tabindex="0"><div data-terminal="batman"><textarea></textarea></div></div>';
   container = document.querySelector<HTMLDivElement>(".excalidraw-container")!;
 });
 afterEach(() => document.body.replaceChildren());
@@ -58,7 +58,7 @@ describe("overview (spec fenêtre §6.6)", () => {
   it("frames the nodes and their group frames, not drawings nor drawing frames", () => {
     const scene = [
       groupFrame("backend"),
-      node("isis", "terminal", "backend"),
+      node("batman", "terminal", "backend"),
       node("chef", STORED_FLEET_KIND),
       element({ id: "drawing", type: "frame" }),
       node("in-drawing", "terminal", "drawing"),
@@ -66,7 +66,7 @@ describe("overview (spec fenêtre §6.6)", () => {
       node("gone", "terminal", null),
     ];
     const gone = { ...scene[6], isDeleted: true } as ExcalidrawElement;
-    expect(overviewTargets([...scene.slice(0, 6), gone]).map((e) => e.id)).toEqual(["backend", "isis", "chef", "in-drawing"]);
+    expect(overviewTargets([...scene.slice(0, 6), gone]).map((e) => e.id)).toEqual(["backend", "batman", "chef", "in-drawing"]);
   });
 
   it("frames the whole scene when there is no node", () => {
@@ -75,7 +75,7 @@ describe("overview (spec fenêtre §6.6)", () => {
   });
 
   it("fits them with an animation and a 10 % margin, then gives the keyboard to the canvas", () => {
-    const scene = [node("isis", "terminal")];
+    const scene = [node("batman", "terminal")];
     withScene(scene);
     overview();
     expect(scrollToContent).toHaveBeenCalledWith(scene, { fitToViewport: true, viewportZoomFactor: 0.9, animate: true, canvasOffsets: { top: 72, bottom: 60 } });

@@ -13,7 +13,7 @@ vi.mock("@/agents/terminals", () => ({ removeNode: vi.fn() }));
 
 beforeEach(() => {
   nodesStore.setState({
-    nodes: { n1: { workspaceId: "w1", kind: "terminal", payload: { title: "T", name: "Horus", agent: "claude", cwd: "C:/code", shell: "default", command: "" } } },
+    nodes: { n1: { workspaceId: "w1", kind: "terminal", payload: { title: "T", name: "Aquaman", agent: "claude", cwd: "C:/code", shell: "default", command: "" } } },
   });
   subagentNodesStore.setState({ agents: {}, dismissed: {} });
   subagentNodesStore.getState().upsert({ nodeId: "n1", agentId: "a1", agentType: "Explore", description: "Find the hooks", state: "running" });
@@ -38,7 +38,7 @@ it("shows its terminal, its title and its transcript as terminal lines, and turn
   const { host, root } = await render("el-1");
   const node = host.querySelector<HTMLElement>("[data-subagent='a1']")!;
   expect(node.dataset.state).toBe("running");
-  expect(node.querySelector("header")?.textContent).toContain("↳ Horus ›");
+  expect(node.querySelector("header")?.textContent).toContain("↳ Aquaman ›");
   expect(node.querySelector("header")?.textContent).toContain("Explore · Find the hooks");
   expect(node.textContent).toContain("Grep(SubagentStart)");
   expect(node.textContent).toContain("claude_settings.rs:31");

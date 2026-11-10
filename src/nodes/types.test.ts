@@ -17,7 +17,7 @@ describe("readTerminalPayload", () => {
   it("keeps a current payload as it is", () => {
     const payload = {
       title: "Ollama · api",
-      name: "Isis",
+      name: "Batman",
       agent: "ollama",
       cwd: "C:/api",
       shell: "powershell",
@@ -28,10 +28,10 @@ describe("readTerminalPayload", () => {
   });
 
   it("keeps an agent's message bar open only when it was opened", () => {
-    const isis = { title: "Isis", name: "Isis", agent: "claude", cwd: "C:/code", shell: "default", command: "" };
-    expect(readTerminalPayload({ ...isis, inputOpen: true })?.inputOpen).toBe(true);
-    expect(readTerminalPayload({ ...isis, inputOpen: false })).toEqual(isis);
-    expect(readTerminalPayload({ ...isis, inputOpen: "yes" })).toEqual(isis);
+    const batman = { title: "Batman", name: "Batman", agent: "claude", cwd: "C:/code", shell: "default", command: "" };
+    expect(readTerminalPayload({ ...batman, inputOpen: true })?.inputOpen).toBe(true);
+    expect(readTerminalPayload({ ...batman, inputOpen: false })).toEqual(batman);
+    expect(readTerminalPayload({ ...batman, inputOpen: "yes" })).toEqual(batman);
   });
 
   it("rejects what cannot be launched", () => {
@@ -110,7 +110,7 @@ describe("readFilePayload", () => {
 });
 
 describe("a minimized terminal (./terminal/minimize.ts)", () => {
-  const terminal = { title: "T", name: "Isis", agent: "claude", cwd: "C:/api", shell: "default", command: "" };
+  const terminal = { title: "T", name: "Batman", agent: "claude", cwd: "C:/api", shell: "default", command: "" };
 
   it("reads back that it is minimized, the height it expands to and its agent's last report", () => {
     const saved = { ...terminal, minimized: true, expandedHeight: 520, lastReport: { status: "done", summary: "All good" } };

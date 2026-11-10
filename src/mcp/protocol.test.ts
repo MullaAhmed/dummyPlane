@@ -6,7 +6,7 @@ it("maps the English tool names and arguments to the internal ones (spec premiè
   expect(internalCall("step", { title: "Plan", state: "done" })).toEqual({ name: "etape", args: { titre: "Plan", etat: "fait" } });
   expect(internalCall("report", { summary: "Fait", status: "blocked" })).toEqual({ name: "rendre_compte", args: { resume: "Fait", statut: "bloque" } });
   expect(internalCall("finish", { summary: "Fini" })).toEqual({ name: "terminer", args: { bilan: "Fini" } });
-  expect(internalCall("remote_control", { on: true, agents: ["all", "me", "Isis"] })).toEqual({ name: "remote_control", args: { actif: true, agents: ["tous", "moi", "Isis"] } });
+  expect(internalCall("remote_control", { on: true, agents: ["all", "me", "Batman"] })).toEqual({ name: "remote_control", args: { actif: true, agents: ["tous", "moi", "Batman"] } });
   expect(internalCall("propose_plan", { name: "Auth", task: "T", subtasks: [{ title: "Login", brief: "B", agent: "new", budget_min: 20, level: "high" }] })).toEqual({
     name: "proposer_plan",
     args: { nom: "Auth", tache: "T", sous_taches: [{ titre: "Login", consigne: "B", agent: "nouveau", budget_min: 20, niveau: "eleve" }] },
@@ -19,10 +19,10 @@ it("maps the English tool names and arguments to the internal ones (spec premiè
     args: { tasks: [{ titre: "T", consigne: "B", budget_min: 5, niveau: "eleve", groupe: "Front" }] },
   });
   expect(internalCall("queue", {}).name).toBe("queue");
-  expect(internalCall("next_task", { agent: "Isis" })).toEqual({ name: "next_task", args: { agent: "Isis" } });
+  expect(internalCall("next_task", { agent: "Batman" })).toEqual({ name: "next_task", args: { agent: "Batman" } });
   expect(internalCall("reassign", { subtask: "Login", agent: "new" })).toEqual({ name: "reattribuer", args: { sous_tache: "Login", agent: "nouveau" } });
-  expect(internalCall("read_output", { agent: "Isis", lines: 5 })).toEqual({ name: "lire_sortie", args: { agent: "Isis", lignes: 5 } });
-  expect(internalCall("write", { agent: "Isis", text: "go" })).toEqual({ name: "ecrire", args: { agent: "Isis", texte: "go" } });
+  expect(internalCall("read_output", { agent: "Batman", lines: 5 })).toEqual({ name: "lire_sortie", args: { agent: "Batman", lignes: 5 } });
+  expect(internalCall("write", { agent: "Batman", text: "go" })).toEqual({ name: "ecrire", args: { agent: "Batman", texte: "go" } });
 });
 
 it("still accepts French values, as a resumed conversation may send them", () => {

@@ -17,11 +17,11 @@ const agent = (id: string): WaitingAgent => ({ id, kind: "terminal", name: id, w
 
 describe("waitingAgents (spec notification §3)", () => {
   it("names the running agents waiting for an answer, the one waiting longest first", () => {
-    const nodes = { isis: terminal("w1", "Isis"), thot: terminal("w2", "Thoth") };
-    const list = waitingAgents(["w1", "w2"], nodes, { isis: running, thot: running }, { isis: waiting(20), thot: waiting(10) });
+    const nodes = { batman: terminal("w1", "Batman"), cyborg: terminal("w2", "Cyborg") };
+    const list = waitingAgents(["w1", "w2"], nodes, { batman: running, cyborg: running }, { batman: waiting(20), cyborg: waiting(10) });
     expect(list).toEqual([
-      { id: "thot", kind: "terminal", name: "Thoth", workspaceId: "w2", since: 10 },
-      { id: "isis", kind: "terminal", name: "Isis", workspaceId: "w1", since: 20 },
+      { id: "cyborg", kind: "terminal", name: "Cyborg", workspaceId: "w2", since: 10 },
+      { id: "batman", kind: "terminal", name: "Batman", workspaceId: "w1", since: 20 },
     ]);
   });
 
@@ -65,11 +65,11 @@ describe("currentWaitingAgents", () => {
 
   it("reads the open project's workspaces from the stores", () => {
     workspacesStore.setState({ workspaces: [{ id: "w1", projectId: "p1", name: "Workspace 1", position: 0, pantheon: null, kind: "canvas", folder: null }] });
-    nodesStore.setState({ nodes: { isis: terminal("w1", "Isis"), thot: terminal("w9", "Thoth") } });
-    terminalStatusStore.setState({ statuses: { isis: { state: "running" }, thot: { state: "running" } } });
-    agentActivityStore.getState().apply({ nodeId: "isis", activity: "waiting", since: 1 });
-    agentActivityStore.getState().apply({ nodeId: "thot", activity: "waiting", since: 2 });
-    expect(currentWaitingAgents().map((a) => a.id)).toEqual(["isis"]);
+    nodesStore.setState({ nodes: { batman: terminal("w1", "Batman"), cyborg: terminal("w9", "Cyborg") } });
+    terminalStatusStore.setState({ statuses: { batman: { state: "running" }, cyborg: { state: "running" } } });
+    agentActivityStore.getState().apply({ nodeId: "batman", activity: "waiting", since: 1 });
+    agentActivityStore.getState().apply({ nodeId: "cyborg", activity: "waiting", since: 2 });
+    expect(currentWaitingAgents().map((a) => a.id)).toEqual(["batman"]);
   });
 });
 

@@ -30,7 +30,7 @@ async function mount(node: React.ReactNode) {
   return { host, root };
 }
 
-const payload = { title: "Isis", name: "Isis", agent: "claude", cwd: "C:/code", shell: "default", command: "", claudeSessionId: "s" } as const;
+const payload = { title: "Batman", name: "Batman", agent: "claude", cwd: "C:/code", shell: "default", command: "", claudeSessionId: "s" } as const;
 
 it("labels the status pill in English", () => {
   expect(pillOf({ state: "running" })).toEqual({ label: "Active", tone: "live" });
@@ -50,7 +50,7 @@ it("tells in English how long the agent has been in its state", async () => {
 });
 
 it("shows the header's menus and tooltips in English", async () => {
-  const { host, root } = await mount(<TerminalHeader nodeId="isis" payload={payload} status={{ state: "stopped" }} onClose={() => {}} />);
+  const { host, root } = await mount(<TerminalHeader nodeId="batman" payload={payload} status={{ state: "stopped" }} onClose={() => {}} />);
   expect(host.querySelector('[aria-label="Agent"]')).not.toBeNull();
   expect(host.querySelector('[aria-label="More actions"]')).not.toBeNull();
   expect(host.querySelector('[aria-label="Close"]')).not.toBeNull();
@@ -62,21 +62,21 @@ it("shows the header's menus and tooltips in English", async () => {
 });
 
 it("offers to resume or restart in English", async () => {
-  const resume = await mount(<ResumeCard nodeId="isis" payload={payload} status={{ state: "stopped" }} />);
+  const resume = await mount(<ResumeCard nodeId="batman" payload={payload} status={{ state: "stopped" }} />);
   expect(resume.host.textContent).toContain("Resume the last conversation?");
   expect(resume.host.textContent).toContain("Click to resume · typing starts fresh");
   expect(resume.host.querySelector('[aria-label="Hide"]')).not.toBeNull();
   await act(async () => resume.root.unmount());
-  const plain = await mount(<ResumeCard nodeId="isis" payload={{ ...payload, agent: "shell" }} status={{ state: "stopped" }} />);
+  const plain = await mount(<ResumeCard nodeId="batman" payload={{ ...payload, agent: "shell" }} status={{ state: "stopped" }} />);
   expect(plain.host.textContent).toContain("Restart?");
   await act(async () => plain.root.unmount());
 });
 
 it("shows the options dialog in English", async () => {
   mockIPC(() => undefined);
-  await mount(<TerminalOptionsDialog nodeId="isis" payload={payload} onClose={() => {}} />);
+  await mount(<TerminalOptionsDialog nodeId="batman" payload={payload} onClose={() => {}} />);
   const text = document.body.textContent!;
-  expect(text).toContain("Options for Isis");
+  expect(text).toContain("Options for Batman");
   expect(text).toContain("Cancel");
   expect(text).toContain("Apply at next launch");
 });

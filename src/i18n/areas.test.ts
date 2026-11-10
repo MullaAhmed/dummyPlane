@@ -28,7 +28,7 @@ it("Agent install", () => {
 });
 
 it("The notice of an agent that waits", () => {
-  expect(messages(shellMessages).waitingNotice.question("Isis")).toBe("Isis has a question");
+  expect(messages(shellMessages).waitingNotice.question("Batman")).toBe("Batman has a question");
   expect([1, 3].map((n) => messages(shellMessages).waitingNotice.others(n))).toEqual(["+ 1 more", "+ 3 more"]);
 });
 

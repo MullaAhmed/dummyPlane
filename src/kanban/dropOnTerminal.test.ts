@@ -11,7 +11,7 @@ import { nodesStore } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
 import { dropCardOutside, sendCardToTerminal } from "./dropOnTerminal";
 
-const terminal = { cwd: "C:/", agent: "claude" as const, title: "Claude", name: "Isis", shell: "default" as const, command: "" };
+const terminal = { cwd: "C:/", agent: "claude" as const, title: "Claude", name: "Batman", shell: "default" as const, command: "" };
 const board = {
   columns: [{ id: "c1", title: "To do", cardIds: ["k1"] }],
   cards: { k1: { id: "k1", title: "Fix login", notes: "On Safari", priority: "high" as const } },

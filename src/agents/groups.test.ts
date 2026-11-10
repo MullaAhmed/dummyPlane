@@ -19,7 +19,7 @@ vi.mock("@excalidraw/excalidraw", () => ({ CaptureUpdateAction: { IMMEDIATELY: "
 vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { error: vi.fn() }) }));
 vi.mock("@/nodes/terminal/registry", () => ({ markForAutostart: vi.fn(), startUnseen: vi.fn(), disposeTerminal: vi.fn() }));
 vi.mock("./arrivals", async (importOriginal) => ({ ...(await importOriginal<typeof import("./arrivals")>()), announceArrival: vi.fn() }));
-vi.mock("./naming", async (importOriginal) => ({ ...(await importOriginal<typeof import("./naming")>()), nameForNewAgent: vi.fn(() => Promise.resolve("Isis")) }));
+vi.mock("./naming", async (importOriginal) => ({ ...(await importOriginal<typeof import("./naming")>()), nameForNewAgent: vi.fn(() => Promise.resolve("Batman")) }));
 vi.mock("./terminals", async (importOriginal) => ({ ...(await importOriginal<typeof import("./terminals")>()), addTerminal: vi.fn(() => Promise.resolve()) }));
 
 interface Element {
@@ -54,13 +54,13 @@ it("staffs a mission's group with the names, folders and pantheon it is given, a
     { name: "Mission Auth", role: "general", agents: ["claude", "claude"] },
     { cwd: "C:/code", shell: "default", title: "", command: "" },
     { x: 0, y: 0 },
-    { pantheon: "egyptian", names: ["Isis", "Horus"], cwds: ["C:/w/auth-isis", "C:/w/auth-horus"] },
+    { pantheon: "egyptian", names: ["Batman", "Aquaman"], cwds: ["C:/w/auth-batman", "C:/w/auth-aquaman"] },
   );
   const frame = scene.find((e) => e.type === "frame");
   expect(made?.frameId).toBe(frame?.id);
   expect(made!.nodeIds.map((id) => [terminalOf(nodesStore.getState().nodes[id])?.name, terminalOf(nodesStore.getState().nodes[id])?.cwd])).toEqual([
-    ["Isis", "C:/w/auth-isis"],
-    ["Horus", "C:/w/auth-horus"],
+    ["Batman", "C:/w/auth-batman"],
+    ["Aquaman", "C:/w/auth-aquaman"],
   ]);
   expect(frame?.customData?.dummyplane).toMatchObject({ kind: "group", pantheon: "egyptian" });
 });
@@ -122,7 +122,7 @@ it("shows a group too wide to read whole once, for all its agents to start, then
     { name: "Mission Auth", role: "general", agents: ["claude", "claude", "claude", "claude"] },
     { cwd: "C:/code", shell: "default", title: "", command: "" },
     { x: 0, y: 0 },
-    { pantheon: "egyptian", names: ["Isis", "Horus", "Thoth", "Anubis"], cwds: ["C:/a", "C:/b", "C:/c", "C:/d"] },
+    { pantheon: "egyptian", names: ["Batman", "Aquaman", "Cyborg", "Flash"], cwds: ["C:/a", "C:/b", "C:/c", "C:/d"] },
   );
   const scroll = vi.mocked(api.scrollToContent);
   await vi.waitFor(() => expect(scroll.mock.calls.length).toBeGreaterThan(1));
@@ -134,7 +134,7 @@ it("shows a group too wide to read whole once, for all its agents to start, then
 });
 
 describe("a group that arrives on its own (nobody asked for it)", () => {
-  const staffing = { pantheon: "egyptian", names: ["Isis", "Horus"], cwds: ["C:/a", "C:/b"] };
+  const staffing = { pantheon: "egyptian", names: ["Batman", "Aquaman"], cwds: ["C:/a", "C:/b"] };
   const options = { cwd: "C:/code", shell: "default" as const, title: "", command: "" };
 
   beforeEach(() => {
@@ -150,10 +150,10 @@ describe("a group that arrives on its own (nobody asked for it)", () => {
     expect(api.scrollToContent).not.toHaveBeenCalled();
     // After the wait Excalidraw is given to mount what is in sight and start it, sized.
     await vi.waitFor(() => expect(startUnseen).toHaveBeenCalledTimes(2));
-    expect(startUnseen).toHaveBeenCalledWith(made!.nodeIds[0], expect.objectContaining({ name: "Isis" }));
+    expect(startUnseen).toHaveBeenCalledWith(made!.nodeIds[0], expect.objectContaining({ name: "Batman" }));
     expect(announceArrival).toHaveBeenCalledWith("w1", "mission", [
-      { nodeId: made!.nodeIds[0], name: "Isis" },
-      { nodeId: made!.nodeIds[1], name: "Horus" },
+      { nodeId: made!.nodeIds[0], name: "Batman" },
+      { nodeId: made!.nodeIds[1], name: "Aquaman" },
     ]);
   });
 
@@ -172,7 +172,7 @@ it("gives each agent of a staffed group the model the router chose, and none oth
     { name: "Mission Auth", role: "general", agents: ["claude", "claude"] },
     { cwd: "C:/code", shell: "default", title: "", command: "" },
     { x: 0, y: 0 },
-    { pantheon: "egyptian", names: ["Isis", "Horus"], cwds: ["C:/a", "C:/b"], models: ["opus", undefined] },
+    { pantheon: "egyptian", names: ["Batman", "Aquaman"], cwds: ["C:/a", "C:/b"], models: ["opus", undefined] },
   );
   expect(made!.nodeIds.map((id) => terminalOf(nodesStore.getState().nodes[id])?.model)).toEqual(["opus", undefined]);
 });
@@ -196,12 +196,12 @@ describe("a scene not on screen (spec mission de nuit §6.1)", () => {
   it("makes a group in the stored scene, saves every node, and starts its agents: nothing mounts them", async () => {
     const scroll = vi.mocked(canvasStore.getState().api!.scrollToContent);
     scroll.mockClear();
-    const made = await launchGroup({ name: "Mission Auth", role: "general", agents: ["claude"] }, options, { x: 0, y: 0 }, { pantheon: "egyptian", names: ["Isis"], cwds: ["C:/w/isis"], workspaceId: "w1" });
+    const made = await launchGroup({ name: "Mission Auth", role: "general", agents: ["claude"] }, options, { x: 0, y: 0 }, { pantheon: "egyptian", names: ["Batman"], cwds: ["C:/w/batman"], workspaceId: "w1" });
     const ids = cachedElements("w1")!.map((e) => e.id);
     expect(ids).toEqual(expect.arrayContaining(["kept", made!.frameId, made!.nodeIds[0]]));
     expect(scene).toEqual([]);
     expect(scroll).not.toHaveBeenCalled();
-    expect(startUnseen).toHaveBeenCalledWith(made!.nodeIds[0], expect.objectContaining({ cwd: "C:/w/isis" }));
+    expect(startUnseen).toHaveBeenCalledWith(made!.nodeIds[0], expect.objectContaining({ cwd: "C:/w/batman" }));
     // The save purges the rows of nodes it does not list.
     expect(saved().nodeIds).toEqual(expect.arrayContaining(["kept", made!.nodeIds[0]]));
     forgetScene("w1");

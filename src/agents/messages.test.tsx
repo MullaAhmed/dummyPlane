@@ -42,7 +42,7 @@ describe("catalogs in English", () => {
     // The characters keep their names.
     expect(PANTHEONS.find((p) => p.id === "marvel")!.names[0]).toBe("Thor");
     expect(PANEL_FILTERS.map((f) => f.label)).toEqual(["All", "Waiting", "Working", "Done"]);
-    expect(panelSections([{ id: "a", name: "Isis", agent: "claude", state: "idle" }], [], "all")[0].name).toBe("No group");
+    expect(panelSections([{ id: "a", name: "Batman", agent: "claude", state: "idle" }], [], "all")[0].name).toBe("No group");
   });
 
   it("uses the English labels", () => {
@@ -67,10 +67,10 @@ describe("catalogs in English", () => {
   });
 
   it("words the broadcast warnings and the pause toasts", () => {
-    expect(skippedText(["Thoth"])).toBe("1 stopped agent ignored: Thoth");
-    expect(skippedText(["Thoth", "Anubis"])).toBe("2 stopped agents ignored: Thoth, Anubis");
-    expect(waitingText(["Horus"])).toBe("1 waiting agent ignored: Horus — answer it in its terminal");
-    expect(unsuitedText(["Thoth"])).toBe("1 terminal without an agent ignored: Thoth — a / command only goes to agents");
+    expect(skippedText(["Cyborg"])).toBe("1 stopped agent ignored: Cyborg");
+    expect(skippedText(["Cyborg", "Flash"])).toBe("2 stopped agents ignored: Cyborg, Flash");
+    expect(waitingText(["Aquaman"])).toBe("1 waiting agent ignored: Aquaman — answer it in its terminal");
+    expect(unsuitedText(["Cyborg"])).toBe("1 terminal without an agent ignored: Cyborg — a / command only goes to agents");
     expect(skippedText([])).toBeNull();
     expect(pausedText(0)).toBe("No running agent to pause");
     expect(pausedText(3)).toBe("3 agents paused");
@@ -87,7 +87,7 @@ describe("catalogs in English", () => {
 
 describe("targets in both languages", () => {
   const frames: SceneFrame[] = [];
-  const agents: TargetAgent[] = [{ id: "a", name: "Isis", groupName: null }];
+  const agents: TargetAgent[] = [{ id: "a", name: "Batman", groupName: null }];
 
   it("shows @all in English", () => {
     expect(targetOptions(agents, frames)[0].label).toBe("@all");
@@ -164,7 +164,7 @@ describe("components in English", () => {
   });
 
   it("shows the @ list in English, the bar staying open (final review R5a)", async () => {
-    const agents: TargetAgent[] = [{ id: "b", name: "Thoth", groupName: null }];
+    const agents: TargetAgent[] = [{ id: "b", name: "Cyborg", groupName: null }];
     await act(async () =>
       root.render(<CommandInput agents={agents} groups={[]} fallback={[]} placeholder="Consigne" emptyHint="Tape @" />),
     );
@@ -177,11 +177,11 @@ describe("components in English", () => {
     });
     const options = () => [...host.querySelectorAll('[role="option"]')].map((o) => o.textContent);
     expect(options()[0]).toContain("@all");
-    expect(options()).toEqual(["@all1 agent", "@thothNo group"]);
+    expect(options()).toEqual(["@all1 agent", "@cyborgNo group"]);
   });
 
   it("words the command bar and sends @all to every agent", async () => {
-    const agents: TargetAgent[] = [{ id: "b", name: "Thoth", groupName: null }];
+    const agents: TargetAgent[] = [{ id: "b", name: "Cyborg", groupName: null }];
     vi.mocked(sendCommand).mockClear();
     await act(async () =>
       root.render(<CommandInput agents={agents} groups={[]} fallback={[]} placeholder="Instruction" emptyHint="Type @" />),
@@ -196,7 +196,7 @@ describe("components in English", () => {
       });
     };
     await type("@");
-    expect([...host.querySelectorAll('[role="option"]')].map((o) => o.textContent)).toEqual(["@all1 agent", "@thothNo group"]);
+    expect([...host.querySelectorAll('[role="option"]')].map((o) => o.textContent)).toEqual(["@all1 agent", "@cyborgNo group"]);
     await type("@all /");
     expect(host.textContent).toContain("Summarize the conversation to free up context");
     await type("/effort @nobody");

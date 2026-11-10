@@ -92,8 +92,8 @@ it("takes back a copied fleet when Claude Code is not installed", async () => {
 });
 
 it("asks before closing a working fleet, with its wires; a stopped one goes at once (spec première version §5.4)", () => {
-  const wire = { id: "fil", type: "arrow", startBinding: { elementId: "chef" }, endBinding: { elementId: "isis" } };
-  scene = [{ id: "chef", type: "embeddable" }, wire as (typeof scene)[number], { id: "isis", type: "embeddable" }];
+  const wire = { id: "fil", type: "arrow", startBinding: { elementId: "chef" }, endBinding: { elementId: "batman" } };
+  scene = [{ id: "chef", type: "embeddable" }, wire as (typeof scene)[number], { id: "batman", type: "embeddable" }];
   terminalStatusStore.getState().set("chef", { state: "running" });
   requestCloseFleet("chef");
   expect(uiStore.getState().closing).toEqual({ agents: ["chef"], remove: ["chef", "fil"] });

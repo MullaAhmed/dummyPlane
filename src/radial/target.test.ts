@@ -18,9 +18,9 @@ const pick = (point: { x: number; y: number }, elements: ExcalidrawElement[], fi
 describe("what is under a right press (spec menu radial §6.4)", () => {
   it("reads a node's body from the page, and leaves text fields their own right click", () => {
     document.body.innerHTML =
-      '<div data-terminal="isis"><div class="xterm"><span id="text"></span><textarea id="xterm-input"></textarea></div><input id="name" /></div><div data-fleet="chef"><span id="chef"></span><textarea id="field"></textarea></div><div id="else"></div>';
+      '<div data-terminal="batman"><div class="xterm"><span id="text"></span><textarea id="xterm-input"></textarea></div><input id="name" /></div><div data-fleet="chef"><span id="chef"></span><textarea id="field"></textarea></div><div id="else"></div>';
     const at = (id: string) => document.getElementById(id)!;
-    expect(domTarget(at("text"))).toEqual({ kind: "terminal", id: "isis" });
+    expect(domTarget(at("text"))).toEqual({ kind: "terminal", id: "batman" });
     expect(domTarget(at("chef"))).toEqual({ kind: "fleet", id: "chef" });
     expect(domTarget(at("else"))).toBeNull();
     expect([isTextField(at("xterm-input")), isTextField(at("name")), isTextField(at("field")), isTextField(at("text"))]).toEqual([false, true, true, false]);
@@ -66,19 +66,19 @@ describe("what is under a right press (spec menu radial §6.4)", () => {
     const a = element("a", {});
     const b = element("b", { x: 300 });
     expect(sceneTarget(pick({ x: 200, y: 50 }, [a, b], { selectedIds: ["a", "b"] }))).toEqual({ kind: "selection", ids: ["a", "b"] });
-    const terminal = element("isis", { type: "embeddable", customData: { kind: "terminal" } });
-    expect(sceneTarget(pick({ x: 50, y: 50 }, [terminal], { selectedIds: ["isis"] }))).toEqual({ kind: "terminal", id: "isis" });
+    const terminal = element("batman", { type: "embeddable", customData: { kind: "terminal" } });
+    expect(sceneTarget(pick({ x: 50, y: 50 }, [terminal], { selectedIds: ["batman"] }))).toEqual({ kind: "terminal", id: "batman" });
   });
 
   it("finds a node drawn on the canvas, a group by its frame or its label, an ordinary frame as a drawing", () => {
     const chef = element("chef", { type: "embeddable", customData: { kind: STORED_FLEET_KIND }, x: 500 });
     const group = element("g1", { type: "frame", x: 0, y: 200, width: 400, height: 300 });
     const plain = element("f2", { type: "frame", x: 600, y: 200, width: 200, height: 200 });
-    const member = element("ra", { type: "embeddable", customData: { kind: "terminal" }, x: 20, y: 220, frameId: "g1" });
+    const member = element("robin", { type: "embeddable", customData: { kind: "terminal" }, x: 20, y: 220, frameId: "g1" });
     const scene = [group, plain, member, chef];
     const groups = { groupIds: new Set(["g1"]) };
     expect(sceneTarget(pick({ x: 550, y: 50 }, scene, groups))).toEqual({ kind: "fleet", id: "chef" });
-    expect(sceneTarget(pick({ x: 50, y: 250 }, scene, groups))).toEqual({ kind: "terminal", id: "ra" });
+    expect(sceneTarget(pick({ x: 50, y: 250 }, scene, groups))).toEqual({ kind: "terminal", id: "robin" });
     expect(sceneTarget(pick({ x: 300, y: 450 }, scene, groups))).toEqual({ kind: "group", id: "g1" });
     expect(sceneTarget(pick({ x: 50, y: 185 }, scene, groups))).toEqual({ kind: "group", id: "g1" });
     expect(sceneTarget(pick({ x: 700, y: 300 }, scene, groups))).toEqual({ kind: "selection", ids: ["f2"] });

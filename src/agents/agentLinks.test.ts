@@ -22,36 +22,36 @@ beforeAll(async () => {
   canvasStore.setState({ api: { getSceneElementsIncludingDeleted: () => scene, updateScene } as never });
   const terminal = (id: string, agent: "claude" | "codex" | "shell") =>
     nodesStore.getState().create(id, { workspaceId: "w1", kind: "terminal", payload: { title: "", name: id, agent, cwd: "C:/code", shell: "default", command: "" } });
-  await terminal("isis", "claude");
-  await terminal("thot", "codex");
+  await terminal("batman", "claude");
+  await terminal("cyborg", "codex");
   await terminal("sh", "shell");
 });
 beforeEach(() => {
-  scene = [element("isis", 0), element("thot", 1200), element("sh", 2400)];
+  scene = [element("batman", 0), element("cyborg", 1200), element("sh", 2400)];
   updateScene.mockClear();
 });
 
 it("wires two agents in one undo step, then reads the link from both ends", () => {
-  linkAgents("isis", "thot");
+  linkAgents("batman", "cyborg");
   expect(updateScene).toHaveBeenCalledTimes(1);
   expect(updateScene.mock.calls[0][0]).toMatchObject({ captureUpdate: "immediately" });
   expect(wires()).toHaveLength(1);
-  expect(linkedAgentsOf("isis")).toEqual([{ nodeId: "thot", name: "thot", outgoing: true }]);
-  expect(linkedAgentsOf("thot")).toEqual([{ nodeId: "isis", name: "isis", outgoing: false }]);
+  expect(linkedAgentsOf("batman")).toEqual([{ nodeId: "cyborg", name: "cyborg", outgoing: true }]);
+  expect(linkedAgentsOf("cyborg")).toEqual([{ nodeId: "batman", name: "batman", outgoing: false }]);
 });
 
 it("writes nothing for a pair already linked, either way round, nor for an agent and itself", () => {
-  linkAgents("isis", "thot");
-  linkAgents("thot", "isis");
-  linkAgents("isis", "thot");
-  linkAgents("isis", "isis");
+  linkAgents("batman", "cyborg");
+  linkAgents("cyborg", "batman");
+  linkAgents("batman", "cyborg");
+  linkAgents("batman", "batman");
   expect(updateScene).toHaveBeenCalledTimes(1);
   expect(wires()).toHaveLength(1);
 });
 
 it("never links a plain shell", () => {
-  linkAgents("isis", "sh");
-  linkAgents("sh", "isis");
+  linkAgents("batman", "sh");
+  linkAgents("sh", "batman");
   expect(updateScene).not.toHaveBeenCalled();
-  expect(linkedAgentsOf("isis")).toEqual([]);
+  expect(linkedAgentsOf("batman")).toEqual([]);
 });

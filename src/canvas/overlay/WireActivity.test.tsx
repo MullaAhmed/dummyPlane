@@ -19,10 +19,10 @@ beforeEach(async () => {
   clearWirePulses();
   canvasStore.setState({
     view: { ...EMPTY_VIEW, zoom: 0.5, scrollX: 100, scrollY: -20 },
-    frames: [{ id: "backend", group: { role: "backend" }, memberIds: ["isis"] }] as unknown as SceneFrame[],
+    frames: [{ id: "backend", group: { role: "backend" }, memberIds: ["batman"] }] as unknown as SceneFrame[],
     wires: [
       { id: "w1", fleetId: "chef", targetId: "backend", points: [{ x: 0, y: 0 }, { x: 50, y: 0 }, { x: 50, y: 80 }] },
-      { id: "w2", fleetId: "chef", targetId: "seth", points: [{ x: 0, y: 0 }, { x: 0, y: 300 }] },
+      { id: "w2", fleetId: "chef", targetId: "shazam", points: [{ x: 0, y: 0 }, { x: 0, y: 300 }] },
     ],
   });
   host = document.createElement("div");
@@ -42,7 +42,7 @@ it("mounts nothing while the wires are quiet", () => {
 });
 
 it("runs a light along the wire of a message, the way it goes, at the view's scale, then takes it away", async () => {
-  await act(async () => signalWire("isis", "toFleet", "chef"));
+  await act(async () => signalWire("batman", "toFleet", "chef"));
   const svg = host.querySelector<SVGSVGElement>("[data-wire-activity]")!;
   expect(svg.getAttribute("class")).toContain("pointer-events-none");
   expect(svg.querySelector("g")!.getAttribute("transform")).toBe("scale(0.5) translate(100 -20)");
@@ -59,12 +59,12 @@ it("runs a light along the wire of a message, the way it goes, at the view's sca
 });
 
 it("lights only the wires that carry a message", async () => {
-  await act(async () => signalWire("seth", "toAgent"));
+  await act(async () => signalWire("shazam", "toAgent"));
   expect([...host.querySelectorAll<SVGGElement>("[data-wire]")].map((g) => [g.dataset.wire, g.dataset.direction])).toEqual([["w2", "toAgent"]]);
   expect(host.querySelector("[data-wire] path")!.getAttribute("d")).toBe("M0 0 L0 300");
 });
 
 it("shows nothing for a message between agents and fleets no wire joins", async () => {
-  await act(async () => signalWire("isis", "toAgent", "boss"));
+  await act(async () => signalWire("batman", "toAgent", "boss"));
   expect(host.innerHTML).toBe("");
 });

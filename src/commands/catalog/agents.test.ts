@@ -12,9 +12,9 @@ import { AGENT_COMMANDS } from "./agents";
 vi.mock("@excalidraw/excalidraw", () => ({}));
 vi.mock("@/agents/quickActions", () => ({ launchAt: vi.fn(), newConsole: vi.fn(), newTerminalInFolder: vi.fn(), placeFleet: vi.fn() }));
 vi.mock("@/kanban/place", () => ({ placeKanban: vi.fn() }));
-vi.mock("@/agents/broadcast", () => ({ pauseAll: vi.fn(() => Promise.resolve()), resumeAll: vi.fn(() => Promise.resolve()), workspaceTerminalIds: () => ["isis"] }));
+vi.mock("@/agents/broadcast", () => ({ pauseAll: vi.fn(() => Promise.resolve()), resumeAll: vi.fn(() => Promise.resolve()), workspaceTerminalIds: () => ["batman"] }));
 
-const busy: CommandContext = { project: true, workspaceId: "w1", terminalCount: 1, terminalId: "isis" };
+const busy: CommandContext = { project: true, workspaceId: "w1", terminalCount: 1, terminalId: "batman" };
 const find = (id: string) => AGENT_COMMANDS.find((c) => c.id === id)!;
 
 beforeEach(() => {
@@ -107,8 +107,8 @@ describe("Agents (spec fenêtre §7.3)", () => {
     await find("agents.pauseAll").run(busy);
     await find("agents.resumeAll").run(busy);
     expect([newConsole, placeFleet].every((f) => vi.mocked(f).mock.calls.length === 1)).toBe(true);
-    expect(pauseAll).toHaveBeenCalledWith(["isis"]);
-    expect(resumeAll).toHaveBeenCalledWith(["isis"]);
+    expect(pauseAll).toHaveBeenCalledWith(["batman"]);
+    expect(resumeAll).toHaveBeenCalledWith(["batman"]);
   });
 
   it("creates where the radial menu was opened, when it says where", async () => {

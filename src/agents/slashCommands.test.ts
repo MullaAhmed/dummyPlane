@@ -16,7 +16,7 @@ describe("isSlashCommand", () => {
 describe("commandAt", () => {
   it("finds the /word typed at the start of the command, after its mentions", () => {
     expect(commandAt("/ef", 3)).toEqual({ start: 0, query: "ef" });
-    expect(commandAt("@thot/zeus /rem", 15)).toEqual({ start: 11, query: "rem" });
+    expect(commandAt("@thor/hulk /rem", 15)).toEqual({ start: 11, query: "rem" });
     expect(commandAt("/", 1)).toEqual({ start: 0, query: "" });
   });
 

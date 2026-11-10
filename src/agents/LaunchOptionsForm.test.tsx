@@ -8,7 +8,7 @@ import { LaunchOptionsForm } from "./LaunchOptionsForm";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-const VALUE: LaunchOptions = { cwd: "D:/wt/isis", shell: "powershell", title: "Isis", command: "" };
+const VALUE: LaunchOptions = { cwd: "D:/wt/batman", shell: "powershell", title: "Batman", command: "" };
 
 let root: Root;
 const onChange = vi.fn();
@@ -40,7 +40,7 @@ const browse = () => document.body.querySelector('[aria-label="Browse"]');
 
 it("edits the launch folder and offers Browse, with no hint, unless it is locked", async () => {
   await mount();
-  expect(folder().value).toBe("D:/wt/isis");
+  expect(folder().value).toBe("D:/wt/batman");
   expect(folder().readOnly).toBe(false);
   expect(folder().hasAttribute("aria-describedby")).toBe(false);
   expect(browse()).not.toBeNull();
@@ -53,7 +53,7 @@ it("edits the launch folder and offers Browse, with no hint, unless it is locked
 
 it("shows a locked folder as it is, read-only and still focusable, with the reason under it and no Browse", async () => {
   await mount("Fixed while its mission runs");
-  expect(folder().value).toBe("D:/wt/isis");
+  expect(folder().value).toBe("D:/wt/batman");
   expect(folder().readOnly).toBe(true);
   expect(folder().disabled).toBe(false);
   expect(document.getElementById(folder().getAttribute("aria-describedby")!)!.textContent).toBe("Fixed while its mission runs");

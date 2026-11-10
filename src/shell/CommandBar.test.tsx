@@ -27,7 +27,7 @@ let root: Root;
 beforeEach(async () => {
   mockIPC(() => undefined);
   vi.mocked(sendCommand).mockClear();
-  nodesStore.setState({ nodes: { t1: terminal("Thoth"), t2: terminal("Zeus") } });
+  nodesStore.setState({ nodes: { t1: terminal("Cyborg"), t2: terminal("Deadpool") } });
   canvasStore.setState({ nodeIds: ["t1", "t2"], frames: [], view: EMPTY_VIEW });
   terminalStatusStore.setState({ statuses: { t1: { state: "running" }, t2: { state: "running" } } });
   activeTerminalStore.setState({ id: null });
@@ -75,15 +75,15 @@ it("keeps Send grey with nothing selected and no @, saying how to target", async
   expect(host.textContent).toContain("Select agents or type @");
 });
 
-it("enables Send with nothing selected for @thoth", async () => {
-  await type("@thoth run tests");
+it("enables Send with nothing selected for @cyborg", async () => {
+  await type("@cyborg run tests");
   expect(sendButton().disabled).toBe(false);
   await act(async () => sendButton().click());
   expect(sendCommand).toHaveBeenCalledWith(["t1"], "run tests");
 });
 
 it("names an unnamed terminal after its agent: @claude targets it", async () => {
-  await act(async () => nodesStore.setState({ nodes: { t1: terminal(""), t2: terminal("Zeus") } }));
+  await act(async () => nodesStore.setState({ nodes: { t1: terminal(""), t2: terminal("Deadpool") } }));
   await type("@claude run tests");
   expect(sendButton().disabled).toBe(false);
   await act(async () => sendButton().click());
@@ -119,11 +119,11 @@ const activate = (id: string | null) => act(async () => setActiveTerminal(id));
 
 it("sends to the active terminal with nothing selected and no @, and says to whom", async () => {
   await activate("t1");
-  expect(field().placeholder).toContain("Thoth");
+  expect(field().placeholder).toContain("Cyborg");
   await type("run tests");
   expect(sendButton().disabled).toBe(false);
-  expect(sendButton().title).toBe("Send to Thoth");
-  expect(host.textContent).toContain("To Thoth");
+  expect(sendButton().title).toBe("Send to Cyborg");
+  expect(host.textContent).toContain("To Cyborg");
   await act(async () => sendButton().click());
   expect(sendCommand).toHaveBeenCalledWith(["t1"], "run tests");
 });
@@ -132,23 +132,23 @@ it("keeps the generic placeholder and a grey Send when no terminal is active", a
   expect(field().placeholder).toBe("Message agents");
   await type("run tests");
   expect(sendButton().disabled).toBe(true);
-  expect(host.textContent).not.toContain("To Thoth");
+  expect(host.textContent).not.toContain("To Cyborg");
 });
 
 it("prefers the selection to the active terminal", async () => {
   await activate("t1");
   await select(["t2"]);
-  expect(field().placeholder).not.toContain("Thoth");
+  expect(field().placeholder).not.toContain("Cyborg");
   await type("run tests");
-  expect(host.textContent).not.toContain("To Thoth");
+  expect(host.textContent).not.toContain("To Cyborg");
   await act(async () => sendButton().click());
   expect(sendCommand).toHaveBeenCalledWith(["t2"], "run tests");
 });
 
 it("prefers an @ target to the active terminal", async () => {
   await activate("t1");
-  await type("@zeus run tests");
-  expect(host.textContent).not.toContain("To Thoth");
+  await type("@deadpool run tests");
+  expect(host.textContent).not.toContain("To Cyborg");
   await act(async () => sendButton().click());
   expect(sendCommand).toHaveBeenCalledWith(["t2"], "run tests");
 });
@@ -156,10 +156,10 @@ it("prefers an @ target to the active terminal", async () => {
 it("does not send to the active terminal behind a selection that holds no agent", async () => {
   await activate("t1");
   await select(["orphan"]);
-  expect(field().placeholder).not.toContain("Thoth");
+  expect(field().placeholder).not.toContain("Cyborg");
   await type("run tests");
   expect(sendButton().disabled).toBe(true);
-  expect(host.textContent).not.toContain("To Thoth");
+  expect(host.textContent).not.toContain("To Cyborg");
 });
 
 it("does not count an active terminal that was closed", async () => {
@@ -167,7 +167,7 @@ it("does not count an active terminal that was closed", async () => {
   await act(async () => canvasStore.setState({ nodeIds: ["t2"] }));
   await type("run tests");
   expect(sendButton().disabled).toBe(true);
-  expect(field().placeholder).not.toContain("Thoth");
+  expect(field().placeholder).not.toContain("Cyborg");
 });
 
 it("does not count an active terminal whose session stopped, and counts it again once it runs", async () => {

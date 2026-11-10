@@ -16,7 +16,7 @@ import { installFollowWaiting } from "./followWaiting";
 vi.mock("@/nodes/terminal/registry", () => ({ focusTerminal: vi.fn() }));
 vi.mock("@/nodes/terminal/minimize", () => ({ expandTerminal: vi.fn(() => false) }));
 
-const isis = { id: "isis", type: "embeddable", customData: { kind: "terminal" }, x: 100, y: 200, width: 720, height: 440 };
+const batman = { id: "batman", type: "embeddable", customData: { kind: "terminal" }, x: 100, y: 200, width: 720, height: 440 };
 const updateScene = vi.fn();
 let frames: FrameRequestCallback[];
 let uninstall: () => void;
@@ -26,14 +26,14 @@ beforeEach(() => {
   vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => frames.push(callback));
   vi.spyOn(document, "hasFocus").mockReturnValue(true);
   updateScene.mockClear();
-  document.body.innerHTML = '<div data-terminal="isis"><div class="xterm"><textarea></textarea></div></div>';
+  document.body.innerHTML = '<div data-terminal="batman"><div class="xterm"><textarea></textarea></div></div>';
   vi.mocked(focusTerminal).mockImplementation(() => document.querySelector("textarea")!.focus());
   followWaitingStore.setState({ enabled: true });
   canvasStore.setState({
     view: EMPTY_VIEW,
     // Zoomed out: the terminal is not shown whole at 100 %, so the arrival moves the view.
     api: {
-      getSceneElements: () => [isis],
+      getSceneElements: () => [batman],
       getAppState: () => ({ scrollX: 0, scrollY: 0, zoom: { value: 0.5 }, width: 1400, height: 900 }),
       updateScene,
     } as unknown as ExcalidrawImperativeAPI,
@@ -42,9 +42,9 @@ beforeEach(() => {
   projectsStore.setState({ view: "project" });
   workspacesStore.setState({ workspaces: [{ id: "w1", projectId: "p1", name: "Workspace 1", position: 0, pantheon: null, kind: "canvas", folder: null }], activeId: "w1" });
   nodesStore.setState({
-    nodes: { isis: { workspaceId: "w1", kind: "terminal", payload: { title: "Isis", name: "Isis", agent: "claude", cwd: "C:/code", shell: "default", command: "" } } },
+    nodes: { batman: { workspaceId: "w1", kind: "terminal", payload: { title: "Batman", name: "Batman", agent: "claude", cwd: "C:/code", shell: "default", command: "" } } },
   } as never);
-  terminalStatusStore.setState({ statuses: { isis: { state: "running" } } });
+  terminalStatusStore.setState({ statuses: { batman: { state: "running" } } });
   agentActivityStore.setState({ activities: {} });
   uninstall = installFollowWaiting();
 });
@@ -56,11 +56,11 @@ afterEach(() => {
 });
 
 it("brings the view to the terminal that asks, and gives it the keyboard", () => {
-  agentActivityStore.getState().apply({ nodeId: "isis", activity: "waiting", since: 1 });
+  agentActivityStore.getState().apply({ nodeId: "batman", activity: "waiting", since: 1 });
   const { appState } = updateScene.mock.calls[0][0];
   expect(appState.zoom.value).toBe(1);
   expect(appState.scrollX).toBe(1400 / 2 - (100 + 720 / 2));
-  expect(appState.activeEmbeddable).toEqual({ element: isis, state: "active" });
+  expect(appState.activeEmbeddable).toEqual({ element: batman, state: "active" });
   frames.forEach((frame) => frame(0));
-  expect(terminalWithKeyboard()).toBe("isis");
+  expect(terminalWithKeyboard()).toBe("batman");
 });

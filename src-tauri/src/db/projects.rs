@@ -516,7 +516,7 @@ mod tests {
                 nodes::NodeKind::Fleet,
                 r#"{"name":"Chef","session":{"cwd":"C:/code/api","agent":"claude"},
                     "mission":{"project":"C:/code/api","worktree":"C:/code/api/w","state":"en_cours",
-                    "members":[{"name":"Isis","worktree":"C:/code/api/w/isis"},{"name":"Thoth","worktree":"D:/x"}]}}"#,
+                    "members":[{"name":"Batman","worktree":"C:/code/api/w/batman"},{"name":"Cyborg","worktree":"D:/x"}]}}"#,
             )?;
             relocate(conn, &project.id, "D:\\api")?;
             let json: String = conn.query_row(
@@ -528,7 +528,7 @@ mod tests {
             assert_eq!(payload["session"]["cwd"], "D:\\api");
             assert_eq!(payload["mission"]["project"], "D:\\api");
             assert_eq!(payload["mission"]["worktree"], "D:\\api\\w");
-            assert_eq!(payload["mission"]["members"][0]["worktree"], "D:\\api\\w\\isis");
+            assert_eq!(payload["mission"]["members"][0]["worktree"], "D:\\api\\w\\batman");
             assert_eq!(payload["mission"]["members"][1]["worktree"], "D:/x");
             assert_eq!(payload["mission"]["state"], "en_cours");
             Ok(())

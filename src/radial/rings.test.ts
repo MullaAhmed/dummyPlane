@@ -19,18 +19,18 @@ vi.mock("@/nodes/terminal/registry", async (importOriginal) => ({
   terminalSelection: vi.fn(() => ""),
 }));
 
-const ctx: CommandContext = { project: true, workspaceId: "w1", terminalCount: 1, terminalId: "isis", at: { x: 0, y: 0 }, groupId: "g1", fleetId: "chef" };
+const ctx: CommandContext = { project: true, workspaceId: "w1", terminalCount: 1, terminalId: "batman", at: { x: 0, y: 0 }, groupId: "g1", fleetId: "chef" };
 const labels = (kind: keyof typeof RINGS) => RINGS[kind].map((slot) => lineOf(slot, ctx)!.label);
 
 beforeAll(async () => {
   mockIPC(() => undefined);
-  await nodesStore.getState().create("isis", {
+  await nodesStore.getState().create("batman", {
     workspaceId: "w1",
     kind: "terminal",
-    payload: { title: "Isis", name: "Isis", agent: "claude", cwd: "C:/code", shell: "default", command: "" },
+    payload: { title: "Batman", name: "Batman", agent: "claude", cwd: "C:/code", shell: "default", command: "" },
   });
   await nodesStore.getState().create("chef", { workspaceId: "w1", kind: "fleet", payload: { name: "chef" } });
-  canvasStore.setState({ frames: [{ id: "g1", name: "Serveurs", x: 0, y: 0, width: 10, height: 10, group: { role: "backend", pantheon: "egypt" }, memberIds: ["isis"] }] });
+  canvasStore.setState({ frames: [{ id: "g1", name: "Serveurs", x: 0, y: 0, width: 10, height: 10, group: { role: "backend", pantheon: "egypt" }, memberIds: ["batman"] }] });
   agentsStore.setState({ agents: [{ id: "claude", available: true }] } as never);
 });
 
@@ -101,12 +101,12 @@ describe("the wedges' short names", () => {
   });
 
   it("follows the moment: Pause or Resume, Lock or Unlock", () => {
-    terminalStatusStore.getState().set("isis", { state: "running" });
+    terminalStatusStore.getState().set("batman", { state: "running" });
     expect(lineOf(RINGS.terminal[6]!, ctx)!.short).toBe("Resume");
-    agentActivityStore.setState({ activities: { isis: { activity: "working" } } } as never);
+    agentActivityStore.setState({ activities: { batman: { activity: "working" } } } as never);
     expect(lineOf(RINGS.terminal[6]!, ctx)!.short).toBe("Pause");
     agentActivityStore.setState({ activities: {} } as never);
-    terminalStatusStore.getState().set("isis", { state: "stopped" });
+    terminalStatusStore.getState().set("batman", { state: "stopped" });
     const lock = () => lineOf(RINGS.selection[6]!, ctx)!;
     const api = (locked: boolean) =>
       ({ getSceneElements: () => [{ id: "r1", locked }], getAppState: () => ({ selectedElementIds: { r1: true } }) }) as unknown as ExcalidrawImperativeAPI;

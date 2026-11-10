@@ -1196,12 +1196,12 @@ mod tests {
             .unwrap()
         };
         assert_eq!(
-            with_remote(ClaudeMode::New, "Mon agent", "Isis"),
-            format!("claude --session-id {SESSION} -n 'Mon agent' --remote-control 'Isis'")
+            with_remote(ClaudeMode::New, "Mon agent", "Batman"),
+            format!("claude --session-id {SESSION} -n 'Mon agent' --remote-control 'Batman'")
         );
         assert_eq!(
-            with_remote(ClaudeMode::Resume, "", "Isis"),
-            format!("claude --resume {SESSION} --remote-control 'Isis'")
+            with_remote(ClaudeMode::Resume, "", "Batman"),
+            format!("claude --resume {SESSION} --remote-control 'Batman'")
         );
         // Without a name, the flag ends the line: it takes no argument of the command for one.
         assert_eq!(
@@ -1303,10 +1303,10 @@ mod tests {
         let launch =
             |claude: serde_json::Value| -> ClaudeLaunch { serde_json::from_value(claude).unwrap() };
         assert_eq!(
-            launch(serde_json::json!({ "mode": "new", "sessionId": SESSION, "title": "t", "remoteControl": "Isis" }))
+            launch(serde_json::json!({ "mode": "new", "sessionId": SESSION, "title": "t", "remoteControl": "Batman" }))
                 .remote_control
                 .as_deref(),
-            Some("Isis")
+            Some("Batman")
         );
         assert_eq!(
             launch(serde_json::json!({ "mode": "new", "sessionId": SESSION, "title": "t" }))

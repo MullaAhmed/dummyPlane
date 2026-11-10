@@ -66,63 +66,63 @@ beforeEach(async () => {
   mockIPC(() => undefined);
   remoteDeps.sleep = () => Promise.resolve();
   fakeClaude();
-  await nodesStore.getState().create("isis", {
+  await nodesStore.getState().create("batman", {
     workspaceId: "w1",
     kind: "terminal",
-    payload: { title: "Isis", name: "Isis", agent: "claude", cwd: "C:/code", shell: "default", command: "" },
+    payload: { title: "Batman", name: "Batman", agent: "claude", cwd: "C:/code", shell: "default", command: "" },
   });
-  terminalStatusStore.getState().set("isis", { state: "running" });
-  agentActivityStore.getState().apply({ nodeId: "isis", activity: "idle", since: 0 });
-  remoteStore.getState().set("isis", null);
+  terminalStatusStore.getState().set("batman", { state: "running" });
+  agentActivityStore.getState().apply({ nodeId: "batman", activity: "idle", since: 0 });
+  remoteStore.getState().set("batman", null);
 });
 
 describe("setRemoteControl on a running session (spec maj §2)", () => {
   it("reads the session's own screen, not what an earlier run left in the terminal", async () => {
-    expect(await setRemoteControl("isis", true)).toEqual({ on: true, url: URL });
+    expect(await setRemoteControl("batman", true)).toEqual({ on: true, url: URL });
     expect(typed).toEqual(["/remote-control"]);
-    expect(remoteStore.getState().links.isis).toEqual({ state: "on", url: URL });
-    expect(terminalOf(nodesStore.getState().nodes.isis)?.remoteControl).toBe(true);
+    expect(remoteStore.getState().links.batman).toEqual({ state: "on", url: URL });
+    expect(terminalOf(nodesStore.getState().nodes.batman)?.remoteControl).toBe(true);
   });
 
   it("waits for the end of the agent's turn: Enter would answer its dialog (final review maj §2)", async () => {
-    agentActivityStore.getState().apply({ nodeId: "isis", activity: "waiting", since: 1 });
-    expect(await setRemoteControl("isis", true)).toEqual({ later: true });
+    agentActivityStore.getState().apply({ nodeId: "batman", activity: "waiting", since: 1 });
+    expect(await setRemoteControl("batman", true)).toEqual({ later: true });
     expect(typed).toEqual([]);
-    expect(remoteStore.getState().links.isis?.state).toBe("pending");
-    agentActivityStore.getState().apply({ nodeId: "isis", activity: "working", since: 2 });
+    expect(remoteStore.getState().links.batman?.state).toBe("pending");
+    agentActivityStore.getState().apply({ nodeId: "batman", activity: "working", since: 2 });
     expect(typed).toEqual([]);
-    agentActivityStore.getState().apply({ nodeId: "isis", activity: "idle", since: 3 });
-    await vi.waitFor(() => expect(remoteStore.getState().links.isis).toEqual({ state: "on", url: URL }));
+    agentActivityStore.getState().apply({ nodeId: "batman", activity: "idle", since: 3 });
+    await vi.waitFor(() => expect(remoteStore.getState().links.batman).toEqual({ state: "on", url: URL }));
     expect(typed).toEqual(["/remote-control"]);
   });
 
   it("runs one flow at a time per session, the last wish winning (final review maj §2)", async () => {
-    const results = await Promise.all([setRemoteControl("isis", true), setRemoteControl("isis", false)]);
+    const results = await Promise.all([setRemoteControl("batman", true), setRemoteControl("batman", false)]);
     expect(results).toEqual([{ on: true, url: URL }, { on: false }]);
     expect(typed).toEqual(["/remote-control", "/remote-control", "\x1b[A", "\x1b[A", "\r"]);
-    expect(remoteStore.getState().links.isis).toBeUndefined();
-    expect(terminalOf(nodesStore.getState().nodes.isis)?.remoteControl).toBeUndefined();
+    expect(remoteStore.getState().links.batman).toBeUndefined();
+    expect(terminalOf(nodesStore.getState().nodes.batman)?.remoteControl).toBeUndefined();
   });
 });
 
 describe("links and toasts (backlog 27 oct)", () => {
   it("shows an error, not an active session, when a started session shows no link in time", async () => {
-    await setRemoteControl("isis", true);
+    await setRemoteControl("batman", true);
     screen = ["  Claude Code v2.1.304", ...PROMPT].join(String.fromCharCode(10));
-    terminalStatusStore.getState().set("isis", { state: "stopped" });
-    terminalStatusStore.getState().set("isis", { state: "running" });
-    await vi.waitFor(() => expect(remoteStore.getState().links.isis?.state).toBe("error"));
+    terminalStatusStore.getState().set("batman", { state: "stopped" });
+    terminalStatusStore.getState().set("batman", { state: "running" });
+    await vi.waitFor(() => expect(remoteStore.getState().links.batman?.state).toBe("error"));
   });
 
   it("forgets the link of a node removed from the canvas", async () => {
-    remoteStore.getState().set("isis", { state: "on", url: URL });
-    terminalStatusStore.getState().remove("isis");
-    expect(remoteStore.getState().links.isis).toBeUndefined();
+    remoteStore.getState().set("batman", { state: "on", url: URL });
+    terminalStatusStore.getState().remove("batman");
+    expect(remoteStore.getState().links.batman).toBeUndefined();
   });
 
   it("says « next start » for a stopped session in a group, not « turned on »", async () => {
-    terminalStatusStore.getState().set("isis", { state: "stopped" });
-    await setRemoteControlAll(["isis"], true);
+    terminalStatusStore.getState().set("batman", { state: "stopped" });
+    await setRemoteControlAll(["batman"], true);
     expect(vi.mocked(toast).mock.calls.map((c) => c[0]).join("|")).toContain("next start");
   });
 

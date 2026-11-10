@@ -32,10 +32,10 @@ beforeEach(async () => {
   mockIPC(() => null);
   sends.length = 0;
   loopsStore.setState({ loops: [], loaded: true, runtime: {} });
-  await nodesStore.getState().create("isis", {
+  await nodesStore.getState().create("batman", {
     workspaceId: "w1",
     kind: "terminal",
-    payload: { title: "Isis", name: "Isis", agent: "claude", cwd: "C:/code", shell: "default", command: "" },
+    payload: { title: "Batman", name: "Batman", agent: "claude", cwd: "C:/code", shell: "default", command: "" },
   });
   host = document.createElement("div");
   document.body.append(host);
@@ -90,7 +90,7 @@ it("refuses a loop without an end and says so", async () => {
   await act(async () => button("New loop").click());
   await write("Name", "Point");
   await write("Instruction sent", "va");
-  await act(async () => document.querySelector<HTMLInputElement>('[data-target="isis"]')!.click());
+  await act(async () => document.querySelector<HTMLInputElement>('[data-target="batman"]')!.click());
   await act(async () => button("Save").click());
   expect(document.body.textContent).toContain("Set an end: a number of runs or a duration");
   expect(loopsStore.getState().loops).toEqual([]);
@@ -101,7 +101,7 @@ it("saves a bounded loop, lists it off with its end, turns it on, shows the runs
   await act(async () => button("New loop").click());
   await write("Name", "Point");
   await write("Instruction sent", "va");
-  await act(async () => document.querySelector<HTMLInputElement>('[data-target="isis"]')!.click());
+  await act(async () => document.querySelector<HTMLInputElement>('[data-target="batman"]')!.click());
   await write("Number of runs", "4");
   await act(async () => button("Save").click());
   await vi.waitFor(() => expect(loopsStore.getState().loops).toHaveLength(1));

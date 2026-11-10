@@ -27,15 +27,15 @@ beforeEach(async () => {
     if (cmd === "set_setting") saved.push(args as { key: string; value: unknown });
     return null;
   });
-  await nodesStore.getState().create("isis", {
+  await nodesStore.getState().create("batman", {
     workspaceId: "w1",
     kind: "terminal",
-    payload: { title: "Isis", name: "Isis", agent: "claude", cwd: "C:/code", shell: "default", command: "" },
+    payload: { title: "Batman", name: "Batman", agent: "claude", cwd: "C:/code", shell: "default", command: "" },
   });
   presetsStore.setState({ presets: [], loaded: true });
   canvasStore.setState({
     api: { getSceneElements: () => [] } as never,
-    frames: [{ id: "g", name: "Backend", x: 0, y: 0, width: 10, height: 10, group: { role: "backend", pantheon: "egyptian" }, memberIds: ["isis"] }],
+    frames: [{ id: "g", name: "Backend", x: 0, y: 0, width: 10, height: 10, group: { role: "backend", pantheon: "egyptian" }, memberIds: ["batman"] }],
     links: {},
   });
   host = document.createElement("div");

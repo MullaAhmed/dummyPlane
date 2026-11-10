@@ -266,8 +266,8 @@ it("does not route anything for the other arrow types", async () => {
 
 // The Edit section of a terminal selected alone.
 const terminal = (overrides: Partial<TerminalPayload> = {}): TerminalPayload => ({
-  title: "Isis · api",
-  name: "Isis",
+  title: "Batman · api",
+  name: "Batman",
   agent: "claude",
   cwd: "D:/work/api",
   shell: "default",
@@ -280,7 +280,7 @@ async function mountTerminal(payload: TerminalPayload, selectedIds = ["t1"], mod
   nodesStore.setState({
     nodes: {
       t1: { workspaceId: "w", kind: "terminal", payload },
-      t2: { workspaceId: "w", kind: "terminal", payload: terminal({ name: "Thoth" }) },
+      t2: { workspaceId: "w", kind: "terminal", payload: terminal({ name: "Cyborg" }) },
       o1: { workspaceId: "w", kind: "fleet", payload: { name: "Fleet" } },
     },
   });
@@ -308,8 +308,8 @@ async function typeInto(input: HTMLInputElement, value: string) {
 it("shows a short Edit section for a terminal selected alone: Rename, Copy and Delete, no colours", async () => {
   await mountTerminal(terminal());
   expect(host.querySelector("section[aria-label='Edit']")).not.toBeNull();
-  expect(host.textContent).toContain("Edit Isis");
-  expect(field("Name")!.value).toBe("Isis");
+  expect(host.textContent).toContain("Edit Batman");
+  expect(field("Name")!.value).toBe("Batman");
   expect(host.querySelector("[data-folder]")?.textContent).toContain("D:/work/api");
   expect(field("Command")).toBeNull();
   expect(host.querySelector("button[aria-label^='Stroke: ']")).toBeNull();
@@ -357,10 +357,10 @@ it("stays hidden for several selected nodes, and in reading mode", async () => {
 
 it("renames the terminal when the Name field is left, and ignores an empty name", async () => {
   await mountTerminal(terminal());
-  await typeInto(field("Name")!, "  Horus ");
-  expect(payloadOf().name).toBe("Horus");
+  await typeInto(field("Name")!, "  Aquaman ");
+  expect(payloadOf().name).toBe("Aquaman");
   await typeInto(field("Name")!, "   ");
-  expect(payloadOf().name).toBe("Horus");
+  expect(payloadOf().name).toBe("Aquaman");
 });
 
 it("keeps the stored value when Escape ends the edit", async () => {
@@ -368,11 +368,11 @@ it("keeps the stored value when Escape ends the edit", async () => {
   const name = field("Name")!;
   await act(async () => {
     name.focus();
-    name.value = "Seth";
+    name.value = "Shazam";
     name.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
   });
-  expect(payloadOf().name).toBe("Isis");
-  expect(name.value).toBe("Isis");
+  expect(payloadOf().name).toBe("Batman");
+  expect(name.value).toBe("Batman");
 });
 
 it("shows the folder as a path, whole on hover, its end in view, and copies it", async () => {
@@ -421,7 +421,7 @@ it("starts on a small Edit tab beside the terminal, in the panel's place, and op
   );
   const tab = editTab()!;
   expect(tab.textContent).toBe("Edit");
-  expect(tab.getAttribute("aria-label")).toBe("Edit Isis");
+  expect(tab.getAttribute("aria-label")).toBe("Edit Batman");
   expect([tab.style.left, tab.style.top]).toEqual(["512px", "100px"]);
   // Filled with the ink: it reads beside the selection's own outline.
   expect(tab.className).toContain("bg-dp-accent");
@@ -429,7 +429,7 @@ it("starts on a small Edit tab beside the terminal, in the panel's place, and op
   expect(field("Name")).toBeNull();
   await act(async () => tab.click());
   expect(editTab()).toBeNull();
-  expect(field("Name")!.value).toBe("Isis");
+  expect(field("Name")!.value).toBe("Batman");
   const panel = host.firstElementChild as HTMLElement;
   expect([panel.style.left, panel.style.top]).toEqual(["512px", "100px"]);
   expect(panel.className).toContain("animate-in");
@@ -451,19 +451,19 @@ it("folds back to its tab, and every terminal selected starts on its tab", async
   expect(button("Fold the panel")!.getAttribute("aria-expanded")).toBe("true");
   await act(async () => button("Fold the panel")!.click());
   expect(field("Name")).toBeNull();
-  expect(editTab()!.getAttribute("aria-label")).toBe("Edit Isis");
+  expect(editTab()!.getAttribute("aria-label")).toBe("Edit Batman");
   // Opened again, then another terminal selected: its tab only.
   await act(async () => editTab()!.click());
   expect(field("Name")).not.toBeNull();
   await act(async () => canvasStore.setState({ view: { ...canvasStore.getState().view, selectedIds: ["t2"] } }));
-  expect(editTab()!.getAttribute("aria-label")).toBe("Edit Thoth");
+  expect(editTab()!.getAttribute("aria-label")).toBe("Edit Cyborg");
   expect(field("Name")).toBeNull();
   // The first one again, after none: its tab too.
   await act(async () => editTab()!.click());
   await act(async () => canvasStore.setState({ view: { ...canvasStore.getState().view, selectedIds: [] } }));
   expect(host.innerHTML).toBe("");
   await act(async () => canvasStore.setState({ view: { ...canvasStore.getState().view, selectedIds: ["t1"] } }));
-  expect(editTab()!.getAttribute("aria-label")).toBe("Edit Isis");
+  expect(editTab()!.getAttribute("aria-label")).toBe("Edit Batman");
   expect(field("Name")).toBeNull();
 });
 
@@ -510,7 +510,7 @@ it("offers a terminal other than Claude its General page only", async () => {
   serveExtensions();
   await mountTerminal(terminal({ agent: "codex" }));
   expect(tabs()).toHaveLength(0);
-  expect(field("Name")!.value).toBe("Isis");
+  expect(field("Name")!.value).toBe("Batman");
   expect(host.querySelector("[data-folder]")).not.toBeNull();
   expect(host.textContent).toContain("Skills, plugins and MCP servers can be chosen for Claude terminals");
   await settle();
@@ -943,7 +943,7 @@ it("changes a terminal's folder with the native picker, from where it is now", a
   expect(payloadOf().cwd).toBe("D:\\work\\web");
   expect(host.querySelector("[data-folder]")?.textContent).toBe("D:\\work\\web");
   // The model and what it may do are still its own: only the folder, and the conversation that went with it, changed.
-  expect(payloadOf()).toMatchObject({ model: "claude-haiku-5-5", permission: "edits", name: "Isis", title: "Isis · api" });
+  expect(payloadOf()).toMatchObject({ model: "claude-haiku-5-5", permission: "edits", name: "Batman", title: "Batman · api" });
 });
 
 it("starts a new conversation for a Claude terminal in a new folder, and says so", async () => {
@@ -991,14 +991,14 @@ it("offers to restart a running terminal that was moved, and not a stopped one",
 const mission = (state: "en_cours" | "terminee") => ({
   state,
   maxAgents: 3,
-  members: [{ nodeId: "t1", name: "Isis", task: "", budgetMin: 10, linked: false, branch: "m/isis", worktree: "D:/wt/isis" }],
+  members: [{ nodeId: "t1", name: "Batman", task: "", budgetMin: 10, linked: false, branch: "m/batman", worktree: "D:/wt/batman" }],
 });
 async function inMission(state: "en_cours" | "terminee") {
   await act(async () => nodesStore.setState({ nodes: { ...nodesStore.getState().nodes, o1: { workspaceId: "w", kind: "fleet", payload: { name: "Fleet", mission: mission(state) } } } }));
 }
 
 it("keeps the folder of an agent whose mission is running in its worktree, and frees it when the mission ends", async () => {
-  await mountTerminal(terminal({ cwd: "D:/wt/isis" }));
+  await mountTerminal(terminal({ cwd: "D:/wt/batman" }));
   await inMission("en_cours");
   expect(changeButton()).toBeNull();
   expect(host.textContent).toContain("Fixed while its mission runs: this agent works in its own worktree");
@@ -1009,7 +1009,7 @@ it("keeps the folder of an agent whose mission is running in its worktree, and f
 
 it("sets the title of a terminal, a blank one keeping the stored title", async () => {
   await mountTerminal(terminal());
-  expect(field("Title")!.value).toBe("Isis · api");
+  expect(field("Title")!.value).toBe("Batman · api");
   await typeInto(field("Title")!, "  Review of api ");
   expect(payloadOf().title).toBe("Review of api");
   await typeInto(field("Title")!, "   ");
@@ -1065,6 +1065,6 @@ it("offers a restart when the title of a running terminal changes", async () => 
   await typeInto(field("Title")!, "Review of api");
   expect(host.textContent).toContain("Running with the old launch settings");
   // Back to what it started with: nothing to restart.
-  await typeInto(field("Title")!, "Isis · api");
+  await typeInto(field("Title")!, "Batman · api");
   expect(restartNow()).toBeUndefined();
 });

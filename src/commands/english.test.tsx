@@ -21,7 +21,7 @@ vi.mock("./goToRun", () => ({ goTo: vi.fn() }));
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 const home: CommandContext = { project: false, workspaceId: null, terminalCount: 0, terminalId: null };
-const busy: CommandContext = { project: true, workspaceId: "w1", terminalCount: 1, terminalId: "isis" };
+const busy: CommandContext = { project: true, workspaceId: "w1", terminalCount: 1, terminalId: "batman" };
 const find = (id: string) => COMMANDS.find((c) => c.id === id)!;
 const lines = (query: string, ctx = busy) => functionSections(COMMANDS, ctx, query).flatMap((s) => s.items.map((l) => l.command.id));
 

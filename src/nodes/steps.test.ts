@@ -33,7 +33,7 @@ describe("an agent's steps (spec orchestrateur §4.4, §5)", () => {
   });
 
   it("keeps the steps a terminal saved, drops what it cannot read", () => {
-    const base = { title: "", name: "Isis", agent: "claude", cwd: "C:/code", shell: "default", command: "" };
+    const base = { title: "", name: "Batman", agent: "claude", cwd: "C:/code", shell: "default", command: "" };
     expect(readTerminalPayload({ ...base, steps: [{ title: "Plan", state: "fait" }] })?.steps).toEqual([{ title: "Plan", state: "fait" }]);
     expect(readTerminalPayload({ ...base, steps: [{ title: "Plan", state: "?" }] })?.steps).toBeUndefined();
     expect(readTerminalPayload(base)?.steps).toBeUndefined();
@@ -86,7 +86,7 @@ describe("the steps of an agent that reported", () => {
   it("reads a saved payload with a report and stale steps as finished", () => {
     const saved = {
       title: "",
-      name: "Isis",
+      name: "Batman",
       agent: "claude",
       cwd: "C:/p",
       shell: "default",

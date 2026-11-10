@@ -21,16 +21,16 @@ import { terminalStatusStore } from "@/store/terminalStatus";
 vi.mock("@/ipc/pty", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/ipc/pty")>()), ptySendText: vi.fn(() => Promise.resolve()) }));
 vi.mock("@/nodes/terminal/registry", () => ({ terminalText: vi.fn(() => "ligne 1\nligne 2") }));
 vi.mock("@/mission/launch", () => ({
-  mergeMission: vi.fn(() => Promise.resolve("Branch dummyplane/auth :\nIsis : merged")),
+  mergeMission: vi.fn(() => Promise.resolve("Branch dummyplane/auth :\nBatman : merged")),
   endMission: vi.fn(),
-  reassignTask: vi.fn(() => Promise.resolve({ name: "Horus" })),
+  reassignTask: vi.fn(() => Promise.resolve({ name: "Aquaman" })),
 }));
 vi.mock("@/mission/events", () => ({ notify: vi.fn() }));
 vi.mock("@/agents/broadcast", () => ({ pauseAgents: vi.fn(() => Promise.resolve(1)) }));
 vi.mock("@/agents/remoteControl", () => ({ setRemoteControl: vi.fn() }));
 vi.mock("@/mission/store", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/mission/store")>()),
-  linkedClaudeAgents: vi.fn(() => [{ nodeId: "isis", name: "Isis" }]),
+  linkedClaudeAgents: vi.fn(() => [{ nodeId: "batman", name: "Batman" }]),
 }));
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
@@ -43,10 +43,10 @@ beforeAll(async () => {
   mockIPC(() => undefined);
   workspacesStore.setState({ activeId: "w1" });
   canvasStore.setState({ api: { getSceneElements: () => [], getSceneElementsIncludingDeleted: () => [] } as never });
-  await nodesStore.getState().create("isis", {
+  await nodesStore.getState().create("batman", {
     workspaceId: "w1",
     kind: "terminal",
-    payload: { title: "", name: "Isis", agent: "claude", cwd: "C:/code", shell: "default", command: "" },
+    payload: { title: "", name: "Batman", agent: "claude", cwd: "C:/code", shell: "default", command: "" },
   });
   await nodesStore.getState().create("chef", { workspaceId: "w1", kind: "fleet", payload: { name: "chef" } });
 });
@@ -57,7 +57,7 @@ describe("the notes tool (spec notes §3)", () => {
 
   it("answers agents and fleets alike, with the same tool", async () => {
     mockIPC((command) => (command === "notes_agent_list" ? [{ name: "Auth", attached: true }] : undefined));
-    expect(textOf(await notes("isis"))).toContain("Auth (attached to your group)");
+    expect(textOf(await notes("batman"))).toContain("Auth (attached to your group)");
     expect(textOf(await notes("chef"))).toContain("Auth");
   });
 
@@ -69,41 +69,41 @@ describe("the notes tool (spec notes §3)", () => {
 
 describe("the agent's tools (spec orchestrateur §4.4)", () => {
   it("lists them for any Claude session", async () => {
-    const list = (await answer({ callId: 1, nodeId: "isis", method: "tools/list", params: {} })) as { tools: { name: string; inputSchema: object }[] };
+    const list = (await answer({ callId: 1, nodeId: "batman", method: "tools/list", params: {} })) as { tools: { name: string; inputSchema: object }[] };
     expect(list.tools.map((t) => t.name)).toEqual(["declare_steps", "step", "report", "spawn_agent", "linked_agents", "message_agent", "read_agent", "notes"]);
     expect(list.tools.every((t) => typeof t.inputSchema === "object")).toBe(true);
   });
 
   it("routes spawn_agent to the agent's sub-agent, a task required", async () => {
-    const result = (await call("isis", "spawn_agent", { title: "Tests" })) as { isError?: boolean };
+    const result = (await call("batman", "spawn_agent", { title: "Tests" })) as { isError?: boolean };
     expect(result.isError).toBe(true);
     expect(textOf(result)).toContain("Give the sub-agent its task");
   });
 
   it("declares and marks the terminal's steps, saved in its payload", async () => {
-    expect(textOf(await call("isis", "declare_steps", { steps: ["Plan", "Code"] }))).toBe("2 steps declared.");
-    expect(textOf(await call("isis", "step", { title: "Plan", state: "done" }))).toBe("Plan: done.");
-    expect(terminalOf(nodesStore.getState().nodes.isis)?.steps).toEqual([
+    expect(textOf(await call("batman", "declare_steps", { steps: ["Plan", "Code"] }))).toBe("2 steps declared.");
+    expect(textOf(await call("batman", "step", { title: "Plan", state: "done" }))).toBe("Plan: done.");
+    expect(terminalOf(nodesStore.getState().nodes.batman)?.steps).toEqual([
       { title: "Plan", state: "fait" },
       { title: "Code", state: "a_venir" },
     ]);
   });
 
   it("answers mistakes with a readable error, the payload untouched", async () => {
-    const before = terminalOf(nodesStore.getState().nodes.isis)?.steps;
-    const wrong = (await call("isis", "step", { title: "Plan", state: "fini" })) as { isError?: boolean };
+    const before = terminalOf(nodesStore.getState().nodes.batman)?.steps;
+    const wrong = (await call("batman", "step", { title: "Plan", state: "fini" })) as { isError?: boolean };
     expect(wrong.isError).toBe(true);
-    expect((await call("isis", "declare_steps", {})) as { isError?: boolean }).toMatchObject({ isError: true });
+    expect((await call("batman", "declare_steps", {})) as { isError?: boolean }).toMatchObject({ isError: true });
     // Final review H1: a long title is refused before anything changes, not after.
-    expect((await call("isis", "step", { title: "Implémentation du middleware d'authentification", state: "done" })) as { isError?: boolean }).toMatchObject({ isError: true });
-    expect(textOf(await call("isis", "voler", {}))).toBe("Unknown tool: voler");
+    expect((await call("batman", "step", { title: "Implémentation du middleware d'authentification", state: "done" })) as { isError?: boolean }).toMatchObject({ isError: true });
+    expect(textOf(await call("batman", "voler", {}))).toBe("Unknown tool: voler");
     expect(textOf(await call("gone", "step", { title: "Plan", state: "done" }))).toBe("This terminal is no longer on the canvas.");
     expect(textOf(await call("chef", "step", { title: "Plan", state: "done" }))).toBe("This tool is for agents.");
-    expect(terminalOf(nodesStore.getState().nodes.isis)?.steps).toEqual(before);
+    expect(terminalOf(nodesStore.getState().nodes.batman)?.steps).toEqual(before);
   });
 
   it("says there is no mission to report to, outside one", async () => {
-    expect(textOf(await call("isis", "report", { summary: "Fait", status: "done" }))).toBe("No mission under way: nothing to pass on.");
+    expect(textOf(await call("batman", "report", { summary: "Fait", status: "done" }))).toBe("No mission under way: nothing to pass on.");
   });
 });
 
@@ -112,7 +112,7 @@ describe("the fleet's tools (spec orchestrateur §7.2)", () => {
     name: "Auth",
     task: "Ajoute l'authentification",
     subtasks: [
-      { title: "Login", brief: "Fais le login", agent: "isis", budget_min: 20 },
+      { title: "Login", brief: "Fais le login", agent: "batman", budget_min: 20 },
       { title: "API", brief: "Fais l'API", agent: "new", budget_min: 30 },
     ],
   };
@@ -120,9 +120,9 @@ describe("the fleet's tools (spec orchestrateur §7.2)", () => {
   it("lists them for the fleet only, and each side refuses the other's", async () => {
     const list = (await answer({ callId: 1, nodeId: "chef", method: "tools/list", params: {} })) as { tools: { name: string }[] };
     expect(list.tools.map((t) => t.name)).toEqual(["mission", "propose_plan", "add_tasks", "queue", "next_task", "tickets", "board", "team", "read_output", "write", "extend", "interrupt", "reassign", "merge", "finish", "remote_control", "notes"]);
-    expect(textOf(await call("isis", "propose_plan", plan))).toBe("This tool is for the fleet.");
+    expect(textOf(await call("batman", "propose_plan", plan))).toBe("This tool is for the fleet.");
     expect(textOf(await call("chef", "report", { summary: "x", status: "done" }))).toBe("This tool is for agents.");
-    expect(textOf(await call("isis", "board", {}))).toBe("This tool is for the fleet.");
+    expect(textOf(await call("batman", "board", {}))).toBe("This tool is for the fleet.");
   });
 
   it("reads the Kanban boards handed to it with board", async () => {
@@ -150,7 +150,7 @@ describe("the fleet's tools (spec orchestrateur §7.2)", () => {
   });
 
   it("takes a plan that waits for the go-ahead, and describes it in mission()", async () => {
-    const wrong = await call("chef", "propose_plan", { ...plan, subtasks: [{ ...plan.subtasks[0], agent: "Zeus" }] });
+    const wrong = await call("chef", "propose_plan", { ...plan, subtasks: [{ ...plan.subtasks[0], agent: "Deadpool" }] });
     expect(wrong).toMatchObject({ isError: true });
     expect(missionOf(nodesStore.getState().nodes.chef)?.state).toBe("redaction");
     expect(textOf(await call("chef", "propose_plan", plan))).toContain("Plan proposed: 2 sub-tasks.");
@@ -158,13 +158,13 @@ describe("the fleet's tools (spec orchestrateur §7.2)", () => {
       state: "plan",
       name: "Auth",
       max_agents: 4,
-      plan: [{ title: "Login", agent: "Isis" }, { title: "API", agent: "new" }],
-      linked_agents: [{ name: "Isis" }],
+      plan: [{ title: "Login", agent: "Batman" }, { title: "API", agent: "new" }],
+      linked_agents: [{ name: "Batman" }],
     });
   });
 
   describe("the groups and their specialities (spec groupes spécialisés §3)", () => {
-    const front = { id: "g1", name: "Interface", x: 0, y: 0, width: 10, height: 10, memberIds: ["isis"], group: { role: "frontend" as const, pantheon: "egyptian", speciality: "Frontend" } };
+    const front = { id: "g1", name: "Interface", x: 0, y: 0, width: 10, height: 10, memberIds: ["batman"], group: { role: "frontend" as const, pantheon: "egyptian", speciality: "Frontend" } };
     const back = { ...front, id: "g2", name: "Serveur", memberIds: [], group: { role: "backend" as const, pantheon: "norse" } };
 
     afterAll(() => canvasStore.setState({ frames: [], links: {} }));
@@ -172,14 +172,14 @@ describe("the fleet's tools (spec orchestrateur §7.2)", () => {
     it("says each linked agent's group and speciality, and every linked group", async () => {
       canvasStore.setState({ frames: [front, back], links: { chef: { groupIds: ["g1", "g2"], nodeIds: [] } } });
       const mission = JSON.parse(textOf(await call("chef", "mission", {})));
-      expect(mission.linked_agents).toEqual([expect.objectContaining({ name: "Isis", group: "Interface", speciality: "Frontend" })]);
+      expect(mission.linked_agents).toEqual([expect.objectContaining({ name: "Batman", group: "Interface", speciality: "Frontend" })]);
       expect(mission.linked_groups).toEqual([{ name: "Interface", speciality: "Frontend" }, { name: "Serveur", speciality: null }]);
     });
 
     it("sends a new agent to a linked group and says so in the plan, refusing an unknown one", async () => {
       canvasStore.setState({ frames: [front, back], links: { chef: { groupIds: ["g1", "g2"], nodeIds: [] } } });
       const sub = { title: "Style", brief: "Fais le style", agent: "new", budget_min: 10 };
-      expect(await call("chef", "propose_plan", { ...plan, subtasks: [{ ...sub, group: "Zeus" }] })).toMatchObject({ isError: true });
+      expect(await call("chef", "propose_plan", { ...plan, subtasks: [{ ...sub, group: "Deadpool" }] })).toMatchObject({ isError: true });
       await call("chef", "propose_plan", { ...plan, subtasks: [{ ...sub, group: "interface" }, plan.subtasks[1]] });
       expect(missionOf(nodesStore.getState().nodes.chef)?.plan?.[0].group).toEqual({ id: "g1", name: "Interface" });
       expect(JSON.parse(textOf(await call("chef", "mission", {}))).plan.map((s: { group: unknown }) => s.group)).toEqual(["Interface", null]);
@@ -189,7 +189,7 @@ describe("the fleet's tools (spec orchestrateur §7.2)", () => {
     it("keeps today's answers for an agent outside any group, with nulls added", async () => {
       canvasStore.setState({ frames: [], links: {} });
       const mission = JSON.parse(textOf(await call("chef", "mission", {})));
-      expect(mission.linked_agents).toEqual([expect.objectContaining({ name: "Isis", group: null, speciality: null })]);
+      expect(mission.linked_agents).toEqual([expect.objectContaining({ name: "Batman", group: null, speciality: null })]);
       expect(mission.linked_groups).toEqual([]);
     });
   });
@@ -226,7 +226,7 @@ describe("the fleet's tools (spec orchestrateur §7.2)", () => {
 
     it("refuses what a plan would refuse, and a finished mission", async () => {
       expect(await call("file", "add_tasks", { tasks: [{ ...task, title: "docs" }] })).toMatchObject({ isError: true });
-      expect(textOf(await call("isis", "add_tasks", { tasks: [task] }))).toBe("This tool is for the fleet.");
+      expect(textOf(await call("batman", "add_tasks", { tasks: [task] }))).toBe("This tool is for the fleet.");
       setMission("file", { state: "terminee" });
       expect(textOf(await call("file", "add_tasks", { tasks: [{ ...task, title: "Autre" }] }))).toContain("finished");
     });
@@ -242,7 +242,7 @@ describe("the fleet's tools (spec orchestrateur §7.2)", () => {
 
     it("says next_task needs a formed team", async () => {
       await nodesStore.getState().create("seul", { workspaceId: "w1", kind: "fleet", payload: { name: "Seul" } });
-      expect(textOf(await call("seul", "next_task", { agent: "Isis" }))).toBe("The team is not formed yet.");
+      expect(textOf(await call("seul", "next_task", { agent: "Batman" }))).toBe("The team is not formed yet.");
     });
   });
 
@@ -264,25 +264,25 @@ describe("the fleet's tools (spec orchestrateur §7.2)", () => {
 
   it("turns Remote Control on or off for its agents or itself, and gives the links (spec maj §2)", async () => {
     vi.mocked(setRemoteControl).mockImplementation(async (id, on) => (on ? { on: true, url: `https://claude.ai/code/session_${id}` } : { on: false }));
-    terminalStatusStore.getState().set("isis", { state: "running" });
+    terminalStatusStore.getState().set("batman", { state: "running" });
     terminalStatusStore.getState().set("chef", { state: "running" });
     expect(textOf(await call("chef", "remote_control", { on: true, agents: ["all", "me"] }))).toBe(
-      "Isis: on — https://claude.ai/code/session_isis\nYou: on — https://claude.ai/code/session_chef",
+      "Batman: on — https://claude.ai/code/session_batman\nYou: on — https://claude.ai/code/session_chef",
     );
-    expect(textOf(await call("chef", "remote_control", { on: false, agents: ["isis"] }))).toBe("Isis: off");
+    expect(textOf(await call("chef", "remote_control", { on: false, agents: ["batman"] }))).toBe("Batman: off");
     vi.mocked(setRemoteControl).mockResolvedValueOnce({ error: "Remote Control requires a claude.ai subscription" });
-    expect(textOf(await call("chef", "remote_control", { on: true, agents: ["Isis"] }))).toBe("Isis: failed — Remote Control requires a claude.ai subscription");
+    expect(textOf(await call("chef", "remote_control", { on: true, agents: ["Batman"] }))).toBe("Batman: failed — Remote Control requires a claude.ai subscription");
     // In a turn, it is typed at the end of it: "me" is always in its own turn (final review maj §2).
     vi.mocked(setRemoteControl).mockResolvedValue({ later: true });
-    expect(textOf(await call("chef", "remote_control", { on: true, agents: ["Isis", "moi"] }))).toBe(
-      "Isis: at the end of its turn\nYou: at the end of your turn — the link will show in your header",
+    expect(textOf(await call("chef", "remote_control", { on: true, agents: ["Batman", "moi"] }))).toBe(
+      "Batman: at the end of its turn\nYou: at the end of your turn — the link will show in your header",
     );
-    terminalStatusStore.getState().set("isis", { state: "stopped" });
+    terminalStatusStore.getState().set("batman", { state: "stopped" });
     vi.mocked(setRemoteControl).mockResolvedValueOnce({ on: true });
-    expect(textOf(await call("chef", "remote_control", { on: true, agents: ["Isis"] }))).toBe("Isis: on at its next start");
+    expect(textOf(await call("chef", "remote_control", { on: true, agents: ["Batman"] }))).toBe("Batman: on at its next start");
     vi.mocked(setRemoteControl).mockClear();
-    expect(await call("chef", "remote_control", { on: true, agents: ["Zeus"] })).toMatchObject({ isError: true });
-    expect(await call("chef", "remote_control", { agents: ["Isis"] })).toMatchObject({ isError: true });
+    expect(await call("chef", "remote_control", { on: true, agents: ["Deadpool"] })).toMatchObject({ isError: true });
+    expect(await call("chef", "remote_control", { agents: ["Batman"] })).toMatchObject({ isError: true });
     expect(setRemoteControl).not.toHaveBeenCalled();
   });
 
@@ -303,69 +303,69 @@ describe("the fleet's tools (spec orchestrateur §7.2)", () => {
       setMission("chef", {
         state: "en_cours",
         branch: "dummyplane/auth",
-        members: [{ nodeId: "isis", name: "Isis", task: "Login", budgetMin: 20, linked: true, branch: "dummyplane/auth-isis", worktree: "C:/w/isis", sentAt: Date.now() }],
+        members: [{ nodeId: "batman", name: "Batman", task: "Login", budgetMin: 20, linked: true, branch: "dummyplane/auth-batman", worktree: "C:/w/batman", sentAt: Date.now() }],
       }),
     );
 
     it("says each member's group and speciality, to choose who takes a sub-task over (spec groupes spécialisés §3)", async () => {
-      const front = { id: "g1", name: "Interface", x: 0, y: 0, width: 10, height: 10, memberIds: ["isis"], group: { role: "frontend" as const, pantheon: "egyptian", speciality: "Frontend" } };
+      const front = { id: "g1", name: "Interface", x: 0, y: 0, width: 10, height: 10, memberIds: ["batman"], group: { role: "frontend" as const, pantheon: "egyptian", speciality: "Frontend" } };
       canvasStore.setState({ frames: [front] });
-      expect(JSON.parse(textOf(await call("chef", "team", {})))[0]).toMatchObject({ name: "Isis", group: "Interface", speciality: "Frontend" });
+      expect(JSON.parse(textOf(await call("chef", "team", {})))[0]).toMatchObject({ name: "Batman", group: "Interface", speciality: "Frontend" });
       canvasStore.setState({ frames: [] });
       expect(JSON.parse(textOf(await call("chef", "team", {})))[0]).toMatchObject({ group: null, speciality: null });
     });
 
     it("does not say an agent has no group when its canvas is out of sight (final review)", async () => {
       workspacesStore.setState({ activeId: "w2" });
-      const [isis] = JSON.parse(textOf(await call("chef", "team", {})));
+      const [batman] = JSON.parse(textOf(await call("chef", "team", {})));
       workspacesStore.setState({ activeId: "w1" });
-      expect(isis.name).toBe("Isis");
-      expect(isis).not.toHaveProperty("group");
-      expect(isis).not.toHaveProperty("speciality");
+      expect(batman.name).toBe("Batman");
+      expect(batman).not.toHaveProperty("group");
+      expect(batman).not.toHaveProperty("speciality");
     });
 
     it("counts the agents at work against Max agents in mission() and queue()", async () => {
-      terminalStatusStore.getState().set("isis", { state: "running" });
+      terminalStatusStore.getState().set("batman", { state: "running" });
       try {
         expect(JSON.parse(textOf(await call("chef", "mission", {})))).toMatchObject({ max_agents: 4, active_agents: 1 });
         expect(JSON.parse(textOf(await call("chef", "queue", {})))).toMatchObject({ max_agents: 4, active_agents: 1 });
         // Stopped after its sub-task was typed, it is at work no more.
-        terminalStatusStore.getState().set("isis", { state: "stopped" });
+        terminalStatusStore.getState().set("batman", { state: "stopped" });
         expect(JSON.parse(textOf(await call("chef", "mission", {})))).toMatchObject({ active_agents: 0 });
       } finally {
-        terminalStatusStore.getState().set("isis", { state: "stopped" });
+        terminalStatusStore.getState().set("batman", { state: "stopped" });
       }
     });
 
     it("reports the team and reads an agent's terminal", async () => {
       expect(JSON.parse(textOf(await call("chef", "team", {})))).toEqual([
-        expect.objectContaining({ name: "Isis", subtask: "Login", time: "0 / 20 min", report: null, merged: false, handed_to: null, overdue: 0, model: null }),
+        expect.objectContaining({ name: "Batman", subtask: "Login", time: "0 / 20 min", report: null, merged: false, handed_to: null, overdue: 0, model: null }),
       ]);
-      expect(textOf(await call("chef", "read_output", { agent: "ISIS", lines: 2 }))).toBe("ligne 1\nligne 2");
-      expect(terminalText).toHaveBeenCalledWith("isis", 2);
-      expect(await call("chef", "read_output", { agent: "Zeus" })).toMatchObject({ isError: true });
+      expect(textOf(await call("chef", "read_output", { agent: "BATMAN", lines: 2 }))).toBe("ligne 1\nligne 2");
+      expect(terminalText).toHaveBeenCalledWith("batman", 2);
+      expect(await call("chef", "read_output", { agent: "Deadpool" })).toMatchObject({ isError: true });
     });
 
     it("writes to an agent that runs, never into a dialog meant for the user", async () => {
-      terminalStatusStore.getState().set("isis", { state: "stopped" });
-      expect(textOf(await call("chef", "write", { agent: "Isis", text: "Relance" }))).toBe("Isis is stopped.");
-      terminalStatusStore.getState().set("isis", { state: "running" });
-      agentActivityStore.getState().apply({ nodeId: "isis", activity: "waiting", since: 0 });
-      expect(await call("chef", "write", { agent: "Isis", text: "Relance" })).toMatchObject({ isError: true });
-      agentActivityStore.getState().apply({ nodeId: "isis", activity: "idle", since: 0 });
-      expect(textOf(await call("chef", "write", { agent: "Isis", text: "Relance\nles tests" }))).toBe("Written to Isis.");
-      expect(ptySendText).toHaveBeenCalledWith("isis", "Relance les tests");
+      terminalStatusStore.getState().set("batman", { state: "stopped" });
+      expect(textOf(await call("chef", "write", { agent: "Batman", text: "Relance" }))).toBe("Batman is stopped.");
+      terminalStatusStore.getState().set("batman", { state: "running" });
+      agentActivityStore.getState().apply({ nodeId: "batman", activity: "waiting", since: 0 });
+      expect(await call("chef", "write", { agent: "Batman", text: "Relance" })).toMatchObject({ isError: true });
+      agentActivityStore.getState().apply({ nodeId: "batman", activity: "idle", since: 0 });
+      expect(textOf(await call("chef", "write", { agent: "Batman", text: "Relance\nles tests" }))).toBe("Written to Batman.");
+      expect(ptySendText).toHaveBeenCalledWith("batman", "Relance les tests");
     });
 
     it("takes an agent's report to its fleet", async () => {
-      expect(await call("isis", "report", { summary: "Fait", status: "fini" })).toMatchObject({ isError: true });
-      expect(textOf(await call("isis", "report", { summary: "Login fait", status: "done" }))).toBe("Report passed on to the fleet.");
+      expect(await call("batman", "report", { summary: "Fait", status: "fini" })).toMatchObject({ isError: true });
+      expect(textOf(await call("batman", "report", { summary: "Login fait", status: "done" }))).toBe("Report passed on to the fleet.");
       expect(missionOf(nodesStore.getState().nodes.chef)?.members[0].report).toMatchObject({ summary: "Login fait", status: "termine" });
-      expect(notify).toHaveBeenCalledWith("chef", "Isis reported (done): Login fait");
+      expect(notify).toHaveBeenCalledWith("chef", "Batman reported (done): Login fait");
     });
 
     it("keeps what an agent leaves to check by hand (spec mission de nuit §6.2)", async () => {
-      await call("isis", "report", { summary: "Fait", status: "done", check: "Le bouton\nsur Windows 10" });
+      await call("batman", "report", { summary: "Fait", status: "done", check: "Le bouton\nsur Windows 10" });
       expect(missionOf(nodesStore.getState().nodes.chef)?.members[0].report?.check).toBe("Le bouton sur Windows 10");
     });
 
@@ -373,54 +373,54 @@ describe("the fleet's tools (spec orchestrateur §7.2)", () => {
       const unheard = "Report saved, but the fleet is closed: nobody will read it for now.";
       vi.mocked(notify).mockClear();
       terminalStatusStore.getState().set("chef", { state: "stopped" });
-      expect(textOf(await call("isis", "report", { summary: "Fini", status: "done" }))).toBe(unheard);
+      expect(textOf(await call("batman", "report", { summary: "Fini", status: "done" }))).toBe(unheard);
       expect(missionOf(nodesStore.getState().nodes.chef)?.members[0].report).toMatchObject({ summary: "Fini" });
       terminalStatusStore.getState().set("chef", { state: "running" });
       setFleetClosed("chef", true);
-      expect(textOf(await call("isis", "report", { summary: "Fini encore", status: "done" }))).toBe(unheard);
+      expect(textOf(await call("batman", "report", { summary: "Fini encore", status: "done" }))).toBe(unheard);
       setFleetClosed("chef", false);
       // Queued all the same: it hears them when it runs again (final review R3).
-      expect(notify).toHaveBeenCalledWith("chef", "Isis reported (done): Fini");
-      expect(notify).toHaveBeenCalledWith("chef", "Isis reported (done): Fini encore");
+      expect(notify).toHaveBeenCalledWith("chef", "Batman reported (done): Fini");
+      expect(notify).toHaveBeenCalledWith("chef", "Batman reported (done): Fini encore");
     });
 
     it("keeps an agent's merged branch merged when it reports again (final review H2)", async () => {
-      updateMember("chef", "isis", { merged: true });
-      await call("isis", "report", { summary: "Vérifié", status: "done" });
+      updateMember("chef", "batman", { merged: true });
+      await call("batman", "report", { summary: "Vérifié", status: "done" });
       expect(missionOf(nodesStore.getState().nodes.chef)?.members[0]).toMatchObject({ merged: true, report: { summary: "Vérifié" } });
     });
 
     it("extends an agent's target only within the real time left (spec mission de nuit §3)", async () => {
       setMission("chef", { budgetMin: 30, startedAt: Date.now() });
-      // Isis reported earlier in this file: still at work here, its whole budget counts.
-      updateMember("chef", "isis", { report: undefined });
-      expect(textOf(await call("chef", "extend", { agent: "Isis", minutes: 20 }))).toBe("30 min left in the overall budget.");
-      updateMember("chef", "isis", { overdue: 1 });
-      expect(textOf(await call("chef", "extend", { agent: "Isis", minutes: 10 }))).toBe("Isis: +10 min, budget 30 min.");
+      // Batman reported earlier in this file: still at work here, its whole budget counts.
+      updateMember("chef", "batman", { report: undefined });
+      expect(textOf(await call("chef", "extend", { agent: "Batman", minutes: 20 }))).toBe("30 min left in the overall budget.");
+      updateMember("chef", "batman", { overdue: 1 });
+      expect(textOf(await call("chef", "extend", { agent: "Batman", minutes: 10 }))).toBe("Batman: +10 min, budget 30 min.");
       expect(missionOf(nodesStore.getState().nodes.chef)?.members[0]).toMatchObject({ extraMin: 10 });
       expect(missionOf(nodesStore.getState().nodes.chef)?.members[0].overdue).toBeUndefined();
       // The fleet reads the time with its extensions, and what is left (final review H3).
       expect(JSON.parse(textOf(await call("chef", "team", {})))[0]).toMatchObject({ time: "0 / 30 min" });
       expect(JSON.parse(textOf(await call("chef", "mission", {})))).toMatchObject({ left_min: 30, elapsed_min: 0 });
-      expect(await call("chef", "extend", { agent: "Isis", minutes: 0 })).toMatchObject({ isError: true });
+      expect(await call("chef", "extend", { agent: "Batman", minutes: 0 })).toMatchObject({ isError: true });
       setMission("chef", { budgetMin: undefined, startedAt: undefined });
     });
 
     it("interrupts an agent's turn like « Pause » (spec §7.2)", async () => {
-      expect(textOf(await call("chef", "interrupt", { agent: "Isis" }))).toBe('Isis\'s turn interrupted. write "continue" resumes it.');
-      expect(pauseAgents).toHaveBeenCalledWith(["isis"]);
+      expect(textOf(await call("chef", "interrupt", { agent: "Batman" }))).toBe('Batman\'s turn interrupted. write "continue" resumes it.');
+      expect(pauseAgents).toHaveBeenCalledWith(["batman"]);
       vi.mocked(pauseAgents).mockResolvedValueOnce(0);
-      expect(textOf(await call("chef", "interrupt", { agent: "Isis" }))).toBe("Isis is not at work: nothing to interrupt.");
+      expect(textOf(await call("chef", "interrupt", { agent: "Batman" }))).toBe("Batman is not at work: nothing to interrupt.");
     });
 
     it("hands a sub-task over through dummyPlane (spec §7.2)", async () => {
-      expect(textOf(await call("chef", "reassign", { subtask: "login", agent: "new" }))).toBe('"Login" goes to Horus.');
-      expect(reassignTask).toHaveBeenCalledWith("chef", "isis", "nouveau");
+      expect(textOf(await call("chef", "reassign", { subtask: "login", agent: "new" }))).toBe('"Login" goes to Aquaman.');
+      expect(reassignTask).toHaveBeenCalledWith("chef", "batman", "nouveau");
       expect(await call("chef", "reassign", { subtask: "Paiement", agent: "new" })).toMatchObject({ isError: true });
     });
 
     it("merges and ends the mission through dummyPlane; no new plan meanwhile", async () => {
-      expect(textOf(await call("chef", "merge", {}))).toBe("Branch dummyplane/auth :\nIsis : merged");
+      expect(textOf(await call("chef", "merge", {}))).toBe("Branch dummyplane/auth :\nBatman : merged");
       expect(await call("chef", "propose_plan", plan)).toMatchObject({ isError: true });
       expect(await call("chef", "finish", {})).toMatchObject({ isError: true });
       expect(textOf(await call("chef", "finish", { summary: "Fini" }))).toContain("Mission finished");
@@ -430,23 +430,23 @@ describe("the fleet's tools (spec orchestrateur §7.2)", () => {
 });
 
 it("answers a failed step with its accent in French (backlog R5c)", async () => {
-  expect(textOf(await call("isis", "step", { title: "Plan", state: "failed" }))).toBe("Plan: failed.");
+  expect(textOf(await call("batman", "step", { title: "Plan", state: "failed" }))).toBe("Plan: failed.");
 });
 
 describe("the English protocol (spec première version §7.1)", () => {
   it("still takes French values, and tells a former name what it became", async () => {
-    expect(textOf(await call("isis", "step", { title: "Plan", state: "en_cours" }))).toBe("Plan: in_progress.");
-    const old = await call("isis", "rendre_compte", { resume: "x", statut: "termine" });
+    expect(textOf(await call("batman", "step", { title: "Plan", state: "en_cours" }))).toBe("Plan: in_progress.");
+    const old = await call("batman", "rendre_compte", { resume: "x", statut: "termine" });
     expect(old).toMatchObject({ isError: true });
     expect(textOf(old)).toBe("Tool renamed: use report.");
   });
 
   it("describes its tools and answers in English when the interface is in English", async () => {
     try {
-      const list = (await answer({ callId: 1, nodeId: "isis", method: "tools/list", params: {} })) as { tools: { name: string; description: string }[] };
+      const list = (await answer({ callId: 1, nodeId: "batman", method: "tools/list", params: {} })) as { tools: { name: string; description: string }[] };
       expect(list.tools[0].description).toContain("Declare your task's steps");
-      expect(textOf(await call("isis", "declare_steps", { steps: ["Plan"] }))).toBe("1 step declared.");
-      expect(textOf(await call("isis", "voler", {}))).toBe("Unknown tool: voler");
+      expect(textOf(await call("batman", "declare_steps", { steps: ["Plan"] }))).toBe("1 step declared.");
+      expect(textOf(await call("batman", "voler", {}))).toBe("Unknown tool: voler");
     } finally {
     }
   });
@@ -457,7 +457,7 @@ describe("every call gets its reply, even under load or a failing reply", () => 
 
   it("answers 8 agents calling 25 times at once, each call once", async () => {
     const replies = new Map<number, unknown>();
-    const calls = Array.from({ length: 200 }, (_, i) => stepCall(i, i % 2 ? "isis" : "chef"));
+    const calls = Array.from({ length: 200 }, (_, i) => stepCall(i, i % 2 ? "batman" : "chef"));
     // The reply path is slow and out of order, as under a busy page.
     const reply = async (callId: number, result: unknown) => {
       await new Promise((resolve) => setTimeout(resolve, (callId * 7) % 13));
@@ -481,13 +481,13 @@ describe("every call gets its reply, even under load or a failing reply", () => 
     const cyclic: Record<string, unknown> = {};
     cyclic.self = cyclic;
     const reply = async (_id: number, result: unknown) => void replies.push(result);
-    await handleCall({ callId: 1, nodeId: "isis", method: "tools/call", params: { name: "step", arguments: { title: "Plan", state: "done" } } }, reply);
+    await handleCall({ callId: 1, nodeId: "batman", method: "tools/call", params: { name: "step", arguments: { title: "Plan", state: "done" } } }, reply);
     expect(replies).toHaveLength(1);
     const bad = vi.fn(async (_id: number, result: unknown) => {
       if (result === cyclic) throw new Error("not serializable");
       replies.push(result);
     });
-    await handleCall({ callId: 2, nodeId: "isis", method: "tools/call", params: { name: "step", arguments: cyclic } }, bad);
+    await handleCall({ callId: 2, nodeId: "batman", method: "tools/call", params: { name: "step", arguments: cyclic } }, bad);
     expect(replies).toHaveLength(2);
     expect(replies[1]).toMatchObject({ isError: true });
   });
@@ -502,7 +502,7 @@ describe("every call gets its reply, even under load or a failing reply", () => 
       }
       seen.push(result);
     };
-    await handleCall(stepCall(1, "isis"), reply);
+    await handleCall(stepCall(1, "batman"), reply);
     expect(seen).toHaveLength(1);
     expect(seen[0]).toMatchObject({ isError: true });
   });

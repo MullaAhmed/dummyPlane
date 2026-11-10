@@ -15,19 +15,19 @@ const terminal = (name: string) => ({ title: name, name, agent: "claude" as cons
 beforeEach(async () => {
   vi.mocked(confirmAction).mockClear();
   mockIPC(() => undefined);
-  for (const name of ["Isis", "Thoth"]) await nodesStore.getState().create(name, { workspaceId: "w1", kind: "terminal", payload: terminal(name) });
-  await nodesStore.getState().create("Ra", { workspaceId: "w1", kind: "terminal", payload: terminal("Ra") });
+  for (const name of ["Batman", "Cyborg"]) await nodesStore.getState().create(name, { workspaceId: "w1", kind: "terminal", payload: terminal(name) });
+  await nodesStore.getState().create("Robin", { workspaceId: "w1", kind: "terminal", payload: terminal("Robin") });
   await nodesStore.getState().create("Autre", { workspaceId: "w2", kind: "terminal", payload: terminal("Autre") });
-  for (const id of ["Isis", "Thoth", "Autre"]) terminalStatusStore.getState().set(id, { state: "running" });
+  for (const id of ["Batman", "Cyborg", "Autre"]) terminalStatusStore.getState().set(id, { state: "running" });
 });
 
 it("asks in the app's own dialog, naming the agents that deleting the workspace would stop", async () => {
   await removeWorkspace(workspace, 2);
   const asked = vi.mocked(confirmAction).mock.calls[0][0];
   expect(asked.title).toContain("API");
-  expect(asked.description).toContain("Isis");
-  expect(asked.description).toContain("Thoth");
-  expect(asked.description).not.toContain("Ra,");
+  expect(asked.description).toContain("Batman");
+  expect(asked.description).toContain("Cyborg");
+  expect(asked.description).not.toContain("Robin,");
   expect(asked.description).not.toContain("Autre");
   expect(asked.destructive).toBe(true);
 });

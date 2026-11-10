@@ -98,9 +98,9 @@ it("still sends under StrictMode, whose double effects the app runs in developme
 it("keeps what is typed when the user types into the field", async () => {
   const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!;
   await act(async () => {
-    setter.call(field(), "@thoth hi");
+    setter.call(field(), "@cyborg hi");
     field().dispatchEvent(new Event("input", { bubbles: true }));
   });
-  expect(aui.composer.getState().text).toBe("@thoth hi");
-  expect(field().value).toBe("@thoth hi");
+  expect(aui.composer.getState().text).toBe("@cyborg hi");
+  expect(field().value).toBe("@cyborg hi");
 });

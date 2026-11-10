@@ -7,7 +7,7 @@ import { openPalette, paletteStore } from "./paletteState";
 
 vi.mock("./registry", () => ({ COMMANDS: [], commandContext: () => ({}) }));
 
-const ctx: CommandContext = { project: true, workspaceId: "w1", terminalCount: 2, terminalId: "isis" };
+const ctx: CommandContext = { project: true, workspaceId: "w1", terminalCount: 2, terminalId: "batman" };
 let available: boolean;
 const run = vi.fn();
 const next: Command = { id: "terminal.next", label: "Next terminal", section: "Navigation", keywords: [], shortcut: "Ctrl+Tab", available: () => available, run };
@@ -19,7 +19,7 @@ beforeEach(() => {
   available = true;
   run.mockClear();
   reachedXterm.mockClear();
-  document.body.innerHTML = '<div data-terminal="isis"><textarea></textarea></div>';
+  document.body.innerHTML = '<div data-terminal="batman"><textarea></textarea></div>';
   xterm = document.querySelector("textarea")!;
   xterm.addEventListener("keydown", reachedXterm);
   uninstall = installShortcuts(window, [next], () => ctx);

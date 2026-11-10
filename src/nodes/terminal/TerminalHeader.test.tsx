@@ -19,7 +19,7 @@ afterEach(() => {
   document.body.innerHTML = "";
 });
 
-const claude = { title: "Isis", name: "Isis", agent: "claude", cwd: "C:/code", shell: "default", command: "" } as const;
+const claude = { title: "Batman", name: "Batman", agent: "claude", cwd: "C:/code", shell: "default", command: "" } as const;
 
 async function mount(node: React.ReactNode) {
   const host = document.createElement("div");
@@ -39,13 +39,13 @@ async function openMore(host: HTMLElement) {
 const textOf = (items: HTMLElement[]) => items.map((item) => item.textContent);
 
 it("opens its name editor on request, with the keyboard (« Rename » of the palette)", async () => {
-  const view = await mount(<TerminalHeader nodeId="isis" payload={claude} status={{ state: "stopped" }} />);
+  const view = await mount(<TerminalHeader nodeId="batman" payload={claude} status={{ state: "stopped" }} />);
   expect(view.host.querySelector("input")).toBeNull();
-  await act(async () => requestUi({ kind: "renameTerminal", id: "thot" }));
+  await act(async () => requestUi({ kind: "renameTerminal", id: "cyborg" }));
   expect(view.host.querySelector("input")).toBeNull();
-  await act(async () => requestUi({ kind: "renameTerminal", id: "isis" }));
+  await act(async () => requestUi({ kind: "renameTerminal", id: "batman" }));
   const field = view.host.querySelector("input")!;
-  expect(field.value).toBe("Isis");
+  expect(field.value).toBe("Batman");
   expect(document.activeElement).toBe(field);
   await view.unmount();
 });
@@ -60,35 +60,35 @@ const press = (target: Element, key: string) => target.dispatchEvent(new Keyboar
 
 async function rename() {
   mockIPC(() => undefined);
-  await nodesStore.getState().create("isis", { workspaceId: "w1", kind: "terminal", payload: { ...claude } });
+  await nodesStore.getState().create("batman", { workspaceId: "w1", kind: "terminal", payload: { ...claude } });
   const canvas = vi.fn();
-  const view = await mount(<TerminalHeader nodeId="isis" payload={claude} status={{ state: "stopped" }} />);
+  const view = await mount(<TerminalHeader nodeId="batman" payload={claude} status={{ state: "stopped" }} />);
   // What Excalidraw hears, on its container above the node: no key of the field may get there.
   view.host.addEventListener("keydown", canvas);
-  await act(async () => requestUi({ kind: "renameTerminal", id: "isis" }));
+  await act(async () => requestUi({ kind: "renameTerminal", id: "batman" }));
   return { ...view, canvas, field: view.host.querySelector("input")! };
 }
 
-const nameOf = () => (nodesStore.getState().nodes.isis?.payload as { name: string }).name;
+const nameOf = () => (nodesStore.getState().nodes.batman?.payload as { name: string }).name;
 
 it("renames on Enter, trimmed, and keeps its keys from the canvas: Backspace there would delete the node", async () => {
   const { field, canvas, host, unmount } = await rename();
   for (const key of ["a", "Backspace", "Delete"]) await act(async () => void press(field, key));
-  type(field, "  Thot ");
+  type(field, "  Cyborg ");
   await act(async () => void press(field, "Enter"));
   expect(canvas).not.toHaveBeenCalled();
   expect(host.querySelector("input")).toBeNull();
-  expect(nameOf()).toBe("Thot");
+  expect(nameOf()).toBe("Cyborg");
   await unmount();
 });
 
 it("cancels a rename on Escape: the name stays, and Escape does not reach the canvas, which would deactivate the node", async () => {
   const { field, canvas, host, unmount } = await rename();
-  type(field, "Thot");
+  type(field, "Cyborg");
   await act(async () => void press(field, "Escape"));
   expect(canvas).not.toHaveBeenCalled();
   expect(host.querySelector("input")).toBeNull();
-  expect(nameOf()).toBe("Isis");
+  expect(nameOf()).toBe("Batman");
   await unmount();
 });
 
@@ -97,7 +97,7 @@ it("keeps the name when the field is left empty or unchanged", async () => {
   type(field, "   ");
   await act(async () => void press(field, "Enter"));
   expect(host.querySelector("input")).toBeNull();
-  expect(nameOf()).toBe("Isis");
+  expect(nameOf()).toBe("Batman");
   await unmount();
 });
 
@@ -106,42 +106,42 @@ it("shows Remote Control on a Claude session only, as dummyPlane knows it (spec 
   document.body.append(host);
   const root = createRoot(host);
   const phone = () => host.querySelector("[data-remote]");
-  await act(async () => root.render(<TerminalHeader nodeId="isis" payload={{ ...claude, agent: "shell" }} status={{ state: "running" }} />));
+  await act(async () => root.render(<TerminalHeader nodeId="batman" payload={{ ...claude, agent: "shell" }} status={{ state: "running" }} />));
   expect(phone()).toBeNull();
-  await act(async () => root.render(<TerminalHeader nodeId="isis" payload={claude} status={{ state: "running" }} />));
+  await act(async () => root.render(<TerminalHeader nodeId="batman" payload={claude} status={{ state: "running" }} />));
   expect(phone()?.getAttribute("data-remote")).toBe("off");
-  await act(async () => root.render(<TerminalHeader nodeId="isis" payload={{ ...claude, remoteControl: true }} status={{ state: "stopped" }} />));
+  await act(async () => root.render(<TerminalHeader nodeId="batman" payload={{ ...claude, remoteControl: true }} status={{ state: "stopped" }} />));
   expect(phone()?.getAttribute("aria-label")).toBe("Remote Control at next start");
-  await act(async () => remoteStore.getState().set("isis", { state: "on", url: "https://claude.ai/code/session_1" }));
+  await act(async () => remoteStore.getState().set("batman", { state: "on", url: "https://claude.ai/code/session_1" }));
   expect(phone()?.getAttribute("aria-label")).toBe("Remote Control on");
   await act(async () => root.unmount());
   host.remove();
 });
 
 it("shows the model a mission's router gave the agent, which outlives the mission otherwise unseen (final review maj §3)", async () => {
-  const view = await mount(<TerminalHeader nodeId="isis" payload={claude} status={{ state: "running" }} />);
+  const view = await mount(<TerminalHeader nodeId="batman" payload={claude} status={{ state: "running" }} />);
   expect(view.host.querySelector("[data-model]")).toBeNull();
-  await act(async () => view.root.render(<TerminalHeader nodeId="isis" payload={{ ...claude, model: "claude-haiku-5-5" }} status={{ state: "running" }} />));
+  await act(async () => view.root.render(<TerminalHeader nodeId="batman" payload={{ ...claude, model: "claude-haiku-5-5" }} status={{ state: "running" }} />));
   expect(view.host.querySelector("[data-model]")?.textContent).toBe("Haiku 5.5");
   await view.unmount();
 });
 
 it("names the model in its menu too, and clears it there: a narrow header hides the chip", async () => {
   mockIPC(() => undefined);
-  await nodesStore.getState().create("isis", { workspaceId: "w1", kind: "terminal", payload: { ...claude, model: "claude-haiku-5-5" } });
-  const view = await mount(<TerminalHeader nodeId="isis" payload={{ ...claude, model: "claude-haiku-5-5" }} status={{ state: "stopped" }} />);
+  await nodesStore.getState().create("batman", { workspaceId: "w1", kind: "terminal", payload: { ...claude, model: "claude-haiku-5-5" } });
+  const view = await mount(<TerminalHeader nodeId="batman" payload={{ ...claude, model: "claude-haiku-5-5" }} status={{ state: "stopped" }} />);
   const items = await openMore(view.host);
   expect(document.querySelector('[role="menu"]')!.textContent).toContain("Model chosen by the router: Haiku 5.5");
   const clear = items().find((item) => item.textContent === "Default model at next start")!;
   await act(async () => clear.click());
-  expect((nodesStore.getState().nodes.isis?.payload as { model?: string }).model).toBeUndefined();
+  expect((nodesStore.getState().nodes.batman?.payload as { model?: string }).model).toBeUndefined();
   await view.unmount();
 });
 
 it("keeps the essentials on its row and the rest behind « ⋯ »: Review, Restart, Minimize and Duplicate are menu entries", async () => {
   const onDuplicate = vi.fn();
   const onClose = vi.fn();
-  const view = await mount(<TerminalHeader nodeId="isis" payload={claude} status={{ state: "running" }} onDuplicate={onDuplicate} onClose={onClose} />);
+  const view = await mount(<TerminalHeader nodeId="batman" payload={claude} status={{ state: "running" }} onDuplicate={onDuplicate} onClose={onClose} />);
   const labels = [...view.host.querySelectorAll("button")].map((b) => b.getAttribute("aria-label"));
   // The agent, Remote Control, the menu, Close: no more.
   expect(labels).toEqual(["Agent", expect.stringContaining("Remote Control"), "More actions", "Close"]);
@@ -156,35 +156,35 @@ it("keeps the essentials on its row and the rest behind « ⋯ »: Review, Resta
 
 it("restarts a Claude session three ways, and stops the process, from its menu", async () => {
   mockIPC(() => undefined);
-  await nodesStore.getState().create("isis", { workspaceId: "w1", kind: "terminal", payload: { ...claude } });
-  const view = await mount(<TerminalHeader nodeId="isis" payload={claude} status={{ state: "running" }} />);
+  await nodesStore.getState().create("batman", { workspaceId: "w1", kind: "terminal", payload: { ...claude } });
+  const view = await mount(<TerminalHeader nodeId="batman" payload={claude} status={{ state: "running" }} />);
   const pick = async (text: string) => {
     const items = await openMore(view.host);
     await act(async () => items().find((item) => item.textContent === text)!.click());
   };
   await pick("Resume the session");
-  expect(relaunchTerminal).toHaveBeenLastCalledWith("isis", claude, "resume");
+  expect(relaunchTerminal).toHaveBeenLastCalledWith("batman", claude, "resume");
   await pick("Latest in the folder");
-  expect(relaunchTerminal).toHaveBeenLastCalledWith("isis", claude, "continue");
+  expect(relaunchTerminal).toHaveBeenLastCalledWith("batman", claude, "continue");
   await pick("New session");
-  expect(relaunchTerminal).toHaveBeenLastCalledWith("isis", expect.objectContaining({ agent: "claude", claudeSessionId: expect.any(String) }), "new");
+  expect(relaunchTerminal).toHaveBeenLastCalledWith("batman", expect.objectContaining({ agent: "claude", claudeSessionId: expect.any(String) }), "new");
   await pick("Stop the process");
-  expect(stopTerminal).toHaveBeenCalledWith("isis");
+  expect(stopTerminal).toHaveBeenCalledWith("batman");
   await view.unmount();
 });
 
 it("restarts any other agent with one entry, and offers no Stop once nothing runs", async () => {
-  const view = await mount(<TerminalHeader nodeId="isis" payload={{ ...claude, agent: "shell" }} status={{ state: "stopped" }} />);
+  const view = await mount(<TerminalHeader nodeId="batman" payload={{ ...claude, agent: "shell" }} status={{ state: "stopped" }} />);
   const items = await openMore(view.host);
   expect(textOf(items())).toEqual(["Review changes", "Minimize", "Restart"]);
   await act(async () => items()[2]!.click());
-  expect(relaunchTerminal).toHaveBeenCalledWith("isis", expect.objectContaining({ agent: "shell" }), "new");
+  expect(relaunchTerminal).toHaveBeenCalledWith("batman", expect.objectContaining({ agent: "shell" }), "new");
   await view.unmount();
 });
 
 it("gives way to its name on a narrow node: the chips hide below 28rem, the status word goes to the screen readers below 20rem", async () => {
   const view = await mount(
-    <TerminalHeader nodeId="isis" payload={{ ...claude, agent: "shell", model: "claude-haiku-5-5" }} status={{ state: "stopped" }} />,
+    <TerminalHeader nodeId="batman" payload={{ ...claude, agent: "shell", model: "claude-haiku-5-5" }} status={{ state: "stopped" }} />,
   );
   const header = view.host.querySelector("header")!;
   // Its own container: the node's width decides, not the window's.
@@ -204,7 +204,7 @@ it("gives way to its name on a narrow node: the chips hide below 28rem, the stat
 });
 
 it("names its menu « More actions », with the same tooltip as the header's other buttons, never over its menu nor when the menu hands the focus back", async () => {
-  const view = await mount(<TerminalHeader nodeId="isis" payload={claude} status={{ state: "running" }} />);
+  const view = await mount(<TerminalHeader nodeId="batman" payload={claude} status={{ state: "running" }} />);
   const more = view.host.querySelector<HTMLButtonElement>('button[aria-label="More actions"]')!;
   // No native title: the system's own tooltip would show beside the app's.
   expect(more.hasAttribute("title")).toBe(false);

@@ -31,17 +31,17 @@ const plain: SceneFrame = { ...group("f", "Notes", ["c"]), group: null };
 const backend = group("g1", "Équipe Back", ["a", "b"]);
 const docs = group("g2", "Docs", ["d"]);
 const agents: TargetAgent[] = [
-  { id: "a", name: "Isis", groupName: "Équipe Back" },
-  { id: "b", name: "Thot", groupName: "Équipe Back" },
-  { id: "c", name: "Isis", groupName: null },
-  { id: "d", name: "Zeus", groupName: "Docs" },
+  { id: "a", name: "Batman", groupName: "Équipe Back" },
+  { id: "b", name: "Cyborg", groupName: "Équipe Back" },
+  { id: "c", name: "Batman", groupName: null },
+  { id: "d", name: "Hulk", groupName: "Docs" },
 ];
 const options = targetOptions(agents, [backend, docs, plain]);
 
 describe("slug", () => {
   it("drops spaces and accents and lowers the case", () => {
     expect(slug("Équipe Back")).toBe("equipeback");
-    expect(slug("Hermès")).toBe("hermes");
+    expect(slug("Padmé")).toBe("padme");
   });
 });
 
@@ -51,20 +51,20 @@ describe("targetOptions", () => {
       ["@all", "4 agents"],
       ["@equipeback", "2 agents"],
       ["@docs", "1 agent"],
-      ["@isis", "Équipe Back"],
-      ["@thot", "Équipe Back"],
-      ["@isis", "No group"],
-      ["@zeus", "Docs"],
+      ["@batman", "Équipe Back"],
+      ["@cyborg", "Équipe Back"],
+      ["@batman", "No group"],
+      ["@hulk", "Docs"],
     ]);
   });
 });
 
 describe("targetAgents", () => {
   it("names the terminals and finds their group", () => {
-    const names: Record<string, string> = { a: "Isis", c: "Isis" };
+    const names: Record<string, string> = { a: "Batman", c: "Batman" };
     expect(targetAgents(["a", "c", "o"], (id) => names[id], [backend, plain])).toEqual([
-      { id: "a", name: "Isis", groupName: "Équipe Back" },
-      { id: "c", name: "Isis", groupName: null },
+      { id: "a", name: "Batman", groupName: "Équipe Back" },
+      { id: "c", name: "Batman", groupName: null },
     ]);
   });
 });
@@ -72,8 +72,8 @@ describe("targetAgents", () => {
 describe("matchOptions", () => {
   it("ignores case and accents, and puts the names that start with the query first", () => {
     expect(matchOptions(options, "EQU").map((o) => o.label)).toEqual(["@equipeback"]);
-    expect(matchOptions(options, "is").map((o) => o.label)).toEqual(["@isis", "@isis"]);
-    expect(matchOptions(options, "o").map((o) => o.label)).toEqual(["@docs", "@thot"]);
+    expect(matchOptions(options, "bat").map((o) => o.label)).toEqual(["@batman", "@batman"]);
+    expect(matchOptions(options, "o").map((o) => o.label)).toEqual(["@docs", "@cyborg"]);
     expect(matchOptions(options, "").length).toBe(options.length);
   });
 });
@@ -89,13 +89,13 @@ describe("mentionAt", () => {
 
 describe("mentionParts / partTargets", () => {
   it("completes the last name of a slashed mention, the others already typed", () => {
-    expect(mentionParts("thot/ze")).toEqual({ typed: ["thot"], query: "ze" });
+    expect(mentionParts("cyborg/de")).toEqual({ typed: ["cyborg"], query: "de" });
     expect(mentionParts("zeu")).toEqual({ typed: [], query: "zeu" });
-    expect(mentionParts("thot//")).toEqual({ typed: ["thot"], query: "" });
+    expect(mentionParts("cyborg//")).toEqual({ typed: ["cyborg"], query: "" });
   });
 
   it("turns the typed names that match one target into targets", () => {
-    expect(partTargets(["thot", "nobody", "isis", "docs"], options)).toEqual([
+    expect(partTargets(["cyborg", "nobody", "batman", "docs"], options)).toEqual([
       { kind: "agent", id: "b" },
       { kind: "group", id: "g2" },
     ]);
@@ -121,7 +121,7 @@ describe("withoutMention", () => {
 describe("extractMentions", () => {
   it("turns typed mentions of exactly one target into targets", () => {
     expect(extractMentions("@all lance les tests", options)).toEqual({ targets: [{ kind: "all" }], text: "lance les tests" });
-    expect(extractMentions("relis @Docs puis @zeus", options)).toEqual({
+    expect(extractMentions("relis @Docs puis @hulk", options)).toEqual({
       targets: [
         { kind: "group", id: "g2" },
         { kind: "agent", id: "d" },
@@ -131,7 +131,7 @@ describe("extractMentions", () => {
   });
 
   it("leaves ambiguous, unknown mentions and e-mail addresses as typed", () => {
-    expect(extractMentions("@isis @nobody write to a@b.fr", options)).toEqual({ targets: [], text: "@isis @nobody write to a@b.fr" });
+    expect(extractMentions("@batman @nobody write to a@b.fr", options)).toEqual({ targets: [], text: "@batman @nobody write to a@b.fr" });
   });
 
   it("keeps the line breaks of the command", () => {
@@ -143,28 +143,28 @@ describe("extractMentions", () => {
     expect(extractMentions("  garde  ces  espaces  ", options).text).toBe("garde  ces  espaces");
   });
 
-  it("reads several targets joined by slashes: @athena/zeus/héra", () => {
-    expect(extractMentions("@thot/zeus /effort high", options)).toEqual({
+  it("reads several targets joined by slashes: @hulk/hulk/ironmán", () => {
+    expect(extractMentions("@cyborg/hulk /effort high", options)).toEqual({
       targets: [
         { kind: "agent", id: "b" },
         { kind: "agent", id: "d" },
       ],
       text: "/effort high",
     });
-    expect(extractMentions("@Docs/thot, relisez", options).targets).toEqual([
+    expect(extractMentions("@Docs/cyborg, relisez", options).targets).toEqual([
       { kind: "group", id: "g2" },
       { kind: "agent", id: "b" },
     ]);
   });
 
   it("leaves a slashed mention as typed when one of its names is unknown or ambiguous", () => {
-    expect(extractMentions("@thot/nobody lance", options)).toEqual({ targets: [], text: "@thot/nobody lance" });
-    expect(extractMentions("@isis/zeus lance", options)).toEqual({ targets: [], text: "@isis/zeus lance" });
+    expect(extractMentions("@cyborg/nobody lance", options)).toEqual({ targets: [], text: "@cyborg/nobody lance" });
+    expect(extractMentions("@batman/hulk lance", options)).toEqual({ targets: [], text: "@batman/hulk lance" });
   });
 
   it("reads a mention followed by punctuation", () => {
     expect(extractMentions("@all, lancez les tests", options)).toEqual({ targets: [{ kind: "all" }], text: "lancez les tests" });
-    expect(extractMentions("dis à @zeus: bonjour", options)).toEqual({ targets: [{ kind: "agent", id: "d" }], text: "dis à bonjour" });
+    expect(extractMentions("dis à @hulk: bonjour", options)).toEqual({ targets: [{ kind: "agent", id: "d" }], text: "dis à bonjour" });
     expect(extractMentions("voir @a.b", options).text).toBe("voir @a.b");
   });
 });
@@ -206,7 +206,7 @@ it("tries a name containing a slash whole before splitting it (backlog 27 oct)",
   const opts = targetOptionsFront([{ id: "a", name: "Front", groupName: null }], frames);
   expect(mentionPartsFront("front/ba", opts)).toEqual({ typed: [], query: "front/ba" });
   expect(matchOptionsFront(opts, "front/ba")[0].label).toBe("@front/back");
-  expect(mentionPartsFront("athena/ze", opts)).toEqual({ typed: ["athena"], query: "ze" });
+  expect(mentionPartsFront("hulk/de", opts)).toEqual({ typed: ["hulk"], query: "de" });
 });
 
 describe("activeTarget", () => {

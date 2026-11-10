@@ -15,7 +15,7 @@ vi.mock("./events", () => ({ notify: vi.fn((_fleet: string, _line: string, typed
 const min = 60_000;
 beforeAll(async () => {
   mockIPC(() => undefined);
-  terminalStatusStore.getState().set("isis", { state: "running" });
+  terminalStatusStore.getState().set("batman", { state: "running" });
   await nodesStore.getState().create("chef", {
     workspaceId: "w1",
     kind: "fleet",
@@ -27,7 +27,7 @@ beforeAll(async () => {
         maxAgents: 4,
         budgetMin: 30,
         startedAt: 0,
-        members: [{ nodeId: "isis", name: "Isis", task: "Login", budgetMin: 10, linked: false, branch: "b", worktree: "w", sentAt: 0 }],
+        members: [{ nodeId: "batman", name: "Batman", task: "Login", budgetMin: 10, linked: false, branch: "b", worktree: "w", sentAt: 0 }],
       },
     },
   });
@@ -39,13 +39,13 @@ it("tells the fleet once when a budget runs out, warns the user at 200 % and at 
   checkBudgets(11 * min);
   checkBudgets(12 * min);
   expect(vi.mocked(notify).mock.calls.map(([to, line]) => [to, line])).toEqual([
-    ["chef", "Budget used up: Isis (Login) went past its 10 min without reporting. Decide: write, extend, interrupt or reassign."],
+    ["chef", "Budget used up: Batman (Login) went past its 10 min without reporting. Decide: write, extend, interrupt or reassign."],
   ]);
   expect(missionOf(nodesStore.getState().nodes.chef)?.members[0].overdue).toBe(1);
   checkBudgets(21 * min);
   checkBudgets(22 * min);
   expect(toast.warning).toHaveBeenCalledTimes(1);
-  expect(toast.warning).toHaveBeenCalledWith("Isis has gone over twice its budget (10 min) without reporting");
+  expect(toast.warning).toHaveBeenCalledWith("Batman has gone over twice its budget (10 min) without reporting");
   checkBudgets(31 * min);
   checkBudgets(40 * min);
   expect(vi.mocked(notify).mock.calls.map(([to, line]) => [to, line])[1]).toEqual(["chef", "Overall budget used up (30 min): finish with what is done."]);
@@ -55,26 +55,26 @@ it("tells the fleet once when a budget runs out, warns the user at 200 % and at 
 });
 
 describe("an overnight mission (spec mission de nuit §3)", () => {
-  const fresh = { nodeId: "isis", name: "Isis", task: "Login", budgetMin: 10, linked: false, branch: "b", worktree: "w", sentAt: 0 };
+  const fresh = { nodeId: "batman", name: "Batman", task: "Login", budgetMin: 10, linked: false, branch: "b", worktree: "w", sentAt: 0 };
   const night = () => setMission("chef", { overnight: true, budgetMin: 100, startedAt: 0, members: [fresh], globalOverdue: undefined, windDownTold: undefined });
 
   beforeEach(() => {
     vi.clearAllMocks();
-    terminalStatusStore.getState().set("isis", { state: "running" });
+    terminalStatusStore.getState().set("batman", { state: "running" });
   });
   afterEach(() => setMission("chef", { overnight: undefined, windDownTold: undefined, globalOverdue: undefined, budgetMin: 30 }));
 
   it("treats an agent's budget as a target: a line that says so, and no toast for an empty room", () => {
     night();
     checkBudgets(11 * min);
-    expect(vi.mocked(notify).mock.calls[0][1]).toBe("Target passed: Isis (Login) went past its 10 min, which is only a target. See where it stands with read_output; let it finish if it is moving.");
+    expect(vi.mocked(notify).mock.calls[0][1]).toBe("Target passed: Batman (Login) went past its 10 min, which is only a target. See where it stands with read_output; let it finish if it is moving.");
     checkBudgets(21 * min);
     expect(toast.warning).not.toHaveBeenCalled();
   });
 
   it("tells the fleet once to wind down, and leaves the end of the budget without a toast", () => {
     night();
-    updateMember("chef", "isis", { overdue: 2 });
+    updateMember("chef", "batman", { overdue: 2 });
     checkBudgets(89 * min);
     expect(notify).not.toHaveBeenCalled();
     checkBudgets(90 * min);
@@ -89,7 +89,7 @@ describe("an overnight mission (spec mission de nuit §3)", () => {
   it("does not wind down a night whose budget was already told as over: the app was closed through it", () => {
     night();
     setMission("chef", { globalOverdue: true });
-    updateMember("chef", "isis", { overdue: 2 });
+    updateMember("chef", "batman", { overdue: 2 });
     checkBudgets(120 * min);
     expect(notify).not.toHaveBeenCalled();
   });
@@ -98,8 +98,8 @@ describe("an overnight mission (spec mission de nuit §3)", () => {
     try {
       night();
       checkBudgets(11 * min);
-      expect(vi.mocked(notify).mock.calls[0][1]).toBe("Target passed: Isis (Login) went past its 10 min, which is only a target. See where it stands with read_output; let it finish if it is moving.");
-      updateMember("chef", "isis", { overdue: 2 });
+      expect(vi.mocked(notify).mock.calls[0][1]).toBe("Target passed: Batman (Login) went past its 10 min, which is only a target. See where it stands with read_output; let it finish if it is moving.");
+      updateMember("chef", "batman", { overdue: 2 });
       checkBudgets(90 * min);
       expect(vi.mocked(notify).mock.calls[1][1]).toBe("10 min left: the queue gives out no more tasks. Merge what is done, have it checked, then finish.");
     } finally {
@@ -108,7 +108,7 @@ describe("an overnight mission (spec mission de nuit §3)", () => {
 });
 
 it("says nothing about the mission of a closed fleet (spec première version §5.4)", () => {
-  const fresh = { nodeId: "isis", name: "Isis", task: "Login", budgetMin: 10, linked: false, branch: "b", worktree: "w", sentAt: 0 };
+  const fresh = { nodeId: "batman", name: "Batman", task: "Login", budgetMin: 10, linked: false, branch: "b", worktree: "w", sentAt: 0 };
   setMission("chef", { members: [fresh], globalOverdue: undefined });
   vi.mocked(notify).mockClear();
   vi.mocked(toast.warning).mockClear();
@@ -122,18 +122,18 @@ it("says nothing about the mission of a closed fleet (spec première version §5
 });
 
 it("tells the fleet and the user in English when the interface is (spec première version §7.1)", () => {
-  const fresh = { nodeId: "isis", name: "Isis", task: "Login", budgetMin: 10, linked: false, branch: "b", worktree: "w", sentAt: 0 };
+  const fresh = { nodeId: "batman", name: "Batman", task: "Login", budgetMin: 10, linked: false, branch: "b", worktree: "w", sentAt: 0 };
   setMission("chef", { members: [fresh], globalOverdue: undefined });
   vi.mocked(notify).mockClear();
   vi.mocked(toast.warning).mockClear();
   try {
     checkBudgets(100 * min);
     expect(vi.mocked(notify).mock.calls.map(([to, line]) => [to, line])).toEqual([
-      ["chef", "Budget used up: Isis (Login) went past its 10 min without reporting. Decide: write, extend, interrupt or reassign."],
+      ["chef", "Budget used up: Batman (Login) went past its 10 min without reporting. Decide: write, extend, interrupt or reassign."],
       ["chef", "Overall budget used up (30 min): finish with what is done."],
     ]);
     expect(vi.mocked(toast.warning).mock.calls).toEqual([
-      ["Isis has gone over twice its budget (10 min) without reporting"],
+      ["Batman has gone over twice its budget (10 min) without reporting"],
       ["Mission Auth: overall budget used up (30 min)"],
     ]);
   } finally {
@@ -141,15 +141,15 @@ it("tells the fleet and the user in English when the interface is (spec premièr
 });
 
 it("says nothing for a stopped agent, and records an overrun as told only once its line is typed (backlog H3)", () => {
-  const fresh = { nodeId: "isis", name: "Isis", task: "Login", budgetMin: 10, linked: false, branch: "b", worktree: "w", sentAt: 0 };
+  const fresh = { nodeId: "batman", name: "Batman", task: "Login", budgetMin: 10, linked: false, branch: "b", worktree: "w", sentAt: 0 };
   setMission("chef", { state: "en_cours", members: [fresh], globalOverdue: undefined, budgetMin: undefined });
   vi.mocked(notify).mockClear();
   vi.mocked(toast.warning).mockClear();
-  terminalStatusStore.getState().set("isis", { state: "stopped" });
+  terminalStatusStore.getState().set("batman", { state: "stopped" });
   checkBudgets(60 * min);
   expect(notify).not.toHaveBeenCalled();
   expect(toast.warning).not.toHaveBeenCalled();
-  terminalStatusStore.getState().set("isis", { state: "running" });
+  terminalStatusStore.getState().set("batman", { state: "running" });
   // The fleet is busy: the line waits, and the overrun is not recorded as told.
   vi.mocked(notify).mockImplementationOnce(() => undefined);
   checkBudgets(60 * min);
@@ -172,7 +172,7 @@ it("tells a budget once even while the fleet cannot hear, and records the worst 
         state: "en_cours",
         name: "Auth",
         maxAgents: 4,
-        members: [{ nodeId: "isis", name: "Isis", task: "Login", budgetMin: 10, linked: false, branch: "b", worktree: "w", sentAt: 0 }],
+        members: [{ nodeId: "batman", name: "Batman", task: "Login", budgetMin: 10, linked: false, branch: "b", worktree: "w", sentAt: 0 }],
       },
     },
   });

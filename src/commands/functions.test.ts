@@ -16,7 +16,7 @@ describe("functionSections (spec fenêtre §7.3)", () => {
   const commands = [
     command("terminal.next", "Next terminal", "Navigation"),
     command("workspace.new", "New workspace", "Workspaces"),
-    command("terminal.pause", "Pause", "Terminal · Isis", false),
+    command("terminal.pause", "Pause", "Terminal · Batman", false),
     command("canvas.overview", "Overview", "Navigation"),
     command("palette.functions", "Search for a function…", "Navigation"),
   ];
@@ -47,11 +47,11 @@ describe("functionSections (spec fenêtre §7.3)", () => {
       disabled: () => "codex introuvable dans le PATH",
       run: () => undefined,
     };
-    const sections = functionSections([rename, codex], { ...ctx, terminalId: "Isis" }, "");
-    expect(sections.map((s) => s.label)).toEqual(["Terminal · Isis", "Agents"]);
-    expect(sections[0].items[0]).toMatchObject({ label: "Renommer Isis", hint: "F2", disabled: null });
+    const sections = functionSections([rename, codex], { ...ctx, terminalId: "Batman" }, "");
+    expect(sections.map((s) => s.label)).toEqual(["Terminal · Batman", "Agents"]);
+    expect(sections[0].items[0]).toMatchObject({ label: "Renommer Batman", hint: "F2", disabled: null });
     expect(sections[1].items[0]).toMatchObject({ label: "Launch Codex", hint: null, disabled: "codex introuvable dans le PATH" });
-    expect(labelOf(rename, { ...ctx, terminalId: "Thoth" })).toBe("Renommer Thoth");
+    expect(labelOf(rename, { ...ctx, terminalId: "Cyborg" })).toBe("Renommer Cyborg");
     expect(sectionOf(codex, ctx)).toBe("Agents");
   });
 

@@ -425,12 +425,12 @@ describe("the window", () => {
     await act(async () => labelled("Close").click());
     expect(gitWindowStore.getState().path).toBeNull();
     await render();
-    await act(async () => reviewStore.getState().open("isis"));
+    await act(async () => reviewStore.getState().open("batman"));
     expect(gitWindowStore.getState().path).toBeNull();
   });
 
   it("closes the review panel when it opens", async () => {
-    reviewStore.getState().open("isis");
+    reviewStore.getState().open("batman");
     gitWindowStore.getState().open("C:/code/api");
     expect(reviewStore.getState().nodeId).toBeNull();
   });

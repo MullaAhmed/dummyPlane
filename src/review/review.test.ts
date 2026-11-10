@@ -71,11 +71,11 @@ describe("missionBranchFor", () => {
       kind: "fleet",
       payload: {
         name: "Chef",
-        mission: { ...NEW_MISSION, state: "en_cours", branch: "dummyplane/auth", members: [{ nodeId: "isis", name: "Isis", task: "t", budgetMin: 5, linked: true, branch: "dummyplane/auth-isis", worktree: "C:/w" }] },
+        mission: { ...NEW_MISSION, state: "en_cours", branch: "dummyplane/auth", members: [{ nodeId: "batman", name: "Batman", task: "t", budgetMin: 5, linked: true, branch: "dummyplane/auth-batman", worktree: "C:/w" }] },
       },
     });
-    expect(missionBranchFor("isis")).toBe("dummyplane/auth");
-    expect(missionBranchFor("thot")).toBeNull();
+    expect(missionBranchFor("batman")).toBe("dummyplane/auth");
+    expect(missionBranchFor("cyborg")).toBeNull();
   });
 });
 

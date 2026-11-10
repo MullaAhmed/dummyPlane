@@ -10,7 +10,7 @@ vi.mock("./registry", () => ({ relaunchTerminal: vi.fn() }));
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-const payload: TerminalPayload = { title: "Installation · Codex", name: "Isis", agent: "custom", cwd: "C:/code", shell: "powershell", command: "irm x | iex" };
+const payload: TerminalPayload = { title: "Installation · Codex", name: "Batman", agent: "custom", cwd: "C:/code", shell: "powershell", command: "irm x | iex" };
 
 let host: HTMLDivElement;
 let root: Root;

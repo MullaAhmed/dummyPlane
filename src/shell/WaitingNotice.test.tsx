@@ -14,7 +14,7 @@ vi.mock("@/commands/goToRun", () => ({ goToAgent: vi.fn() }));
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-const IDS = ["isis", "thot", "ra", "nout", "seth"];
+const IDS = ["batman", "cyborg", "robin", "starfire", "shazam"];
 const terminal = (workspaceId: string, name: string): NodeRecord => ({
   workspaceId,
   kind: "terminal",
@@ -37,7 +37,7 @@ beforeEach(async () => {
     ],
   });
   nodesStore.setState({
-    nodes: { isis: terminal("w1", "Isis"), thot: terminal("w2", "Thoth"), ra: terminal("w1", "Ra"), nout: terminal("w1", "Nut"), seth: terminal("w1", "Seth") },
+    nodes: { batman: terminal("w1", "Batman"), cyborg: terminal("w2", "Cyborg"), robin: terminal("w1", "Robin"), starfire: terminal("w1", "Starfire"), shazam: terminal("w1", "Shazam") },
   });
   terminalStatusStore.setState({ statuses: Object.fromEntries(IDS.map((id) => [id, { state: "running" }])) });
   agentActivityStore.setState({ activities: {} });
@@ -60,49 +60,49 @@ describe("WaitingNotice (spec notification §4)", () => {
   });
 
   it("appears when an agent starts waiting and disappears when it stops", async () => {
-    await wait("isis");
-    expect(rows()).toEqual(["Isis has a question"]);
-    await act(async () => agentActivityStore.getState().apply({ nodeId: "isis", activity: "working", since: 1 }));
+    await wait("batman");
+    expect(rows()).toEqual(["Batman has a question"]);
+    await act(async () => agentActivityStore.getState().apply({ nodeId: "batman", activity: "working", since: 1 }));
     expect(host.querySelector("section")).toBeNull();
   });
 
   it("disappears when the agent's process ends", async () => {
-    await wait("isis");
-    await act(async () => agentActivityStore.getState().remove("isis"));
+    await wait("batman");
+    await act(async () => agentActivityStore.getState().remove("batman"));
     expect(host.querySelector("section")).toBeNull();
   });
 
   it("clears the tool rail, at any window height", async () => {
-    await wait("isis");
+    await wait("batman");
     expect(host.querySelector("section")?.className).toContain("left-[70px]");
   });
 
   it("names the workspace of an agent that is not on screen", async () => {
-    await wait("thot");
-    expect(rows()).toEqual(["Thoth has a questionBackend"]);
+    await wait("cyborg");
+    expect(rows()).toEqual(["Cyborg has a questionBackend"]);
   });
 
   describe("the preview of the question (spec notification §7)", () => {
-    const ask = (message?: string) => act(async () => agentActivityStore.getState().apply({ nodeId: "isis", activity: "waiting", since: 0, message }));
+    const ask = (message?: string) => act(async () => agentActivityStore.getState().apply({ nodeId: "batman", activity: "waiting", since: 0, message }));
 
     it("shows what the agent says it waits for, with the whole text in a tooltip", async () => {
       await ask("Claude needs your permission to use Bash");
-      expect(rows()).toEqual(["Isis has a questionClaude needs your permission to use Bash"]);
+      expect(rows()).toEqual(["Batman has a questionClaude needs your permission to use Bash"]);
       expect(host.querySelector("[title]")?.getAttribute("title")).toBe("Claude needs your permission to use Bash");
     });
 
     it("falls back to no preview", async () => {
       await ask(undefined);
-      expect(rows()).toEqual(["Isis has a question"]);
+      expect(rows()).toEqual(["Batman has a question"]);
       expect(host.querySelector("[title]")).toBeNull();
     });
 
     it("follows the agent: a new question replaces it, the end of the wait removes it", async () => {
       await ask("First?");
       await ask("Second?");
-      expect(rows()).toEqual(["Isis has a questionSecond?"]);
+      expect(rows()).toEqual(["Batman has a questionSecond?"]);
       await ask(undefined);
-      expect(rows()).toEqual(["Isis has a question"]);
+      expect(rows()).toEqual(["Batman has a question"]);
     });
 
     it("shows a message as plain text, never as markup", async () => {
@@ -119,35 +119,35 @@ describe("WaitingNotice (spec notification §4)", () => {
   });
 
   it("takes the keyboard to the agent on a click", async () => {
-    await wait("thot");
+    await wait("cyborg");
     await act(async () => host.querySelector("button")!.click());
-    expect(goToAgent).toHaveBeenCalledWith(expect.objectContaining({ id: "thot", workspaceId: "w2" }));
+    expect(goToAgent).toHaveBeenCalledWith(expect.objectContaining({ id: "cyborg", workspaceId: "w2" }));
   });
 
   it("stacks three agents, the one waiting longest first", async () => {
-    await wait("ra", 3);
-    await wait("isis", 1);
-    await wait("nout", 2);
-    expect(rows()).toEqual(["Isis has a question", "Nut has a question", "Ra has a question"]);
+    await wait("robin", 3);
+    await wait("batman", 1);
+    await wait("starfire", 2);
+    expect(rows()).toEqual(["Batman has a question", "Starfire has a question", "Robin has a question"]);
   });
 
   it("counts the others past three, and its line goes to the first of them", async () => {
-    await wait("isis", 1);
-    await wait("nout", 2);
-    await wait("ra", 3);
-    await wait("seth", 4);
+    await wait("batman", 1);
+    await wait("starfire", 2);
+    await wait("robin", 3);
+    await wait("shazam", 4);
     expect(last(rows())).toBe("+ 1 more");
-    await wait("thot", 5);
+    await wait("cyborg", 5);
     expect(last(rows())).toBe("+ 2 more");
     await act(async () => last([...host.querySelectorAll("button")]).click());
-    expect(goToAgent).toHaveBeenCalledWith(expect.objectContaining({ id: "seth" }));
+    expect(goToAgent).toHaveBeenCalledWith(expect.objectContaining({ id: "shazam" }));
   });
 
   it("speaks English", async () => {
-    await wait("isis", 1);
-    expect(rows()).toEqual(["Isis has a question"]);
+    await wait("batman", 1);
+    expect(rows()).toEqual(["Batman has a question"]);
     expect(host.querySelector("section")?.getAttribute("aria-label")).toBe("Agents waiting for your answer");
-    for (const [id, since] of [["nout", 2], ["ra", 3], ["seth", 4]] as const) await wait(id, since);
+    for (const [id, since] of [["starfire", 2], ["robin", 3], ["shazam", 4]] as const) await wait(id, since);
     expect(last(rows())).toBe("+ 1 more");
   });
 });

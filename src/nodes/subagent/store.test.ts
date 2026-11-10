@@ -49,8 +49,8 @@ describe("subagentTitle", () => {
   });
 
   it("names its parent: the subagent that spawned it, else its terminal", () => {
-    expect(parentLabel({ agentType: "general-purpose" }, "Horus", "terminal")).toBe("general-purpose");
-    expect(parentLabel(undefined, "Horus", "terminal")).toBe("Horus");
+    expect(parentLabel({ agentType: "general-purpose" }, "Aquaman", "terminal")).toBe("general-purpose");
+    expect(parentLabel(undefined, "Aquaman", "terminal")).toBe("Aquaman");
     expect(parentLabel(undefined, "", "terminal")).toBe("terminal");
   });
 });

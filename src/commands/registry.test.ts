@@ -20,14 +20,14 @@ vi.mock("@/canvas/keyboardFocus", () => ({ terminalWithKeyboard: vi.fn(() => nul
 
 const home: CommandContext = { project: false, workspaceId: null, terminalCount: 0, terminalId: null };
 const empty: CommandContext = { project: true, workspaceId: "w1", terminalCount: 0, terminalId: null };
-const busy: CommandContext = { project: true, workspaceId: "w1", terminalCount: 3, terminalId: "thot" };
+const busy: CommandContext = { project: true, workspaceId: "w1", terminalCount: 3, terminalId: "cyborg" };
 const command = (id: string) => COMMANDS.find((c) => c.id === id)!;
 const terminal = (id: string, x: number) =>
   ({ id, type: "embeddable", customData: { kind: "terminal" }, x, y: 100, width: 300, height: 200, isDeleted: false, frameId: null }) as unknown as ExcalidrawElement;
 
 beforeAll(async () => {
   mockIPC(() => undefined);
-  for (const id of ["isis", "thot", "anubis"]) {
+  for (const id of ["batman", "cyborg", "flash"]) {
     await nodesStore.getState().create(id, {
       workspaceId: "w1",
       kind: "terminal",
@@ -39,10 +39,10 @@ beforeEach(() => {
   vi.mocked(arrive).mockClear();
   canvasStore.setState({
     api: {
-      getSceneElements: () => [terminal("isis", 0), terminal("thot", 400), terminal("anubis", 800)],
+      getSceneElements: () => [terminal("batman", 0), terminal("cyborg", 400), terminal("flash", 800)],
       getAppState: () => ({ selectedElementIds: {} }),
     } as unknown as ExcalidrawImperativeAPI,
-    nodeIds: ["isis", "thot", "anubis"],
+    nodeIds: ["batman", "cyborg", "flash"],
   });
   projectsStore.setState({ view: "project" } as never);
   workspacesStore.setState({ status: "ready", activeId: "w1" } as never);
@@ -77,13 +77,13 @@ describe("the registry (spec fenêtre §6.1, §8)", () => {
 
   it("goes to the next and the previous terminal in reading order, from the current one", async () => {
     await command("terminal.next").run(busy);
-    expect(arrive).toHaveBeenLastCalledWith("anubis");
+    expect(arrive).toHaveBeenLastCalledWith("flash");
     await command("terminal.previous").run(busy);
-    expect(arrive).toHaveBeenLastCalledWith("isis");
+    expect(arrive).toHaveBeenLastCalledWith("batman");
     await command("terminal.next").run({ ...busy, terminalId: null });
-    expect(arrive).toHaveBeenLastCalledWith("isis");
+    expect(arrive).toHaveBeenLastCalledWith("batman");
     await command("terminal.previous").run({ ...busy, terminalId: null });
-    expect(arrive).toHaveBeenLastCalledWith("anubis");
+    expect(arrive).toHaveBeenLastCalledWith("flash");
   });
 
   it("finds the command of a shortcut only where it is available", () => {
@@ -106,10 +106,10 @@ describe("commandContext", () => {
   });
 
   it("starts from the terminal that has the keyboard, else from the last one of the workspace", () => {
-    vi.mocked(lastTerminalOf).mockReturnValue("anubis");
-    expect(commandContext().terminalId).toBe("anubis");
-    vi.mocked(terminalWithKeyboard).mockReturnValue("thot");
-    expect(commandContext().terminalId).toBe("thot");
+    vi.mocked(lastTerminalOf).mockReturnValue("flash");
+    expect(commandContext().terminalId).toBe("flash");
+    vi.mocked(terminalWithKeyboard).mockReturnValue("cyborg");
+    expect(commandContext().terminalId).toBe("cyborg");
     vi.mocked(terminalWithKeyboard).mockReturnValue(null);
   });
 

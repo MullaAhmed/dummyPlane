@@ -28,10 +28,10 @@ beforeEach(async () => {
   mockIPC(() => undefined);
   usageStore.setState({ sessions: {}, limits: null });
   terminalStatusStore.setState({ statuses: {} });
-  await nodesStore.getState().create("isis", {
+  await nodesStore.getState().create("batman", {
     workspaceId: "w1",
     kind: "terminal",
-    payload: { title: "Isis", name: "Isis", agent: "claude", cwd: "C:/code", shell: "default", command: "" },
+    payload: { title: "Batman", name: "Batman", agent: "claude", cwd: "C:/code", shell: "default", command: "" },
   });
   host = document.createElement("div");
   document.body.append(host);
@@ -57,7 +57,7 @@ it("says no Claude session yet when none is running, whatever the Git Bash state
 });
 
 it("waits for a Claude session's first answer before showing the limits (spec maj §6)", async () => {
-  await act(async () => terminalStatusStore.getState().set("isis", { state: "running" }));
+  await act(async () => terminalStatusStore.getState().set("batman", { state: "running" }));
   expect(meter().textContent).toBe("Usage· waiting for the first answer");
   await act(async () => meter().focus());
   expect(hint()).toContain("first reply");
@@ -65,24 +65,24 @@ it("waits for a Claude session's first answer before showing the limits (spec ma
 
 it("says usage needs Git Bash when a running Claude session has none", async () => {
   mockIPC((cmd) => (cmd === "diagnostics" ? { gitBash: null } : undefined));
-  await act(async () => terminalStatusStore.getState().set("isis", { state: "running" }));
+  await act(async () => terminalStatusStore.getState().set("batman", { state: "running" }));
   expect(meter().textContent).toBe("Usage· usage needs Git Bash");
 });
 
 it("keeps waiting for the first answer when Git Bash is found", async () => {
   mockIPC((cmd) => (cmd === "diagnostics" ? { gitBash: "C:/Git/bin/bash.exe" } : undefined));
-  await act(async () => terminalStatusStore.getState().set("isis", { state: "running" }));
+  await act(async () => terminalStatusStore.getState().set("batman", { state: "running" }));
   expect(meter().textContent).toBe("Usage· waiting for the first answer");
 });
 
 it("shows the session's and the week's use of the plan in the title bar, then the detail on a click", async () => {
-  await act(async () => usageStore.getState().apply({ nodeId: "isis", status: STATUS }, 1_000));
+  await act(async () => usageStore.getState().apply({ nodeId: "batman", status: STATUS }, 1_000));
   expect(meter().textContent).toContain("Session 29%");
   expect(meter().textContent).toContain("Week 93%");
   expect(meter().querySelector('[data-tone="over"]')).not.toBeNull();
   await act(async () => meter().click());
   const detail = document.querySelector("[data-usage-detail]")!.textContent!;
-  for (const piece of ["Session (5 h)", "Week (all models)", "Week (Fable)", "Total cost", "$0.0074", "API time", "1 min", "Elapsed time", "1 h 05", "+12", "−3", "Haiku 5.5", "67.8 k", "CO₂", "Isis", "warm", "48%"]) {
+  for (const piece of ["Session (5 h)", "Week (all models)", "Week (Fable)", "Total cost", "$0.0074", "API time", "1 min", "Elapsed time", "1 h 05", "+12", "−3", "Haiku 5.5", "67.8 k", "CO₂", "Batman", "warm", "48%"]) {
     expect(detail).toContain(piece);
   }
 });

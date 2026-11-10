@@ -29,7 +29,7 @@ vi.mock("@/agents/broadcast", async (importOriginal) => ({
   pauseAll: vi.fn(() => Promise.resolve()),
   resumeAll: vi.fn(() => Promise.resolve()),
 }));
-vi.mock("@/agents/groups", () => ({ requestCloseGroup: vi.fn(), ungroup: vi.fn(), setGroupFolded: vi.fn(), groupMembers: vi.fn(() => ["isis"]) }));
+vi.mock("@/agents/groups", () => ({ requestCloseGroup: vi.fn(), ungroup: vi.fn(), setGroupFolded: vi.fn(), groupMembers: vi.fn(() => ["batman"]) }));
 vi.mock("@/fleet/fleets", () => ({ addFleetToGroup: vi.fn(() => Promise.resolve()) }));
 vi.mock("@/agents/terminals", () => ({ duplicateTerminal: vi.fn(() => Promise.resolve()), requestClose: vi.fn() }));
 vi.mock("@/nodes/terminal/registry", () => ({
@@ -56,32 +56,32 @@ const ids = (c: CommandContext) => CURRENT.filter((command) => command.available
 
 beforeAll(async () => {
   mockIPC(() => undefined);
-  await nodesStore.getState().create("isis", {
+  await nodesStore.getState().create("batman", {
     workspaceId: "w1",
     kind: "terminal",
-    payload: { title: "Isis", name: "Isis", agent: "claude", cwd: "C:/code", shell: "default", command: "", claudeSessionId: "s1" },
+    payload: { title: "Batman", name: "Batman", agent: "claude", cwd: "C:/code", shell: "default", command: "", claudeSessionId: "s1" },
   });
-  await nodesStore.getState().create("thot", {
+  await nodesStore.getState().create("cyborg", {
     workspaceId: "w1",
     kind: "terminal",
-    payload: { title: "Thoth", name: "Thoth", agent: "codex", cwd: "C:/code", shell: "default", command: "" },
+    payload: { title: "Cyborg", name: "Cyborg", agent: "codex", cwd: "C:/code", shell: "default", command: "" },
   });
 });
 beforeEach(() => {
   canvasStore.setState({
-    frames: [{ id: "g1", name: "Serveurs", x: 0, y: 0, width: 10, height: 10, group: { role: "backend", pantheon: "egypt" }, memberIds: ["isis"] }],
+    frames: [{ id: "g1", name: "Serveurs", x: 0, y: 0, width: 10, height: 10, group: { role: "backend", pantheon: "egypt" }, memberIds: ["batman"] }],
   });
-  terminalStatusStore.getState().set("isis", { state: "running" });
-  terminalStatusStore.getState().set("thot", { state: "stopped" });
-  agentActivityStore.getState().apply({ nodeId: "isis", activity: "working", since: 0 });
+  terminalStatusStore.getState().set("batman", { state: "running" });
+  terminalStatusStore.getState().set("cyborg", { state: "stopped" });
+  agentActivityStore.getState().apply({ nodeId: "batman", activity: "working", since: 0 });
 });
 afterAll(() => clearMocks());
 
 describe("Terminal · <prénom> and Groupe · <nom> (spec fenêtre §7.3)", () => {
   it("names its sections after the terminal of the moment and its group", () => {
-    expect(sectionOf(find("terminal.rename"), ctx("isis"))).toBe("Terminal · Isis");
-    expect(sectionOf(find("group.rename"), ctx("isis"))).toBe("Group · Serveurs");
-    expect(CURRENT.map((c) => labelOf(c, ctx("isis")))).toEqual([
+    expect(sectionOf(find("terminal.rename"), ctx("batman"))).toBe("Terminal · Batman");
+    expect(sectionOf(find("group.rename"), ctx("batman"))).toBe("Group · Serveurs");
+    expect(CURRENT.map((c) => labelOf(c, ctx("batman")))).toEqual([
       "Rename",
       "Duplicate",
       "Review changes",
@@ -108,8 +108,8 @@ describe("Terminal · <prénom> and Groupe · <nom> (spec fenêtre §7.3)", () =
 
   it("offers each function under the rules of its button", () => {
     expect(ids(ctx(null))).toEqual([]);
-    // Isis runs and works: no Resume; in a group.
-    expect(ids(ctx("isis"))).toEqual([
+    // Batman runs and works: no Resume; in a group.
+    expect(ids(ctx("batman"))).toEqual([
       "terminal.rename",
       "terminal.duplicate",
       "terminal.review",
@@ -130,73 +130,73 @@ describe("Terminal · <prénom> and Groupe · <nom> (spec fenêtre §7.3)", () =
       "group.resume",
       "group.frame",
     ]);
-    // Thoth is stopped and outside any group.
-    expect(ids(ctx("thot"))).toEqual(["terminal.rename", "terminal.duplicate", "terminal.review", "terminal.relaunch", "terminal.minimize", "terminal.close", "terminal.copy", "terminal.paste"]);
+    // Cyborg is stopped and outside any group.
+    expect(ids(ctx("cyborg"))).toEqual(["terminal.rename", "terminal.duplicate", "terminal.review", "terminal.relaunch", "terminal.minimize", "terminal.close", "terminal.copy", "terminal.paste"]);
   });
 
   it("acts on the terminal of the moment, as its header and the panel's row do", async () => {
-    await find("terminal.duplicate").run(ctx("isis"));
-    expect(duplicateTerminal).toHaveBeenCalledWith("w1", "isis");
-    await find("terminal.relaunch").run(ctx("isis"));
-    expect(vi.mocked(relaunchTerminal).mock.calls[0][0]).toBe("isis");
+    await find("terminal.duplicate").run(ctx("batman"));
+    expect(duplicateTerminal).toHaveBeenCalledWith("w1", "batman");
+    await find("terminal.relaunch").run(ctx("batman"));
+    expect(vi.mocked(relaunchTerminal).mock.calls[0][0]).toBe("batman");
     expect(vi.mocked(relaunchTerminal).mock.calls[0][2]).toBe("resume");
-    await find("terminal.relaunch").run(ctx("thot"));
+    await find("terminal.relaunch").run(ctx("cyborg"));
     expect(vi.mocked(relaunchTerminal).mock.calls[1][2]).toBe("new");
-    await find("terminal.stop").run(ctx("isis"));
-    expect(stopTerminal).toHaveBeenCalledWith("isis");
-    await find("terminal.pause").run(ctx("isis"));
-    expect(pauseAgents).toHaveBeenCalledWith(["isis"]);
-    agentActivityStore.getState().apply({ nodeId: "isis", activity: "idle", since: 0 });
-    await find("terminal.resume").run(ctx("isis"));
-    expect(resumeAgent).toHaveBeenCalledWith("isis");
-    await find("terminal.close").run(ctx("thot"));
-    expect(requestClose).toHaveBeenCalledWith("thot");
+    await find("terminal.stop").run(ctx("batman"));
+    expect(stopTerminal).toHaveBeenCalledWith("batman");
+    await find("terminal.pause").run(ctx("batman"));
+    expect(pauseAgents).toHaveBeenCalledWith(["batman"]);
+    agentActivityStore.getState().apply({ nodeId: "batman", activity: "idle", since: 0 });
+    await find("terminal.resume").run(ctx("batman"));
+    expect(resumeAgent).toHaveBeenCalledWith("batman");
+    await find("terminal.close").run(ctx("cyborg"));
+    expect(requestClose).toHaveBeenCalledWith("cyborg");
   });
 
   it("shows the terminal without taking the keyboard, then opens its name editor", async () => {
-    await find("terminal.rename").run(ctx("thot"));
-    expect(showNode).toHaveBeenCalledWith("thot");
-    expect(pendingUiRequest()).toEqual({ kind: "renameTerminal", id: "thot" });
+    await find("terminal.rename").run(ctx("cyborg"));
+    expect(showNode).toHaveBeenCalledWith("cyborg");
+    expect(pendingUiRequest()).toEqual({ kind: "renameTerminal", id: "cyborg" });
   });
 
   it("acts on the group of the moment, as its menu does", async () => {
-    await find("group.linkFleet").run(ctx("isis"));
+    await find("group.linkFleet").run(ctx("batman"));
     expect(addFleetToGroup).toHaveBeenCalledWith("g1");
-    await find("group.fold").run(ctx("isis"));
+    await find("group.fold").run(ctx("batman"));
     expect(setGroupFolded).toHaveBeenLastCalledWith("g1", true);
     canvasStore.setState({ frames: [{ ...canvasStore.getState().frames[0], group: { role: "backend", pantheon: "egypt", folded: true } }] as never });
-    await find("group.fold").run(ctx("isis"));
+    await find("group.fold").run(ctx("batman"));
     expect(setGroupFolded).toHaveBeenLastCalledWith("g1", false);
     canvasStore.setState({ frames: [{ ...canvasStore.getState().frames[0], group: { role: "backend", pantheon: "egypt" } }] as never });
-    await find("group.ungroup").run(ctx("isis"));
+    await find("group.ungroup").run(ctx("batman"));
     expect(ungroup).toHaveBeenCalledWith("g1");
-    await find("group.close").run(ctx("isis"));
+    await find("group.close").run(ctx("batman"));
     expect(requestCloseGroup).toHaveBeenCalledWith("g1");
     agentsPanelStore.setState({ open: false, filter: "waiting" });
-    await find("group.addAgent").run(ctx("isis"));
+    await find("group.addAgent").run(ctx("batman"));
     expect(agentsPanelStore.getState()).toMatchObject({ open: true, filter: "all" });
     expect(pendingUiRequest()).toEqual({ kind: "groupMenu", id: "g1" });
-    await find("group.rename").run(ctx("isis"));
+    await find("group.rename").run(ctx("batman"));
     expect(focusGroup).toHaveBeenCalledWith("g1");
   });
 
   it("copies the terminal's selection, greyed without one, and pastes the clipboard into it", async () => {
     Object.defineProperty(navigator, "clipboard", { value: { writeText: vi.fn(() => Promise.resolve()) }, configurable: true });
-    expect(find("terminal.copy").disabled!(ctx("isis"))).toBe("nothing selected");
+    expect(find("terminal.copy").disabled!(ctx("batman"))).toBe("nothing selected");
     vi.mocked(terminalSelection).mockReturnValue("ls -la");
-    expect(find("terminal.copy").disabled!(ctx("isis"))).toBeNull();
-    await find("terminal.copy").run(ctx("isis"));
+    expect(find("terminal.copy").disabled!(ctx("batman"))).toBeNull();
+    await find("terminal.copy").run(ctx("batman"));
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith("ls -la");
-    await find("terminal.paste").run(ctx("isis"));
-    expect(pasteIntoTerminal).toHaveBeenCalledWith("isis", "echo hi");
+    await find("terminal.paste").run(ctx("batman"));
+    expect(pasteIntoTerminal).toHaveBeenCalledWith("batman", "echo hi");
   });
 
   it("pastes a clipboard image into the terminal as Ctrl+V does, not as text", async () => {
     clipboard = { text: "", image: true };
     try {
       vi.mocked(pasteIntoTerminal).mockClear();
-      await find("terminal.paste").run(ctx("isis"));
-      expect(pasteImageIntoTerminal).toHaveBeenCalledWith("isis", expect.anything());
+      await find("terminal.paste").run(ctx("batman"));
+      expect(pasteImageIntoTerminal).toHaveBeenCalledWith("batman", expect.anything());
       expect(pasteIntoTerminal).not.toHaveBeenCalled();
     } finally {
       clipboard = { text: "echo hi", image: false };
@@ -204,19 +204,19 @@ describe("Terminal · <prénom> and Groupe · <nom> (spec fenêtre §7.3)", () =
   });
 
   it("acts on the group the radial menu points at, not the terminal's", async () => {
-    const pointed = { ...ctx("thot"), groupId: "g1" };
+    const pointed = { ...ctx("cyborg"), groupId: "g1" };
     expect(sectionOf(find("group.rename"), pointed)).toBe("Group · Serveurs");
     await find("group.pause").run(pointed);
-    expect(pauseAll).toHaveBeenCalledWith(["isis"]);
+    expect(pauseAll).toHaveBeenCalledWith(["batman"]);
     await find("group.frame").run(pointed);
     expect(focusGroup).toHaveBeenLastCalledWith("g1");
-    expect(find("group.pause").available({ ...ctx("thot"), groupId: "gone" })).toBe(false);
+    expect(find("group.pause").available({ ...ctx("cyborg"), groupId: "gone" })).toBe(false);
   });
 });
 
 it("opens the review of the terminal of the moment (spec maj §5)", async () => {
-  await find("terminal.review").run(ctx("thot"));
-  expect(reviewStore.getState().nodeId).toBe("thot");
+  await find("terminal.review").run(ctx("cyborg"));
+  expect(reviewStore.getState().nodeId).toBe("cyborg");
 });
 
 
@@ -224,7 +224,7 @@ describe("a target that went between the palette and Entrée (plan F2)", () => {
   it("does nothing, without a TypeError: the group is gone", async () => {
     canvasStore.setState({ frames: [] });
     for (const id of ["group.rename", "group.addAgent", "group.linkFleet", "group.fold", "group.ungroup", "group.close", "group.pause", "group.resume", "group.frame"]) {
-      await expect(Promise.resolve(find(id).run(ctx("isis")))).resolves.toBeUndefined();
+      await expect(Promise.resolve(find(id).run(ctx("batman")))).resolves.toBeUndefined();
     }
     expect(ungroup).not.toHaveBeenCalled();
     expect(requestCloseGroup).not.toHaveBeenCalled();
@@ -239,20 +239,20 @@ describe("a target that went between the palette and Entrée (plan F2)", () => {
 
 describe("Minimize terminal / Expand terminal", () => {
   it("offers Minimize on an open terminal and Expand on a minimized one, never both", () => {
-    expect(ids(ctx("thot"))).toContain("terminal.minimize");
-    expect(ids(ctx("thot"))).not.toContain("terminal.expand");
-    nodesStore.getState().update("thot", { minimized: true });
-    expect(ids(ctx("thot"))).toContain("terminal.expand");
-    expect(ids(ctx("thot"))).not.toContain("terminal.minimize");
-    nodesStore.getState().update("thot", { minimized: undefined });
+    expect(ids(ctx("cyborg"))).toContain("terminal.minimize");
+    expect(ids(ctx("cyborg"))).not.toContain("terminal.expand");
+    nodesStore.getState().update("cyborg", { minimized: true });
+    expect(ids(ctx("cyborg"))).toContain("terminal.expand");
+    expect(ids(ctx("cyborg"))).not.toContain("terminal.minimize");
+    nodesStore.getState().update("cyborg", { minimized: undefined });
   });
 
   it("minimizes the terminal of the moment, and expands it where it is, the view following", async () => {
-    await find("terminal.minimize").run(ctx("thot"));
-    expect(minimizeTerminal).toHaveBeenCalledWith("thot");
+    await find("terminal.minimize").run(ctx("cyborg"));
+    expect(minimizeTerminal).toHaveBeenCalledWith("cyborg");
     vi.mocked(showNode).mockClear();
-    await find("terminal.expand").run(ctx("thot"));
-    expect(expandTerminal).toHaveBeenCalledWith("thot");
-    expect(showNode).toHaveBeenCalledWith("thot");
+    await find("terminal.expand").run(ctx("cyborg"));
+    expect(expandTerminal).toHaveBeenCalledWith("cyborg");
+    expect(showNode).toHaveBeenCalledWith("cyborg");
   });
 });

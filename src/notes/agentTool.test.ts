@@ -5,7 +5,7 @@ import { linkedClaudeAgents } from "@/mission/store";
 import { notesTool, notesToolSpec } from "./agentTool";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
-vi.mock("@/mission/store", () => ({ linkedClaudeAgents: vi.fn(() => [{ nodeId: "isis", name: "Isis" }, { nodeId: "thot", name: "Thoth" }]) }));
+vi.mock("@/mission/store", () => ({ linkedClaudeAgents: vi.fn(() => [{ nodeId: "batman", name: "Batman" }, { nodeId: "cyborg", name: "Cyborg" }]) }));
 
 const textOf = (result: { content: { text: string }[] }) => result.content[0].text;
 let asked: { command: string; args: unknown }[];
@@ -35,44 +35,44 @@ describe("the notes tool (spec notes §3)", () => {
   });
 
   it("lists the notes, those of the agent's group marked", async () => {
-    const text = textOf(await notesTool("anubis", false, {}));
+    const text = textOf(await notesTool("flash", false, {}));
     expect(text).toContain("Auth (attached to your group)");
     expect(text).toContain("Deploy");
     expect(text).not.toContain("Deploy (attached");
-    expect(asked[0]).toMatchObject({ command: "notes_agent_list", args: { nodeIds: ["anubis"] } });
+    expect(asked[0]).toMatchObject({ command: "notes_agent_list", args: { nodeIds: ["flash"] } });
   });
 
   it("asks for the fleet's agents too", async () => {
     await notesTool("chef", true, {});
     expect(linkedClaudeAgents).toHaveBeenCalledWith("chef");
-    expect(asked[0]).toMatchObject({ args: { nodeIds: ["chef", "isis", "thot"] } });
+    expect(asked[0]).toMatchObject({ args: { nodeIds: ["chef", "batman", "cyborg"] } });
   });
 
   it("reads a note by its name", async () => {
-    expect(textOf(await notesTool("anubis", false, { name: "Auth" }))).toBe("# Auth\nbody");
-    expect(asked[0]).toMatchObject({ command: "notes_agent_read", args: { nodeId: "anubis", name: "Auth" } });
+    expect(textOf(await notesTool("flash", false, { name: "Auth" }))).toBe("# Auth\nbody");
+    expect(asked[0]).toMatchObject({ command: "notes_agent_read", args: { nodeId: "flash", name: "Auth" } });
   });
 
   it("gives a refused path back as a readable error", async () => {
-    const result = await notesTool("anubis", false, { name: "bad" });
+    const result = await notesTool("flash", false, { name: "bad" });
     expect(result.isError).toBe(true);
     expect(textOf(result)).toContain("path refused");
   });
 
   it("refuses a name that is no text", async () => {
-    const result = await notesTool("anubis", false, { name: 3 });
+    const result = await notesTool("flash", false, { name: 3 });
     expect(result.isError).toBe(true);
     expect(asked).toEqual([]);
   });
 
   it("says when there are no notes", async () => {
     mockIPC(() => []);
-    expect(textOf(await notesTool("anubis", false, {}))).toContain("No notes in this project");
+    expect(textOf(await notesTool("flash", false, {}))).toContain("No notes in this project");
   });
 
   it("cuts a very long note, and says so", async () => {
     mockIPC(() => "x".repeat(200_000));
-    const text = textOf(await notesTool("anubis", false, { name: "long" }));
+    const text = textOf(await notesTool("flash", false, { name: "long" }));
     expect(text.length).toBeLessThan(101_000);
     expect(text).toContain("note cut");
   });
