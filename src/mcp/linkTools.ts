@@ -1,7 +1,7 @@
 import { signalWire } from "@/canvas/wireActivity";
 import { AGENTS } from "@/fleet/catalog";
 import { linkedAgentsOf, type LinkedAgent } from "@/fleet/agentLinks";
-import { spawnedByOf } from "@/fleet/spawnFamily";
+import { isLaunching, spawnedByOf } from "@/fleet/spawnFamily";
 import { messages } from "@/i18n";
 import { notify } from "@/mission/events";
 import { oneLine, sameName } from "@/mission/mission";
@@ -96,6 +96,8 @@ function messageLinked(nodeId: string, args: Record<string, unknown>): ToolResul
   const text = typeof args.text === "string" ? oneLine(args.text) : "";
   if (!text) return refused(l.nothingToSend);
   if (!isRunning(peer.nodeId)) return refused(l.stopped(peer.name));
+  // A sub-agent just spawned runs its shell before its Claude: the line would run there as a command.
+  if (isLaunching(peer.nodeId)) return refused(l.starting(peer.name));
   notify(peer.nodeId, l.message(nameOf(nodeId), text));
   // The light runs along the wire from the sender: a pulse on the wire's end, naming its start.
   if (peer.outgoing) signalWire(peer.nodeId, "toAgent", nodeId);

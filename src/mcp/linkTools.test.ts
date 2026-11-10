@@ -5,6 +5,7 @@ import { mockIPC } from "@tauri-apps/api/mocks";
 import { canvasStore } from "@/canvas/canvasStore";
 import { createNodeElement } from "@/canvas/nodeElement";
 import { wireActivityStore } from "@/canvas/wireActivity";
+import { markLaunching } from "@/fleet/spawnFamily";
 import { withAgentLink, withWire } from "@/fleet/wires";
 import { notify } from "@/mission/events";
 import { terminalText } from "@/nodes/terminal/registry";
@@ -146,5 +147,18 @@ describe("linked agents' tools", () => {
     } finally {
       await nodesStore.getState().update("horus", { spawnedBy: undefined });
     }
+  });
+
+  it("refuse a sub-agent still starting: its shell runs before its Claude", async () => {
+    scene = withWire(nodes, "isis", "horus", "calm", true);
+    terminalStatusStore.getState().set("horus", { state: "running" });
+    markLaunching("horus", true);
+    try {
+      expect(textOf(await call("isis", "message_agent", { agent: "Horus", text: "hi" }))).toContain("Horus is still starting");
+      expect(notify).not.toHaveBeenCalled();
+    } finally {
+      markLaunching("horus", false);
+    }
+    expect(textOf(await call("isis", "message_agent", { agent: "Horus", text: "hi" }))).toContain("Sent to Horus");
   });
 });

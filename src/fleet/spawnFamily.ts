@@ -68,6 +68,11 @@ export function markLaunching(nodeId: string, on: boolean) {
   else launching.delete(nodeId);
 }
 
+/** Whether a sub-agent still waits for its Claude and its task: a line typed now could land in its shell. */
+export function isLaunching(nodeId: string): boolean {
+  return launching.has(nodeId);
+}
+
 /**
  * Sub-agents that reported: their task is done, their seat free, though their
  * terminal stays open for the user (an agent cannot close it).

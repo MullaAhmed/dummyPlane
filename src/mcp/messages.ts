@@ -102,6 +102,7 @@ export const agentMessages = defineMessages({
       ambiguous: (name: string, ids: string) => `Several linked agents are named "${name}": give its id instead (${ids}).`,
       nothingToSend: "Nothing to send (text).",
       stopped: (name: string) => `${name} is stopped: its terminal is not running, the message is not sent.`,
+      starting: (name: string) => `${name} is still starting and has not got its task yet: try again in a moment.`,
       message: (from: string, text: string) => `Message from ${from} (a linked agent; answer with message_agent only if it calls for an answer): ${text}`,
       sent: (name: string) => `Sent to ${name}. An answer, if any, will be typed into your terminal: carry on, do not wait for it.`,
       held: (name: string) => `${name} is waiting for the user's answer to a dialog: your message is typed as soon as it is answered.`,
