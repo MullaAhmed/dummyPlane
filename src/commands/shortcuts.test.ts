@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it } from "vitest";
-import { isModalOpen, shortcutOf, type KeyLike } from "./shortcuts";
+import { isEyeDropperKey, isModalOpen, shortcutOf, type KeyLike } from "./shortcuts";
 
 const key = (fields: Partial<KeyLike>): KeyLike => ({
   key: "",
@@ -62,5 +62,28 @@ describe("isModalOpen", () => {
     expect(isModalOpen()).toBe(true);
     document.body.innerHTML = '<div class="excalidraw excalidraw-modal-container"></div>';
     expect(isModalOpen()).toBe(true);
+  });
+});
+
+describe("isEyeDropperKey", () => {
+  it("is I, Shift+G and Shift+S, whatever Caps Lock does to the letter", () => {
+    for (const fields of [{ key: "i" }, { key: "I" }, { key: "G", shiftKey: true }, { key: "g", shiftKey: true }, { key: "S", shiftKey: true }]) {
+      expect(isEyeDropperKey(key(fields))).toBe(true);
+    }
+  });
+
+  it("is not Shift+I, plain G or S, a combination with Ctrl, Alt or Meta, nor a key typed in a composition", () => {
+    for (const fields of [
+      { key: "I", shiftKey: true },
+      { key: "g" },
+      { key: "s" },
+      { key: "i", ctrlKey: true },
+      { key: "i", altKey: true },
+      { key: "i", metaKey: true },
+      { key: "G", shiftKey: true, ctrlKey: true },
+      { key: "i", isComposing: true },
+    ]) {
+      expect(isEyeDropperKey(key(fields))).toBe(false);
+    }
   });
 });

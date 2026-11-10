@@ -33,6 +33,20 @@ function recognized(event: KeyLike): Shortcut | null {
   return match(key, event.ctrlKey, event.shiftKey);
 }
 
+/**
+ * Excalidraw's eyedropper keys: I, Shift+G (fill) and Shift+S (stroke). The
+ * canvas is transparent (the dot grid and its colour are painted under it), so
+ * the dropper reads black there, shows it as a pale square that follows the
+ * pointer, and a click sets that black as the fill, outside the pen's inks:
+ * Excalidraw is never handed these keys. Compared as lowercase, as Excalidraw
+ * folds Caps Lock: Caps Lock + I opens it too, Shift+I does not.
+ */
+export function isEyeDropperKey(event: KeyLike): boolean {
+  if (event.isComposing || event.ctrlKey || event.altKey || event.metaKey) return false;
+  const key = event.key.toLowerCase();
+  return event.shiftKey ? key === "g" || key === "s" : key === "i";
+}
+
 /** The shortcut a held key repeats while it does not repeat: consumed, not run (plan F1). */
 export function heldShortcutOf(event: KeyLike): Shortcut | null {
   const shortcut = recognized(event);

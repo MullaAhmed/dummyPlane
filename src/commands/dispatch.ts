@@ -2,7 +2,13 @@ import { commandFor, runCommand, type Command, type CommandContext } from "./com
 import { closeOpenMenus } from "./openMenus";
 import { closePalette, paletteStore } from "./paletteState";
 import { COMMANDS, commandContext } from "./registry";
-import { heldShortcutOf, isModalOpen, shortcutOf } from "./shortcuts";
+import { heldShortcutOf, isEyeDropperKey, isModalOpen, shortcutOf } from "./shortcuts";
+
+/** Where Excalidraw reads a key as its own: inside its container, but not typed into a field or a terminal's xterm. */
+function onCanvas(target: EventTarget | null): boolean {
+  if (!(target instanceof Element) || !target.closest(".excalidraw")) return false;
+  return !target.matches("input, textarea, select, [contenteditable='true'], [contenteditable='']");
+}
 
 /**
  * The application's single keydown listener (spec window §6.2): on the
@@ -16,6 +22,11 @@ export function installShortcuts(
   context: () => CommandContext = commandContext,
 ): () => void {
   const listener = (event: KeyboardEvent) => {
+    // Never Excalidraw's eyedropper (shortcuts.ts): stopped before its container hears it. Nothing else on the canvas reads these keys.
+    if (isEyeDropperKey(event) && onCanvas(event.target)) {
+      event.stopImmediatePropagation();
+      return;
+    }
     const shortcut = shortcutOf(event);
     if (isModalOpen(target.document)) return;
     if (!shortcut) {

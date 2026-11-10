@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { readSource } from "@/theme/cssBlocks";
 import type { Command, CommandContext } from "./command";
 import { installShortcuts } from "./dispatch";
@@ -101,4 +101,33 @@ it("closes an open dropdown menu before the command runs: the menu would take th
   press({ key: "Tab", ctrlKey: true });
   expect(escapes).toEqual(["Escape"]);
   expect(run).toHaveBeenCalled();
+});
+
+describe("Excalidraw's eyedropper keys", () => {
+  const reachedCanvas = vi.fn();
+  let canvas: HTMLElement;
+  let field: HTMLInputElement;
+  beforeEach(() => {
+    reachedCanvas.mockClear();
+    document.body.insertAdjacentHTML("beforeend", '<div class="excalidraw"><div class="excalidraw-container" tabindex="0"><input /></div></div>');
+    canvas = document.querySelector<HTMLElement>(".excalidraw-container")!;
+    field = canvas.querySelector("input")!;
+    canvas.addEventListener("keydown", reachedCanvas);
+  });
+  const pressOn = (target: HTMLElement, init: KeyboardEventInit) => target.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, cancelable: true, ...init }));
+
+  it("never reach Excalidraw from the canvas: I, Shift+G, Shift+S", () => {
+    pressOn(canvas, { key: "i" });
+    pressOn(canvas, { key: "G", shiftKey: true });
+    pressOn(canvas, { key: "S", shiftKey: true });
+    expect(reachedCanvas).not.toHaveBeenCalled();
+  });
+
+  it("let Excalidraw's other keys through, and an I typed into a field or a terminal", () => {
+    pressOn(canvas, { key: "r" });
+    pressOn(field, { key: "i" });
+    press({ key: "i" });
+    expect(reachedCanvas).toHaveBeenCalledTimes(2);
+    expect(reachedXterm).toHaveBeenCalledTimes(1);
+  });
 });
