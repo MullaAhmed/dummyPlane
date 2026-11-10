@@ -20,7 +20,7 @@ import { QuietButton } from "./buttons";
 import { shellMessages } from "./messages";
 
 /**
- * "Close Isis?" before closing a running agent (spec habillage §7.5), or
+ * "Close Batman?" before closing a running agent (spec habillage §7.5), or
  * "Close 2 agents?" when an undo or Delete took several at once (retours J8b).
  * A fleet in mission says what its closing leaves behind (spec
  * première version §5.4). An agent that opened sub-agents (spawn_agent) offers

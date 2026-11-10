@@ -33,7 +33,7 @@ export function isSlashCommand(text: string): boolean {
   return /^\s*\/[\w-]+(?=\s|$)/.test(text);
 }
 
-/** A command after mentions that did not resolve ("@thot/ /clear"): it still must not go to the selection. */
+/** A command after mentions that did not resolve ("@cyborg/ /clear"): it still must not go to the selection. */
 export function isCommandAfterMentions(text: string): boolean {
   return /^(?:\s*@\S+\s)*\s*\/[\w-]+(?=\s|$)/.test(text);
 }

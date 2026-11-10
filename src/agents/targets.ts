@@ -18,7 +18,7 @@ function optionsNamed(options: readonly TargetOption[], word: string): TargetOpt
 /** One line of the `@` list. */
 export interface TargetOption {
   target: Target;
-  /** "@all", "@backend", "@isis". */
+  /** "@all", "@backend", "@batman". */
   label: string;
   /** In grey: the size of a group, or the group of an agent ("Outside a group"). */
   detail: string;
@@ -96,7 +96,7 @@ export function mentionAt(text: string, caret: number): { start: number; query: 
   return match ? { start: caret - match[2].length - 1, query: match[2] } : null;
 }
 
-/** The names of a slashed mention ("thot/ze"): those already typed, and the one being completed. */
+/** The names of a slashed mention ("cyborg/de"): those already typed, and the one being completed. */
 export function mentionParts(query: string, options: readonly TargetOption[] = []): { typed: string[]; query: string } {
   // A name that contains a slash ("Front/Back") is tried whole before being split.
   if (query.includes("/") && matchOptions(options, query).length > 0) return { typed: [], query };
@@ -135,7 +135,7 @@ export function withoutMention(text: string, start: number, end: number): { text
  * Typed `@names` that match exactly one option become targets and leave the
  * text ("@all runs the tests", "@all, run…") with the punctuation and
  * the space that follow them; ambiguous or unknown ones stay as typed.
- * `@athena/zeus/héra` targets the three of them, when each is known. The
+ * `@hulk/deadpool/ironman` targets the three of them, when each is known. The
  * rest of the command keeps its spaces (indented code, tabs).
  */
 export function extractMentions(text: string, options: readonly TargetOption[]): { targets: Target[]; text: string } {

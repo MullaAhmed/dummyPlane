@@ -176,22 +176,22 @@ export async function resumeAgent(id: string): Promise<boolean> {
   return true;
 }
 
-/** "2 stopped agents ignored: Thoth, Anubis" (spec §12). */
+/** "2 stopped agents ignored: Cyborg, Flash" (spec §12). */
 export function skippedText(names: readonly string[]): string | null {
   return names.length === 0 ? null : messages(agentsMessages).broadcast.skipped(names);
 }
 
-/** "1 agent still starting ignored: Thoth — try again in a moment". */
+/** "1 agent still starting ignored: Cyborg — try again in a moment". */
 export function startingText(names: readonly string[]): string | null {
   return names.length === 0 ? null : messages(agentsMessages).broadcast.starting(names);
 }
 
-/** "1 waiting agent ignored: Horus — answer it in its terminal" (spec §12). */
+/** "1 waiting agent ignored: Aquaman — answer it in its terminal" (spec §12). */
 export function waitingText(names: readonly string[]): string | null {
   return names.length === 0 ? null : messages(agentsMessages).broadcast.waiting(names);
 }
 
-/** "1 terminal without an agent ignored: Thoth — a / command only goes to agents". */
+/** "1 terminal without an agent ignored: Cyborg — a / command only goes to agents". */
 export function unsuitedText(names: readonly string[]): string | null {
   return names.length === 0 ? null : messages(agentsMessages).broadcast.unsuited(names);
 }

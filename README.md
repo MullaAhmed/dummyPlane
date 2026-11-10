@@ -46,7 +46,7 @@ If you know Symvibe, dummyPlane covers the same ground (driving a fleet of CLI a
   - **Fold** a group onto its label with the chevron: its terminals leave the screen, nothing stops, and the label keeps its counters. Going to one of its agents unfolds it; a group can't be folded while its agents are still starting.
   - Save the team on screen as a **preset** (*Save the team as a preset…* in the function palette) and deploy it in any project with *Deploy team: <preset name>*. A preset keeps the shape only: groups, roles, specialities, agents and links, never instructions or history.
 - **Live states.** dummyPlane shows whether each agent is starting, ready, running, waiting for you, stopped or done, both on the canvas and in the Agents panel. For Claude Code the state comes from its hooks; for other agents, from their output.
-- **One instruction box for everyone.** Address `@all` (everyone), a group, an agent, or several at once (`@athena/hermes`). A line starting with `/` goes to the agents' CLI as a command, and dummyPlane suggests Claude Code's commands. The history keeps your last 50 instructions per project.
+- **One instruction box for everyone.** Address `@all` (everyone), a group, an agent, or several at once (`@batman/superman`). A line starting with `/` goes to the agents' CLI as a command, and dummyPlane suggests Claude Code's commands. The history keeps your last 50 instructions per project.
 - **A fleet that manages.** Give it a goal. It proposes a plan, gives each agent a sub-task on its own git branch and worktree, watches the time budget and merges the results into a mission branch. Details are [below](#the-fleet).
 - **Change review.** See what an agent changed, either uncommitted or since its base, browse the repository read-only, and click a line to leave a remark. All remarks go back to the agent in one message.
 - **Hear about questions.** When an agent waits for you, a notice stays at the bottom left of the window until it stops waiting, and a Windows notification appears if the window is not in focus (switch it off in the settings menu). A click takes you to the agent, and a palette command goes to the next one that waits. dummyPlane also takes you there by itself, one agent at a time and oldest first, never while you are typing (or for 10 s after the last key while a field holds a draft you have not sent), or in the middle of a dialog or a menu, and not while you answer another agent (switch it off in the settings menu: *Go to agents that ask*).
@@ -73,7 +73,7 @@ If you know Symvibe, dummyPlane covers the same ground (driving a fleet of CLI a
 
 ![Typing / after @frontend suggests Claude Code commands; /context runs in all three agents](docs/assets/demo/commands.gif)
 
-**Review a change and send it back.** Jump to an agent with `Ctrl+P`, open *Review changes* from `Ctrl+Shift+P`, then click a line to leave a remark. *Send to Hermes* sends every remark in one message.
+**Review a change and send it back.** Jump to an agent with `Ctrl+P`, open *Review changes* from `Ctrl+Shift+P`, then click a line to leave a remark. *Send to Batman* sends every remark in one message.
 
 ![The go-to palette, the function palette, the review panel and a remark on a diff line](docs/assets/demo/review.gif)
 

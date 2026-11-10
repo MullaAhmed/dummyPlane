@@ -68,7 +68,7 @@ interface CommandInputProps {
 
 /**
  * The field of the command bar and of a fleet (spec theme §12, §13):
- * `@` targets in chips (`@athena/zeus` for several), `/` the agents' commands,
+ * `@` targets in chips (`@batman/superman` for several), `/` the agents' commands,
  * Enter sends to them (or to `fallback`), ↑ ↓ recall. It is assistant-ui's
  * composer (Root, Input, Send) on a runtime with no model: the composer holds
  * the text and sends it, the field decides who receives it.

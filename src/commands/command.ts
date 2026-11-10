@@ -35,7 +35,7 @@ export interface Command {
   id: string;
   /** Fixed, or read when the palette lists it ("Maximize" / "Restore"). */
   label: string | ((ctx: CommandContext) => string);
-  /** Fixed, or named after the moment ("Terminal · Isis"). */
+  /** Fixed, or named after the moment ("Terminal · Batman"). */
   section: string | ((ctx: CommandContext) => string);
   keywords: readonly string[];
   shortcut?: Shortcut;

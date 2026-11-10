@@ -1,7 +1,7 @@
 // The README recordings. Each scene: optional setup (not recorded), play (recorded).
 
 /** Starts a named group of Claude agents on `model` (setup only, not recorded). */
-export async function team(d, sleep, { name = "Frontend", role = "frontend", names = ["Athena", "Hermes", "Apollo"], model = "claude-haiku-5-5" } = {}) {
+export async function team(d, sleep, { name = "Frontend", role = "frontend", names = ["Batman", "Superman", "Aquaman"], model = "claude-haiku-5-5" } = {}) {
   await d.eval(`(async () => {
     const { launchGroup } = await import("/src/agents/groups.ts");
     const { defaultLaunchOptions } = await import("/src/agents/launchAgent.ts");
@@ -136,7 +136,7 @@ async function missionState(d) {
  * Starts a group of `names` and a fleet wired to it, on `model` (setup only).
  * The fleet is made the way "Link a fleet" makes it, with a model.
  */
-export async function fleetTeam(d, sleep, { names = ["Athena", "Hermes"], model = "claude-sonnet-5-5" } = {}) {
+export async function fleetTeam(d, sleep, { names = ["Batman", "Superman"], model = "claude-sonnet-5-5" } = {}) {
   await d.eval(`(async () => {
     const { launchGroup } = await import("/src/agents/groups.ts");
     const { defaultLaunchOptions } = await import("/src/agents/launchAgent.ts");

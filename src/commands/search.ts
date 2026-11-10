@@ -1,4 +1,4 @@
-/** Lower case, accents dropped: "Hermès" and "hermes" are the same (spec window §7.1). */
+/** Lower case, accents dropped: "Padmé" and "padme" are the same (spec window §7.1). */
 export function normalize(text: string): string {
   return text.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/œ/g, "oe").replace(/æ/g, "ae");
 }

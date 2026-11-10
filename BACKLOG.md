@@ -6,7 +6,7 @@ Ce qui est reporté. La spec en cours est `docs/superpowers/specs/2026-10-24-dum
 
 - Mettre dans la barre du haut les % d'usages (Current Session, Current week (all models), Current week (Fable))
     1. Quand tu cliques dessus, tu as le détail (Total cost, Total duration (API), Total duration (Wall), code changes, usage by model, prompt cache, warm, CO² consumption etc...)
-- Pouvoir via la consigne aux agents, executer une commande pour plusieurs agents en même temps type @athena/zeus/héra /effort ultracode etça executera "/effort ultracode" dans les fenêtres des agents athena zeus et héra.
+- Pouvoir via la consigne aux agents, executer une commande pour plusieurs agents en même temps type @hulk/deadpool/ironman /effort ultracode etça executera "/effort ultracode" dans les fenêtres des agents hulk deadpool et ironman.
 - Pouvoir visualiser les diffs réalisés, par les agents et faciliter le code review de la sortie des agents. (un peu IDE embarqué avec visualisation de fichiers du workspace)
 - Pouvoir importer/embarqué nativement les icones de system design, aws azure et GCP d'excalidraw dans l'application.
 - Avoir une option Routeur dans la Fleet, qui attribue pour chaque agent un modèle faible pour les tâches faibles Haiku 5.5, moyen Sonnet 5.5, elevé Opus, extrême Fable 5.1
