@@ -34,3 +34,5 @@ public/fonts/
 
 # Worktrees of parallel agents
 .claude/worktrees/
+.claude/
+.context/
