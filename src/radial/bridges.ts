@@ -66,7 +66,11 @@ export async function readClipboard(): Promise<DataTransfer | null> {
 /** The clipboard's text, for a terminal or an orchestrator; null, with a toast, when there is none. */
 export async function readClipboardText(): Promise<string | null> {
   const data = await readClipboard();
-  if (!data) return null;
+  return data ? clipboardTextOf(data) : null;
+}
+
+/** The text of a clipboard already read; null, with a toast, when it holds none. */
+export function clipboardTextOf(data: DataTransfer): string | null {
   const text = data.getData("text/plain");
   // The clipboard holds something, an image say: not "empty".
   if (text === "") toast(messages(radialMessages).clipboardNoText);

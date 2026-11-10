@@ -10,7 +10,7 @@ import { requestCloseGroup, setGroupFolded, ungroup } from "@/fleet/groups";
 import { orchestrateGroup } from "@/fleet/orchestrators";
 import { duplicateTerminal, requestClose } from "@/fleet/terminals";
 import { expandTerminal, minimizeTerminal } from "@/nodes/terminal/minimize";
-import { pasteIntoTerminal, relaunchTerminal, stopTerminal, terminalSelection } from "@/nodes/terminal/registry";
+import { pasteImageIntoTerminal, pasteIntoTerminal, relaunchTerminal, stopTerminal, terminalSelection } from "@/nodes/terminal/registry";
 import { agentActivityStore } from "@/store/agentActivity";
 import { nodesStore } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
@@ -32,9 +32,23 @@ vi.mock("@/fleet/broadcast", async (importOriginal) => ({
 vi.mock("@/fleet/groups", () => ({ requestCloseGroup: vi.fn(), ungroup: vi.fn(), setGroupFolded: vi.fn(), groupMembers: vi.fn(() => ["isis"]) }));
 vi.mock("@/fleet/orchestrators", () => ({ orchestrateGroup: vi.fn(() => Promise.resolve()) }));
 vi.mock("@/fleet/terminals", () => ({ duplicateTerminal: vi.fn(() => Promise.resolve()), requestClose: vi.fn() }));
-vi.mock("@/nodes/terminal/registry", () => ({ relaunchTerminal: vi.fn(), stopTerminal: vi.fn(), terminalSelection: vi.fn(() => ""), pasteIntoTerminal: vi.fn() }));
+vi.mock("@/nodes/terminal/registry", () => ({
+  relaunchTerminal: vi.fn(),
+  stopTerminal: vi.fn(),
+  terminalSelection: vi.fn(() => ""),
+  pasteIntoTerminal: vi.fn(),
+  // An image goes in as a saved file's path: true when the clipboard holds one and no text.
+  pasteImageIntoTerminal: vi.fn((_id: string, data: DataTransfer) => data.getData("text/plain") === "" && data.types.includes("Files")),
+}));
 vi.mock("@/nodes/terminal/minimize", () => ({ minimizeTerminal: vi.fn(() => true), expandTerminal: vi.fn(() => true) }));
-vi.mock("@/radial/bridges", () => ({ readClipboardText: vi.fn(() => Promise.resolve("echo hi")) }));
+/** What the clipboard holds in a test: "echo hi" unless a test puts an image there. */
+let clipboard: { text: string; image: boolean } = { text: "echo hi", image: false };
+vi.mock("@/radial/bridges", () => ({
+  readClipboard: vi.fn(() =>
+    Promise.resolve({ getData: () => clipboard.text, types: clipboard.image ? ["Files"] : ["text/plain"] } as unknown as DataTransfer),
+  ),
+  clipboardTextOf: vi.fn((data: DataTransfer) => data.getData("text/plain") || null),
+}));
 
 const ctx = (terminalId: string | null): CommandContext => ({ project: true, workspaceId: "w1", terminalCount: 2, terminalId });
 const find = (id: string) => CURRENT.find((c) => c.id === id)!;
@@ -175,6 +189,18 @@ describe("Terminal · <prénom> and Groupe · <nom> (spec fenêtre §7.3)", () =
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith("ls -la");
     await find("terminal.paste").run(ctx("isis"));
     expect(pasteIntoTerminal).toHaveBeenCalledWith("isis", "echo hi");
+  });
+
+  it("pastes a clipboard image into the terminal as Ctrl+V does, not as text", async () => {
+    clipboard = { text: "", image: true };
+    try {
+      vi.mocked(pasteIntoTerminal).mockClear();
+      await find("terminal.paste").run(ctx("isis"));
+      expect(pasteImageIntoTerminal).toHaveBeenCalledWith("isis", expect.anything());
+      expect(pasteIntoTerminal).not.toHaveBeenCalled();
+    } finally {
+      clipboard = { text: "echo hi", image: false };
+    }
   });
 
   it("acts on the group the radial menu points at, not the terminal's", async () => {

@@ -10,8 +10,8 @@ import { orchestrateGroup } from "@/fleet/orchestrators";
 import { duplicateTerminal, requestClose } from "@/fleet/terminals";
 import type { TerminalPayload } from "@/nodes/types";
 import { expandTerminal, minimizeTerminal } from "@/nodes/terminal/minimize";
-import { pasteIntoTerminal, relaunchTerminal, stopTerminal, terminalSelection } from "@/nodes/terminal/registry";
-import { readClipboardText } from "@/radial/bridges";
+import { pasteImageIntoTerminal, pasteIntoTerminal, relaunchTerminal, stopTerminal, terminalSelection } from "@/nodes/terminal/registry";
+import { clipboardTextOf, readClipboard } from "@/radial/bridges";
 import { openReview } from "@/review/reviewStore";
 import { agentActivityStore } from "@/store/agentActivity";
 import { nodesStore, terminalOf } from "@/store/nodes";
@@ -151,7 +151,10 @@ export const CURRENT: readonly Command[] = [
     section: terminalSection,
     available: hasTerminal,
     run: async (ctx) => {
-      const text = await readClipboardText();
+      const data = await readClipboard();
+      // An image (and no text) goes in as Ctrl+V sends it: saved, its path pasted (imagePaste.ts).
+      if (!data || pasteImageIntoTerminal(terminalId(ctx), data)) return;
+      const text = clipboardTextOf(data);
       if (text !== null) pasteIntoTerminal(terminalId(ctx), text);
     },
   }),
