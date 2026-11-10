@@ -2,7 +2,7 @@ import { CaptureUpdateAction, newElementWith } from "@excalidraw/excalidraw";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { canvasStore } from "@/canvas/canvasStore";
 import { returnKeyboardToCanvas } from "@/canvas/keyboardFocus";
-import { createGroupFrame, groupInfoOf, isGroup, withGroupFolded, withGroupSpeciality } from "@/canvas/groups";
+import { createGroupFrame, groupInfoOf, isGroup, withGroupFolded, withGroupPantheon, withGroupSpeciality } from "@/canvas/groups";
 import { allowRemoval } from "@/canvas/removalGuard";
 import { createNodeElement, nodeKindOf } from "@/canvas/nodeElement";
 import type { AgentId, Permission } from "@/ipc/pty";
@@ -31,6 +31,8 @@ export interface GroupPlan {
   name: string;
   role: RoleId;
   agents: AgentId[];
+  /** The set its agents' names come from; the first one no group uses, when absent. */
+  pantheon?: string;
 }
 
 /** Who staffs a mission's group: its pantheon, its agents' names and folders (spec orchestrator §7.3). */
@@ -70,7 +72,7 @@ export async function launchGroup(
   const workspaceId = staffing?.workspaceId ?? workspacesStore.getState().activeId;
   const first = workspaceId ? sceneAccess(workspaceId) : null;
   if (!first || !workspaceId || plan.agents.length === 0) return null;
-  const pantheon = staffing?.pantheon ?? pantheonForNewGroup(workspaceId);
+  const pantheon = staffing?.pantheon ?? plan.pantheon ?? pantheonForNewGroup(workspaceId);
   const grid = groupGrid(plan.agents.length);
   const center = at ?? viewportCenter(view);
   const obstacles = first.elements().filter((e) => !e.isDeleted).map(({ x, y, width, height }) => ({ x, y, width, height }));
@@ -164,6 +166,18 @@ export function setGroupSpeciality(groupId: string, speciality: string) {
     elements: api
       .getSceneElementsIncludingDeleted()
       .map((e) => (e.id === groupId && groupInfoOf(e) ? newElementWith(e, { customData: withGroupSpeciality(e.customData, speciality) }) : e)),
+    captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+  });
+}
+
+/** Another set of names for the agents a group gets from now on: the ones it has keep theirs. One undoable step. */
+export function setGroupPantheon(groupId: string, pantheon: string) {
+  const api = canvasStore.getState().api;
+  if (!api) return;
+  api.updateScene({
+    elements: api
+      .getSceneElementsIncludingDeleted()
+      .map((e) => (e.id === groupId && groupInfoOf(e) ? newElementWith(e, { customData: withGroupPantheon(e.customData, pantheon) }) : e)),
     captureUpdate: CaptureUpdateAction.IMMEDIATELY,
   });
 }

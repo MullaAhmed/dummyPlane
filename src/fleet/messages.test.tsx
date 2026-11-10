@@ -38,9 +38,9 @@ describe("catalogs in English", () => {
     expect(ROLES.testers.label).toBe("Testers");
     expect(ROLES.security.label).toBe("Security");
     expect(ROLES.general.label).toBe("General");
-    expect(PANTHEONS.find((p) => p.id === "egyptian")!.label).toBe("Egyptian");
-    // The gods keep their names.
-    expect(PANTHEONS.find((p) => p.id === "greek")!.names[0]).toBe("Athena");
+    expect(PANTHEONS.map((p) => p.label)).toEqual(["DC", "Marvel", "Throne of Glass", "Star Wars", "Lord of the Rings"]);
+    // The characters keep their names.
+    expect(PANTHEONS.find((p) => p.id === "marvel")!.names[0]).toBe("Thor");
     expect(FLEET_FILTERS.map((f) => f.label)).toEqual(["All", "Working", "Waiting", "Active", "Ready", "Stopped"]);
     expect(fleetSections([{ id: "a", name: "Isis", agent: "claude", state: "idle" }], [], "all")[0].name).toBe("No group");
   });

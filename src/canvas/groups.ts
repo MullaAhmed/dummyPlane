@@ -49,6 +49,11 @@ export function withGroupSpeciality(customData: ExcalidrawElement["customData"],
   return { ...customData, dummyplane: next ? { ...dummyplane, speciality: next } : dummyplane };
 }
 
+/** A group frame's `customData` with another set of names for the agents it gets from now on. */
+export function withGroupPantheon(customData: ExcalidrawElement["customData"], pantheon: string): Record<string, unknown> {
+  return { ...customData, dummyplane: { ...((customData?.dummyplane ?? {}) as Record<string, unknown>), pantheon } };
+}
+
 /** A group frame's `customData` folded, or unfolded without a trace. */
 export function withGroupFolded(customData: ExcalidrawElement["customData"], folded: boolean): Record<string, unknown> {
   const { folded: _previous, ...dummyplane } = (customData?.dummyplane ?? {}) as Record<string, unknown>;

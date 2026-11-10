@@ -9,7 +9,7 @@ import { workspacesStore } from "@/store/workspaces";
 import { toast } from "sonner";
 import { cachedElements, forgetScene, rememberScene } from "@/canvas/sceneCache";
 import { relaunchTerminal } from "@/nodes/terminal/registry";
-import { addAgentToGroup, closeGroup, closeStoredGroup, launchGroup, setGroupFolded, setGroupSpeciality, showGroups } from "./groups";
+import { addAgentToGroup, closeGroup, closeStoredGroup, launchGroup, setGroupFolded, setGroupPantheon, setGroupSpeciality, showGroups } from "./groups";
 import { removeFromStoredScene } from "./terminals";
 
 vi.mock("@excalidraw/excalidraw", () => ({ CaptureUpdateAction: { IMMEDIATELY: "i" }, newElementWith: (e: object, patch: object) => ({ ...e, ...patch }) }));
@@ -74,6 +74,31 @@ it("sets a group's speciality as one undoable step, and leaves other frames alon
   expect(scene[2].customData).toBeUndefined();
   setGroupSpeciality("f1", "");
   expect(scene[0].customData?.dummyplane).toEqual(data);
+});
+
+it("names the agents of a group from the pantheon it is composed with", async () => {
+  const made = await launchGroup(
+    { name: "Team", role: "general", agents: ["claude", "claude"], pantheon: "star-wars" },
+    { cwd: "C:/code", shell: "default", title: "", command: "" },
+    { x: 0, y: 0 },
+  );
+  const frame = scene.find((e) => e.type === "frame");
+  expect(frame?.customData?.dummyplane).toMatchObject({ kind: "group", pantheon: "star-wars" });
+  expect(made!.nodeIds.map((id) => terminalOf(nodesStore.getState().nodes[id])?.name)).toEqual(["Luke", "Leia"]);
+});
+
+it("changes a group's pantheon as one undoable step, and leaves other frames alone", () => {
+  const data = { kind: "group", role: "general", pantheon: "dc", speciality: "API" };
+  scene = [
+    { id: "f1", type: "frame", customData: { dummyplane: data } },
+    { id: "f2", type: "frame", customData: { dummyplane: data } },
+    { id: "plain", type: "frame" },
+  ];
+  setGroupPantheon("f1", "marvel");
+  expect(scene[0].customData?.dummyplane).toEqual({ ...data, pantheon: "marvel" });
+  expect(scene[1].customData?.dummyplane).toEqual(data);
+  setGroupPantheon("plain", "marvel");
+  expect(scene[2].customData).toBeUndefined();
 });
 
 it("frames the groups it is given, and does nothing without one", () => {

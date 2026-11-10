@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactElement } from "react";
-import { Minus, Plus } from "lucide-react";
+import { ChevronDown, Minus, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,11 +18,15 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { AgentId } from "@/ipc/pty";
 import { cn } from "@/lib/utils";
+import { workspacesStore } from "@/store/workspaces";
 import { agentsStore, useAgents } from "./agentsStore";
 import { agentInk, AGENTS, AGENTS_WITHOUT_OPTIONS, defaultAgent } from "./catalog";
 import { agentsOf, DEFAULT_GROUP_SIZE, MAX_GROUP_SIZE, resizeSlots, type Slot } from "./composer";
 import { fleetMessages } from "./messages";
 import { launchGroup } from "./groups";
+import { PANTHEONS, pantheonById } from "./names";
+import { NamesRadios } from "./NamesMenu";
+import { pantheonForNewGroup } from "./naming";
 import { ROLE_ORDER, ROLES, type RoleId } from "./roles";
 
 /** An agent's logo: its icon in its own ink, the one place its tint shows. */
@@ -81,6 +85,8 @@ export function ComposeGroup({
   const [typedName, setTypedName] = useState<string | null>(null);
   const name = typedName ?? ROLES[role].label;
   const [slots, setSlots] = useState<Slot[]>(resizeSlots([], DEFAULT_GROUP_SIZE));
+  // The set the agents' names come from; offered as the first one no group of the workspace uses.
+  const [pantheon, setPantheon] = useState<string>(PANTHEONS[0].id);
   useUiRequest(
     "composeGroup",
     () => {
@@ -99,6 +105,8 @@ export function ComposeGroup({
     setRole("general");
     setTypedName(null);
     setSlots(resizeSlots([], DEFAULT_GROUP_SIZE));
+    const workspaceId = workspacesStore.getState().activeId;
+    setPantheon(workspaceId ? pantheonForNewGroup(workspaceId) : PANTHEONS[0].id);
     void agentsStore.getState().load();
   }, [open]);
 
@@ -111,7 +119,7 @@ export function ComposeGroup({
   const launch = () => {
     setOpen(false);
     returnKeyboardToCanvas();
-    void launchGroup({ name, role, agents: agentsOf(slots, fallback) }).catch((error: unknown) =>
+    void launchGroup({ name, role, agents: agentsOf(slots, fallback), pantheon }).catch((error: unknown) =>
       toast.error(messages(fleetMessages).launchFailed(String(error))),
     );
   };
@@ -162,6 +170,20 @@ export function ComposeGroup({
             );
           })}
         </ToggleGroup>
+        <div className="flex items-center justify-between text-xs text-dp-text-2">
+          <span>{t.names}</span>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button type="button" variant="outline" className="h-7 gap-1.5 rounded-md bg-dp-card px-2.5 text-xs font-normal text-dp-text hover:border-dp-text-3">
+                {pantheonById(pantheon).label}
+                <ChevronDown className="size-3.5 text-dp-text-2" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52">
+              <NamesRadios current={pantheon} onPick={setPantheon} />
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
         <div className="grid grid-cols-4 gap-2">
           {slots.map((slot, i) => (
             <SlotButton

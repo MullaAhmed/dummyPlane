@@ -1,123 +1,92 @@
 import { messages } from "@/i18n";
 import { fleetMessages } from "./messages";
 
-/** Spec theme §9.1: each group draws its agents' names from its own pantheon. */
-export type PantheonId =
-  | "egyptian"
-  | "greek"
-  | "norse"
-  | "japanese"
-  | "celtic"
-  | "hindu"
-  | "aztec"
-  | "mesopotamian"
-  | "slavic"
-  | "chinese"
-  | "roman"
-  | "yoruba";
+/**
+ * A pantheon is a themed set of names (DC, Marvel…): each group draws its
+ * agents' names from its own (spec theme §9.1). The first ones were mythologies.
+ */
+export type PantheonId = "dc" | "marvel" | "throne-of-glass" | "star-wars" | "lord-of-the-rings";
 
 export interface Pantheon {
   id: PantheonId;
   label: string;
+  /** One word each, letters only: a name is typed after `@`, quoted in a command line and used as a folder name. */
   names: readonly string[];
 }
 
 export const PANTHEONS: readonly Pantheon[] = [
   {
-    id: "egyptian",
+    id: "dc",
     get label() {
-      return messages(fleetMessages).pantheons.egyptian;
+      return messages(fleetMessages).pantheons.dc;
     },
-    names: ["Isis", "Osiris", "Horus", "Anubis", "Thoth", "Ra", "Bastet", "Sekhmet", "Ptah", "Hathor", "Nut", "Seth", "Maat", "Amon", "Khnum", "Sobek"],
+    names: ["Batman", "Superman", "Aquaman", "Flash", "Cyborg", "Robin", "Batgirl", "Nightwing", "Zatanna", "Raven", "Starfire", "Shazam", "Supergirl", "Hawkgirl", "Catwoman", "Joker"],
   },
   {
-    id: "greek",
+    id: "marvel",
     get label() {
-      return messages(fleetMessages).pantheons.greek;
+      return messages(fleetMessages).pantheons.marvel;
     },
-    names: ["Athena", "Apollo", "Artemis", "Hermes", "Hera", "Zeus", "Poseidon", "Demeter", "Hephaestus", "Ares", "Aphrodite", "Dionysos", "Hestia", "Persephone", "Hades", "Eos"],
+    names: ["Thor", "Hulk", "Loki", "Wolverine", "Storm", "Rogue", "Cyclops", "Ironman", "Deadpool", "Vision", "Groot", "Gamora", "Daredevil", "Hawkeye", "Wanda", "Spiderman"],
   },
   {
-    id: "norse",
+    id: "throne-of-glass",
     get label() {
-      return messages(fleetMessages).pantheons.norse;
+      return messages(fleetMessages).pantheons["throne-of-glass"];
     },
-    names: ["Odin", "Thor", "Freyja", "Loki", "Frigg", "Baldr", "Tyr", "Heimdall", "Idunn", "Njord", "Freyr", "Skadi", "Bragi", "Sif", "Vidar", "Hel"],
+    names: ["Celaena", "Aelin", "Rowan", "Dorian", "Chaol", "Manon", "Nehemia", "Lysandra", "Aedion", "Elide", "Fenrys", "Lorcan", "Yrene", "Nesryn", "Kaltain", "Abraxos"],
   },
   {
-    id: "japanese",
+    id: "star-wars",
     get label() {
-      return messages(fleetMessages).pantheons.japanese;
+      return messages(fleetMessages).pantheons["star-wars"];
     },
-    names: ["Amaterasu", "Susanoo", "Tsukuyomi", "Inari", "Raijin", "Fujin", "Hachiman", "Benzaiten", "Izanagi", "Izanami", "Ebisu", "Kannon", "Daikoku", "Ryujin", "Sarutahiko", "Okuninushi"],
+    names: ["Luke", "Leia", "Han", "Yoda", "Chewbacca", "Anakin", "Ahsoka", "Padme", "Kenobi", "Rey", "Finn", "Lando", "Mando", "Grogu", "Maul", "Vader"],
   },
   {
-    id: "celtic",
+    id: "lord-of-the-rings",
     get label() {
-      return messages(fleetMessages).pantheons.celtic;
+      return messages(fleetMessages).pantheons["lord-of-the-rings"];
     },
-    names: ["Lugh", "Brigid", "Dagda", "Morrigan", "Cernunnos", "Epona", "Ogma", "Nuada", "Belenos", "Danu", "Taranis", "Rhiannon", "Arawn", "Manannan", "Aengus", "Boann"],
-  },
-  {
-    id: "hindu",
-    get label() {
-      return messages(fleetMessages).pantheons.hindu;
-    },
-    names: ["Shiva", "Vishnu", "Brahma", "Lakshmi", "Ganesh", "Saraswati", "Parvati", "Durga", "Indra", "Agni", "Hanuman", "Kali", "Surya", "Varuna", "Krishna", "Rama"],
-  },
-  {
-    id: "aztec",
-    get label() {
-      return messages(fleetMessages).pantheons.aztec;
-    },
-    names: ["Quetzalcoatl", "Tezcatlipoca", "Huitzilopochtli", "Tlaloc", "Xochiquetzal", "Chalchiuhtlicue", "Mictlantecuhtli", "Coatlicue", "Xipe", "Mixcoatl", "Tonatiuh", "Ehecatl", "Centeotl", "Xolotl", "Metztli", "Coyolxauhqui"],
-  },
-  {
-    id: "mesopotamian",
-    get label() {
-      return messages(fleetMessages).pantheons.mesopotamian;
-    },
-    names: ["Inanna", "Enki", "Enlil", "Marduk", "Ishtar", "Shamash", "Nanna", "Ninurta", "Ereshkigal", "Tiamat", "Anu", "Nabu", "Nergal", "Ninhursag", "Dumuzi", "Ashur"],
-  },
-  {
-    id: "slavic",
-    get label() {
-      return messages(fleetMessages).pantheons.slavic;
-    },
-    names: ["Perun", "Veles", "Mokosh", "Svarog", "Dazhbog", "Stribog", "Lada", "Jarilo", "Morana", "Zorya", "Triglav", "Svetovid", "Kupala", "Rod", "Dodola", "Simargl"],
-  },
-  {
-    id: "chinese",
-    get label() {
-      return messages(fleetMessages).pantheons.chinese;
-    },
-    names: ["Guanyin", "Nuwa", "Fuxi", "Pangu", "Houyi", "Nezha", "Erlang", "Mazu", "Shennong", "Zhurong", "Gonggong", "Leigong", "Caishen", "Xiwangmu", "Yandi", "Huangdi"],
-  },
-  {
-    id: "roman",
-    get label() {
-      return messages(fleetMessages).pantheons.roman;
-    },
-    names: ["Jupiter", "Juno", "Minerva", "Mars", "Venus", "Mercury", "Neptune", "Vulcan", "Diana", "Ceres", "Janus", "Vesta", "Bacchus", "Pluto", "Aurora", "Faunus"],
-  },
-  {
-    id: "yoruba",
-    get label() {
-      return messages(fleetMessages).pantheons.yoruba;
-    },
-    names: ["Obatala", "Oshun", "Shango", "Yemoja", "Ogun", "Eshu", "Orunmila", "Oya", "Olokun", "Osanyin", "Oshosi", "Babalu", "Aganju", "Obba", "Yewa", "Ibeji"],
+    names: ["Frodo", "Samwise", "Gandalf", "Aragorn", "Legolas", "Gimli", "Boromir", "Faramir", "Galadriel", "Elrond", "Arwen", "Eowyn", "Theoden", "Bilbo", "Pippin", "Eomer"],
   },
 ];
 
-/** The first pantheon not used in the workspace; past the twelfth, the first one again. */
+/**
+ * The mythologies of the first versions are still saved in old workspaces and
+ * groups. Each reads as one of the sets above, spread so that groups which had
+ * their own set keep a set of their own.
+ */
+const LEGACY_SETS: ReadonlyMap<string, PantheonId> = new Map<string, PantheonId>([
+  ["egyptian", "dc"],
+  ["greek", "marvel"],
+  ["norse", "throne-of-glass"],
+  ["japanese", "star-wars"],
+  ["celtic", "lord-of-the-rings"],
+  ["hindu", "dc"],
+  ["aztec", "marvel"],
+  ["mesopotamian", "throne-of-glass"],
+  ["slavic", "star-wars"],
+  ["chinese", "lord-of-the-rings"],
+  ["roman", "dc"],
+  ["yoruba", "marvel"],
+]);
+
+/** The set an id stands for: a legacy mythology maps to one of today's sets, any other unknown id to the first. */
+export function pantheonById(id: string | null | undefined): Pantheon {
+  const wanted = id ? (LEGACY_SETS.get(id) ?? id) : undefined;
+  return PANTHEONS.find((p) => p.id === wanted) ?? PANTHEONS[0];
+}
+
+/** The first set not used in the workspace; once all are, the first one again. */
 export function nextPantheon(used: readonly (string | null | undefined)[]): PantheonId {
-  const taken = new Set(used.filter(Boolean));
+  const taken = new Set(used.filter(Boolean).map((id) => pantheonById(id).id));
   return (PANTHEONS.find((p) => !taken.has(p.id)) ?? PANTHEONS[0]).id;
 }
 
-/** The first name of the pantheon nobody in the workspace has; then "Isis 2", "Osiris 2"… */
+/** The first name of the set nobody in the workspace has; then "Batman 2", "Superman 2"… */
 export function nextName(pantheon: string, taken: readonly string[]): string {
-  const names = (PANTHEONS.find((p) => p.id === pantheon) ?? PANTHEONS[0]).names;
+  const names = pantheonById(pantheon).names;
   const used = new Set(taken.map((name) => name.toLowerCase()));
   for (let round = 1; ; round++) {
     for (const name of names) {

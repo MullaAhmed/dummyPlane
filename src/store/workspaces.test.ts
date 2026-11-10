@@ -160,24 +160,24 @@ describe("workspaces store", () => {
   it("saves the pantheon of a workspace", async () => {
     const db = fakeBackend(["A"]);
     await state().load("p1");
-    await state().setPantheon("w1", "greek");
-    expect(state().workspaces[0].pantheon).toBe("greek");
-    expect(db.workspaces[0].pantheon).toBe("greek");
+    await state().setPantheon("w1", "marvel");
+    expect(state().workspaces[0].pantheon).toBe("marvel");
+    expect(db.workspaces[0].pantheon).toBe("marvel");
   });
 
   it("chooses the pantheon of a workspace once", async () => {
     const db = fakeBackend(["A"]);
     await state().load("p1");
-    expect(await state().ensurePantheon("w1")).toBe("egyptian");
-    expect(await state().ensurePantheon("w1")).toBe("egyptian");
-    expect(db.workspaces[0].pantheon).toBe("egyptian");
+    expect(await state().ensurePantheon("w1")).toBe("dc");
+    expect(await state().ensurePantheon("w1")).toBe("dc");
+    expect(db.workspaces[0].pantheon).toBe("dc");
   });
 
   it("gives the agents outside groups a pantheon no group uses", async () => {
     const db = fakeBackend(["A"]);
     await state().load("p1");
-    expect(await state().ensurePantheon("w1", ["egyptian", "greek"])).toBe("norse");
-    expect(db.workspaces[0].pantheon).toBe("norse");
+    expect(await state().ensurePantheon("w1", ["dc", "marvel"])).toBe("throne-of-glass");
+    expect(db.workspaces[0].pantheon).toBe("throne-of-glass");
   });
 
   it("reads a workspace without a kind as a canvas", async () => {

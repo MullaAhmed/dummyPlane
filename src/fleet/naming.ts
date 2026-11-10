@@ -4,7 +4,7 @@ import { groupInfoOf, groupPantheons } from "@/canvas/groups";
 import { nodeKindOf } from "@/canvas/nodeElement";
 import { nodesStore } from "@/store/nodes";
 import { workspacesStore } from "@/store/workspaces";
-import { nextName, nextPantheon } from "./names";
+import { nextName, nextPantheon, pantheonById } from "./names";
 
 /**
  * Names already carried by the terminals of a workspace. A closed terminal's
@@ -72,11 +72,13 @@ export function pantheonsForCopiedGroups(
   const groups = live.filter((e) => groupInfoOf(e) !== null);
   const used = [workspacePantheon, ...groups.map((g) => groupInfoOf(g)?.pantheon)];
   const remapped = new Map<string, string>();
+  // An old mythology and the set it reads as are one: they would hand out the same names.
+  const setOf = (frame: ExcalidrawElement) => pantheonById(groupInfoOf(frame)?.pantheon).id;
   for (const group of groups) {
-    const pantheon = groupInfoOf(group)?.pantheon;
+    const pantheon = setOf(group);
     const members = live.filter((e) => e.frameId === group.id && nodeKindOf(e) === "terminal");
     const allCopies = members.length > 0 && members.every((m) => copyIds.has(m.id));
-    const sharedWithOther = groups.some((other) => other.id !== group.id && groupInfoOf(other)?.pantheon === pantheon);
+    const sharedWithOther = groups.some((other) => other.id !== group.id && setOf(other) === pantheon);
     if (!allCopies || !sharedWithOther) continue;
     const next = nextPantheon(used);
     used.push(next);

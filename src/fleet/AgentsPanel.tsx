@@ -26,6 +26,7 @@ import { FLEET_FILTERS, filterCounts, fleetSections, fleetStateOf, type FleetAge
 import { GroupMenu } from "./GroupMenu";
 import { countsText } from "./groupSummary";
 import { fleetMessages } from "./messages";
+import { OutsideNamesMenu } from "./NamesMenu";
 import { newConsole } from "./quickActions";
 import { RESUME_OFFER_ROOM, resumeOfferStore } from "./ResumeAllToast";
 
@@ -181,6 +182,7 @@ export function AgentsPanel() {
                     {countsText(section.agents.length, section.agents.filter((a) => a.state === "working").length)}
                   </span>
                 </Button>
+                {section.id === null && <OutsideNamesMenu />}
                 {section.id && (
                   <GroupMenu
                     groupId={section.id}

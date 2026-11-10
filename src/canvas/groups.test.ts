@@ -11,6 +11,7 @@ import {
   insertIntoFrame,
   MAX_SPECIALITY,
   withGroupFolded,
+  withGroupPantheon,
   withGroupSpeciality,
   hiddenNodeIds,
 } from "./groups";
@@ -101,6 +102,11 @@ describe("group frame elements", () => {
     const data = { other: 1, dummyplane: { kind: "group", role: "backend", pantheon: "greek", speciality: "API" } };
     expect(withGroupSpeciality(data, " Tests ")).toEqual({ other: 1, dummyplane: { kind: "group", role: "backend", pantheon: "greek", speciality: "Tests" } });
     expect(withGroupSpeciality(data, "  ")).toEqual({ other: 1, dummyplane: { kind: "group", role: "backend", pantheon: "greek" } });
+  });
+
+  it("changes a group's pantheon and keeps everything else it carries", () => {
+    const data = { other: 1, dummyplane: { kind: "group", role: "backend", pantheon: "dc", speciality: "API", folded: true } };
+    expect(withGroupPantheon(data, "marvel")).toEqual({ other: 1, dummyplane: { kind: "group", role: "backend", pantheon: "marvel", speciality: "API", folded: true } });
   });
 
   it("puts a new child right under its frame, which takes its grown size", () => {

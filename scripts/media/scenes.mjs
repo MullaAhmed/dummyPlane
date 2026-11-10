@@ -8,7 +8,7 @@ export async function team(d, sleep, { name = "Frontend", role = "frontend", nam
     const options = defaultLaunchOptions();
     const names = ${JSON.stringify(names)};
     return launchGroup({ name: ${JSON.stringify(name)}, role: ${JSON.stringify(role)}, agents: names.map(() => "claude") }, options, undefined, {
-      pantheon: "greek", names, cwds: names.map(() => options.cwd), models: names.map(() => ${JSON.stringify(model)}),
+      pantheon: "marvel", names, cwds: names.map(() => options.cwd), models: names.map(() => ${JSON.stringify(model)}),
     });
   })()`);
   await sleep(12000);
@@ -152,7 +152,7 @@ export async function orchestratedTeam(d, sleep, { names = ["Athena", "Hermes"],
     const options = defaultLaunchOptions();
     const names = ${JSON.stringify(names)};
     const g = await launchGroup({ name: "Backend", role: "backend", agents: names.map(() => "claude") }, options, undefined, {
-      pantheon: "greek", names, cwds: names.map(() => options.cwd),
+      pantheon: "marvel", names, cwds: names.map(() => options.cwd),
     });
     const api = canvasStore.getState().api;
     const frame = canvasStore.getState().frames.find((f) => f.id === g.frameId);

@@ -21,7 +21,8 @@ import { useAgents } from "./agentsStore";
 import { pauseAll, resumeAll } from "./broadcast";
 import { agentInk, AGENTS, AGENTS_WITHOUT_OPTIONS } from "./catalog";
 import { fleetMessages } from "./messages";
-import { addAgentToGroup, groupMembers, requestCloseGroup, setGroupFolded, ungroup } from "./groups";
+import { addAgentToGroup, groupMembers, requestCloseGroup, setGroupFolded, setGroupPantheon, ungroup } from "./groups";
+import { NamesMenu } from "./NamesMenu";
 import { orchestrateGroup } from "./orchestrators";
 import { setRemoteControlAll } from "./remoteControl";
 import { SpecialityMenu } from "./SpecialityMenu";
@@ -35,6 +36,7 @@ export function GroupMenu({ groupId, trigger, answersRequests = false }: { group
   const [open, setOpen] = useState(false);
   const agents = useAgents((s) => s.agents);
   const speciality = useCanvas((s) => s.frames.find((f) => f.id === groupId)?.group?.speciality);
+  const pantheon = useCanvas((s) => s.frames.find((f) => f.id === groupId)?.group?.pantheon);
   const folded = useCanvas((s) => s.frames.find((f) => f.id === groupId)?.group?.folded === true);
   const available = (id: string) => agents.some((agent) => agent.id === id && agent.available);
   // "Add an agent…" of the palette opens the panel's copy of this menu.
@@ -69,6 +71,7 @@ export function GroupMenu({ groupId, trigger, answersRequests = false }: { group
           {t.groupMenu.rename}
         </DropdownMenuItem>
         <SpecialityMenu groupId={groupId} speciality={speciality} onDone={() => setOpen(false)} />
+        <NamesMenu current={pantheon} onPick={(id) => setGroupPantheon(groupId, id)} />
         <DropdownMenuSub>
           <DropdownMenuSubTrigger>{t.groupMenu.addAgent}</DropdownMenuSubTrigger>
           <DropdownMenuSubContent>
