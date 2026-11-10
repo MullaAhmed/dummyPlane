@@ -9,12 +9,11 @@ describe("frameStyle", () => {
     expect(style.boxShadow).toBeUndefined();
   });
 
-  it("puts a selected node in a 1px ink frame, waiting or not, with a paper line inside so it reads on a dark body", () => {
+  it("puts a selected node in a single 1px ink frame, waiting or not: no second line inside, no glow", () => {
     for (const waiting of [false, true]) {
       const style = frameStyle(true, waiting);
       expect(style.border).toBe("1px solid var(--dp-accent)");
-      // An outline just inside the border paints over the header and the terminal, where an inset shadow would hide under them.
-      expect([style.outline, style.outlineOffset]).toEqual(["1px solid var(--dp-on-accent)", "-2px"]);
+      expect(style.outline).toBeUndefined();
       expect(style.boxShadow).toBeUndefined();
     }
   });

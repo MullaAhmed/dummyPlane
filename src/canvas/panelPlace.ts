@@ -5,6 +5,8 @@ import type { Rect } from "./groups";
  * 16 px between them (294 px of labels and gaps, measured in Inter), and 16 px to spare in the 310 px inside it.
  */
 export const PANEL_WIDTH = 336;
+/** The width of the folded panel's tab (`w-18`): placed as the panel is, at its own width. */
+export const TAB_WIDTH = 72;
 /** Between the terminal and its panel. */
 export const PANEL_GAP = 12;
 /** Kept clear of the canvas's sides, where the tool rail (left) and the activity rail (right) float. */

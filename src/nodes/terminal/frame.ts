@@ -5,14 +5,13 @@ import type { CSSProperties } from "react";
  * wait colour while its agent waits for the user, and a 1px ink frame when it
  * is selected. An agent's identity is its icon and status dot, never its frame.
  *
- * The ink frame carries a 1px paper line just inside it: in a palette whose ink
- * is as dark as the terminal (calm), the frame alone would melt into the body.
- * The line is an outline drawn 2px in, not an inset shadow: an outline paints
- * over the node's own children (its opaque header, the xterm host), a shadow
- * under them. Excalidraw clips what overflows an embeddable, so nothing is
- * drawn outside.
+ * A selected node is also ringed by Excalidraw's own selection outline, a
+ * hairline a few pixels out, kept 1px wide even while the node is worked in
+ * (scripts/excalidraw-thin-selection.mjs): that outline is what tells a
+ * selected node in a palette whose ink is as dark as the terminal (calm), so
+ * the frame needs no second line inside it.
  */
 export function frameStyle(selected: boolean, waiting: boolean): CSSProperties {
-  if (selected) return { border: "1px solid var(--dp-accent)", outline: "1px solid var(--dp-on-accent)", outlineOffset: "-2px" };
+  if (selected) return { border: "1px solid var(--dp-accent)" };
   return { border: `1px solid ${waiting ? "var(--dp-wait)" : "var(--dp-line)"}` };
 }

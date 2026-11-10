@@ -26,7 +26,6 @@ export const canvasMessages = defineMessages(
       editTerminal: (name: string) => `Edit ${name}`,
       thisTerminal: "this terminal",
       foldPanel: "Fold the panel",
-      unfoldPanel: "Unfold the panel",
       rename: "Rename",
       copy: "Copy",
       copyFailed: (error: string) => `Could not copy the terminal: ${error}`,

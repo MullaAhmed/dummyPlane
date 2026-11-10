@@ -27,9 +27,6 @@ interface UiState {
   /** The orchestrator in "Relier" mode: each click wires a group or a terminal to it. */
   linking: string | null;
   setLinking: (orchestratorId: string | null) => void;
-  /** The selected terminal's edit panel shows its title row only; kept when another terminal is selected. */
-  editPanelFolded: boolean;
-  setEditPanelFolded: (folded: boolean) => void;
 }
 
 export const uiStore = createStore<UiState>()((set) => ({
@@ -43,8 +40,6 @@ export const uiStore = createStore<UiState>()((set) => ({
   setRenamingGroup: (renamingGroup) => set({ renamingGroup }),
   linking: null,
   setLinking: (linking) => set({ linking }),
-  editPanelFolded: false,
-  setEditPanelFolded: (editPanelFolded) => set({ editPanelFolded }),
 }));
 
 export function useUi<T>(selector: (state: UiState) => T): T {

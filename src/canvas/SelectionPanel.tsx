@@ -1,14 +1,14 @@
-import type { CSSProperties, ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { CaptureUpdateAction, mutateElement } from "@excalidraw/excalidraw";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
-import { Copy, Trash2 } from "lucide-react";
+import { Copy, Pencil, Trash2 } from "lucide-react";
 import { useTheme } from "@/app/theme";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useMessages } from "@/i18n";
 import { cn } from "@/lib/utils";
-import { useNodes } from "@/store/nodes";
+import { terminalOf, useNodes } from "@/store/nodes";
 import { PEN_COLORS } from "@/theme/penColors";
 import { displayColorFor } from "@/theme/sceneColors";
 import { canvasStore, useCanvas } from "./canvasStore";
@@ -26,7 +26,7 @@ import {
 } from "./drawnSelection";
 import { canvasMessages } from "./messages";
 import { keepCanvasFocus, PanelAction } from "./PanelAction";
-import { besideRect } from "./panelPlace";
+import { besideRect, PANEL_WIDTH, TAB_WIDTH, type PanelPlace } from "./panelPlace";
 import { selectedTerminalId, TerminalEdit } from "./TerminalEdit";
 
 const TRANSPARENT = "transparent";
@@ -39,16 +39,26 @@ const ARROW_TYPES: readonly ArrowType[] = ["sharp", "round", "elbow"];
  * The small panel that replaces Excalidraw's properties panel. A drawn element
  * gets its stroke and background colours, Duplicate and Delete, and a line or
  * an arrow also its sloppiness (and an arrow its type), at the canvas's left
- * edge. A terminal selected alone gets its edit panel beside it (TerminalEdit),
- * which follows it as the view moves. It does not show in reading mode.
+ * edge. A terminal selected alone gets a small Edit tab beside it, which opens
+ * its edit panel there (TerminalEdit); both follow it as the view moves. The
+ * panel folds back to the tab, and every terminal selected starts on its tab:
+ * an open panel never stands beside a terminal unasked. It does not show in
+ * reading mode.
  */
 export function SelectionPanel() {
   const drawn = useCanvas((s) => s.drawnSelection);
   const readOnly = useCanvas((s) => s.view.mode === "reading");
   const selectedIds = useCanvas((s) => s.view.selectedIds);
   const terminalId = useNodes((s) => selectedTerminalId(selectedIds, s.nodes));
-  const beside = useTerminalPlace(terminalId);
+  // The terminal whose panel was opened from its tab; selecting another, or none, folds it.
+  const [openFor, setOpenFor] = useState<string | null>(null);
+  useEffect(() => {
+    if (openFor !== null && openFor !== terminalId) setOpenFor(null);
+  }, [openFor, terminalId]);
+  const open = terminalId !== null && openFor === terminalId;
+  const beside = useTerminalPlace(terminalId, open ? PANEL_WIDTH : TAB_WIDTH);
   if ((drawn.length === 0 && !terminalId) || readOnly) return null;
+  if (terminalId && !open) return <EditTab nodeId={terminalId} place={beside} onOpen={() => setOpenFor(terminalId)} />;
 
   return (
     <div
@@ -57,27 +67,61 @@ export function SelectionPanel() {
         // A terminal's panel (PANEL_WIDTH) keeps its title and tabs in place and scrolls the page under them;
         // a drawing's is one native scroller. Either way bounded by a max-height only, which a ScrollArea's viewport cannot follow.
         terminalId ? "flex w-84 flex-col overflow-hidden" : "w-56 overflow-y-auto",
+        // Opened from its tab, in the tab's place: it eases in (opacity and a 4 px slide); folding is instant.
+        terminalId && "animate-in fade-in-0 slide-in-from-left-1 duration-(--dp-dur) ease-(--dp-ease-out) motion-reduce:animate-none",
         !beside && "left-[70px] top-1/2 max-h-[calc(100%-120px)] -translate-y-1/2",
       )}
       style={beside}
     >
-      {terminalId && <TerminalEdit nodeId={terminalId} />}
+      {terminalId && <TerminalEdit nodeId={terminalId} onFold={() => setOpenFor(null)} />}
       {drawn.length > 0 && <DrawnControls drawn={drawn} />}
     </div>
   );
 }
 
-/** Where the panel of the selected terminal sits, beside it on screen; none when no terminal is selected or its place is not known yet. */
-function useTerminalPlace(terminalId: string | null): CSSProperties | undefined {
+/**
+ * A selected terminal's panel, folded: a small tab beside the terminal, at
+ * its top, filled with the ink so it stands out next to the selection's own
+ * outline. A press keeps the keyboard where it was; a click opens the panel
+ * in its place.
+ */
+function EditTab({ nodeId, place, onOpen }: { nodeId: string; place: PanelPlace | undefined; onOpen: () => void }) {
+  const t = useMessages(canvasMessages).selection;
+  const name = useNodes((s) => terminalOf(s.nodes[nodeId])?.name);
+  const label = t.editTerminal(name || t.thisTerminal);
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      aria-expanded={false}
+      title={label}
+      onMouseDown={keepCanvasFocus}
+      onClick={onOpen}
+      className={cn(
+        "absolute z-10 flex h-7 w-18 items-center justify-center gap-1.5 rounded-lg bg-dp-accent text-xs font-medium text-dp-on-accent shadow-dp",
+        "transition-[filter] duration-(--dp-dur-fast) ease-(--dp-ease-out) hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dp-accent",
+        "animate-in fade-in-0 duration-(--dp-dur-fast) motion-reduce:animate-none",
+        !place && "left-[70px] top-1/2 -translate-y-1/2",
+      )}
+      style={place && { left: place.left, top: place.top }}
+    >
+      <Pencil className="size-3.5" aria-hidden />
+      {t.edit}
+    </button>
+  );
+}
+
+/** Where the selected terminal's tab or panel (`width` wide) sits, beside it on screen; none when no terminal is selected or its place is not known yet. */
+function useTerminalPlace(terminalId: string | null, width: number): PanelPlace | undefined {
   const rect = useCanvas((s) => (terminalId ? s.nodeRects[terminalId] : undefined));
   const scrollX = useCanvas((s) => s.view.scrollX);
   const scrollY = useCanvas((s) => s.view.scrollY);
   const zoom = useCanvas((s) => s.view.zoom);
-  const width = useCanvas((s) => s.view.width);
+  const canvasWidth = useCanvas((s) => s.view.width);
   const height = useCanvas((s) => s.view.height);
-  if (!rect || width === 0 || height === 0) return undefined;
+  if (!rect || canvasWidth === 0 || height === 0) return undefined;
   const screen = screenRectOf(rect, { scrollX, scrollY, zoom, offsetLeft: 0, offsetTop: 0 });
-  return besideRect(screen, { width, height });
+  return besideRect(screen, { width: canvasWidth, height }, width);
 }
 
 function DrawnControls({ drawn }: { drawn: ExcalidrawElement[] }) {

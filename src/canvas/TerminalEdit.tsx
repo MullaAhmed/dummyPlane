@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { Check, ChevronDown, ClipboardCopy, Copy, Pencil, Trash2 } from "lucide-react";
+import { Check, ChevronUp, ClipboardCopy, Copy, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { PanelTabs, PanelTabsContent, PanelTabsList, PanelTabsTrigger } from "@/components/PanelTabs";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,6 @@ import { cn } from "@/lib/utils";
 import { duplicateTerminal, requestClose } from "@/fleet/terminals";
 import { modelLabel } from "@/mission/router";
 import { nodesStore, terminalOf, useNodes, type NodeRecord, type NodesState } from "@/store/nodes";
-import { uiStore, useUi } from "@/store/ui";
 import { ExtensionList, useClaudeExtensions, type ExtensionKind } from "./ExtensionList";
 import { canvasMessages } from "./messages";
 import { keepCanvasFocus, PanelAction } from "./PanelAction";
@@ -40,23 +39,18 @@ const endEdit = (stored: string) => (event: React.KeyboardEvent<HTMLInputElement
  * changed; a model a mission chose can go back to the default. A Claude
  * terminal also gets its skills, plugins, MCP servers and subagents, each on or
  * off for it alone. The other options (shell, title) stay under the agent
- * icon's "Options…". The panel folds to its title row, and stays folded for
- * the next terminal selected.
+ * icon's "Options…". The panel folds back to its Edit tab (SelectionPanel).
  */
-export function TerminalEdit({ nodeId }: { nodeId: string }) {
+export function TerminalEdit({ nodeId, onFold }: { nodeId: string; onFold: () => void }) {
   const t = useMessages(canvasMessages).selection;
   const payload = useNodes((s) => terminalOf(s.nodes[nodeId]));
   const workspaceId = useNodes((s) => s.nodes[nodeId]?.workspaceId);
-  const folded = useUi((s) => s.editPanelFolded);
-  // Only an unfold eases the body in: selecting a terminal shows its panel at once.
-  const [unfolded, setUnfolded] = useState(false);
   const [tab, setTab] = useState<Tab>("general");
   const nameField = useRef<HTMLInputElement>(null);
   const bodyId = useId();
   const claude = payload?.agent === "claude";
-  // The tab carries over to the next terminal selected, unless that one has General only.
   const shown: Tab = claude ? tab : "general";
-  const { lists, retry } = useClaudeExtensions(payload?.cwd ?? "", payload?.accountId, claude && !folded && shown !== "general");
+  const { lists, retry } = useClaudeExtensions(payload?.cwd ?? "", payload?.accountId, claude && shown !== "general");
   if (!payload) return null;
 
   const update = (patch: Parameters<NodesState["update"]>[1]) => nodesStore.getState().update(nodeId, patch);
@@ -138,58 +132,46 @@ export function TerminalEdit({ nodeId }: { nodeId: string }) {
           type="button"
           variant="ghost"
           size="icon-xs"
-          aria-label={folded ? t.unfoldPanel : t.foldPanel}
-          title={folded ? t.unfoldPanel : t.foldPanel}
-          aria-expanded={!folded}
-          aria-controls={folded ? undefined : bodyId}
+          aria-label={t.foldPanel}
+          title={t.foldPanel}
+          aria-expanded
+          aria-controls={bodyId}
           onMouseDown={keepCanvasFocus}
-          onClick={() => {
-            setUnfolded(folded);
-            uiStore.getState().setEditPanelFolded(!folded);
-          }}
+          onClick={onFold}
           // Ghost buttons tint while aria-expanded (a menu's trigger); this one is expanded whenever the panel is open.
           // Its centre sits on the checkboxes' column (-mr-1).
           className="-mr-1 text-dp-text-3 hover:text-dp-text aria-expanded:bg-transparent aria-expanded:text-dp-text-3 aria-expanded:hover:bg-dp-hover aria-expanded:hover:text-dp-text"
         >
-          <ChevronDown className={cn("size-3.5 transition-transform duration-(--dp-dur-fast) ease-(--dp-ease-out) motion-reduce:transition-none", folded && "-rotate-90")} />
+          <ChevronUp className="size-3.5" />
         </Button>
       </div>
-      {!folded && (
-        // Unfolding fades the body in from just under the title (opacity and a 4 px rise); folding is instant.
-        <div
-          id={bodyId}
-          className={cn(
-            "flex min-h-0 flex-col",
-            unfolded && "animate-in fade-in-0 slide-in-from-top-1 duration-(--dp-dur) ease-(--dp-ease-out) motion-reduce:animate-none",
-          )}
-        >
-          {claude ? (
-            <PanelTabs value={shown} onValueChange={(value) => setTab(value as Tab)} className="min-h-0 flex-1 gap-3">
-              {/* The five labels on one hairline, never a scroller: they fit the panel's width (PANEL_WIDTH) with room to spare. */}
-              <PanelTabsList look="line" className="w-full shrink-0">
-                {(["general", ...KINDS] as const).map((value) => (
-                  <PanelTabsTrigger key={value} value={value} onMouseDown={keepCanvasFocus}>
-                    {t.tabs[value]}
-                  </PanelTabsTrigger>
-                ))}
-              </PanelTabsList>
-              <PanelTabsContent value="general" className={SCROLLS}>
-                {general}
-              </PanelTabsContent>
-              {KINDS.map((kind) => (
-                <PanelTabsContent key={kind} value={kind} className="min-h-0 flex-1">
-                  <ExtensionList nodeId={nodeId} kind={kind} cwd={payload.cwd} choice={payload.extensions} lists={lists} onRetry={retry} />
-                </PanelTabsContent>
+      <div id={bodyId} className="flex min-h-0 flex-col">
+        {claude ? (
+          <PanelTabs value={shown} onValueChange={(value) => setTab(value as Tab)} className="min-h-0 flex-1 gap-3">
+            {/* The five labels on one hairline, never a scroller: they fit the panel's width (PANEL_WIDTH) with room to spare. */}
+            <PanelTabsList look="line" className="w-full shrink-0">
+              {(["general", ...KINDS] as const).map((value) => (
+                <PanelTabsTrigger key={value} value={value} onMouseDown={keepCanvasFocus}>
+                  {t.tabs[value]}
+                </PanelTabsTrigger>
               ))}
-            </PanelTabs>
-          ) : (
-            <div className={cn(SCROLLS, "grid grid-cols-1 gap-3")}>
+            </PanelTabsList>
+            <PanelTabsContent value="general" className={SCROLLS}>
               {general}
-              <p className="text-xs text-dp-text-3">{t.claudeOnly}</p>
-            </div>
-          )}
-        </div>
-      )}
+            </PanelTabsContent>
+            {KINDS.map((kind) => (
+              <PanelTabsContent key={kind} value={kind} className="min-h-0 flex-1">
+                <ExtensionList nodeId={nodeId} kind={kind} cwd={payload.cwd} choice={payload.extensions} lists={lists} onRetry={retry} />
+              </PanelTabsContent>
+            ))}
+          </PanelTabs>
+        ) : (
+          <div className={cn(SCROLLS, "grid grid-cols-1 gap-3")}>
+            {general}
+            <p className="text-xs text-dp-text-3">{t.claudeOnly}</p>
+          </div>
+        )}
+      </div>
     </section>
   );
 }

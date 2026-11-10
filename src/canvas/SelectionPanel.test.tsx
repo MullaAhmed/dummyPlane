@@ -10,7 +10,6 @@ import type { ClaudeExtensions, ExtensionItem } from "@/ipc/claudeExtensions";
 import type { TerminalPayload } from "@/nodes/types";
 import { nodesStore } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
-import { uiStore } from "@/store/ui";
 import { canvasStore, EMPTY_VIEW } from "./canvasStore";
 import { SelectionPanel } from "./SelectionPanel";
 
@@ -77,7 +76,6 @@ afterEach(async () => {
   host.remove();
   canvasStore.setState({ api: null, drawnSelection: [], view: EMPTY_VIEW, nodeRects: {} });
   nodesStore.setState({ nodes: {} });
-  uiStore.setState({ editPanelFolded: false });
   accountsStore.setState({ profiles: [], active: null, loaded: false, unread: false, open: false });
   terminalStatusStore.setState({ statuses: {} });
 });
@@ -265,7 +263,8 @@ const terminal = (overrides: Partial<TerminalPayload> = {}): TerminalPayload => 
   ...overrides,
 });
 
-function mountTerminal(payload: TerminalPayload, selectedIds = ["t1"], mode: "reading" | null = null) {
+/** Selects the terminal and, unless told not to, opens its panel from its Edit tab, as most tests need. */
+async function mountTerminal(payload: TerminalPayload, selectedIds = ["t1"], mode: "reading" | null = null, open = true) {
   nodesStore.setState({
     nodes: {
       t1: { workspaceId: "w", kind: "terminal", payload },
@@ -274,8 +273,13 @@ function mountTerminal(payload: TerminalPayload, selectedIds = ["t1"], mode: "re
     },
   });
   canvasStore.setState({ drawnSelection: [], view: { ...EMPTY_VIEW, mode, selectedIds } });
-  return act(async () => root.render(<SelectionPanel />));
+  await act(async () => root.render(<SelectionPanel />));
+  const tab = editTab();
+  if (open && tab) await act(async () => tab.click());
 }
+
+/** The folded panel: its Edit tab, named after the terminal. */
+const editTab = () => host.querySelector<HTMLButtonElement>('button[aria-label^="Edit "][aria-expanded="false"]');
 
 const field = (label: string) => host.querySelector<HTMLInputElement>(`input[aria-label="${label}"]`);
 const payloadOf = () => (nodesStore.getState().nodes.t1 as { payload: TerminalPayload }).payload;
@@ -391,25 +395,67 @@ it("lets a model a mission chose go back to the default", async () => {
   expect(payloadOf().model).toBeUndefined();
 });
 
-it("folds to its title row, and stays folded for the next terminal selected", async () => {
+it("starts on a small Edit tab beside the terminal, in the panel's place, and opens the panel there on a click", async () => {
+  await mountTerminal(terminal(), ["t1"], null, false);
+  await act(async () =>
+    canvasStore.setState({
+      nodeRects: { t1: { x: 100, y: 100, width: 400, height: 300 } },
+      view: { ...canvasStore.getState().view, width: 1200, height: 800, scrollX: 0, scrollY: 0, zoom: 1 },
+    }),
+  );
+  const tab = editTab()!;
+  expect(tab.textContent).toBe("Edit");
+  expect(tab.getAttribute("aria-label")).toBe("Edit Isis");
+  expect([tab.style.left, tab.style.top]).toEqual(["512px", "100px"]);
+  // Filled with the ink: it reads beside the selection's own outline.
+  expect(tab.className).toContain("bg-dp-accent");
+  expect(host.querySelector("section[aria-label='Edit']")).toBeNull();
+  expect(field("Name")).toBeNull();
+  await act(async () => tab.click());
+  expect(editTab()).toBeNull();
+  expect(field("Name")!.value).toBe("Isis");
+  const panel = host.firstElementChild as HTMLElement;
+  expect([panel.style.left, panel.style.top]).toEqual(["512px", "100px"]);
+  expect(panel.className).toContain("animate-in");
+});
+
+it("puts the tab on the terminal's left when its right has no room", async () => {
+  await mountTerminal(terminal(), ["t1"], null, false);
+  await act(async () =>
+    canvasStore.setState({
+      nodeRects: { t1: { x: 700, y: 100, width: 420, height: 300 } },
+      view: { ...canvasStore.getState().view, width: 1200, height: 800, scrollX: 0, scrollY: 0, zoom: 1 },
+    }),
+  );
+  expect(editTab()!.style.left).toBe("616px");
+});
+
+it("folds back to its tab, and every terminal selected starts on its tab", async () => {
   await mountTerminal(terminal());
-  // Shown at once on selection; only an unfold eases in.
-  expect(host.querySelector(".animate-in")).toBeNull();
   expect(button("Fold the panel")!.getAttribute("aria-expanded")).toBe("true");
   await act(async () => button("Fold the panel")!.click());
-  expect(host.textContent).toContain("Edit Isis");
   expect(field("Name")).toBeNull();
-  expect(button("Unfold the panel")!.getAttribute("aria-expanded")).toBe("false");
-  // Another terminal, then none and the first again: still folded.
+  expect(editTab()!.getAttribute("aria-label")).toBe("Edit Isis");
+  // Opened again, then another terminal selected: its tab only.
+  await act(async () => editTab()!.click());
+  expect(field("Name")).not.toBeNull();
   await act(async () => canvasStore.setState({ view: { ...canvasStore.getState().view, selectedIds: ["t2"] } }));
-  expect(host.textContent).toContain("Edit Thoth");
+  expect(editTab()!.getAttribute("aria-label")).toBe("Edit Thoth");
   expect(field("Name")).toBeNull();
+  // The first one again, after none: its tab too.
+  await act(async () => editTab()!.click());
   await act(async () => canvasStore.setState({ view: { ...canvasStore.getState().view, selectedIds: [] } }));
+  expect(host.innerHTML).toBe("");
   await act(async () => canvasStore.setState({ view: { ...canvasStore.getState().view, selectedIds: ["t1"] } }));
+  expect(editTab()!.getAttribute("aria-label")).toBe("Edit Isis");
   expect(field("Name")).toBeNull();
-  await act(async () => button("Unfold the panel")!.click());
-  expect(field("Name")!.value).toBe("Isis");
-  expect(host.querySelector(".animate-in")).not.toBeNull();
+});
+
+it("keeps the keyboard where it was when its tab is pressed", async () => {
+  await mountTerminal(terminal(), ["t1"], null, false);
+  const press = new MouseEvent("mousedown", { bubbles: true, cancelable: true });
+  editTab()!.dispatchEvent(press);
+  expect(press.defaultPrevented).toBe(true);
 });
 
 // The lists of a Claude terminal: skills, plugins, MCP servers, subagents.
