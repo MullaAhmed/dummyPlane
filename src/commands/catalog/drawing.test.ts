@@ -157,10 +157,10 @@ describe("Dessin, sur la sélection (spec menu radial §4.5)", () => {
   describe("Group selection", () => {
     const group = DRAWING.find((c) => c.id === "selection.group")!;
     const terminals = [
-      { id: "a", type: "embeddable", isDeleted: false, frameId: null, customData: { kind: "terminal" } },
-      { id: "b", type: "embeddable", isDeleted: false, frameId: null, customData: { kind: "terminal" } },
-      { id: "c", type: "embeddable", isDeleted: false, frameId: "g1", customData: { kind: "terminal" } },
-      { id: "g1", type: "frame", isDeleted: false, frameId: null },
+      { id: "a", type: "embeddable", isDeleted: false, frameId: null, x: 0, y: 0, width: 720, height: 440, customData: { kind: "terminal" } },
+      { id: "b", type: "embeddable", isDeleted: false, frameId: null, x: 800, y: 0, width: 720, height: 440, customData: { kind: "terminal" } },
+      { id: "c", type: "embeddable", isDeleted: false, frameId: "g1", x: 5000, y: 0, width: 720, height: 440, customData: { kind: "terminal" } },
+      { id: "g1", type: "frame", isDeleted: false, frameId: null, x: 4900, y: -50, width: 1000, height: 600 },
     ];
     const selecting = (selected: Record<string, boolean>) =>
       canvasStore.setState({ view, api: { getAppState: () => ({ selectedElementIds: selected }), getSceneElements: () => terminals } as unknown as ExcalidrawImperativeAPI });
@@ -181,6 +181,18 @@ describe("Dessin, sur la sélection (spec menu radial §4.5)", () => {
       expect([group.available(busy), group.disabled?.(busy)]).toEqual([true, "a terminal is already in a group"]);
       selecting({ a: true, b: true, g1: true });
       expect(group.disabled?.(busy)).toBe("a group is selected");
+    });
+
+    it("is greyed when a node stands between the terminals: the frame would show it in the group", () => {
+      terminals.push({ id: "mid", type: "embeddable", isDeleted: false, frameId: null, x: 400, y: 0, width: 720, height: 440, customData: { kind: "terminal" } });
+      try {
+        selecting({ a: true, b: true });
+        expect([group.available(busy), group.disabled?.(busy)]).toEqual([true, "something is in the way"]);
+        selecting({ a: true, b: true, mid: true });
+        expect(group.disabled?.(busy)).toBeNull();
+      } finally {
+        terminals.pop();
+      }
     });
 
     it("reads the ring's selection rather than Excalidraw's, which has not committed the press yet", async () => {

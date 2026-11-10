@@ -9,7 +9,7 @@ import { nodeKindOf } from "./nodeElement";
 export const ZONE_OFFSETS = { top: TOP_ROW_HEIGHT, bottom: BOTTOM_BAR_HEIGHT };
 
 /** A group's name sits on its frame, above it: room for the label under the tabs. */
-const LABEL_ROOM = 24;
+export const LABEL_ROOM = 24;
 
 /**
  * Shift+Escape (spec fenêtre §6.5): the terminal or field that has the keyboard

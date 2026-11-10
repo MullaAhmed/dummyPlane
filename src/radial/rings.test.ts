@@ -119,8 +119,8 @@ describe("the wedges' short names", () => {
 });
 
 describe("the selection ring with terminals selected", () => {
-  const node = (id: string, fields: Record<string, unknown> = {}) => ({ id, type: "embeddable", isDeleted: false, frameId: null, customData: { kind: "terminal" }, ...fields });
-  const scene = [node("a"), node("b"), node("c", { frameId: "g1" }), { id: "r1", type: "rectangle", isDeleted: false, frameId: null }];
+  const node = (id: string, fields: Record<string, unknown> = {}) => ({ id, type: "embeddable", isDeleted: false, frameId: null, y: 0, width: 720, height: 440, customData: { kind: "terminal" }, ...fields });
+  const scene = [node("a", { x: 0 }), node("b", { x: 800 }), node("c", { x: 5000, frameId: "g1" }), { id: "r1", type: "rectangle", isDeleted: false, frameId: null }];
   const selecting = (selected: Record<string, boolean>) =>
     canvasStore.setState({ api: { getSceneElements: () => scene, getAppState: () => ({ selectedElementIds: selected }) } as unknown as ExcalidrawImperativeAPI });
   const second = (context: CommandContext = ctx) => lineOf(RINGS.selection[1]!, context)!;

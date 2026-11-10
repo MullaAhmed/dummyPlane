@@ -27,6 +27,7 @@ export const catalogMessages = defineMessages({
       noSelection: "nothing selected",
       groupSelected: "a group is selected",
       alreadyGrouped: "a terminal is already in a group",
+      inTheWay: "something is in the way",
     },
     launch: (label: string) => `Launch ${label}`,
     launchKeywords: ["agent", "launch", "start", "run"],

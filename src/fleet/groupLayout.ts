@@ -42,14 +42,21 @@ export function groupGrid(count: number): { width: number; height: number; cells
  * clips a child to its frame, so no member may poke out.
  */
 export function frameAround(members: readonly Rect[]): Rect {
-  const x1 = Math.min(...members.map((m) => m.x));
-  const y1 = Math.min(...members.map((m) => m.y));
-  const x2 = Math.max(...members.map((m) => m.x + m.width));
-  const y2 = Math.max(...members.map((m) => m.y + m.height));
-  return { x: x1 - PADDING, y: y1 - PADDING_TOP, width: x2 - x1 + 2 * PADDING, height: y2 - y1 + PADDING_TOP + PADDING };
+  const { x, y, width, height } = boundsOf(members);
+  return { x: x - PADDING, y: y - PADDING_TOP, width: width + 2 * PADDING, height: height + PADDING_TOP + PADDING };
 }
 
-function overlap(a: Rect, b: Rect): number {
+/** The smallest rect holding all of `rects`. */
+export function boundsOf(rects: readonly Rect[]): Rect {
+  const x1 = Math.min(...rects.map((r) => r.x));
+  const y1 = Math.min(...rects.map((r) => r.y));
+  const x2 = Math.max(...rects.map((r) => r.x + r.width));
+  const y2 = Math.max(...rects.map((r) => r.y + r.height));
+  return { x: x1, y: y1, width: x2 - x1, height: y2 - y1 };
+}
+
+/** The area two rects share; 0 when they only touch. */
+export function overlap(a: Rect, b: Rect): number {
   const width = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x);
   const height = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);
   return width > 0 && height > 0 ? width * height : 0;
