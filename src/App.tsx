@@ -8,6 +8,7 @@ import { LoopsIndicator } from "@/loops/LoopsIndicator";
 import { SavePresetDialog } from "@/presets/SavePresetDialog";
 import { appMessages } from "@/app/messages";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { HomeScreen } from "@/home/HomeScreen";
 import { AppToaster } from "@/shell/AppToaster";
 import { ProjectView } from "@/shell/ProjectView";
@@ -32,7 +33,7 @@ export default function App() {
   }, []);
 
   return (
-    <>
+    <TooltipProvider delayDuration={400}>
       {view === "home" && <HomeScreen />}
       {view === "project" && <ProjectView />}
       {view === "loading" && <StatusScreen message={t.loading} />}
@@ -63,6 +64,6 @@ export default function App() {
         <TroubleshootingDialog />
       </ErrorBoundary>
       <AppToaster />
-    </>
+    </TooltipProvider>
   );
 }

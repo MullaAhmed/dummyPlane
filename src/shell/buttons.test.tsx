@@ -21,12 +21,28 @@ it("names every icon button and marks the active rail tool (spec identité §5.4
     ),
   );
   const [text, eraser, plus, accent] = [...host.querySelectorAll("button")];
-  expect([text.title, text.getAttribute("aria-label"), text.getAttribute("aria-pressed")]).toEqual(["Texte (T)", "Texte (T)", "true"]);
+  expect([text.getAttribute("aria-label"), text.getAttribute("aria-pressed")]).toEqual(["Texte (T)", "true"]);
+  // A rail tool names itself in a hint, not a native title: the two would stack.
+  expect(text.hasAttribute("title")).toBe(false);
   expect(text.className).toContain("bg-dp-accent-soft");
   expect(eraser.getAttribute("aria-pressed")).toBe("false");
-  expect(plus.getAttribute("aria-label")).toBe("Nouveau workspace");
+  expect([plus.title, plus.getAttribute("aria-label")]).toEqual(["Nouveau workspace", "Nouveau workspace"]);
   expect(accent.className).toContain("text-dp-on-accent");
   expect(accent.className).toContain("rounded-md");
+  await act(async () => root.unmount());
+  host.remove();
+});
+
+it("shows a rail tool's name on keyboard focus, and keeps it shut while the tool's menu is open", async () => {
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = createRoot(host);
+  const hint = () => document.querySelector('[role="tooltip"]')?.textContent ?? null;
+  await act(async () => root.render(<ToolButton label="Gomme (E)" />));
+  await act(async () => host.querySelector("button")!.focus());
+  expect(hint()).toBe("Gomme (E)");
+  await act(async () => root.render(<ToolButton label="Gomme (E)" aria-expanded />));
+  expect(hint()).toBeNull();
   await act(async () => root.unmount());
   host.remove();
 });

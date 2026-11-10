@@ -1,8 +1,11 @@
 import { useState } from "react";
 import { toast } from "sonner";
+import { OptionItem, OptionList } from "@/components/OptionList";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { useUiRequest } from "@/commands/uiRequests";
 import { messages, useMessages } from "@/i18n";
 import { nodeNameOf, useNodes } from "@/store/nodes";
@@ -47,8 +50,6 @@ function triggerOf(form: Form): LoopTrigger {
   if (form.trigger === "output") return { kind: "output", text: form.text };
   return { kind: "interval", minutes: Number(form.minutes) };
 }
-
-const FIELD = "h-8 w-full rounded-md border border-dp-line bg-dp-field px-2.5 text-[13px] text-dp-text outline-none transition-[border-color] duration-150 ease-out focus-visible:border-dp-accent focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none";
 
 /** The loops: the list and the form (loops spec §4), opened by the palette or the indicator. */
 export function LoopsDialog() {
@@ -129,11 +130,11 @@ export function LoopsDialog() {
               return (
                 <div key={loop.id} className="flex items-center gap-2 rounded-lg border border-dp-line px-3 py-2">
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-[13px] font-medium text-dp-text">{loop.name}</p>
+                    <p className="truncate text-sm font-medium text-dp-text">{loop.name}</p>
                     <p className="truncate text-xs text-dp-text-2">
                       {t.triggerSummary(loop.trigger)} · {t.cost(loop)}
                     </p>
-                    <p className="text-xs text-dp-text-2">
+                    <p className="font-mono text-xs text-dp-text-3 tabular-nums">
                       {running
                         ? `${t.round(state.runs, loop.maxRuns)}${left === null ? "" : ` · ${t.untilEnd(left)}`}`
                         : state?.stoppedBecause
@@ -155,59 +156,57 @@ export function LoopsDialog() {
             })}
           </div>
         ) : (
-          <div className="flex flex-col gap-3">
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-xs text-dp-text-2">{t.templates}</span>
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="dp-label">{t.templates}</span>
               {LOOP_TEMPLATES.map((tpl) => (
                 <Button key={tpl.id} size="sm" variant="outline" onClick={() => fromTemplate(tpl.id)}>
                   {t.template[tpl.id]}
                 </Button>
               ))}
             </div>
-            <Input aria-label={t.name} placeholder={t.name} value={form.name} onChange={(e) => change({ name: e.currentTarget.value })} />
-            <textarea
-              aria-label={t.instruction}
-              placeholder={t.instruction}
-              value={form.instruction}
-              onChange={(e) => change({ instruction: e.currentTarget.value })}
-              rows={3}
-              className="w-full resize-none rounded-md border border-dp-line bg-dp-field px-2.5 py-1.5 text-[13px] text-dp-text outline-none transition-[border-color] duration-150 ease-out focus-visible:border-dp-accent focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none"
-            />
+            <div className="flex flex-col gap-2">
+              <Input aria-label={t.name} placeholder={t.name} value={form.name} onChange={(e) => change({ name: e.currentTarget.value })} />
+              <Textarea
+                aria-label={t.instruction}
+                placeholder={t.instruction}
+                value={form.instruction}
+                onChange={(e) => change({ instruction: e.currentTarget.value })}
+                rows={3}
+                className="resize-none field-sizing-fixed"
+              />
+            </div>
             <fieldset className="flex flex-col gap-1">
-              <legend className="text-xs text-dp-text-2">{t.targets}</legend>
+              <legend className="dp-label mb-1">{t.targets}</legend>
               {terminals.length === 0 && <p className="text-xs text-dp-text-3">{t.noTargets}</p>}
               {terminals.map(([id, node]) => (
-                <label key={id} className="-mx-1.5 flex cursor-pointer items-center gap-2 rounded-md px-1.5 py-1 text-[13px] text-dp-text transition-[background-color] duration-150 ease-out hover:bg-dp-hover motion-reduce:transition-none">
-                  <input
-                    type="checkbox"
-                    className="accent-dp-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50"
+                <label key={id} className="-mx-2 flex h-8 cursor-pointer items-center gap-2 rounded-md px-2 text-sm text-dp-text transition-colors duration-150 ease-out hover:bg-dp-hover motion-reduce:transition-none">
+                  <Checkbox
                     data-target={id}
                     checked={form.targets.includes(id)}
-                    onChange={(e) => change({ targets: e.currentTarget.checked ? [...form.targets, id] : form.targets.filter((x) => x !== id) })}
+                    onCheckedChange={(checked) => change({ targets: checked === true ? [...form.targets, id] : form.targets.filter((x) => x !== id) })}
+                    className="border-dp-text-3 after:-inset-1"
                   />
                   {nodeNameOf(node) || id}
                 </label>
               ))}
             </fieldset>
-            <fieldset className="flex flex-col gap-1.5">
-              <legend className="text-xs text-dp-text-2">{t.trigger}</legend>
-              {(["interval", "idle", "output"] as const).map((kind) => (
-                <label key={kind} className="-mx-1.5 flex cursor-pointer items-center gap-2 rounded-md px-1.5 py-1 text-[13px] text-dp-text transition-[background-color] duration-150 ease-out hover:bg-dp-hover motion-reduce:transition-none">
-                  <input type="radio" name="loop-trigger" className="accent-dp-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50" checked={form.trigger === kind} onChange={() => change({ trigger: kind })} />
-                  {t.triggers[kind]}
-                </label>
-              ))}
+            <fieldset className="flex flex-col gap-2">
+              <legend className="dp-label mb-1">{t.trigger}</legend>
+              <OptionList label={t.trigger} value={form.trigger} onValueChange={(trigger) => change({ trigger })} className="-mx-2 w-auto">
+                {(["interval", "idle", "output"] as const).map((kind) => (
+                  <OptionItem key={kind} value={kind} label={t.triggers[kind]} />
+                ))}
+              </OptionList>
               {form.trigger === "interval" && (
-                <input aria-label={t.minutes} type="number" min={1} max={1440} value={form.minutes} onChange={(e) => change({ minutes: e.currentTarget.value })} className={FIELD} />
+                <Input aria-label={t.minutes} type="number" min={1} max={1440} value={form.minutes} onChange={(e) => change({ minutes: e.currentTarget.value })} />
               )}
-              {form.trigger === "output" && (
-                <input aria-label={t.text} placeholder={t.text} value={form.text} onChange={(e) => change({ text: e.currentTarget.value })} className={FIELD} />
-              )}
+              {form.trigger === "output" && <Input aria-label={t.text} placeholder={t.text} value={form.text} onChange={(e) => change({ text: e.currentTarget.value })} />}
             </fieldset>
-            <fieldset className="flex flex-col gap-1.5">
-              <legend className="text-xs text-dp-text-2">{t.stop}</legend>
-              <input aria-label={t.maxRuns} placeholder={t.maxRuns} type="number" min={1} max={1000} value={form.maxRuns} onChange={(e) => change({ maxRuns: e.currentTarget.value })} className={FIELD} />
-              <input aria-label={t.maxMinutes} placeholder={t.maxMinutes} type="number" min={1} max={1440} value={form.maxMinutes} onChange={(e) => change({ maxMinutes: e.currentTarget.value })} className={FIELD} />
+            <fieldset className="flex flex-col gap-2">
+              <legend className="dp-label mb-1">{t.stop}</legend>
+              <Input aria-label={t.maxRuns} placeholder={t.maxRuns} type="number" min={1} max={1000} value={form.maxRuns} onChange={(e) => change({ maxRuns: e.currentTarget.value })} />
+              <Input aria-label={t.maxMinutes} placeholder={t.maxMinutes} type="number" min={1} max={1440} value={form.maxMinutes} onChange={(e) => change({ maxMinutes: e.currentTarget.value })} />
             </fieldset>
             {error && (
               <p role="alert" className="text-xs text-dp-danger">

@@ -1,6 +1,7 @@
 import { useEffect, useState, type ComponentProps } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Copy, Minus, Square, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { useMessages } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { shellMessages } from "./messages";
@@ -31,14 +32,19 @@ function useMaximized(): boolean {
   return maximized;
 }
 
+/**
+ * A caption button, as Windows draws them: the title bar's full 38 px height,
+ * 46 wide, square, no press scale, and the native title Windows shows there.
+ */
 function WindowButton({ label, danger, className, ...props }: ComponentProps<"button"> & { label: string; danger?: boolean }) {
   return (
-    <button
+    <Button
       type="button"
+      variant="ghost"
       title={label}
       aria-label={label}
       className={cn(
-        "grid h-[38px] w-[46px] shrink-0 place-items-center text-dp-text-2 transition-[color,background-color] duration-150 ease-out motion-reduce:transition-none hover:bg-dp-hover hover:text-dp-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-dp-accent/50 [&_svg]:size-4",
+        "h-[38px] w-[46px] rounded-none border-0 px-0 text-dp-text-2 hover:text-dp-text focus-visible:ring-inset active:scale-100",
         danger && "hover:bg-dp-danger hover:text-dp-surface",
         className,
       )}

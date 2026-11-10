@@ -18,10 +18,10 @@ it("draws xterm on the node's body color in every palette, dark in each (spec id
   }
 });
 
-it("cursors and selections take the palette's accent", () => {
-  expect(terminalThemeFor("calm")).toEqual({ background: "#0F2921", cursor: "#F52B94", selectionBackground: "#F52B9455" });
-  expect(terminalThemeFor("electric")).toEqual({ background: "#0D1556", cursor: "#B6F52B", selectionBackground: "#B6F52B55" });
-  expect(terminalThemeFor("expressive")).toEqual({ background: "#0B0B0E", cursor: "#FF781B", selectionBackground: "#FF781B55" });
+it("cursors and selections take the palette's light color", () => {
+  expect(terminalThemeFor("calm")).toEqual({ background: "#0F2921", cursor: "#EDE3CC", selectionBackground: "#EDE3CC55" });
+  expect(terminalThemeFor("electric")).toEqual({ background: "#0D1556", cursor: "#F4F4F1", selectionBackground: "#F4F4F155" });
+  expect(terminalThemeFor("expressive")).toEqual({ background: "#0B0B0E", cursor: "#F4F4F1", selectionBackground: "#F4F4F155" });
   expect(Object.keys(TERMINAL_COLORS).sort()).toEqual(["calm", "electric", "expressive"]);
 });
 

@@ -50,18 +50,23 @@ it("shows the agent, its name, its report in the functional colors and one line 
   expect(card.textContent).toContain("Login fixed");
   const badge = card.querySelector("[data-report]")!;
   expect(badge.getAttribute("data-report")).toBe("done");
-  expect(badge.className).toContain("text-dp-ok");
-  expect(badge.className).not.toContain("rounded-full");
+  // Quiet text and the status dot, not a pill: the functional colour is the dot's.
+  expect(badge.className).not.toContain("rounded");
+  const dot = badge.querySelector("[data-status]")!;
+  expect(dot.getAttribute("data-status")).toBe("done");
+  expect(dot.className).toContain("border-dp-ok");
   await view.unmount();
 });
 
 it.each([
-  ["blocked", "text-dp-wait", "BLOCKED"],
-  ["failed", "text-dp-danger", "FAILED"],
-] as const)("marks a %s report in its own color", async (status, tone, label) => {
+  ["blocked", "waiting", "bg-dp-wait", "Blocked"],
+  ["failed", "error", "bg-dp-danger", "Failed"],
+] as const)("marks a %s report in its own color", async (status, state, tone, label) => {
   const view = await render(<MinimizedCard nodeId="isis" payload={{ ...isis, lastReport: { status, summary: "Needs a key" } }} status={{ state: "running" }} />);
   const badge = view.host.querySelector("[data-report]")!;
-  expect(badge.className).toContain(tone);
+  const dot = badge.querySelector("[data-status]")!;
+  expect(dot.getAttribute("data-status")).toBe(state);
+  expect(dot.className).toContain(tone);
   expect(badge.textContent).toBe(label);
   await view.unmount();
 });
@@ -69,7 +74,8 @@ it.each([
 it("shows the live status when no report was made", async () => {
   const view = await render(<MinimizedCard nodeId="isis" payload={isis} status={{ state: "stopped" }} />);
   expect(view.host.querySelector("[data-report]")).toBeNull();
-  expect(view.host.textContent).toContain("STOPPED");
+  expect(view.host.textContent).toContain("Stopped");
+  expect(view.host.querySelector("[data-status]")!.getAttribute("data-status")).toBe("stopped");
   await view.unmount();
 });
 

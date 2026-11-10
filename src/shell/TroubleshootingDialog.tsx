@@ -10,12 +10,12 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { AGENTS } from "@/fleet/catalog";
 import { useMessages } from "@/i18n";
 import { cn } from "@/lib/utils";
+import { AccentButton } from "./buttons";
 import { shellMessages } from "./messages";
 import { checkAgain, troubleshootStore, useTroubleshoot } from "./troubleshoot";
 
-const buttonBase =
-  "rounded-md transition-[color,background-color,border-color,opacity,transform] duration-150 ease-out motion-reduce:transition-none active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50";
-const secondaryButton = cn(buttonBase, "border-dp-line bg-transparent text-dp-text hover:bg-dp-hover");
+/** The dialog's tools: hairline buttons, one size, their icons in the secondary text role. */
+const secondaryButton = "rounded-md bg-transparent font-normal [&_svg]:text-dp-text-2";
 
 /** One check of the dialog: its state, what was found, and why it matters when missing. */
 function Check({ id, ok, label, value, hint, plain = false }: { id: string; ok: boolean; label: string; value: ReactNode; hint?: string; plain?: boolean }) {
@@ -25,7 +25,7 @@ function Check({ id, ok, label, value, hint, plain = false }: { id: string; ok: 
       <Icon className={cn("mt-0.5 size-3.5 shrink-0", ok ? "text-dp-ok" : "text-dp-wait")} />
       <div className="min-w-0">
         <p className="text-dp-text">
-          {label} · <span className={plain ? "text-dp-text-2" : "font-mono text-[11px] text-dp-text-2"}>{value}</span>
+          {label} · <span className={plain ? "text-dp-text-2" : "font-mono text-xs text-dp-text-2"}>{value}</span>
         </p>
         {hint && <p className="text-xs text-dp-text-2">{hint}</p>}
       </div>
@@ -63,7 +63,7 @@ export function TroubleshootingDialog() {
         {error && <p className="text-sm text-dp-danger">{t.failed(error)}</p>}
         {!d && !error && <p className="text-sm text-dp-text-2">{t.loading}</p>}
         {d && (
-          <div className="grid gap-3 text-[13px]">
+          <div className="grid gap-3 text-(length:--text-ui)">
             <p className="text-dp-text">
               dummyPlane {d.version} <span className="text-dp-text-2">· {d.os}</span>
             </p>
@@ -74,7 +74,7 @@ export function TroubleshootingDialog() {
                   <li key={a.id} data-agent={a.id} className="flex items-baseline gap-2">
                     <span className={cn("w-20 shrink-0", a.path ? "text-dp-text" : "text-dp-text-2")}>{AGENTS[a.id]?.label ?? a.id}</span>
                     {a.path ? (
-                      <span className="truncate font-mono text-[11px] text-dp-text-2" title={a.path}>
+                      <span className="truncate font-mono text-xs text-dp-text-2" title={a.path}>
                         {a.path}
                       </span>
                     ) : (
@@ -104,16 +104,12 @@ export function TroubleshootingDialog() {
           </Button>
         </div>
         <DialogFooter className="border-dp-line bg-dp-hover">
-          <Button
-            variant="ghost"
-            onClick={() => void openUrl(guideUrl())}
-            className={cn(buttonBase, "text-dp-text-2 hover:bg-dp-hover hover:text-dp-text")}
-          >
+          <Button variant="ghost" onClick={() => void openUrl(guideUrl())} className="rounded-md text-dp-text-2 hover:text-dp-text">
             <BookOpen /> {t.guide}
           </Button>
-          <Button onClick={() => void report()} className={cn(buttonBase, "bg-dp-accent text-dp-on-accent hover:brightness-110")}>
+          <AccentButton onClick={() => void report()} className="px-3 text-sm">
             <Bug /> {t.report}
-          </Button>
+          </AccentButton>
         </DialogFooter>
       </DialogContent>
     </Dialog>

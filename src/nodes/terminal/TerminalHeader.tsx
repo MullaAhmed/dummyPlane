@@ -7,7 +7,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { accountsMessages } from "@/accounts/messages";
 import { useAccounts } from "@/accounts/store";
 import { useUiRequest } from "@/commands/uiRequests";
@@ -32,17 +34,22 @@ import { useMessages } from "@/i18n";
 import { nodesMessages } from "@/nodes/messages";
 
 
+/** The quiet icon buttons of a header: muted until pointed at. */
+const HEADER_ICON = "rounded-md text-dp-text-2 hover:text-dp-text";
+
+/** An icon action of a header; its name shows in a tooltip, the glyph alone not always saying it. */
 export function HeaderButton(props: { label: string; onClick: () => void; children: ReactNode }) {
   return (
-    <button
-      type="button"
-      title={props.label}
-      aria-label={props.label}
-      onClick={props.onClick}
-      className="grid size-7 shrink-0 place-items-center rounded-md text-dp-text-2 transition-[color,background-color,transform] duration-150 ease-out hover:bg-dp-hover hover:text-dp-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] disabled:opacity-50 disabled:pointer-events-none motion-reduce:transition-none [&_svg]:size-4"
-    >
-      {props.children}
-    </button>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button type="button" variant="ghost" size="icon-sm" aria-label={props.label} onClick={props.onClick} className={HEADER_ICON}>
+          {props.children}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent side="bottom" sideOffset={6}>
+        {props.label}
+      </TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -61,15 +68,11 @@ function RelaunchMenu(props: { nodeId: string; payload: TerminalPayload; running
   };
   return (
     <DropdownMenu>
+      {/* A menu's trigger keeps a native title: a tooltip would pop up again when the closing menu hands the focus back. */}
       <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          title={t.relaunch}
-          aria-label={t.relaunch}
-          className="grid size-7 shrink-0 place-items-center rounded-md text-dp-text-2 transition-[color,background-color,transform] duration-150 ease-out hover:bg-dp-hover hover:text-dp-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] motion-reduce:transition-none [&_svg]:size-4"
-        >
+        <Button type="button" variant="ghost" size="icon-sm" title={t.relaunch} aria-label={t.relaunch} className={HEADER_ICON}>
           <RotateCw />
-        </button>
+        </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         {payload.agent === "claude" ? (
@@ -107,7 +110,7 @@ export function AccountChip({ accountId }: { accountId?: string }) {
     <span
       data-account={profile?.id ?? "default"}
       title={t.chipTitle(profile?.configDir ?? t.defaultHint)}
-      className="max-w-[90px] truncate rounded px-1 text-[10px] text-dp-text-2"
+      className="max-w-24 truncate px-1 text-xs text-dp-text-2"
     >
       {profile?.name ?? t.defaultName}
     </span>
@@ -120,14 +123,16 @@ function ModelChip({ nodeId, model }: { nodeId: string; model: string }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="xs"
           data-model={model}
           title={t.modelChosen(model)}
-          className="rounded-md px-1 font-mono text-[10px] text-dp-text-2 transition-[color,background-color] duration-150 ease-out hover:bg-dp-hover hover:text-dp-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none"
+          className="h-6 rounded-md px-1 font-mono text-xs font-normal text-dp-text-2 hover:text-dp-text"
         >
           {modelLabel(model)}
-        </button>
+        </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuItem onSelect={() => nodesStore.getState().update(nodeId, { model: undefined })}>
@@ -145,8 +150,10 @@ export function TerminalHeader(props: {
   status: TerminalStatus;
   activity?: AgentActivity;
   actions?: ReactNode;
+  /** False when the node's foot tells where the agent stands (./AgentFoot.tsx): one status dot per agent. */
+  showStatus?: boolean;
 }) {
-  const { nodeId, payload, status, activity, actions } = props;
+  const { nodeId, payload, status, activity, actions, showStatus = true } = props;
   const t = useMessages(nodesMessages).header;
   const [editing, setEditing] = useState(false);
   const [optionsOpen, setOptionsOpen] = useState(false);
@@ -166,10 +173,10 @@ export function TerminalHeader(props: {
     >
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button type="button" aria-label="Agent" className="flex h-7 items-center gap-0.5 rounded-md px-1 transition-[background-color] duration-150 ease-out hover:bg-dp-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none">
+          <Button type="button" variant="ghost" size="sm" aria-label="Agent" className="gap-0.5 rounded-md px-1">
             <meta.Icon className="size-3.5" style={{ color: agentInk(meta.tint) }} />
             <ChevronDown className="size-3 text-dp-text-2" />
-          </button>
+          </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start">
           {/* Only agents that start without options can be switched to from the header. */}
@@ -195,7 +202,7 @@ export function TerminalHeader(props: {
         <Input
           autoFocus
           defaultValue={payload.name}
-          className="h-5 w-32 px-1 text-xs"
+          className="h-5 w-32 rounded-md px-1 text-xs md:text-xs"
           onBlur={(e) => {
             const name = e.currentTarget.value.trim();
             if (name) nodesStore.getState().update(nodeId, { name });
@@ -208,15 +215,15 @@ export function TerminalHeader(props: {
         />
       ) : (
         <span
-          className="truncate font-semibold text-dp-text"
+          className="truncate font-medium text-dp-text"
           onDoubleClick={() => setEditing(true)}
           title={t.doubleClickRename}
         >
           {payload.name || meta.label}
         </span>
       )}
-      <div className="ml-auto flex shrink-0 items-center gap-0.5">
-        <StatusPill status={status} activity={activity} indigo={meta.tint === INDIGO} />
+      <div className="ml-auto flex shrink-0 items-center gap-1">
+        {showStatus && <StatusPill status={status} activity={activity} indigo={meta.tint === INDIGO} />}
         {payload.agent === "claude" && <AccountChip accountId={payload.accountId} />}
         {payload.model && <ModelChip nodeId={nodeId} model={payload.model} />}
         {payload.agent === "claude" && <RemoteButton nodeId={nodeId} wanted={payload.remoteControl === true} running={status.state === "running"} />}

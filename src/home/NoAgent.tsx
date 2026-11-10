@@ -2,12 +2,14 @@ import { useState } from "react";
 import { Copy, Download, ExternalLink, RefreshCw } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import { agentsStore } from "@/fleet/agentsStore";
 import { AGENTS, agentInk } from "@/fleet/catalog";
 import { AGENT_INSTALLS } from "@/fleet/installCommands";
 import { InstallPrompt } from "@/fleet/InstallPrompt";
 import { useMessages } from "@/i18n";
 import type { AgentId } from "@/ipc/pty";
+import { cn } from "@/lib/utils";
 import { AccentButton } from "@/shell/buttons";
 import { recentProject, useProjects } from "@/store/projects";
 import { installFromHome } from "./installFromHome";
@@ -16,8 +18,8 @@ import { homeMessages } from "./messages";
 const CLAUDE = AGENT_INSTALLS.claude!;
 const OTHERS = (Object.keys(AGENT_INSTALLS) as AgentId[]).filter((id) => id !== "claude");
 
-const linkClass =
-  "flex items-center gap-1 rounded-md px-2 py-1 text-xs text-dp-text transition-[color,background-color] duration-150 ease-out hover:bg-dp-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] motion-reduce:transition-none [&_svg]:size-3.5 [&_svg]:text-dp-text-2";
+/** A quiet text action: 28 px, its icons in the secondary text role. */
+const linkClass = "gap-1.5 rounded-md px-2 text-xs font-normal [&_svg]:text-dp-text-2";
 
 /** "No code agent found": Claude Code first, then the others (spec installation §4.2). */
 export function NoAgent() {
@@ -48,30 +50,31 @@ export function NoAgent() {
   };
 
   return (
-    <div data-no-agent className="mt-5 border-t border-dp-line pt-5">
-      <p className="font-semibold text-dp-text">{t.title}</p>
+    <div data-no-agent className="mt-6 border-t border-dp-line pt-6">
+      <p className="font-medium text-dp-text">{t.title}</p>
       <p className="mb-4 text-sm text-dp-text-2">{t.hint}</p>
-      <div className="rounded-lg border border-dp-line bg-dp-card p-3">
+      <div className="rounded-lg border border-dp-line bg-dp-card p-4">
         <div className="flex items-center gap-2">
           <claude.Icon className="size-4" style={{ color: agentInk(claude.tint) }} />
-          <span className="text-[13px] font-semibold text-dp-text">Claude Code</span>
-          <span className="rounded-md bg-dp-accent-soft px-2 py-0.5 text-[11px] font-semibold text-dp-accent-ink">{t.recommended}</span>
+          <span className="text-(length:--text-ui) font-medium text-dp-text">Claude Code</span>
+          {/* A quiet text badge: the one recommendation of the screen. */}
+          <span className="rounded-sm border border-dp-line px-1.5 text-xs leading-5 text-dp-text-2">{t.recommended}</span>
         </div>
         <p className="mt-1 text-xs text-dp-text-2">{t.claudeWhy}</p>
         <p className="mt-3 text-xs text-dp-text-2">{t.claudeHow}</p>
         <div className="mt-1 flex items-center gap-2">
           <code className="min-w-0 flex-1 truncate rounded-md bg-dp-hover px-2 py-1.5 font-mono text-xs text-dp-text">{CLAUDE.command}</code>
-          <button type="button" onClick={copy} className={linkClass}>
+          <Button variant="ghost" size="sm" onClick={copy} className={linkClass}>
             <Copy /> {t.copy}
-          </button>
+          </Button>
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <AccentButton onClick={() => install("claude")}>
             <Download /> {t.installAgent("Claude Code")}
           </AccentButton>
-          <button type="button" data-link onClick={() => void openUrl(CLAUDE.docs)} className={`${linkClass} text-dp-accent-ink`}>
+          <Button variant="ghost" size="sm" data-link onClick={() => void openUrl(CLAUDE.docs)} className={cn(linkClass, "text-dp-accent-ink hover:text-dp-accent-ink")}>
             {t.guide} <ExternalLink />
-          </button>
+          </Button>
         </div>
       </div>
       <p className="mt-4 mb-1 text-xs text-dp-text-2">{t.others}</p>
@@ -79,19 +82,20 @@ export function NoAgent() {
         {OTHERS.map((id) => {
           const agent = AGENTS[id];
           return (
-            <li key={id} className="flex items-center">
-              <button type="button" data-link onClick={() => void openUrl(AGENT_INSTALLS[id]!.docs)} className={linkClass}>
+            <li key={id} className="flex items-center gap-1">
+              <Button variant="ghost" size="sm" data-link onClick={() => void openUrl(AGENT_INSTALLS[id]!.docs)} className={linkClass}>
                 <agent.Icon style={{ color: agentInk(agent.tint) }} /> {agent.label} <ExternalLink />
-              </button>
-              <button
-                type="button"
+              </Button>
+              <Button
+                variant="outline"
+                size="xs"
                 data-install={id}
                 aria-label={t.installAgent(agent.label)}
                 onClick={() => setAsked(id)}
-                className="rounded-[9px] bg-dp-accent-soft px-2 py-0.5 text-[11px] font-semibold text-dp-accent-ink transition-[color,background-color] duration-150 ease-out hover:bg-dp-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] motion-reduce:transition-none"
+                className="rounded-sm px-2 font-normal"
               >
                 {t.install}
-              </button>
+              </Button>
             </li>
           );
         })}

@@ -7,6 +7,7 @@ import { useMessages } from "@/i18n";
 import { nodeNameOf, useNodes } from "@/store/nodes";
 import { HeaderButton } from "@/nodes/terminal/TerminalHeader";
 import { frameStyle } from "@/nodes/terminal/frame";
+import { StatusDot } from "@/nodes/terminal/StatusDot";
 import type { SubagentLine } from "./ipc";
 import { subagentMessages } from "./messages";
 import { subagentNodesStore, useSubagentEntry, useSubagentNode } from "./store";
@@ -21,7 +22,8 @@ function inks(light: boolean): CSSProperties {
   return {
     "--sa-fg": fg,
     "--sa-dim": `color-mix(in srgb, ${fg} 58%, var(--dp-terminal))`,
-    "--sa-tool": `color-mix(in srgb, var(--dp-accent) 80%, ${fg})`,
+    // The ❯ and ● markers in the terminal's own ink at full strength: the accent (the palette's ink) can be the body's own hue (calm).
+    "--sa-tool": fg,
     "--sa-error": `color-mix(in srgb, var(--dp-danger) 65%, ${fg})`,
     "--sa-ok": `color-mix(in srgb, var(--dp-ok) 60%, ${fg})`,
   } as CSSProperties;
@@ -105,19 +107,18 @@ export function SubagentNode({ nodeId }: { nodeId: string }) {
       data-state={done ? "done" : "running"}
       className="relative flex h-full flex-col overflow-hidden rounded-xl bg-dp-terminal font-mono transition-[filter,opacity] duration-300"
       style={{
-        ...frameStyle("var(--dp-text-3)", selected, false),
+        ...frameStyle(selected, false),
         ...inks(light),
         ...(done ? { filter: "grayscale(1)", opacity: 0.62 } : {}),
       }}
     >
-      <header title={title} className="flex h-7 shrink-0 items-center gap-1.5 border-b border-dp-line bg-dp-terminal-head px-2 font-sans text-xs text-dp-text">
-        <Bot aria-hidden className="size-3.5 shrink-0 text-dp-text-2" />
+      <header title={title} className="flex h-8 shrink-0 items-center gap-2 border-b border-dp-line bg-dp-terminal-head px-2 font-sans text-xs text-dp-text">
+        <Bot aria-hidden className="size-4 shrink-0 text-dp-text-2" />
         {entry && <span className="shrink-0 text-dp-text-3">{t.from(parentLabel(parent, terminalName, t.terminal))}</span>}
         <span className="min-w-0 flex-1 truncate font-medium">{title}</span>
-        <span
-          className="shrink-0 rounded px-1 text-[10px] font-semibold tracking-wide"
-          style={{ color: done ? "var(--dp-text-3)" : "var(--dp-accent-ink)" }}
-        >
+        {/* The agents' signature: its dot and a quiet word, as in a terminal's header. */}
+        <span className="flex shrink-0 items-center gap-2 text-dp-text-2">
+          <StatusDot state={done ? "done" : "working"} />
           {done ? t.done : t.running}
         </span>
         <HeaderButton label={t.close} onClick={close}>
@@ -130,7 +131,7 @@ export function SubagentNode({ nodeId }: { nodeId: string }) {
           const view = e.currentTarget;
           stuck.current = view.scrollHeight - view.scrollTop - view.clientHeight < 24;
         }}
-        className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-2 text-[12px] leading-[1.45] text-[color:var(--sa-fg)] select-text"
+        className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-2 text-xs leading-4.5 text-[color:var(--sa-fg)] select-text"
       >
         {!entry && <div className="text-[color:var(--sa-dim)]">{t.ended}</div>}
         {entry && entry.lines.length === 0 && <div className="text-[color:var(--sa-dim)]">{t.waiting}</div>}

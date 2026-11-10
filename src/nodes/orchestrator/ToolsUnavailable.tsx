@@ -19,7 +19,7 @@ export function ToolsUnavailable({ nodeId, message }: { nodeId: string; message:
   return (
     <div role="alert" className="absolute inset-0 z-10 grid place-items-center bg-dp-terminal p-4">
       <div className="flex max-w-sm flex-col items-center gap-2 text-center">
-        <p className="text-[13px] font-semibold text-dp-text">{t.title}</p>
+        <p className="text-(length:--text-ui) font-medium text-dp-text">{t.title}</p>
         <p className="text-xs text-dp-text-2">{message}</p>
         <p className="text-xs text-dp-text-2">{t.consequence}</p>
         <div className="flex flex-wrap justify-center gap-1.5">

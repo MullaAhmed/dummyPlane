@@ -23,11 +23,13 @@ import { MissionPanel } from "@/mission/MissionPanel";
 import { useActivity } from "@/store/agentActivity";
 import { nodesStore, useNodes } from "@/store/nodes";
 import { useTerminalStatus, type TerminalStatus } from "@/store/terminalStatus";
-import { frameStyle, WAITING_GLOW } from "../terminal/frame";
+import { frameStyle } from "../terminal/frame";
 import { orchestratorSession } from "../terminal/launch";
-import { markForAutostart } from "../terminal/registry";
+import { markForAutostart, xtermOf } from "../terminal/registry";
+import { keepTerminalWheel } from "../terminal/terminalWheel";
 import { MissingNode } from "../terminal/MissingNode";
 import { ResumeCard } from "../terminal/ResumeCard";
+import { StatusDot, type DotState } from "../terminal/StatusDot";
 import { keepFieldWheel } from "./keepWheel";
 import { HeaderButton } from "../terminal/TerminalHeader";
 import { useTerminalHost } from "../terminal/useTerminalHost";
@@ -36,6 +38,7 @@ import { ToolsUnavailable } from "./ToolsUnavailable";
 import { useMessages } from "@/i18n";
 import { nodesMessages } from "@/nodes/messages";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 /** The manager of a team: its Claude session, then its mission (spec orchestrateur §6). */
 export function OrchestratorNode({ nodeId }: { nodeId: string }) {
@@ -62,6 +65,15 @@ export function OrchestratorNode({ nodeId }: { nodeId: string }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const shown = record?.kind === "orchestrator";
   useEffect(() => (rootRef.current ? keepFieldWheel(rootRef.current) : undefined), [shown]);
+  // Over its session, the wheel scrolls the terminal rather than panning the canvas (terminalWheel.ts),
+  // like a terminal node; the mission and the field below keep theirs.
+  const sessionAreaRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const area = sessionAreaRef.current;
+    const canvas = area?.closest<HTMLElement>(".excalidraw");
+    if (!area || !canvas) return;
+    return keepTerminalWheel(area, canvas, () => xtermOf(nodeId));
+  }, [nodeId, shown]);
 
   if (record?.kind !== "orchestrator") {
     return <MissingNode text={t.notFound} />;
@@ -74,14 +86,17 @@ export function OrchestratorNode({ nodeId }: { nodeId: string }) {
       ref={rootRef}
       data-orchestrator={nodeId}
       className="relative flex h-full flex-col overflow-hidden rounded-xl bg-dp-surface text-dp-text"
-      style={frameStyle("var(--dp-accent)", selected, waiting)}
+      style={frameStyle(selected, waiting)}
     >
       <header className="flex h-9 shrink-0 items-center gap-2 border-b border-dp-line px-3">
         <Network className="size-4 shrink-0 text-dp-accent" />
         <NameField nodeId={nodeId} value={record.payload.name} onCommit={(name) => renameOrchestrator(nodeId, name)} />
-        <span className="ml-auto flex items-center gap-2 font-mono text-[11px] text-dp-text-2">
+        <span className="ml-auto flex items-center gap-2 font-mono text-xs text-dp-text-2 tabular-nums">
           {clock && <span title={t.clockTitle}>{clock}</span>}
-          <span>{sessionLabel(t.session, status, activity?.activity)}</span>
+          <span className="flex items-center gap-2 font-sans">
+            <StatusDot state={sessionDot(status, activity?.activity)} />
+            {sessionLabel(t.session, status, activity?.activity)}
+          </span>
         </span>
         {session && <RemoteButton nodeId={nodeId} wanted={session.remoteControl === true} running={status.state === "running"} />}
         <DropdownMenu>
@@ -103,14 +118,13 @@ export function OrchestratorNode({ nodeId }: { nodeId: string }) {
           <X />
         </HeaderButton>
       </header>
-      <div className="relative min-h-[120px] flex-1 bg-dp-terminal px-1 pt-1">
+      <div ref={sessionAreaRef} className="relative min-h-[120px] flex-1 bg-dp-terminal px-1 pt-1">
         <div ref={hostRef} className="relative h-full w-full overflow-hidden" />
         {session && <ResumeCard nodeId={nodeId} payload={session} status={status} />}
         {status.state === "error" && status.kind === "toolsUnavailable" && <ToolsUnavailable nodeId={nodeId} message={status.message} />}
       </div>
       <MissionPanel nodeId={nodeId} />
       <OrchestratorInput nodeId={nodeId} open={record.payload.inputOpen === true} />
-      {waiting && <div className="pointer-events-none absolute inset-0 z-20 rounded-xl" style={{ boxShadow: WAITING_GLOW }} />}
     </div>
   );
 }
@@ -121,6 +135,13 @@ function sessionLabel(t: (typeof nodesMessages)["orchestrator"]["session"], stat
   if (status.state === "error" && status.kind === "toolsUnavailable") return t.toolsUnavailable;
   if (status.state !== "running") return t.stopped;
   return activity === "working" ? t.working : activity === "waiting" ? t.waiting : t.idle;
+}
+
+/** Its session's dot, the same signature as an agent's (StatusDot). */
+function sessionDot(status: TerminalStatus, activity: Activity | undefined): DotState {
+  if (status.state === "error") return "error";
+  if (status.state !== "running") return "stopped";
+  return activity === "working" ? "working" : activity === "waiting" ? "waiting" : "idle";
 }
 
 /** The orchestrator's name; a double-click edits it, Enter or a click elsewhere keeps it, Escape cancels. */
@@ -135,7 +156,7 @@ function NameField({ nodeId, value, onCommit }: { nodeId: string; value: string;
   });
   if (!editing) {
     return (
-      <span className="truncate text-[13px] font-semibold text-dp-text" onDoubleClick={() => setEditing(true)} title={t.doubleClickRename}>
+      <span className="truncate text-(length:--text-ui) font-medium text-dp-text" onDoubleClick={() => setEditing(true)} title={t.doubleClickRename}>
         {value}
       </span>
     );
@@ -164,7 +185,7 @@ function NameInput({ initial, onDone }: { initial: string; onDone: (name: string
     }
   });
   return (
-    <input
+    <Input
       ref={input}
       autoFocus
       value={draft}
@@ -172,7 +193,7 @@ function NameInput({ initial, onDone }: { initial: string; onDone: (name: string
       onBlur={() => {
         if (!cancelled.current) onDone(draft);
       }}
-      className="w-36 rounded-md bg-dp-card px-1 text-[13px] font-semibold text-dp-text outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50"
+      className="h-6 w-36 rounded-md border-transparent bg-dp-card px-1 text-(length:--text-ui) font-medium md:text-(length:--text-ui)"
     />
   );
 }

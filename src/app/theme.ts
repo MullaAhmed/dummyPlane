@@ -1,37 +1,33 @@
 import { toast } from "sonner";
 import { createStore, useStore } from "zustand";
-import { useShallow } from "zustand/react/shallow";
 import { messages } from "@/i18n";
 import { getSetting, setSetting } from "@/ipc/db";
 import { appMessages } from "./messages";
 
-/** Spec identité §4.2: three palettes, each 60% canvas, 30% text and surfaces, 10% accent. */
+/** Spec identité §4.2: three palettes of two colors each, a canvas and an ink that is also the accent. */
 export type ThemeChoice = "calm" | "electric" | "expressive";
 /** The color scheme a palette declares: `data-theme` on <html>, read by Tailwind's `dark:` and Excalidraw. */
 export type Theme = "light" | "dark";
 
 export const THEME_KEY = "ui.theme";
-export const TRANSPARENCY_KEY = "ui.transparency";
 export const DEFAULT_THEME: ThemeChoice = "expressive";
 
 /**
- * English names and schemes, as the Theme radio group shows them. `canvas` is
- * the palette's 60%, `accent` its 10% (`--dp-accent` of tokens.css, kept in
- * step by tokens.test.ts): what scene elements that follow the palette, the
- * wires, are drawn in.
+ * English names and schemes, as the Theme radio group shows them, and the
+ * palette's two colors: `canvas`, and `accent`, its ink (`--dp-accent` of
+ * tokens.css, kept in step by tokens.test.ts): what scene elements that follow
+ * the palette, the wires, are drawn in.
  */
 export const PALETTES: Record<ThemeChoice, { name: string; scheme: Theme; canvas: string; accent: string }> = {
-  calm: { name: "Calm and Playful", scheme: "light", canvas: "#EDE3CC", accent: "#F52B94" },
-  electric: { name: "Electric and Energetic", scheme: "dark", canvas: "#263CF5", accent: "#B6F52B" },
-  expressive: { name: "Dark and Expressive", scheme: "dark", canvas: "#101014", accent: "#FF781B" },
+  calm: { name: "Calm and Playful", scheme: "light", canvas: "#EDE3CC", accent: "#173F32" },
+  electric: { name: "Electric and Energetic", scheme: "dark", canvas: "#263CF5", accent: "#F4F4F1" },
+  expressive: { name: "Dark and Expressive", scheme: "dark", canvas: "#101014", accent: "#F4F4F1" },
 };
 
 /** What public/first-paint.js reads before the first paint (the settings live in SQLite, read later). */
 function mirror() {
-  const { choice, transparency } = themeStore.getState();
   try {
-    localStorage.setItem("dp.theme", choice);
-    localStorage.setItem("dp.transparency", transparency ? "on" : "off");
+    localStorage.setItem("dp.theme", themeStore.getState().choice);
   } catch {
     // No storage: the next start paints the default palette until the settings are read.
   }
@@ -42,17 +38,16 @@ export function readThemeChoice(raw: unknown): ThemeChoice {
   return raw === "calm" || raw === "electric" || raw === "expressive" ? raw : DEFAULT_THEME;
 }
 
-/** Transparency stays on unless it was explicitly turned off. */
-export function readTransparency(raw: unknown): boolean {
-  return raw !== "off";
-}
-
+/**
+ * The palette is the only theme setting: every surface is opaque. The
+ * Transparency effects option of older versions is gone, and what they saved
+ * (`ui.transparency`, `dp.transparency`) is never read.
+ */
 interface ThemeState {
   choice: ThemeChoice;
-  transparency: boolean;
 }
 
-export const themeStore = createStore<ThemeState>()(() => ({ choice: DEFAULT_THEME, transparency: true }));
+export const themeStore = createStore<ThemeState>()(() => ({ choice: DEFAULT_THEME }));
 
 export function currentPalette(): ThemeChoice {
   return themeStore.getState().choice;
@@ -70,24 +65,17 @@ export function useTheme(): Theme {
   return useStore(themeStore, (s) => PALETTES[s.choice].scheme);
 }
 
-export function useThemeSettings(): { choice: ThemeChoice; transparency: boolean } {
-  return useStore(themeStore, useShallow((s) => ({ choice: s.choice, transparency: s.transparency })));
-}
-
 /**
  * The theme on the root element: the palette (`data-palette`, the tokens), its
  * scheme (`data-theme`, Tailwind's `dark:`), the WebView's own scrollbars and
- * form controls (`color-scheme`), the opaque fallback (`data-transparency`).
- * The window's Tauri theme is left alone.
+ * form controls (`color-scheme`). The window's Tauri theme is left alone.
  */
 export function applyTheme(root: HTMLElement = document.documentElement) {
-  const { choice, transparency } = themeStore.getState();
+  const { choice } = themeStore.getState();
   const scheme = PALETTES[choice].scheme;
   root.dataset.palette = choice;
   root.dataset.theme = scheme;
   root.style.colorScheme = scheme;
-  if (transparency) delete root.dataset.transparency;
-  else root.dataset.transparency = "off";
 }
 
 /** At startup, before the first render: keeps the root in step with the store. */
@@ -99,8 +87,7 @@ export function startTheme() {
 /** At boot. Unreadable or unreachable settings keep the defaults, silently (spec identité §9). */
 export async function loadThemeSettings() {
   try {
-    const [choice, transparency] = await Promise.all([getSetting<unknown>(THEME_KEY), getSetting<unknown>(TRANSPARENCY_KEY)]);
-    themeStore.setState({ choice: readThemeChoice(choice), transparency: readTransparency(transparency) });
+    themeStore.setState({ choice: readThemeChoice(await getSetting<unknown>(THEME_KEY)) });
     mirror();
   } catch (error) {
     console.warn(`theme settings: ${String(error)}`);
@@ -118,10 +105,4 @@ export async function setThemeChoice(choice: ThemeChoice) {
   themeStore.setState({ choice });
   mirror();
   await save(THEME_KEY, choice);
-}
-
-export async function setTransparency(on: boolean) {
-  themeStore.setState({ transparency: on });
-  mirror();
-  await save(TRANSPARENCY_KEY, on ? "on" : "off");
 }

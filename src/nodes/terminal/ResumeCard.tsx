@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { History, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import type { TerminalPayload } from "@/nodes/types";
 import type { TerminalStatus } from "@/store/terminalStatus";
 import { resumeOfferOf } from "./pill";
@@ -21,10 +22,12 @@ export function ResumeCard(props: { nodeId: string; payload: TerminalPayload; st
   if (!offer || dismissed) return null;
   const resume = offer === "resume";
   return (
-    <div className="absolute inset-x-3 top-3 z-10 flex items-center gap-2 rounded-lg border border-dp-line bg-dp-surface/95 px-3 py-2 text-xs shadow-dp">
-      <button
+    <div className="absolute inset-x-3 top-3 z-10 flex items-center gap-2 rounded-lg border border-dp-line bg-dp-surface px-3 py-2 text-xs shadow-dp">
+      {/* The whole text is the button: a row, so no press scale; its hover fill reaches past the text, which stays in place. */}
+      <Button
         type="button"
-        className="flex min-w-0 flex-1 items-center gap-2 rounded-md text-left transition-[color,background-color] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none"
+        variant="ghost"
+        className="-my-1 -ml-1.5 h-auto min-w-0 flex-1 justify-start gap-2 rounded-md px-1.5 py-1 text-left text-xs font-normal whitespace-normal active:scale-100"
         onClick={() => relaunchTerminal(nodeId, payload, resume ? "resume" : "new")}
       >
         <History className="size-4 shrink-0 text-dp-accent-ink" />
@@ -36,15 +39,10 @@ export function ResumeCard(props: { nodeId: string; payload: TerminalPayload; st
             {resume ? t.resumeHint : payload.oneShot ? t.oneShotHint : t.relaunchHint}
           </span>
         </span>
-      </button>
-      <button
-        type="button"
-        aria-label={t.hide}
-        className="grid size-7 shrink-0 place-items-center rounded-md text-dp-text-2 transition-[color,background-color,transform] duration-150 ease-out hover:bg-dp-hover hover:text-dp-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] motion-reduce:transition-none"
-        onClick={() => setDismissed(true)}
-      >
+      </Button>
+      <Button type="button" variant="ghost" size="icon-sm" aria-label={t.hide} className="rounded-md text-dp-text-2 hover:text-dp-text" onClick={() => setDismissed(true)}>
         <X className="size-4" />
-      </button>
+      </Button>
     </div>
   );
 }

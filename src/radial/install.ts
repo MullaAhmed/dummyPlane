@@ -9,8 +9,11 @@ import { isNativeMenu } from "./bridges";
 import { chooseSlot } from "./choose";
 import { isSlide, ringCenter, slideSlot } from "./gesture";
 import { closeRadial, openRadial, radialStore, updateRadial } from "./radialState";
-import type { RingKind } from "./rings";
+import { lineOf, RINGS, type RingKind } from "./rings";
 import { domTarget, frameNameTarget, isTextField, sceneTarget } from "./target";
+
+/** The arrows turn the wedge pointed at: clockwise right and down, the other way left and up. */
+const TURNS: Record<string, 1 | -1> = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 };
 
 /** The canvas, a node or the name of a frame: where a right click is the ring's. */
 function onCanvas(element: Element): boolean {
@@ -85,7 +88,8 @@ export function installRadial(win: Window): () => void {
     if (!ring?.pressed) return;
     const pointer = { x: event.clientX, y: event.clientY };
     if (!ring.sliding && !isSlide(ring.client, pointer)) return;
-    updateRadial({ sliding: true, hovered: slideSlot(ring.center, ring.client, pointer) });
+    const hovered = slideSlot(ring.center, ring.client, pointer, RINGS[ring.kind].length);
+    if (!ring.sliding || hovered !== ring.hovered) updateRadial({ sliding: true, hovered });
   };
   const onPointerUp = (event: PointerEvent) => {
     const { ring } = radialStore.getState();
@@ -107,11 +111,22 @@ export function installRadial(win: Window): () => void {
       event.stopPropagation();
     }
   };
+  // While the ring is open its keys are its own, ahead of the terminal or the canvas that keeps the
+  // keyboard: Escape closes it, the arrows turn the wedge pointed at, Enter runs it.
   const onKeyDown = (event: KeyboardEvent) => {
-    if (event.key !== "Escape" || !radialStore.getState().ring) return;
+    const { ring } = radialStore.getState();
+    if (!ring) return;
+    const count = RINGS[ring.kind].length;
+    const turn = TURNS[event.key];
+    if (event.key === "Escape") closeRadial();
+    else if (turn) updateRadial({ hovered: ring.hovered === null ? (turn > 0 ? 0 : count - 1) : (ring.hovered + turn + count) % count });
+    else if (event.key === "Enter" && ring.hovered !== null) {
+      // A greyed one does nothing, and the Enter goes nowhere else either.
+      const slot = RINGS[ring.kind][ring.hovered];
+      if (slot && lineOf(slot, ring.context)?.enabled) chooseSlot(ring.hovered);
+    } else return;
     event.preventDefault();
     event.stopPropagation();
-    closeRadial();
   };
   const onWheel = () => {
     if (radialStore.getState().ring) closeRadial();

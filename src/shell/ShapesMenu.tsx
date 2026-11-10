@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { Circle, Diamond, Frame, Minus, MoveUpRight, Shapes, Square, type LucideIcon } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useMessages } from "@/i18n";
-import { cn } from "@/lib/utils";
 import type { ShapeTool } from "./tools";
 import { ToolButton } from "./buttons";
 import { shellMessages } from "./messages";
@@ -38,29 +38,27 @@ export function ShapesMenu(props: { active: boolean; current: string; onPick: (t
           <Shapes />
         </ToolButton>
       </PopoverTrigger>
-      <PopoverContent side="right" className="w-60 rounded-lg">
-        <p className="dp-label mb-2">{t.title}</p>
-        <div className="grid grid-cols-3 gap-1.5">
+      <PopoverContent side="right" sideOffset={12} className="flex w-60 flex-col gap-2 rounded-lg">
+        <p className="dp-label">{t.title}</p>
+        {/* One shape at a time: a click takes it, even the one in force, and closes. The value shows the current tool. */}
+        <ToggleGroup type="single" value={shape?.tool ?? ""} aria-label={t.title} spacing={2} className="grid w-full grid-cols-3">
           {SHAPES.map(({ tool, Icon }) => (
-            <button
+            <ToggleGroupItem
               key={tool}
-              type="button"
+              value={tool}
               data-shape={tool}
               onClick={() => {
                 setLast(tool);
                 onPick(tool);
                 setOpen(false);
               }}
-              className={cn(
-                "flex flex-col items-center gap-1 rounded-md border border-transparent bg-dp-card py-2 text-[11px] text-dp-text-2 transition-[color,background-color,border-color,transform] duration-150 ease-out hover:text-dp-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] motion-reduce:transition-none",
-                tool === current ? "border-dp-accent bg-dp-accent-soft text-dp-text" : "hover:bg-dp-hover",
-              )}
+              className="h-auto min-w-0 flex-col gap-1 rounded-md border border-transparent bg-dp-card px-0 py-2 text-xs font-normal text-dp-text-2 transition-[color,background-color,border-color,transform] duration-150 ease-out hover:bg-dp-hover hover:text-dp-text active:scale-[0.97] focus-visible:ring-2 focus-visible:ring-dp-accent/50 data-[state=on]:border-dp-accent data-[state=on]:bg-dp-accent-soft data-[state=on]:text-dp-text motion-reduce:transition-none"
             >
-              <Icon className="size-4" />
+              <Icon />
               {t[tool]}
-            </button>
+            </ToggleGroupItem>
           ))}
-        </div>
+        </ToggleGroup>
       </PopoverContent>
     </Popover>
   );

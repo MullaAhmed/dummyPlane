@@ -7,6 +7,7 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
 import { useMessages } from "@/i18n";
 import { setGroupSpeciality } from "./groups";
 import { fleetMessages } from "./messages";
@@ -51,14 +52,15 @@ export function SpecialityMenu({ groupId, speciality, onDone }: { groupId: strin
         {speciality && <span className="ml-1 max-w-20 truncate text-dp-text-3">{speciality}</span>}
       </DropdownMenuSubTrigger>
       <DropdownMenuSubContent className="w-52">
-        <input
+        <Input
           ref={attachField}
           defaultValue={speciality}
           maxLength={MAX_SPECIALITY}
           aria-label={t.groupMenu.specialityLabel}
           placeholder={t.groupMenu.specialityCustom}
           onKeyDown={onKeyDown}
-          className="m-1 w-[calc(100%-0.5rem)] rounded-md bg-dp-field px-2 py-1 text-xs text-dp-text outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50"
+          // As wide as the menu's items, inside its 4px padding.
+          className="m-1 h-7 w-[calc(100%-0.5rem)] rounded-md border-transparent bg-dp-field px-2 text-xs md:text-xs"
         />
         <DropdownMenuSeparator />
         {ROLE_ORDER.filter((id) => id !== "general").map((id) => item(t.roles[id], t.roles[id]))}

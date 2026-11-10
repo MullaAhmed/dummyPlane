@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { createStore, useStore } from "zustand";
+import { Input } from "@/components/ui/input";
 import { useMessages } from "@/i18n";
 import { TITLE_BAR_HEIGHT } from "@/shell/layout";
 import { projectsStore } from "@/store/projects";
@@ -53,14 +54,14 @@ function GoToLineField() {
     <div data-goto-line className="fixed inset-0 z-50" onPointerDown={(e) => e.target === e.currentTarget && closeGoToLine(true)}>
       <form
         className="dp-glass-strong absolute left-1/2 -translate-x-1/2 overflow-hidden rounded-lg"
-        style={{ top: TITLE_BAR_HEIGHT + 6, width: "min(320px, calc(100vw - 32px))", boxShadow: "var(--dp-glass-hi), var(--dp-glass-edge), var(--dp-shadow)" }}
+        style={{ top: TITLE_BAR_HEIGHT + 6, width: "min(320px, calc(100vw - 32px))", boxShadow: "var(--dp-shadow)" }}
         onSubmit={(e) => {
           e.preventDefault();
           // The editor takes the keyboard when it reaches the line.
           if (goToLine(text)) closeGoToLine(false);
         }}
       >
-        <input
+        <Input
           autoFocus
           aria-label={t.goToLine}
           aria-invalid={invalid}
@@ -73,9 +74,10 @@ function GoToLineField() {
             }
           }}
           placeholder={t.goToLinePlaceholder}
-          className="h-10 w-full bg-transparent px-3.5 text-[13px] text-dp-text outline-none placeholder:text-dp-text-3 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-dp-accent/50"
+          // The window is the field's frame, as in the palette: no border of its own, its ring inside.
+          className="h-10 rounded-none border-0 px-4 text-sm focus-visible:ring-inset aria-invalid:ring-inset md:text-sm"
         />
-        {invalid && <div className="border-t border-dp-line px-3.5 py-1.5 text-[11px] text-dp-text-2">{t.goToLineInvalid}</div>}
+        {invalid && <div className="border-t border-dp-line px-4 py-2 text-xs text-dp-text-2">{t.goToLineInvalid}</div>}
       </form>
     </div>
   );

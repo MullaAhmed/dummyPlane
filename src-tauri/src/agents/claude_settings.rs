@@ -208,8 +208,8 @@ pub fn settings_file_in(profile: Option<&Path>) -> Option<PathBuf> {
     Some(config_dir_for(profile)?.join("settings.json"))
 }
 
-/// `<dir>/<nodeId>.json`, rewritten at each launch (port and token change
-/// with each run of the app).
+/// `write_with` without a terminal's own choice.
+#[cfg(test)]
 pub fn write(
     dir: &Path,
     node_id: &str,
@@ -217,6 +217,22 @@ pub fn write(
     role: Role,
     status: Option<&StatusLine>,
     permission: Option<Permission>,
+) -> io::Result<PathBuf> {
+    write_with(dir, node_id, url, role, status, permission, None)
+}
+
+/// `<dir>/<nodeId>.json`, rewritten at each launch (port and token change
+/// with each run of the app), with the terminal's own choice of skills,
+/// plugins, MCP servers and subagents (`extensions::settings_patch`) added
+/// after dummyPlane's rules.
+pub fn write_with(
+    dir: &Path,
+    node_id: &str,
+    url: &str,
+    role: Role,
+    status: Option<&StatusLine>,
+    permission: Option<Permission>,
+    extensions: Option<&Value>,
 ) -> io::Result<PathBuf> {
     if !valid_node_id(node_id) {
         return Err(io::Error::new(
@@ -228,6 +244,9 @@ pub fn write(
     let path = dir.join(format!("{node_id}.json"));
     let mut settings = settings_json(url, role);
     apply_permission(&mut settings, permission);
+    if let Some(patch) = extensions {
+        super::extensions::apply(&mut settings, patch);
+    }
     if let Some(status) = status {
         // Without its script, Claude goes without the status line, never without its hooks.
         match std::fs::write(&status.script, STATUS_SCRIPT) {

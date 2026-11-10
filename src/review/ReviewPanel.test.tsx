@@ -78,7 +78,7 @@ it("says when the list of changes was cut", async () => {
   expect(text()).not.toContain("List cut");
   cutList = true;
   await act(async () => button("Uncommitted").click());
-  await vi.waitFor(() => expect(text()).toContain("List cut: only the first 2 changes are shown."));
+  await vi.waitFor(() => expect(text()).toContain("List cut: only the first 2 changes are shown"));
 });
 
 it("takes remarks on lines and sends them to the agent in one message", async () => {
@@ -162,6 +162,6 @@ it("tells the remarks wait when the agent is still starting, and keeps them (pla
   vi.mocked(toast.warning).mockClear();
   await act(async () => reviewStore.getState().add({ file: "src/a.ts", line: 2, text: "Why 3?" }));
   await act(async () => button("Send to Isis").click());
-  expect(toast.warning).toHaveBeenCalledWith("Isis is still starting: try again in a moment to send it the review.");
+  expect(toast.warning).toHaveBeenCalledWith("Isis is still starting: try again in a moment to send it the review");
   expect(reviewStore.getState().remarks).toHaveLength(1);
 });

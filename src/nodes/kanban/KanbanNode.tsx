@@ -14,6 +14,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useMessages } from "@/i18n";
 import {
   addCard,
@@ -43,8 +46,8 @@ export { KANBAN_CARD_MIME } from "./drag";
 
 type Messages = typeof kanbanNodeMessages;
 
-/** The colour of a card's left bar: none shows nothing, then warmer as it grows. */
-const PRIORITY_BAR: Record<KanbanPriority, string> = {
+/** The colour of a priority's dot: none shows nothing, then warmer as it grows. */
+const PRIORITY_COLOR: Record<KanbanPriority, string> = {
   none: "transparent",
   low: "var(--dp-ok)",
   medium: "var(--dp-wait)",
@@ -52,6 +55,9 @@ const PRIORITY_BAR: Record<KanbanPriority, string> = {
 };
 
 type Editing = { mode: "new"; columnId: string } | { mode: "edit"; cardId: string };
+
+/** A card's meta (priority, due date, issue, agent): small quiet tags, 6px corners inside the card's 8. */
+const CHIP = "inline-flex items-center gap-1 rounded-sm px-1.5 py-0.5 text-xs";
 
 /** Where a dragged card would land. */
 interface DropSpot {
@@ -180,17 +186,18 @@ export function KanbanNode({ nodeId }: { nodeId: string }) {
   return (
     <div data-kanban={nodeId} className="flex h-full flex-col overflow-hidden rounded-xl border border-dp-line bg-dp-surface text-dp-text">
       <header className="flex h-9 shrink-0 items-center gap-2 border-b border-dp-line px-3">
-        <KanbanSquare className="size-4 shrink-0 text-dp-accent" />
-        <span className="truncate text-[13px] font-semibold text-dp-text">{t.title}</span>
+        <KanbanSquare className="size-4 shrink-0 text-dp-text-2" />
+        <span className="truncate text-(length:--text-ui) font-medium text-dp-text">{t.title}</span>
         {board.github && (
-          <span className="truncate font-mono text-[11px] text-dp-text-2" title={t.github.linkedTo(board.github.repo)}>
+          <span className="truncate font-mono text-xs text-dp-text-2" title={t.github.linkedTo(board.github.repo)}>
             {board.github.repo}
           </span>
         )}
-        <span className="ml-auto shrink-0 font-mono text-[11px] text-dp-text-2">{t.cardCount(Object.keys(board.cards).length)}</span>
+        <span className="ml-auto shrink-0 font-mono text-xs text-dp-text-2 tabular-nums">{t.cardCount(Object.keys(board.cards).length)}</span>
         {board.github && (
-          <Button size="sm" variant="ghost" className="h-7 gap-1 px-2 text-xs" disabled={syncing} onClick={() => void sync()}>
-            <RefreshCw className={cn("size-3.5", syncing && "animate-spin")} />
+          <Button size="sm" variant="ghost" className="gap-1 rounded-md px-2 text-xs font-normal" disabled={syncing} onClick={() => void sync()}>
+            {/* Turns while the sync is under way: it is live. */}
+            <RefreshCw className={cn("size-3.5", syncing && "animate-spin motion-reduce:animate-none")} />
             {syncing ? t.github.syncing : t.github.sync}
           </Button>
         )}
@@ -254,14 +261,16 @@ export function KanbanNode({ nodeId }: { nodeId: string }) {
                 onDrop={(e) => onColumnDrop(e, column.id)}
               />
             ))}
-            <button
+            {/* Where the next column goes: a dashed outline of one. */}
+            <Button
               type="button"
+              variant="outline"
               onClick={newColumn}
-              className="flex h-9 w-56 shrink-0 items-center gap-1.5 rounded-lg border border-dashed border-dp-line px-3 text-[13px] text-dp-text-2 transition-[color,background-color] duration-150 ease-out hover:bg-dp-hover hover:text-dp-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] motion-reduce:transition-none"
+              className="h-9 w-56 justify-start gap-2 rounded-lg border-dashed bg-transparent px-3 text-(length:--text-ui) font-normal text-dp-text-2 hover:text-dp-text"
             >
               <Plus className="size-4" />
               {t.addColumn}
-            </button>
+            </Button>
           </>
         )}
       </div>
@@ -426,21 +435,29 @@ function ColumnView(props: ColumnViewProps) {
       onDragLeave={props.onDragLeave}
       onDrop={props.onDrop}
     >
-      <div className="flex h-9 shrink-0 items-center gap-1.5 px-2.5">
+      <div className="flex h-9 shrink-0 items-center gap-2 px-3">
         {props.renaming ? (
           <TitleInput initial={column.title} onDone={props.onRenameDone} />
         ) : (
-          <h3 className="truncate text-[13px] font-semibold text-dp-text" title={t.doubleClickRename} onDoubleClick={props.onRenameStart}>
+          <h3 className="truncate text-(length:--text-ui) font-medium text-dp-text" title={t.doubleClickRename} onDoubleClick={props.onRenameStart}>
             {column.title}
           </h3>
         )}
-        <span data-testid="column-count" className="rounded-full bg-dp-card px-1.5 font-mono text-[11px] text-dp-text-2">
+        {/* A count is quiet text, not a pill. */}
+        <span data-testid="column-count" className="font-mono text-xs text-dp-text-2 tabular-nums">
           {cards.length}
         </span>
         <span className="ml-auto flex items-center">
-          <Button variant="ghost" size="icon-xs" aria-label={t.newCard} title={t.newCard} onClick={props.onNewCard}>
-            <Plus className="size-3.5" />
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon-xs" aria-label={t.newCard} onClick={props.onNewCard} className="rounded-sm text-dp-text-2 hover:text-dp-text">
+                <Plus className="size-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" sideOffset={6}>
+              {t.newCard}
+            </TooltipContent>
+          </Tooltip>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon-xs" aria-label={t.columnMenu(column.title)}>
@@ -475,14 +492,15 @@ function ColumnView(props: ColumnViewProps) {
           );
         })}
         {spot !== null && spot >= shown.length && indicator}
-        <button
+        <Button
           type="button"
+          variant="ghost"
           onClick={props.onNewCard}
-          className="flex h-8 shrink-0 items-center gap-1.5 rounded-md px-2 text-xs text-dp-text-2 transition-[color,background-color] duration-150 ease-out hover:bg-dp-hover hover:text-dp-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] motion-reduce:transition-none"
+          className="justify-start gap-2 rounded-md px-2 text-xs font-normal text-dp-text-2 hover:text-dp-text active:scale-100"
         >
-          <Plus className="size-3.5" />
+          <Plus className="size-4" />
           {t.newCard}
-        </button>
+        </Button>
       </div>
     </section>
   );
@@ -514,50 +532,52 @@ function CardView({
       onDragEnd={onDragEnd}
       onClick={onOpen}
       className={cn(
-        "relative shrink-0 cursor-grab overflow-hidden rounded-md border border-dp-line bg-dp-card py-2 pr-2.5 pl-3.5 text-left text-dp-text shadow-dp transition-[border-color,opacity] duration-150 ease-out hover:border-dp-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none",
+        "relative shrink-0 cursor-grab overflow-hidden rounded-md border border-dp-line bg-dp-card px-3 py-2 text-left text-dp-text shadow-dp transition-[border-color,opacity] duration-150 ease-out hover:border-dp-text-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none",
         dragging && "opacity-40",
       )}
     >
-      <span className="absolute inset-y-0 left-0 w-1" style={{ background: PRIORITY_BAR[card.priority] }} aria-label={t.priorities[card.priority]} />
-      <p className="text-[13px] leading-snug font-medium break-words text-dp-text">{card.title}</p>
-      {(card.due || card.github || card.agent) && (
-        <div className="mt-1.5 flex flex-wrap gap-1">
+      <p className="text-(length:--text-ui) leading-snug font-medium break-words text-dp-text">{card.title}</p>
+      {(card.priority !== "none" || card.due || card.github || card.agent) && (
+        <div className="mt-2 flex flex-wrap gap-1">
+          {/* The priority, as the dialog shows it: its dot and its word, no coloured stripe down the card. */}
+          {card.priority !== "none" && (
+            <span data-priority={card.priority} className={cn(CHIP, "bg-dp-surface text-dp-text-2")}>
+              <span className="size-1.5 rounded-full" style={{ background: PRIORITY_COLOR[card.priority] }} />
+              {t.priorities[card.priority]}
+            </span>
+          )}
           {card.due && (
             <span
               title={overdue ? t.overdue : undefined}
-              className={cn(
-                "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px]",
-                overdue ? "bg-dp-danger/15 text-dp-danger" : "bg-dp-surface text-dp-text-2",
-              )}
+              className={cn(CHIP, overdue ? "bg-dp-danger/15 text-dp-danger" : "bg-dp-surface text-dp-text-2")}
             >
               <Calendar className="size-3" />
               {formatDue(card.due)}
             </span>
           )}
           {card.github && (
-            <button
+            <Button
               type="button"
+              variant="ghost"
               title={t.githubIssue(card.github.repo, card.github.number)}
               onClick={(e) => {
                 e.stopPropagation();
                 if (card.github?.url) void openUrl(card.github.url).catch(() => undefined);
               }}
               className={cn(
-                "inline-flex items-center gap-1 rounded bg-dp-surface px-1.5 py-0.5 font-mono text-[11px] transition-colors duration-150 ease-out hover:text-dp-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none",
-                card.github.state === "closed" ? "text-dp-accent" : "text-dp-text-2",
+                CHIP,
+                "h-auto bg-dp-surface font-mono font-normal hover:bg-dp-hover hover:text-dp-text",
+                card.github.state === "closed" ? "text-dp-text" : "text-dp-text-2",
               )}
             >
               <CircleDot className="size-3" />#{card.github.number}
-            </button>
+            </Button>
           )}
           {card.agent && (
             <span
               title={card.agentStatus ? t.agentAlert[card.agentStatus](card.agent) : t.agentChip(card.agent)}
               data-agent-status={card.agentStatus}
-              className={cn(
-                "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px]",
-                card.agentStatus ? "bg-dp-danger/15 text-dp-danger" : "bg-dp-accent/15 text-dp-accent",
-              )}
+              className={cn(CHIP, card.agentStatus ? "bg-dp-danger/15 text-dp-danger" : "bg-dp-accent-soft text-dp-text")}
             >
               <Bot className="size-3" />
               {card.agent}
@@ -591,7 +611,7 @@ function TitleInput({ initial, onDone }: { initial: string; onDone: (title: stri
   });
   useEffect(() => input.current?.select(), []);
   return (
-    <input
+    <Input
       ref={input}
       autoFocus
       value={draft}
@@ -599,12 +619,14 @@ function TitleInput({ initial, onDone }: { initial: string; onDone: (title: stri
       onBlur={() => {
         if (!cancelled.current) onDone(draft);
       }}
-      className="min-w-0 flex-1 rounded-md bg-dp-card px-1 text-[13px] font-semibold text-dp-text outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50"
+      className="h-7 min-w-0 flex-1 rounded-md border-transparent bg-dp-card px-1 text-(length:--text-ui) font-medium md:text-(length:--text-ui)"
     />
   );
 }
 
 const DUE_PRESETS: readonly DuePreset[] = ["today", "tomorrow", "nextWeek"];
+/** The due choice "None" in the toggle group, beside the presets. */
+const NO_DUE = "none";
 
 function CardDialog({
   t,
@@ -641,11 +663,11 @@ function CardDialog({
     onSave({ title: name.trim(), notes, due, priority });
   };
 
-  const chip = (active: boolean) =>
-    cn(
-      "h-7 rounded-md border px-2 text-xs transition-[color,background-color,border-color] duration-150 ease-out motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97]",
-      active ? "border-dp-accent bg-dp-accent-soft text-dp-text" : "border-dp-line text-dp-text-2 hover:bg-dp-hover hover:text-dp-text",
-    );
+  /** A choice of the dialog: a hairline, filled with the soft ink once chosen. */
+  const CHOICE =
+    "h-7 min-w-0 rounded-md border border-dp-line px-2 text-xs font-normal text-dp-text-2 transition-[color,background-color,border-color,transform] duration-150 ease-out motion-reduce:transition-none hover:bg-dp-hover hover:text-dp-text focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] data-[state=on]:border-dp-accent data-[state=on]:bg-dp-accent-soft data-[state=on]:text-dp-text";
+  // "None" and the presets are one choice; a date typed in the field is the choice of none of them.
+  const dueChoice = due === undefined ? NO_DUE : (presets.find((p) => p.date === due)?.preset ?? "");
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
@@ -660,55 +682,69 @@ function CardDialog({
           </div>
           <div className="grid gap-1.5">
             <Label htmlFor="kanban-card-notes">{t.notes}</Label>
-            <textarea
+            {/* Four lines to start with, then it grows with the notes; the user may still resize it. */}
+            <Textarea
               id="kanban-card-notes"
-              rows={4}
               value={notes}
               placeholder={t.notesPlaceholder}
               onChange={(e) => setNotes(e.target.value)}
-              className="w-full resize-y rounded-md border border-dp-line bg-transparent px-2.5 py-1.5 text-sm text-dp-text outline-none placeholder:text-dp-text-3 transition-[border-color,box-shadow] duration-150 ease-out focus-visible:border-dp-accent focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none"
+              className="max-h-60 min-h-24 resize-y rounded-md border-dp-line bg-transparent px-2.5 py-1.5 text-sm text-dp-text placeholder:text-dp-text-3 focus-visible:border-dp-line focus-visible:ring-2 focus-visible:ring-dp-accent/50 dark:bg-transparent"
             />
           </div>
-          <div className="grid gap-1.5">
+          <div className="grid gap-2">
             <Label>{t.due}</Label>
             <div className="flex flex-wrap items-center gap-1.5">
-              <button type="button" aria-pressed={due === undefined} className={chip(due === undefined)} onClick={() => setDue(undefined)}>
-                {t.dueNone}
-              </button>
-              {presets.map(({ preset, date }) => (
-                <button key={preset} type="button" aria-pressed={due === date} className={chip(due === date)} onClick={() => setDue(date)}>
-                  {presetLabel[preset]}
-                </button>
-              ))}
-              <input
+              <ToggleGroup
+                type="single"
+                aria-label={t.due}
+                value={dueChoice}
+                onValueChange={(choice) => {
+                  if (choice === NO_DUE) setDue(undefined);
+                  else if (choice) setDue(presets.find((p) => p.preset === choice)?.date);
+                }}
+                spacing={1.5}
+                className="flex-wrap"
+              >
+                <ToggleGroupItem value={NO_DUE} className={CHOICE}>
+                  {t.dueNone}
+                </ToggleGroupItem>
+                {presets.map(({ preset }) => (
+                  <ToggleGroupItem key={preset} value={preset} className={CHOICE}>
+                    {presetLabel[preset]}
+                  </ToggleGroupItem>
+                ))}
+              </ToggleGroup>
+              <Input
                 type="date"
                 aria-label={t.dueDate}
                 value={custom ? due : ""}
                 onChange={(e) => setDue(e.target.value || undefined)}
-                className={cn(chip(custom), "bg-transparent")}
+                className={cn("h-7 w-auto rounded-md px-2 text-xs md:text-xs", custom ? "border-dp-accent bg-dp-accent-soft text-dp-text" : "text-dp-text-2")}
               />
             </div>
           </div>
-          <div className="grid gap-1.5">
+          <div className="grid gap-2">
             <Label>{t.priority}</Label>
-            <div role="radiogroup" aria-label={t.priority} className="inline-flex w-fit rounded-lg border border-dp-line p-0.5">
+            {/* One segmented control: the chosen priority is a raised step inside the hairline. */}
+            <ToggleGroup
+              type="single"
+              aria-label={t.priority}
+              value={priority}
+              onValueChange={(p) => p && setPriority(p as KanbanPriority)}
+              spacing={0.5}
+              className="w-fit rounded-lg border border-dp-line p-0.5"
+            >
               {KANBAN_PRIORITIES.map((p) => (
-                <button
+                <ToggleGroupItem
                   key={p}
-                  type="button"
-                  role="radio"
-                  aria-checked={priority === p}
-                  onClick={() => setPriority(p)}
-                  className={cn(
-                    "flex h-6 items-center gap-1.5 rounded-md px-2.5 text-xs transition-[color,background-color] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none",
-                    priority === p ? "bg-dp-card text-dp-text shadow-dp" : "text-dp-text-2 hover:text-dp-text",
-                  )}
+                  value={p}
+                  className="h-6 min-w-0 gap-1.5 rounded-md px-2.5 text-xs font-normal text-dp-text-2 transition-[color,background-color] duration-150 ease-out motion-reduce:transition-none hover:bg-transparent hover:text-dp-text focus-visible:ring-2 focus-visible:ring-dp-accent/50 data-[state=on]:bg-dp-card data-[state=on]:text-dp-text data-[state=on]:shadow-dp"
                 >
-                  {p !== "none" && <span className="size-2 rounded-full" style={{ background: PRIORITY_BAR[p] }} />}
+                  {p !== "none" && <span className="size-2 rounded-full" style={{ background: PRIORITY_COLOR[p] }} />}
                   {t.priorities[p]}
-                </button>
+                </ToggleGroupItem>
               ))}
-            </div>
+            </ToggleGroup>
           </div>
           <DialogFooter>
             {onDelete && (

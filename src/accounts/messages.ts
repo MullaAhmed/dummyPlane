@@ -20,7 +20,7 @@ export const accountsMessages = defineMessages(
     folderPlaceholder: "C:\Users\me\.claude-work",
     add: "Add",
     failed: (error: string) => `Failed: ${error}`,
-    noProject: "Open a project to place the login terminal.",
+    noProject: "Open a project to place the login terminal",
     close: "Close",
     chipTitle: (folder: string) => `Account: ${folder}`,
   },

@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { History, X } from "lucide-react";
 import { toast } from "sonner";
 import { canvasStore } from "@/canvas/canvasStore";
+import { Button } from "@/components/ui/button";
 import { liveNodeIds } from "@/canvas/sceneSync";
 import { createStore, useStore } from "zustand";
 import { isLiveInRust, resumeTerminal } from "@/nodes/terminal/registry";
@@ -54,38 +55,23 @@ function ResumeAllToast({ workspaceId }: { workspaceId: string }) {
   };
 
   return (
-    <div className="dp-glass-strong flex w-[360px] items-start gap-3 rounded-lg p-3 text-dp-text">
-      <History className="mt-0.5 size-4 shrink-0 text-dp-accent-ink" />
+    <div className="dp-glass-strong flex w-90 items-start gap-3 rounded-lg p-4 text-dp-text">
+      <History className="mt-0.5 size-4 shrink-0 text-dp-text-2" />
       <div className="min-w-0 flex-1">
         <p className="text-sm font-medium">{t.title}</p>
-        <p className="text-xs text-dp-text-2">
-          {t.body(ids.length)}
-        </p>
-        <div className="mt-2 flex gap-2">
-          <button
-            type="button"
-            className="h-7 rounded-md bg-dp-accent px-3 text-xs font-semibold text-dp-on-accent transition-[filter,transform] duration-150 ease-out hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] motion-reduce:transition-none"
-            onClick={resumeAll}
-          >
+        <p className="text-xs text-dp-text-2">{t.body(ids.length)}</p>
+        <div className="mt-3 flex gap-2">
+          <Button type="button" size="sm" className="rounded-md px-3 text-xs" onClick={resumeAll}>
             {t.yes}
-          </button>
-          <button
-            type="button"
-            className="h-7 rounded-md bg-dp-field px-3 text-xs text-dp-text transition-[background-color,transform] duration-150 ease-out hover:bg-dp-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] motion-reduce:transition-none"
-            onClick={answer}
-          >
+          </Button>
+          <Button type="button" variant="outline" size="sm" className="rounded-md px-3 text-xs font-normal" onClick={answer}>
             {t.no}
-          </button>
+          </Button>
         </div>
       </div>
-      <button
-        type="button"
-        aria-label={t.close}
-        className="grid size-6 shrink-0 place-items-center rounded-md text-dp-text-2 transition-[background-color,color] duration-150 ease-out hover:bg-dp-hover hover:text-dp-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none"
-        onClick={answer}
-      >
+      <Button type="button" variant="ghost" size="icon-xs" aria-label={t.close} className="-mt-1 -mr-1 rounded-sm text-dp-text-2 hover:text-dp-text" onClick={answer}>
         <X className="size-3.5" />
-      </button>
+      </Button>
     </div>
   );
 }

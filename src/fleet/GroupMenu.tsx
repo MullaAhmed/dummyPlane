@@ -2,6 +2,7 @@ import { useState, type ReactElement } from "react";
 import { ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { useCanvas } from "@/canvas/canvasStore";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -50,13 +51,15 @@ export function GroupMenu({ groupId, trigger, answersRequests = false }: { group
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
         {trigger ?? (
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="icon-xs"
             aria-label={t.panel.groupMenu}
-            className="pointer-events-auto ml-1 grid size-5 place-items-center rounded-md text-dp-text-2 transition-[background-color,color] duration-150 ease-out hover:bg-dp-hover hover:text-dp-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none"
+            className="pointer-events-auto ml-1 size-5 rounded-sm text-dp-text-2 hover:text-dp-text"
           >
             <ChevronDown className="size-3.5" />
-          </button>
+          </Button>
         )}
       </DropdownMenuTrigger>
       {/* Focus must not come back to the trigger: it would close Excalidraw's name editor. */}

@@ -69,7 +69,7 @@ describe("the lines of the palette (spec presets §3)", () => {
     const [, deploy] = presetCommands([preset("Dev HQ", "1")]);
     runCommand(deploy, project);
     await vi.waitFor(() => expect(deployPreset).toHaveBeenCalledTimes(1));
-    await vi.waitFor(() => expect(toast).toHaveBeenCalledWith("Team “Dev HQ” deployed: 2 groups, 3 agents, 1 orchestrator"));
+    await vi.waitFor(() => expect(toast).toHaveBeenCalledWith("Team “Dev HQ” deployed: 2 groups, 3 agents, 1 fleet"));
     expect(toast.warning).toHaveBeenCalledWith("1 agent not found on this computer replaced by the default agent");
   });
 

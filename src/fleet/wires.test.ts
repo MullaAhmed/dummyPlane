@@ -7,11 +7,14 @@ import { displayColorFor, toDisplayColor, toSceneColor } from "@/theme/sceneColo
 import {
   createWire,
   elbowWires,
+  isPaletteWireColor,
   isSpawnWire,
   isWire,
   linkedAgents,
   linkTargetAt,
+  orchestratorAt,
   orchestratorLinks,
+  orchestratorsOf,
   orchestratorTargets,
   orphanWires,
   outdatedWires,
@@ -114,13 +117,13 @@ describe("withWire / createWire", () => {
   });
 
   it("is drawn in the default palette's accent as the dark filter shows it", () => {
-    expect(wireColor("expressive")).toBe(toSceneColor("#FF781B"));
-    expect(wireColor("expressive")).toBe("#f25500");
+    expect(wireColor("expressive")).toBe(toSceneColor("#F4F4F1"));
+    expect(wireColor("expressive")).toBe("#000000");
   });
 
   it("is drawn in the accent of the palette it is created under", () => {
-    expect(wireColor("calm")).toBe("#F52B94");
-    expect(wireColor("electric")).toBe("#546100");
+    expect(wireColor("calm")).toBe("#173F32");
+    expect(wireColor("electric")).toBe("#010001");
     for (const palette of PALETTE_IDS) {
       expect(createWire(orchestrator, lone, palette).strokeColor, palette).toBe(wireColor(palette));
       const elements = withWire(base, orchestrator.id, lone.id, palette);
@@ -130,14 +133,14 @@ describe("withWire / createWire", () => {
 
   it("shows each palette's accent as close as its scheme allows: the light one as is, the dark ones through the filter", () => {
     expect(displayColorFor(wireColor("calm"), "light")).toBe(PALETTES.calm.accent);
-    expect(displayColorFor(wireColor("expressive"), "dark")).toBe("#fc752c");
-    expect(displayColorFor(wireColor("electric"), "dark")).toBe("#9fab57");
+    expect(displayColorFor(wireColor("expressive"), "dark")).toBe("#ededed");
+    expect(displayColorFor(wireColor("electric"), "dark")).toBe("#eeedee");
   });
 
-  it("stores electric's lime where the filter shows it nearer than the plain inverse does", () => {
+  it("stores electric's off-white where the filter shows it nearer than the plain inverse does", () => {
     const accent = PALETTES.electric.accent;
     const plain = toDisplayColor(toSceneColor(accent));
-    expect(plain).toBe("#a8d8a8");
+    expect(plain).toBe("#ededed");
     expect(distance(toDisplayColor(wireColor("electric")), accent)).toBeLessThan(distance(plain, accent));
   });
 
@@ -306,6 +309,14 @@ describe("outdatedWires (a palette change recolors the wires, not the user's col
     }
   });
 
+  it("recolors wires saved in a palette's former accent (calm's pink and the others'), which the user never picked", () => {
+    for (const former of ["#F52B94", "#546100", "#f25500"]) {
+      expect(isPaletteWireColor(former), former).toBe(true);
+      for (const palette of PALETTE_IDS) expect(outdatedWires([wireIn(former)], palette), `${former} in ${palette}`).toEqual(["w"]);
+    }
+    expect(isPaletteWireColor("#3F74A8")).toBe(false);
+  });
+
   it("looks at live wires only: not deleted ones, not plain arrows", () => {
     const old = wireColor("calm");
     const deleted = { ...wireIn(old, "gone"), isDeleted: true } as ExcalidrawElement;
@@ -352,6 +363,25 @@ describe("linkTargetAt", () => {
     expect(linkTargetAt(base, frames, { x: member.x + 10, y: member.y + 10 })).toBe(frame.id);
     expect(linkTargetAt(base, frames, { x: frame.x + 5, y: frame.y + 5 })).toBe(frame.id);
     expect(linkTargetAt(base, frames, { x: -5000, y: -5000 })).toBeNull();
+  });
+});
+
+describe("orchestratorAt (an agent's Link)", () => {
+  it("finds the orchestrator under the pointer, never a terminal or a group", () => {
+    expect(orchestratorAt(base, { x: orchestrator.x + 10, y: orchestrator.y + 10 })).toBe(orchestrator.id);
+    expect(orchestratorAt(base, { x: lone.x + 10, y: lone.y + 10 })).toBeNull();
+    expect(orchestratorAt(base, { x: frame.x + 5, y: frame.y + 5 })).toBeNull();
+    expect(orchestratorAt([{ ...orchestrator, isDeleted: true }], { x: orchestrator.x + 10, y: orchestrator.y + 10 })).toBeNull();
+  });
+});
+
+describe("orchestratorsOf (linkedAgents the other way round)", () => {
+  it("names the orchestrators wired to an agent, directly or through its group", () => {
+    const frames = framesFromScene(base);
+    const links = { atlas: { groupIds: [frame.id], nodeIds: [] }, hermes: { groupIds: [], nodeIds: [lone.id] }, idle: { groupIds: [], nodeIds: [] } };
+    expect(orchestratorsOf(member.id, links, frames)).toEqual(["atlas"]);
+    expect(orchestratorsOf(lone.id, links, frames)).toEqual(["hermes"]);
+    expect(orchestratorsOf("nobody", links, frames)).toEqual([]);
   });
 });
 

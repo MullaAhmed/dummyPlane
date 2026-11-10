@@ -1,3 +1,4 @@
+import { readExtensionChoice, type ExtensionChoice } from "@/ipc/claudeExtensions";
 import type { IssueState } from "@/ipc/github";
 import { AGENT_IDS, type AgentId, type OllamaLaunch, type Permission, type ShellKind } from "@/ipc/pty";
 import { readMission, type Mission } from "@/mission/mission";
@@ -38,6 +39,10 @@ export interface TerminalPayload {
   expandedHeight?: number;
   /** What its agent last said with `report`, shown on its card. */
   lastReport?: TerminalReport;
+  /** Its message bar, folded unless the user opened it (an agent's foot). */
+  inputOpen?: boolean;
+  /** Claude only: the skills, plugins, MCP servers and subagents it turns off or on, read at its next launch. */
+  extensions?: ExtensionChoice;
 }
 
 export type TerminalReportStatus = "done" | "blocked" | "failed";
@@ -67,7 +72,11 @@ export interface OrchestratorPayload {
   inputOpen?: boolean;
 }
 
-export const ORCHESTRATOR_NAME = "Orchestrateur";
+export const ORCHESTRATOR_NAME = "Fleet";
+
+/** The names an orchestrator got by default before it was called a fleet: read as "Fleet", a name the user chose is kept. */
+const FORMER_DEFAULT_NAMES = new Set(["Orchestrator", "Orchestrateur"]);
+const renamed = (name: string) => (FORMER_DEFAULT_NAMES.has(name.trim()) ? ORCHESTRATOR_NAME : name);
 
 /** Content of a file node (issue #49): a file of the project, shown read-only. */
 export interface FilePayload {
@@ -142,12 +151,13 @@ export interface KanbanOrchestratorLink {
 
 
 
-/** Reads a stored orchestrator payload; a missing or blank name becomes "Orchestrateur". */
+/** Reads a stored orchestrator payload; a missing or blank name, or a former default one, becomes "Fleet". */
 export function readOrchestratorPayload(raw: unknown): OrchestratorPayload {
   const r = typeof raw === "object" && raw !== null ? (raw as Record<string, unknown>) : {};
-  const payload: OrchestratorPayload = { name: typeof r.name === "string" && r.name.trim() ? r.name : ORCHESTRATOR_NAME };
+  const payload: OrchestratorPayload = { name: typeof r.name === "string" && r.name.trim() ? renamed(r.name) : ORCHESTRATOR_NAME };
   const session = readTerminalPayload(r.session);
-  if (session?.agent === "claude") payload.session = { ...session, role: "orchestrator" };
+  // Its session carries the same default as its name and title (`orchestratorSession`): Claude shows the title.
+  if (session?.agent === "claude") payload.session = { ...session, name: renamed(session.name), title: renamed(session.title), role: "orchestrator" };
   const mission = readMission(r.mission);
   if (mission) payload.mission = mission;
   if (r.inputOpen === true) payload.inputOpen = true;
@@ -191,9 +201,12 @@ export function readTerminalPayload(raw: unknown): TerminalPayload | null {
   if (typeof r.accountId === "string" && r.accountId) payload.accountId = r.accountId;
   if (typeof r.spawnedBy === "string" && r.spawnedBy) payload.spawnedBy = r.spawnedBy;
   if (r.minimized === true) payload.minimized = true;
+  if (r.inputOpen === true) payload.inputOpen = true;
   if (typeof r.expandedHeight === "number" && Number.isFinite(r.expandedHeight) && r.expandedHeight > 0) payload.expandedHeight = r.expandedHeight;
   const lastReport = readTerminalReport(r.lastReport);
   if (lastReport) payload.lastReport = lastReport;
+  const extensions = readExtensionChoice(r.extensions);
+  if (extensions) payload.extensions = extensions;
   return payload;
 }
 

@@ -1,13 +1,16 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { FileDiff, RotateCw, X } from "lucide-react";
 import { toast } from "sonner";
+import { PanelTabs, PanelTabsContent, PanelTabsList, PanelTabsTrigger, PanelToggleItem } from "@/components/PanelTabs";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { ToggleGroup } from "@/components/ui/toggle-group";
 import { sendToAgents } from "@/fleet/broadcast";
 import { AGENTS } from "@/fleet/catalog";
 import { reviewChanges, reviewDefaultBase, reviewFileDiff, reviewFiles, reviewReadFile, type ChangedFile, type FileText } from "@/ipc/review";
 import { cn } from "@/lib/utils";
 import { BOTTOM_BAR_HEIGHT, TOP_ROW_HEIGHT } from "@/shell/layout";
 import { messages, useMessages } from "@/i18n";
-import { Button } from "@/components/ui/button";
 import { AccentButton, IconButton } from "@/shell/buttons";
 import { sessionOf, useNodes } from "@/store/nodes";
 import { DiffRow, FILE_STATUS, MAX_LINES } from "./DiffRow";
@@ -20,6 +23,14 @@ const MAX_FILES = 400;
 
 /** The panel's own toasts show at the top: the default corner is where "Send" is. */
 const TOAST_AWAY = { position: "top-center" } as const;
+
+/** A row of a file list: the whole width, a hover step, the file being read in the accent's tint. */
+const ROW =
+  "flex h-7 w-full items-center gap-2 px-3 text-left text-xs text-dp-text-2 transition-colors duration-150 ease-out hover:bg-dp-hover hover:text-dp-text motion-reduce:transition-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 focus-visible:outline-none focus-visible:ring-inset";
+const ROW_ON = "bg-dp-accent-soft text-dp-text hover:bg-dp-accent-soft";
+
+/** A field of the panel: shadcn's Input at the panel's density. */
+const FIELD = "h-7 rounded-md px-2 text-xs md:text-xs";
 
 const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
@@ -67,16 +78,16 @@ function ReviewDrawer({ nodeId }: { nodeId: string }) {
   return (
     <aside
       data-review={nodeId}
-      className="dp-glass-strong absolute right-[72px] z-20 flex w-[min(920px,calc(100vw-180px))] flex-col overflow-hidden rounded-lg text-dp-text"
-      style={{ top: TOP_ROW_HEIGHT + 14, bottom: BOTTOM_BAR_HEIGHT + 14 }}
+      className="dp-glass-strong absolute right-18 z-20 flex w-[min(920px,calc(100vw-180px))] flex-col overflow-hidden rounded-xl text-dp-text"
+      style={{ top: TOP_ROW_HEIGHT + 12, bottom: BOTTOM_BAR_HEIGHT + 12 }}
     >
       <header className="flex h-10 shrink-0 items-center gap-2 border-b border-dp-line px-3">
-        <FileDiff className="size-4 shrink-0 text-dp-accent" />
-        <span className="shrink-0 text-[13px] font-semibold">{t.title(name)}</span>
-        <span className="min-w-0 truncate font-mono text-[11px] text-dp-text-3" title={cwd}>
+        <FileDiff className="size-4 shrink-0 text-dp-text-2" />
+        <span className="shrink-0 text-sm font-medium">{t.title(name)}</span>
+        <span className="min-w-0 truncate font-mono text-xs text-dp-text-3" title={cwd}>
           {cwd}
         </span>
-        <span className="ml-auto flex shrink-0 items-center gap-0.5">
+        <span className="ml-auto flex shrink-0 items-center gap-1">
           <IconButton label={t.refresh} onClick={() => setRefresh((n) => n + 1)}>
             <RotateCw />
           </IconButton>
@@ -85,50 +96,36 @@ function ReviewDrawer({ nodeId }: { nodeId: string }) {
           </IconButton>
         </span>
       </header>
-      <div className="flex h-9 shrink-0 items-center gap-1 border-b border-dp-line px-2">
-        <Tab active={tab === "changes"} onClick={() => setTab("changes")}>
-          {t.tabChanges}
-        </Tab>
-        <Tab active={tab === "files"} onClick={() => setTab("files")}>
-          {t.tabFiles}
-        </Tab>
-        {tab === "changes" && base && (
-          <span className="ml-auto flex items-center gap-1">
-            <Tab active={!sinceBase} onClick={() => setSinceBase(false)}>
-              {t.uncommitted}
-            </Tab>
-            <Tab active={sinceBase} onClick={() => setSinceBase(true)}>
-              {t.since(base)}
-            </Tab>
-          </span>
-        )}
-      </div>
-      {base === undefined ? (
-        <Message>{t.readingRepo}</Message>
-      ) : tab === "changes" ? (
-        <ChangesTab key={`${cwd}:${compared}`} cwd={cwd} base={compared} refresh={refresh} />
-      ) : (
-        <FilesTab key={cwd} cwd={cwd} refresh={refresh} />
-      )}
+      <PanelTabs value={tab} onValueChange={(next) => setTab(next as typeof tab)} className="min-h-0 flex-1">
+        <div className="flex h-9 shrink-0 items-center gap-1 border-b border-dp-line px-2">
+          <PanelTabsList>
+            <PanelTabsTrigger value="changes">{t.tabChanges}</PanelTabsTrigger>
+            <PanelTabsTrigger value="files">{t.tabFiles}</PanelTabsTrigger>
+          </PanelTabsList>
+          {tab === "changes" && base && (
+            <ToggleGroup
+              type="single"
+              spacing={1}
+              aria-label={t.compare}
+              value={sinceBase ? "since" : "uncommitted"}
+              // One of the two always stays chosen.
+              onValueChange={(next) => next && setSinceBase(next === "since")}
+              className="ml-auto"
+            >
+              <PanelToggleItem value="uncommitted">{t.uncommitted}</PanelToggleItem>
+              <PanelToggleItem value="since">{t.since(base)}</PanelToggleItem>
+            </ToggleGroup>
+          )}
+        </div>
+        <PanelTabsContent value="changes" className="flex-row">
+          {base === undefined ? <Message>{t.readingRepo}</Message> : <ChangesTab key={`${cwd}:${compared}`} cwd={cwd} base={compared} refresh={refresh} />}
+        </PanelTabsContent>
+        <PanelTabsContent value="files" className="flex-row">
+          {base === undefined ? <Message>{t.readingRepo}</Message> : <FilesTab key={cwd} cwd={cwd} refresh={refresh} />}
+        </PanelTabsContent>
+      </PanelTabs>
       <Remarks nodeId={nodeId} name={name} />
     </aside>
-  );
-}
-
-function Tab({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) {
-  return (
-    <button
-      type="button"
-      role="tab"
-      aria-selected={active}
-      onClick={onClick}
-      className={cn(
-        "rounded-full px-2.5 py-0.5 text-xs text-dp-text-2 transition-[background-color,color] duration-150 ease-out hover:bg-dp-hover hover:text-dp-text motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50",
-        active && "bg-dp-accent-soft text-dp-text",
-      )}
-    >
-      {children}
-    </button>
   );
 }
 
@@ -165,35 +162,33 @@ function ChangesTab({ cwd, base, refresh }: { cwd: string; base: string | null; 
   if (!files) return <Message>{t.readingChanges}</Message>;
   if (files.length === 0) return <Message>{base ? t.noChangesSince(base) : t.noChanges}</Message>;
   return (
-    <div className="flex min-h-0 flex-1">
-      <ul className="w-[260px] shrink-0 overflow-y-auto border-r border-dp-line py-1">
-        {cut && <li className="px-3 py-1 text-[11px] text-dp-text-3">{t.listCut(files.length)}</li>}
+    <div className="flex min-h-0 min-w-0 flex-1">
+      <ul className="w-65 shrink-0 overflow-y-auto border-r border-dp-line py-1">
+        {cut && <li className="px-3 py-1 text-xs text-dp-text-3">{t.listCut(files.length)}</li>}
         {files.map((file) => {
           const status = FILE_STATUS[file.status];
+          const current = selected?.path === file.path;
           return (
             <li key={file.path}>
+              {/* A row of the list, not a control: Button's centred box would be undone class by class. */}
               <button
                 type="button"
                 title={`${file.oldPath ? `${file.oldPath} → ` : ""}${file.path} · ${t.status[file.status]}`}
+                aria-current={current}
                 onClick={() => setSelected(file)}
-                className={cn(
-                  "flex w-full items-center gap-2 px-3 py-1 text-left text-xs text-dp-text-2 transition-[background-color,color] duration-150 ease-out hover:bg-dp-hover motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50",
-                  selected?.path === file.path && "bg-dp-hover text-dp-text",
-                )}
+                className={cn(ROW, current && ROW_ON)}
               >
-                <span className="w-3 shrink-0 font-mono text-[11px] font-semibold" style={{ color: status.color }}>
-                  {status.letter}
-                </span>
+                <span className={cn("w-3 shrink-0 font-mono font-medium", status.tone)}>{status.letter}</span>
                 <span className="min-w-0 flex-1 truncate" style={{ direction: "rtl", textAlign: "left" }}>
                   {file.path}
                 </span>
                 {file.added === null ? (
-                  <span className="shrink-0 text-[11px] text-dp-text-3" title={t.binaryOrBig}>
+                  <span className="shrink-0 text-dp-text-3" title={t.binaryOrBig}>
                     —
                   </span>
                 ) : (
-                  <span className="shrink-0 font-mono text-[11px]">
-                    <span style={{ color: "var(--dp-ok)" }}>+{file.added}</span> <span style={{ color: "var(--dp-danger)" }}>−{file.removed}</span>
+                  <span className="shrink-0 font-mono tabular-nums">
+                    <span className="text-dp-ok">+{file.added}</span> <span className="text-dp-danger">−{file.removed}</span>
                   </span>
                 )}
               </button>
@@ -239,12 +234,13 @@ function FileDiffView({ cwd, file, base, refresh }: { cwd: string; file: Changed
   const placed = here.map((r) => remarkRow(shown, r));
   const remarkFor = (row: number) => here.filter((_, k) => placed[k] === row);
   return (
-    <div className="min-w-0 flex-1 overflow-auto font-mono text-xs leading-[18px]">
+    <div className="min-w-0 flex-1 overflow-auto font-mono text-xs leading-normal">
       {shown.map((line, i) => (
         <div key={i}>
           <DiffRow line={line} onClick={line.kind === "add" || line.kind === "ctx" || line.kind === "del" ? () => setCommenting(i) : undefined} />
+          {/* The user's own words on the diff: the one thing here in the accent's tint. */}
           {remarkFor(i).map((remark, j) => (
-            <p key={j} className="ml-[88px] border-l-2 border-dp-accent bg-dp-card px-2 py-0.5 font-sans text-xs text-dp-text">
+            <p key={j} className="my-1 mr-3 ml-22 rounded-md bg-dp-accent-soft px-2 py-1 font-sans text-xs text-dp-text">
               {remark.text}
             </p>
           ))}
@@ -274,8 +270,8 @@ function FileDiffView({ cwd, file, base, refresh }: { cwd: string; file: Changed
 function RemarkField({ value: text, onChange: setText, onDone }: { value: string; onChange: (text: string) => void; onDone: (text: string) => void }) {
   const t = useMessages(reviewMessages);
   return (
-    <div className="ml-[88px] flex items-center gap-2 py-1 pr-3 font-sans">
-      <input
+    <div className="ml-22 flex items-center gap-2 py-1 pr-3 font-sans">
+      <Input
         autoFocus
         aria-label={t.remarkLabel}
         placeholder={t.remarkPlaceholder}
@@ -285,7 +281,7 @@ function RemarkField({ value: text, onChange: setText, onDone }: { value: string
           if (e.key === "Enter") onDone(text.trim());
           if (e.key === "Escape") onDone("");
         }}
-        className="h-7 flex-1 rounded-md bg-dp-field px-2 text-xs text-dp-text outline-none placeholder:text-dp-text-3 focus-visible:ring-2 focus-visible:ring-dp-accent/50"
+        className={cn(FIELD, "flex-1")}
       />
     </div>
   );
@@ -322,30 +318,25 @@ function FilesTab({ cwd, refresh }: { cwd: string; refresh: number }) {
   // The list is cut by Rust (very large repository) or here, for display.
   const cut = listCut || matching.length > MAX_FILES;
   return (
-    <div className="flex min-h-0 flex-1">
-      <div className="flex w-[260px] shrink-0 flex-col border-r border-dp-line">
-        <input
-          aria-label={t.filterLabel}
-          placeholder={t.filterPlaceholder(files.length)}
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          className="m-2 h-7 rounded-md bg-dp-field px-2 text-xs text-dp-text outline-none placeholder:text-dp-text-3 focus-visible:ring-2 focus-visible:ring-dp-accent/50"
-        />
+    <div className="flex min-h-0 min-w-0 flex-1">
+      <div className="flex w-65 shrink-0 flex-col border-r border-dp-line">
+        <div className="shrink-0 p-2">
+          <Input aria-label={t.filterLabel} placeholder={t.filterPlaceholder(files.length)} value={filter} onChange={(e) => setFilter(e.target.value)} className={FIELD} />
+        </div>
         <ul className="min-h-0 flex-1 overflow-y-auto pb-1">
-          {cut && <li className="px-3 py-1 text-[11px] text-dp-text-3">{t.filesCut(found.length)}</li>}
+          {cut && <li className="px-3 py-1 text-xs text-dp-text-3">{t.filesCut(found.length)}</li>}
           {found.map((file) => (
             <li key={file}>
               <button
                 type="button"
                 title={file}
+                aria-current={selected === file}
                 onClick={() => setSelected(file)}
-                className={cn(
-                  "block w-full truncate px-3 py-1 text-left text-xs text-dp-text-2 transition-[background-color,color] duration-150 ease-out hover:bg-dp-hover motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50",
-                  selected === file && "bg-dp-hover text-dp-text",
-                )}
-                style={{ direction: "rtl", textAlign: "left" }}
+                className={cn(ROW, selected === file && ROW_ON)}
               >
-                {file}
+                <span className="min-w-0 flex-1 truncate" style={{ direction: "rtl", textAlign: "left" }}>
+                  {file}
+                </span>
               </button>
             </li>
           ))}
@@ -378,11 +369,11 @@ function FileView({ cwd, file }: { cwd: string; file: string }) {
   const lines = content.text.split("\n");
   if (lines[lines.length - 1] === "") lines.pop();
   return (
-    <div className="min-w-0 flex-1 overflow-auto font-mono text-xs leading-[18px]">
+    <div className="min-w-0 flex-1 overflow-auto font-mono text-xs leading-normal">
       {lines.slice(0, MAX_LINES).map((line, i) => (
         <div key={i} className="flex">
-          <span className="w-12 shrink-0 select-none pr-2 text-right text-dp-text-3">{i + 1}</span>
-          <span className="whitespace-pre pr-3 text-dp-text">{line}</span>
+          <span className="w-12 shrink-0 pr-2 text-right text-dp-text-3 tabular-nums select-none">{i + 1}</span>
+          <span className="pr-3 whitespace-pre text-dp-text">{line}</span>
         </div>
       ))}
       {(content.truncated || lines.length > MAX_LINES) && <p className="px-3 py-2 font-sans text-xs text-dp-text-2">{t.longFile}</p>}
@@ -405,11 +396,11 @@ function Remarks({ nodeId, name }: { nodeId: string; name: string }) {
     else if (skipped.length > 0) toast.warning(messages(reviewMessages).stopped(name), TOAST_AWAY);
   };
   return (
-    <footer className="flex max-h-[30%] shrink-0 flex-col gap-1.5 border-t border-dp-line px-3 py-2">
+    <footer className="flex max-h-[30%] shrink-0 flex-col gap-2 border-t border-dp-line px-3 py-2">
       <ul className="flex min-h-0 flex-col gap-0.5 overflow-y-auto text-xs">
         {remarks.map((remark, i) => (
           <li key={i} className="flex items-center gap-2 text-dp-text-2">
-            <span className="shrink-0 font-mono text-[11px] text-dp-text-3">
+            <span className="shrink-0 font-mono text-dp-text-3 tabular-nums">
               {remark.file}
               {remark.line !== undefined ? `:${remark.line}` : ""}
             </span>
@@ -421,9 +412,7 @@ function Remarks({ nodeId, name }: { nodeId: string; name: string }) {
         ))}
       </ul>
       <div className="flex items-center gap-2">
-        <span className="text-xs text-dp-text-2">
-          {t.remarkCount(remarks.length)}
-        </span>
+        <span className="font-mono text-xs text-dp-text-3 tabular-nums">{t.remarkCount(remarks.length)}</span>
         <Button variant="ghost" size="sm" className="ml-auto text-dp-text-2 hover:text-dp-text" onClick={() => reviewStore.getState().clear()}>
           {t.clear}
         </Button>

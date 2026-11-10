@@ -3,7 +3,9 @@ import { ChevronDown, Ellipsis, Layers, Network, Pause, Play, Plus, SquareTermin
 import { useStore } from "zustand";
 import { useCanvas } from "@/canvas/canvasStore";
 import { focusNode } from "@/canvas/focusNode";
+import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useMessages } from "@/i18n";
 import { formatDuration } from "@/lib/format";
 import { useNow } from "@/lib/useNow";
@@ -20,7 +22,7 @@ import { setAgentsFilter, setAgentsPanel, useAgentsPanel } from "./agentsPanelSt
 import { pauseAll, resumeAll, workspaceTerminalIds } from "./broadcast";
 import { AGENTS } from "./catalog";
 import { ComposeGroup } from "./ComposeGroup";
-import { FLEET_FILTERS, filterCounts, fleetSections, fleetStateOf, type FleetAgent } from "./fleetView";
+import { FLEET_FILTERS, filterCounts, fleetSections, fleetStateOf, type FleetAgent, type FleetFilter } from "./fleetView";
 import { GroupMenu } from "./GroupMenu";
 import { countsText } from "./groupSummary";
 import { fleetMessages } from "./messages";
@@ -28,6 +30,11 @@ import { newConsole } from "./quickActions";
 import { RESUME_OFFER_ROOM, resumeOfferStore } from "./ResumeAllToast";
 
 const OUTSIDE = "outside";
+
+/** A section's header row: a disclosure, so no press scale, and its label in sentence case. */
+const SECTION_ROW =
+  "h-8 justify-start gap-2 rounded-md px-2 text-left text-xs font-normal active:scale-100 aria-expanded:bg-transparent aria-expanded:hover:bg-dp-hover";
+const CHEVRON = "size-3.5 text-dp-text-2 transition-[transform] duration-150 ease-out motion-reduce:transition-none";
 
 /** The agents of the workspace on screen, by group (spec identity §5.6); it replaces the fleet panel. */
 export function AgentsPanel() {
@@ -73,10 +80,10 @@ export function AgentsPanel() {
 
   return (
     <aside
-      className="dp-glass-strong absolute right-[72px] z-30 flex w-[318px] flex-col overflow-hidden rounded-lg"
+      className="dp-glass-strong absolute right-18 z-30 flex w-80 flex-col overflow-hidden rounded-xl"
       style={{ top: TOP_ROW_HEIGHT + 14, maxHeight: `calc(100% - ${TOP_ROW_HEIGHT + 14 + (offer ? RESUME_OFFER_ROOM : BOTTOM_BAR_HEIGHT) + 14}px)` }}
     >
-      <header className="flex h-9 shrink-0 items-center border-b border-dp-line pl-3 pr-1.5">
+      <header className="flex h-10 shrink-0 items-center border-b border-dp-line pr-2 pl-4">
         <span className="dp-label">{t.title}</span>
         <div className="ml-auto flex items-center">
           <AgentMenu
@@ -123,25 +130,30 @@ export function AgentsPanel() {
           </IconButton>
         </div>
       </header>
-      <div className="flex shrink-0 flex-wrap gap-px px-2 pb-1.5 pt-2">
+      <ToggleGroup
+        type="single"
+        aria-label={t.filters}
+        value={filter}
+        // One filter is always on: pressing it again keeps it.
+        onValueChange={(id) => id && setAgentsFilter(id as FleetFilter)}
+        spacing={0.5}
+        className="w-full shrink-0 flex-wrap px-2 pt-2 pb-2"
+      >
         {FLEET_FILTERS.map(({ id, label }) => (
-          <button
+          <ToggleGroupItem
             key={id}
-            type="button"
+            value={id}
             data-filter={id}
             data-on={id === filter}
-            onClick={() => setAgentsFilter(id)}
-            className={cn(
-              "whitespace-nowrap rounded-md px-1.5 py-0.5 text-xs transition-[background-color,color,transform] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] motion-reduce:transition-none",
-              id === filter ? "bg-dp-accent-soft text-dp-accent-ink" : "text-dp-text-2 hover:bg-dp-hover hover:text-dp-text",
-            )}
+            className="h-6 min-w-0 gap-1 rounded-md px-2 text-xs font-normal text-dp-text-2 transition-[background-color,color,transform] duration-150 ease-out hover:bg-dp-hover hover:text-dp-text focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] motion-reduce:transition-none data-[state=on]:bg-dp-accent-soft data-[state=on]:text-dp-text"
           >
             {label}
-            <span className="ml-1 font-mono text-[11px]">{counts[id]}</span>
-          </button>
+            <span className="font-mono text-xs text-dp-text-3 tabular-nums">{counts[id]}</span>
+          </ToggleGroupItem>
         ))}
-      </div>
-      <div className="min-h-0 flex-1 overflow-y-auto px-1.5 pb-2">
+      </ToggleGroup>
+      {/* A native scroller: the panel has only a max-height, and a ScrollArea's viewport needs a definite one. */}
+      <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
         {sections.length === 0 && orchestrators.length === 0 && (
           <p className="py-4 text-center text-xs text-dp-text-2">
             {agents.length > 0 ? t.noneInFilter : t.none}
@@ -151,21 +163,24 @@ export function AgentsPanel() {
           const key = keyOf(section.id);
           const open = !folded.has(key);
           return (
-            <section key={key}>
-              <div data-group-header className="group/section flex h-7 items-center rounded-md pr-0.5 transition-[background-color] duration-150 ease-out hover:bg-dp-hover motion-reduce:transition-none">
-                <button
+            <section key={key} className="not-first:mt-2">
+              <div data-group-header className="group/section flex h-8 items-center rounded-md pr-1 transition-[background-color] duration-150 ease-out hover:bg-dp-hover motion-reduce:transition-none">
+                <Button
                   type="button"
+                  variant="ghost"
                   data-section={key}
+                  aria-expanded={open}
                   onClick={() => fold(key)}
-                  className="flex h-7 min-w-0 flex-1 items-center gap-1.5 rounded-md px-1.5 text-left text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50"
+                  // The header row around it takes the hover.
+                  className={cn(SECTION_ROW, "min-w-0 flex-1 hover:bg-transparent aria-expanded:hover:bg-transparent")}
                 >
-                  <ChevronDown className={cn("size-3.5 text-dp-text-2 transition-[transform] duration-150 ease-out motion-reduce:transition-none", !open && "-rotate-90")} />
+                  <ChevronDown className={cn(CHEVRON, !open && "-rotate-90")} />
                   <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: section.color ?? "var(--dp-text-3)" }} />
-                  <span className="truncate font-semibold tracking-[0.03em] text-dp-text uppercase">{section.name}</span>
-                  <span className="ml-auto shrink-0 font-mono text-[11px] text-dp-text-2">
+                  <span className="truncate font-medium text-dp-text">{section.name}</span>
+                  <span className="ml-auto shrink-0 font-mono text-xs text-dp-text-2 tabular-nums">
                     {countsText(section.agents.length, section.agents.filter((a) => a.state === "working").length)}
                   </span>
-                </button>
+                </Button>
                 {section.id && (
                   <GroupMenu
                     groupId={section.id}
@@ -173,7 +188,7 @@ export function AgentsPanel() {
                     trigger={
                       <IconButton
                         label={t.groupMenu}
-                        className="size-[22px] opacity-0 group-hover/section:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
+                        className="size-6 opacity-0 group-hover/section:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
                       >
                         <Ellipsis />
                       </IconButton>
@@ -188,7 +203,7 @@ export function AgentsPanel() {
                     id={a.id}
                     onOpen={() => focusNode(a.id)}
                     trailing={
-                      <span className="w-10 shrink-0 text-right font-mono text-[11px] text-dp-text-2">
+                      <span className="w-10 shrink-0 text-right font-mono text-xs text-dp-text-2 tabular-nums">
                         {a.since !== undefined ? formatDuration(now - a.since) : ""}
                       </span>
                     }
@@ -198,30 +213,31 @@ export function AgentsPanel() {
           );
         })}
         {orchestrators.length > 0 && (
-          <section>
-            <button
+          <section className="not-first:mt-2">
+            <Button
               type="button"
+              variant="ghost"
               data-section="orchestrators"
+              aria-expanded={!folded.has("orchestrators")}
               onClick={() => fold("orchestrators")}
-              className="flex h-7 w-full items-center gap-1.5 rounded-md px-1.5 text-left text-xs transition-[background-color] duration-150 ease-out hover:bg-dp-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none"
+              className={cn(SECTION_ROW, "w-full")}
             >
-              <ChevronDown
-                className={cn("size-3.5 text-dp-text-2 transition-[transform] duration-150 ease-out motion-reduce:transition-none", folded.has("orchestrators") && "-rotate-90")}
-              />
-              <span className="font-semibold tracking-[0.03em] text-dp-text uppercase">{t.orchestrators}</span>
-              <span className="ml-auto font-mono text-[11px] text-dp-text-2">{orchestrators.length}</span>
-            </button>
+              <ChevronDown className={cn(CHEVRON, folded.has("orchestrators") && "-rotate-90")} />
+              <span className="font-medium text-dp-text">{t.orchestrators}</span>
+              <span className="ml-auto font-mono text-xs text-dp-text-2 tabular-nums">{orchestrators.length}</span>
+            </Button>
             {!folded.has("orchestrators") &&
               orchestrators.map((o) => (
-                <button
+                <Button
                   key={o.id}
                   type="button"
+                  variant="ghost"
                   onClick={() => focusNode(o.id)}
-                  className="flex h-7 w-full items-center gap-2 rounded-md pl-6 pr-2 text-left text-[13px] transition-[background-color] duration-150 ease-out hover:bg-dp-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none"
+                  className="h-9 w-full justify-start gap-2 rounded-md pr-2 pl-6 text-left text-(length:--text-ui) font-normal active:scale-100"
                 >
-                  <Network className="size-3.5 text-dp-accent-ink" />
-                  <span className="truncate font-semibold text-dp-text">{o.name}</span>
-                </button>
+                  <Network className="size-4 text-dp-text-2" />
+                  <span className="truncate text-dp-text">{o.name}</span>
+                </Button>
               ))}
           </section>
         )}

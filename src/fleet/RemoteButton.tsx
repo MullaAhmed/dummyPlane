@@ -1,6 +1,7 @@
 import { Smartphone } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -44,20 +45,24 @@ export function RemoteButton({ nodeId, wanted, running }: { nodeId: string; want
   const url = link?.url;
   return (
     <DropdownMenu>
+      {/* A native title, not a tooltip: a menu's trigger gets the focus back when the menu closes, and a tooltip would pop up then. */}
       <DropdownMenuTrigger asChild>
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="icon-xs"
           title={label}
           aria-label={label}
           data-remote={link?.state ?? (wanted ? "wanted" : "off")}
           className={cn(
-            "grid size-5 place-items-center rounded-md transition-[background-color,color,transform] duration-150 ease-out hover:bg-dp-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] motion-reduce:transition-none [&_svg]:size-3.5",
-            link?.state === "on" ? "text-dp-accent-ink" : link?.state === "error" ? "text-dp-danger" : wanted ? "text-dp-text" : "text-dp-text-2 hover:text-dp-text",
-            (link?.state === "connecting" || link?.state === "pending") && "animate-pulse",
+            "size-5 rounded-md",
+            // Connecting is said by the title and a dimmer icon, not a pulse: only a waiting agent's dot moves.
+            link?.state === "on" ? "text-dp-accent-ink hover:text-dp-accent-ink" : link?.state === "error" ? "text-dp-danger hover:text-dp-danger" : wanted ? "text-dp-text" : "text-dp-text-2 hover:text-dp-text",
+            (link?.state === "connecting" || link?.state === "pending") && "opacity-60",
           )}
         >
-          <Smartphone />
-        </button>
+          <Smartphone className="size-3.5" />
+        </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         {remoteActions(link, wanted).map((action) => (

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Crosshair, FileDiff, Pause, Play, Smartphone, X } from "lucide-react";
 import { focusNode } from "@/canvas/focusNode";
+import { Button } from "@/components/ui/button";
 import { useMessages } from "@/i18n";
 import { HeaderButton } from "@/nodes/terminal/TerminalHeader";
 import { openReview } from "@/review/reviewStore";
@@ -30,22 +31,21 @@ export function AgentRow(props: { id: string; onOpen?: () => void; trailing?: Re
   const name = payload.name || meta.label;
   const facts = { agent: payload.agent, running: status.state === "running", activity: activity?.activity };
   return (
-    <div className="group flex h-9 items-center gap-2 rounded-md px-1.5 transition-[background-color] duration-150 ease-out hover:bg-dp-hover motion-reduce:transition-none">
-      <button
+    <div className="group flex h-9 items-center gap-2 rounded-md px-2 transition-[background-color] duration-150 ease-out hover:bg-dp-hover motion-reduce:transition-none">
+      {/* The row is the surface (its hover is the row's): the button only carries the click and the focus ring. */}
+      <Button
         type="button"
+        variant="ghost"
         onClick={onOpen}
-        className="flex min-w-0 flex-1 items-center gap-2 rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50"
+        className="h-auto min-w-0 flex-1 justify-start gap-2 rounded-md px-0 text-left text-(length:--text-ui) font-normal hover:bg-transparent active:scale-100"
       >
-        <span
-          className="grid size-6 shrink-0 place-items-center rounded-md"
-          style={{ backgroundColor: `color-mix(in srgb, ${meta.tint} 18%, transparent)`, color: agentInk(meta.tint) }}
-        >
-          <meta.Icon className="size-3.5" />
+        <span className="grid size-6 shrink-0 place-items-center rounded-sm" style={{ color: agentInk(meta.tint) }}>
+          <meta.Icon className="size-4" />
         </span>
-        <span className="min-w-0 flex-1 truncate text-[13px] text-dp-text">
+        <span className="min-w-0 flex-1 truncate text-dp-text">
           {name} <span className="text-dp-text-2">{meta.label}</span>
         </span>
-      </button>
+      </Button>
       {remote?.state === "on" && (
         <span title={t.remoteOn} aria-label={t.remoteOn} className="text-dp-accent-ink">
           <Smartphone className="size-3.5" />

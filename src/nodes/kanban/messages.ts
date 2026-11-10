@@ -70,7 +70,7 @@ export const kanbanNodeMessages = defineMessages<{
     removeColumn: "Delete the column",
     agentChip: (name) => `${name} is working on it`,
     agentAlert: { blocked: (name) => `${name} is blocked`, failed: (name) => `${name} failed` },
-    orchestrator: { plan: "Plan with the orchestrator", create: "New orchestrator", linked: (name) => `${name} (linked)` },
+    orchestrator: { plan: "Plan with the fleet", create: "New fleet", linked: (name) => `${name} (linked)` },
     doubleClickRename: "Double-click to rename",
     cardCount: (count) => `${count} card${count === 1 ? "" : "s"}`,
     newCard: "New card",

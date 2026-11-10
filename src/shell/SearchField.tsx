@@ -1,4 +1,5 @@
 import { Search } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { openPalette } from "@/commands/paletteState";
 import { commandContext } from "@/commands/registry";
 import { useMessages } from "@/i18n";
@@ -14,16 +15,17 @@ export function SearchField() {
   const home = useProjects((s) => s.view !== "project");
   const name = useProjects((s) => s.projects.find((p) => p.id === s.activeId)?.name ?? "");
   return (
-    <button
-      type="button"
+    // A field in look, a button in kind: it opens the palette, whose input takes the typing.
+    <Button
+      variant="outline"
       // The keyboard stays where it is: it goes back there when the palette closes.
       onMouseDown={(e) => e.preventDefault()}
       onClick={() => openPalette("goTo", commandContext())}
-      className="flex h-6.5 w-[440px] min-w-0 max-w-[min(34vw,100%)] items-center gap-2 rounded-md border border-[color:var(--dp-glass-line)] bg-dp-field px-2.5 text-xs text-dp-text-3 transition-[color,background-color,border-color,transform] duration-150 ease-out hover:bg-dp-hover hover:text-dp-text-2 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none"
+      className="h-7 w-[440px] min-w-0 max-w-[min(34vw,100%)] justify-start gap-2 rounded-md border-dp-line bg-dp-field px-3 text-xs font-normal text-dp-text-3 hover:bg-dp-hover hover:text-dp-text-2 active:scale-100"
     >
-      <Search className="size-3.5 shrink-0" />
+      <Search />
       <span className="truncate">{home ? t.project : t.inProject(name)}</span>
-      <span className="ml-auto shrink-0 font-mono text-[11px]">Ctrl+P</span>
-    </button>
+      <kbd className="ml-auto shrink-0 rounded-sm border border-dp-line px-1 font-mono text-xs leading-4 text-dp-text-3">Ctrl+P</kbd>
+    </Button>
   );
 }

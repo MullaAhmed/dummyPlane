@@ -9,17 +9,16 @@ import {
   currentTheme,
   loadThemeSettings,
   readThemeChoice,
-  readTransparency,
   setThemeChoice,
-  setTransparency,
   startTheme,
   themeStore,
+  type ThemeChoice,
 } from "./theme";
 
 const root = document.documentElement;
 
 beforeEach(() => {
-  themeStore.setState({ choice: "expressive", transparency: true });
+  themeStore.setState({ choice: "expressive" });
   delete root.dataset.palette;
   delete root.dataset.theme;
   delete root.dataset.transparency;
@@ -43,6 +42,10 @@ describe("palettes", () => {
     expect(themeStore.getState().choice).toBe("expressive");
     expect(currentTheme()).toBe("dark");
   });
+
+  it("are the only theme setting: no transparency option, every surface opaque", () => {
+    expect(themeStore.getInitialState()).toEqual({ choice: "expressive" });
+  });
 });
 
 describe("reading the saved settings", () => {
@@ -55,11 +58,6 @@ describe("reading the saved settings", () => {
   it("falls back to expressive for anything else, including the old system, light and dark choices", () => {
     for (const old of ["system", "light", "dark"]) expect(readThemeChoice(old)).toBe("expressive");
     for (const junk of ["bleu", 3, null, undefined, {}]) expect(readThemeChoice(junk)).toBe("expressive");
-  });
-
-  it("keeps transparency on unless it was turned off", () => {
-    expect(readTransparency("off")).toBe(false);
-    for (const value of ["on", null, 0, "OFF", undefined]) expect(readTransparency(value)).toBe(true);
   });
 });
 
@@ -89,23 +87,30 @@ describe("startTheme", () => {
     expect(currentTheme()).toBe("light");
   });
 
-  it("marks the root when transparency is off, and only then", () => {
+  it("writes no transparency switch on the root, in any palette: the surfaces are opaque", () => {
     startTheme();
-    themeStore.setState({ transparency: false });
-    expect(root.dataset.transparency).toBe("off");
-    themeStore.setState({ transparency: true });
-    expect(root.dataset.transparency).toBeUndefined();
+    for (const choice of Object.keys(PALETTES) as ThemeChoice[]) {
+      themeStore.setState({ choice });
+      expect(root.dataset.transparency, choice).toBeUndefined();
+    }
   });
 });
 
 describe("loadThemeSettings", () => {
-  it("reads the saved palette and transparency", async () => {
+  it("reads the saved palette and nothing else: a transparency an older version saved is ignored", async () => {
+    const asked: string[] = [];
     mockIPC((cmd, args) => {
       if (cmd !== "get_setting") return;
-      return (args as { key: string }).key === "ui.theme" ? "calm" : "off";
+      const { key } = args as { key: string };
+      asked.push(key);
+      return key === "ui.theme" ? "calm" : "on";
     });
+    startTheme();
     await loadThemeSettings();
-    expect(themeStore.getState()).toMatchObject({ choice: "calm", transparency: false });
+    expect(themeStore.getState()).toEqual({ choice: "calm" });
+    expect(asked).toEqual(["ui.theme"]);
+    expect(root.dataset.palette).toBe("calm");
+    expect(root.dataset.transparency).toBeUndefined();
   });
 
   it("maps an old saved choice to expressive", async () => {
@@ -114,18 +119,18 @@ describe("loadThemeSettings", () => {
       return (args as { key: string }).key === "ui.theme" ? "light" : null;
     });
     await loadThemeSettings();
-    expect(themeStore.getState()).toMatchObject({ choice: "expressive", transparency: true });
+    expect(themeStore.getState()).toEqual({ choice: "expressive" });
   });
 
   it("keeps the defaults, without error, when the settings are unreadable or cannot be read", async () => {
     mockIPC((cmd) => (cmd === "get_setting" ? 42 : undefined));
     await loadThemeSettings();
-    expect(themeStore.getState()).toMatchObject({ choice: "expressive", transparency: true });
+    expect(themeStore.getState()).toEqual({ choice: "expressive" });
     mockIPC(() => {
       throw new Error("base locked");
     });
     await expect(loadThemeSettings()).resolves.toBeUndefined();
-    expect(themeStore.getState()).toMatchObject({ choice: "expressive", transparency: true });
+    expect(themeStore.getState()).toEqual({ choice: "expressive" });
   });
 });
 
@@ -137,16 +142,12 @@ describe("changing the settings", () => {
     });
     startTheme();
     await setThemeChoice("calm");
-    await setTransparency(false);
     expect(root.dataset.palette).toBe("calm");
     expect(root.dataset.theme).toBe("light");
-    expect(root.dataset.transparency).toBe("off");
+    expect(root.dataset.transparency).toBeUndefined();
     expect(localStorage.getItem("dp.theme")).toBe("calm");
-    expect(localStorage.getItem("dp.transparency")).toBe("off");
-    expect(saved).toEqual([
-      { key: "ui.theme", value: "calm" },
-      { key: "ui.transparency", value: "off" },
-    ]);
+    expect(localStorage.getItem("dp.transparency")).toBeNull();
+    expect(saved).toEqual([{ key: "ui.theme", value: "calm" }]);
   });
 
   it("keeps the choice for the session and says so when it cannot be saved", async () => {

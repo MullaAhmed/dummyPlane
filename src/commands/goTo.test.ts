@@ -90,12 +90,18 @@ describe("goToSections", () => {
   it("puts the items in their sections, in the spec's order, empty sections left out", () => {
     const sections = goToSections(goToItems(input({ home: true, activeProjectId: null })), "");
     expect(sections.map((s) => s.label)).toEqual(["Projects"]);
-    expect(goToSections(goToItems(input()), "").map((s) => s.label)).toEqual(["Terminals", "Groups", "Orchestrators", "Workspaces", "Projects"]);
+    expect(goToSections(goToItems(input()), "").map((s) => s.label)).toEqual(["Terminals", "Groups", "Fleets", "Workspaces", "Projects"]);
   });
 
   it("ranks each section by the search", () => {
     const sections = goToSections(goToItems(input()), "isis cl");
     expect(sections.map((s) => [s.label, s.items.map((i) => i.label)])).toEqual([["Terminals", ["Isis"]]]);
+  });
+
+  it("finds a fleet by the word fleet, and by orchestrator, its former name", () => {
+    for (const query of ["fleet", "orchestrator"]) {
+      expect(goToSections(goToItems(input()), query).map((s) => [s.label, s.items.map((i) => i.label)])).toEqual([["Fleets", ["chef de backend"]]]);
+    }
   });
 
   it("puts the section of the best match first while searching", () => {

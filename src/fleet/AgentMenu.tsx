@@ -1,12 +1,14 @@
-import { useEffect, useRef, useState, type ReactElement } from "react";
+import { useEffect, useRef, useState, type FormEvent, type ReactElement } from "react";
 import { Check, Kanban, Network, SquareTerminal } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "cn";
 import { useUiRequest } from "@/commands/uiRequests";
+import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Separator } from "@/components/ui/separator";
 import { placeKanban } from "@/kanban/place";
 import { messages, useMessages } from "@/i18n";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { AgentId } from "@/ipc/pty";
-import { AccentButton } from "@/shell/buttons";
 import { uiStore } from "@/store/ui";
 import { agentsStore, useAgents } from "./agentsStore";
 import { AGENT_ORDER, agentInk, AGENTS, defaultAgent } from "./catalog";
@@ -20,7 +22,15 @@ import { OllamaPicker } from "./OllamaPicker";
 import { newConsole, placeOrchestrator } from "./quickActions";
 import type { Point } from "./terminals";
 
-type View = "agents" | "options" | "ollama" | { install: AgentId };
+/**
+ * "options" is the Custom agent's form: its command, where and how it runs. The
+ * palette's "Launch a custom agent…" asks for it by that name. "launch" is the
+ * folder, shell and title of the next agents, the footer's "Options".
+ */
+type View = "agents" | "options" | "launch" | "ollama" | { install: AgentId };
+
+/** One entry of the menu: an icon, a name, sometimes a line under it. */
+const ROW = "h-auto w-full justify-start gap-2.5 rounded-md border-0 px-2 py-1.5 text-left font-normal whitespace-normal";
 
 /** "Launch an agent", opened from the tool rail's ＋ or the agents panel (spec identity §5.4, §5.6). */
 export function AgentMenu({
@@ -73,15 +83,23 @@ export function AgentMenu({
 
   const place = (agent: AgentId, launch: LaunchOptions) => {
     setOpen(false);
+    // Only a Custom terminal runs its command: another agent would just carry it.
+    const kept = agent === "custom" ? launch : { ...launch, command: "" };
     // "Other agent…" of the radial menu: launched where the right click was (spec menu radial §4.1).
-    if (placeAt) void launchAgent(agent, launch, placeAt).catch((error: unknown) => toast.error(messages(fleetMessages).launchFailed(String(error))));
-    else uiStore.getState().setPlacing({ agent, options: launch });
+    if (placeAt) void launchAgent(agent, kept, placeAt).catch((error: unknown) => toast.error(messages(fleetMessages).launchFailed(String(error))));
+    else uiStore.getState().setPlacing({ agent, options: kept });
   };
 
   const pick = (agent: AgentId) => {
     if (agent === "ollama") setView("ollama");
-    else if (agent === "custom" && !current.command.trim()) setView("options");
+    // The command is what a Custom terminal is: it is shown, the last one filled in, before anything runs.
+    else if (agent === "custom") setView("options");
     else place(agent, current);
+  };
+
+  const launchCustom = (event: FormEvent) => {
+    event.preventDefault();
+    if (current.command.trim()) place("custom", current);
   };
 
   const inTerminal = (run: (at?: Point) => void) => {
@@ -102,12 +120,14 @@ export function AgentMenu({
                 const usable = available(id);
                 return (
                   <div key={id} className="relative">
-                    <button
+                    {/* Its title says why it is greyed: the row keeps the pointer while disabled. */}
+                    <Button
                       type="button"
+                      variant="ghost"
                       disabled={!usable}
                       title={usable ? undefined : t.agentMenu.notFound(meta.binary)}
                       onClick={() => pick(id)}
-                      className="flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left transition-[background-color,transform] duration-150 ease-out hover:bg-dp-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none"
+                      className={cn(ROW, "disabled:pointer-events-auto disabled:cursor-not-allowed disabled:hover:bg-transparent")}
                     >
                       <span
                         className="grid size-7 place-items-center rounded-md"
@@ -116,97 +136,115 @@ export function AgentMenu({
                         <meta.Icon className="size-4" />
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className="block text-[13px] font-medium text-dp-text">{meta.label}</span>
-                        <span className="block text-[11px] text-dp-text-2">{meta.vendor}</span>
+                        <span className="block text-(length:--text-ui) font-medium text-dp-text">{meta.label}</span>
+                        <span className="block text-xs text-dp-text-2">{meta.vendor}</span>
                       </span>
                       {id === fallback && <Check className="size-3.5 text-dp-accent-ink" />}
-                    </button>
+                    </Button>
                     {/* Beside the row and not inside it: the row is disabled, this button is not. */}
                     {missing(id) && (
-                      <button
+                      <Button
                         type="button"
+                        size="xs"
                         data-install={id}
                         aria-label={t.install.installAgent(meta.label)}
                         onClick={() => setView({ install: id })}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 rounded-[9px] bg-dp-accent-soft px-2 py-0.5 text-[11px] font-semibold text-dp-accent-ink transition-[background-color,transform] duration-150 ease-out hover:bg-dp-accent/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] motion-reduce:transition-none"
+                        className="absolute right-2 top-1/2 h-auto -translate-y-1/2 border-0 bg-dp-accent-soft px-2 py-0.5 text-xs font-medium text-dp-accent-ink hover:bg-dp-accent/25"
                       >
                         {t.install.button}
-                      </button>
+                      </Button>
                     )}
                   </div>
                 );
               })}
-              <button
+              <Separator className="my-1" />
+              <Button
                 type="button"
+                variant="ghost"
                 onClick={() => {
                   setOpen(false);
                   newConsole(placeAt ?? undefined);
                 }}
-                className="mt-1 flex items-center gap-2.5 rounded-md border-t border-dp-line px-2 py-1.5 text-left transition-[background-color,transform] duration-150 ease-out hover:bg-dp-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] motion-reduce:transition-none"
+                className={ROW}
               >
                 <span className="grid size-7 place-items-center rounded-md bg-dp-field text-dp-text-2">
                   <SquareTerminal className="size-4" />
                 </span>
-                <span className="min-w-0 flex-1 text-[13px] font-medium text-dp-text">{t.agentMenu.newConsole}</span>
-              </button>
+                <span className="min-w-0 flex-1 text-(length:--text-ui) font-medium text-dp-text">{t.agentMenu.newConsole}</span>
+              </Button>
               {/* Spec theme §10.1: placed the same way as an agent. */}
-              <button
+              <Button
                 type="button"
+                variant="ghost"
                 onClick={() => {
                   setOpen(false);
                   if (placeAt) placeOrchestrator(placeAt);
                   else uiStore.getState().setPlacing({ orchestrator: true });
                 }}
-                className="flex items-center gap-2.5 rounded-md px-2 py-1.5 text-left transition-[background-color,transform] duration-150 ease-out hover:bg-dp-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] motion-reduce:transition-none"
+                className={ROW}
               >
                 <span className="grid size-7 place-items-center rounded-md bg-dp-accent-soft text-dp-accent-ink">
                   <Network className="size-4" />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block text-[13px] font-medium text-dp-text">{t.agentMenu.orchestrator}</span>
-                  <span className="block text-[11px] text-dp-text-2">{t.agentMenu.orchestratorHint}</span>
+                  <span className="block text-(length:--text-ui) font-medium text-dp-text">{t.agentMenu.orchestrator}</span>
+                  <span className="block text-xs text-dp-text-2">{t.agentMenu.orchestratorHint}</span>
                 </span>
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
+                variant="ghost"
                 onClick={() => {
                   setOpen(false);
                   placeKanban(placeAt ?? undefined);
                 }}
-                className="flex items-center gap-2.5 rounded-md px-2 py-1.5 text-left transition-[background-color,transform] duration-150 ease-out hover:bg-dp-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] motion-reduce:transition-none"
+                className={ROW}
               >
                 <span className="grid size-7 place-items-center rounded-md bg-dp-field text-dp-text-2">
                   <Kanban className="size-4" />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block text-[13px] font-medium text-dp-text">{t.agentMenu.kanban}</span>
-                  <span className="block text-[11px] text-dp-text-2">{t.agentMenu.kanbanHint}</span>
+                  <span className="block text-(length:--text-ui) font-medium text-dp-text">{t.agentMenu.kanban}</span>
+                  <span className="block text-xs text-dp-text-2">{t.agentMenu.kanbanHint}</span>
                 </span>
-              </button>
+              </Button>
             </div>
-            <div className="mt-1 flex items-center justify-between border-t border-dp-line px-2 pt-2 text-[11px] text-dp-text-2">
+            <div className="mt-1 flex items-center justify-between border-t border-dp-line px-2 pt-2 text-xs text-dp-text-2">
               <span>{placeAt ? t.agentMenu.placedWhereClicked : t.agentMenu.thenClickCanvas}</span>
-              <button
-                type="button"
-                className="rounded-md px-1 text-dp-accent-ink underline-offset-4 transition-[color] duration-150 ease-out hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none"
-                onClick={() => setView("options")}
-              >
+              <Button type="button" variant="link" size="xs" className="h-auto px-1 text-xs font-normal text-dp-accent-ink" onClick={() => setView("launch")}>
                 {t.agentMenu.options}
-              </button>
+              </Button>
             </div>
           </>
         )}
         {view === "options" && (
+          // A form, so Enter in the command launches it.
+          <form onSubmit={launchCustom}>
+            <LaunchOptionsForm
+              value={current}
+              shells={shells}
+              onChange={setOptions}
+              showCommand
+              title={t.options.customTitle}
+              onBack={() => setView("agents")}
+              className="p-1"
+              footer={
+                <Button type="submit" disabled={!current.command.trim()} className="w-full">
+                  {t.agentMenu.launchCustom}
+                </Button>
+              }
+            />
+          </form>
+        )}
+        {view === "launch" && (
           <LaunchOptionsForm
             value={current}
             shells={shells}
             onChange={setOptions}
+            showCommand={false}
             onBack={() => setView("agents")}
-            footer={
-              <AccentButton disabled={!current.command.trim()} onClick={() => place("custom", current)} className="justify-center text-xs">
-                {t.agentMenu.launchCustom}
-              </AccentButton>
-            }
+            className="p-1"
+            footer={<p className="text-xs text-dp-text-2">{t.agentMenu.optionsHint}</p>}
           />
         )}
         {view === "ollama" && (

@@ -24,9 +24,13 @@ it("falls back to expressive for unknown or old choices", () => {
   }
 });
 
-it("paints transparency off only when it was turned off", () => {
-  expect(paint({ "dp.transparency": "off" }).dataset.transparency).toBe("off");
-  expect(paint({ "dp.transparency": "on" }).dataset.transparency).toBeUndefined();
+it("paints opaque whatever an older version saved: no transparency switch on the root", () => {
+  const saved: Record<string, string>[] = [{}, { "dp.transparency": "off" }, { "dp.transparency": "on" }, { "dp.theme": "calm", "dp.transparency": "on" }];
+  for (const stored of saved) {
+    const root = paint(stored);
+    expect(root.dataset.transparency, JSON.stringify(stored)).toBeUndefined();
+    expect(Object.keys(root.dataset).sort(), JSON.stringify(stored)).toEqual(["palette", "theme"]);
+  }
 });
 
 it("is loaded by the page, from its own origin (the CSP forbids inline scripts)", () => {
@@ -36,5 +40,6 @@ it("is loaded by the page, from its own origin (the CSP forbids inline scripts)"
 it("is fed by the theme module", () => {
   const theme = readSource("app/theme.ts");
   expect(theme).toContain('"dp.theme"');
-  expect(theme).toContain('"dp.transparency"');
+  expect(theme).not.toContain('"dp.transparency"');
+  expect(readSource("../public/first-paint.js")).not.toContain("dp.transparency");
 });

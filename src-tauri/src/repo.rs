@@ -45,6 +45,23 @@ pub struct LogEntry {
     /// Seconds since the epoch.
     pub date: i64,
     pub subject: String,
+    /// Full hashes, the first parent first; none for a root commit. A parent
+    /// past the cap is still named, though the history does not hold it.
+    pub parents: Vec<String>,
+    /// The branches, remote branches and tags on this commit.
+    pub refs: Vec<LogRef>,
+}
+
+/// A name on a commit, as `git log --decorate=full` gives it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LogRef {
+    /// `branch`, `remote`, `tag`, or `head` for a detached HEAD.
+    pub kind: &'static str,
+    /// `main`, `origin/main`, `v1.0`; `HEAD` for a detached HEAD.
+    pub name: String,
+    /// HEAD is here: the branch it is on, or the detached HEAD itself.
+    pub current: bool,
 }
 
 /// `review::command`, where a path is never a pattern (spec fenêtre git §2.4)
@@ -418,17 +435,63 @@ pub fn discard(dir: &Path, file: &ChangedFile, confirmed: &str) -> Result<(), St
 
 const SEPARATOR: char = '\u{1f}';
 
-/// `git log` with `%H %h %an %at %s` separated by `SEPARATOR`, one commit a line.
+/// `%D` under `--decorate=full`: `HEAD -> refs/heads/main, tag: refs/tags/v1, refs/remotes/origin/main`.
+/// A remote's `HEAD`, the stash, notes and `grafted` are left out: the graph names branches and tags.
+fn parse_refs(decorations: &str) -> Vec<LogRef> {
+    decorations
+        .split(", ")
+        .map(str::trim)
+        .filter_map(|item| {
+            if item == "HEAD" {
+                return Some(LogRef {
+                    kind: "head",
+                    name: "HEAD".to_string(),
+                    current: true,
+                });
+            }
+            let (current, item) = match item.strip_prefix("HEAD -> ") {
+                Some(branch) => (true, branch),
+                None => (false, item),
+            };
+            let named = |kind: &'static str, name: &str| {
+                Some(LogRef {
+                    kind,
+                    name: name.to_string(),
+                    current,
+                })
+            };
+            if let Some(tag) = item.strip_prefix("tag: refs/tags/") {
+                named("tag", tag)
+            } else if let Some(branch) = item.strip_prefix("refs/heads/") {
+                named("branch", branch)
+            } else {
+                match item.strip_prefix("refs/remotes/") {
+                    Some(remote) if !remote.ends_with("/HEAD") => named("remote", remote),
+                    _ => None,
+                }
+            }
+        })
+        .collect()
+}
+
+/// `git log` with `%H %h %an %at %P %D %s` separated by `SEPARATOR`, one commit a
+/// line. The subject comes last: whatever it holds stays in it.
 fn parse_log(output: &str) -> Vec<LogEntry> {
     output
         .lines()
         .filter_map(|line| {
-            let mut fields = line.splitn(5, SEPARATOR);
+            let mut fields = line.splitn(7, SEPARATOR);
             Some(LogEntry {
                 hash: fields.next()?.to_string(),
                 short_hash: fields.next()?.to_string(),
                 author: fields.next()?.to_string(),
                 date: fields.next()?.parse().ok()?,
+                parents: fields
+                    .next()?
+                    .split_whitespace()
+                    .map(str::to_string)
+                    .collect(),
+                refs: parse_refs(fields.next()?),
                 subject: fields.next()?.to_string(),
             })
         })
@@ -437,13 +500,23 @@ fn parse_log(output: &str) -> Vec<LogEntry> {
 
 /// The branch's last commits; none in a repository without a commit.
 pub fn history(dir: &Path) -> Result<Vec<LogEntry>, String> {
+    history_up_to(dir, MAX_LOG)
+}
+
+/// At most `max` commits, each before its parents (`--topo-order`, as `git log
+/// --graph` draws them): the window lays its graph out from the top down.
+fn history_up_to(dir: &Path, max: usize) -> Result<Vec<LogEntry>, String> {
     let root = review::root(dir)?;
     if run(&root, &["rev-parse", "--verify", "--quiet", "HEAD"]).is_err() {
         return Ok(Vec::new());
     }
-    let format = format!("--format=%H{SEPARATOR}%h{SEPARATOR}%an{SEPARATOR}%at{SEPARATOR}%s");
-    let count = format!("--max-count={MAX_LOG}");
-    Ok(parse_log(&run(&root, &["log", &count, &format])?))
+    let s = SEPARATOR;
+    let format = format!("--format=%H{s}%h{s}%an{s}%at{s}%P{s}%D{s}%s");
+    let count = format!("--max-count={max}");
+    Ok(parse_log(&run(
+        &root,
+        &["log", "--topo-order", "--decorate=full", &count, &format],
+    )?))
 }
 
 /// Only ever called by the window's Push button (spec fenêtre git §2.3), for the
@@ -804,10 +877,138 @@ mod tests {
 
     #[test]
     fn limits_the_history() {
-        let line = format!("h{SEPARATOR}s{SEPARATOR}a{SEPARATOR}1{SEPARATOR}x\nbroken\n");
-        assert_eq!(parse_log(&line).len(), 1);
+        let s = SEPARATOR;
+        let line = format!("h{s}s{s}a{s}1{s}p q{s}HEAD -> refs/heads/main{s}x {s} y\nbroken\n");
+        let log = parse_log(&line);
+        assert_eq!(log.len(), 1);
+        assert_eq!(log[0].parents, vec!["p", "q"]);
+        assert_eq!(log[0].refs.len(), 1);
+        assert_eq!(log[0].subject, format!("x {s} y"));
+        let root = format!("h{s}s{s}a{s}1{s}{s}{s}first\n");
+        assert_eq!(parse_log(&root)[0].parents, Vec::<String>::new());
+        assert_eq!(parse_log(&root)[0].refs, Vec::new());
         assert_eq!(parse_counts("3\t2\n"), (3, 2));
         assert_eq!(parse_counts(""), (0, 0));
+    }
+
+    fn named(kind: &'static str, name: &str, current: bool) -> LogRef {
+        LogRef {
+            kind,
+            name: name.to_string(),
+            current,
+        }
+    }
+
+    #[test]
+    fn reads_the_branches_and_tags_and_leaves_out_what_the_graph_does_not_name() {
+        let refs = parse_refs(
+            "HEAD -> refs/heads/main, refs/remotes/origin/main, refs/remotes/origin/HEAD, \
+             tag: refs/tags/v1.0, refs/heads/feat/x, refs/stash, refs/notes/commits, grafted",
+        );
+        assert_eq!(
+            refs,
+            vec![
+                named("branch", "main", true),
+                named("remote", "origin/main", false),
+                named("tag", "v1.0", false),
+                named("branch", "feat/x", false),
+            ]
+        );
+        assert_eq!(
+            parse_refs("HEAD, refs/heads/main"),
+            vec![named("head", "HEAD", true), named("branch", "main", false)]
+        );
+        assert_eq!(parse_refs(""), Vec::new());
+    }
+
+    /// `side` branched from the first commit and merged back into `main`.
+    fn with_a_merge() -> (tempfile::TempDir, PathBuf) {
+        let (dir, root) = repo();
+        raw(&root, &["checkout", "-q", "-b", "side"]);
+        fs::write(root.join("side.txt"), "side\n").unwrap();
+        raw(&root, &["add", "side.txt"]);
+        raw(&root, &["commit", "-q", "-m", "on the side"]);
+        raw(&root, &["checkout", "-q", "main"]);
+        fs::write(root.join("a.txt"), "two\n").unwrap();
+        raw(&root, &["commit", "-q", "-am", "on main"]);
+        raw(&root, &["merge", "-q", "--no-ff", "-m", "merge side", "side"]);
+        (dir, root)
+    }
+
+    fn rev(root: &Path, name: &str) -> String {
+        raw(root, &["rev-parse", name]).trim().to_string()
+    }
+
+    #[test]
+    fn gives_each_commit_its_parents_and_puts_every_commit_before_them() {
+        let (_dir, root) = with_a_merge();
+        let log = history(&root).unwrap();
+        assert_eq!(log.len(), 4);
+        assert_eq!(log[0].subject, "merge side");
+        assert_eq!(log[0].parents, vec![rev(&root, "HEAD^1"), rev(&root, "HEAD^2")]);
+        let first = log.iter().find(|entry| entry.subject == "first").unwrap();
+        assert!(first.parents.is_empty());
+        // The graph is drawn top down: a parent always comes later.
+        for (at, entry) in log.iter().enumerate() {
+            for parent in &entry.parents {
+                let below = log.iter().position(|e| &e.hash == parent).unwrap();
+                assert!(below > at, "{} comes after its parent", entry.subject);
+            }
+        }
+    }
+
+    #[test]
+    fn names_the_branches_remote_branches_and_tags_on_each_commit() {
+        let (_dir, root) = with_a_merge();
+        raw(&root, &["tag", "v1", "HEAD~2"]);
+        let _bare = with_bare_remote(&root);
+        push_now(&root).unwrap();
+        let log = history(&root).unwrap();
+        let refs = |subject: &str| {
+            let mut refs = log
+                .iter()
+                .find(|entry| entry.subject == subject)
+                .unwrap()
+                .refs
+                .clone();
+            refs.sort_by(|a, b| a.name.cmp(&b.name));
+            refs
+        };
+        assert_eq!(
+            refs("merge side"),
+            vec![named("branch", "main", true), named("remote", "origin/main", false)]
+        );
+        assert_eq!(refs("on the side"), vec![named("branch", "side", false)]);
+        assert_eq!(refs("first"), vec![named("tag", "v1", false)]);
+        assert_eq!(refs("on main"), Vec::new());
+    }
+
+    #[test]
+    fn says_where_a_detached_head_is() {
+        let (_dir, root) = repo();
+        raw(&root, &["checkout", "-q", "--detach"]);
+        let mut refs = history(&root).unwrap()[0].refs.clone();
+        refs.sort_by(|a, b| a.kind.cmp(b.kind));
+        assert_eq!(
+            refs,
+            vec![named("branch", "main", false), named("head", "HEAD", true)]
+        );
+    }
+
+    #[test]
+    fn stops_at_the_cap_and_still_names_the_parents_it_left_out() {
+        let (_dir, root) = with_a_merge();
+        assert_eq!(history(&root).unwrap().len(), 4);
+        let cut = history_up_to(&root, 2).unwrap();
+        assert_eq!(cut.len(), 2);
+        let loaded: Vec<&str> = cut.iter().map(|entry| entry.hash.as_str()).collect();
+        let left_out = cut
+            .iter()
+            .flat_map(|entry| &entry.parents)
+            .filter(|parent| !loaded.contains(&parent.as_str()))
+            .count();
+        assert!(left_out > 0, "the oldest commit's parents are past the cap");
+        assert_eq!(MAX_LOG, 200);
     }
 
     #[test]

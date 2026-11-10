@@ -33,16 +33,16 @@ async function mount(node: React.ReactNode) {
 const payload = { title: "Isis", name: "Isis", agent: "claude", cwd: "C:/code", shell: "default", command: "", claudeSessionId: "s" } as const;
 
 it("labels the status pill in English", () => {
-  expect(pillOf({ state: "running" })).toEqual({ label: "ACTIVE", tone: "live" });
-  expect(pillOf({ state: "running" }, "working")).toEqual({ label: "WORKING", tone: "working" });
-  expect(pillOf({ state: "stopped" })).toEqual({ label: "STOPPED", tone: "stopped" });
-  expect(pillOf({ state: "exited", code: 2 })).toEqual({ label: "EXITED · 2", tone: "failed" });
+  expect(pillOf({ state: "running" })).toEqual({ label: "Active", tone: "live" });
+  expect(pillOf({ state: "running" }, "working")).toEqual({ label: "Working", tone: "working" });
+  expect(pillOf({ state: "stopped" })).toEqual({ label: "Stopped", tone: "stopped" });
+  expect(pillOf({ state: "exited", code: 2 })).toEqual({ label: "Exited · 2", tone: "failed" });
 });
 
 it("tells in English how long the agent has been in its state", async () => {
   const { host, root } = await mount(<StatusPill status={{ state: "running" }} activity={{ activity: "idle", since: Date.now() - 45_000 }} />);
-  expect(host.textContent).toBe("READY");
-  expect(host.querySelector("span")!.title).toMatch(/^READY for \d+ s$/);
+  expect(host.textContent).toBe("Ready");
+  expect(host.querySelector("span")!.title).toMatch(/^Ready for \d+ s$/);
   await act(async () => root.unmount());
 });
 
@@ -80,7 +80,7 @@ it("says in English why the orchestrator did not start", async () => {
   const { host, root } = await mount(<ToolsUnavailable nodeId="o" message="x" />);
   const text = host.textContent!;
   expect(text).toContain("dummyPlane tools unavailable");
-  expect(text).toContain("the orchestrator could change your branch");
+  expect(text).toContain("the fleet could change your branch");
   expect(text).toContain("Try again");
   expect(text).toContain("Open the logs folder");
   await act(async () => root.unmount());

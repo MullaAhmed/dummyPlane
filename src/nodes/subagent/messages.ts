@@ -2,8 +2,8 @@ import { defineMessages } from "@/i18n";
 
 /** The texts of a subagent's node. */
 export const subagentMessages = defineMessages({
-  running: "RUNNING",
-  done: "DONE",
+  running: "Running",
+  done: "Done",
   close: "Close",
   ended: "This subagent has ended.",
   waiting: "Waiting for its first output…",

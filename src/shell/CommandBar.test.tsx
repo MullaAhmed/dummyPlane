@@ -129,7 +129,7 @@ it("sends to the active terminal with nothing selected and no @, and says to who
 });
 
 it("keeps the generic placeholder and a grey Send when no terminal is active", async () => {
-  expect(field().placeholder).toBe("Instruction for the agents · @ to target · / command · ↑ history");
+  expect(field().placeholder).toBe("Message agents");
   await type("run tests");
   expect(sendButton().disabled).toBe(true);
   expect(host.textContent).not.toContain("To Thoth");

@@ -68,7 +68,7 @@ const profile = { id: "work", name: "Travail", configDir: "C:/profiles/work" };
 it("says it covers the default folder only, when profiles exist (review)", async () => {
   accountsStore.setState({ profiles: [profile] });
   const { host, done } = await show(() => report);
-  expect(host.querySelector("[data-tokens-scope]")?.textContent).toBe("Default account only: Claude profiles are not counted here.");
+  expect(host.querySelector("[data-tokens-scope]")?.textContent).toBe("Default account only: Claude profiles are not counted here");
   await done();
   accountsStore.setState({ profiles: [] });
 });

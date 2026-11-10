@@ -129,7 +129,7 @@ it("words the install in English", async () => {
   await render();
   const card = host.querySelector("[data-no-agent]")!;
   expect(card.textContent).toContain("Install Claude Code");
-  expect(card.textContent).toContain("The install terminal opens on a project's canvas: pick its folder first.");
+  expect(card.textContent).toContain("The install terminal opens on a project's canvas: pick its folder first");
   expect(card.textContent).toContain("The other agents:");
 });
 

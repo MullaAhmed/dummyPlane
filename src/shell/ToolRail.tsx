@@ -1,11 +1,10 @@
-import type { ComponentProps } from "react";
 import { Eraser, Hand, Image as ImageIcon, Maximize, MousePointer2, Plus, Type } from "lucide-react";
 import { canvasStore, useCanvas } from "@/canvas/canvasStore";
 import { fitScene } from "@/canvas/viewActions";
+import { Separator as Rule } from "@/components/ui/separator";
 import { AgentMenu } from "@/fleet/AgentMenu";
 import { useMessages } from "@/i18n";
-import { cn } from "@/lib/utils";
-import { ToolButton } from "./buttons";
+import { ToolButton as RailButton } from "./buttons";
 import { shellMessages } from "./messages";
 import { PenMenu } from "./PenMenu";
 import { ShapesMenu } from "./ShapesMenu";
@@ -15,15 +14,8 @@ type Tool = "selection" | "hand" | "text" | "eraser" | "image" | ShapeTool;
 
 const setTool = (type: Tool) => canvasStore.getState().api?.setActiveTool({ type });
 
-const Separator = () => <span aria-hidden className="my-1 h-px w-6 bg-dp-line" />;
-
-/** A rail button: the shared ToolButton plus focus, press and disabled feedback. */
-const RAIL_BUTTON =
-  "rounded-md transition-[color,background-color,border-color,opacity,transform] duration-150 ease-out motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50";
-
-function RailButton(props: ComponentProps<typeof ToolButton>) {
-  return <ToolButton {...props} className={cn(RAIL_BUTTON, props.className)} />;
-}
+/** A hairline between the rail's groups: drawing tools, agents, view. */
+const Separator = () => <Rule className="my-1 bg-dp-line data-horizontal:w-6" />;
 
 /**
  * The canvas tools, floating on the left (spec identité §5.4). They replace

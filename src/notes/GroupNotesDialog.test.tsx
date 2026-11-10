@@ -49,7 +49,11 @@ async function show() {
   await act(async () => root.render(<GroupNotesDialog />));
   await act(async () => void (await new Promise((resolve) => setTimeout(resolve, 0))));
 }
-const box = (name: string) => document.body.querySelector<HTMLInputElement>(`input[data-attach="${name}"]`)!;
+/** A Radix checkbox: a button that says its state in `aria-checked`, clicked like a box. */
+const box = (name: string) => {
+  const found = document.body.querySelector<HTMLElement>(`[data-attach="${name}"]`)!;
+  return { get checked() { return found.getAttribute("aria-checked") === "true"; }, click: () => found.click() };
+};
 const textButton = (text: string) => [...document.body.querySelectorAll("button")].find((b) => b.textContent === text);
 const toggle = (name: string) => act(async () => box(name).click());
 

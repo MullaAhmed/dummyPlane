@@ -57,11 +57,12 @@ const open = () =>
   );
 const buttons = () => [...document.querySelectorAll<HTMLButtonElement>("[data-radial-slot]")];
 
-it("names the ring's buttons, the reason and the close button", async () => {
+it("names the ring's buttons, their wedges, the reason and the close button", async () => {
   await open();
   expect(buttons().map((b) => b.getAttribute("aria-label"))).toEqual(["Copy", "Paste", "Rename", "Restart", "Close", "Duplicate", "Pause", "Stop the process"]);
+  expect(buttons().map((b) => b.textContent)).toEqual(["Copy", "Paste", "Rename", "Restart", "Close", "Duplicate", "Pause", "Stop"]);
   await act(async () => updateRadial({ hovered: 0 }));
-  expect(document.querySelector("[data-radial]")!.textContent).toContain("Copy · nothing selected");
+  expect(document.querySelector("[data-radial-hub]")!.textContent).toBe("CopyNothing selected");
   expect(document.querySelector('[aria-label="Close the menu"]')).not.toBeNull();
 });
 

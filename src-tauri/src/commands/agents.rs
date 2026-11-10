@@ -14,9 +14,10 @@ use crate::agents::activity::{Activity, Change, HookSource, Tracker};
 use crate::agents::hooks_server::{self, HookHit, HookServer, HookSink};
 use crate::agents::mcp::{Pending, Tokens};
 use crate::agents::subagents::{Emit, Job, SubagentHook, SubagentSnapshot, Subagents};
+use crate::agents::extensions::{self, ClaudeExtensions, Places};
 use crate::agents::{claude_settings, mcp_files, prompts};
-use crate::error::AppResult;
-use crate::pty::shell::{Agent, AgentHooks, Permission, Role, find_git_bash, which_locate};
+use crate::error::{AppError, AppResult};
+use crate::pty::shell::{Agent, AgentHooks, ClaudeLaunch, find_git_bash, which_locate};
 use crate::sync::lock;
 
 /// Quiet terminals are checked this often (the 1.5 s rule).
@@ -333,11 +334,12 @@ pub fn hooks_for(
     app: &AppHandle,
     node_id: &str,
     agent: Agent,
-    role: Role,
-    permission: Option<Permission>,
+    claude: Option<&ClaudeLaunch>,
     cwd: &std::path::Path,
     config_dir: Option<&std::path::Path>,
 ) -> AgentHooks {
+    let role = claude.map(|c| c.role).unwrap_or_default();
+    let permission = claude.and_then(|c| c.permission);
     let state = app.state::<AgentState>();
     let Some(server) = &state.hooks else {
         return AgentHooks::default();
@@ -362,13 +364,19 @@ pub fn hooks_for(
                         claude_settings::settings_file_in(config_dir).as_deref(),
                     ),
                 });
-            let settings = claude_settings::write(
+            // The terminal's own skills, plugins, MCP servers and subagents, from its folder and profile.
+            let extensions = claude
+                .and_then(|c| c.extensions.as_ref())
+                .zip(Places::of(cwd, config_dir))
+                .and_then(|(choice, places)| extensions::settings_patch(choice, &places));
+            let settings = claude_settings::write_with(
                 &state.hooks_dir,
                 node_id,
                 &urls.settings,
                 role,
                 status.as_ref(),
                 permission,
+                extensions.as_ref(),
             );
             let Ok(settings) =
                 settings.inspect_err(|err| log::error!("hooks of {node_id} not written: {err}"))
@@ -466,6 +474,23 @@ pub async fn subagent_snapshot(state: State<'_, AgentState>) -> AppResult<Vec<Su
 #[tauri::command]
 pub fn set_subagent_terminals(on: bool) {
     hooks_server::set_subagent_terminals(on);
+}
+
+/// The skills, plugins, MCP servers and subagents a Claude terminal in `cwd`,
+/// with this profile folder (none: the default account), would get.
+#[tauri::command]
+pub async fn claude_extensions(cwd: String, config_dir: Option<String>) -> AppResult<ClaudeExtensions> {
+    let profile = match config_dir.as_deref() {
+        Some(dir) => Some(crate::accounts::checked_dir(dir)?),
+        None => None,
+    };
+    tauri::async_runtime::spawn_blocking(move || {
+        let places = Places::of(std::path::Path::new(&cwd), profile.as_deref())
+            .ok_or_else(|| AppError::NotFound("Claude config folder".into()))?;
+        Ok(extensions::list(&places))
+    })
+    .await
+    .map_err(|err| AppError::Io(std::io::Error::other(err.to_string())))?
 }
 
 #[cfg(test)]

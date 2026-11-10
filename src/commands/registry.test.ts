@@ -189,6 +189,6 @@ it("a failed command says what its button says (plan F2)", async () => {
     "Could not duplicate: Error: boom",
     "Could not create: Error: boom",
     "Could not delete: Error: boom",
-    "Could not create the orchestrator: Error: boom",
+    "Could not create the fleet: Error: boom",
   ]);
 });

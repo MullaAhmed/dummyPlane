@@ -31,10 +31,10 @@ function inline(text: string): ReactNode[] {
 
 export function ReleaseNotes({ notes }: { notes: string }) {
   return (
-    <div className="max-h-48 overflow-auto rounded-lg border border-dp-line bg-dp-surface p-3 text-xs text-dp-text-2 [&_code]:rounded-md [&_code]:bg-dp-hover [&_code]:px-1 [&_code]:font-mono [&_code]:text-[11px] [&_strong]:font-semibold [&_strong]:text-dp-text">
+    <div className="flex max-h-48 flex-col gap-1 overflow-auto rounded-lg border border-dp-line bg-dp-surface p-3 text-xs text-dp-text-2 [&_code]:rounded-sm [&_code]:bg-dp-hover [&_code]:px-1 [&_code]:font-mono [&_strong]:font-medium [&_strong]:text-dp-text">
       {parseNotes(notes).map((block, i) =>
         block.kind === "heading" ? (
-          <h4 key={i} className="mt-1 font-semibold text-dp-text first:mt-0">
+          <h4 key={i} className="mt-2 font-medium text-dp-text first:mt-0">
             {inline(block.text)}
           </h4>
         ) : block.kind === "list" ? (

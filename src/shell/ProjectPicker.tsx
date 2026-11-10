@@ -1,4 +1,5 @@
 import { Check, ChevronDown, Folder } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,13 +23,10 @@ export function ProjectPicker() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          className="flex h-[26px] items-center gap-1 rounded-md px-2 text-[13px] font-semibold text-dp-text transition-[background-color,transform] duration-150 ease-out motion-reduce:transition-none hover:bg-dp-hover active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50"
-        >
+        <Button variant="ghost" size="sm" className="gap-1 rounded-md px-2 text-(length:--text-ui) font-medium">
           <span className="max-w-48 truncate">{active?.name ?? t.project}</span>
-          <ChevronDown className="size-3.5 text-dp-text-2" />
-        </button>
+          <ChevronDown className="text-dp-text-3" />
+        </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-72">
         {recent.map((project) => (
@@ -43,7 +41,7 @@ export function ProjectPicker() {
             <Folder />
             <span className="flex min-w-0 flex-col">
               <span className="truncate">{project.name}</span>
-              <span data-path className="truncate font-mono text-[11px] text-dp-text-3">
+              <span data-path className="truncate font-mono text-xs text-dp-text-3">
                 {project.path}
               </span>
             </span>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { GitBranch } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { gitWindowStore } from "@/git/gitWindowStore";
 import { gitMessages } from "@/git/messages";
 import { useMessages } from "@/i18n";
@@ -39,18 +40,19 @@ export function GitChip() {
   // Outside a git repository, no chip (spec identité §5.8).
   if (!status || !path) return null;
   return (
-    <button
-      type="button"
+    // The titles show what the chip cuts short: the folder, and a long branch name.
+    <Button
+      variant="ghost"
       title={path}
       aria-label={t.open(status.branch)}
       onClick={() => gitWindowStore.getState().open(path)}
-      className="dp-glass-strong pointer-events-auto flex h-8 items-center gap-1.5 rounded-md px-2.5 font-mono text-xs text-dp-text-2 transition-[color,background-color,transform] duration-150 ease-out hover:bg-dp-hover hover:text-dp-text active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none"
+      className="dp-glass-strong pointer-events-auto h-8 gap-2 rounded-lg px-3 font-mono text-xs font-normal text-dp-text-2 hover:bg-dp-hover hover:text-dp-text"
     >
-      <GitBranch className="size-3.5" />
+      <GitBranch className="text-dp-text-3" />
       <span title={status.branch} className="max-w-[150px] truncate">
         {status.branch}
       </span>
-      {status.changed > 0 && <span className="text-dp-accent-ink">{status.changed}</span>}
-    </button>
+      {status.changed > 0 && <span className="tabular-nums text-dp-accent-ink">{status.changed}</span>}
+    </Button>
   );
 }

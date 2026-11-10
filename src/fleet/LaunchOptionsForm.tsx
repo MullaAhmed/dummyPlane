@@ -1,24 +1,36 @@
+import { useId, type ReactNode } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { ArrowLeft, FolderOpen } from "lucide-react";
+import { cn } from "cn";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { messages, useMessages } from "@/i18n";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { messages, useMessages } from "@/i18n";
 import type { ShellKind } from "@/ipc/pty";
 import { SHELL_LABELS } from "@/nodes/terminal/launch";
 import type { LaunchOptions } from "./launchAgent";
 import { fleetMessages } from "./messages";
 
-/** Folder, shell, title and custom command of the next agents (spec theme §10.1). */
+// dp-label sits in the components layer: Label's own text-sm would win over its 12 px, so the size is said again.
+const LABEL = "dp-label text-xs";
+
+/** Folder, shell and title of the next launch (spec theme §10.1), and the command of a Custom one. */
 export function LaunchOptionsForm(props: {
   value: LaunchOptions;
   shells: ShellKind[];
   onChange: (value: LaunchOptions) => void;
+  /** Only a Custom terminal runs its command (pty `agent_command`): every other agent ignores it, so the field is not shown for them. */
+  showCommand: boolean;
   onBack?: () => void;
-  footer?: React.ReactNode;
+  /** The back button's label, which names the view. */
+  title?: string;
+  footer?: ReactNode;
+  className?: string;
 }) {
-  const { value, shells, onChange, onBack, footer } = props;
+  const { value, shells, onChange, showCommand, onBack, title, footer, className } = props;
   const t = useMessages(fleetMessages).options;
+  const id = useId();
   const set = (patch: Partial<LaunchOptions>) => onChange({ ...value, ...patch });
   const browse = async () => {
     const picked = await open({ directory: true, defaultPath: value.cwd || undefined, title: messages(fleetMessages).options.workingFolder });
@@ -26,30 +38,58 @@ export function LaunchOptionsForm(props: {
   };
 
   return (
-    <div className="grid gap-3 p-1">
+    <div className={cn("grid gap-3", className)}>
       {onBack && (
-        <button type="button" onClick={onBack} className="flex items-center gap-1.5 self-start rounded-md text-xs text-dp-text-2 transition-[color] duration-150 ease-out hover:text-dp-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none">
-          <ArrowLeft className="size-3.5" /> {t.title}
-        </button>
+        <Button type="button" variant="ghost" size="xs" onClick={onBack} className="-ml-2 justify-self-start text-dp-text-2 hover:text-dp-text">
+          <ArrowLeft className="size-3.5" /> {title ?? t.title}
+        </Button>
+      )}
+      {/* What a Custom terminal is for comes first; the rest only says where and how it runs. */}
+      {showCommand && (
+        <div className="grid gap-1.5">
+          <Label htmlFor={`${id}-command`} className={LABEL}>
+            {t.command}
+          </Label>
+          <Input
+            id={`${id}-command`}
+            autoFocus
+            value={value.command}
+            onChange={(e) => set({ command: e.target.value })}
+            placeholder="npm run dev"
+            spellCheck={false}
+            autoComplete="off"
+            aria-describedby={`${id}-command-hint`}
+            className="h-8 font-mono text-xs"
+          />
+          <p id={`${id}-command-hint`} className="text-xs text-dp-text-2">
+            {t.commandHint}
+          </p>
+        </div>
       )}
       <div className="grid gap-1.5">
-        <Label className="dp-label">{t.folder}</Label>
+        <Label htmlFor={`${id}-folder`} className={LABEL}>
+          {t.folder}
+        </Label>
         <div className="flex gap-1.5">
-          <Input value={value.cwd} onChange={(e) => set({ cwd: e.target.value })} className="h-8 font-mono text-xs" />
-          <button
-            type="button"
-            aria-label={t.browse}
-            onClick={() => void browse()}
-            className="grid size-8 shrink-0 place-items-center rounded-md border border-dp-line bg-dp-card transition-[background-color,transform] duration-150 ease-out hover:bg-dp-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] motion-reduce:transition-none"
-          >
-            <FolderOpen className="size-4" />
-          </button>
+          <Input
+            id={`${id}-folder`}
+            value={value.cwd}
+            onChange={(e) => set({ cwd: e.target.value })}
+            spellCheck={false}
+            autoComplete="off"
+            className="h-8 font-mono text-xs"
+          />
+          <Button type="button" variant="outline" size="icon" aria-label={t.browse} title={t.browse} onClick={() => void browse()}>
+            <FolderOpen />
+          </Button>
         </div>
       </div>
       <div className="grid gap-1.5">
-        <Label className="dp-label">{t.shell}</Label>
+        <Label htmlFor={`${id}-shell`} className={LABEL}>
+          {t.shell}
+        </Label>
         <Select value={value.shell} onValueChange={(shell) => set({ shell: shell as ShellKind })}>
-          <SelectTrigger className="h-8 w-full">
+          <SelectTrigger id={`${id}-shell`} className="h-8 w-full">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -62,17 +102,10 @@ export function LaunchOptionsForm(props: {
         </Select>
       </div>
       <div className="grid gap-1.5">
-        <Label className="dp-label">{t.titleField}</Label>
-        <Input value={value.title} onChange={(e) => set({ title: e.target.value })} placeholder={t.automatic} className="h-8" />
-      </div>
-      <div className="grid gap-1.5">
-        <Label className="dp-label">{t.customCommand}</Label>
-        <Input
-          value={value.command}
-          onChange={(e) => set({ command: e.target.value })}
-          placeholder="npm run dev"
-          className="h-8 font-mono text-xs"
-        />
+        <Label htmlFor={`${id}-title`} className={LABEL}>
+          {t.titleField}
+        </Label>
+        <Input id={`${id}-title`} value={value.title} onChange={(e) => set({ title: e.target.value })} placeholder={t.automatic} autoComplete="off" className="h-8" />
       </div>
       {footer}
     </div>

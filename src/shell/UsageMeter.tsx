@@ -1,7 +1,9 @@
 import { useEffect, useState, type ReactNode } from "react";
+import { ArrowRight } from "lucide-react";
 import { useStore } from "zustand";
 import { loadDiagnostics } from "@/app/diagnostics";
 import { BUDGET_COLOR } from "@/canvas/overlay/timeline";
+import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { AGENTS } from "@/fleet/catalog";
 import { useMessages } from "@/i18n";
@@ -86,11 +88,13 @@ export function UsageMeter() {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <button
-          type="button"
+        {/* The native title explains a meter that may show nothing yet: no hint on a popover trigger. */}
+        <Button
+          variant="ghost"
+          size="xs"
           data-usage
           title={limits ? u.titleWithLimits : u.titleWithoutLimits}
-          className="flex h-6 items-center gap-2 rounded-md px-1.5 font-mono text-xs text-dp-text-2 transition-[color,background-color,transform] duration-150 ease-out hover:bg-dp-hover hover:text-dp-text active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none"
+          className="gap-2 rounded-md px-1.5 font-mono font-normal tabular-nums text-dp-text-2 hover:text-dp-text"
         >
           {!hasLimits ? (
             <>
@@ -116,7 +120,7 @@ export function UsageMeter() {
               ))}
             </>
           )}
-        </button>
+        </Button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-[380px]">
         <UsageContent />
@@ -229,14 +233,15 @@ function UsageDetail({ onTokens }: { onTokens: () => void }) {
             ))}
         </Section>
       )}
-      <button
-        type="button"
+      <Button
+        variant="ghost"
+        size="xs"
         onClick={onTokens}
-        className="self-start rounded-md px-2 py-1 text-xs text-dp-accent-ink transition-[color,background-color,transform] duration-150 ease-out hover:bg-dp-hover active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none"
+        className="-ml-2 self-start rounded-md px-2 font-normal text-dp-accent-ink hover:text-dp-accent-ink"
       >
-        {u.tokensLink} →
-      </button>
-      <p className="text-[11px] text-dp-text-3">{u.footnote}</p>
+        {u.tokensLink} <ArrowRight />
+      </Button>
+      <p className="text-xs text-dp-text-3">{u.footnote}</p>
     </div>
   );
 }

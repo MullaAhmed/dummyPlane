@@ -160,6 +160,63 @@ describe("choosing in the ring", () => {
     await nextFrame();
   });
 
+  it("chooses nothing when a slide comes back over the hub", () => {
+    pointer(text(), "pointerdown", 300, 300);
+    pointer(text(), "pointermove", 300, 380);
+    pointer(text(), "pointermove", 300, 340);
+    expect(radialStore.getState().ring).toMatchObject({ sliding: true, hovered: null });
+    pointer(text(), "pointerup", 300, 340);
+    expect(radialStore.getState().ring).toBeNull();
+  });
+
+  it("turns the wedge pointed at with the arrows, runs it on Enter, the keys kept from the terminal (Tangerine's keys)", async () => {
+    vi.mocked(requestClose).mockClear();
+    pointer(text(), "pointerdown", 300, 300);
+    pointer(text(), "pointerup", 300, 300);
+    const xterm = vi.fn();
+    text().addEventListener("keydown", xterm);
+    const key = (name: string) => {
+      const event = new KeyboardEvent("keydown", { key: name, bubbles: true, cancelable: true });
+      text().dispatchEvent(event);
+      return event;
+    };
+    expect(key("ArrowRight").defaultPrevented).toBe(true);
+    expect(radialStore.getState().ring!.hovered).toBe(0);
+    key("ArrowLeft");
+    expect(radialStore.getState().ring!.hovered).toBe(7);
+    key("ArrowLeft");
+    key("ArrowLeft");
+    key("ArrowUp");
+    key("ArrowDown");
+    expect(radialStore.getState().ring!.hovered).toBe(5);
+    key("ArrowLeft");
+    // « Close », clockwise at the bottom.
+    expect(radialStore.getState().ring!.hovered).toBe(4);
+    expect(xterm).not.toHaveBeenCalled();
+    key("Enter");
+    expect(radialStore.getState().ring).toBeNull();
+    await nextFrame();
+    expect(requestClose).toHaveBeenCalledWith("isis");
+    // Closed, the ring lets the keys go by again.
+    expect(key("ArrowRight").defaultPrevented).toBe(false);
+    expect(xterm).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps Enter on a greyed wedge from running or going to the terminal; lets it go when nothing is pointed at", () => {
+    pointer(text(), "pointerdown", 300, 300);
+    pointer(text(), "pointerup", 300, 300);
+    const enter = () => {
+      const event = new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true });
+      text().dispatchEvent(event);
+      return event.defaultPrevented;
+    };
+    expect(enter()).toBe(false);
+    // « Copy », at the top: nothing is selected in the terminal.
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight" }));
+    expect(enter()).toBe(true);
+    expect(radialStore.getState().ring).toMatchObject({ hovered: 0 });
+  });
+
   it("stays open after a short right click; Escape, the wheel or a press outside close it", () => {
     const open = () => {
       pointer(canvas(), "pointerdown", 500, 400);

@@ -1,5 +1,6 @@
 import { Channel } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import type { ExtensionChoice } from "./claudeExtensions";
 import { call } from "./invoke";
 
 export type ShellKind = "default" | "powershell" | "pwsh" | "cmd" | "gitbash";
@@ -20,6 +21,8 @@ export interface ClaudeLaunch {
   permission?: Permission;
   /** The profile's folder: this terminal's `CLAUDE_CONFIG_DIR` (spec comptes §4). */
   configDir?: string;
+  /** The skills, plugins, MCP servers and subagents this terminal turns off or on. */
+  extensions?: ExtensionChoice;
 }
 
 /** Agents of the launch menu (spec habillage §8), in menu order. */

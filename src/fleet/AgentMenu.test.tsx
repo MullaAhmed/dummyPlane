@@ -6,6 +6,7 @@ import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { requestUi } from "@/commands/uiRequests";
 import { AGENT_IDS, type AgentInfo } from "@/ipc/pty";
+import { uiStore } from "@/store/ui";
 import { agentsStore } from "./agentsStore";
 import { AgentMenu } from "./AgentMenu";
 import { installAgent, pullOllamaModel } from "./installAgent";
@@ -32,6 +33,7 @@ beforeEach(() => {
   vi.mocked(installAgent).mockClear();
   vi.mocked(pullOllamaModel).mockClear();
   agentsStore.setState({ agents: [], shells: [], loaded: false });
+  uiStore.getState().setPlacing(null);
   mockIPC((cmd) => {
     if (cmd === "list_agents") return agents;
     if (cmd === "list_shells") return ["powershell"];
@@ -148,6 +150,60 @@ it("speaks English", async () => {
   const prompt = document.body.querySelector("[data-install-prompt]")!;
   expect(prompt.textContent).toContain("This official command will run in a terminal on the canvas (PowerShell):");
   expect(button("Run in a terminal")).toBeTruthy();
+});
+
+/** The field a label names, through its `for`. */
+const field = (label: string) => {
+  const tag = [...document.body.querySelectorAll("label")].find((l) => l.textContent === label);
+  return tag ? (document.getElementById(tag.htmlFor) as HTMLInputElement | null) : null;
+};
+const type = async (input: HTMLInputElement, value: string) => {
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+};
+const placing = () => uiStore.getState().placing;
+
+it("launches the palette's custom agent on the command typed in its form", async () => {
+  await openMenu();
+  await act(async () => requestUi({ kind: "agentMenu", view: "options" }));
+  const command = field("Command to run")!;
+  expect(document.getElementById(command.getAttribute("aria-describedby")!)!.textContent).toBe("A Custom terminal runs it in its shell when it starts.");
+  expect(button("Launch the custom command")!.disabled).toBe(true);
+  await type(command, "npm run dev");
+  await act(async () => button("Launch the custom command")!.click());
+  expect(placing()).toEqual({ agent: "custom", options: expect.objectContaining({ command: "npm run dev", cwd: expect.any(String) }) });
+});
+
+it("opens the Custom row on its command, the last one filled in, before anything runs", async () => {
+  await openMenu();
+  await act(async () => button("Custom")!.click());
+  expect(placing()).toBeNull();
+  await type(field("Command to run")!, "cargo watch");
+  await act(async () => button("Launch the custom command")!.click());
+  expect(placing()).toMatchObject({ agent: "custom", options: { command: "cargo watch" } });
+  await act(async () => uiStore.getState().setPlacing(null));
+  await act(async () => host.querySelector("button")!.click());
+  await act(async () => button("Custom")!.click());
+  expect(field("Command to run")!.value).toBe("cargo watch");
+  expect(placing()).toBeNull();
+});
+
+it("keeps the command out of the footer's Options and out of the other agents' launches", async () => {
+  await openMenu();
+  await act(async () => button("Custom")!.click());
+  await type(field("Command to run")!, "npm run dev");
+  await act(async () => button("Custom command")!.click());
+  await act(async () => button("Options")!.click());
+  expect([...document.body.querySelectorAll("label")].map((l) => l.textContent)).toEqual(["Folder", "Shell", "Title"]);
+  expect(field("Command to run")).toBeNull();
+  expect(button("Launch the custom command")).toBeUndefined();
+  expect(document.body.textContent).toContain("The next agents you launch from this menu use these.");
+  await type(field("Title")!, "API");
+  await act(async () => button("Launch options")!.click());
+  await act(async () => button("Claude")!.click());
+  expect(placing()).toMatchObject({ agent: "claude", options: { title: "API", command: "" } });
 });
 
 it("pulls an Ollama model from its picker, the menu closing on the terminal (spec installation §5)", async () => {

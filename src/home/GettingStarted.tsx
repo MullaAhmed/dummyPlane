@@ -1,5 +1,6 @@
 import { Check, ExternalLink } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { Button } from "@/components/ui/button";
 import { useAgents } from "@/fleet/agentsStore";
 import { useMessages } from "@/i18n";
 import { keyLabel } from "@/i18n/format";
@@ -25,15 +26,16 @@ export function GettingStarted({ hasProject }: { hasProject: boolean }) {
     { id: "launch", title: t.launch, hint: t.launchHint(keyLabel("Ctrl+K")), done: false },
   ];
   return (
-    <section data-getting-started className="dp-glass-strong mb-6 rounded-lg p-5">
-      <h2 className="mb-4 text-sm font-semibold text-dp-text">{t.title}</h2>
+    <section data-getting-started className="dp-glass-strong mb-6 rounded-xl p-6">
+      <h2 className="mb-4 text-sm font-medium text-dp-text">{t.title}</h2>
       <ol className="grid gap-4 sm:grid-cols-3">
         {steps.map((step, i) => (
           <li key={step.id} data-step={step.id} data-done={String(step.done)} className="flex items-start gap-3">
+            {/* The step's number in a quiet hairline circle; a done step, its tick in the positive colour. */}
             <span
               className={cn(
-                "grid size-6 shrink-0 place-items-center rounded-full font-mono text-[11px] font-semibold",
-                step.done ? "bg-dp-ok/15 text-dp-ok" : "bg-dp-accent-soft text-dp-accent-ink",
+                "grid size-6 shrink-0 rounded-full place-items-center border font-mono text-xs tabular-nums",
+                step.done ? "border-transparent bg-dp-ok/15 text-dp-ok" : "border-dp-line text-dp-text-2",
               )}
             >
               {step.done ? (
@@ -46,17 +48,18 @@ export function GettingStarted({ hasProject }: { hasProject: boolean }) {
               )}
             </span>
             <div className="min-w-0">
-              <p className={cn("text-[13px] font-semibold", step.done ? "text-dp-text-3 line-through" : "text-dp-text")}>{step.title}</p>
+              <p className={cn("text-(length:--text-ui) font-medium", step.done ? "text-dp-text-3 line-through" : "text-dp-text")}>{step.title}</p>
               <p className="text-xs text-dp-text-2">{step.hint}</p>
               {step.id === "project" && !step.done && (
-                <button
-                  type="button"
+                <Button
+                  variant="ghost"
+                  size="xs"
                   data-link
                   onClick={() => void openUrl(GIT_DOWNLOAD)}
-                  className="-mx-1.5 mt-1 flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs text-dp-accent-ink transition-[color,background-color] duration-150 ease-out hover:bg-dp-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] motion-reduce:transition-none [&_svg]:size-3.5"
+                  className="-mx-2 mt-1 rounded-md px-2 font-normal text-dp-accent-ink hover:text-dp-accent-ink"
                 >
                   {t.installGit} <ExternalLink />
-                </button>
+                </Button>
               )}
             </div>
           </li>

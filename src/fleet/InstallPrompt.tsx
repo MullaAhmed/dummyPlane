@@ -3,13 +3,18 @@ import { ArrowLeft, ExternalLink } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useMessages } from "@/i18n";
 import { npmAvailable, refreshPath, type AgentId } from "@/ipc/pty";
+import { Button } from "@/components/ui/button";
 import { SHELL_LABELS } from "@/nodes/terminal/launch";
-import { AccentButton } from "@/shell/buttons";
 import { AGENTS } from "./catalog";
 import { AGENT_INSTALLS } from "./installCommands";
 import { fleetMessages } from "./messages";
 
 const NODE_DOWNLOAD = "https://nodejs.org/en/download";
+
+/** The way back to the agent list: quiet text whose hover fill reaches past it, the text staying in place. */
+export const BACK = "-ml-1.5 gap-2 self-start rounded-md px-1.5 font-normal text-dp-text-2 hover:text-dp-text";
+/** A text link of these steps: the ink, underlined on hover, sized by its text. */
+export const LINK = "h-auto gap-1 rounded-sm p-0 text-xs font-normal text-dp-accent-ink";
 
 /** The whole command, read before the click that runs it (spec installation §2). */
 export function InstallPrompt({ agent, onBack, onRun }: { agent: AgentId; onBack: () => void; onRun: () => void }) {
@@ -34,29 +39,29 @@ export function InstallPrompt({ agent, onBack, onRun }: { agent: AgentId; onBack
   if (!install) return null;
   return (
     <div data-install-prompt={agent} className="grid gap-2 p-1">
-      <button type="button" onClick={onBack} className="flex items-center gap-1.5 self-start rounded-md text-xs text-dp-text-2 transition-[color] duration-150 ease-out hover:text-dp-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none">
+      <Button type="button" variant="ghost" size="xs" onClick={onBack} className={BACK}>
         <ArrowLeft className="size-3.5" /> {t.installAgent(AGENTS[agent].label)}
-      </button>
+      </Button>
       <p className="text-xs text-dp-text-2">{t.runsIn(SHELL_LABELS[install.shell])}</p>
-      <code className="block break-all rounded-md bg-dp-field px-2 py-1.5 font-mono text-xs text-dp-text">{install.command}</code>
+      <code className="block rounded-md bg-dp-field px-2 py-1.5 font-mono text-xs break-all text-dp-text">{install.command}</code>
       {needsNode && !npmMissing && <p className="text-xs text-dp-text-2">{t.needsNode}</p>}
       {npmMissing && (
         <div className="grid justify-items-start gap-1">
           <p className="text-xs text-dp-danger">{t.npmMissing}</p>
-          <button type="button" data-link onClick={() => void openUrl(NODE_DOWNLOAD)} className="flex items-center gap-1 rounded-md text-xs text-dp-accent-ink underline-offset-4 transition-[color] duration-150 ease-out hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none">
+          <Button type="button" variant="link" data-link onClick={() => void openUrl(NODE_DOWNLOAD)} className={LINK}>
             {t.getNode} <ExternalLink className="size-3.5" />
-          </button>
-          <button type="button" onClick={() => void lookForNpm()} className="rounded-md text-xs text-dp-accent-ink underline-offset-4 transition-[color] duration-150 ease-out hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none">
+          </Button>
+          <Button type="button" variant="link" onClick={() => void lookForNpm()} className={LINK}>
             {t.recheck}
-          </button>
+          </Button>
         </div>
       )}
-      <button type="button" data-link onClick={() => void openUrl(install.docs)} className="flex items-center gap-1 rounded-md text-xs text-dp-accent-ink underline-offset-4 transition-[color] duration-150 ease-out hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none">
+      <Button type="button" variant="link" data-link onClick={() => void openUrl(install.docs)} className={LINK}>
         {t.officialPage} <ExternalLink className="size-3.5" />
-      </button>
-      <AccentButton onClick={onRun} disabled={npmMissing} className="justify-center text-xs">
+      </Button>
+      <Button type="button" onClick={onRun} disabled={npmMissing} className="rounded-md text-xs">
         {t.run}
-      </AccentButton>
+      </Button>
     </div>
   );
 }

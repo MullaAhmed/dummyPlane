@@ -1,3 +1,4 @@
+import { readExtensionChoice } from "@/ipc/claudeExtensions";
 import type { AgentId, OllamaLaunch, ShellKind, SpawnSpec } from "@/ipc/pty";
 import { AGENTS } from "@/fleet/catalog";
 import type { TerminalPayload } from "@/nodes/types";
@@ -73,6 +74,8 @@ export function buildSpawnSpec(payload: TerminalPayload, mode: LaunchMode): Spaw
     if (payload.remoteControl) spec.claude.remoteControl = payload.name || payload.title;
     if (payload.model) spec.claude.model = payload.model;
     if (payload.permission) spec.claude.permission = payload.permission;
+    const extensions = readExtensionChoice(payload.extensions);
+    if (extensions) spec.claude.extensions = extensions;
     // The profile's folder if it still exists, else the default account (spec comptes §3).
     const profile = profileNamed(payload.accountId);
     if (profile) spec.claude.configDir = profile.configDir;

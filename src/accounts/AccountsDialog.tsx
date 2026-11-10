@@ -3,10 +3,16 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Separator } from "@/components/ui/separator";
 import { launchLogin } from "@/fleet/quickActions";
 import { useMessages } from "@/i18n";
+import { cn } from "@/lib/utils";
+import { AccentButton, Hint } from "@/shell/buttons";
 import { accountsStore, addProfile, removeProfile, useAccounts, activateProfile } from "./store";
 import { accountsMessages } from "./messages";
+
+/** A profile's actions: one size, quiet until hovered. */
+const ROW_BUTTON = "rounded-md font-normal text-dp-text-2 hover:text-dp-text";
 
 /** "Claude accounts" (spec comptes §6): profiles are a name and a folder; the login happens in Claude. */
 export function AccountsDialog() {
@@ -30,10 +36,10 @@ export function AccountsDialog() {
           <DialogTitle>{t.title}</DialogTitle>
           <DialogDescription>{t.description}</DialogDescription>
         </DialogHeader>
-        <ul className="grid gap-1.5 text-[13px]">
+        <ul className="grid gap-2 text-(length:--text-ui)">
           <Row name={t.defaultName} folder={t.defaultHint} active={active === null} activeLabel={t.active}>
             {active !== null && (
-              <Button size="sm" variant="ghost" onClick={guarded(() => activateProfile(null))}>
+              <Button size="sm" variant="ghost" className={ROW_BUTTON} onClick={guarded(() => activateProfile(null))}>
                 {t.use}
               </Button>
             )}
@@ -41,33 +47,39 @@ export function AccountsDialog() {
           {profiles.map((p) => (
             <Row key={p.id} name={p.name} folder={p.configDir} active={active === p.id} activeLabel={t.active}>
               {active !== p.id && (
-                <Button size="sm" variant="ghost" onClick={guarded(() => activateProfile(p.id))}>
+                <Button size="sm" variant="ghost" className={ROW_BUTTON} onClick={guarded(() => activateProfile(p.id))}>
                   {t.use}
                 </Button>
               )}
-              <Button size="sm" variant="ghost" title={t.loginHint} onClick={guarded(() => launchLogin(p.id).then((placed) => !placed && toast(t.noProject)))}>
-                {t.login}
-              </Button>
-              <Button size="sm" variant="ghost" title={t.removeHint} className="text-dp-danger hover:text-dp-danger" onClick={guarded(() => removeProfile(p.id))}>
-                {t.remove}
-              </Button>
+              {/* What these two do is not in their one word: a hint says it. */}
+              <Hint label={t.loginHint}>
+                <Button size="sm" variant="ghost" className={ROW_BUTTON} onClick={guarded(() => launchLogin(p.id).then((placed) => !placed && toast(t.noProject)))}>
+                  {t.login}
+                </Button>
+              </Hint>
+              <Hint label={t.removeHint}>
+                <Button size="sm" variant="ghost" className={cn(ROW_BUTTON, "text-dp-danger hover:bg-dp-danger/10 hover:text-dp-danger")} onClick={guarded(() => removeProfile(p.id))}>
+                  {t.remove}
+                </Button>
+              </Hint>
             </Row>
           ))}
         </ul>
+        <Separator className="bg-dp-line" />
         <form
-          className="grid gap-2 border-t border-dp-line pt-4"
+          className="grid gap-2"
           onSubmit={(e) => {
             e.preventDefault();
             void add();
           }}
         >
-          <p className="dp-label">{t.addTitle}</p>
-          <Input aria-label={t.nameLabel} placeholder={t.namePlaceholder} value={name} onChange={(e) => setName(e.target.value)} />
-          <Input aria-label={t.folderLabel} placeholder={t.folderPlaceholder} value={folder} onChange={(e) => setFolder(e.target.value)} />
+          <p className="dp-label mb-1">{t.addTitle}</p>
+          <Input aria-label={t.nameLabel} placeholder={t.namePlaceholder} value={name} onChange={(e) => setName(e.target.value)} className="rounded-md" />
+          <Input aria-label={t.folderLabel} placeholder={t.folderPlaceholder} value={folder} onChange={(e) => setFolder(e.target.value)} className="rounded-md font-mono text-xs md:text-xs" />
           <div className="flex justify-end">
-            <Button type="submit" size="sm" disabled={!name.trim() || !folder.trim()}>
+            <AccentButton type="submit" disabled={!name.trim() || !folder.trim()} className="h-7 px-3">
               {t.add}
-            </Button>
+            </AccentButton>
           </div>
         </form>
       </DialogContent>
@@ -77,13 +89,14 @@ export function AccountsDialog() {
 
 function Row(props: { name: string; folder: string; active: boolean; activeLabel: string; children?: React.ReactNode }) {
   return (
-    <li data-profile={props.name} className="flex items-center gap-2 rounded-md bg-dp-card px-2.5 py-2">
+    <li data-profile={props.name} className="flex items-center gap-2 rounded-md bg-dp-card px-3 py-2">
       <div className="min-w-0 flex-1">
         <p className="truncate text-dp-text">
           {props.name}
-          {props.active && <span className="ml-2 rounded-full bg-dp-accent-soft px-2 py-0.5 text-[11px] text-dp-accent-ink">{props.activeLabel}</span>}
+          {/* The profile in use: quiet accent text, no pill. */}
+          {props.active && <span className="ml-2 text-xs text-dp-accent-ink">{props.activeLabel}</span>}
         </p>
-        <p className="truncate font-mono text-[11px] text-dp-text-2">{props.folder}</p>
+        <p className="truncate font-mono text-xs text-dp-text-2">{props.folder}</p>
       </div>
       {props.children}
     </li>

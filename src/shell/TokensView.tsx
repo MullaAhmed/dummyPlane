@@ -7,6 +7,7 @@ import { formatDecimal } from "@/i18n/format";
 import { tokenUsage, type TokenReport } from "@/ipc/tokens";
 import { sessionOf, useNodes } from "@/store/nodes";
 import { bars, byAgent, total } from "@/usage/tokens";
+import { IconButton } from "./buttons";
 import { shellMessages } from "./messages";
 
 /** "67.8 k", "1.2 M" tokens. */
@@ -53,19 +54,13 @@ export function TokensView({ onBack }: { onBack: () => void }) {
   return (
     <div data-tokens className="flex max-h-[70vh] flex-col gap-4 overflow-y-auto">
       <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={onBack}
-          aria-label={u.tokensBack}
-          title={u.tokensBack}
-          className="grid size-6 place-items-center rounded-md text-dp-text-2 transition-[color,background-color,transform] duration-150 ease-out motion-reduce:transition-none hover:bg-dp-hover hover:text-dp-text active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50"
-        >
-          <ArrowLeft className="size-3.5" />
-        </button>
+        <IconButton label={u.tokensBack} onClick={onBack} className="-ml-1">
+          <ArrowLeft />
+        </IconButton>
         <p className="dp-label">{u.tokensTitle}</p>
       </div>
       {hasProfiles && (
-        <p data-tokens-scope className="text-[11px] text-dp-text-3">
+        <p data-tokens-scope className="text-xs text-dp-text-3">
           {u.tokensDefaultOnly}
         </p>
       )}
@@ -78,7 +73,7 @@ export function TokensView({ onBack }: { onBack: () => void }) {
       ) : (
         <>
           <section className="flex flex-col gap-1.5">
-            <div role="img" aria-label={u.tokensChart(formatTokens(peak))} className="flex h-24 items-end gap-[2px]">
+            <div role="img" aria-label={u.tokensChart(formatTokens(peak))} className="flex h-24 items-end gap-0.5">
               {columns.map((column) => (
                 <div
                   key={column.date}
@@ -92,7 +87,7 @@ export function TokensView({ onBack }: { onBack: () => void }) {
                 </div>
               ))}
             </div>
-            <div className="flex justify-between font-mono text-[11px] text-dp-text-3">
+            <div className="flex justify-between font-mono text-xs text-dp-text-3">
               <span>{columns[0]?.date.slice(5)}</span>
               <span className="flex items-center gap-1">
                 <span className="size-1.5 rounded-full bg-dp-accent" />
@@ -107,10 +102,10 @@ export function TokensView({ onBack }: { onBack: () => void }) {
               <div key={row.label} data-agent-row className="flex flex-col text-xs">
                 <div className="flex items-center gap-2">
                   <span className={row.other ? "text-dp-text-2" : "text-dp-text"}>{row.label}</span>
-                  {row.model && <span className="truncate font-mono text-[11px] text-dp-text-3">{row.model}</span>}
+                  {row.model && <span className="truncate font-mono text-xs text-dp-text-3">{row.model}</span>}
                   <span className="ml-auto font-mono text-dp-text">{formatTokens(total(row.counts))}</span>
                 </div>
-                <span className="font-mono text-[11px] text-dp-text-3">
+                <span className="font-mono text-xs text-dp-text-3">
                   {u.tokensDetail(formatTokens(row.counts.input), formatTokens(row.counts.output), formatTokens(row.counts.cacheRead + row.counts.cacheWrite))}
                 </span>
               </div>
@@ -129,7 +124,7 @@ export function TokensView({ onBack }: { onBack: () => void }) {
           )}
         </>
       )}
-      <p className="text-[11px] text-dp-text-3">
+      <p className="text-xs text-dp-text-3">
         {report ? `${u.tokensFiles(report.filesScanned)}${report.truncated ? ` · ${u.tokensTruncated}` : ""} · ` : ""}
         {u.tokensLocal}
       </p>

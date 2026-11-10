@@ -23,5 +23,5 @@ describe("the steps' frieze (spec orchestrateur §5.1)", () => {
 });
 
 it("colours a budget's bar with the identity's tokens (spec orchestrateur §8.3)", () => {
-  expect(BUDGET_COLOR).toEqual({ ok: "var(--dp-ok)", late: "var(--dp-accent)", over: "var(--dp-danger)" });
+  expect(BUDGET_COLOR).toEqual({ ok: "var(--dp-ok)", late: "var(--dp-wait)", over: "var(--dp-danger)" });
 });

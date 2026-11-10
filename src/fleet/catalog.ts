@@ -76,7 +76,11 @@ export const AGENTS: Record<AgentId, AgentMeta> = {
 
 export const AGENT_ORDER: AgentId[] = [...AGENT_IDS];
 
-/** Agents of this tint work in indigo rather than orange (spec theme §7.2). */
+/**
+ * An agent tint, kept as a name because the status pill still takes an `indigo` flag (pillOf's
+ * `workingIndigo` tone). Tints are identity for an agent's icon only: frames are neutral, and
+ * the status dot looks the same for every agent.
+ */
 export const INDIGO = "#707de3";
 
 /** Agents that start without options: Ollama needs a model, Custom a command. */

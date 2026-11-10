@@ -1,8 +1,8 @@
-import { ArrowDownCircle } from "lucide-react";
+import { CircleArrowDown } from "lucide-react";
 import { toast } from "sonner";
 import { useStore } from "zustand";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { AccentButton } from "./buttons";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { installUpdate, updatesStore, useUpdates } from "@/app/updates";
 import { messages, useMessages } from "@/i18n";
@@ -11,23 +11,21 @@ import { isRunning, terminalStatusStore } from "@/store/terminalStatus";
 import { shellMessages } from "./messages";
 import { ReleaseNotes } from "./ReleaseNotes";
 
-const buttonBase =
-  "rounded-md transition-[color,background-color,border-color,opacity,transform] duration-150 ease-out motion-reduce:transition-none active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50";
-
-/** "Version x available" in the title bar, once a check found one (spec première version §6.4). */
+/** "Version x available" in the title bar, once a check found one (spec première version §6.4): accent text, no pill. */
 export function UpdateChip() {
   const t = useMessages(shellMessages).update;
   const available = useUpdates((s) => s.available);
   if (!available) return null;
   return (
-    <button
-      type="button"
+    <Button
+      variant="ghost"
+      size="xs"
       onClick={() => updatesStore.setState({ dialogOpen: true })}
-      className="flex h-6 items-center gap-1 rounded-full bg-dp-accent-soft px-2 text-[11px] font-medium text-dp-accent transition-[filter,transform] duration-150 ease-out motion-reduce:transition-none hover:brightness-110 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50"
+      className="gap-1.5 rounded-md px-2 font-normal text-dp-accent-ink hover:text-dp-accent-ink"
     >
-      <ArrowDownCircle className="size-3.5" />
+      <CircleArrowDown />
       {t.chip(available.version)}
-    </button>
+    </Button>
   );
 }
 
@@ -59,21 +57,12 @@ export function UpdateDialog() {
         </DialogHeader>
         {available?.notes && <ReleaseNotes notes={available.notes} />}
         <DialogFooter className="border-dp-line bg-dp-hover">
-          <Button
-            variant="ghost"
-            onClick={close}
-            disabled={busy}
-            className={cn(buttonBase, "text-dp-text-2 hover:bg-dp-hover hover:text-dp-text")}
-          >
+          <Button variant="ghost" onClick={close} disabled={busy} className="rounded-md text-dp-text-2 hover:text-dp-text">
             {t.later}
           </Button>
-          <Button
-            onClick={install}
-            disabled={busy}
-            className={cn(buttonBase, "bg-dp-accent text-dp-on-accent hover:brightness-110")}
-          >
+          <AccentButton onClick={install} disabled={busy} className="px-3 text-sm tabular-nums">
             {busy ? t.downloading(Math.round((progress ?? 0) * 100)) : t.install}
-          </Button>
+          </AccentButton>
         </DialogFooter>
       </DialogContent>
     </Dialog>

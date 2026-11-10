@@ -1,7 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BookOpen, Plus, RotateCw, X } from "lucide-react";
 import { useStore } from "zustand";
+import { PanelTabs, PanelTabsContent, PanelTabsList, PanelTabsTrigger } from "@/components/PanelTabs";
+import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { useTheme } from "@/app/theme";
 import { useMessages } from "@/i18n";
 import { cn } from "@/lib/utils";
@@ -23,22 +26,8 @@ import { searchNotes } from "./search";
 
 type Tab = "edit" | "read" | "graph";
 
-function TabButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) {
-  return (
-    <button
-      type="button"
-      role="tab"
-      aria-selected={active}
-      onClick={onClick}
-      className={cn(
-        "rounded-full px-2.5 py-0.5 text-xs text-dp-text-2 transition-[color,background-color] duration-150 ease-out hover:bg-dp-hover hover:text-dp-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none",
-        active && "bg-dp-accent-soft text-dp-text hover:bg-dp-accent-soft",
-      )}
-    >
-      {children}
-    </button>
-  );
-}
+/** A field of the notes' list: shadcn's Input at the panel's density. */
+const FIELD = "h-7 rounded-md px-2 text-xs md:text-xs";
 
 /** The project's notes (spec notes): one open at a time, under the code studio's guards. */
 export default function NotesDialog({ projectId }: { projectId: string }) {
@@ -134,7 +123,8 @@ export default function NotesDialog({ projectId }: { projectId: string }) {
     }
   };
 
-  const shown = !file || loading || refused ? null : tab;
+  // What the reading and editing views show while no note is ready.
+  const waiting = !file ? <Message>{t.pickNote}</Message> : loading ? <Message>{t.readingNote}</Message> : refused ? <Message>{refused}</Message> : null;
 
   return (
     <Dialog open onOpenChange={(next) => !next && state.requestClose()}>
@@ -151,154 +141,142 @@ export default function NotesDialog({ projectId }: { projectId: string }) {
           if (tab !== "edit" || !editor.current?.escape()) state.requestClose();
         }}
       >
-        <header className="flex h-11 shrink-0 items-center gap-2 border-b border-dp-line px-3">
-          <BookOpen className="size-4 shrink-0 text-dp-accent" />
-          <DialogTitle className="shrink-0 text-[13px] font-semibold">
-            {t.title}
-          </DialogTitle>
-          {file && (
-            <span className="min-w-0 truncate font-mono text-[11px] text-dp-text-3" title={file}>
-              {file}
-            </span>
-          )}
-          {dirty && <span data-dirty title={t.modified} aria-label={t.modified} className="size-2 shrink-0 rounded-full bg-dp-accent" />}
-          <span role="tablist" className="ml-auto flex shrink-0 items-center gap-1">
-            <TabButton active={tab === "edit"} onClick={() => setTab("edit")}>
-              {t.tabEdit}
-            </TabButton>
-            <TabButton active={tab === "read"} onClick={() => setTab("read")}>
-              {t.tabRead}
-            </TabButton>
-            <TabButton active={tab === "graph"} onClick={() => setTab("graph")}>
-              {t.tabGraph}
-            </TabButton>
-          </span>
-          <span className="flex shrink-0 items-center gap-1">
-            <AccentButton disabled={!dirty || saving} onClick={() => void state.save()}>
-              {saving ? t.saving : t.save}
-            </AccentButton>
-            <IconButton label={t.refresh} onClick={() => void refresh()}>
-              <RotateCw />
-            </IconButton>
-            <IconButton label={t.close} onClick={() => state.requestClose()}>
-              <X />
-            </IconButton>
-          </span>
-        </header>
-        <div className="flex min-h-0 flex-1">
-          <div className="flex w-[260px] shrink-0 flex-col border-r border-dp-line">
-            <div className="flex shrink-0 items-center gap-1 p-2">
-              <input
-                aria-label={t.searchLabel}
-                placeholder={t.searchPlaceholder(notes.length)}
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                className="h-7 min-w-0 flex-1 rounded-md bg-dp-field px-2 text-xs text-dp-text outline-none transition-[box-shadow] duration-150 ease-out placeholder:text-dp-text-3 focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none"
-              />
-              <IconButton label={t.newNote} onClick={() => askName("")}>
-                <Plus />
-              </IconButton>
-            </div>
-            {creating !== null && (
-              <div className="shrink-0 px-2 pb-2">
-                <input
-                  ref={nameField}
-                  autoFocus
-                  aria-label={t.nameLabel}
-                  aria-invalid={badName}
-                  placeholder={t.namePlaceholder}
-                  value={creating}
-                  onChange={(e) => {
-                    setCreating(e.target.value);
-                    setBadName(false);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") void create();
-                  }}
-                  className="h-7 w-full rounded-md bg-dp-field px-2 text-xs text-dp-text outline-none transition-[box-shadow] duration-150 ease-out placeholder:text-dp-text-3 focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none"
-                />
-                {badName && <p className="pt-1 text-[11px] text-dp-danger">{t.badName}</p>}
-              </div>
+        <PanelTabs value={tab} onValueChange={(next) => setTab(next as Tab)} className="min-h-0 flex-1">
+          <header className="flex h-10 shrink-0 items-center gap-2 border-b border-dp-line px-3">
+            <BookOpen className="size-4 shrink-0 text-dp-text-2" />
+            <DialogTitle className="shrink-0 text-sm font-medium">{t.title}</DialogTitle>
+            {file && (
+              <span className="min-w-0 truncate font-mono text-xs text-dp-text-3" title={file}>
+                {file}
+              </span>
             )}
-            <div className="min-h-0 flex-1 overflow-y-auto pb-1">
-              {listError ? (
-                <p className="px-3 py-2 text-xs text-dp-danger">{listError}</p>
-              ) : !list ? (
-                <p className="px-3 py-2 text-xs text-dp-text-2">{t.reading}</p>
-              ) : list.notes.length === 0 ? (
-                <p className="px-3 py-2 text-xs text-dp-text-2">{t.empty}</p>
-              ) : hits.length === 0 ? (
-                <p className="px-3 py-2 text-xs text-dp-text-2">{t.noResult}</p>
-              ) : (
-                hits.map((hit) => (
-                  <button
-                    key={hit.name}
-                    type="button"
-                    data-note={hit.name}
-                    title={hit.name}
-                    aria-current={hit.name === file}
-                    onClick={() => open(hit.name)}
-                    className={cn(
-                      "block w-full px-3 py-1 text-left transition-[background-color] duration-150 ease-out hover:bg-dp-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-dp-accent/50 motion-reduce:transition-none",
-                      hit.name === file && "bg-dp-accent-soft hover:bg-dp-accent-soft",
-                    )}
-                  >
-                    <span className="block truncate text-[13px] text-dp-text">{hit.name}</span>
-                    {hit.excerpt && <span className="block truncate text-[11px] text-dp-text-3">{hit.excerpt}</span>}
-                  </button>
-                ))
+            {dirty && <span data-dirty title={t.modified} aria-label={t.modified} className="size-2 shrink-0 rounded-full bg-dp-accent" />}
+            <PanelTabsList className="ml-auto">
+              <PanelTabsTrigger value="edit">{t.tabEdit}</PanelTabsTrigger>
+              <PanelTabsTrigger value="read">{t.tabRead}</PanelTabsTrigger>
+              <PanelTabsTrigger value="graph">{t.tabGraph}</PanelTabsTrigger>
+            </PanelTabsList>
+            <span className="flex shrink-0 items-center gap-1">
+              <AccentButton disabled={!dirty || saving} onClick={() => void state.save()} className="h-7 px-3 text-xs">
+                {saving ? t.saving : t.save}
+              </AccentButton>
+              <IconButton label={t.refresh} onClick={() => void refresh()}>
+                <RotateCw />
+              </IconButton>
+              <IconButton label={t.close} onClick={() => state.requestClose()}>
+                <X />
+              </IconButton>
+            </span>
+          </header>
+          <div className="flex min-h-0 flex-1">
+            <div className="flex w-65 shrink-0 flex-col border-r border-dp-line">
+              <div className="flex shrink-0 items-center gap-1 p-2">
+                <Input
+                  aria-label={t.searchLabel}
+                  placeholder={t.searchPlaceholder(notes.length)}
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  className={cn(FIELD, "flex-1")}
+                />
+                <IconButton label={t.newNote} onClick={() => askName("")}>
+                  <Plus />
+                </IconButton>
+              </div>
+              {creating !== null && (
+                <div className="shrink-0 px-2 pb-2">
+                  <Input
+                    ref={nameField}
+                    autoFocus
+                    aria-label={t.nameLabel}
+                    aria-invalid={badName}
+                    placeholder={t.namePlaceholder}
+                    value={creating}
+                    onChange={(e) => {
+                      setCreating(e.target.value);
+                      setBadName(false);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") void create();
+                    }}
+                    className={FIELD}
+                  />
+                  {badName && <p className="pt-1 text-xs text-dp-danger">{t.badName}</p>}
+                </div>
+              )}
+              <div className="min-h-0 flex-1 overflow-y-auto pb-1">
+                {listError ? (
+                  <p className="px-3 py-2 text-xs text-dp-danger">{listError}</p>
+                ) : !list ? (
+                  <p className="px-3 py-2 text-xs text-dp-text-2">{t.reading}</p>
+                ) : list.notes.length === 0 ? (
+                  <p className="px-3 py-2 text-xs text-dp-text-2">{t.empty}</p>
+                ) : hits.length === 0 ? (
+                  <p className="px-3 py-2 text-xs text-dp-text-2">{t.noResult}</p>
+                ) : (
+                  hits.map((hit) => (
+                    // A row of the list, not a control: Button's centred box would be undone class by class.
+                    <button
+                      key={hit.name}
+                      type="button"
+                      data-note={hit.name}
+                      title={hit.name}
+                      aria-current={hit.name === file}
+                      onClick={() => open(hit.name)}
+                      className={cn(
+                        "block w-full px-3 py-1.5 text-left transition-colors duration-150 ease-out hover:bg-dp-hover focus-visible:ring-2 focus-visible:ring-dp-accent/50 focus-visible:outline-none focus-visible:ring-inset motion-reduce:transition-none",
+                        hit.name === file && "bg-dp-accent-soft hover:bg-dp-accent-soft",
+                      )}
+                    >
+                      <span className="block truncate text-sm text-dp-text">{hit.name}</span>
+                      {hit.excerpt && <span className="block truncate text-xs text-dp-text-3">{hit.excerpt}</span>}
+                    </button>
+                  ))
+                )}
+              </div>
+              {list !== null && list.skipped > 0 && <p className="shrink-0 border-t border-dp-line px-3 py-2 text-xs text-dp-text-3">{t.skipped(list.skipped)}</p>}
+            </div>
+            <div className="flex min-w-0 flex-1 flex-col">
+              {disk && <DiskBanner session={session} disk={disk} />}
+              {error && (
+                <p role="status" className="shrink-0 border-b border-dp-line px-3 py-2 text-xs text-dp-danger">
+                  {error}
+                </p>
+              )}
+              <PanelTabsContent value="graph">
+                <NoteGraph notes={notes} current={file} onOpen={open} />
+              </PanelTabsContent>
+              <PanelTabsContent value="read">{waiting ?? <NoteReader text={draft} notes={notes} onOpen={open} onCreate={askName} />}</PanelTabsContent>
+              {/* Mounted while hidden: the views come and go, the editor's undo history stays. */}
+              <PanelTabsContent value="edit" forceMount className="data-[state=inactive]:hidden">
+                {waiting ?? (
+                  <CodeEditor ref={editor} path={`${file}.md`} text={draft} revision={state.revision} theme={theme} onChange={state.edit} onSave={() => void state.save()} />
+                )}
+              </PanelTabsContent>
+              {file && !loading && !refused && tab !== "graph" && (
+                <section data-backlinks aria-label={t.backlinks} className="max-h-[30%] shrink-0 overflow-y-auto border-t border-dp-line px-3 py-2">
+                  <h3 className="dp-label pb-1">{t.backlinks}</h3>
+                  {linking.length === 0 ? (
+                    <p className="text-xs text-dp-text-3">{t.noBacklinks}</p>
+                  ) : (
+                    <ul className="flex flex-wrap gap-x-3 gap-y-1">
+                      {linking.map((note) => (
+                        <li key={note.name}>
+                          <Button
+                            variant="link"
+                            onClick={() => open(note.name)}
+                            className="h-auto rounded-sm p-0 text-xs font-normal text-dp-accent-ink underline underline-offset-2 hover:decoration-2"
+                          >
+                            {note.name}
+                          </Button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </section>
               )}
             </div>
-            {list !== null && list.skipped > 0 && <p className="shrink-0 border-t border-dp-line px-3 py-1.5 text-[11px] text-dp-text-3">{t.skipped(list.skipped)}</p>}
           </div>
-          <div className="flex min-w-0 flex-1 flex-col">
-            {disk && <DiskBanner session={session} disk={disk} />}
-            {error && (
-              <p role="status" className="shrink-0 border-b border-dp-line px-3 py-1.5 text-xs text-dp-danger">
-                {error}
-              </p>
-            )}
-            {tab === "graph" ? (
-              <NoteGraph notes={notes} current={file} onOpen={open} />
-            ) : !file ? (
-              <Message>{t.pickNote}</Message>
-            ) : loading ? (
-              <Message>{t.readingNote}</Message>
-            ) : refused ? (
-              <Message>{refused}</Message>
-            ) : tab === "read" ? (
-              <NoteReader text={draft} notes={notes} onOpen={open} onCreate={askName} />
-            ) : null}
-            {/* Always there once a note is open: the views come and go, the undo history stays. */}
-            {file && !loading && !refused && (
-              <div className={cn("min-h-0 flex-1 flex-col", shown === "edit" ? "flex" : "hidden")}>
-                <CodeEditor ref={editor} path={`${file}.md`} text={draft} revision={state.revision} theme={theme} onChange={state.edit} onSave={() => void state.save()} />
-              </div>
-            )}
-            {file && !loading && !refused && tab !== "graph" && (
-              <section data-backlinks aria-label={t.backlinks} className="max-h-[30%] shrink-0 overflow-y-auto border-t border-dp-line px-3 py-2">
-                <h3 className="dp-label pb-1">{t.backlinks}</h3>
-                {linking.length === 0 ? (
-                  <p className="text-xs text-dp-text-3">{t.noBacklinks}</p>
-                ) : (
-                  <ul className="flex flex-wrap gap-x-3 gap-y-0.5">
-                    {linking.map((note) => (
-                      <li key={note.name}>
-                        <button
-                          type="button"
-                          onClick={() => open(note.name)}
-                          className="rounded-sm text-xs text-dp-accent-ink underline underline-offset-2 transition-[background-color] duration-150 ease-out hover:bg-dp-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none"
-                        >
-                          {note.name}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </section>
-            )}
-          </div>
-        </div>
+        </PanelTabs>
         <UnsavedDialog file={pending ? file : null} saving={saving} onAnswer={(answer) => void state.resolve(answer)} />
       </DialogContent>
     </Dialog>

@@ -1,5 +1,7 @@
 import { useEffect, useRef } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { renameGroup, setGroupFolded } from "@/fleet/groups";
 import { GroupMenu } from "@/fleet/GroupMenu";
 import { countsText, membersIn, waitingText } from "@/fleet/groupSummary";
@@ -75,7 +77,8 @@ function GroupLabel(props: { group: SceneGroup; view: CanvasView; working: numbe
   const role = ROLES[roleId];
   return (
     <div
-      className="absolute flex items-center rounded-t-lg border border-b-0 bg-dp-surface pr-1.5 text-[11px] whitespace-nowrap"
+      // 12px, weight 500, sentence case: the type of Excalidraw's frame name under it, so the grab handle lines up.
+      className="absolute flex items-center rounded-t-md border border-b-0 bg-dp-surface pr-1 text-xs whitespace-nowrap"
       style={{
         // One pixel left so the name lines up with the native one under it, despite the border.
         left: rect.x + LABEL_INSET - 1,
@@ -84,20 +87,22 @@ function GroupLabel(props: { group: SceneGroup; view: CanvasView; working: numbe
         borderColor: `color-mix(in srgb, ${role.color} 60%, transparent)`,
       }}
     >
-      <button
+      {/* A chevron says what it does: a native title is enough, no tooltip over the canvas. */}
+      <Button
         type="button"
+        variant="ghost"
         aria-label={folded ? t.unfoldGroup : t.foldGroup}
         title={folded ? t.unfoldGroup : t.foldGroup}
         onClick={() => setGroupFolded(group.id, !folded)}
-        className="pointer-events-auto grid h-full w-4 shrink-0 place-items-center rounded-md text-dp-text-2 transition-[color,background-color] duration-150 ease-out motion-reduce:transition-none hover:bg-dp-hover hover:text-dp-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50"
+        className="pointer-events-auto h-full w-4 rounded-sm p-0 text-dp-text-2 hover:text-dp-text"
       >
         {folded ? <ChevronRight className="size-3.5" /> : <ChevronDown className="size-3.5" />}
-      </button>
+      </Button>
       <span className="mr-1.5 size-1.5 shrink-0 rounded-full" /* chevron 16 + dot 6 + gap 6 = the 28 px the native name is aligned on */ style={{ backgroundColor: role.color }} />
       {renaming ? (
         <NameField name={group.name} onDone={(name) => name !== null && renameGroup(group.id, name)} />
       ) : (
-        <span className="font-semibold tracking-[0.08em] text-dp-text uppercase">{group.name}</span>
+        <span className="font-medium text-dp-text">{group.name}</span>
       )}
       {speciality && (
         <span title={speciality} className="pointer-events-auto ml-2 max-w-40 truncate text-dp-text-2">
@@ -128,7 +133,7 @@ function NameField({ name, onDone }: { name: string; onDone: (name: string | nul
     onDone(value);
   };
   return (
-    <input
+    <Input
       ref={field}
       defaultValue={name}
       aria-label={t.groupNameLabel}
@@ -139,7 +144,8 @@ function NameField({ name, onDone }: { name: string; onDone: (name: string | nul
         if (e.key === "Enter") e.currentTarget.blur();
         if (e.key === "Escape") finish(null);
       }}
-      className="pointer-events-auto rounded-md bg-dp-card px-1 font-semibold tracking-[0.08em] text-dp-text uppercase outline-none ring-1 ring-dp-accent"
+      // Sized by its `size`, in the label's own type; the ink ring says it is being edited.
+      className="pointer-events-auto h-5 w-auto rounded-sm border-0 bg-dp-card px-1 py-0 text-xs font-medium ring-1 ring-dp-accent focus-visible:ring-1 focus-visible:ring-dp-accent md:text-xs"
     />
   );
 }

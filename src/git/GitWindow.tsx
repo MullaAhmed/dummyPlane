@@ -1,10 +1,14 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { GitBranch, RotateCw, Undo2, X } from "lucide-react";
 import { toast } from "sonner";
+import { PanelTabs, PanelTabsContent, PanelTabsList, PanelTabsTrigger } from "@/components/PanelTabs";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useMessages } from "@/i18n";
-import { repoCommit, repoDiscard, repoHistory, repoPush, repoState, type LogEntry, type RepoState } from "@/ipc/repo";
+import { repoCommit, repoDiscard, repoPush, repoState, type RepoState } from "@/ipc/repo";
 import type { ChangedFile } from "@/ipc/review";
 import { cn } from "@/lib/utils";
 import { FILE_STATUS } from "@/review/DiffRow";
@@ -15,9 +19,17 @@ import { BOTTOM_BAR_HEIGHT, TOP_ROW_HEIGHT } from "@/shell/layout";
 import { useProjects } from "@/store/projects";
 import { GitDiff, GitMessage } from "./GitDiff";
 import { gitWindowStore, useGitWindow } from "./gitWindowStore";
+import { HistoryTab } from "./HistoryTab";
 import { gitMessages } from "./messages";
 
 const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));
+
+/** A checkbox of the list: readable on the glass, and its hit area kept inside its own row. */
+const ROW_CHECK = "border-dp-text-3 after:-inset-1";
+
+/** Some files in, some out: a dash, not the check of "all" (the primitive draws a check for both). */
+const MIXED =
+  "data-[state=indeterminate]:border-dp-accent data-[state=indeterminate]:bg-dp-accent data-[state=indeterminate]:text-dp-on-accent [&[data-state=indeterminate]_svg]:hidden data-[state=indeterminate]:before:h-0.5 data-[state=indeterminate]:before:w-2 data-[state=indeterminate]:before:rounded-sm data-[state=indeterminate]:before:bg-current";
 
 /** The project's changes, commit, history and push, opened from the branch chip (spec fenêtre git). */
 export function GitWindow() {
@@ -96,19 +108,19 @@ function GitDrawer({ path }: { path: string }) {
   return (
     <aside
       data-git-window
-      className="dp-glass-strong absolute right-[72px] z-20 flex w-[min(920px,calc(100vw-180px))] flex-col overflow-hidden rounded-lg text-dp-text"
-      style={{ top: TOP_ROW_HEIGHT + 14, bottom: BOTTOM_BAR_HEIGHT + 14 }}
+      className="dp-glass-strong absolute right-18 z-20 flex w-[min(920px,calc(100vw-180px))] flex-col overflow-hidden rounded-xl text-dp-text"
+      style={{ top: TOP_ROW_HEIGHT + 12, bottom: BOTTOM_BAR_HEIGHT + 12 }}
     >
       <header className="flex h-10 shrink-0 items-center gap-2 border-b border-dp-line px-3">
-        <GitBranch className="size-4 shrink-0 text-dp-accent" />
-        <span className="shrink-0 text-[13px] font-semibold">{t.title}</span>
+        <GitBranch className="size-4 shrink-0 text-dp-text-2" />
+        <span className="shrink-0 text-sm font-medium">{t.title}</span>
         {repo && (
-          <span className="min-w-0 truncate font-mono text-[11px] text-dp-text-2" title={repo.branch}>
+          <span className="min-w-0 truncate font-mono text-xs text-dp-text-2" title={repo.branch}>
             {repo.branch}
           </span>
         )}
-        {repo && repo.ahead > 0 && <span className="shrink-0 font-mono text-[11px] text-dp-accent">{t.ahead(repo.ahead)}</span>}
-        {repo && repo.behind > 0 && <span className="shrink-0 font-mono text-[11px] text-dp-wait">{t.behind(repo.behind)}</span>}
+        {repo && repo.ahead > 0 && <span className="shrink-0 font-mono text-xs text-dp-text-2 tabular-nums">{t.ahead(repo.ahead)}</span>}
+        {repo && repo.behind > 0 && <span className="shrink-0 font-mono text-xs text-dp-wait tabular-nums">{t.behind(repo.behind)}</span>}
         <span className="ml-auto flex shrink-0 items-center gap-1">
           {repo && <PushButton repo={repo} pushing={pushing} onPush={() => void push()} />}
           <IconButton label={t.refresh} onClick={() => void again()}>
@@ -119,48 +131,33 @@ function GitDrawer({ path }: { path: string }) {
           </IconButton>
         </span>
       </header>
-      <div role="tablist" className="flex h-9 shrink-0 items-center gap-1 border-b border-dp-line px-2">
-        <Tab active={tab === "changes"} onClick={() => setTab("changes")}>
-          {t.tabChanges(repo?.files.length ?? 0)}
-        </Tab>
-        <Tab active={tab === "history"} onClick={() => setTab("history")}>
-          {t.tabHistory}
-        </Tab>
-      </div>
-      {(failure ?? (repo && error)) && (
-        <p role="alert" className="shrink-0 whitespace-pre-wrap border-b border-dp-line px-3 py-1.5 text-xs text-dp-danger">
-          {failure ?? error}
-        </p>
-      )}
-      {!repo ? (
-        <GitMessage>{error ?? t.reading}</GitMessage>
-      ) : (
-        <>
-          {/* Hidden, not unmounted: a look at the history keeps the message being written and the choices. */}
-          <div className={tab === "changes" ? "contents" : "hidden"}>
-            <ChangesTab path={path} files={repo.files} stamps={repo.stamps} cut={repo.truncated} refresh={refresh} onChanged={() => void again()} onFailure={setFailure} />
-          </div>
-          {tab === "history" && <HistoryTab path={path} refresh={refresh} />}
-        </>
-      )}
+      <PanelTabs value={tab} onValueChange={(next) => setTab(next as typeof tab)} className="min-h-0 flex-1">
+        <div className="flex h-9 shrink-0 items-center border-b border-dp-line px-2">
+          <PanelTabsList>
+            <PanelTabsTrigger value="changes">{t.tabChanges(repo?.files.length ?? 0)}</PanelTabsTrigger>
+            <PanelTabsTrigger value="history">{t.tabHistory}</PanelTabsTrigger>
+          </PanelTabsList>
+        </div>
+        {(failure ?? (repo && error)) && (
+          <p role="alert" className="shrink-0 border-b border-dp-line px-3 py-2 text-xs whitespace-pre-wrap text-dp-danger">
+            {failure ?? error}
+          </p>
+        )}
+        {!repo ? (
+          <GitMessage>{error ?? t.reading}</GitMessage>
+        ) : (
+          <>
+            {/* Hidden, not unmounted: a look at the history keeps the message being written and the choices. */}
+            <PanelTabsContent value="changes" forceMount className="data-[state=inactive]:hidden">
+              <ChangesTab path={path} files={repo.files} stamps={repo.stamps} cut={repo.truncated} refresh={refresh} onChanged={() => void again()} onFailure={setFailure} />
+            </PanelTabsContent>
+            <PanelTabsContent value="history">
+              <HistoryTab path={path} refresh={refresh} />
+            </PanelTabsContent>
+          </>
+        )}
+      </PanelTabs>
     </aside>
-  );
-}
-
-function Tab({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) {
-  return (
-    <button
-      type="button"
-      role="tab"
-      aria-selected={active}
-      onClick={onClick}
-      className={cn(
-        "rounded-md px-2.5 py-0.5 text-xs text-dp-text-2 transition-[background-color,color] duration-150 ease-out hover:bg-dp-hover hover:text-dp-text motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50",
-        active && "bg-dp-accent-soft text-dp-text",
-      )}
-    >
-      {children}
-    </button>
   );
 }
 
@@ -171,10 +168,22 @@ function PushButton({ repo, pushing, onPush }: { repo: RepoState; pushing: boole
   const ready = target !== null && (repo.ahead > 0 || repo.upstream === null);
   const label = !target ? t.label : repo.ahead > 0 ? t.count(repo.ahead, target) : repo.upstream === null ? t.to(target) : t.label;
   const why = repo.noPush ? t[repo.noPush] : ready ? undefined : t.upToDate;
-  return (
-    <AccentButton disabled={!ready || pushing} title={why} onClick={onPush} className="h-7 max-w-[260px] truncate px-2.5 text-xs">
+  const button = (
+    <AccentButton disabled={!ready || pushing} title={why} onClick={onPush} className="h-7 max-w-64 truncate px-3 text-xs">
       {pushing ? t.pushing : label}
     </AccentButton>
+  );
+  if (!why) return button;
+  // A disabled button takes no pointer and no focus: the span around it tells why, on hover and on Tab.
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span tabIndex={0} className="rounded-md focus-visible:ring-2 focus-visible:ring-dp-accent/50 focus-visible:outline-none">
+          {button}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>{why}</TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -196,14 +205,9 @@ function ChangesTab(props: {
   const [message, setMessage] = useState("");
   const [committing, setCommitting] = useState(false);
   const [asking, setAsking] = useState<ChangedFile | null>(null);
-  const all = useRef<HTMLInputElement>(null);
 
   const chosen = files.filter((file) => !left.has(file.path));
   const selected = files.find((file) => file.path === selectedPath) ?? files[0] ?? null;
-
-  useEffect(() => {
-    if (all.current) all.current.indeterminate = chosen.length > 0 && chosen.length < files.length;
-  }, [chosen.length, files.length]);
 
   // A file gone from the list takes its question with it, or the dialog would come back with the file.
   useEffect(() => {
@@ -243,54 +247,50 @@ function ChangesTab(props: {
   if (files.length === 0) return <GitMessage>{t.clean}</GitMessage>;
   return (
     <div className="flex min-h-0 flex-1">
-      <div className="flex w-[320px] shrink-0 flex-col border-r border-dp-line">
-        <label className="flex shrink-0 items-center gap-2 border-b border-dp-line px-3 py-1 text-xs text-dp-text-2">
-          <input
-            ref={all}
-            type="checkbox"
+      <div className="flex w-80 shrink-0 flex-col border-r border-dp-line">
+        <label className="flex h-8 shrink-0 items-center gap-2 border-b border-dp-line px-3 text-xs text-dp-text-2">
+          <Checkbox
             aria-label={t.includeAll}
-            checked={chosen.length === files.length}
-            onChange={() => setLeft(chosen.length === 0 ? new Set() : new Set(files.map((file) => file.path)))}
-            className="accent-[var(--dp-accent)]"
+            checked={chosen.length === files.length ? true : chosen.length === 0 ? false : "indeterminate"}
+            onCheckedChange={() => setLeft(chosen.length === 0 ? new Set() : new Set(files.map((file) => file.path)))}
+            className={cn(ROW_CHECK, MIXED)}
           />
           {t.includeAll}
         </label>
         <ul className="min-h-0 flex-1 overflow-y-auto py-1">
-          {cut && <li className="px-3 py-1 text-[11px] text-dp-text-3">{words.listCut(files.length)}</li>}
+          {cut && <li className="px-3 py-1 text-xs text-dp-text-3">{words.listCut(files.length)}</li>}
           {files.map((file) => {
             const status = FILE_STATUS[file.status];
+            const current = selected?.path === file.path;
             return (
               <li
                 key={file.path}
                 data-git-file={file.path}
-                className={cn("group flex items-center gap-2 px-3 text-xs text-dp-text-2 hover:bg-dp-hover", selected?.path === file.path && "bg-dp-hover text-dp-text")}
+                className={cn(
+                  "group flex h-7 items-center gap-2 px-3 text-xs text-dp-text-2 transition-colors duration-150 ease-out hover:bg-dp-hover motion-reduce:transition-none",
+                  current && "bg-dp-accent-soft text-dp-text hover:bg-dp-accent-soft",
+                )}
               >
-                <input
-                  type="checkbox"
-                  aria-label={t.include(file.path)}
-                  checked={!left.has(file.path)}
-                  onChange={() => toggle(file)}
-                  className="shrink-0 accent-[var(--dp-accent)]"
-                />
+                <Checkbox aria-label={t.include(file.path)} checked={!left.has(file.path)} onCheckedChange={() => toggle(file)} className={ROW_CHECK} />
+                {/* A row of the list, not a control: the row itself carries hover and selection. */}
                 <button
                   type="button"
                   title={`${file.oldPath ? `${file.oldPath} → ` : ""}${file.path} · ${words.status[file.status]}`}
+                  aria-current={current}
                   onClick={() => setSelectedPath(file.path)}
-                  className="flex min-w-0 flex-1 items-center gap-2 py-1 text-left transition-[background-color,color] duration-150 ease-out motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50"
+                  className="flex h-full min-w-0 flex-1 items-center gap-2 rounded-sm text-left focus-visible:ring-2 focus-visible:ring-dp-accent/50 focus-visible:outline-none"
                 >
-                  <span className="w-3 shrink-0 font-mono text-[11px] font-semibold" style={{ color: status.color }}>
-                    {status.letter}
-                  </span>
+                  <span className={cn("w-3 shrink-0 font-mono font-medium", status.tone)}>{status.letter}</span>
                   <span className="min-w-0 flex-1 truncate" style={{ direction: "rtl", textAlign: "left" }}>
                     {file.path}
                   </span>
                   {file.added === null ? (
-                    <span className="shrink-0 text-[11px] text-dp-text-3" title={words.binaryOrBig}>
+                    <span className="shrink-0 text-dp-text-3" title={words.binaryOrBig}>
                       —
                     </span>
                   ) : (
-                    <span className="shrink-0 font-mono text-[11px]">
-                      <span style={{ color: "var(--dp-ok)" }}>+{file.added}</span> <span style={{ color: "var(--dp-danger)" }}>−{file.removed}</span>
+                    <span className="shrink-0 font-mono tabular-nums">
+                      <span className="text-dp-ok">+{file.added}</span> <span className="text-dp-danger">−{file.removed}</span>
                     </span>
                   )}
                 </button>
@@ -302,13 +302,13 @@ function ChangesTab(props: {
           })}
         </ul>
         <div className="grid shrink-0 gap-2 border-t border-dp-line p-2">
-          <textarea
+          <Textarea
             aria-label={t.messageLabel}
             placeholder={t.messagePlaceholder}
             value={message}
             rows={3}
             onChange={(e) => setMessage(e.target.value)}
-            className="resize-none rounded-md bg-dp-field px-2 py-1.5 text-xs text-dp-text outline-none placeholder:text-dp-text-3 focus-visible:ring-2 focus-visible:ring-dp-accent/50"
+            className="min-h-0 resize-none rounded-md px-2 py-1.5 text-xs field-sizing-fixed md:text-xs"
           />
           <AccentButton disabled={committing || chosen.length === 0 || !message.trim()} onClick={() => void commit()} className="justify-center text-xs">
             {committing ? t.committing : t.commit(chosen.length)}
@@ -335,50 +335,11 @@ function DiscardDialog({ file, onCancel, onConfirm }: { file: ChangedFile | null
           <Button variant="ghost" onClick={onCancel}>
             {t.cancel}
           </Button>
-          <Button className="bg-dp-danger text-dp-on-accent hover:brightness-110" onClick={() => file && onConfirm(file)}>
+          <Button variant="destructive" onClick={() => file && onConfirm(file)}>
             {t.confirm}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  );
-}
-
-function HistoryTab({ path, refresh }: { path: string; refresh: number }) {
-  const t = useMessages(gitMessages);
-  const [log, setLog] = useState<LogEntry[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let alive = true;
-    repoHistory(path).then(
-      (entries) => alive && setLog(entries),
-      (failed: unknown) => alive && setError(errorText(failed)),
-    );
-    return () => {
-      alive = false;
-    };
-  }, [path, refresh]);
-
-  if (error) return <GitMessage>{error}</GitMessage>;
-  if (!log) return <GitMessage>{t.reading}</GitMessage>;
-  if (log.length === 0) return <GitMessage>{t.history.empty}</GitMessage>;
-  return (
-    <ul className="min-h-0 flex-1 overflow-y-auto py-1">
-      {log.map((entry) => (
-        <li key={entry.hash} data-git-commit={entry.hash} className="flex items-center gap-3 px-3 py-1 text-xs transition-[background-color] duration-150 ease-out hover:bg-dp-hover motion-reduce:transition-none">
-          <span title={entry.hash} className="shrink-0 font-mono text-[11px] text-dp-accent">
-            {entry.shortHash}
-          </span>
-          <span title={entry.subject} className="min-w-0 flex-1 truncate text-dp-text">
-            {entry.subject}
-          </span>
-          <span className="max-w-[160px] shrink-0 truncate text-dp-text-2">{entry.author}</span>
-          <span className="shrink-0 font-mono text-[11px] text-dp-text-3">
-            {new Date(entry.date * 1000).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
-          </span>
-        </li>
-      ))}
-    </ul>
   );
 }

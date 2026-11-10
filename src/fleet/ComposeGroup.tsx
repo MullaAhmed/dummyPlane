@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactElement } from "react";
 import { Minus, Plus } from "lucide-react";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,7 +11,11 @@ import {
 import { returnKeyboardToCanvas } from "@/canvas/keyboardFocus";
 import { useUiRequest } from "@/commands/uiRequests";
 import { messages, useMessages } from "@/i18n";
+import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Separator } from "@/components/ui/separator";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { AgentId } from "@/ipc/pty";
 import { cn } from "@/lib/utils";
 import { agentsStore, useAgents } from "./agentsStore";
@@ -20,13 +25,11 @@ import { fleetMessages } from "./messages";
 import { launchGroup } from "./groups";
 import { ROLE_ORDER, ROLES, type RoleId } from "./roles";
 
+/** An agent's logo: its icon in its own ink, the one place its tint shows. */
 function AgentLogo({ agent, className }: { agent: AgentId; className?: string }) {
   const meta = AGENTS[agent];
   return (
-    <span
-      className={cn("grid size-7 place-items-center rounded-md", className)}
-      style={{ backgroundColor: `color-mix(in srgb, ${meta.tint} 18%, transparent)`, color: agentInk(meta.tint) }}
-    >
+    <span className={cn("grid size-7 place-items-center", className)} style={{ color: agentInk(meta.tint) }}>
       <meta.Icon className="size-4" />
     </span>
   );
@@ -37,13 +40,14 @@ function SlotButton(props: { agent: AgentId; choices: AgentId[]; onPick: (agent:
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button
+        <Button
           type="button"
-          className="flex h-18 flex-col items-center justify-center gap-1.5 rounded-lg border border-dp-line bg-dp-card px-1 transition-[border-color,transform] duration-150 ease-out hover:border-dp-text-2 hover:bg-dp-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] motion-reduce:transition-none"
+          variant="outline"
+          className="h-18 flex-col gap-1 rounded-lg bg-dp-card px-1 font-normal transition-[border-color,background-color,transform] hover:border-dp-text-3"
         >
           <AgentLogo agent={props.agent} />
-          <span className="max-w-full truncate px-1 text-[11px] text-dp-text">{AGENTS[props.agent].label}</span>
-        </button>
+          <span className="max-w-full truncate px-1 text-xs text-dp-text">{AGENTS[props.agent].label}</span>
+        </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">
         {props.choices.map((id) => {
@@ -115,11 +119,12 @@ export function ComposeGroup({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
-      <PopoverContent side={side} sideOffset={10} className="flex w-[360px] flex-col gap-3 p-3">
+      <PopoverContent side={side} sideOffset={8} className="flex w-90 flex-col gap-3 p-3">
         <p className="dp-label">{t.title}</p>
-        <label className="flex h-9 items-center gap-2 rounded-lg border border-dp-line bg-dp-card px-2.5 transition-[border-color] duration-150 ease-out focus-within:border-dp-accent/60 motion-reduce:transition-none">
-          <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: color }} />
-          <input
+        {/* The role's dot sits in the field, before the name it colours. */}
+        <div className="relative">
+          <span aria-hidden className="pointer-events-none absolute top-1/2 left-3 size-2 rounded-full -translate-y-1/2" style={{ backgroundColor: color }} />
+          <Input
             autoFocus
             value={name}
             onChange={(e) => setTypedName(e.currentTarget.value)}
@@ -129,32 +134,34 @@ export function ComposeGroup({
             }}
             onFocus={(e) => e.currentTarget.select()}
             aria-label={t.groupName}
-            className="min-w-0 flex-1 bg-transparent text-[13px] font-medium text-dp-text outline-none"
+            className="h-9 bg-dp-card pl-7 text-(length:--text-ui) font-medium md:text-(length:--text-ui)"
           />
-        </label>
-        <div className="flex flex-wrap gap-1.5">
+        </div>
+        <ToggleGroup
+          type="single"
+          aria-label={t.role}
+          value={role}
+          // A group always has a role: pressing the one in force keeps it.
+          onValueChange={(next) => next && pickRole(next as RoleId)}
+          spacing={1.5}
+          className="flex-wrap"
+        >
           {ROLE_ORDER.map((id) => {
             const active = id === role;
             return (
-              <button
+              <ToggleGroupItem
                 key={id}
-                type="button"
-                onClick={() => pickRole(id)}
-                className={cn(
-                  "flex h-7 items-center gap-1.5 rounded-md border px-2.5 text-xs transition-[background-color,color,transform] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] motion-reduce:transition-none",
-                  active ? "font-semibold text-dp-on-role" : "border-dp-line text-dp-text-2 hover:bg-dp-hover hover:text-dp-text",
-                )}
+                value={id}
+                className="h-7 min-w-0 gap-2 rounded-md border border-dp-line px-2.5 text-xs font-normal text-dp-text-2 transition-[background-color,border-color,color,transform] duration-150 ease-out hover:bg-dp-hover hover:text-dp-text focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] motion-reduce:transition-none data-[state=on]:font-medium data-[state=on]:text-dp-on-role"
+                // The chosen role is filled with its own colour: inline, so it outranks the hover.
                 style={active ? { backgroundColor: ROLES[id].color, borderColor: ROLES[id].color } : undefined}
               >
-                <span
-                  className="size-1.5 rounded-full"
-                  style={{ backgroundColor: active ? "var(--dp-on-role)" : ROLES[id].color }}
-                />
+                <span className="size-1.5 rounded-full" style={{ backgroundColor: active ? "var(--dp-on-role)" : ROLES[id].color }} />
                 {ROLES[id].label}
-              </button>
+              </ToggleGroupItem>
             );
           })}
-        </div>
+        </ToggleGroup>
         <div className="grid grid-cols-4 gap-2">
           {slots.map((slot, i) => (
             <SlotButton
@@ -166,52 +173,65 @@ export function ComposeGroup({
           ))}
         </div>
         {choices.length > 0 && (
-          <div className="flex items-center gap-1.5 text-[11px] text-dp-text-2">
+          <div className="flex items-center gap-1 text-xs text-dp-text-2">
             <span className="mr-1">{t.fillWith}</span>
             {choices.map((id) => (
-              <button
-                key={id}
-                type="button"
-                title={AGENTS[id].label}
-                aria-label={t.fillAllWith(AGENTS[id].label)}
-                onClick={() => setSlots((current) => current.map(() => id))}
-                className="rounded-md transition-[filter] duration-150 ease-out hover:brightness-125 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none"
-              >
-                <AgentLogo agent={id} className="size-6" />
-              </button>
+              <Tooltip key={id}>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={t.fillAllWith(AGENTS[id].label)}
+                    onClick={() => setSlots((current) => current.map(() => id))}
+                    className="rounded-md"
+                  >
+                    <AgentLogo agent={id} />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" sideOffset={6}>
+                  {t.fillAllWith(AGENTS[id].label)}
+                </TooltipContent>
+              </Tooltip>
             ))}
           </div>
         )}
-        <div className="flex items-center justify-between border-t border-dp-line pt-3">
+        <Separator />
+        <div className="flex items-center justify-between">
           <div className="flex items-center gap-1">
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="icon-sm"
               aria-label={t.fewer}
               disabled={slots.length <= 1}
               onClick={() => setSlots((current) => resizeSlots(current, current.length - 1))}
-              className="grid size-7 place-items-center rounded-md text-dp-text-2 transition-[background-color,color,transform] duration-150 ease-out hover:bg-dp-hover hover:text-dp-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50 motion-reduce:transition-none"
+              className="rounded-md text-dp-text-2 hover:text-dp-text"
             >
-              <Minus className="size-3.5" />
-            </button>
-            <span className="w-6 text-center font-mono text-[13px] text-dp-text">{slots.length}</span>
-            <button
+              <Minus className="size-4" />
+            </Button>
+            <span className="w-6 text-center font-mono text-(length:--text-ui) text-dp-text tabular-nums">{slots.length}</span>
+            <Button
               type="button"
+              variant="ghost"
+              size="icon-sm"
               aria-label={t.more}
               disabled={slots.length >= MAX_GROUP_SIZE}
               onClick={() => setSlots((current) => resizeSlots(current, current.length + 1))}
-              className="grid size-7 place-items-center rounded-md text-dp-text-2 transition-[background-color,color,transform] duration-150 ease-out hover:bg-dp-hover hover:text-dp-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50 motion-reduce:transition-none"
+              className="rounded-md text-dp-text-2 hover:text-dp-text"
             >
-              <Plus className="size-3.5" />
-            </button>
+              <Plus className="size-4" />
+            </Button>
           </div>
-          <button
+          {/* Filled with the role's colour (inline, so it outranks the variant's fill); a hover brightens it. */}
+          <Button
             type="button"
             onClick={launch}
-            className="h-8 rounded-md px-4 text-[13px] font-semibold text-dp-on-role transition-[filter,transform] duration-150 ease-out hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] motion-reduce:transition-none"
+            className="rounded-md px-4 text-(length:--text-ui) font-medium text-dp-on-role transition-[filter,transform] hover:brightness-110"
             style={{ backgroundColor: color }}
           >
             {t.launch(slots.length)}
-          </button>
+          </Button>
         </div>
       </PopoverContent>
     </Popover>

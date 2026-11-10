@@ -2,14 +2,14 @@ import { useEffect, useRef } from "react";
 import { Copy, X } from "lucide-react";
 import { toast } from "sonner";
 import { canvasStore, useCanvas } from "@/canvas/canvasStore";
-import { AGENTS } from "@/fleet/catalog";
 import { duplicateTerminal, requestClose } from "@/fleet/terminals";
 import { cn } from "@/lib/utils";
 import { useActivity } from "@/store/agentActivity";
 import { terminalOf, useNodes } from "@/store/nodes";
 import { useTerminalStatus } from "@/store/terminalStatus";
+import { AgentFoot, hasAgentFoot } from "./AgentFoot";
 import { ArrivalFlash } from "./ArrivalFlash";
-import { frameStyle, WAITING_GLOW } from "./frame";
+import { frameStyle } from "./frame";
 import { MinimizedCard } from "./MinimizedCard";
 import { MissingNode } from "./MissingNode";
 import { ResumeCard } from "./ResumeCard";
@@ -27,9 +27,10 @@ export function TerminalNode({ nodeId }: { nodeId: string }) {
   const workspaceId = useNodes((s) => s.nodes[nodeId]?.workspaceId);
   const selected = useCanvas((s) => s.view.selectedIds.includes(nodeId));
   const hostRef = useRef<HTMLDivElement>(null);
-  const rootRef = useRef<HTMLDivElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
   const hasPayload = payload !== undefined;
   const minimized = payload?.minimized === true;
+  const foot = payload !== undefined && hasAgentFoot(payload.agent);
   const t = useMessages(nodesMessages).terminal;
 
   // Minimized, its xterm stays mounted under the card, hidden (a hidden host is never laid out): its process goes on.
@@ -47,12 +48,13 @@ export function TerminalNode({ nodeId }: { nodeId: string }) {
     return () => cancelAnimationFrame(frame);
   }, [nodeId, minimized]);
 
-  // Excalidraw would pan the canvas on a wheel over this terminal (terminalWheel.ts).
+  // Excalidraw would pan the canvas on a wheel over this terminal (terminalWheel.ts). Only over its
+  // body, as an orchestrator's: the foot's field keeps its own wheel, and a minimized card's hidden body takes none.
   useEffect(() => {
-    const root = rootRef.current;
-    const canvas = root?.closest<HTMLElement>(".excalidraw");
-    if (!root || !canvas) return;
-    return keepTerminalWheel(root, canvas, () => xtermOf(nodeId));
+    const body = bodyRef.current;
+    const canvas = body?.closest<HTMLElement>(".excalidraw");
+    if (!body || !canvas) return;
+    return keepTerminalWheel(body, canvas, () => xtermOf(nodeId));
   }, [nodeId, hasPayload]);
 
   if (!payload) {
@@ -62,10 +64,9 @@ export function TerminalNode({ nodeId }: { nodeId: string }) {
   const waiting = status.state === "running" && activity?.activity === "waiting";
   return (
     <div
-      ref={rootRef}
       data-terminal={nodeId}
-      className="relative flex h-full flex-col overflow-hidden rounded-lg bg-dp-terminal"
-      style={frameStyle(AGENTS[payload.agent].tint, selected, waiting)}
+      className="relative flex h-full flex-col overflow-hidden rounded-xl bg-dp-terminal"
+      style={frameStyle(selected, waiting)}
     >
       {minimized ? (
         <MinimizedCard nodeId={nodeId} payload={payload} status={status} activity={activity} />
@@ -75,6 +76,7 @@ export function TerminalNode({ nodeId }: { nodeId: string }) {
           payload={payload}
           status={status}
           activity={activity}
+          showStatus={!foot}
           actions={
             <>
               <HeaderButton
@@ -97,11 +99,12 @@ export function TerminalNode({ nodeId }: { nodeId: string }) {
       )}
       {/* The padding sits on a wrapper: the grid is sized from the host's
           client size, which would include padding set on the host itself. */}
-      <div className={cn("relative min-h-0 flex-1 px-1 pt-1", minimized && "hidden")}>
+      <div ref={bodyRef} className={cn("relative min-h-0 flex-1 px-1 pt-1", minimized && "hidden")}>
         <div ref={hostRef} className="relative h-full w-full overflow-hidden" />
         <ResumeCard nodeId={nodeId} payload={payload} status={status} />
       </div>
-      {waiting && <div className="pointer-events-none absolute inset-0 z-20 rounded-lg" style={{ boxShadow: WAITING_GLOW }} />}
+      {/* Under the body, which gives up its height to it: the host's ResizeObserver fits the grid again. */}
+      {foot && !minimized && <AgentFoot nodeId={nodeId} payload={payload} status={status} activity={activity} />}
       <ArrivalFlash nodeId={nodeId} />
     </div>
   );

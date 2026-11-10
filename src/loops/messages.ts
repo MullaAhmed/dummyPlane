@@ -5,7 +5,7 @@ import type { StopReason } from "./engine";
 /** Texts of the loops (loops spec). */
 export const loopsMessages = defineMessages({
     section: "Loops",
-    notRead: "The list of loops could not be read: nothing changed.",
+    notRead: "The list of loops could not be read: nothing changed",
     manage: "Manage loops…",
     manageKeywords: ["loop", "loops", "recurring", "repeat", "automatic"],
     stopAll: (running: number) => `Loops: stop all (${running})`,

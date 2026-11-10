@@ -46,7 +46,7 @@ describe("Agents (spec fenêtre §7.3)", () => {
       "Other agent…",
       "Claude accounts…",
       "New console",
-      "Orchestrator",
+      "Fleet",
       "Kanban",
       "Compose a group…",
       "Pause all",
@@ -64,6 +64,10 @@ describe("Agents (spec fenêtre §7.3)", () => {
     expect(pendingUiRequest()).toEqual({ kind: "agentMenu", view: { install: "codex" } });
     await codex.run({ ...busy, at: { x: 1, y: 2 } });
     expect(pendingUiRequest()).toEqual({ kind: "agentMenu", view: { install: "codex" }, at: { x: 1, y: 2 } });
+  });
+
+  it("still finds the fleet by its former name, orchestrator", () => {
+    expect(find("agent.orchestrator").keywords).toEqual(expect.arrayContaining(["fleet", "orchestrator"]));
   });
 
   it("speaks English when it offers an install", () => {

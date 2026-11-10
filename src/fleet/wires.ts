@@ -13,19 +13,19 @@ import { sceneColorFor } from "@/theme/sceneColors";
 import type { Point } from "./terminals";
 
 /**
- * Electric's lime (#B6F52B) is beyond what the dark filter can show: stored the
- * plain inverse way (#003800) it shows #a8d8a8, a pale mint. The nearest of all
- * 8-bit colors, #546100, shows #9fab57: an olive of the accent's own hue.
+ * Electric's off-white (#F4F4F1) is beyond what the dark filter can show: stored the
+ * plain inverse way (#000000) it shows #ededed, as expressive's does. The nearest of all
+ * 8-bit colors, #010001, shows #eeedee: as light, and a color of electric's own.
  */
-const ELECTRIC_WIRE_SCENE = "#546100";
+const ELECTRIC_WIRE_SCENE = "#010001";
 
 /**
  * The color a wire is stored in under `palette`: the palette's accent
  * (`--dp-accent`, the color the light running on the wire is drawn in) as the
  * canvas must show it. A light palette shows a stored color as is; Excalidraw's
  * dark filter shows the nearest it can to the accent (spec habillage §4.3), so
- * the accent goes through `toSceneColor` there: expressive's #FF781B is stored
- * #F25500 and shown #FC752C.
+ * the accent goes through `toSceneColor` there: expressive's #F4F4F1 is stored
+ * #000000 and shown #EDEDED.
  */
 export function wireColor(palette: ThemeChoice): string {
   if (palette === "electric") return ELECTRIC_WIRE_SCENE;
@@ -33,10 +33,17 @@ export function wireColor(palette: ThemeChoice): string {
   return sceneColorFor(accent, scheme);
 }
 
-/** Whether `color` is the color some palette draws a wire in: one the user did not pick. */
-function isPaletteWireColor(color: string): boolean {
+/**
+ * The colors wires were stored in under the palettes' former accents (calm's pink,
+ * and the scene colors of electric's and expressive's), before each palette's
+ * accent became its ink: still palette colors, not the user's picks.
+ */
+const FORMER_PALETTE_WIRE_COLORS = ["#f52b94", "#546100", "#f25500"];
+
+/** Whether `color` is the color some palette draws a wire in, now or before: one the user did not pick. */
+export function isPaletteWireColor(color: string): boolean {
   const stored = color.toLowerCase();
-  return (Object.keys(PALETTES) as ThemeChoice[]).some((palette) => wireColor(palette).toLowerCase() === stored);
+  return FORMER_PALETTE_WIRE_COLORS.includes(stored) || (Object.keys(PALETTES) as ThemeChoice[]).some((palette) => wireColor(palette).toLowerCase() === stored);
 }
 
 /** The terracotta wires were drawn with before: a wire still in it takes the palette's color when it is elbowed. */
@@ -406,6 +413,16 @@ export function linkTargetAt(elements: readonly ExcalidrawElement[], frames: rea
   return groupAt(frames, point)?.id ?? null;
 }
 
+/** What a click of an agent's "Link" designates: the topmost orchestrator under the pointer. */
+export function orchestratorAt(elements: readonly ExcalidrawElement[], point: Point): string | null {
+  for (let i = elements.length - 1; i >= 0; i--) {
+    const e = elements[i];
+    if (e.isDeleted || nodeKindOf(e) !== "orchestrator") continue;
+    if (point.x >= e.x && point.x <= e.x + e.width && point.y >= e.y && point.y <= e.y + e.height) return e.id;
+  }
+  return null;
+}
+
 /** The agents an orchestrator commands. */
 export interface LinkedAgents {
   groups: SceneFrame[];
@@ -419,6 +436,13 @@ export function linkedAgents(links: Links, frames: readonly SceneFrame[]): Linke
   const inGroups = groups.flatMap((g) => g.memberIds);
   const directIds = links.nodeIds.filter((id) => !inGroups.includes(id));
   return { groups, directIds, agentIds: [...new Set([...inGroups, ...directIds])] };
+}
+
+/** `linkedAgents` the other way round: the orchestrators that command `agentId`, directly or through its group. */
+export function orchestratorsOf(agentId: string, links: Readonly<Record<string, Links>>, frames: readonly SceneFrame[]): string[] {
+  return Object.entries(links)
+    .filter(([, wired]) => linkedAgents(wired, frames).agentIds.includes(agentId))
+    .map(([orchestratorId]) => orchestratorId);
 }
 
 /** What a wire can still join: an orchestrator, a terminal or a group's frame, alive. */

@@ -69,7 +69,7 @@ export function GoToRow({ item }: { item: GoToItem }) {
         <>
           <LayoutGrid className="size-3.5 shrink-0 text-dp-text-2" />
           <span className="truncate font-medium text-dp-text">{item.label}</span>
-          <span className="shrink-0 font-mono text-[11px] text-dp-text-2">{t.live(item.live ?? 0)}</span>
+          <span className="shrink-0 font-mono text-xs text-dp-text-2">{t.live(item.live ?? 0)}</span>
           {item.current && <span className="ml-auto shrink-0 text-dp-text-3">{t.shown}</span>}
         </>
       );
@@ -78,7 +78,7 @@ export function GoToRow({ item }: { item: GoToItem }) {
         <>
           <Folder className="size-3.5 shrink-0 text-dp-text-2" />
           <span className="truncate font-medium text-dp-text">{item.label}</span>
-          <span className="ml-auto truncate font-mono text-[11px] text-dp-text-3">{item.path}</span>
+          <span className="ml-auto truncate font-mono text-xs text-dp-text-3">{item.path}</span>
         </>
       );
   }

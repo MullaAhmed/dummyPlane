@@ -16,7 +16,7 @@ export const gitMessages = defineMessages(
       includeAll: "Include all",
       include: (path: string) => `Include ${path}`,
       discard: (path: string) => `Discard ${path}`,
-      clean: "Nothing to commit: the folder matches the last commit.",
+      clean: "Nothing to commit: the folder matches the last commit",
       messageLabel: "Commit message",
       messagePlaceholder: "Describe what this commit changes",
       commit: (count: number) => `Commit (${count})`,
@@ -31,7 +31,13 @@ export const gitMessages = defineMessages(
       cancel: "Cancel",
       confirm: "Discard this file",
     },
-    history: { empty: "No commit yet." },
+    history: {
+      empty: "No commit yet",
+      cut: (count: number) => (count === 1 ? "Only the latest commit is shown" : `Only the latest ${count} commits are shown`),
+      /** A ref's tooltip: what kind of name it is, and whether HEAD is there. */
+      ref: (kind: "branch" | "remote" | "tag" | "head", name: string, current: boolean) =>
+        kind === "head" ? "Detached HEAD" : `${{ branch: "Branch", remote: "Remote branch", tag: "Tag" }[kind]} ${name}${current ? " · HEAD" : ""}`,
+    },
     push: {
       label: "Push",
       count: (count: number, target: string) => `Push ${count} → ${target}`,

@@ -11,7 +11,7 @@ import { messages } from "./index";
 it("names one action with one word across the menus and the palette (final review R5a)", () => {
   expect(messages(shellMessages).toolRail.launchAgent).toBe("Launch an agent");
   const labels = messages(catalogMessages).commands;
-  expect(labels["group.orchestrate"].label).toBe("Link an orchestrator");
+  expect(labels["group.orchestrate"].label).toBe("Link a fleet");
   expect(labels["orchestrator.link"].label).toBe("Link");
   expect(labels["project.close"].label).toBe("Close the project");
   expect(labels["workspace.delete"].label).toBe("Delete the workspace");
@@ -28,7 +28,7 @@ it("counts in proper English", () => {
 
 it("tells that the local server is down, and names a new orchestrator", () => {
   expect(messages(appMessages).hooksDown).toBe("Agent states are approximate: the local server is unavailable");
-  expect(messages(nodesMessages).orchestrator.defaultName).toBe("Orchestrator");
+  expect(messages(nodesMessages).orchestrator.defaultName).toBe("Fleet");
 });
 
 it("says what dummyPlane really reads in a Claude profile's folder (review)", () => {

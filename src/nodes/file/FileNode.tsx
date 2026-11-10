@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { FileText, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { studioRead } from "@/ipc/studio";
 import { useMessages } from "@/i18n";
 import { useNodes } from "@/store/nodes";
@@ -35,13 +36,21 @@ export function FileNode({ nodeId }: { nodeId: string }) {
   return (
     <div className="flex h-full flex-col overflow-hidden rounded-xl border border-dp-line bg-dp-surface text-dp-text">
       <header className="flex h-9 shrink-0 items-center gap-2 border-b border-dp-line px-3">
-        <FileText className="size-4 shrink-0 text-dp-accent" />
-        <span className="shrink-0 truncate text-[13px] font-semibold text-dp-text">{name}</span>
-        <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-dp-text-2" title={path}>{path}</span>
-        <Button variant="ghost" size="icon-sm" title={t.file.refresh} aria-label={t.file.refresh} onClick={load}>
-          <RefreshCw className="size-4" />
-        </Button>
+        <FileText className="size-4 shrink-0 text-dp-text-2" />
+        <span className="shrink-0 truncate text-(length:--text-ui) font-medium text-dp-text">{name}</span>
+        <span className="min-w-0 flex-1 truncate font-mono text-xs text-dp-text-2" title={path}>{path}</span>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button variant="ghost" size="icon-sm" aria-label={t.file.refresh} onClick={load} className="rounded-md text-dp-text-2 hover:text-dp-text">
+              <RefreshCw className="size-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom" sideOffset={6}>
+            {t.file.refresh}
+          </TooltipContent>
+        </Tooltip>
       </header>
+      {/* A native scroller: on the zoomed canvas, a ScrollArea's thumb drag would misread the pointer. */}
       <div className="min-h-0 flex-1 overflow-auto p-3">
         {content.state === "loading" && <p className="text-xs text-dp-text-2">{t.file.loading}</p>}
         {content.state === "error" && <p className="text-xs text-dp-danger">{t.file.readFailed(content.message)}</p>}

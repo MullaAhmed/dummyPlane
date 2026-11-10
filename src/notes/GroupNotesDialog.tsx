@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useMessages } from "@/i18n";
 import { useProjects } from "@/store/projects";
@@ -56,16 +57,15 @@ function Chooser({ groupId }: { groupId: string }) {
           <ul className="flex max-h-64 flex-col gap-0.5 overflow-y-auto">
             {rows.map((name) => (
               <li key={name}>
-                <label className="flex items-center gap-2 rounded-md px-1.5 py-1 text-[13px] text-dp-text transition-[background-color] duration-150 ease-out hover:bg-dp-hover has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-dp-accent/50 motion-reduce:transition-none">
-                  <input
-                    type="checkbox"
+                <label className="flex h-8 cursor-pointer items-center gap-2 rounded-md px-2 text-sm text-dp-text transition-colors duration-150 ease-out hover:bg-dp-hover motion-reduce:transition-none">
+                  <Checkbox
                     data-attach={name}
                     checked={chosen.some((n) => n.toLowerCase() === name.toLowerCase())}
-                    onChange={() => toggle(chosen.find((n) => n.toLowerCase() === name.toLowerCase()) ?? name)}
-                    className="accent-dp-accent focus-visible:outline-none"
+                    onCheckedChange={() => toggle(chosen.find((n) => n.toLowerCase() === name.toLowerCase()) ?? name)}
+                    className="border-dp-text-3 after:-inset-1"
                   />
                   <span className="min-w-0 truncate">{name}</span>
-                  {gone.includes(name) && <span className="shrink-0 text-[11px] text-dp-text-3">{t.missing}</span>}
+                  {gone.includes(name) && <span className="shrink-0 text-xs text-dp-text-3">{t.missing}</span>}
                 </label>
               </li>
             ))}

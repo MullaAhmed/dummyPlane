@@ -3,7 +3,7 @@ import { cssBlock } from "./cssBlocks";
 
 const css = `
 :root { --a: 1; }
-@media (prefers-reduced-transparency: reduce) {
+@media (prefers-reduced-motion: reduce) {
   :root { --a: 2; }
 }
 `;
@@ -13,7 +13,7 @@ it("refuses a selector found twice instead of taking the first one", () => {
 });
 
 it("reads a rule inside the at-rule it is asked for", () => {
-  expect(cssBlock(css, ":root", "@media (prefers-reduced-transparency: reduce)")).toEqual({ "--a": "2" });
+  expect(cssBlock(css, ":root", "@media (prefers-reduced-motion: reduce)")).toEqual({ "--a": "2" });
   expect(() => cssBlock(css, ":root", "@media (nope)")).toThrow();
 });
 

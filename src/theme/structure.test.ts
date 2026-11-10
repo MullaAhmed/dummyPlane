@@ -12,15 +12,22 @@ it("binds Tailwind's dark variant to the dark theme, not to a fixed class (spec 
   expect(index).toContain('@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));');
 });
 
-it("puts menus, popovers, lists, dialogs and toasts in dense glass (spec identité §5.10)", () => {
+it("puts menus, popovers, lists, dialogs and toasts on opaque raised surfaces (spec identité §5.10)", () => {
   for (const slot of ["dropdown-menu-content", "dropdown-menu-sub-content", "popover-content", "select-content", "dialog-content"]) {
     expect(index).toContain(`[data-slot="${slot}"]`);
   }
-  expect(index).toMatch(/\[data-slot="select-content"\] \{[^}]*var\(--dp-glass-strong\)[^}]*var\(--dp-blur\)[^}]*border-radius: var\(--radius-lg\)/);
-  expect(index).toMatch(/\[data-slot="dialog-content"\] \{[^}]*var\(--dp-glass-strong\)[^}]*border-radius: var\(--radius-xl\)/);
-  expect(index).toMatch(/\[data-slot="dialog-overlay"\] \{[^}]*var\(--dp-scrim\)[^}]*blur\(3px\)/);
-  expect(index).toMatch(/:root\[data-transparency="off"\] \[data-slot="dialog-overlay"\] \{[^}]*backdrop-filter: none/);
-  expect(index).toMatch(/\[data-sonner-toast\]\[data-styled="true"\] \{[^}]*var\(--dp-glass-strong\)[^}]*border-radius: var\(--radius-lg\)/);
+  expect(index).toMatch(/\[data-slot="select-content"\] \{[^}]*background: var\(--dp-surface\)[^}]*border-radius: var\(--radius-lg\)/);
+  expect(index).toMatch(/\[data-slot="dialog-content"\] \{[^}]*background: var\(--dp-surface\)[^}]*border-radius: var\(--radius-xl\)/);
+  expect(index).toMatch(/\[data-sonner-toast\]\[data-styled="true"\] \{[^}]*background: var\(--dp-surface\)[^}]*border-radius: var\(--radius-lg\)/);
+  // The veil under a dialog stays, flat: nothing behind it is blurred.
+  expect(index).toMatch(/\[data-slot="dialog-overlay"\] \{\s*background: var\(--dp-scrim\);\s*\}/);
+});
+
+it("blurs nothing and has no transparency switch: every surface of the app is opaque", () => {
+  const files = { ...sourceFiles(), "../public/first-paint.js": readSource("../public/first-paint.js") };
+  for (const [file, text] of Object.entries(files)) {
+    expect(text, file).not.toMatch(/backdrop-filter|backdrop-blur|data-transparency|prefers-reduced-transparency|--dp-blur|--dp-glass|--dp-head\b|setTransparency/);
+  }
 });
 
 it("keeps no rule for Excalidraw's left menu: SelectionPanel replaces its properties panel, and nothing renders the old one", () => {
@@ -41,8 +48,18 @@ it("draws the bottom row and its command bar in dense glass: they carry text ove
     expect(readSource(file), `${file} : light glass under text`).not.toMatch(/dp-glass(?!-strong)\b/);
   }
   expect(readSource("shell/CommandBar.tsx")).toContain("w-[680px]");
-  expect(readSource("shell/messages.ts")).toContain("Instruction for the agents · @ to target · / command · ↑ history");
-  expect(readSource("fleet/CommandInput.tsx")).toContain("rounded-[10px]");
+  expect(readSource("shell/messages.ts")).toContain('placeholder: "Message agents"');
+});
+
+it("rounds the composer on the scale: the bar a floating panel (16), Send and the field controls (8)", () => {
+  // 16 = Send's 8 + the bar's 8 of padding: the corners nest.
+  expect(readSource("shell/CommandBar.tsx")).toMatch(/data-command-bar className="[^"]*\brounded-\[16px\]/);
+  const input = readSource("fleet/CommandInput.tsx");
+  const send = input.slice(input.indexOf("<ComposerPrimitive.Send"), input.indexOf("</ComposerPrimitive.Send>"));
+  expect(send).toContain("rounded-[8px]");
+  // An orchestrator's field is a control of its own, beside Send.
+  expect(input).toMatch(/compact &&\s*"[^"]*\brounded-\[8px\]/);
+  expect(input, "the old odd radius").not.toContain("rounded-[10px]");
 });
 
 it("keeps nothing of the habillage shell (spec identité §5.11)", () => {

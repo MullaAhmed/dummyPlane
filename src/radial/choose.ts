@@ -10,7 +10,7 @@ import { lineOf, RINGS } from "./rings";
 export function chooseSlot(slot: number) {
   const { ring } = radialStore.getState();
   closeRadial();
-  const definition = ring ? RINGS[ring.kind][slot] : null;
+  const definition = ring ? RINGS[ring.kind][slot] : undefined;
   const line = ring && definition ? lineOf(definition, ring.context) : null;
   if (!ring || !line?.enabled) return;
   requestAnimationFrame(() => runCommand(line.command, ring.context));

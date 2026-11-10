@@ -90,14 +90,15 @@ export function ProjectView() {
           {/* The canvas's floating bars: the code workspace has its own. */}
           {!code && (
             <>
-              <div className="absolute bottom-[14px] left-3 z-30">
+              {/* 12 px from the bottom, as from the sides: one gutter around the canvas. */}
+              <div className="absolute bottom-3 left-3 z-30">
                 <GitChip />
               </div>
-              <div className="pointer-events-none absolute inset-x-0 bottom-[14px] z-30 flex flex-col items-center gap-2">
+              <div className="pointer-events-none absolute inset-x-0 bottom-3 z-30 flex flex-col items-center gap-2">
                 <CommandHint />
                 <CommandBar />
               </div>
-              <div className="absolute bottom-[14px] right-3 z-30">
+              <div className="absolute bottom-3 right-3 z-30">
                 <ZoomControl />
               </div>
               <PlacementGhost />

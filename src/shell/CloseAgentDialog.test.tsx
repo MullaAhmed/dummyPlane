@@ -74,7 +74,7 @@ it("tells what closing an orchestrator in mission leaves behind (spec première 
   await act(async () => uiStore.getState().setClosing({ agents: ["chef"], remove: ["chef", "fil"] }));
   const dialog = document.querySelector('[role="dialog"]')!;
   expect(dialog.textContent).toContain("Chef is leading a mission in progress. Closing it stops its session; its agents keep going, but nobody will read their reports. The mission's worktrees and branches stay on disk.");
-  await act(async () => button("Close the orchestrator").click());
+  await act(async () => button("Close the fleet").click());
   expect(removeNodes).toHaveBeenLastCalledWith(["chef", "fil"]);
 });
 
@@ -101,7 +101,11 @@ describe("an agent that opened sub-agents (spawn_agent)", () => {
   afterEach(() => terminalStatusStore.getState().remove("osiris"));
 
   const asked = { agents: ["osiris"], remove: ["osiris"], children: ["horus", "seth"] };
-  const checkbox = () => document.querySelector<HTMLInputElement>('[role="dialog"] input[type="checkbox"]');
+  // The shadcn checkbox: a button that carries its state in aria-checked, named by its label.
+  const checkbox = () => {
+    const box = document.querySelector<HTMLButtonElement>('[role="dialog"] [role="checkbox"]');
+    return box && { checked: box.getAttribute("aria-checked") === "true", click: () => box.click(), label: document.querySelector(`label[for="${box.id}"]`)?.textContent };
+  };
 
   it("offers to close them too, ticked, and closes them with it once confirmed", async () => {
     await act(async () => uiStore.getState().setClosing(asked));
@@ -109,6 +113,7 @@ describe("an agent that opened sub-agents (spawn_agent)", () => {
     expect(dialog.textContent).toContain("Close Osiris?");
     expect(dialog.textContent).toContain("Also close the sub-agents it opened: Horus, Seth");
     expect(checkbox()!.checked).toBe(true);
+    expect(checkbox()!.label).toBe("Also close the sub-agents it opened: Horus, Seth");
     await act(async () => button("Close the agent").click());
     expect(removeNodes).toHaveBeenLastCalledWith(["osiris", "horus", "seth"]);
     expect(uiStore.getState().closing).toBeNull();

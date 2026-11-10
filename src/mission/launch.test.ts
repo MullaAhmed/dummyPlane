@@ -333,7 +333,7 @@ describe("a new agent in a chosen group (spec groupes spécialisés §4)", () =>
     await setup({ plan: [inFront] });
     canvasStore.setState({ links: {} });
     await launchMission("chef");
-    expect(missionNow()).toMatchObject({ state: "plan", error: "The group Interface is no longer linked to the orchestrator." });
+    expect(missionNow()).toMatchObject({ state: "plan", error: "The group Interface is no longer linked to the fleet." });
     expect(missionPrepare).not.toHaveBeenCalled();
   });
 
@@ -344,7 +344,7 @@ describe("a new agent in a chosen group (spec groupes spécialisés §4)", () =>
       return tree("auth");
     });
     await launchMission("chef");
-    expect(missionNow()).toMatchObject({ state: "plan", error: "The group Interface is no longer linked to the orchestrator." });
+    expect(missionNow()).toMatchObject({ state: "plan", error: "The group Interface is no longer linked to the fleet." });
     expect(addTerminal).not.toHaveBeenCalled();
     expect(missionDiscard).toHaveBeenCalled();
   });
@@ -356,7 +356,7 @@ describe("a new agent in a chosen group (spec groupes spécialisés §4)", () =>
       return { frameId: "f1", nodeIds: ["n1"] };
     });
     await launchMission("chef");
-    expect(missionNow()).toMatchObject({ state: "plan", error: "The group Interface is no longer linked to the orchestrator.", members: [] });
+    expect(missionNow()).toMatchObject({ state: "plan", error: "The group Interface is no longer linked to the fleet.", members: [] });
     expect(closeGroup).toHaveBeenCalledWith("f1");
     expect(missionDiscard).toHaveBeenCalled();
   });

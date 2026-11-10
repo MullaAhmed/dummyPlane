@@ -2,20 +2,27 @@ import { useEffect, useState } from "react";
 import { canvasStore, useCanvas } from "@/canvas/canvasStore";
 import { useMessages } from "@/i18n";
 import { TOP_ROW_HEIGHT } from "@/shell/layout";
+import { useNodes } from "@/store/nodes";
 import { uiStore, useUi } from "@/store/ui";
 import { fleetMessages } from "./messages";
 import { finishButtonAt, forwardWheel } from "./linkOverlay";
 import { linkOrchestrator } from "./orchestrators";
 import { clientRectOf, sceneOf } from "./placement";
 import type { Point } from "./terminals";
-import { linkTargetAt } from "./wires";
+import { linkTargetAt, orchestratorAt, orchestratorsOf } from "./wires";
 
-/** "Link" (spec theme §13): each click wires a group or a terminal; Escape or a click in the void ends it. */
+/**
+ * "Link" (spec theme §13): each click wires a group or a terminal; Escape or a click in the void ends it.
+ * Started from an agent's foot, it runs the other way: a click on an orchestrator wires the agent to it,
+ * the same wire as from the orchestrator's end, and the mode ends.
+ */
 export function LinkMode() {
   const t = useMessages(fleetMessages);
   const linking = useUi((s) => s.linking);
+  const fromAgent = useNodes((s) => (linking ? s.nodes[linking]?.kind === "terminal" : false));
   const view = useCanvas((s) => s.view);
   const frames = useCanvas((s) => s.frames);
+  const links = useCanvas((s) => s.links);
   const [pointer, setPointer] = useState<Point | null>(null);
 
   useEffect(() => {
@@ -23,15 +30,27 @@ export function LinkMode() {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") uiStore.getState().setLinking(null);
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    // Captured: the Link button keeps the focus after its click, and the foot it sits in stops every key
+    // on its way up (useNativeKeyDown), so Escape would never bubble here.
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
   }, [linking]);
 
   if (!linking) return null;
   const elements = canvasStore.getState().api?.getSceneElements() ?? [];
-  const targetAt = (client: Point) => linkTargetAt(elements, frames, sceneOf(client, view));
+  const targetAt = (client: Point) => {
+    const point = sceneOf(client, view);
+    return fromAgent ? orchestratorAt(elements, point) : linkTargetAt(elements, frames, point);
+  };
   const hovered = pointer ? targetAt(pointer) : null;
   const rect = hovered ? (frames.find((f) => f.id === hovered) ?? elements.find((e) => e.id === hovered)) : undefined;
+
+  const link = (target: string) => {
+    if (!fromAgent) return linkOrchestrator(linking, target);
+    // An orchestrator that already commands the agent, through its group too, gets no second wire.
+    if (!orchestratorsOf(linking, links, frames).includes(target)) linkOrchestrator(target, linking);
+    uiStore.getState().setLinking(null);
+  };
 
   return (
     <div
@@ -45,11 +64,12 @@ export function LinkMode() {
         uiStore.getState().setLinking(null);
       }}
       onClick={(e) => {
-        // The layer covers the orchestrator's "Finish": the click goes on to it.
+        // The layer covers the linker's own "Done": the click goes on to it. Another node's Link is
+        // only a place on that node: from an agent's end, the orchestrator's "+ Link" designates it.
         const finish = finishButtonAt(e.clientX, e.clientY);
-        if (finish) return finish.click();
+        if (finish && finish.getAttribute("data-link-toggle") === linking) return finish.click();
         const target = targetAt({ x: e.clientX, y: e.clientY });
-        if (target) linkOrchestrator(linking, target);
+        if (target) link(target);
         else uiStore.getState().setLinking(null);
       }}
     >
@@ -60,10 +80,10 @@ export function LinkMode() {
         />
       )}
       <div
-        className="dp-glass-strong pointer-events-none fixed left-1/2 -translate-x-1/2 rounded-full px-3 py-1 text-xs text-dp-text-2"
+        className="dp-glass-strong pointer-events-none fixed left-1/2 -translate-x-1/2 rounded-md px-3 py-1 text-xs text-dp-text-2"
         style={{ top: TOP_ROW_HEIGHT + 14 }}
       >
-        {t.link.hint}
+        {fromAgent ? t.link.agentHint : t.link.hint}
       </div>
     </div>
   );

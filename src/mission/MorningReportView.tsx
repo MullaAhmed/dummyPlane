@@ -8,8 +8,8 @@ function Rows({ title, rows }: { title: string; rows: MorningRow[] }) {
   const t = useMessages(missionMessages);
   if (rows.length === 0) return null;
   return (
-    <div className="flex flex-col gap-0.5">
-      <span className="font-semibold text-dp-text">{t.morning.count(title, rows.length)}</span>
+    <div className="flex flex-col gap-1">
+      <span className="font-medium text-dp-text">{t.morning.count(title, rows.length)}</span>
       <ul className="flex flex-col gap-0.5">
         {rows.map((row, i) => (
           <li key={`${row.agent}-${row.task}-${i}`} title={row.summary} className="rounded-md bg-dp-card px-2 py-1">
@@ -17,12 +17,12 @@ function Rows({ title, rows }: { title: string; rows: MorningRow[] }) {
               <span className="min-w-0 truncate text-dp-text">{row.task}</span>
               {row.status && row.status !== "termine" && <span className="shrink-0 text-dp-danger">{t.report[row.status]}</span>}
               {row.merged && <span className="shrink-0">{t.merged}</span>}
-              <span className="ml-auto shrink-0 font-mono text-[11px]">
+              <span className="ml-auto shrink-0 font-mono text-dp-text-3 tabular-nums">
                 {row.agent} · {t.spent(row.minutes, row.budgetMin)}
               </span>
             </div>
             {row.summary && <p className="line-clamp-2">{row.summary}</p>}
-            <p className="truncate font-mono text-[11px]">{row.branch}</p>
+            <p className="truncate font-mono text-dp-text-3">{row.branch}</p>
           </li>
         ))}
       </ul>
@@ -36,14 +36,14 @@ export function MorningReportView({ mission }: { mission: Mission }) {
   const now = useNow(60_000);
   const report = morningReport(mission, now);
   return (
-    <div data-morning className="flex flex-col gap-1.5">
+    <div data-morning className="flex flex-col gap-2">
       <header className="flex items-center gap-2">
-        <span className="font-semibold uppercase tracking-[0.08em] text-dp-text">{t.morning.title}</span>
-        <span className="ml-auto font-mono text-[11px]">{t.morning.time(report.elapsedMin, report.awayMin)}</span>
+        <span className="font-medium text-dp-text">{t.morning.title}</span>
+        <span className="ml-auto font-mono text-dp-text-3 tabular-nums">{t.morning.time(report.elapsedMin, report.awayMin)}</span>
       </header>
       {report.check.length > 0 && (
-        <div className="flex flex-col gap-0.5">
-          <span className="font-semibold text-dp-text">{t.morning.count(t.morning.check, report.check.length)}</span>
+        <div className="flex flex-col gap-1">
+          <span className="font-medium text-dp-text">{t.morning.count(t.morning.check, report.check.length)}</span>
           <ul className="flex list-disc flex-col gap-0.5 pl-4">
             {report.check.map((line, i) => (
               <li key={i}>{line}</li>

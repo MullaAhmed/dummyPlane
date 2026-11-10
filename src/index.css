@@ -9,9 +9,16 @@
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
 @theme inline {
+  --ease-out: var(--dp-ease-out);
   --font-heading: var(--font-sans);
   --font-sans: "Inter Variable", sans-serif;
   --font-mono: "JetBrains Mono Variable", ui-monospace, monospace;
+  /* The interface's own step between text-xs (12) and text-sm (14): menu rows,
+     tabs, node titles, small buttons. Write it `text-(length:--text-ui)`, never
+     `text-ui`: cn merges like tailwind-merge, which reads `text-ui` as a text
+     colour and drops it beside `text-dp-text`. Like the arbitrary value it
+     replaces, it sets no line height. */
+  --text-ui: 13px;
   --color-dp-canvas: var(--dp-canvas);
   --color-dp-dot: var(--dp-dot);
   --color-dp-surface: var(--dp-surface);
@@ -69,13 +76,16 @@
   --color-card: var(--card);
   --color-foreground: var(--foreground);
   --color-background: var(--background);
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
+  /* Radius by size, with nested radius math (inner = outer − padding, never below 4):
+     sm tags, keycaps and small buttons; md controls (buttons, inputs, rows);
+     lg cards, menus, popovers, toasts; xl panels, dialogs and windows. */
+  --radius-sm: 6px;
+  --radius-md: 8px;
   --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
+  --radius-xl: 16px;
+  --radius-2xl: 20px;
+  --radius-3xl: 24px;
+  --radius-4xl: 28px;
 }
 
 /* shadcn components read these; they are mapped onto the dummyPlane tokens. */
@@ -98,7 +108,7 @@
   --border: var(--dp-line);
   --input: var(--dp-line);
   --ring: var(--dp-accent);
-  --radius: 0.75rem;
+  --radius: 12px;
   --sidebar: var(--dp-surface);
   --sidebar-foreground: var(--dp-text);
   --sidebar-primary: var(--dp-accent);
@@ -119,102 +129,93 @@
   html {
     @apply font-sans;
   }
+  /* The WebView's own scrollbars: 8 px, a thumb of the ink on a clear track, no arrow buttons.
+     WebView2 otherwise draws Windows' classic ones, and `scrollbar-width: thin` keeps their arrows,
+     so this is ::-webkit-scrollbar (which a standard scrollbar-width or scrollbar-color on an
+     element switches off: [scrollbar-width:none] on the workspace tabs still hides theirs).
+     Excalidraw styles its own the same way, and xterm draws its own. */
+  :not(.excalidraw *, .xterm *)::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+    background: transparent;
+  }
+  :not(.excalidraw *, .xterm *)::-webkit-scrollbar-thumb {
+    /* 4 px of ink inside the 8 px the pointer can grab. */
+    border: 2px solid transparent;
+    border-radius: 4px;
+    background: color-mix(in oklab, var(--dp-text) 28%, transparent) padding-box;
+  }
+  :not(.excalidraw *, .xterm *)::-webkit-scrollbar-thumb:hover {
+    background-color: color-mix(in oklab, var(--dp-text) 44%, transparent);
+  }
+  :not(.excalidraw *, .xterm *)::-webkit-scrollbar-corner {
+    background: transparent;
+  }
 }
 
 @layer components {
-  /* Section titles of menus and panels. */
+  /* Section titles of menus and panels: sentence case, 12 px, the secondary text role. */
   .dp-label {
-    @apply text-[11px] font-medium tracking-[0.06em] text-dp-text-2 uppercase;
+    @apply text-xs font-medium text-dp-text-2;
   }
 
-  /* Glass (spec identité §4.2): light glass for rails and floating bars… */
-  .dp-glass {
-    background: var(--dp-glass);
-    backdrop-filter: var(--dp-blur);
-    -webkit-backdrop-filter: var(--dp-blur);
-    border: 1px solid var(--dp-glass-line);
-    box-shadow: var(--dp-glass-hi), var(--dp-glass-edge), var(--dp-float-shadow);
-  }
-
-  /* …dense glass for everything that carries text. */
+  /* Raised surfaces (spec identité §4.2): the opaque surface color, a hairline
+     and, in the light palette only, a small neutral shadow. No glass and no blur:
+     the two names are kept for the rails and bars that use them, and draw the same. */
+  .dp-glass,
   .dp-glass-strong {
-    background: var(--dp-glass-strong);
-    backdrop-filter: var(--dp-blur);
-    -webkit-backdrop-filter: var(--dp-blur);
-    border: 1px solid var(--dp-glass-line);
-    box-shadow: var(--dp-glass-hi), var(--dp-glass-edge), var(--dp-float-shadow);
+    background: var(--dp-surface);
+    border: 1px solid var(--dp-line);
+    box-shadow: var(--dp-float-shadow);
   }
 
-  /* The canvas color and three soft lights, fixed to the screen, that give
-     the glass something to blur (spec identité §4.2). */
+  /* The app's ground: the canvas color, flat. */
   .dp-ambient {
     background-color: var(--dp-canvas);
-    background-image:
-      radial-gradient(760px 520px at 16% 28%, var(--dp-glow-1), transparent 70%),
-      radial-gradient(720px 560px at 86% 84%, var(--dp-glow-2), transparent 70%),
-      radial-gradient(520px 420px at 62% 12%, var(--dp-glow-3), transparent 70%);
   }
 }
 
-/* Menus, popovers, lists and dialogs in dense glass (spec identité §5.10).
-   Outside any layer: it wins over the utility classes of the shadcn components. */
+/* Menus, popovers, lists and dialogs as raised surfaces (spec identité §5.10),
+   like dp-glass-strong: opaque. Outside any layer: it wins over the utility
+   classes of the shadcn components. */
 [data-slot="dropdown-menu-content"],
 [data-slot="dropdown-menu-sub-content"],
 [data-slot="popover-content"],
 [data-slot="select-content"] {
-  background: var(--dp-glass-strong);
-  backdrop-filter: var(--dp-blur);
-  -webkit-backdrop-filter: var(--dp-blur);
-  border: 1px solid var(--dp-glass-line);
+  background: var(--dp-surface);
+  border: 1px solid var(--dp-line);
   border-radius: var(--radius-lg);
-  box-shadow: var(--dp-glass-hi), var(--dp-glass-edge), var(--dp-shadow);
+  box-shadow: var(--dp-shadow);
 }
 
 [data-slot="dialog-content"] {
-  background: var(--dp-glass-strong);
-  backdrop-filter: var(--dp-blur);
-  -webkit-backdrop-filter: var(--dp-blur);
-  border: 1px solid var(--dp-glass-line);
+  background: var(--dp-surface);
+  border: 1px solid var(--dp-line);
   border-radius: var(--radius-xl);
-  box-shadow: var(--dp-glass-hi), var(--dp-glass-edge), var(--dp-shadow);
+  box-shadow: var(--dp-shadow);
 }
 
+/* The veil under a dialog: a flat scrim, nothing blurred behind it. */
 [data-slot="dialog-overlay"] {
   background: var(--dp-scrim);
-  backdrop-filter: blur(3px);
-  -webkit-backdrop-filter: blur(3px);
 }
 
-/* The veil follows the transparency setting too. */
-:root[data-transparency="off"] [data-slot="dialog-overlay"] {
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-}
-
-@media (prefers-reduced-transparency: reduce) {
-  [data-slot="dialog-overlay"] {
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-  }
-}
-
-/* Toasts, in the bottom-right corner (spec identité §5.8). */
+/* Toasts, in the bottom-right corner (spec identité §5.8), as raised surfaces. */
 [data-sonner-toaster] [data-sonner-toast][data-styled="true"] {
-  background: var(--dp-glass-strong);
-  backdrop-filter: var(--dp-blur);
-  -webkit-backdrop-filter: var(--dp-blur);
-  border-color: var(--dp-glass-line);
+  background: var(--dp-surface);
+  border-color: var(--dp-line);
   border-radius: var(--radius-lg);
-  box-shadow: var(--dp-glass-hi), var(--dp-glass-edge), var(--dp-shadow);
+  box-shadow: var(--dp-shadow);
 }
 
-/* Arrival on a terminal: its border takes the accent, then fades back (spec fenêtre §6.4). */
+/* Arrival on a terminal: the selection frame's ink-and-paper pair, then fades back (spec fenêtre §6.4).
+   The paper line keeps it visible where the ink is as dark as the terminal body (calm). */
 @keyframes dp-arrival {
   from {
-    box-shadow: inset 0 0 0 2px var(--dp-accent);
+    box-shadow: inset 0 0 0 1px var(--dp-accent), inset 0 0 0 3px var(--dp-on-accent);
   }
   to {
-    box-shadow: inset 0 0 0 2px transparent;
+    box-shadow: inset 0 0 0 1px transparent, inset 0 0 0 3px transparent;
   }
 }
 
@@ -227,6 +228,12 @@
   .dp-arrival {
     animation-duration: var(--dp-dur-fast);
   }
+}
+
+/* The radial menu's wheel: its wedges and hub are opaque surfaces with a hairline, and the wheel
+   floats as one, under the float shadow (none in the dark palettes). */
+.dp-radial {
+  filter: drop-shadow(var(--dp-float-shadow));
 }
 
 /* The radial menu opens from its center (spec menu radial §5.1). */
@@ -251,18 +258,9 @@
   }
 }
 
-/* A message on a wire (WireActivity): the wire glows, a light runs along it the way the message goes, then all fades. */
-@keyframes dp-wire-glow {
-  0% {
-    opacity: 0;
-  }
-  15% {
-    opacity: 0.4;
-  }
-  100% {
-    opacity: 0;
-  }
-}
+/* A message on a wire (WireActivity): a light runs along it the way the message goes, then fades.
+   The wire itself no longer glows: its glow path (.dp-wire-glow) is only drawn, as the plain lit
+   wire, when motion is reduced. */
 
 /* The path is one unit long (pathLength="1"): a short dash runs from before its start to past its end. */
 @keyframes dp-wire-packet {
@@ -287,16 +285,14 @@
 }
 
 .dp-wire-glow {
-  stroke-width: 7;
-  opacity: 0;
-  animation: dp-wire-glow 1500ms var(--dp-ease-out) forwards;
+  display: none;
 }
 
 .dp-wire-packet {
   stroke-width: 4;
   stroke-dasharray: 0.1 1.1;
   stroke-dashoffset: 0.1;
-  animation: dp-wire-packet 1100ms ease-out both;
+  animation: dp-wire-packet 1100ms var(--dp-ease-out) both;
 }
 
 .dp-wire-packet--late {
@@ -307,8 +303,8 @@
 /* Reduced motion: no light running, the wire is only lit while the message passes. */
 @media (prefers-reduced-motion: reduce) {
   .dp-wire-glow {
-    animation: none;
-    opacity: 0.45;
+    display: inline;
+    stroke-width: 3;
   }
 
   .dp-wire-packet {

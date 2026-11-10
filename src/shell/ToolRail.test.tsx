@@ -65,7 +65,7 @@ it("holds the catalog, New console, Orchestrator and Kanban in its ＋ (spec ide
   await act(async () => byLabel("Launch an agent").click());
   const entries = menuEntries();
   expect(entries[0]).toContain("Claude");
-  expect(entries.slice(-4, -1)).toEqual(["New console", expect.stringContaining("Orchestrator"), expect.stringContaining("Kanban")]);
+  expect(entries.slice(-4, -1)).toEqual(["New console", expect.stringContaining("Fleet"), expect.stringContaining("Kanban")]);
   expect(entries).not.toContain("Launch 4 agents");
   const click = (text: string) =>
     [...document.querySelectorAll<HTMLButtonElement>('[data-slot="popover-content"] button')].find((b) => b.textContent === text)!.click();

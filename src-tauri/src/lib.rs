@@ -183,6 +183,7 @@ pub fn run() {
             commands::agents::subagent_snapshot,
             commands::agents::mcp_reply,
             commands::agents::set_subagent_terminals,
+            commands::agents::claude_extensions,
         ])
         .build(tauri::generate_context!())
         .expect("error while building the dummyPlane application");

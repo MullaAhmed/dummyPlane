@@ -108,6 +108,9 @@ pub struct ClaudeLaunch {
     /// The profile's folder, for this terminal's `CLAUDE_CONFIG_DIR` (spec comptes §4).
     #[serde(default)]
     pub config_dir: Option<String>,
+    /// The skills, plugins, MCP servers and subagents it turns off or on (`agents::extensions`).
+    #[serde(default)]
+    pub extensions: Option<crate::agents::extensions::ExtensionChoice>,
 }
 
 /// What the frontend asks for when it starts a terminal (spec §9).
@@ -626,6 +629,7 @@ mod tests {
             model: None,
             permission: None,
             config_dir: None,
+            extensions: None,
         })
     }
 
@@ -772,6 +776,7 @@ mod tests {
             model: None,
             permission: None,
             config_dir: None,
+            extensions: None,
         });
         let err = agent_command(
             &spec(Agent::Claude, launch),
@@ -801,6 +806,7 @@ mod tests {
             model: None,
             permission: None,
             config_dir: None,
+            extensions: None,
         })
     }
 

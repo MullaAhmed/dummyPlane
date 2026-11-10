@@ -45,12 +45,12 @@ it("tells the orchestrator once when a budget runs out, warns the user at 200 % 
   checkBudgets(21 * min);
   checkBudgets(22 * min);
   expect(toast.warning).toHaveBeenCalledTimes(1);
-  expect(toast.warning).toHaveBeenCalledWith("Isis has gone over twice its budget (10 min) without reporting.");
+  expect(toast.warning).toHaveBeenCalledWith("Isis has gone over twice its budget (10 min) without reporting");
   checkBudgets(31 * min);
   checkBudgets(40 * min);
   expect(vi.mocked(notify).mock.calls.map(([to, line]) => [to, line])[1]).toEqual(["chef", "Overall budget used up (30 min): finish with what is done."]);
   expect(notify).toHaveBeenCalledTimes(2);
-  expect(toast.warning).toHaveBeenLastCalledWith("Mission Auth: overall budget used up (30 min).");
+  expect(toast.warning).toHaveBeenLastCalledWith("Mission Auth: overall budget used up (30 min)");
   expect(missionOf(nodesStore.getState().nodes.chef)?.globalOverdue).toBe(true);
 });
 
@@ -133,8 +133,8 @@ it("tells the orchestrator and the user in English when the interface is (spec p
       ["chef", "Overall budget used up (30 min): finish with what is done."],
     ]);
     expect(vi.mocked(toast.warning).mock.calls).toEqual([
-      ["Isis has gone over twice its budget (10 min) without reporting."],
-      ["Mission Auth: overall budget used up (30 min)."],
+      ["Isis has gone over twice its budget (10 min) without reporting"],
+      ["Mission Auth: overall budget used up (30 min)"],
     ]);
   } finally {
   }

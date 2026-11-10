@@ -43,6 +43,14 @@
   --focus-highlight-color: var(--dp-accent-soft);
 }
 
+/* The dark theme shows Excalidraw's canvases through `invert(93%) hue-rotate(180deg)`
+   (spec habillage §4.3), the selection it paints there included: stored as is, the
+   off-white ink of the dark palettes would show near-black. Stored black, it shows
+   #ededed. The DOM colors above are not filtered and keep the ink. */
+:root .excalidraw.excalidraw.theme--dark {
+  --color-selection: #000000;
+}
+
 /* The dot grid and the canvas color are painted under a transparent canvas. */
 .excalidraw,
 .excalidraw .excalidraw-container {
@@ -90,10 +98,9 @@
 .excalidraw [id*="-frame-name-"] {
   padding-left: 28px;
   font-family: "Inter Variable", sans-serif;
-  font-size: 11px !important;
-  font-weight: 600;
-  letter-spacing: 0.08em;
+  font-size: 12px !important;
+  font-weight: 500;
+  letter-spacing: 0;
   line-height: 24px !important;
-  text-transform: uppercase;
   transform: translate(16px, 3px);
 }

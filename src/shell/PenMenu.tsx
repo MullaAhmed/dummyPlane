@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { PenLine } from "lucide-react";
+import { PenLine, Pipette } from "lucide-react";
 import { canvasStore } from "@/canvas/canvasStore";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useMessages } from "@/i18n";
-import { cn } from "@/lib/utils";
 import { useTheme } from "@/app/theme";
 import { displayColorFor, sceneColorFor } from "@/theme/sceneColors";
 import { PEN_COLORS } from "@/theme/penColors";
@@ -11,15 +11,23 @@ import { PEN_WIDTHS } from "./tools";
 import { ToolButton } from "./buttons";
 import { shellMessages } from "./messages";
 
-/** Pen tool with its COLOR and WIDTH menu (spec habillage §5.3). */
+/**
+ * A swatch: a 24 px dot filled by its inline colour. The chosen one carries a
+ * ring in the accent, the others a hairline ring on hover; no scale but the press.
+ */
+const SWATCH =
+  "size-6 rounded-full min-w-0 p-0 ring-offset-2 ring-offset-dp-surface hover:ring-2 hover:ring-dp-line data-[state=on]:ring-2 data-[state=on]:ring-dp-accent transition-[box-shadow,transform] duration-150 ease-out active:scale-[0.97] focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none";
+/** A width: a 32 px square, the chosen one on the accent's soft surface. */
+const WIDTH =
+  "size-8 min-w-0 rounded-md border border-transparent bg-dp-card p-0 hover:bg-dp-hover data-[state=on]:border-dp-accent data-[state=on]:bg-dp-accent-soft transition-[background-color,border-color,transform] duration-150 ease-out active:scale-[0.97] focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none";
+
+/** Pen tool with its color and width menu (spec habillage §5.3). */
 export function PenMenu({ active }: { active: boolean }) {
   const t = useMessages(shellMessages).pen;
   const [open, setOpen] = useState(false);
   const theme = useTheme();
   const [color, setColor] = useState(PEN_COLORS[0].scene);
   const [width, setWidth] = useState(2);
-  // The "custom" swatch is the palette itself, in the colours of this theme: no colour is written here.
-  const spectrum = `conic-gradient(${PEN_COLORS.map(({ scene }) => displayColorFor(scene, theme)).join(", ")})`;
 
   const choose = (next: { color?: string; width?: number }) => {
     const api = canvasStore.getState().api;
@@ -54,53 +62,48 @@ export function PenMenu({ active }: { active: boolean }) {
           <PenLine />
         </ToolButton>
       </PopoverTrigger>
-      <PopoverContent side="right" className="w-60 rounded-lg">
-        <p className="dp-label mb-2">{t.color}</p>
-        <div className="mb-3 flex flex-wrap gap-2">
-          {PEN_COLORS.map(({ scene }, index) => (
-            // The label is the French one stored with the color; the interface shows its own language's.
-            <button
-              key={scene}
-              type="button"
-              title={t.colors[index]}
-              aria-label={t.colors[index]}
-              onClick={() => choose({ color: scene })}
-              className={cn(
-                "size-6 rounded-full ring-offset-2 ring-offset-dp-surface transition-[transform,box-shadow] duration-150 ease-out hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] motion-reduce:transition-none",
-                scene === color && "ring-2 ring-dp-accent",
-              )}
-              style={{ backgroundColor: displayColorFor(scene, theme) }}
-            />
-          ))}
-          <label
-            title={t.custom}
-            style={{ backgroundImage: spectrum }}
-            className="relative size-6 cursor-pointer overflow-hidden rounded-full border border-dp-line transition-[transform,filter] duration-150 ease-out hover:brightness-110 active:scale-[0.97] has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-dp-accent/50 motion-reduce:transition-none"
-          >
-            <input
-              type="color"
-              className="absolute inset-0 cursor-pointer opacity-0"
-              onChange={(e) => choose({ color: sceneColorFor(e.target.value, theme) })}
-            />
-          </label>
-        </div>
-        <p className="dp-label mb-2">{t.width}</p>
-        <div className="flex gap-1.5">
-          {PEN_WIDTHS.map((w) => (
-            <button
-              key={w}
-              type="button"
-              aria-label={t.widthN(w)}
-              onClick={() => choose({ width: w })}
-              className={cn(
-                "grid size-8 place-items-center rounded-md border border-transparent bg-dp-card transition-[background-color,border-color,transform] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] motion-reduce:transition-none",
-                w === width ? "border-dp-accent bg-dp-accent-soft" : "hover:bg-dp-hover",
-              )}
+      <PopoverContent side="right" sideOffset={12} className="flex w-60 flex-col gap-3 rounded-lg">
+        <section className="flex flex-col gap-2">
+          <p className="dp-label">{t.color}</p>
+          {/* A click picks even the colour in force: it takes the pen again. The value only shows which one it is. */}
+          <ToggleGroup type="single" value={color} aria-label={t.color} spacing={2} className="flex-wrap">
+            {PEN_COLORS.map(({ scene }, index) => (
+              // The label is the French one stored with the color; the interface shows its own language's.
+              <ToggleGroupItem
+                key={scene}
+                value={scene}
+                aria-label={t.colors[index]}
+                title={t.colors[index]}
+                onClick={() => choose({ color: scene })}
+                className={SWATCH}
+                style={{ backgroundColor: displayColorFor(scene, theme) }}
+              />
+            ))}
+            {/* No shadcn colour picker: the native one, behind a swatch of the same size. */}
+            <label
+              title={t.custom}
+              className="relative grid size-6 cursor-pointer place-items-center overflow-hidden rounded-full border border-dp-line text-dp-text-2 transition-[color,background-color,transform] duration-150 ease-out hover:bg-dp-hover hover:text-dp-text active:scale-[0.97] has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-dp-accent/50 motion-reduce:transition-none"
             >
-              <span className="rounded-full bg-dp-text" style={{ width: w + 2, height: w + 2 }} />
-            </button>
-          ))}
-        </div>
+              <Pipette aria-hidden className="size-3.5" />
+              <input
+                type="color"
+                aria-label={t.custom}
+                className="absolute inset-0 cursor-pointer opacity-0"
+                onChange={(e) => choose({ color: sceneColorFor(e.target.value, theme) })}
+              />
+            </label>
+          </ToggleGroup>
+        </section>
+        <section className="flex flex-col gap-2">
+          <p className="dp-label">{t.width}</p>
+          <ToggleGroup type="single" value={String(width)} aria-label={t.width} spacing={2}>
+            {PEN_WIDTHS.map((w) => (
+              <ToggleGroupItem key={w} value={String(w)} aria-label={t.widthN(w)} onClick={() => choose({ width: w })} className={WIDTH}>
+                <span className="rounded-full bg-dp-text" style={{ width: w + 2, height: w + 2 }} />
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
+        </section>
       </PopoverContent>
     </Popover>
   );

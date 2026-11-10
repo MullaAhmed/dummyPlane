@@ -4,7 +4,7 @@ import type { DeployResult } from "./deploy";
 /** Texts of the team presets (spec presets §3). */
 export const presetsMessages = defineMessages({
   section: "Teams",
-  notRead: "The list of presets could not be read: nothing changed.",
+  notRead: "The list of presets could not be read: nothing changed",
   save: "Save the team as a preset…",
   saveKeywords: ["team", "preset", "save", "topology"],
   deploy: (name: string, agents: number) => `Deploy team: ${name} (${plural(agents, "agent", "agents")})`,
@@ -13,7 +13,7 @@ export const presetsMessages = defineMessages({
   removeKeywords: (name: string) => ["team", "preset", "delete", "remove", name],
   dialog: {
     title: "Save the team as a preset",
-    description: "The groups, their agents and the linked orchestrators are kept; no instructions and no missions.",
+    description: "The groups, their agents and the linked fleets are kept; no instructions and no missions",
     nameLabel: "Preset name",
     placeholder: "Dev HQ",
     save: "Save",
@@ -28,9 +28,9 @@ export const presetsMessages = defineMessages({
     removed: (name: string) => `Preset “${name}” deleted`,
     undo: "Undo",
     deployed: (name: string, r: DeployResult) =>
-      `Team “${name}” deployed: ${plural(r.groups, "group", "groups")}, ${plural(r.agents, "agent", "agents")}, ${plural(r.orchestrators, "orchestrator", "orchestrators")}`,
+      `Team “${name}” deployed: ${plural(r.groups, "group", "groups")}, ${plural(r.agents, "agent", "agents")}, ${plural(r.orchestrators, "fleet", "fleets")}`,
     substituted: (count: number) => `${plural(count, "agent", "agents")} not found on this computer replaced by the default agent`,
-    orchestratorsSkipped: (count: number) => `${plural(count, "orchestrator", "orchestrators")} not placed (Claude Code is required)`,
+    orchestratorsSkipped: (count: number) => `${plural(count, "fleet", "fleets")} not placed (Claude Code is required)`,
     failed: (error: string) => `Could not change the presets: ${error}`,
   },
 });

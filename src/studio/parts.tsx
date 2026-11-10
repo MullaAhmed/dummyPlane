@@ -33,11 +33,7 @@ export function DiskBanner({ session, disk, onDrop }: { session: FileSession; di
   const { reload, overwrite, dropFile } = session.getState();
   const gone = disk.version === null;
   return (
-    <div
-      role="alert"
-      className="flex shrink-0 items-center gap-2 border-b border-dp-line px-3 py-1.5 text-xs text-dp-text"
-      style={{ backgroundColor: "color-mix(in srgb, var(--dp-wait) 16%, transparent)" }}
-    >
+    <div role="alert" className="flex shrink-0 items-center gap-2 border-b border-dp-line bg-dp-wait/16 px-3 py-1 text-xs text-dp-text">
       <span className="min-w-0 flex-1">{gone ? t.deletedOnDisk : t.changedOnDisk}</span>
       {gone ? (
         <>

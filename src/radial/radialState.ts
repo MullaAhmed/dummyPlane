@@ -14,7 +14,7 @@ export interface RadialOpen {
   pressed: boolean;
   /** It moved more than 6 px: its release runs the slot it points at. */
   sliding: boolean;
-  /** The slot under the pointer, or pointed at by the slide. */
+  /** The slot pointed at: by the pointer's place on the wheel, the slide, or the arrows. */
   hovered: number | null;
 }
 

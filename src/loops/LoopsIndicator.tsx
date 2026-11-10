@@ -16,16 +16,14 @@ export function LoopsIndicator() {
   const running = Object.values(runtime).filter((r) => r.running);
   if (running.length === 0) return null;
   const runs = running.reduce((sum, r) => sum + r.runs, 0);
+  // A bar of two controls: 8px controls inside 4px of padding make a 12px bar.
   return (
-    <div
-      data-loops-indicator
-      className="dp-glass-strong fixed bottom-[76px] left-4 z-30 flex items-center gap-2 rounded-full py-1 pl-3 pr-1 text-xs text-dp-text"
-    >
-      <Repeat className="size-3.5 text-dp-accent-ink" />
-      <button type="button" aria-label={t.open} onClick={() => requestUi({ kind: "loops" })} className="rounded-md px-1 font-mono transition-[background-color] duration-150 ease-out hover:bg-dp-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none">
+    <div data-loops-indicator className="dp-glass-strong fixed bottom-19 left-4 z-30 flex items-center gap-1 rounded-lg p-1 pl-3 text-xs text-dp-text">
+      <Repeat className="size-4 shrink-0 text-dp-text-2" />
+      <Button variant="ghost" size="xs" aria-label={t.open} onClick={() => requestUi({ kind: "loops" })} className="rounded-md font-mono font-normal tabular-nums">
         {t.label(running.length, runs)}
-      </button>
-      <Button size="sm" variant="destructive" data-stop-all onClick={stopAll} className="rounded-full">
+      </Button>
+      <Button size="xs" variant="destructive" data-stop-all onClick={stopAll} className="rounded-md">
         {t.stopAll}
       </Button>
     </div>

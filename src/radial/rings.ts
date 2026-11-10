@@ -31,13 +31,18 @@ import { selectionLocked } from "@/commands/catalog/drawing";
 import { COMMANDS } from "@/commands/registry";
 import { agentsStore } from "@/fleet/agentsStore";
 import { AGENTS, defaultAgent } from "@/fleet/catalog";
+import { messages } from "@/i18n";
+import { radialMessages } from "./messages";
 
 export type RingKind = "canvas" | "terminal" | "group" | "orchestrator" | "selection";
 type Icon = ComponentType<{ className?: string }>;
+type ShortName = keyof (typeof radialMessages)["short"];
 
 export interface RingSlot {
   /** The registry's command, or the one of the moment ("Pause" / "Resume"). */
   command: string | ((ctx: CommandContext) => string);
+  /** The name under its icon, a word or two; or the one of the moment ("Pause" / "Resume", the agent's name). */
+  short: ShortName | ((ctx: CommandContext) => string);
   icon: Icon;
   /** The icon of the moment (the default agent's, the lock's). */
   iconOf?: (ctx: CommandContext) => Icon;
@@ -56,65 +61,87 @@ function secondLaunch(): string {
 const LAUNCH_PREFIX = "agent.launch.";
 const agentIconOf = (id: string): Icon =>
   id.startsWith(LAUNCH_PREFIX) && id !== `${LAUNCH_PREFIX}shell` ? AGENTS[id.slice(LAUNCH_PREFIX.length) as keyof typeof AGENTS].Icon : Terminal;
+/**
+ * A launch's short name is the agent's own ("Claude", "Shell"; the custom agent's, "Custom"), its
+ * first word only ("Qwen Code" → "Qwen"): two words cross the edge of a wedge at the side.
+ */
+function agentNameOf(id: string): string {
+  const name = id.startsWith(LAUNCH_PREFIX) ? AGENTS[id.slice(LAUNCH_PREFIX.length) as keyof typeof AGENTS].label : AGENTS.custom.label;
+  return name.split(" ")[0];
+}
 const resumes = (ctx: CommandContext) => COMMANDS.find((c) => c.id === "terminal.resume")?.available(ctx) ?? false;
+const short = () => messages(radialMessages).short;
 
-/** The five rings, positions clockwise from the top (spec menu radial §4). */
-export const RINGS: Record<RingKind, readonly (RingSlot | null)[]> = {
+/**
+ * The five rings, positions clockwise from the top (spec menu radial §4). A
+ * ring holds only real buttons: they are spread evenly around it, so a ring
+ * of fewer than eight leaves no empty place.
+ */
+export const RINGS: Record<RingKind, readonly RingSlot[]> = {
   canvas: [
-    { command: defaultLaunch, icon: Play, iconOf: () => AGENTS[defaultAgent(agentsStore.getState().agents)].Icon },
-    { command: secondLaunch, icon: Terminal, iconOf: () => agentIconOf(secondLaunch()) },
-    null,
-    { command: "agent.orchestrator", icon: Network },
-    { command: "drawing.paste", icon: ClipboardPaste },
-    { command: "tool.text", icon: Type },
-    { command: "agent.other", icon: Plus },
-    { command: "canvas.overview", icon: Scan },
+    {
+      command: defaultLaunch,
+      short: () => agentNameOf(defaultLaunch()),
+      icon: Play,
+      iconOf: () => AGENTS[defaultAgent(agentsStore.getState().agents)].Icon,
+    },
+    { command: secondLaunch, short: () => agentNameOf(secondLaunch()), icon: Terminal, iconOf: () => agentIconOf(secondLaunch()) },
+    { command: "agent.orchestrator", short: "fleet", icon: Network },
+    { command: "drawing.paste", short: "paste", icon: ClipboardPaste },
+    { command: "tool.text", short: "text", icon: Type },
+    { command: "agent.other", short: "otherAgent", icon: Plus },
+    { command: "canvas.overview", short: "overview", icon: Scan },
   ],
   terminal: [
-    { command: "terminal.copy", icon: Copy },
-    { command: "terminal.paste", icon: ClipboardPaste },
-    { command: "terminal.rename", icon: Pencil },
-    { command: "terminal.relaunch", icon: RotateCw },
-    { command: "terminal.close", icon: X, danger: true },
-    { command: "terminal.duplicate", icon: CopyPlus },
-    { command: (ctx) => (resumes(ctx) ? "terminal.resume" : "terminal.pause"), icon: Pause, iconOf: (ctx) => (resumes(ctx) ? Play : Pause) },
-    { command: "terminal.stop", icon: Square },
+    { command: "terminal.copy", short: "copy", icon: Copy },
+    { command: "terminal.paste", short: "paste", icon: ClipboardPaste },
+    { command: "terminal.rename", short: "rename", icon: Pencil },
+    { command: "terminal.relaunch", short: "restart", icon: RotateCw },
+    { command: "terminal.close", short: "close", icon: X, danger: true },
+    { command: "terminal.duplicate", short: "duplicate", icon: CopyPlus },
+    {
+      command: (ctx) => (resumes(ctx) ? "terminal.resume" : "terminal.pause"),
+      short: (ctx) => (resumes(ctx) ? short().resume : short().pause),
+      icon: Pause,
+      iconOf: (ctx) => (resumes(ctx) ? Play : Pause),
+    },
+    { command: "terminal.stop", short: "stop", icon: Square },
   ],
   group: [
-    { command: "group.addAgent", icon: UserPlus },
-    { command: "group.rename", icon: Pencil },
-    { command: "group.orchestrate", icon: Network },
-    { command: "group.pause", icon: Pause },
-    { command: "group.close", icon: X, danger: true },
-    { command: "group.ungroup", icon: Ungroup },
-    { command: "group.resume", icon: Play },
-    { command: "group.frame", icon: Focus },
+    { command: "group.addAgent", short: "addAgent", icon: UserPlus },
+    { command: "group.rename", short: "rename", icon: Pencil },
+    { command: "group.orchestrate", short: "linkFleet", icon: Network },
+    { command: "group.pause", short: "pause", icon: Pause },
+    { command: "group.close", short: "close", icon: X, danger: true },
+    { command: "group.ungroup", short: "ungroup", icon: Ungroup },
+    { command: "group.resume", short: "resume", icon: Play },
+    { command: "group.frame", short: "zoom", icon: Focus },
   ],
   orchestrator: [
-    { command: "orchestrator.write", icon: MessageSquare },
-    null,
-    { command: "orchestrator.rename", icon: Pencil },
-    null,
-    { command: "orchestrator.remove", icon: Trash2, danger: true },
-    null,
-    { command: "orchestrator.link", icon: Link },
-    { command: "orchestrator.paste", icon: ClipboardPaste },
+    { command: "orchestrator.write", short: "write", icon: MessageSquare },
+    { command: "orchestrator.rename", short: "rename", icon: Pencil },
+    { command: "orchestrator.remove", short: "delete", icon: Trash2, danger: true },
+    { command: "orchestrator.link", short: "link", icon: Link },
+    { command: "orchestrator.paste", short: "paste", icon: ClipboardPaste },
   ],
   selection: [
-    { command: "drawing.copy", icon: Copy },
-    { command: "drawing.paste", icon: ClipboardPaste },
-    { command: "drawing.duplicate", icon: CopyPlus },
-    { command: "drawing.front", icon: BringToFront },
-    { command: "drawing.delete", icon: Trash2, danger: true },
-    { command: "drawing.back", icon: SendToBack },
-    { command: "drawing.lock", icon: Lock, iconOf: () => (selectionLocked() ? LockOpen : Lock) },
-    { command: "drawing.more", icon: Ellipsis },
+    { command: "drawing.copy", short: "copy", icon: Copy },
+    { command: "drawing.paste", short: "paste", icon: ClipboardPaste },
+    { command: "drawing.duplicate", short: "duplicate", icon: CopyPlus },
+    { command: "drawing.front", short: "toFront", icon: BringToFront },
+    { command: "drawing.delete", short: "delete", icon: Trash2, danger: true },
+    { command: "drawing.back", short: "toBack", icon: SendToBack },
+    { command: "drawing.lock", short: () => (selectionLocked() ? short().unlock : short().lock), icon: Lock, iconOf: () => (selectionLocked() ? LockOpen : Lock) },
+    { command: "drawing.more", short: "more", icon: Ellipsis },
   ],
 };
 
 export interface RingLine {
   command: Command;
+  /** The full name: the hub's, and the button's for assistive technology. */
   label: string;
+  /** The name under the icon, in the wedge. */
+  short: string;
   Icon: Icon;
   enabled: boolean;
   /** Why it is greyed, when the command says. */
@@ -129,5 +156,13 @@ export function lineOf(slot: RingSlot, ctx: CommandContext, commands: readonly C
   if (!command) return null;
   const available = command.available(ctx);
   const reason = available ? (command.disabled?.(ctx) ?? null) : null;
-  return { command, label: labelOf(command, ctx), Icon: slot.iconOf?.(ctx) ?? slot.icon, enabled: available && reason === null, reason, danger: slot.danger ?? false };
+  return {
+    command,
+    label: labelOf(command, ctx),
+    short: typeof slot.short === "function" ? slot.short(ctx) : short()[slot.short],
+    Icon: slot.iconOf?.(ctx) ?? slot.icon,
+    enabled: available && reason === null,
+    reason,
+    danger: slot.danger ?? false,
+  };
 }

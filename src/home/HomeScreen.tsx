@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { FolderPlus, LifeBuoy } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { agentsStore } from "@/fleet/agentsStore";
 import { toast } from "sonner";
 import { messages, useMessages } from "@/i18n";
@@ -29,12 +30,12 @@ export function HomeScreen() {
 
   return (
     <div className="dp-ambient flex h-screen w-screen flex-col">
-      <TitleBar leading={<span data-tauri-drag-region="" className="text-[13px] font-semibold text-dp-text">dummyPlane</span>} center={<SearchField />} trailing={<UpdateChip />} />
+      <TitleBar leading={<span data-tauri-drag-region="" className="text-(length:--text-ui) font-medium text-dp-text">dummyPlane</span>} center={<SearchField />} trailing={<UpdateChip />} />
       {/* The scroller starts below the title bar: scrolled cards never slide under it. */}
       <div className="min-h-0 flex-1 overflow-auto">
         <div className="relative mx-auto max-w-5xl px-8 pb-12 pt-8">
           <header className="mb-6 flex items-center justify-between">
-            <h1 className="text-xl font-semibold text-dp-text">{t.title}</h1>
+            <h1 className="text-2xl font-medium text-dp-text">{t.title}</h1>
             <AccentButton onClick={() => void addProject()}>
               <FolderPlus /> {t.add}
             </AccentButton>
@@ -42,7 +43,7 @@ export function HomeScreen() {
           <GettingStarted hasProject={projects.length > 0} />
           {projects.length === 0 ? (
             <div className="mt-24 grid place-items-center gap-3 text-center">
-              <p className="text-lg font-semibold text-dp-text">{t.none}</p>
+              <p className="text-lg font-medium text-dp-text">{t.none}</p>
               <p className="max-w-sm text-sm text-dp-text-2">
                 {t.noneHint}
               </p>
@@ -54,13 +55,14 @@ export function HomeScreen() {
               ))}
             </div>
           )}
-          <button
-            type="button"
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => void showTroubleshooting()}
-            className="mx-auto mt-10 flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-dp-text-2 transition-[color,background-color] duration-150 ease-out hover:bg-dp-hover hover:text-dp-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] motion-reduce:transition-none [&_svg]:size-3.5"
+            className="mx-auto mt-10 flex gap-2 rounded-md px-2 text-xs font-normal text-dp-text-2 hover:text-dp-text [&_svg]:text-dp-text-3"
           >
             <LifeBuoy /> {t.troubleshoot}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

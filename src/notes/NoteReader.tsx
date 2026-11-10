@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useMessages } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { noteNamed } from "./links";
@@ -15,9 +16,14 @@ interface Props {
   onCreate: (name: string) => void;
 }
 
-const HEADINGS = ["text-lg", "text-base", "text-sm", "text-[13px]", "text-[13px]", "text-[13px]"];
+/** Hierarchy from size, then from ink: the three smallest levels share a size and step down in colour. */
+const HEADINGS = ["text-lg", "text-base", "text-sm", "text-sm text-dp-text-2", "text-sm text-dp-text-2", "text-sm text-dp-text-2"];
+/**
+ * A link inside the prose stays a bare <button>: it must wrap with the words around it,
+ * which shadcn's inline-flex Button, a control of its own height, cannot.
+ */
 const LINK =
-  "rounded-sm underline underline-offset-2 transition-[background-color] duration-150 ease-out hover:bg-dp-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none";
+  "rounded-sm underline underline-offset-2 transition-colors duration-150 ease-out hover:bg-dp-hover focus-visible:ring-2 focus-visible:ring-dp-accent/50 focus-visible:outline-none motion-reduce:transition-none";
 
 /** A note, read: elements built by React from the parsed text, never HTML (spec notes §3). */
 export function NoteReader({ text, notes, onOpen, onCreate }: Props) {
@@ -69,7 +75,7 @@ export function NoteReader({ text, notes, onOpen, onCreate }: Props) {
       case "heading": {
         const Heading = `h${item.level}` as "h1";
         return (
-          <Heading key={i} className={cn("mt-4 font-semibold text-dp-text first:mt-0", HEADINGS[item.level - 1])}>
+          <Heading key={i} className={cn("mt-4 font-medium text-dp-text first:mt-0", HEADINGS[item.level - 1])}>
             {line(item.text)}
           </Heading>
         );
@@ -78,15 +84,16 @@ export function NoteReader({ text, notes, onOpen, onCreate }: Props) {
         return <p key={i}>{line(item.text)}</p>;
       case "quote":
         return (
-          <blockquote key={i} className="border-l-2 border-dp-accent pl-3 text-dp-text-2">
+          <blockquote key={i} className="border-l border-dp-line pl-3 text-dp-text-2">
             {line(item.text)}
           </blockquote>
         );
       case "rule":
+        // A rule in the note's text is the document's own <hr>, not an interface divider.
         return <hr key={i} className="border-dp-line" />;
       case "code":
         return (
-          <pre key={i} className="overflow-x-auto rounded-lg bg-dp-field p-3 font-mono text-xs leading-[18px]">
+          <pre key={i} className="overflow-x-auto rounded-lg bg-dp-field p-3 font-mono text-xs leading-normal">
             <code>{item.text}</code>
           </pre>
         );
@@ -96,7 +103,15 @@ export function NoteReader({ text, notes, onOpen, onCreate }: Props) {
           <List key={i} className={cn("pl-5", item.ordered ? "list-decimal" : "list-disc")}>
             {item.items.map((entry, j) => (
               <li key={j} className={cn(entry.checked !== undefined && "list-none")}>
-                {entry.checked !== undefined && <input type="checkbox" checked={entry.checked} disabled readOnly className="mr-1.5 -ml-4 accent-dp-accent" />}
+                {/* The note's own state, read here, changed in the editor. */}
+                {entry.checked !== undefined && (
+                  <Checkbox
+                    checked={entry.checked}
+                    disabled
+                    aria-readonly
+                    className="mr-1 -ml-5 inline-flex border-dp-text-3 align-middle disabled:cursor-default disabled:opacity-100"
+                  />
+                )}
                 {line(entry.text)}
               </li>
             ))}
@@ -111,7 +126,8 @@ export function NoteReader({ text, notes, onOpen, onCreate }: Props) {
       {blocks.length === 0 ? (
         <p className="text-xs text-dp-text-3">{t.emptyNote}</p>
       ) : (
-        <div className="mx-auto flex max-w-[720px] flex-col gap-2.5 text-[13px] leading-[1.6] text-dp-text">{blocks.map(block)}</div>
+        // About 72 characters a line at 14px: a reading measure, not the window's width.
+        <div className="mx-auto flex max-w-xl flex-col gap-3 text-sm leading-6 text-dp-text">{blocks.map(block)}</div>
       )}
     </div>
   );

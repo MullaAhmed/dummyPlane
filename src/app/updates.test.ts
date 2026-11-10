@@ -59,7 +59,7 @@ it("keeps a failed automatic check to the log, and tells a manual one", async ()
 it("says so when a manual check finds nothing new", async () => {
   vi.mocked(check).mockResolvedValue(null);
   await checkForUpdate({ manual: true });
-  expect(toast).toHaveBeenCalledWith("dummyPlane is up to date.");
+  expect(toast).toHaveBeenCalledWith("dummyPlane is up to date");
 });
 
 it("downloads, saves everything, then installs", async () => {

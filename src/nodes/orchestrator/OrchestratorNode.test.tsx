@@ -112,7 +112,7 @@ describe("its message field", () => {
   }
 
   it("is folded by default: one line, no field", () => {
-    expect(toggle().textContent).toBe("Message agents…");
+    expect(toggle().textContent).toBe("Message agents");
     expect(toggle().getAttribute("aria-expanded")).toBe("false");
     expect(field()).toBeNull();
   });
@@ -171,5 +171,18 @@ describe("its message field", () => {
     }
     await act(async () => void toggle().dispatchEvent(new KeyboardEvent("keydown", { key: "Backspace", bubbles: true, cancelable: true })));
     expect(seen).not.toHaveBeenCalled();
+  });
+
+  it("keeps a Backspace on Send from the canvas: Tab can bring the keyboard there", async () => {
+    await act(async () => toggle().click());
+    await type("run tests");
+    const send = host.querySelector<HTMLButtonElement>('[data-orchestrator-input] button[aria-label="Send"]')!;
+    send.focus();
+    expect(document.activeElement).toBe(send);
+    const seen = vi.fn();
+    host.addEventListener("keydown", seen);
+    await act(async () => void send.dispatchEvent(new KeyboardEvent("keydown", { key: "Backspace", bubbles: true, cancelable: true })));
+    expect(seen).not.toHaveBeenCalled();
+    expect(sendCommand).not.toHaveBeenCalled();
   });
 });

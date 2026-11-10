@@ -49,8 +49,9 @@ it("runs a light along the wire of a message, the way it goes, at the view's sca
   const pulse = svg.querySelector<SVGGElement>("[data-wire]")!;
   expect([pulse.dataset.wire, pulse.dataset.direction]).toEqual(["w1", "toOrchestrator"]);
   // From the group back to the orchestrator, round its corner like the wire.
-  expect([...pulse.querySelectorAll("path")].map((p) => p.getAttribute("d"))).toEqual(Array(3).fill("M50 80 L50 16 Q50 0 34 0 L0 0"));
-  expect(pulse.querySelector(".dp-wire-glow")).not.toBeNull();
+  expect([...pulse.querySelectorAll("path")].map((p) => p.getAttribute("d"))).toEqual(Array(2).fill("M50 80 L50 16 Q50 0 34 0 L0 0"));
+  // The light runs on the wire; the wire itself does not glow.
+  expect(pulse.querySelector(".dp-wire-glow")).toBeNull();
   expect(pulse.querySelector(".dp-wire-packet")!.getAttribute("pathLength")).toBe("1");
 
   await act(async () => vi.advanceTimersByTime(WIRE_PULSE_MS));

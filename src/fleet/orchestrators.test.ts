@@ -35,7 +35,7 @@ beforeEach(() => {
 it("places an orchestrator with its Claude session, started when shown (spec orchestrateur §6)", async () => {
   await addOrchestrator("w1", { x: 0, y: 0 });
   const id = scene[0].id;
-  expect(sessionOf(nodesStore.getState().nodes[id])).toMatchObject({ agent: "claude", role: "orchestrator", name: "Orchestrator" });
+  expect(sessionOf(nodesStore.getState().nodes[id])).toMatchObject({ agent: "claude", role: "orchestrator", name: "Fleet" });
   expect(markForAutostart).toHaveBeenCalledWith(id);
 });
 
@@ -45,7 +45,7 @@ it("refuses an orchestrator without Claude Code, and creates nothing (spec premi
   expect(scene).toEqual([]);
   expect(markForAutostart).not.toHaveBeenCalled();
   expect(toast.error).toHaveBeenCalledWith(
-    'Claude Code is not installed: the orchestrator needs it. Install it (see "Getting started" on the home screen), then try again.',
+    'Claude Code is not installed: a fleet needs it. Install it (see "Getting started" on the home screen), then try again.',
   );
 });
 

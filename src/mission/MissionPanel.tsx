@@ -1,19 +1,27 @@
-import { useState } from "react";
+import { useId, useRef, useState } from "react";
+import { Check, ChevronDown, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useStore } from "zustand";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useCanvas } from "@/canvas/canvasStore";
 import { BUDGET_COLOR } from "@/canvas/overlay/timeline";
 import { linkedAgents, NO_LINKS } from "@/fleet/wires";
 import { messages, useMessages } from "@/i18n";
+import { useNativeKeyDown } from "@/lib/useNativeKeyDown";
 import { useNow } from "@/lib/useNow";
+import { StatusLine } from "@/nodes/foot/StatusLine";
+import type { DotState } from "@/nodes/terminal/StatusDot";
 import { useActivities } from "@/store/agentActivity";
 import { terminalOf, useNodes } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
 import { openReview } from "@/review/reviewStore";
 import { uiStore, useUi } from "@/store/ui";
 import { cleanMission, launchMission } from "./launch";
-import { budgetBar, budgetOf, MAX_AGENTS, memberTime, type Mission } from "./mission";
+import { budgetBar, budgetOf, MAX_AGENTS, memberTime, type Mission, type MissionState } from "./mission";
 import { missionMessages } from "./messages";
 import { morningShown } from "./morning";
 import { MorningReportView } from "./MorningReportView";
@@ -21,27 +29,66 @@ import { OvernightDialog } from "./OvernightDialog";
 import { LEVELS, modelLabel } from "./router";
 import { agentState, missionOf, setMission } from "./store";
 
-/** The compact pill of this panel: a border, a hover fill, a press and a focus ring. */
-const PILL =
-  "rounded-full border border-dp-line px-2.5 py-0.5 text-[11px] text-dp-text transition-[background-color,transform] duration-150 ease-out hover:bg-dp-hover active:scale-[0.97] motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 disabled:opacity-50 disabled:pointer-events-none";
+/** A number field of the panel: shadcn's Input at the panel's density, its figures aligned; the two share one width. */
+const NUMBER = "h-6 w-16 rounded-md px-1.5 text-xs tabular-nums md:text-xs";
+
+/** A quiet action at the end of a line: its words end on the line's 12px edge, its padding in the line's. */
+const LINE_ACTION = "-mr-2 font-normal text-dp-text-2 hover:text-dp-text aria-pressed:bg-dp-hover aria-pressed:text-dp-text";
+
+/**
+ * The mission as its dot shows it, the same signature as an agent's: resting
+ * until a task comes, waiting on the user's go-ahead (the one state that asks
+ * for them), at work, done.
+ */
+const MISSION_DOT: Record<MissionState, DotState> = {
+  redaction: "idle",
+  plan: "waiting",
+  lancement: "working",
+  en_cours: "working",
+  terminee: "done",
+};
 
 /** Under the orchestrator's terminal: settings, plan and go-ahead, team, summary (spec orchestrator §6, §7). */
 export function MissionPanel({ nodeId }: { nodeId: string }) {
-  const t = useMessages(missionMessages);
   const mission = useNodes((s) => missionOf(s.nodes[nodeId]));
+  return mission ? <MissionView nodeId={nodeId} mission={mission} /> : null;
+}
+
+/**
+ * The orchestrator's foot, built like an agent's (nodes/foot): a status line
+ * first, where the mission stands, then what it needs at that moment. The
+ * settings fold into one line that tells their values, so the terminal above,
+ * where the task is written, keeps its height.
+ */
+function MissionView({ nodeId, mission }: { nodeId: string; mission: Mission }) {
+  const t = useMessages(missionMessages);
   const now = useNow(60_000);
-  if (!mission) return null;
+  const header = useRef<HTMLElement>(null);
+  // No key typed on the status line reaches the canvas: Backspace on its button would delete the node.
+  useNativeKeyDown(header, () => undefined);
+  const setup = mission.state === "redaction" || mission.state === "plan";
   return (
-    <section data-mission={nodeId} className="flex max-h-[55%] shrink-0 flex-col border-t border-dp-line text-xs text-dp-text-2">
-      <div data-mission-body className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-3 py-2">
-        <header className="flex items-center gap-2">
-          <span className="font-semibold uppercase tracking-[0.08em] text-dp-text">{t.title(mission.name ?? "")}</span>
-          <span>{t.state[mission.state]}</span>
-          {mission.overnight && <span className="rounded-md bg-dp-field px-1.5 text-[11px] text-dp-text">{t.nightBadge}</span>}
-          {mission.branch && <span className="ml-auto truncate font-mono text-[11px]">{mission.branch}</span>}
-        </header>
-        {(mission.state === "redaction" || mission.state === "plan") && <Settings nodeId={nodeId} mission={mission} />}
-        {mission.state === "redaction" && <p>{t.writeTask}</p>}
+    <section
+      data-mission={nodeId}
+      aria-label={t.title(mission.name ?? "")}
+      className="flex max-h-[55%] shrink-0 flex-col border-t border-dp-line text-xs text-dp-text-2"
+    >
+      <header ref={header} className="shrink-0">
+        <StatusLine
+          dot={mission.error ? "error" : MISSION_DOT[mission.state]}
+          label={t.state[mission.state]}
+          facts={[mission.name, mission.state === "redaction" && t.writeTask]}
+          end={
+            <>
+              {mission.overnight && <span className="font-mono text-dp-text-3">{t.nightBadge}</span>}
+              {mission.branch && <span className="max-w-40 truncate font-mono text-dp-text-3">{mission.branch}</span>}
+              {setup && !mission.overnight && <NightButton nodeId={nodeId} />}
+            </>
+          }
+        />
+      </header>
+      <div data-mission-body className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-3 pb-3 empty:hidden">
+        {setup && <Setup nodeId={nodeId} mission={mission} />}
         {mission.plan && (mission.state === "plan" || mission.state === "lancement") && <Plan mission={mission} />}
         {mission.error && (
           <p role="alert" className="text-dp-danger">
@@ -60,32 +107,94 @@ export function MissionPanel({ nodeId }: { nodeId: string }) {
   );
 }
 
-function Settings({ nodeId, mission }: { nodeId: string; mission: Mission }) {
+/** Before the go-ahead: the team it can call on, and its settings, folded into the line of their values. */
+function Setup({ nodeId, mission }: { nodeId: string; mission: Mission }) {
+  const t = useMessages(missionMessages);
+  const [open, setOpen] = useState(false);
+  const grid = useId();
+  const block = useRef<HTMLDivElement>(null);
+  // No key typed in a field or on a button here reaches the canvas: Backspace would delete the node.
+  useNativeKeyDown(block, () => undefined);
+  return (
+    <div ref={block} className="flex flex-col">
+      <TeamLink nodeId={nodeId} />
+      <Button
+        type="button"
+        variant="ghost"
+        aria-expanded={open}
+        aria-controls={grid}
+        onClick={() => setOpen(!open)}
+        // Its words on the body's edge, its hover surface out into the padding.
+        className="-mx-2 h-7 justify-start gap-2 px-2 text-xs font-normal text-dp-text-2 hover:text-dp-text"
+      >
+        {t.settings}
+        <span className="min-w-0 truncate text-dp-text-3 tabular-nums">{t.settingsSummary(mission.budgetMin, mission.maxAgents, mission.router === true)}</span>
+        <ChevronDown
+          aria-hidden
+          className={cn("ml-auto size-4 text-dp-text-3 transition-transform duration-(--dp-dur-fast) ease-(--dp-ease-out) motion-reduce:transition-none", open && "rotate-180")}
+        />
+      </Button>
+      {open && <SettingsGrid id={grid} nodeId={nodeId} mission={mission} />}
+    </div>
+  );
+}
+
+/** "2 Claude agents linked", and Link: the mode where each click on the canvas wires a group or an agent. */
+function TeamLink({ nodeId }: { nodeId: string }) {
   const t = useMessages(missionMessages);
   const linking = useUi((s) => s.linking === nodeId);
   const links = useCanvas((s) => s.links[nodeId] ?? NO_LINKS);
   const frames = useCanvas((s) => s.frames);
-  const nodes = useNodes((s) => s.nodes);
-  const claude = linkedAgents(links, frames).agentIds.filter((id) => terminalOf(nodes[id])?.agent === "claude").length;
-  const [night, setNight] = useState(false);
+  const agentIds = linkedAgents(links, frames).agentIds;
+  const claude = useNodes((s) => agentIds.filter((id) => terminalOf(s.nodes[id])?.agent === "claude").length);
   return (
-    <div className="flex flex-wrap items-center gap-3">
-      <label className="flex items-center gap-1" title={t.globalBudgetTitle}>
+    <div className="flex h-7 items-center gap-2">
+      <span className="min-w-0 truncate tabular-nums">{t.linked(claude)}</span>
+      <Button
+        type="button"
+        variant="ghost"
+        size="xs"
+        // Whose Link it is: the link layer passes a click on to the linker's own "Done" only (fleet/LinkMode.tsx).
+        data-link-toggle={nodeId}
+        aria-pressed={linking}
+        onClick={() => uiStore.getState().setLinking(linking ? null : nodeId)}
+        className={cn("ml-auto", LINE_ACTION)}
+      >
+        {!linking && <Plus aria-hidden />}
+        {linking ? t.done : t.link}
+      </Button>
+    </div>
+  );
+}
+
+/** The settings, a label per row and every control on one line, all 24px tall (28px rows, as the lines above). */
+function SettingsGrid({ id, nodeId, mission }: { id: string; nodeId: string; mission: Mission }) {
+  const t = useMessages(missionMessages);
+  const budget = useId();
+  const agents = useId();
+  const router = useId();
+  return (
+    <div id={id} className="grid grid-cols-[auto_1fr] items-center gap-x-4 gap-y-1 pt-1">
+      <label htmlFor={budget} title={t.globalBudgetTitle}>
         {t.globalBudget}
-        <input
+      </label>
+      <div className="flex h-6 items-center gap-2">
+        <Input
+          id={budget}
           type="number"
           min={1}
           aria-label={t.globalBudgetLabel}
           placeholder={t.none}
           value={mission.budgetMin ?? ""}
           onChange={(e) => setMission(nodeId, { budgetMin: e.target.value ? Math.max(1, Math.round(Number(e.target.value))) : undefined })}
-          className="w-16 rounded-md bg-dp-field px-1 py-0.5 text-dp-text outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50"
+          className={NUMBER}
         />
         {t.min}
-      </label>
-      <label className="flex items-center gap-1">
-        {t.maxAgents}
-        <input
+      </div>
+      <label htmlFor={agents}>{t.maxAgents}</label>
+      <div className="flex h-6 items-center">
+        <Input
+          id={agents}
           type="number"
           min={1}
           max={MAX_AGENTS}
@@ -95,38 +204,36 @@ function Settings({ nodeId, mission }: { nodeId: string; mission: Mission }) {
             const count = Math.round(Number(e.target.value));
             if (count >= 1) setMission(nodeId, { maxAgents: Math.min(MAX_AGENTS, count) });
           }}
-          className="w-12 rounded-md bg-dp-field px-1 py-0.5 text-dp-text outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50"
+          className={NUMBER}
         />
-      </label>
-      <label
-        className="flex items-center gap-1"
-        title={t.routerTitle}
-      >
-        <input
-          type="checkbox"
-          aria-label={t.routerLabel}
-          checked={mission.router === true}
-          onChange={(e) => setMission(nodeId, { router: e.target.checked || undefined })}
-          className="accent-[var(--dp-accent)]"
-        />
+      </div>
+      <label htmlFor={router} title={t.routerTitle} className="cursor-pointer">
         {t.routerLabel}
       </label>
-      <button type="button" onClick={() => setNight(true)} className={PILL}>
-        {t.nightButton}
-      </button>
-      {night && <OvernightDialog nodeId={nodeId} open onOpenChange={setNight} />}
-      <span className="ml-auto">
-        {t.linked(claude)}
-      </span>
-      <button
-        type="button"
-        data-link-toggle
-        onClick={() => uiStore.getState().setLinking(linking ? null : nodeId)}
-        className={cn(PILL, "border-transparent bg-dp-accent font-semibold text-dp-on-accent hover:bg-dp-accent hover:brightness-110")}
-      >
-        {linking ? t.done : t.link}
-      </button>
+      <div className="flex h-6 items-center">
+        <Checkbox
+          id={router}
+          aria-label={t.routerLabel}
+          checked={mission.router === true}
+          onCheckedChange={(checked) => setMission(nodeId, { router: checked === true || undefined })}
+          className="after:-inset-1"
+        />
+      </div>
     </div>
+  );
+}
+
+/** "Overnight run…": the other way to start a mission, at the end of its status line until it starts. */
+function NightButton({ nodeId }: { nodeId: string }) {
+  const t = useMessages(missionMessages);
+  const [night, setNight] = useState(false);
+  return (
+    <>
+      <Button type="button" variant="ghost" size="xs" onClick={() => setNight(true)} className={LINE_ACTION}>
+        {t.nightButton}
+      </Button>
+      {night && <OvernightDialog nodeId={nodeId} open onOpenChange={setNight} />}
+    </>
   );
 }
 
@@ -134,7 +241,7 @@ function Plan({ mission }: { mission: Mission }) {
   const t = useMessages(missionMessages);
   const plan = mission.plan ?? [];
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className="flex flex-col gap-2">
       {mission.task && <p className="text-dp-text">{mission.task}</p>}
       <ol className="flex flex-col gap-1">
         {plan.map((task, i) => (
@@ -142,12 +249,12 @@ function Plan({ mission }: { mission: Mission }) {
             <div className="flex items-center gap-2 text-dp-text">
               <span className="font-medium">{task.title}</span>
               {task.level && (
-                <span className="shrink-0 rounded-full bg-dp-field px-1.5 text-[11px] text-dp-text-2">
+                <span className="shrink-0 text-dp-text-3">
                   {t.level[task.level]}
                   {mission.router ? ` · ${LEVELS[task.level].modelLabel}` : ""}
                 </span>
               )}
-              <span className="ml-auto shrink-0 font-mono text-[11px] text-dp-text-2">
+              <span className="ml-auto shrink-0 font-mono text-dp-text-3 tabular-nums">
                 {task.agent}
                 {task.group ? ` → ${task.group.name}` : ""} · {task.budgetMin} {t.min}
               </span>
@@ -166,12 +273,12 @@ function Queue({ mission }: { mission: Mission }) {
   const queue = mission.queue ?? [];
   return (
     <div data-queue className="flex flex-col gap-1">
-      <span className="font-semibold text-dp-text">{t.waitingTasks(queue.length)}</span>
-      <ol className="flex flex-col gap-0.5">
+      <span className="font-medium text-dp-text">{t.waitingTasks(queue.length)}</span>
+      <ol className="flex flex-col gap-1">
         {queue.map((task) => (
-          <li key={task.title} className="flex items-center gap-2 rounded-md bg-dp-card px-2 py-0.5">
+          <li key={task.title} className="flex items-center gap-2 rounded-md bg-dp-card px-2 py-1">
             <span className="min-w-0 truncate">{task.title}</span>
-            <span className="ml-auto shrink-0 font-mono text-[11px]">
+            <span className="ml-auto shrink-0 font-mono text-dp-text-3 tabular-nums">
               {task.group ? `${task.group.name} · ` : ""}
               {task.budgetMin} {t.min}
             </span>
@@ -188,15 +295,10 @@ function PlanActions({ nodeId, mission }: { nodeId: string; mission: Mission }) 
   const launching = mission.state === "lancement";
   return (
     <footer data-mission-actions className="flex shrink-0 items-center gap-2 border-t border-dp-line px-3 py-2">
-      <span className="font-mono text-[11px]">{t.total(total, mission.budgetMin)}</span>
-      <button
-        type="button"
-        disabled={launching}
-        onClick={() => void launchMission(nodeId)}
-        className={cn(PILL, "ml-auto border-transparent bg-dp-accent px-3 py-1 font-semibold text-dp-on-accent hover:bg-dp-accent hover:brightness-110")}
-      >
+      <span className="font-mono tabular-nums">{t.total(total, mission.budgetMin)}</span>
+      <Button size="sm" disabled={launching} onClick={() => void launchMission(nodeId)} className="ml-auto">
         {launching ? t.launching : t.launch}
-      </button>
+      </Button>
     </footer>
   );
 }
@@ -219,14 +321,15 @@ function Team({ mission }: { mission: Mission }) {
             <span className="font-medium text-dp-text">{member.name}</span>
             <span className="min-w-0 truncate">{member.task}</span>
             {member.done && member.done.length > 0 && (
-              <span data-finished className="shrink-0 text-[11px] text-dp-text-3" title={t.finishedBefore(member.done.join(", "))}>
-                ✓ {member.done.length}
+              <span data-finished className="flex shrink-0 items-center gap-0.5 font-mono text-dp-text-3 tabular-nums" title={t.finishedBefore(member.done.join(", "))}>
+                <Check aria-hidden className="size-3.5" />
+                {member.done.length}
               </span>
             )}
-            {member.model && <span className="shrink-0 font-mono text-[11px]">{modelLabel(member.model)}</span>}
+            {member.model && <span className="shrink-0 font-mono text-dp-text-3">{modelLabel(member.model)}</span>}
             <span className="ml-auto shrink-0">{t.agent[agentState(member.nodeId)]}</span>
             {steps.length > 0 && (
-              <span className="shrink-0 font-mono text-[11px]">
+              <span className="shrink-0 font-mono tabular-nums">
                 {done}/{steps.length}
               </span>
             )}
@@ -235,17 +338,22 @@ function Team({ mission }: { mission: Mission }) {
             ) : member.sentAt !== undefined ? (
               <MemberTime spent={memberTime(mission, member, now)} budget={budgetOf(member)} />
             ) : null}
-            <button
-              type="button"
-              title={t.reviewTitle(member.name)}
-              aria-label={t.reviewLabel(member.name)}
-              onClick={() => openReview(member.nodeId)}
-              className="shrink-0 rounded-md px-1 text-[11px] text-dp-text-2 transition-[background-color,color] duration-150 ease-out hover:bg-dp-field hover:text-dp-text motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50"
-            >
-              {t.diff}
-            </button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  aria-label={t.reviewLabel(member.name)}
+                  onClick={() => openReview(member.nodeId)}
+                  className="h-5 shrink-0 rounded-sm px-1 font-mono font-normal text-dp-text-2 hover:bg-dp-field"
+                >
+                  {t.diff}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{t.reviewTitle(member.name)}</TooltipContent>
+            </Tooltip>
             {member.report && (
-              <span title={member.report.summary} className="shrink-0 rounded-full bg-dp-field px-1.5 text-[11px] text-dp-text">
+              <span title={member.report.summary} className={cn("shrink-0", member.report.status === "termine" ? "text-dp-text" : "text-dp-danger")}>
                 {t.report[member.report.status]}
                 {member.merged ? t.merged : ""}
               </span>
@@ -266,7 +374,7 @@ function MemberTime({ spent, budget }: { spent: number | undefined; budget: numb
 function BudgetTime({ spent, budget }: { spent: number; budget: number }) {
   const t = useMessages(missionMessages);
   return (
-    <span className="shrink-0 font-mono text-[11px]" style={{ color: BUDGET_COLOR[budgetBar(spent, budget).tone] }}>
+    <span className="shrink-0 font-mono tabular-nums" style={{ color: BUDGET_COLOR[budgetBar(spent, budget).tone] }}>
       {t.spent(Math.floor(spent), budget)}
     </span>
   );
@@ -281,9 +389,9 @@ function SummaryActions({ nodeId }: { nodeId: string }) {
   };
   return (
     <footer data-mission-actions className="flex shrink-0 justify-end border-t border-dp-line px-3 py-2">
-      <button type="button" onClick={() => void clean()} className={cn(PILL, "px-3 py-1")}>
+      <Button variant="outline" size="sm" onClick={() => void clean()}>
         {t.clean}
-      </button>
+      </Button>
     </footer>
   );
 }

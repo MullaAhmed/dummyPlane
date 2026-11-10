@@ -1,16 +1,25 @@
-/* Design tokens (spec identité §4.2): three palettes, each 60/30/10 (60% canvas,
-   30% text and surfaces, 10% accent). src/app/theme.ts writes the palette on
-   <html data-palette> and its scheme on <html data-theme>. --dp-accent-ink is the
-   accent as text (links, active labels) where the accent itself is too pale on the
-   canvas. The palettes' own hexes are the main colors; the rest is derived. */
+/* Design tokens (spec identité §4.2): three palettes of two colors each, a ground
+   (the canvas) and an ink. The ink writes the text and is the accent as well
+   (--dp-accent, --dp-accent-ink, --dp-secondary, --dp-draw): buttons, selection,
+   focus, wires, the pen. Text on an accent fill (--dp-on-accent) is in the ground
+   color. Everything else is a quiet step of the two: surfaces and cards are the
+   ground a step lighter or darker, hairlines, hovers and the selection are the
+   ink at a low alpha, and the second and third text roles are the ink a step
+   toward the ground. Only the status colors (wait, ok, danger), toned to sit in
+   each palette, and the ink on role colors (--dp-on-role) stand outside the two.
+   No glows, no colored shadows: depth is surface steps and hairlines, plus one
+   small neutral shadow under floating things in the light palette. Every
+   surface is opaque: no glass, no blur, no transparency switch.
+   src/app/theme.ts writes the palette on <html data-palette> and its scheme on
+   <html data-theme>. */
 
 /* Shared by the three palettes: calm, electric and expressive. */
 :root {
-  --dp-blur: blur(18px) saturate(150%);
   /* Shared motion tokens. Use them instead of ad-hoc easings and durations.
-     ease-out: strong curve, starts fast so UI feels responsive.
-     dur-fast: presses, hovers, tooltips. dur: popovers, menus, dialogs. */
-  --dp-ease-out: cubic-bezier(.23,1,.32,1);
+     ease-out: the one curve, starts fast so UI feels responsive.
+     dur-fast: hovers, presses, toggles (120–180 ms). dur: menus, popovers,
+     tooltips, dialogs (160–220 ms). */
+  --dp-ease-out: cubic-bezier(0.22,1,0.36,1);
   --dp-dur-fast: 150ms;
   --dp-dur: 200ms;
   /* Aliases of the habillage tokens: the components reading them are rebuilt
@@ -24,144 +33,114 @@
   --dp-idle: var(--dp-text-3); /* @deprecated: use --dp-text-3 */
   --dp-done: var(--dp-ok); /* @deprecated: use --dp-ok */
   --dp-live: var(--dp-ok); /* @deprecated: use --dp-ok */
+  /* Retired effects, kept as no-ops until no component reads them: the ambient
+     color washes. */
+  --dp-glow-1: transparent; /* @deprecated: no glows */
+  --dp-glow-2: transparent; /* @deprecated: no glows */
+  --dp-glow-3: transparent; /* @deprecated: no glows */
 }
 
+/* Cream #EDE3CC and deep green #173F32. Surfaces are the cream lifted, the
+   terminal the green deepened. */
 :root[data-palette="calm"] {
   color-scheme: light;
   --dp-canvas: #EDE3CC;
   --dp-dot: rgba(23,63,50,0.12);
   --dp-surface: #F7F2E8;
   --dp-card: #F2EBDB;
-  --dp-field: rgba(255,255,255,.6);
-  --dp-line: rgba(23,63,50,0.14);
-  --dp-hover: rgba(23,63,50,0.07);
+  --dp-field: rgba(23,63,50,0.04);
+  --dp-line: rgba(23,63,50,0.1);
+  --dp-hover: rgba(23,63,50,0.06);
   --dp-text: #173F32;
   --dp-text-2: #315344;
   --dp-text-3: #4D6859;
   --dp-secondary: #173F32;
-  --dp-accent: #F52B94;
-  --dp-accent-ink: #913468;
-  --dp-accent-soft: rgba(245,43,148,0.16);
-  --dp-on-accent: #0A0F0C;
+  --dp-accent: #173F32;
+  --dp-accent-ink: #173F32;
+  --dp-accent-soft: rgba(23,63,50,0.12);
+  --dp-on-accent: #EDE3CC;
   --dp-on-role: #1F1E1D;
-  --dp-wait: #7A4E0E;
-  --dp-ok: #2D6A3A;
-  --dp-danger: #A3251F;
+  --dp-wait: #7A5418;
+  --dp-ok: #356A44;
+  --dp-danger: #9A3B2C;
   --dp-terminal: #0F2921;
   --dp-terminal-head: #F6F1E6;
-  --dp-glass: rgba(255,255,255,0.5);
-  --dp-glass-strong: rgba(255,255,255,0.88);
-  --dp-glass-line: rgba(255,255,255,.8);
-  --dp-glass-hi: inset 0 1px 0 rgba(255,255,255,0.9);
-  --dp-glass-edge: 0 0 0 1px rgba(15,41,33,0.08);
-  --dp-tray: rgba(255,255,255,0.38);
-  --dp-head: rgba(255,255,255,0.66);
-  --dp-tab-on: rgba(255,255,255,0.88);
-  --dp-glow-1: rgba(245,43,148,0.16);
-  --dp-glow-2: rgba(23,63,50,0.1);
-  --dp-glow-3: rgba(245,43,148,0.08);
-  --dp-shadow: 0 12px 40px rgba(15,41,33,0.16);
-  --dp-float-shadow: 0 8px 28px rgba(15,41,33,0.1);
+  --dp-tray: rgba(23,63,50,0.03);
+  --dp-tab-on: #F7F2E8;
+  --dp-shadow: 0 8px 24px rgba(0,0,0,0.06);
+  --dp-float-shadow: 0 8px 24px rgba(0,0,0,0.06);
   --dp-draw: #173F32;
   /* Dialog and sheet veil: tinted with the ink, so it reads as light, not grey. */
   --dp-scrim: rgba(15,41,33,0.25);
 }
 
+/* Blue #263CF5 and off-white #F4F4F1. Surfaces and terminals are the blue
+   deepened, so that every text role keeps its contrast on them. */
 :root[data-palette="electric"] {
   color-scheme: dark;
   --dp-canvas: #263CF5;
-  --dp-dot: rgba(255,255,255,0.07);
+  --dp-dot: rgba(244,244,241,0.07);
   --dp-surface: #1C2ECC;
   --dp-card: #2034DE;
-  --dp-field: rgba(255,255,255,.05);
-  --dp-line: rgba(255,255,255,0.09);
-  --dp-hover: rgba(255,255,255,0.07);
+  --dp-field: rgba(244,244,241,0.05);
+  --dp-line: rgba(244,244,241,0.1);
+  --dp-hover: rgba(244,244,241,0.06);
   --dp-text: #F4F4F1;
   --dp-text-2: #E4E5F1;
   --dp-text-3: #CBCFF2;
   --dp-secondary: #F4F4F1;
-  --dp-accent: #B6F52B;
-  --dp-accent-ink: #B6F52B;
-  --dp-accent-soft: rgba(182,245,43,0.16);
-  --dp-on-accent: #0A0F0C;
+  --dp-accent: #F4F4F1;
+  --dp-accent-ink: #F4F4F1;
+  --dp-accent-soft: rgba(244,244,241,0.12);
+  --dp-on-accent: #263CF5;
   --dp-on-role: #1F1E1D;
-  --dp-wait: #FFD27A;
-  --dp-ok: #8CF0A0;
-  --dp-danger: #FFC4C4;
+  --dp-wait: #F7DCA2;
+  --dp-ok: #AEEBBC;
+  --dp-danger: #FFC9C6;
   --dp-terminal: #0D1556;
   --dp-terminal-head: #1D2DB8;
-  --dp-glass: rgba(10,20,128,0.52);
-  --dp-glass-strong: rgba(10,20,128,0.84);
-  --dp-glass-line: rgba(255,255,255,0.1);
-  --dp-glass-hi: inset 0 1px 0 rgba(255,255,255,0.07);
-  --dp-glass-edge: 0 0 0 1px rgba(0,0,20,0.28);
-  --dp-tray: rgba(255,255,255,0.03);
-  --dp-head: rgba(38,60,245,0.7);
-  --dp-tab-on: rgba(255,255,255,0.08);
-  --dp-glow-1: rgba(182,245,43,0.16);
-  --dp-glow-2: rgba(255,255,255,0.12);
-  --dp-glow-3: rgba(38,60,245,0.08);
-  --dp-shadow: 0 12px 40px rgba(0,0,20,0.45);
-  --dp-float-shadow: 0 8px 28px rgba(0,0,20,0.32);
+  --dp-tray: rgba(244,244,241,0.03);
+  --dp-tab-on: rgba(244,244,241,0.08);
+  /* Dark: depth is surface steps and hairlines, no shadow. */
+  --dp-shadow: 0 0 #0000;
+  --dp-float-shadow: 0 0 #0000;
   --dp-draw: #F4F4F1;
   /* Dialog and sheet veil: the deep blue of the canvas, darker than the default. */
   --dp-scrim: rgba(0,0,20,0.3);
 }
 
+/* Near-black #101014 and off-white #F4F4F1. Surfaces, cards and the terminal
+   head are the black a few steps toward the off-white, the terminal the black
+   deepened. */
 :root, :root[data-palette="expressive"] {
   color-scheme: dark;
   --dp-canvas: #101014;
-  --dp-dot: rgba(255,255,255,0.07);
-  --dp-surface: #141D38;
-  --dp-card: #16264F;
-  --dp-field: rgba(255,255,255,.05);
-  --dp-line: rgba(255,255,255,0.09);
-  --dp-hover: rgba(255,255,255,0.07);
+  --dp-dot: rgba(244,244,241,0.07);
+  --dp-surface: #17171B;
+  --dp-card: #1E1E21;
+  --dp-field: rgba(244,244,241,0.05);
+  --dp-line: rgba(244,244,241,0.08);
+  --dp-hover: rgba(244,244,241,0.06);
   --dp-text: #F4F4F1;
   --dp-text-2: #C2C2C0;
   --dp-text-3: #949494;
-  --dp-secondary: #2864F5;
-  --dp-accent: #FF781B;
-  --dp-accent-ink: #FF781B;
-  --dp-accent-soft: rgba(255,120,27,0.16);
-  --dp-on-accent: #0A0F0C;
+  --dp-secondary: #F4F4F1;
+  --dp-accent: #F4F4F1;
+  --dp-accent-ink: #F4F4F1;
+  --dp-accent-soft: rgba(244,244,241,0.12);
+  --dp-on-accent: #101014;
   --dp-on-role: #1F1E1D;
-  --dp-wait: #F5B25B;
-  --dp-ok: #7BD389;
-  --dp-danger: #FF6B6B;
+  --dp-wait: #DDAA62;
+  --dp-ok: #7CC492;
+  --dp-danger: #E26D6A;
   --dp-terminal: #0B0B0E;
-  --dp-terminal-head: #1C1C23;
-  --dp-glass: rgba(20,29,56,0.52);
-  --dp-glass-strong: rgba(20,29,56,0.84);
-  --dp-glass-line: rgba(255,255,255,0.1);
-  --dp-glass-hi: inset 0 1px 0 rgba(255,255,255,0.07);
-  --dp-glass-edge: 0 0 0 1px rgba(0,0,0,0.28);
-  --dp-tray: rgba(255,255,255,0.03);
-  --dp-head: rgba(16,16,20,0.7);
-  --dp-tab-on: rgba(255,255,255,0.08);
-  --dp-glow-1: rgba(255,120,27,0.16);
-  --dp-glow-2: rgba(40,100,245,0.12);
-  --dp-glow-3: rgba(40,100,245,0.08);
-  --dp-shadow: 0 12px 40px rgba(0,0,0,0.45);
-  --dp-float-shadow: 0 8px 28px rgba(0,0,0,0.32);
+  --dp-terminal-head: #1B1B1F;
+  --dp-tray: rgba(244,244,241,0.03);
+  --dp-tab-on: rgba(244,244,241,0.08);
+  /* Dark: depth is surface steps and hairlines, no shadow. */
+  --dp-shadow: 0 0 #0000;
+  --dp-float-shadow: 0 0 #0000;
   --dp-draw: #F4F4F1;
   /* Dialog and sheet veil (the former hard-coded rgb(0 0 0 / .25)). */
   --dp-scrim: rgba(0,0,0,0.25);
-}
-/* Without transparency (spec identité §4.2): Windows' setting… */
-@media (prefers-reduced-transparency: reduce) {
-  :root[data-palette="calm"], :root[data-palette="electric"], :root[data-palette="expressive"] {
-    --dp-glass: var(--dp-surface);
-    --dp-glass-strong: var(--dp-surface);
-    --dp-head: var(--dp-terminal-head);
-    --dp-blur: none;
-  }
-}
-
-/* …or dummyPlane's (Settings › Transparency effects). */
-:root[data-palette][data-transparency="off"] {
-  --dp-glass: var(--dp-surface);
-  --dp-glass-strong: var(--dp-surface);
-  --dp-head: var(--dp-terminal-head);
-  --dp-blur: none;
 }

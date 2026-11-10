@@ -37,7 +37,7 @@ const called = (cmd: string) => calls.filter((c) => c.cmd === cmd);
 
 beforeEach(() => {
   repo = { ...base, files: [file("src/a.ts"), file("b.txt", "untracked", [4, 0])] };
-  history = [{ hash: "abcdef0123", shortHash: "abcdef0", author: "Mathilde", date: 1_700_000_000, subject: "feat: the first one" }];
+  history = [{ hash: "abcdef0123", shortHash: "abcdef0", author: "Mathilde", date: 1_700_000_000, subject: "feat: the first one", parents: [], refs: [] }];
   calls = [];
   fail = {};
   vi.mocked(toast).mockClear();
@@ -70,7 +70,11 @@ const render = async () => {
 };
 const button = (text: string) => [...document.body.querySelectorAll("button")].find((b) => b.textContent?.includes(text));
 const labelled = (label: string) => document.body.querySelector<HTMLElement>(`[aria-label="${label}"]`)!;
-const check = (label: string) => labelled(label) as HTMLInputElement;
+/** A Radix checkbox: a button that says its state in `aria-checked`, clicked like a box. */
+const check = (label: string) => {
+  const box = labelled(label);
+  return { get checked() { return box.getAttribute("aria-checked") === "true"; }, click: () => box.click() };
+};
 const typeMessage = (value: string) =>
   act(async () => {
     const area = labelled("Commit message") as HTMLTextAreaElement;
@@ -124,7 +128,7 @@ describe("the changes (spec fenêtre git §3.1)", () => {
   it("says when the list was cut: what is not shown cannot be committed", async () => {
     repo = { ...repo, truncated: true };
     await render();
-    expect(document.body.textContent).toContain("List cut: only the first 2 changes are shown.");
+    expect(document.body.textContent).toContain("List cut: only the first 2 changes are shown");
   });
 
   it("keeps the message and the choices when a refresh fails, and says why", async () => {
@@ -288,7 +292,70 @@ describe("the history (spec fenêtre git §3.4)", () => {
     history = [];
     await render();
     await act(async () => button("History")!.click());
-    expect(document.body.textContent).toContain("No commit yet.");
+    expect(document.body.textContent).toContain("No commit yet");
+  });
+
+  const commit = (hash: string, subject: string, parents: string[], refs: LogEntry["refs"] = []): LogEntry => ({
+    hash,
+    shortHash: hash.slice(0, 7),
+    author: "Mathilde",
+    date: 1_700_000_000,
+    subject,
+    parents,
+    refs,
+  });
+  const row = (hash: string) => document.body.querySelector<HTMLElement>(`[data-git-commit='${hash}']`)!;
+
+  it("draws a graph beside every commit, the merges apart, and names the branches and tags", async () => {
+    history = [
+      commit("merge000", "Merge branch 'side'", ["main0000", "side0000"], [
+        { kind: "branch", name: "main", current: true },
+        { kind: "remote", name: "origin/main", current: false },
+      ]),
+      commit("side0000", "feat: on the side", ["root0000"], [{ kind: "branch", name: "side", current: false }]),
+      commit("main0000", "fix: on main", ["root0000"]),
+      commit("root0000", "first", [], [{ kind: "tag", name: "v1", current: false }]),
+    ];
+    await render();
+    await act(async () => button("History")!.click());
+    for (const entry of history) expect(row(entry.hash).querySelector("svg[aria-hidden]"), entry.hash).not.toBeNull();
+    // Every row's graph is as wide as the widest, so the subjects line up.
+    expect(new Set(history.map((entry) => row(entry.hash).querySelector("svg")!.getAttribute("width"))).size).toBe(1);
+    expect(row("merge000").hasAttribute("data-git-merge")).toBe(true);
+    expect(row("side0000").hasAttribute("data-git-merge")).toBe(false);
+    expect(row("merge000").textContent).toContain("main");
+    expect(row("merge000").textContent).toContain("origin/main");
+    expect(row("merge000").querySelector("[title='Branch main · HEAD']")).not.toBeNull();
+    expect(row("root0000").querySelector("[title='Tag v1']")).not.toBeNull();
+    expect(document.body.textContent).not.toContain("Only the latest");
+  });
+
+  it("counts the names past the first two, so the subject keeps its room", async () => {
+    history = [
+      commit("abcdef0123", "feat: the first one", [], [
+        { kind: "branch", name: "main", current: true },
+        { kind: "branch", name: "next", current: false },
+        { kind: "tag", name: "v2", current: false },
+      ]),
+    ];
+    await render();
+    await act(async () => button("History")!.click());
+    expect(row("abcdef0123").textContent).toContain("+1");
+    expect(row("abcdef0123").textContent).not.toContain("v2");
+  });
+
+  it("says when older commits are left out", async () => {
+    history = [commit("abcdef0123", "feat: the latest", ["0123456789"]), commit("0123456789", "feat: the one before", ["notloaded"])];
+    await render();
+    await act(async () => button("History")!.click());
+    expect(document.body.textContent).toContain("Only the latest 2 commits are shown");
+  });
+
+  it("dates today's commits by their time", async () => {
+    history = [{ ...commit("abcdef0123", "feat: just now", []), date: Math.floor(Date.now() / 1000) }];
+    await render();
+    await act(async () => button("History")!.click());
+    expect(row("abcdef0123").querySelector("time")!.textContent).toMatch(/^\d\d:\d\d$/);
   });
 });
 

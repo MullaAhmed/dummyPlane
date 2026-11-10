@@ -3,6 +3,9 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
+import { agentActivityStore } from "@/store/agentActivity";
+import { nodesStore } from "@/store/nodes";
+import { terminalStatusStore } from "@/store/terminalStatus";
 import { sendCommand } from "./broadcast";
 import { historyStore } from "./history";
 import { CommandInput } from "./CommandInput";
@@ -37,7 +40,7 @@ afterEach(async () => {
 
 const field = () => host.querySelector("textarea")!;
 const options = () => [...host.querySelectorAll('[role="option"]')].map((o) => o.textContent);
-const chips = () => [...host.querySelectorAll("span.rounded-full")].map((c) => c.textContent);
+const chips = () => [...host.querySelectorAll("[data-target-chip]")].map((c) => c.textContent);
 
 async function type(value: string) {
   const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!;
@@ -97,6 +100,8 @@ it("does not send a /command whose target is unknown to the selection instead (f
   await press("Enter");
   expect(sendCommand).not.toHaveBeenCalled();
   expect(host.textContent).toContain("Unknown target: @thoth/zues");
+  // The command stays in the field, to be corrected.
+  expect(field().value).toBe("/clear @thoth/zues");
 });
 
 
@@ -288,4 +293,132 @@ it("treats an @name shared by two agents as ambiguous: with nothing selected, Se
   await type("@claudecode run tests");
   expect(sendButton().disabled).toBe(true);
   expect(sendButton().title).toBe("Tape @");
+});
+
+// --- The field is assistant-ui's composer; its keys stay this field's. ---
+
+it("is an assistant-ui composer: its form, its field, its Send", () => {
+  const form = host.querySelector('form[data-aui-composer-type="thread"]');
+  expect(form).not.toBeNull();
+  expect(form!.contains(field())).toBe(true);
+  expect(form!.contains(sendButton())).toBe(true);
+});
+
+it("empties the field once sent, and keeps the command in the history as typed", async () => {
+  await act(async () => historyStore.setState({ entries: [] }));
+  await type("@thoth run tests");
+  await press("Enter");
+  expect(sendCommand).toHaveBeenCalledWith(["b"], "run tests");
+  expect(field().value).toBe("");
+  expect(historyStore.getState().entries.slice(-1)).toEqual(["@thoth run tests"]);
+});
+
+it("sends one command after another: nothing waits for an answer", async () => {
+  await renderWith({ fallback: ["b"] });
+  for (const command of ["run tests", "run lint"]) {
+    await type(command);
+    await press("Enter");
+  }
+  expect(vi.mocked(sendCommand).mock.calls).toEqual([
+    [["b"], "run tests"],
+    [["b"], "run lint"],
+  ]);
+});
+
+it("keeps the text on Escape with no list open, and does not send on Shift+Enter", async () => {
+  await renderWith({ fallback: ["b"] });
+  await type("run tests");
+  await press("Escape");
+  expect(field().value).toBe("run tests");
+  await act(async () => {
+    field().dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", shiftKey: true, bubbles: true, cancelable: true }));
+  });
+  expect(sendCommand).not.toHaveBeenCalled();
+});
+
+it("keeps every key from what holds the field (the canvas, in an orchestrator)", async () => {
+  const seen = vi.fn();
+  host.addEventListener("keydown", seen);
+  await type("@th");
+  for (const key of ["ArrowDown", "Escape", "Enter", "Backspace", "a"]) await press(key);
+  expect(seen).not.toHaveBeenCalled();
+});
+
+it("keeps the keys of Send and of a chip's ✕ from the canvas too, when Tab brought the keyboard there", async () => {
+  await type("@thoth run tests");
+  await act(async () => sendButton().click());
+  await type("run lint");
+  const remove = host.querySelector<HTMLButtonElement>('button[aria-label="Remove @thoth"]')!;
+  const seen = vi.fn();
+  host.addEventListener("keydown", seen);
+  for (const button of [sendButton(), remove]) {
+    button.focus();
+    expect(document.activeElement).toBe(button);
+    for (const key of ["Backspace", "Delete", "Escape", "a"]) {
+      await act(async () => void button.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true })));
+    }
+  }
+  expect(seen).not.toHaveBeenCalled();
+  // The field's own keys still work: Enter sends from it.
+  await press("Enter");
+  expect(sendCommand).toHaveBeenLastCalledWith(["b"], "run lint");
+});
+
+it("leaves the caret in the field on a click on Send or on a chip's ✕", async () => {
+  await type("@thoth run tests");
+  await act(async () => sendButton().click());
+  const pressed = (element: Element) => {
+    const down = new MouseEvent("mousedown", { bubbles: true, cancelable: true });
+    element.dispatchEvent(down);
+    return down.defaultPrevented;
+  };
+  expect(pressed(host.querySelector('button[aria-label="Remove @thoth"]')!)).toBe(true);
+  await type("run lint");
+  expect(pressed(sendButton())).toBe(true);
+});
+
+it("lists targets as plain rows: an icon each, and an agent's live status dot", async () => {
+  await act(async () => {
+    nodesStore.setState({
+      nodes: { b: { workspaceId: "w1", kind: "terminal", payload: { title: "Thoth", name: "Thoth", agent: "claude", cwd: "C:/code", shell: "default", command: "" } } },
+    });
+    terminalStatusStore.setState({ statuses: { b: { state: "running" } } });
+    agentActivityStore.setState({ activities: { b: { activity: "waiting", since: 0 } } });
+  });
+  await type("@");
+  const rows = [...host.querySelectorAll('[role="option"]')];
+  expect(rows.map((r) => r.querySelectorAll("svg").length)).toEqual([1, 1, 1, 1]);
+  const dots = () => rows.map((r) => r.querySelector("[data-status-dot]")?.getAttribute("data-status-dot") ?? null);
+  // @all has no dot; Thoth waits for an answer; Zeus and Hera have no session.
+  expect(dots()).toEqual([null, "waiting", "stopped", "stopped"]);
+  expect(rows[1].querySelector("[data-status-dot]")!.getAttribute("aria-label")).toBe("Waiting");
+  await act(async () => {
+    nodesStore.setState({ nodes: {} });
+    terminalStatusStore.setState({ statuses: {} });
+    agentActivityStore.setState({ activities: {} });
+  });
+});
+
+it("shows its keys as keycaps while empty, in place of a long placeholder", async () => {
+  const keys = () => host.querySelector("[data-field-keys]");
+  expect([...keys()!.querySelectorAll("kbd")].map((k) => k.textContent)).toEqual(["@", "/", "↑"]);
+  expect(field().getAttribute("aria-describedby")).toBe(keys()!.id);
+  await type("run");
+  expect(keys()).toBeNull();
+  await act(async () => root.render(<CommandInput compact agents={agents} groups={[]} fallback={[]} placeholder="Consigne" emptyHint="Tape @" />));
+  await type("");
+  expect(keys()).toBeNull();
+});
+
+it("ties the field to its list: the highlighted line is the active one, and the mouse moves it", async () => {
+  await type("@");
+  const list = host.querySelector('[role="listbox"]')!;
+  const rows = () => [...host.querySelectorAll('[role="option"]')];
+  expect(field().getAttribute("aria-controls")).toBe(list.id);
+  expect(field().getAttribute("aria-activedescendant")).toBe(rows()[0].id);
+  await act(async () => void rows()[2].dispatchEvent(new MouseEvent("mousemove", { bubbles: true })));
+  expect(rows()[2].getAttribute("aria-selected")).toBe("true");
+  expect(field().getAttribute("aria-activedescendant")).toBe(rows()[2].id);
+  await press("Escape");
+  expect(field().hasAttribute("aria-controls")).toBe(false);
 });

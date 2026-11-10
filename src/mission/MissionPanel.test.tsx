@@ -45,9 +45,15 @@ function type(field: HTMLInputElement, value: string) {
   field.dispatchEvent(new Event("input", { bubbles: true }));
 }
 const button = (label: string) => [...host.querySelectorAll("button")].find((b) => b.textContent === label)!;
+/** The settings fold into one line of their values; a click unfolds them. */
+const settingsToggle = () => host.querySelector<HTMLButtonElement>("[data-mission-body] button[aria-expanded]")!;
+async function openSettings() {
+  await act(async () => settingsToggle().click());
+}
 
 it("sets the mission's global budget and team size before the plan (spec §7.1)", async () => {
   await show();
+  await openSettings();
   await act(async () => type(host.querySelector('[aria-label="Global budget (minutes)"]')!, "90"));
   await act(async () => type(host.querySelector(`[aria-label="Maximum number of agents working at once"]`)!, "12"));
   expect(missionOf(nodesStore.getState().nodes.chef)).toMatchObject({ state: "redaction", budgetMin: 90, maxAgents: 8 });
@@ -57,6 +63,7 @@ it("turns the model router on, and shows each sub-task's level and model (spec m
   await show({ state: "plan", name: "Auth", plan: [{ title: "Login", brief: "Fais le login", agent: "Isis", budgetMin: 20, level: "faible" }] });
   expect(host.textContent).toContain("low");
   expect(host.textContent).not.toContain("Haiku 5.5");
+  await openSettings();
   await act(async () => (host.querySelector('[aria-label="Model router"]') as HTMLInputElement).click());
   expect(missionOf(nodesStore.getState().nodes.chef)?.router).toBe(true);
   expect(host.textContent).toContain("low · Haiku 5.5");
@@ -166,12 +173,60 @@ it("shows the sub-tasks an agent finished before taking another (backlog H3)", a
 
 it("shows the mission panel in English", async () => {
   await show({ state: "plan", name: "Auth", router: true, budgetMin: 60, plan: [{ title: "Login", brief: "Do the login", agent: "Isis", budgetMin: 20, level: "faible" }] });
-  expect(host.textContent).toContain("Mission · Auth");
-  expect(host.textContent).toContain("plan proposed");
+  // The panel is named for screen readers; its status line says where the mission stands, then its name.
+  expect(host.querySelector("[data-mission]")!.getAttribute("aria-label")).toBe("Mission · Auth");
+  expect(host.querySelector("header")!.textContent).toContain("Plan proposed · waiting for the go-ahead · Auth");
+  expect(settingsToggle().textContent).toBe("Settings60 min budget · up to 4 agents · model router");
+  await openSettings();
   expect(host.textContent).toContain("Global budget");
   expect(host.textContent).toContain("low · Haiku 5.5");
   expect(host.textContent).toContain("0 Claude agents linked");
   expect(button("Launch the mission")).toBeDefined();
+});
+
+it("leads with the mission's status line: its dot, its state, and how to start it", async () => {
+  await show();
+  const header = host.querySelector("header")!;
+  expect(header.textContent).toContain("Waiting for a task · write it in the terminal above");
+  expect(header.querySelector("[data-status]")!.getAttribute("data-status")).toBe("idle");
+  // The other way to start, at the end of the line, until a night is set.
+  expect(header.contains(button("Overnight run…"))).toBe(true);
+  await act(async () => root.unmount());
+  host.remove();
+  await show({ state: "plan", plan: [{ title: "Login", brief: "b", agent: "Isis", budgetMin: 20 }] });
+  // The plan waits for the user's go-ahead: the one state that asks for them.
+  expect(host.querySelector("header [data-status]")!.getAttribute("data-status")).toBe("waiting");
+  await act(async () => root.unmount());
+  host.remove();
+  await show({ state: "en_cours", error: "git failed", members: [] });
+  expect(host.querySelector("header [data-status]")!.getAttribute("data-status")).toBe("error");
+  expect(host.querySelector("header")!.textContent).not.toContain("Overnight run…");
+});
+
+it("folds its settings into one line of their values, so the terminal keeps its height", async () => {
+  await show();
+  expect(settingsToggle().getAttribute("aria-expanded")).toBe("false");
+  expect(settingsToggle().textContent).toBe("Settingsno budget · up to 4 agents");
+  expect(host.querySelector('[aria-label="Global budget (minutes)"]')).toBeNull();
+  await openSettings();
+  expect(settingsToggle().getAttribute("aria-expanded")).toBe("true");
+  const grid = document.getElementById(settingsToggle().getAttribute("aria-controls")!)!;
+  expect(grid.querySelector('[aria-label="Global budget (minutes)"]')).not.toBeNull();
+  expect(grid.querySelector('[aria-label="Maximum number of agents working at once"]')).not.toBeNull();
+  await act(async () => type(grid.querySelector('[aria-label="Global budget (minutes)"]')!, "90"));
+  expect(settingsToggle().textContent).toBe("Settings90 min budget · up to 4 agents");
+});
+
+it("keeps the keys typed in the mission from the canvas: Backspace there would delete the node", async () => {
+  await show();
+  await openSettings();
+  const seen = vi.fn();
+  host.addEventListener("keydown", seen);
+  const targets = [host.querySelector<HTMLElement>('[aria-label="Global budget (minutes)"]')!, settingsToggle(), host.querySelector<HTMLElement>("[data-link-toggle]")!];
+  for (const target of targets) {
+    await act(async () => void target.dispatchEvent(new KeyboardEvent("keydown", { key: "Backspace", bubbles: true, cancelable: true })));
+  }
+  expect(seen).not.toHaveBeenCalled();
 });
 
 it("shows the team and the cleanup in English", async () => {

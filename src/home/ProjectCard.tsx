@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Ellipsis, Folder } from "lucide-react";
 import { ask, open } from "@tauri-apps/plugin-dialog";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -40,18 +41,20 @@ export function ProjectCard({ project }: { project: Project }) {
   };
 
   return (
+    // A card that opens, not a <button>: it holds the actions menu and the name field, and a button cannot.
     <div
       role="button"
       tabIndex={0}
       onClick={openProject}
       onKeyDown={(e) => e.key === "Enter" && openProject()}
       className={cn(
-        "dp-glass-strong group rounded-lg p-4 transition-[color,background-color,border-color] duration-150 ease-out motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50",
-        openable && "cursor-pointer hover:border-dp-accent/60 hover:bg-dp-hover",
+        "dp-glass-strong group rounded-xl p-5 transition-[color,background-color,border-color] duration-150 ease-out motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50",
+        openable && "cursor-pointer hover:bg-dp-hover",
       )}
     >
       <div className="mb-3 flex items-start gap-3">
-        <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-dp-accent-soft text-dp-accent-ink">
+        {/* The folder in the secondary text role on a surface step: the accent stays for what is chosen. */}
+        <div className="grid size-9 shrink-0 place-items-center rounded-md bg-dp-hover text-dp-text-2">
           <Folder className="size-4" />
         </div>
         <div className="min-w-0 flex-1">
@@ -72,22 +75,23 @@ export function ProjectCard({ project }: { project: Project }) {
               }}
             />
           ) : (
-            <p className="truncate font-semibold text-dp-text">{project.name}</p>
+            <p className="truncate font-medium text-dp-text">{project.name}</p>
           )}
-          <p className="truncate font-mono text-[11px] text-dp-text-2" title={project.path}>
+          <p className="truncate font-mono text-xs text-dp-text-2" title={project.path}>
             {project.path}
           </p>
         </div>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="icon-sm"
               aria-label={t.actions}
               onClick={(e) => e.stopPropagation()}
-              className="grid size-7 place-items-center rounded-full text-dp-text-2 opacity-0 transition-[color,background-color,opacity] duration-150 ease-out hover:bg-dp-hover hover:text-dp-text focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] group-hover:opacity-100 motion-reduce:transition-none data-[state=open]:opacity-100 [&_svg]:size-4"
+              className="-mr-1 -mt-1 rounded-md text-dp-text-2 opacity-0 transition-[color,background-color,opacity,transform] hover:text-dp-text focus-visible:opacity-100 group-hover:opacity-100 data-[state=open]:opacity-100"
             >
               <Ellipsis />
-            </button>
+            </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
             {!project.missing && <DropdownMenuItem onSelect={() => setEditing(true)}>{t.rename}</DropdownMenuItem>}
@@ -103,7 +107,7 @@ export function ProjectCard({ project }: { project: Project }) {
       {project.missing ? (
         <p className="text-xs text-dp-danger">{t.missing}</p>
       ) : (
-        <div className="flex items-center gap-3 font-mono text-[11px] text-dp-text-2">
+        <div className="flex items-center gap-3 font-mono text-xs tabular-nums text-dp-text-2">
           <span>{t.workspaces(project.workspaceCount)}</span>
           {project.liveAgents > 0 && (
             <span className="flex items-center gap-1 text-dp-ok">

@@ -29,6 +29,18 @@ export interface LogEntry {
   /** Seconds since the epoch. */
   date: number;
   subject: string;
+  /** Full hashes, the first parent first; none for a root commit. A parent past Rust's cap is named but not in the history. */
+  parents: string[];
+  /** The branches, remote branches and tags on this commit. */
+  refs: LogRef[];
+}
+
+/** A name on a commit: `head` is a detached HEAD; `current` marks where HEAD is (its branch, or itself). */
+export interface LogRef {
+  kind: "branch" | "remote" | "tag" | "head";
+  /** `main`, `origin/main`, `v1.0`; `HEAD` for a detached HEAD. */
+  name: string;
+  current: boolean;
 }
 
 export const repoState = (path: string) => call<RepoState>("repo_state", { path });

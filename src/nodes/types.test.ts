@@ -27,6 +27,13 @@ describe("readTerminalPayload", () => {
     expect(readTerminalPayload(payload)).toEqual(payload);
   });
 
+  it("keeps an agent's message bar open only when it was opened", () => {
+    const isis = { title: "Isis", name: "Isis", agent: "claude", cwd: "C:/code", shell: "default", command: "" };
+    expect(readTerminalPayload({ ...isis, inputOpen: true })?.inputOpen).toBe(true);
+    expect(readTerminalPayload({ ...isis, inputOpen: false })).toEqual(isis);
+    expect(readTerminalPayload({ ...isis, inputOpen: "yes" })).toEqual(isis);
+  });
+
   it("rejects what cannot be launched", () => {
     expect(readTerminalPayload(null)).toBeNull();
     expect(readTerminalPayload({ agent: "vim", cwd: "C:/" })).toBeNull();
@@ -36,11 +43,20 @@ describe("readTerminalPayload", () => {
 });
 
 describe("readOrchestratorPayload", () => {
-  it("keeps the given name and names the others Orchestrateur", () => {
+  it("keeps the given name and names the others Fleet", () => {
     expect(readOrchestratorPayload({ name: "Chef" })).toEqual({ name: "Chef" });
-    expect(readOrchestratorPayload({ name: "  " })).toEqual({ name: "Orchestrateur" });
-    expect(readOrchestratorPayload({})).toEqual({ name: "Orchestrateur" });
-    expect(readOrchestratorPayload(null)).toEqual({ name: "Orchestrateur" });
+    expect(readOrchestratorPayload({ name: "  " })).toEqual({ name: "Fleet" });
+    expect(readOrchestratorPayload({})).toEqual({ name: "Fleet" });
+    expect(readOrchestratorPayload(null)).toEqual({ name: "Fleet" });
+  });
+
+  it("reads the former default names as Fleet, its session's too, and keeps a chosen one", () => {
+    const session = { agent: "claude", cwd: "D:/p", name: "Orchestrator", title: "Orchestrator" };
+    const read = readOrchestratorPayload({ name: "Orchestrator", session });
+    expect(read.name).toBe("Fleet");
+    expect(read.session).toMatchObject({ name: "Fleet", title: "Fleet", role: "orchestrator" });
+    expect(readOrchestratorPayload({ name: "Orchestrateur" }).name).toBe("Fleet");
+    expect(readOrchestratorPayload({ name: "Orchestrator of Atlas" }).name).toBe("Orchestrator of Atlas");
   });
 
   it("keeps its message field open only when it was opened", () => {

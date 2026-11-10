@@ -30,7 +30,7 @@ afterEach(() => {
 
 it("tells dummyPlane's version (\"About dummyPlane\")", async () => {
   await showAbout();
-  expect(toast).toHaveBeenCalledWith("dummyPlane 0.1.0", { description: "A local, open source canvas for agents." });
+  expect(toast).toHaveBeenCalledWith("dummyPlane 0.1.0", { description: "A local, open source canvas for agents" });
 });
 
 it("launches an agent, or places an orchestrator, at the center of the view", () => {

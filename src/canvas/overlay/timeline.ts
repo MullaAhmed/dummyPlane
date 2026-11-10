@@ -30,5 +30,5 @@ export function dotsOf(steps: readonly Step[], width: number): Dot[] {
   return steps.map((step, i) => ({ x: slot * (i + 0.5), slot, title: step.title, state: step.state, color: STEP_COLOR[step.state] }));
 }
 
-/** A budget's bar (spec orchestrateur §8.3): green, orange past 80 %, red past 100 %. */
-export const BUDGET_COLOR: Record<BudgetTone, string> = { ok: "var(--dp-ok)", late: "var(--dp-accent)", over: "var(--dp-danger)" };
+/** A budget's bar (spec orchestrateur §8.3): ok, the wait colour past 80 % (a warning, not the ink), the danger colour past 100 %. */
+export const BUDGET_COLOR: Record<BudgetTone, string> = { ok: "var(--dp-ok)", late: "var(--dp-wait)", over: "var(--dp-danger)" };

@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -9,6 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { useMessages } from "@/i18n";
 import { removeNodes } from "@/fleet/terminals";
 import { useActivity } from "@/store/agentActivity";
@@ -16,9 +17,6 @@ import { nodeNameOf, useNodes } from "@/store/nodes";
 import { isRunning } from "@/store/terminalStatus";
 import { uiStore, useUi, type ClosingAgents } from "@/store/ui";
 import { shellMessages } from "./messages";
-
-const buttonBase =
-  "rounded-md transition-[color,background-color,border-color,opacity,transform] duration-150 ease-out motion-reduce:transition-none active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50";
 
 /**
  * "Close Isis?" before closing a running agent (spec habillage §7.5), or
@@ -35,6 +33,7 @@ export function CloseAgentDialog() {
 
 function CloseAgentContent({ closing }: { closing: ClosingAgents | null }) {
   const t = useMessages(shellMessages).closeAgent;
+  const alsoId = useId();
   const [withChildren, setWithChildren] = useState(true);
   const nodes = useNodes((s) => s.nodes);
   const activity = useActivity(closing?.agents[0] ?? "")?.activity;
@@ -74,26 +73,25 @@ function CloseAgentContent({ closing }: { closing: ClosingAgents | null }) {
           <DialogDescription className="text-dp-text-2">{description}</DialogDescription>
         </DialogHeader>
         {children.length > 0 && (
-          <label className="flex items-start gap-2 text-sm text-dp-text-2">
-            <input
-              type="checkbox"
-              className="mt-0.5 accent-dp-accent"
+          <div className="flex items-start gap-2">
+            <Checkbox
+              id={alsoId}
+              className="mt-0.5"
               checked={withChildren}
-              onChange={(event) => setWithChildren(event.target.checked)}
+              onCheckedChange={(checked) => setWithChildren(checked === true)}
             />
-            <span>{t.alsoChildren(children.map((id) => nodeNameOf(nodes[id]) || "Agent"))}</span>
-          </label>
+            <Label htmlFor={alsoId} className="block text-sm font-normal leading-5 text-dp-text-2">
+              {t.alsoChildren(children.map((id) => nodeNameOf(nodes[id]) || "Agent"))}
+            </Label>
+          </div>
         )}
         <DialogFooter className="border-dp-line bg-dp-hover">
-          <Button
-            variant="ghost"
-            onClick={close}
-            className={cn(buttonBase, "text-dp-text-2 hover:bg-dp-hover hover:text-dp-text")}
-          >
+          <Button variant="ghost" onClick={close} className="rounded-md text-dp-text-2 hover:text-dp-text">
             {t.cancel}
           </Button>
           <Button
-            className={cn(buttonBase, "bg-dp-danger/10 text-dp-danger hover:bg-dp-danger/20")}
+            variant="destructive"
+            className="rounded-md"
             onClick={() => {
               confirm();
               close();

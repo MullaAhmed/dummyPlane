@@ -1,7 +1,6 @@
 import { useEffect, useRef } from "react";
 import { Maximize2 } from "lucide-react";
 import { agentInk, AGENTS, INDIGO } from "@/fleet/catalog";
-import { cn } from "@/lib/utils";
 import { memberOf } from "@/mission/store";
 import type { TerminalPayload, TerminalReportStatus } from "@/nodes/types";
 import type { AgentActivity } from "@/store/agentActivity";
@@ -10,19 +9,15 @@ import type { TerminalStatus } from "@/store/terminalStatus";
 import { useMessages } from "@/i18n";
 import { nodesMessages } from "@/nodes/messages";
 import { expandTerminal, settleMinimizedSize } from "./minimize";
+import { StatusDot, type DotState } from "./StatusDot";
 import { StatusPill } from "./StatusPill";
 import { HeaderButton } from "./TerminalHeader";
 
-const REPORT_TONES: Record<TerminalReportStatus, string> = {
-  done: "border-dp-ok/60 text-dp-ok",
-  blocked: "border-dp-wait/60 text-dp-wait",
-  failed: "border-dp-danger/60 text-dp-danger",
-};
-
-const REPORT_DOTS: Record<TerminalReportStatus, string> = {
-  done: "bg-dp-ok",
-  blocked: "bg-dp-wait",
-  failed: "bg-dp-danger",
+/** A report reads like a status: done rests, blocked waits for the user, failed is an error. */
+const REPORT_DOTS: Record<TerminalReportStatus, DotState> = {
+  done: "done",
+  blocked: "waiting",
+  failed: "error",
 };
 
 function firstLine(text: string): string {
@@ -76,15 +71,12 @@ export function MinimizedCard(props: { nodeId: string; payload: TerminalPayload;
   return (
     <div ref={ref} data-minimized={nodeId} title={t.doubleClickExpand} className="flex h-full min-h-0 flex-col justify-center bg-dp-terminal-head px-3 text-xs">
       <div className="flex h-8 shrink-0 items-center gap-2">
-        <meta.Icon aria-hidden className="size-3.5 shrink-0" style={{ color: agentInk(meta.tint) }} />
-        <span className="truncate font-semibold text-dp-text">{payload.name || meta.label}</span>
+        <meta.Icon aria-hidden className="size-4 shrink-0" style={{ color: agentInk(meta.tint) }} />
+        <span className="truncate font-medium text-dp-text">{payload.name || meta.label}</span>
         <div className="ml-auto flex shrink-0 items-center gap-1">
           {report ? (
-            <span
-              data-report={report.status}
-              className={cn("flex h-4 items-center gap-1 rounded border px-1.5 font-mono text-[9px] font-medium tracking-wide", REPORT_TONES[report.status])}
-            >
-              <span className={cn("size-1.5 rounded-full", REPORT_DOTS[report.status])} />
+            <span data-report={report.status} className="flex shrink-0 items-center gap-2 text-xs text-dp-text-2">
+              <StatusDot state={REPORT_DOTS[report.status]} />
               {t.report[report.status]}
             </span>
           ) : (
@@ -95,8 +87,9 @@ export function MinimizedCard(props: { nodeId: string; payload: TerminalPayload;
           </HeaderButton>
         </div>
       </div>
+      {/* Under the name: the 16px icon and its 8px gap. */}
       {line && (
-        <p title={report?.summary ?? line} className="truncate pl-[22px] text-[11px] leading-5 text-dp-text-2">
+        <p title={report?.summary ?? line} className="truncate pl-6 text-xs leading-5 text-dp-text-2">
           {line}
         </p>
       )}

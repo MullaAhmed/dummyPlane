@@ -82,7 +82,7 @@ describe("Terminal · <prénom> and Groupe · <nom> (spec fenêtre §7.3)", () =
       "Paste",
       "Rename the group",
       "Add an agent…",
-      "Link an orchestrator",
+      "Link a fleet",
       "Fold or unfold the group",
       "Ungroup",
       "Close the group",

@@ -1,24 +1,29 @@
 import type { ReactNode } from "react";
+import { Button } from "@/components/ui/button";
 import { useWorkspaceAgentCounts } from "@/fleet/agentCounts";
 import { showAgents } from "@/fleet/agentsPanelState";
 import type { FleetFilter } from "@/fleet/fleetView";
 import { useMessages } from "@/i18n";
 import { useRunningCount } from "@/store/running";
 import { useWorkspaces } from "@/store/workspaces";
+import { Hint } from "./buttons";
 import { shellMessages } from "./messages";
 
+/** A count with its status dot: the number alone says nothing, so its hint names what it counts. */
 function Count({ label, color, filter, children }: { label: string; color: string; filter: FleetFilter; children: ReactNode }) {
   return (
-    <button
-      type="button"
-      title={label}
-      aria-label={label}
-      onClick={() => showAgents(filter)}
-      className="flex h-6 items-center gap-1.5 rounded-md px-1.5 font-mono text-xs text-dp-text-2 transition-[color,background-color,transform] duration-150 ease-out hover:bg-dp-hover hover:text-dp-text active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none"
-    >
-      <span className="size-1.75 rounded-full" style={{ backgroundColor: color }} />
-      {children}
-    </button>
+    <Hint label={label} side="bottom">
+      <Button
+        variant="ghost"
+        size="xs"
+        aria-label={label}
+        onClick={() => showAgents(filter)}
+        className="gap-1.5 rounded-md px-1.5 font-mono font-normal tabular-nums text-dp-text-2 hover:text-dp-text"
+      >
+        <span className="size-2 rounded-full" style={{ backgroundColor: color }} />
+        {children}
+      </Button>
+    </Hint>
   );
 }
 

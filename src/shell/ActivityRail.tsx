@@ -1,9 +1,9 @@
 import type { ComponentProps } from "react";
 import { BookOpen, Code2, Settings, Users } from "lucide-react";
+import { Separator } from "@/components/ui/separator";
 import { useWorkspaceAgentCounts } from "@/fleet/agentCounts";
 import { setAgentsPanel, useAgentsPanel } from "@/fleet/agentsPanelState";
 import { useMessages } from "@/i18n";
-import { cn } from "@/lib/utils";
 import { openNotes } from "@/notes/notesStore";
 import { useProjects } from "@/store/projects";
 import { isCode, useWorkspaces } from "@/store/workspaces";
@@ -13,12 +13,9 @@ import { ToolButton } from "./buttons";
 import { shellMessages } from "./messages";
 import { SettingsMenu } from "./SettingsMenu";
 
-/** A rail button: the shared ToolButton plus focus, press and disabled feedback. */
-const RAIL_BUTTON =
-  "rounded-md transition-[color,background-color,border-color,opacity,transform] duration-150 ease-out motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50";
-
+/** A button of this rail: it sits at the window's right edge, so its hint opens to the left. */
 function RailButton(props: ComponentProps<typeof ToolButton>) {
-  return <ToolButton {...props} className={cn(RAIL_BUTTON, props.className)} />;
+  return <ToolButton hintSide="left" {...props} />;
 }
 
 /** The rail on the right: the activities (spec identité §5.5). "Functions" comes with J8. */
@@ -36,7 +33,7 @@ export function ActivityRail() {
         {waiting > 0 && (
           <span
             data-pip
-            className="absolute right-0.5 top-0.5 min-w-3.5 rounded-full bg-dp-wait px-1 font-mono text-[11px] font-semibold leading-3.5 text-dp-on-role"
+            className="absolute right-0.5 top-0.5 min-w-3.5 rounded-full bg-dp-wait px-1 font-mono text-xs font-medium leading-3.5 tabular-nums text-dp-on-role"
           >
             {waiting}
           </span>
@@ -53,7 +50,7 @@ export function ActivityRail() {
       <RailButton label={t.notes} onClick={openNotes}>
         <BookOpen />
       </RailButton>
-      <span aria-hidden className="my-1 h-px w-6 bg-dp-line" />
+      <Separator className="my-1 bg-dp-line data-horizontal:w-6" />
       <SettingsMenu
         side="left"
         align="start"

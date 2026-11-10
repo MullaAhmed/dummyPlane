@@ -33,6 +33,8 @@ function type(field: HTMLInputElement, value: string) {
   field.dispatchEvent(new Event("input", { bubbles: true }));
 }
 const field = (label: string) => document.querySelector<HTMLInputElement>(`[aria-label="${label}"]`)!;
+/** A Radix checkbox or option is a button: its state is in `aria-checked`. */
+const isChecked = (label: string) => field(label).getAttribute("aria-checked") === "true";
 const button = (label: string) => [...document.querySelectorAll("button")].find((b) => b.textContent === label)!;
 const missionNow = () => missionOf(nodesStore.getState().nodes.chef)!;
 
@@ -76,7 +78,7 @@ it("reads BACKLOG.md when chosen, without asking for a label", async () => {
 
 it("waits for the user's go-ahead by default; starting alone is their explicit choice (review)", async () => {
   await show();
-  expect(field("Start without waiting for my go-ahead").checked).toBe(false);
+  expect(isChecked("Start without waiting for my go-ahead")).toBe(false);
   await act(async () => button("Prepare the night").click());
   expect(missionNow().autoLaunch).toBeUndefined();
   expect(vi.mocked(notify).mock.calls[0][1]).toContain("the plan waits for their go-ahead");
@@ -106,15 +108,15 @@ it("will not start without a time, too many agents, or a label: a repository's i
 
 it("defaults to files: commands stay an explicit choice (review)", async () => {
   await show();
-  expect(field("Files").checked).toBe(true);
-  expect(field("Files and commands").checked).toBe(false);
+  expect(isChecked("Files")).toBe(true);
+  expect(isChecked("Files and commands")).toBe(false);
   await act(async () => button("Prepare the night").click());
   expect(missionNow().permission).toBe("edits");
 });
 
 it("says plainly what files and commands opens to the agents", async () => {
   await show();
-  expect(document.body.textContent).toContain("Agents run any command unasked: the network and the accounts logged in on this PC are open to them.");
+  expect(document.body.textContent).toContain("Agents run any command unasked: the network and the accounts logged in on this PC are open to them");
   expect(document.body.textContent).not.toContain("le reste est refusé");
   await act(async () => field("Files and commands").click());
   await act(async () => button("Prepare the night").click());
@@ -133,7 +135,7 @@ it("says the push block is no security boundary, with how it was passed (review)
 
 it("says what files costs a night: an agent stops at its first command", async () => {
   await show();
-  expect(document.body.textContent).toContain("an agent stops at its first command, until you are back.");
+  expect(document.body.textContent).toContain("an agent stops at its first command, until you are back");
 });
 
 it("will not start outside a repository, and needs gh only for GitHub", async () => {
@@ -159,8 +161,8 @@ it("warns on the plan's usage without blocking, and says what can still put the 
 it("speaks English", async () => {
   await show();
   expect(document.body.textContent).toContain("Overnight run");
-  expect(document.body.textContent).toContain("Agents run any command unasked: the network and the accounts logged in on this PC are open to them.");
-  expect(document.body.textContent).toContain("an agent stops at its first command, until you are back.");
+  expect(document.body.textContent).toContain("Agents run any command unasked: the network and the accounts logged in on this PC are open to them");
+  expect(document.body.textContent).toContain("an agent stops at its first command, until you are back");
   expect(document.body.textContent).toContain("This block is not a security boundary");
   expect(document.body.textContent).not.toContain("stays forbidden in every case");
   await act(async () => button("Prepare the night").click());

@@ -1,23 +1,27 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type RefObject } from "react";
+import { ComposerPrimitive, useAui, useAuiState } from "@assistant-ui/react";
 import { ArrowUp, X } from "lucide-react";
 import { useStore } from "zustand";
+import { cn } from "cn";
 import type { SceneFrame } from "@/canvas/groups";
+import { Button } from "@/components/ui/button";
 import { useMessages } from "@/i18n";
 import { useNativeKeyDown } from "@/lib/useNativeKeyDown";
-import { cn } from "@/lib/utils";
 import { sendCommand } from "./broadcast";
+import { Keycap } from "./composer/Keycap";
+import { LocalComposer } from "./composer/LocalComposer";
+import { routeCommand } from "./composer/route";
+import { AgentStatusDot, TargetIcon } from "./composer/TargetMark";
 import { fleetMessages } from "./messages";
 import { browseHistory, historyStore } from "./history";
-import { commandAt, isCommandAfterMentions, isKnownCommand, matchCommands } from "./slashCommands";
+import { commandAt, isKnownCommand, matchCommands } from "./slashCommands";
 import {
   completedMention,
-  extractMentions,
   keptDismissal,
   matchOptions,
   mentionAt,
   mentionParts,
   partTargets,
-  resolveTargets,
   targetKey,
   targetOptions,
   uniqueTargets,
@@ -27,13 +31,14 @@ import {
 } from "./targets";
 
 const MENU_SIZE = 8;
-const MAX_HEIGHT_PX = 120;
 
 /** A line of the list above the field: a target, or a command of the agents' CLI. */
 interface Suggestion {
   key: string;
   label: string;
   detail: string;
+  /** A target's line shows its icon, and an agent's its status dot. */
+  target?: Target;
   pick: () => void;
 }
 
@@ -46,12 +51,7 @@ function keptClosed(dismissed: Dismissal | null, text: string, caret: number): D
   return commandAt(text, caret)?.start === dismissed.at ? dismissed : null;
 }
 
-/**
- * The field of the command bar and of an orchestrator (spec theme §12, §13):
- * `@` targets in chips (`@athena/zeus` for several), `/` the agents' commands,
- * Enter sends to them (or to `fallback`), ↑ ↓ recall.
- */
-export function CommandInput(props: {
+interface CommandInputProps {
   agents: readonly TargetAgent[];
   groups: readonly SceneFrame[];
   /** Reached without `@`: the selection, or an orchestrator's agents. */
@@ -64,10 +64,31 @@ export function CommandInput(props: {
   compact?: boolean;
   /** The field takes the keyboard when it mounts (an orchestrator's field opened by hand). */
   autoFocus?: boolean;
-}) {
-  const { agents, groups, fallback, placeholder, emptyHint, sendsTo, compact = false, autoFocus = false } = props;
+}
+
+/**
+ * The field of the command bar and of an orchestrator (spec theme §12, §13):
+ * `@` targets in chips (`@athena/zeus` for several), `/` the agents' commands,
+ * Enter sends to them (or to `fallback`), ↑ ↓ recall. It is assistant-ui's
+ * composer (Root, Input, Send) on a runtime with no model: the composer holds
+ * the text and sends it, the field decides who receives it.
+ */
+export function CommandInput(props: CommandInputProps) {
+  // Filled by the field on each render: who a send reaches depends on its chips and on the canvas.
+  const deliver = useRef<(text: string) => void>(() => undefined);
+  return (
+    <LocalComposer onSend={(text) => deliver.current(text)}>
+      <CommandField {...props} deliver={deliver} />
+    </LocalComposer>
+  );
+}
+
+function CommandField(props: CommandInputProps & { deliver: RefObject<(text: string) => void> }) {
+  const { agents, groups, fallback, placeholder, emptyHint, sendsTo, compact = false, autoFocus = false, deliver } = props;
   const t = useMessages(fleetMessages).command;
-  const [text, setText] = useState("");
+  const aui = useAui();
+  // The composer owns the text: typing, completing, recalling and sending all go through it.
+  const text = useAuiState((s) => s.composer.text);
   const [caret, setCaret] = useState(0);
   const [targets, setTargets] = useState<Target[]>([]);
   const [active, setActive] = useState(0);
@@ -77,6 +98,7 @@ export function CommandInput(props: {
   // The field has the keyboard: how to target shows before the first word, not after it.
   const [focused, setFocused] = useState(false);
   const field = useRef<HTMLTextAreaElement>(null);
+  const listId = useId();
   const history = useStore(historyStore, (s) => s.entries);
 
   const options = useMemo(() => targetOptions(agents, groups), [agents, groups]);
@@ -99,6 +121,7 @@ export function CommandInput(props: {
             key: `${targetKey(option.target)}-${i}`,
             label: option.label,
             detail: option.detail,
+            target: option.target,
             pick: () => {
               const known = partTargets(parts.typed, options);
               // An unknown name stays as typed: the mention is completed, not reduced to the known ones.
@@ -111,12 +134,9 @@ export function CommandInput(props: {
           .map((found) => ({ key: found.name, label: found.name, detail: found.hint, pick: () => insertCommand(found.name) }));
   // A list that shrank under the highlight starts again at the top.
   const row = active < suggestions.length ? active : 0;
-  const typed = extractMentions(text, options);
-  const allTargets = uniqueTargets([...chips, ...typed.targets]);
-  const ids = resolveTargets(allTargets, { all: agents.map((a) => a.id), groups }, fallback);
-  // A command for a mistyped target must not go to the selection instead.
-  const unknown = isCommandAfterMentions(typed.text) ? /(?:^|\s)(@[^\s@,;:.!?…]+)/.exec(typed.text)?.[1] : undefined;
-  const canSend = typed.text.length > 0 && ids.length > 0 && unknown === undefined;
+  const listOpen = suggestions.length > 0;
+  const scope = { chips, options, agents, groups, fallback };
+  const { targets: allTargets, ids, unknown, canSend } = routeCommand(text, scope);
   const nothingTargeted = allTargets.length === 0 && fallback.length === 0;
   // Targets were chosen, but they hold no agent (an empty group).
   const noAgents = allTargets.length > 0 && ids.length === 0;
@@ -127,15 +147,13 @@ export function CommandInput(props: {
     if (autoFocus) field.current?.focus();
   }, [autoFocus]);
 
-  useLayoutEffect(() => {
-    const element = field.current;
-    if (!element) return;
-    element.style.height = "auto";
-    element.style.height = `${Math.min(element.scrollHeight, MAX_HEIGHT_PX)}px`;
-  }, [text]);
-
+  /** A change the field makes itself; what the user types reaches the composer through its Input. */
   const edit = (value: string, at: number) => {
-    setText(value);
+    aui.composer.setText(value);
+    typed(value, at);
+  };
+
+  const typed = (value: string, at: number) => {
     setCaret(at);
     setActive(0);
     setBrowsing(null);
@@ -170,19 +188,29 @@ export function CommandInput(props: {
     moveCaret(at);
   };
 
+  // The composer empties itself, then hands over what it sent: its targets stay as chips for the next one.
+  deliver.current = (sent: string) => {
+    const route = routeCommand(sent, scope);
+    if (!route.canSend) {
+      aui.composer.setText(sent);
+      return;
+    }
+    historyStore.getState().add(sent);
+    setTargets(route.targets);
+    typed("", 0);
+    void sendCommand(route.ids, route.instruction);
+  };
+
+  // Only what this field can deliver is sent: the composer alone would send any text, and empty the field.
   const send = () => {
-    if (!canSend) return;
-    historyStore.getState().add(text);
-    setTargets(allTargets);
-    edit("", 0);
-    void sendCommand(ids, typed.text);
+    if (canSend) aui.composer.send();
   };
 
   const recall = (direction: "up" | "down") => {
     const index = browseHistory(history, browsing?.index ?? null, direction);
     const draft = browsing?.draft ?? text;
     const value = index === null ? draft : history[index];
-    setText(value);
+    aui.composer.setText(value);
     setCaret(value.length);
     setBrowsing(index === null ? null : { index, draft });
   };
@@ -190,7 +218,7 @@ export function CommandInput(props: {
   const onKeyDown = (e: KeyboardEvent) => {
     // The Enter (or arrow) of an IME composition picks a candidate: it is not ours.
     if (e.isComposing || e.keyCode === 229) return;
-    if (suggestions.length > 0 && menuStart !== null) {
+    if (listOpen && menuStart !== null) {
       if (e.key === "ArrowDown" || e.key === "ArrowUp") {
         e.preventDefault();
         const step = e.key === "ArrowDown" ? 1 : suggestions.length - 1;
@@ -222,22 +250,32 @@ export function CommandInput(props: {
       setTargets(chips.slice(0, -1));
     }
   };
-  // In an orchestrator the field sits inside the canvas, which must not see its keys.
+  // In an orchestrator the field sits inside the canvas, which must not see its keys. The native
+  // listener also stops them before React: the Input's own key handling never runs, these keys rule.
   useNativeKeyDown(field, onKeyDown);
+  // The same for every key of the composer: Tab can bring the keyboard to Send or to a chip's ✕, and
+  // a Backspace there must not delete the node. The field's keys stop at the field and never get here.
+  const root = useRef<HTMLFormElement>(null);
+  useNativeKeyDown(root, () => undefined);
+
+  // A click on a chip's ✕ or on Send leaves the caret in the field, never the keyboard on a button the canvas would read.
+  const keepCaret = (e: ReactMouseEvent<HTMLButtonElement>) => e.preventDefault();
+
+  // An empty field shows its keys as keycaps, where the placeholder used to spell them out.
+  const showKeys = !compact && text === "" && chips.length === 0;
 
   return (
-    <div className="relative flex min-w-0 flex-1 items-end gap-2">
-      {suggestions.length > 0 && (
+    <ComposerPrimitive.Root ref={root} className="relative flex min-w-0 flex-1 items-end gap-2">
+      {listOpen && (
         <ul
+          id={listId}
           role="listbox"
-          className={cn(
-            "absolute bottom-full left-0 z-10 mb-2 overflow-hidden rounded-lg border border-dp-line bg-dp-surface py-1 shadow-dp",
-            parts ? "w-64" : "w-96 max-w-full",
-          )}
+          className={cn("dp-glass-strong absolute bottom-full left-0 z-10 mb-2 overflow-hidden rounded-[12px] p-1", parts ? "w-72" : "w-96 max-w-full")}
         >
           {suggestions.map((suggestion, i) => (
             <li
               key={suggestion.key}
+              id={`${listId}-${i}`}
               role="option"
               aria-selected={i === row}
               title={suggestion.detail}
@@ -245,45 +283,67 @@ export function CommandInput(props: {
                 e.preventDefault();
                 suggestion.pick();
               }}
-              className={cn(
-                "mx-1 flex cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-xs transition-[background-color] duration-150 ease-out motion-reduce:transition-none",
-                i === row ? "bg-dp-hover text-dp-text" : "text-dp-text-2",
-              )}
+              onMouseMove={() => i !== row && setActive(i)}
+              // No transition: the highlight follows the arrow keys at once.
+              className={cn("flex h-8 cursor-pointer items-center gap-2 rounded-[8px] px-2 text-xs", i === row ? "bg-dp-hover text-dp-text" : "text-dp-text-2")}
             >
+              {suggestion.target && <TargetIcon target={suggestion.target} />}
               <span className="shrink-0 font-mono text-dp-text">{suggestion.label}</span>
               <span className="ml-auto truncate">{suggestion.detail}</span>
+              {suggestion.target?.kind === "agent" && <AgentStatusDot id={suggestion.target.id} />}
             </li>
           ))}
         </ul>
       )}
       <div className="flex min-w-0 flex-1 flex-col gap-1">
-        {(text.trim() || focused) && nothingTargeted && <p className="text-[11px] text-dp-text-2">{emptyHint}</p>}
-        {text.trim() && noAgents && !unknown && <p className="text-[11px] text-dp-text-2">{t.noAgents}</p>}
-        {unknown && <p className="text-[11px] text-dp-text-2">{t.unknownTarget(unknown)}</p>}
-        {text.trim() && namedFallback && !unknown && <p className="text-[11px] text-dp-text-2">{t.sendsTo(namedFallback)}</p>}
-        <div className="flex min-w-0 flex-wrap items-center gap-1">
-          {chips.map((target) => (
-            <span
-              key={targetKey(target)}
-              className="flex h-6 items-center gap-1 rounded-full bg-dp-accent-soft pl-2 pr-1 font-mono text-[11px] text-dp-text"
-            >
-              {labels.get(targetKey(target))}
-              <button
-                type="button"
-                aria-label={t.remove(labels.get(targetKey(target)) ?? "")}
-                onClick={() => setTargets(chips.filter((c) => targetKey(c) !== targetKey(target)))}
-                className="grid size-4 place-items-center rounded-full text-dp-text-2 transition-[background-color,color] duration-150 ease-out hover:bg-dp-hover hover:text-dp-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none"
+        {(text.trim() || focused) && nothingTargeted && <p className="text-xs text-dp-text-2">{emptyHint}</p>}
+        {text.trim() && noAgents && !unknown && <p className="text-xs text-dp-text-2">{t.noAgents}</p>}
+        {unknown && <p className="text-xs text-dp-text-2">{t.unknownTarget(unknown)}</p>}
+        {text.trim() && namedFallback && !unknown && <p className="text-xs text-dp-text-2">{t.sendsTo(namedFallback)}</p>}
+        <div
+          className={cn(
+            "flex min-w-0 flex-wrap items-center gap-1",
+            // In an orchestrator the field is a control of its own, beside Send and of its radius.
+            compact &&
+              "min-h-8 rounded-[8px] bg-dp-field px-1 ring-1 ring-dp-line ring-inset transition-[box-shadow] duration-(--dp-dur-fast) ease-(--dp-ease-out) focus-within:ring-2 focus-within:ring-dp-accent/50 motion-reduce:transition-none",
+          )}
+        >
+          {chips.map((target) => {
+            const label = labels.get(targetKey(target)) ?? "";
+            return (
+              <span
+                key={targetKey(target)}
+                data-target-chip
+                className="flex h-6 items-center gap-1 rounded-[4px] bg-dp-accent-soft pl-2 pr-1 font-mono text-xs text-dp-text"
               >
-                <X className="size-3.5" />
-              </button>
-            </span>
-          ))}
-          <textarea
+                {label}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
+                  aria-label={t.remove(label)}
+                  onMouseDown={keepCaret}
+                  onClick={() => setTargets(chips.filter((c) => targetKey(c) !== targetKey(target)))}
+                  className="size-4 rounded-[4px] text-dp-text-2 hover:bg-dp-hover hover:text-dp-text"
+                >
+                  <X className="size-3" />
+                </Button>
+              </span>
+            );
+          })}
+          <ComposerPrimitive.Input
             ref={field}
-            rows={1}
-            value={text}
+            minRows={1}
             placeholder={chips.length > 0 ? "" : placeholder}
-            onChange={(e) => edit(e.target.value, e.target.selectionStart)}
+            // The keys are this field's (see useNativeKeyDown); the composer neither submits, cancels nor attaches by itself.
+            submitMode="none"
+            cancelOnEscape={false}
+            addAttachmentOnPaste={false}
+            aria-autocomplete="list"
+            aria-controls={listOpen ? listId : undefined}
+            aria-activedescendant={listOpen ? `${listId}-${row}` : undefined}
+            aria-describedby={showKeys ? `${listId}-keys` : undefined}
+            onChange={(e) => typed(e.target.value, e.target.selectionStart)}
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
             onSelect={(e) => {
@@ -291,28 +351,46 @@ export function CommandInput(props: {
               if (at !== caret) setActive(0);
               setCaret(at);
             }}
+            // One line is 32px tall, as Send is; six lines at most, then it scrolls.
             className={cn(
-              "min-w-[8rem] flex-1 resize-none bg-transparent py-1 text-dp-text outline-none placeholder:text-dp-text-2",
-              compact ? "text-xs" : "text-[13px]",
+              "max-h-32 min-w-32 flex-1 resize-none bg-transparent py-1.5 leading-5 text-dp-text caret-dp-accent outline-none placeholder:text-dp-text-2 selection:bg-dp-accent-soft",
+              compact ? "px-1 text-xs" : "text-(length:--text-ui)",
             )}
           />
+          {showKeys && (
+            <span id={`${listId}-keys`} data-field-keys className="flex shrink-0 items-center gap-3 text-xs text-dp-text-3">
+              <span className="flex items-center gap-1">
+                <Keycap>@</Keycap>
+                {t.keys.target}
+              </span>
+              <span className="flex items-center gap-1">
+                <Keycap>/</Keycap>
+                {t.keys.command}
+              </span>
+              <span className="flex items-center gap-1">
+                <Keycap>↑</Keycap>
+                {t.keys.history}
+              </span>
+            </span>
+          )}
         </div>
       </div>
-      <button
-        type="button"
-        aria-label={t.send}
-        title={canSend ? (namedFallback ? t.sendTo(namedFallback) : t.send) : nothingTargeted ? emptyHint : noAgents ? t.noAgents : t.writeInstruction}
-        disabled={!canSend}
-        onClick={send}
-        className={cn(
-          "flex shrink-0 items-center justify-center gap-1.5 font-semibold transition-[background-color,filter,transform] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] disabled:pointer-events-none motion-reduce:transition-none",
-          compact ? "size-7 rounded-[8px]" : "h-8 rounded-[10px] px-3 text-[13px]",
-          canSend ? "bg-dp-accent text-dp-on-accent hover:brightness-110" : "bg-dp-field text-dp-text-3",
-        )}
-      >
-        <ArrowUp className="size-4" />
-        {!compact && t.send}
-      </button>
-    </div>
+      <ComposerPrimitive.Send asChild disabled={!canSend}>
+        <Button
+          size={compact ? "icon" : "default"}
+          aria-label={t.send}
+          title={canSend ? (namedFallback ? t.sendTo(namedFallback) : t.send) : nothingTargeted ? emptyHint : noAgents ? t.noAgents : t.writeInstruction}
+          onMouseDown={keepCaret}
+          className={cn(
+            // The one primary action, at the control radius the field shares. Grey but legible while there is nothing to send: the hint beside it says why.
+            "rounded-[8px] font-medium disabled:bg-dp-field disabled:text-dp-text-3 disabled:opacity-100",
+            !compact && "px-3 text-(length:--text-ui)",
+          )}
+        >
+          <ArrowUp className="size-4" />
+          {!compact && t.send}
+        </Button>
+      </ComposerPrimitive.Send>
+    </ComposerPrimitive.Root>
   );
 }

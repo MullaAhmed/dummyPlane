@@ -157,7 +157,7 @@ describe("components in English", () => {
     const text = document.body.textContent ?? "";
     expect(text).toContain("Launch an agent");
     expect(text).toContain("New console");
-    expect(text).toContain("Orchestrator");
+    expect(text).toContain("Fleet");
     expect(text).toContain("commands groups and agents");
     expect(text).toContain("then click on the canvas to place it");
     expect(text).toContain("local model");
