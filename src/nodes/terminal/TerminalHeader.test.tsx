@@ -58,3 +58,30 @@ it("shows the model a mission's router gave the agent, which outlives the missio
   host.remove();
 });
 
+
+it("names Restart with the same tooltip as the header's other buttons, never over its menu nor when the menu hands the focus back", async () => {
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = createRoot(host);
+  const claude = { title: "Isis", name: "Isis", agent: "claude", cwd: "C:/code", shell: "default", command: "" } as const;
+  await act(async () => root.render(<TerminalHeader nodeId="isis" payload={claude} status={{ state: "running" }} />));
+  const restart = host.querySelector<HTMLButtonElement>('button[aria-label="Restart"]')!;
+  // No native title: the system's own tooltip would show beside the app's.
+  expect(restart.hasAttribute("title")).toBe(false);
+  const tooltip = () => document.querySelector('[role="tooltip"]')?.textContent ?? null;
+  const later = () => act(async () => new Promise((resolve) => setTimeout(resolve, 450)));
+  await act(async () => restart.focus());
+  await later();
+  expect(tooltip()).toBe("Restart");
+  // The menu opens: the tooltip goes.
+  await act(async () => restart.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true })));
+  expect(document.querySelector('[role="menu"]')).not.toBeNull();
+  expect(tooltip()).toBeNull();
+  // Escape closes it and gives the focus back to the button: still no tooltip.
+  await act(async () => document.activeElement!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })));
+  await later();
+  expect(document.querySelector('[role="menu"]')).toBeNull();
+  expect(tooltip()).toBeNull();
+  await act(async () => root.unmount());
+  host.remove();
+});

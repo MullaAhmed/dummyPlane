@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { ChevronDown, FileDiff, Minimize2, RotateCw } from "lucide-react";
 import {
   DropdownMenu,
@@ -66,14 +66,40 @@ function RelaunchMenu(props: { nodeId: string; payload: TerminalPayload; running
     nodesStore.getState().update(nodeId, fresh);
     relaunchTerminal(nodeId, { ...payload, ...fresh }, "new");
   };
+  // The same tooltip as the header's other buttons, never over its own open menu, nor when the closing menu
+  // hands the focus back to the button: only a new hover (or a focus from elsewhere) shows it again.
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [tip, setTip] = useState(false);
+  const quiet = useRef(false);
   return (
-    <DropdownMenu>
-      {/* A menu's trigger keeps a native title: a tooltip would pop up again when the closing menu hands the focus back. */}
-      <DropdownMenuTrigger asChild>
-        <Button type="button" variant="ghost" size="icon-sm" title={t.relaunch} aria-label={t.relaunch} className={HEADER_ICON}>
-          <RotateCw />
-        </Button>
-      </DropdownMenuTrigger>
+    <DropdownMenu
+      open={menuOpen}
+      onOpenChange={(open) => {
+        setMenuOpen(open);
+        if (open) setTip(false);
+        else quiet.current = true;
+      }}
+    >
+      <Tooltip open={tip} onOpenChange={(open) => setTip(open && !menuOpen && !quiet.current)}>
+        <TooltipTrigger asChild>
+          <DropdownMenuTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label={t.relaunch}
+              className={HEADER_ICON}
+              onPointerEnter={() => (quiet.current = false)}
+              onBlur={() => (quiet.current = false)}
+            >
+              <RotateCw />
+            </Button>
+          </DropdownMenuTrigger>
+        </TooltipTrigger>
+        <TooltipContent side="bottom" sideOffset={6}>
+          {t.relaunch}
+        </TooltipContent>
+      </Tooltip>
       <DropdownMenuContent align="end">
         {payload.agent === "claude" ? (
           <>
