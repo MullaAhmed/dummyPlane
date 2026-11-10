@@ -24,6 +24,7 @@ export const radialMessages = defineMessages(
       overview: "Overview",
       addAgent: "Add agent",
       linkFleet: "Link fleet",
+      group: "Group",
       ungroup: "Ungroup",
       zoom: "Zoom",
       write: "Write",

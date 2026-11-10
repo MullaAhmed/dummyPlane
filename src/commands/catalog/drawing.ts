@@ -1,6 +1,7 @@
 import { releaseToCanvas } from "@/canvas/canvasFocus";
 import { canvasStore } from "@/canvas/canvasStore";
 import { clientOf } from "@/fleet/placement";
+import { groupingOf, groupSelection } from "@/fleet/selectionGroup";
 import type { Point } from "@/fleet/terminals";
 import { CANVAS_KEYS, copyCanvasSelection, openNativeMenuAt, pasteOnCanvasAt, pressCanvasKey, startTextAt } from "@/radial/bridges";
 import { exportCurrentPng, exportCurrentScene, importIntoScene } from "@/shell/sceneActions";
@@ -62,6 +63,10 @@ export function selectionLocked(): boolean {
 
 const withSelection = (ctx: CommandContext) => inProject(ctx) && selectedIds().length > 0;
 
+/** The elements to act on: the ring's (Excalidraw has not committed its press yet), else Excalidraw's own. */
+const selectionOf = (ctx: CommandContext): readonly string[] => ctx.selectionIds ?? selectedIds();
+const groupingFor = (ctx: CommandContext) => groupingOf(canvasStore.getState().api?.getSceneElements() ?? [], selectionOf(ctx));
+
 /** The window point of the radial menu's click, else the middle of the canvas. */
 function pointOf(ctx: CommandContext): Point {
   const { view } = canvasStore.getState();
@@ -88,6 +93,18 @@ export const DRAWING: readonly Command[] = [
   command("drawing.copy", { section: drawing, keys: "Ctrl+C", available: withSelection, run: () => copyCanvasSelection() }),
   command("drawing.paste", { section: drawing, keys: "Ctrl+V", available: inProject, run: (ctx) => pasteOnCanvasAt(pointOf(ctx)) }),
   command("drawing.duplicate", { section: drawing, keys: "Ctrl+D", available: withSelection, run: () => pressCanvasKey(CANVAS_KEYS.duplicate) }),
+  // Offered with two terminals selected; greyed, with its reason, when they cannot be grouped (see `groupingOf`).
+  command("selection.group", {
+    section: drawing,
+    available: (ctx) => inProject(ctx) && groupingFor(ctx).terminals.length >= 2,
+    disabled: (ctx) => {
+      const { blocked } = groupingFor(ctx);
+      return blocked ? catalog().reasons[blocked] : null;
+    },
+    run: (ctx) => {
+      groupSelection(selectionOf(ctx));
+    },
+  }),
   command("drawing.front", { section: drawing, keys: "Ctrl+Shift+]", available: withSelection, run: () => pressCanvasKey(CANVAS_KEYS.front) }),
   command("drawing.back", { section: drawing, keys: "Ctrl+Shift+[", available: withSelection, run: () => pressCanvasKey(CANVAS_KEYS.back) }),
   command("drawing.lock", {

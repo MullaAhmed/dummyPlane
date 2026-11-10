@@ -25,6 +25,8 @@ export const catalogMessages = defineMessages({
     reasons: {
       notFound: (binary: string) => `${binary} not found in PATH`,
       noSelection: "nothing selected",
+      groupSelected: "a group is selected",
+      alreadyGrouped: "a terminal is already in a group",
     },
     launch: (label: string) => `Launch ${label}`,
     launchKeywords: ["agent", "launch", "start", "run"],
@@ -117,6 +119,7 @@ export const catalogMessages = defineMessages({
       "drawing.copy": e("Copy", "copy", "clipboard"),
       "drawing.paste": e("Paste", "paste", "clipboard"),
       "drawing.duplicate": e("Duplicate", "duplicate", "copy"),
+      "selection.group": e("Group selection", "group", "frame", "together", "move", "name", "terminals"),
       "drawing.front": e("Bring to front", "front", "order", "layer"),
       "drawing.back": e("Send to back", "back", "order", "layer"),
       "drawing.lock": e("Lock", "lock", "unlock", "freeze"),

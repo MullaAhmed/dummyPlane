@@ -66,6 +66,30 @@ describe("opening the ring (spec menu radial §5.2, §6.4)", () => {
     expect(radialStore.getState().ring).toMatchObject({ kind: "terminal", client: { x: 300, y: 300 }, context: { terminalId: "isis", at: { x: 300, y: 300 } } });
   });
 
+  describe("a terminal of a multi-selection", () => {
+    const selecting = (selected: Record<string, boolean>) =>
+      canvasStore.setState({ api: { getSceneElements: () => [rect], getAppState: () => ({ selectedElementIds: selected }), updateScene } as unknown as ExcalidrawImperativeAPI });
+
+    it("opens the selection's ring, not its own, and keeps the selection (so Group takes them all)", () => {
+      selecting({ isis: true, r1: true });
+      pointer(text(), "pointerdown", 300, 300);
+      expect(radialStore.getState().ring).toMatchObject({ kind: "selection", context: { selectionIds: ["isis", "r1"], at: { x: 300, y: 300 } } });
+      expect(updateScene).toHaveBeenCalledTimes(2);
+      expect(updateScene).toHaveBeenCalledWith({ appState: { activeEmbeddable: null } });
+      expect(updateScene).not.toHaveBeenCalledWith(expect.objectContaining({ appState: expect.objectContaining({ selectedElementIds: expect.anything() }) }));
+    });
+
+    it("keeps the terminal's own ring when it is the only one selected, or is not in the selection", () => {
+      selecting({ isis: true });
+      pointer(text(), "pointerdown", 300, 300);
+      expect(radialStore.getState().ring).toMatchObject({ kind: "terminal", context: { terminalId: "isis" } });
+      radialStore.setState({ ring: null });
+      selecting({ r1: true, other: true });
+      pointer(text(), "pointerdown", 300, 300);
+      expect(radialStore.getState().ring).toMatchObject({ kind: "terminal", context: { terminalId: "isis" } });
+    });
+  });
+
   it("closes Excalidraw's own menu and the open dropdowns when the ring opens (plan G1)", () => {
     document.body.insertAdjacentHTML("beforeend", '<div role="menu" data-state="open"></div>');
     const escapes: string[] = [];

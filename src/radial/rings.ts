@@ -6,6 +6,7 @@ import {
   CopyPlus,
   Ellipsis,
   Focus,
+  Group,
   Link,
   Lock,
   LockOpen,
@@ -70,6 +71,12 @@ function agentNameOf(id: string): string {
   return name.split(" ")[0];
 }
 const resumes = (ctx: CommandContext) => COMMANDS.find((c) => c.id === "terminal.resume")?.available(ctx) ?? false;
+/**
+ * Two terminals or more are selected: "Group" takes the place of "Paste" in the selection ring,
+ * which is full at 8. Paste is dead there anyway: it refuses to paste over a node (bridges.ts),
+ * and Ctrl+V and the canvas ring still paste.
+ */
+const groups = (ctx: CommandContext) => COMMANDS.find((c) => c.id === "selection.group")?.available(ctx) ?? false;
 const short = () => messages(radialMessages).short;
 
 /**
@@ -126,7 +133,12 @@ export const RINGS: Record<RingKind, readonly RingSlot[]> = {
   ],
   selection: [
     { command: "drawing.copy", short: "copy", icon: Copy },
-    { command: "drawing.paste", short: "paste", icon: ClipboardPaste },
+    {
+      command: (ctx) => (groups(ctx) ? "selection.group" : "drawing.paste"),
+      short: (ctx) => (groups(ctx) ? short().group : short().paste),
+      icon: ClipboardPaste,
+      iconOf: (ctx) => (groups(ctx) ? Group : ClipboardPaste),
+    },
     { command: "drawing.duplicate", short: "duplicate", icon: CopyPlus },
     { command: "drawing.front", short: "toFront", icon: BringToFront },
     { command: "drawing.delete", short: "delete", icon: Trash2, danger: true },

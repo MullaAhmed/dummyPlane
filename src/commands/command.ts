@@ -19,6 +19,11 @@ export interface CommandContext {
   groupId?: string | null;
   /** The orchestrator the radial menu points at. */
   orchestratorId?: string | null;
+  /**
+   * The elements the radial menu's selection ring points at. Excalidraw commits the
+   * selection the press just made a render later: a command reads these, not its state.
+   */
+  selectionIds?: readonly string[];
 }
 
 /**

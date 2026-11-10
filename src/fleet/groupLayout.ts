@@ -36,6 +36,19 @@ export function groupGrid(count: number): { width: number; height: number; cells
   };
 }
 
+/**
+ * The frame of a group made around terminals that already stand where the user
+ * put them: the grid's padding on every side, the label's room on top. Excalidraw
+ * clips a child to its frame, so no member may poke out.
+ */
+export function frameAround(members: readonly Rect[]): Rect {
+  const x1 = Math.min(...members.map((m) => m.x));
+  const y1 = Math.min(...members.map((m) => m.y));
+  const x2 = Math.max(...members.map((m) => m.x + m.width));
+  const y2 = Math.max(...members.map((m) => m.y + m.height));
+  return { x: x1 - PADDING, y: y1 - PADDING_TOP, width: x2 - x1 + 2 * PADDING, height: y2 - y1 + PADDING_TOP + PADDING };
+}
+
 function overlap(a: Rect, b: Rect): number {
   const width = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x);
   const height = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y);

@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
-import { beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { mockIPC } from "@tauri-apps/api/mocks";
+import { ClipboardPaste, Group } from "lucide-react";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { canvasStore } from "@/canvas/canvasStore";
 import type { CommandContext } from "@/commands/command";
@@ -114,6 +115,42 @@ describe("the wedges' short names", () => {
     canvasStore.setState({ api: api(true) });
     expect([lock().label, lock().short]).toEqual(["Unlock", "Unlock"]);
     canvasStore.setState({ api: null });
+  });
+});
+
+describe("the selection ring with terminals selected", () => {
+  const node = (id: string, fields: Record<string, unknown> = {}) => ({ id, type: "embeddable", isDeleted: false, frameId: null, customData: { kind: "terminal" }, ...fields });
+  const scene = [node("a"), node("b"), node("c", { frameId: "g1" }), { id: "r1", type: "rectangle", isDeleted: false, frameId: null }];
+  const selecting = (selected: Record<string, boolean>) =>
+    canvasStore.setState({ api: { getSceneElements: () => scene, getAppState: () => ({ selectedElementIds: selected }) } as unknown as ExcalidrawImperativeAPI });
+  const second = (context: CommandContext = ctx) => lineOf(RINGS.selection[1]!, context)!;
+  afterAll(() => canvasStore.setState({ api: null }));
+
+  it("offers Group in Paste's place, still 8 buttons", () => {
+    selecting({ a: true, b: true });
+    expect(RINGS.selection).toHaveLength(8);
+    expect([second().label, second().short, second().Icon, second().enabled]).toEqual(["Group selection", "Group", Group, true]);
+    expect(labels("selection")).toEqual(["Copy", "Group selection", "Duplicate", "Bring to front", "Delete", "Send to back", "Lock", "More…"]);
+  });
+
+  it("keeps Paste with a drawing, or a single terminal, selected", () => {
+    selecting({ r1: true });
+    expect([second().label, second().Icon]).toEqual(["Paste", ClipboardPaste]);
+    selecting({ a: true });
+    expect(second().label).toBe("Paste");
+    selecting({ a: true, r1: true });
+    expect(second().label).toBe("Paste");
+  });
+
+  it("greys Group, and says why, when a terminal is already in a group", () => {
+    selecting({ a: true, c: true });
+    expect([second().label, second().enabled, second().reason]).toEqual(["Group selection", false, "a terminal is already in a group"]);
+  });
+
+  it("follows the ring's own selection, not Excalidraw's (the press has not been committed)", () => {
+    selecting({ r1: true });
+    expect(second({ ...ctx, selectionIds: ["a", "b"] }).label).toBe("Group selection");
+    expect(second({ ...ctx, selectionIds: ["r1"] }).label).toBe("Paste");
   });
 });
 

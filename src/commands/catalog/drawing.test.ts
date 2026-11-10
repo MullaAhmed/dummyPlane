@@ -3,11 +3,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { canvasStore } from "@/canvas/canvasStore";
 import { CANVAS_KEYS, copyCanvasSelection, openNativeMenuAt, pasteOnCanvasAt, pressCanvasKey, startTextAt } from "@/radial/bridges";
+import { groupSelection } from "@/fleet/selectionGroup";
 import { exportCurrentPng, exportCurrentScene, importIntoScene } from "@/shell/sceneActions";
-import { labelOf, type CommandContext } from "../command";
+import { labelOf, sectionOf, type CommandContext } from "../command";
 import { DRAWING, SCENE } from "./drawing";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
+vi.mock("@/fleet/selectionGroup", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/fleet/selectionGroup")>()), groupSelection: vi.fn() }));
 vi.mock("@/shell/sceneActions", () => ({ exportCurrentScene: vi.fn(), importIntoScene: vi.fn(), exportCurrentPng: vi.fn() }));
 vi.mock("@/radial/bridges", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/radial/bridges")>()),
@@ -54,6 +56,7 @@ describe("Dessin (spec fenêtre §7.3)", () => {
       ["Copy", "Ctrl+C"],
       ["Paste", "Ctrl+V"],
       ["Duplicate", "Ctrl+D"],
+      ["Group selection", null],
       ["Bring to front", "Ctrl+Shift+]"],
       ["Send to back", "Ctrl+Shift+["],
       ["Lock", "Ctrl+Shift+L"],
@@ -149,6 +152,47 @@ describe("Dessin, sur la sélection (spec menu radial §4.5)", () => {
     expect(startTextAt).toHaveBeenLastCalledWith({ x: 25, y: 47 });
     await run("tool.text");
     expect(setActiveTool).toHaveBeenLastCalledWith({ type: "text" });
+  });
+
+  describe("Group selection", () => {
+    const group = DRAWING.find((c) => c.id === "selection.group")!;
+    const terminals = [
+      { id: "a", type: "embeddable", isDeleted: false, frameId: null, customData: { kind: "terminal" } },
+      { id: "b", type: "embeddable", isDeleted: false, frameId: null, customData: { kind: "terminal" } },
+      { id: "c", type: "embeddable", isDeleted: false, frameId: "g1", customData: { kind: "terminal" } },
+      { id: "g1", type: "frame", isDeleted: false, frameId: null },
+    ];
+    const selecting = (selected: Record<string, boolean>) =>
+      canvasStore.setState({ view, api: { getAppState: () => ({ selectedElementIds: selected }), getSceneElements: () => terminals } as unknown as ExcalidrawImperativeAPI });
+
+    it("shows in the palette's Drawing section once two terminals are selected, and not before", () => {
+      expect([sectionOf(group, busy), labelOf(group, busy)]).toEqual(["Drawing", "Group selection"]);
+      selecting({});
+      expect(group.available(busy)).toBe(false);
+      selecting({ a: true });
+      expect(group.available(busy)).toBe(false);
+      selecting({ a: true, b: true });
+      expect([group.available(busy), group.disabled?.(busy)]).toEqual([true, null]);
+      expect(group.available({ ...busy, project: false })).toBe(false);
+    });
+
+    it("is greyed, with its reason, when a terminal is already in a group or a group is selected", () => {
+      selecting({ a: true, b: true, c: true });
+      expect([group.available(busy), group.disabled?.(busy)]).toEqual([true, "a terminal is already in a group"]);
+      selecting({ a: true, b: true, g1: true });
+      expect(group.disabled?.(busy)).toBe("a group is selected");
+    });
+
+    it("reads the ring's selection rather than Excalidraw's, which has not committed the press yet", async () => {
+      selecting({});
+      const ring = { ...busy, selectionIds: ["a", "b"] };
+      expect(group.available(ring)).toBe(true);
+      await group.run(ring);
+      expect(groupSelection).toHaveBeenLastCalledWith(["a", "b"]);
+      selecting({ a: true, b: true });
+      await group.run(busy);
+      expect(groupSelection).toHaveBeenLastCalledWith(["a", "b"]);
+    });
   });
 
   it("offers More… in the radial menu only: Excalidraw's menu at its point", async () => {

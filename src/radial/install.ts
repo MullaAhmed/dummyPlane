@@ -10,7 +10,7 @@ import { chooseSlot } from "./choose";
 import { isSlide, ringCenter, slideSlot } from "./gesture";
 import { closeRadial, openRadial, radialStore, updateRadial } from "./radialState";
 import { lineOf, RINGS, type RingKind } from "./rings";
-import { domTarget, frameNameTarget, isTextField, sceneTarget } from "./target";
+import { domTarget, frameNameTarget, isTextField, sceneTarget, type RadialTarget } from "./target";
 
 /** The arrows turn the wedge pointed at: clockwise right and down, the other way left and up. */
 const TURNS: Record<string, 1 | -1> = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 };
@@ -31,8 +31,14 @@ export function ringAt(element: Element, client: Point): { kind: RingKind; conte
   const selection = api.getAppState().selectedElementIds;
   const selectedIds = Object.keys(selection).filter((id) => selection[id]);
   const groupIds = new Set(frames.filter(isGroup).map((f) => f.id));
-  const target =
-    domTarget(element) ?? frameNameTarget(element, groupIds) ?? sceneTarget({ point: at, zoom: view.zoom, elements: api.getSceneElements(), selectedIds, groupIds });
+  const node = domTarget(element);
+  const nodeId = node && "id" in node ? node.id : null;
+  // A node of a multi-selection is pointed at as part of it, as sceneTarget does for a press on the canvas:
+  // the selection's ring (Group, Delete…) acts on all of them, the node's own ring on one.
+  const target: RadialTarget =
+    nodeId && selectedIds.length > 1 && selectedIds.includes(nodeId)
+      ? { kind: "selection", ids: selectedIds }
+      : (node ?? frameNameTarget(element, groupIds) ?? sceneTarget({ point: at, zoom: view.zoom, elements: api.getSceneElements(), selectedIds, groupIds }));
   const context: CommandContext = { ...commandContext(), at };
   switch (target.kind) {
     case "terminal":
@@ -49,7 +55,7 @@ export function ringAt(element: Element, client: Point): { kind: RingKind; conte
         const selectedGroupIds = target.groupId ? { [target.groupId]: true } : {};
         api.updateScene({ appState: { selectedElementIds: Object.fromEntries(target.ids.map((id) => [id, true])), selectedGroupIds, activeEmbeddable: null } });
       }
-      return { kind: "selection", context };
+      return { kind: "selection", context: { ...context, selectionIds: target.ids } };
     }
     default:
       return { kind: "canvas", context };
