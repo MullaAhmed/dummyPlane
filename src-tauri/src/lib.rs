@@ -110,6 +110,7 @@ pub fn run() {
             commands::app::open_data_dir,
             commands::app::diagnostics,
             commands::app::prepare_for_update,
+            commands::paste::save_pasted_image,
             commands::pty::pty_spawn,
             commands::pty::pty_attach,
             commands::pty::pty_write,

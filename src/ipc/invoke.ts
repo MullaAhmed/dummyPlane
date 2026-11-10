@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invoke, type InvokeArgs, type InvokeOptions } from "@tauri-apps/api/core";
 
 export type AppErrorKind = "invalidInput" | "notFound" | "pty" | "io" | "db" | "toolsUnavailable" | "github";
 
@@ -17,10 +17,10 @@ function isAppErrorPayload(value: unknown): value is { kind: AppErrorKind; messa
   return typeof value === "object" && value !== null && "kind" in value && "message" in value;
 }
 
-/** `invoke` with Rust errors turned into `AppError` instances. */
-export async function call<T>(command: string, args?: Record<string, unknown>): Promise<T> {
+/** `invoke` with Rust errors turned into `AppError` instances. Raw bytes as `args` travel as they are, not as JSON. */
+export async function call<T>(command: string, args?: InvokeArgs, options?: InvokeOptions): Promise<T> {
   try {
-    return await invoke<T>(command, args);
+    return await invoke<T>(command, args, options);
   } catch (error) {
     if (isAppErrorPayload(error)) throw new AppError(error.kind, error.message);
     throw new AppError("io", String(error));

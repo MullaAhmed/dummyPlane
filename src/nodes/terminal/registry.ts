@@ -15,6 +15,7 @@ import { watchDevicePixelRatio } from "./dprWatch";
 import { BASE_FONT_SIZE, canvasMeasure, fontFor, gridFor, renderZoom, type FontMeasure } from "./crisp";
 import { bufferText } from "./bufferText";
 import { freshScreen, textSince } from "./freshScreen";
+import { onTerminalPaste, pasteImage, pastedImage } from "./imagePaste";
 import { keyAction, NEWLINE_SEQUENCE } from "./keys";
 import { newConversation, type LaunchMode } from "./launch";
 import { onNewWork } from "./minimize";
@@ -100,9 +101,15 @@ function create(nodeId: string): Entry {
         term.input(NEWLINE_SEQUENCE);
       }
       // "paste": returning false lets the browser fire its paste event, which
-      // xterm turns into a (bracketed) paste.
+      // xterm turns into a (bracketed) paste; an image is caught first, below.
     }
     return false;
+  });
+  // Capture phase on xterm's container: runs before xterm's own paste listener,
+  // which reads text only. The terminal is looked up again once the image is
+  // saved: it may have been closed meanwhile.
+  screen.addEventListener("paste", (event) => onTerminalPaste(event, (text) => pasteIntoTerminal(nodeId, text)), {
+    capture: true,
   });
   term.onData((data) => {
     entry.lastInput = Date.now();
@@ -297,6 +304,17 @@ export function terminalSelection(nodeId: string): string {
 /** Text pasted into a terminal as by Ctrl+V: bracketed when its program asks for it. */
 export function pasteIntoTerminal(nodeId: string, text: string) {
   entries.get(nodeId)?.term.paste(text);
+}
+
+/**
+ * A clipboard's image pasted into a terminal as by Ctrl+V: saved, its path
+ * pasted (./imagePaste.ts). False when the data holds text or no image, which
+ * then goes through `pasteIntoTerminal` (the radial menu's "Paste").
+ */
+export function pasteImageIntoTerminal(nodeId: string, data: DataTransfer): boolean {
+  const image = pastedImage(data);
+  if (image) void pasteImage(image, (text) => pasteIntoTerminal(nodeId, text));
+  return image !== null;
 }
 
 /** Stops the process and frees the terminal of a node removed from the canvas. */

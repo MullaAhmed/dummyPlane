@@ -5,6 +5,7 @@ pub mod git;
 pub mod github;
 pub mod mission;
 pub mod notes;
+pub mod paste;
 pub mod project;
 pub mod pty;
 pub mod repo;

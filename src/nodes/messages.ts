@@ -65,6 +65,7 @@ export const nodesMessages = defineMessages(
       duplicate: "Duplicate",
       close: "Close",
       duplicateFailed: (error: string) => `Could not duplicate: ${error}`,
+      imagePasteFailed: "Could not paste the image",
     },
     /** Under an agent's terminal: where it stands, who commands it, and a line to message it. */
     foot: {
