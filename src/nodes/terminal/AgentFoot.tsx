@@ -89,21 +89,19 @@ function AgentStatus(props: { nodeId: string; payload: TerminalPayload; status: 
       label={pill.label}
       title={status.state === "error" ? status.message : undefined}
       facts={[since, from && t.from(from)]}
-      end={<AgentLink nodeId={nodeId} commanders={commanders} />}
+      end={<AgentLink nodeId={nodeId} />}
     />
   );
 }
 
 /**
- * Link from the agent's end: the link mode, waiting for a click on an
- * orchestrator (fleet/LinkMode.tsx). Shown while some orchestrator of the
- * canvas does not command this agent yet.
+ * Link from the agent's end: the link mode, waiting for a click on another
+ * agent or an orchestrator (fleet/LinkMode.tsx). Always there: two agents
+ * link without any orchestrator on the canvas.
  */
-function AgentLink({ nodeId, commanders }: { nodeId: string; commanders: readonly string[] }) {
+function AgentLink({ nodeId }: { nodeId: string }) {
   const t = useMessages(nodesMessages).foot;
   const linking = useUi((s) => s.linking === nodeId);
-  const free = useCanvas((s) => Object.keys(s.links).some((id) => !commanders.includes(id)));
-  if (!linking && !free) return null;
   return (
     <Button
       type="button"

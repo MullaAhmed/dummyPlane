@@ -193,7 +193,7 @@ export const fleetMessages = defineMessages({
       command: "Command to run",
       commandHint: "A Custom terminal runs it in its shell when it starts.",
     },
-    link: { hint: "Click a group or an agent to link · Esc to finish", agentHint: "Click a fleet to link this agent · Esc to cancel" },
+    link: { hint: "Click a group or an agent to link · Esc to finish", agentHint: "Click another agent or a fleet to link this agent · Esc to cancel" },
     ollama: {
       title: "Ollama",
       mode: "Mode",

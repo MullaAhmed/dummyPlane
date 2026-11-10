@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react";
 import { canvasStore, useCanvas } from "@/canvas/canvasStore";
+import { findTerminalAt } from "@/canvas/hitTest";
+import { nodeKindOf } from "@/canvas/nodeElement";
 import { useMessages } from "@/i18n";
 import { TOP_ROW_HEIGHT } from "@/shell/layout";
 import { useNodes } from "@/store/nodes";
 import { uiStore, useUi } from "@/store/ui";
+import { linkAgents, linkableAgent } from "./agentLinks";
 import { fleetMessages } from "./messages";
 import { finishButtonAt, forwardWheel } from "./linkOverlay";
 import { linkOrchestrator } from "./orchestrators";
@@ -14,7 +17,8 @@ import { linkTargetAt, orchestratorAt, orchestratorsOf } from "./wires";
 /**
  * "Link" (spec theme §13): each click wires a group or a terminal; Escape or a click in the void ends it.
  * Started from an agent's foot, it runs the other way: a click on an orchestrator wires the agent to it,
- * the same wire as from the orchestrator's end, and the mode ends.
+ * the same wire as from the orchestrator's end; a click on another agent links the two (fleet/agentLinks.ts).
+ * Either way the mode ends.
  */
 export function LinkMode() {
   const t = useMessages(fleetMessages);
@@ -40,15 +44,23 @@ export function LinkMode() {
   const elements = canvasStore.getState().api?.getSceneElements() ?? [];
   const targetAt = (client: Point) => {
     const point = sceneOf(client, view);
-    return fromAgent ? orchestratorAt(elements, point) : linkTargetAt(elements, frames, point);
+    if (!fromAgent) return linkTargetAt(elements, frames, point);
+    // From an agent: an orchestrator, else another agent (itself and a plain shell designate nothing).
+    const orchestrator = orchestratorAt(elements, point);
+    if (orchestrator) return orchestrator;
+    const terminal = findTerminalAt(elements, point.x, point.y);
+    return terminal && terminal.id !== linking && linkableAgent(terminal.id) ? terminal.id : null;
   };
   const hovered = pointer ? targetAt(pointer) : null;
   const rect = hovered ? (frames.find((f) => f.id === hovered) ?? elements.find((e) => e.id === hovered)) : undefined;
 
   const link = (target: string) => {
     if (!fromAgent) return linkOrchestrator(linking, target);
+    const element = elements.find((e) => e.id === target);
+    const orchestrator = element !== undefined && nodeKindOf(element) === "orchestrator";
     // An orchestrator that already commands the agent, through its group too, gets no second wire.
-    if (!orchestratorsOf(linking, links, frames).includes(target)) linkOrchestrator(target, linking);
+    if (!orchestrator) linkAgents(linking, target);
+    else if (!orchestratorsOf(linking, links, frames).includes(target)) linkOrchestrator(target, linking);
     uiStore.getState().setLinking(null);
   };
 

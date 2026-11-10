@@ -74,7 +74,9 @@ describe("the status line under an agent's terminal", () => {
 
   it("tells no time it does not know: a stopped process is not dated", async () => {
     await show();
-    expect(statusLine().textContent).toBe("Stopped");
+    // Only its state, then Link, always at the end of the line.
+    expect(statusLine().textContent).toBe("StoppedLink");
+    expect(linkButton()!.textContent).toBe("Link");
     expect(statusLine().querySelector("[data-status]")!.getAttribute("data-status")).toBe("stopped");
   });
 
@@ -116,13 +118,11 @@ describe("Link from the agent's end", () => {
     expect(uiStore.getState().linking).toBeNull();
   });
 
-  it("is offered only while some orchestrator does not command the agent yet", async () => {
-    await show(isis, { atlas: { nodeIds: ["isis"], groupIds: [] } });
-    expect(linkButton()).toBeNull();
-    await act(async () => canvasStore.setState({ links: { atlas: { nodeIds: ["isis"], groupIds: [] }, hermes: { nodeIds: [], groupIds: [] } } }));
+  it("is always offered: two agents link without any orchestrator, and one already commanding it does not hide it", async () => {
+    await show(isis, {});
     expect(linkButton()).not.toBeNull();
-    await act(async () => canvasStore.setState({ links: {} }));
-    expect(linkButton()).toBeNull();
+    await act(async () => canvasStore.setState({ links: { atlas: { nodeIds: ["isis"], groupIds: [] } } }));
+    expect(linkButton()).not.toBeNull();
   });
 });
 

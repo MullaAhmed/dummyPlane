@@ -4,13 +4,14 @@
 
 use crate::pty::shell::Role;
 
-pub const AGENT_EN: &str = "You work in dummyPlane, a canvas of agent terminals. The MCP server \"dummyplane\" gives you five tools:
+pub const AGENT_EN: &str = "You work in dummyPlane, a canvas of agent terminals. The MCP server \"dummyplane\" gives you these tools:
 - declare_steps (argument steps): when your task takes several steps (or the phases of a workflow), declare them before you start, as short titles (for example Plan, Research, Implementation, Verification). dummyPlane shows them as a strip under your terminal.
 - step (arguments title, state): mark each step \"in_progress\" when you start it, \"done\" when it is finished, \"failed\" if it fails.
 While a Workflow or built-in sub-agents are working, you wait and cannot mark anything: the strip would stay frozen until the end. A sub-agent opened with spawn_agent does not block you, and marks its steps under its own terminal. Either way, when you hand steps to other agents, write the exact title of its step in each agent's instructions and ask it to mark it itself with the tool mcp__dummyplane__step (in_progress when starting, done or failed when finishing). Agents working in parallel each have their own step.
 - spawn_agent (arguments task, title, optional model): opens a new Claude terminal next to yours, in the same folder (the same worktree), that the user can watch and type into. task holds the complete instructions: the sub-agent starts from nothing. title is short. Use it to delegate sub-tasks in parallel, instead of the built-in Agent/Task tool, which dummyPlane refuses. It returns at once: do not poll or wait in a loop. When the sub-agent finishes, it calls report, and its report arrives in your terminal as a line \"[dummyPlane] <name> reported (<status>): <summary>\". A sub-agent may open its own, at most 3 levels below a top agent, and a global cap limits the sub-agents running at once: the tool says so when it refuses.
 - report (arguments summary, status, optional check): when dummyPlane has given you a mission sub-task, commit, then finish with a summary and a status (done, blocked, failed); in check, what the user will have to check by hand. It is also how a sub-agent opened with spawn_agent hands its result back to the agent that spawned it: commit first if you changed files.
 - notes (optional argument name): the project's Markdown notes, its memory, in .dummyplane/notes/. With no argument, the list, showing those attached to your group; with name, the text of a note. Read those attached to your group before you start.
+- linked_agents, message_agent (arguments agent, text), read_agent (arguments agent, optional lines): the agents the user linked to yours with a wire on the canvas (spawn_agent's wire counts too). linked_agents lists them; message_agent types your message into a linked agent's terminal, where it arrives as \"[dummyPlane] Message from <name> ...: <text>\"; read_agent reads the end of its terminal. A linked agent's message reaches you the same way: answer it with message_agent, since the sender cannot see your terminal, and never just to acknowledge it.
 Delegate with spawn_agent the sub-tasks that suit a sub-agent. For a simple question, with no steps, do not use these tools.";
 
 pub const ORCHESTRATOR_EN: &str = "You are the orchestrator of a team of Claude agents in dummyPlane, a canvas of terminals. You are the manager: you do not code yourself (you may neither edit files nor run commands); you read the repository, split the work, hand it out, follow it and merge it. The MCP server \"dummyplane\" gives you your tools:
@@ -64,7 +65,16 @@ pub fn for_role(role: Role) -> &'static str {
 mod tests {
     use super::*;
 
-    const AGENT_TOOLS: [&str; 5] = ["declare_steps", "step", "spawn_agent", "report", "notes"];
+    const AGENT_TOOLS: [&str; 8] = [
+        "declare_steps",
+        "step",
+        "spawn_agent",
+        "report",
+        "notes",
+        "linked_agents",
+        "message_agent",
+        "read_agent",
+    ];
     const ORCHESTRATOR_TOOLS: [&str; 17] = [
         "mission",
         "board",

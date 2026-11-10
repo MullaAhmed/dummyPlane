@@ -72,8 +72,8 @@ export function agentTools() {
   ];
 }
 
-/** Internal names of the agents' tools (`./protocol.ts`). */
-export const AGENT_ONLY = new Set(["declarer_etapes", "etape", "rendre_compte", "spawn_agent"]);
+/** Internal names of the agents' tools (`./protocol.ts`), linked agents' included (`./linkTools.ts`). */
+export const AGENT_ONLY = new Set(["declarer_etapes", "etape", "rendre_compte", "spawn_agent", "linked_agents", "message_agent", "read_agent"]);
 
 /** Who hears an agent's news over a wire: its mission's orchestrator, else the agent that spawned it. */
 const listenerOf = (nodeId: string) => memberOf(nodeId)?.orchestratorId ?? spawnedByOf(nodeId);

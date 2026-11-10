@@ -69,7 +69,7 @@ describe("the notes tool (spec notes §3)", () => {
 describe("the agent's tools (spec orchestrateur §4.4)", () => {
   it("lists them for any Claude session", async () => {
     const list = (await answer({ callId: 1, nodeId: "isis", method: "tools/list", params: {} })) as { tools: { name: string; inputSchema: object }[] };
-    expect(list.tools.map((t) => t.name)).toEqual(["declare_steps", "step", "report", "spawn_agent", "notes"]);
+    expect(list.tools.map((t) => t.name)).toEqual(["declare_steps", "step", "report", "spawn_agent", "linked_agents", "message_agent", "read_agent", "notes"]);
     expect(list.tools.every((t) => typeof t.inputSchema === "object")).toBe(true);
   });
 

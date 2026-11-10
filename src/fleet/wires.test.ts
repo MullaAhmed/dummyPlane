@@ -5,6 +5,7 @@ import { createNodeElement } from "@/canvas/nodeElement";
 import { PALETTES, type ThemeChoice } from "@/app/theme";
 import { displayColorFor, toDisplayColor, toSceneColor } from "@/theme/sceneColors";
 import {
+  agentLinksOf,
   createWire,
   elbowWires,
   isPaletteWireColor,
@@ -22,6 +23,7 @@ import {
   revivableWires,
   unmarkedWires,
   wireColor,
+  withAgentLink,
   withWire,
 } from "./wires";
 
@@ -549,5 +551,86 @@ describe("spawn wires (spawn_agent)", () => {
     expect(rerouted.version).toBe(wire.version + 1);
     expect(isSpawnWire(rerouted)).toBe(true);
     expect(rerouted.strokeColor).toBe(wire.strokeColor);
+  });
+});
+
+describe("agent links (two agents wired without an orchestrator)", () => {
+  /** Another agent, below-right of `lone`. */
+  const peer = createNodeElement("terminal", { x: 1200, y: 900 }) as unknown as ExcalidrawElement;
+  const linked = () => {
+    const elements = withAgentLink([...base, peer], lone.id, peer.id, "calm");
+    return { elements, wire: elements[elements.length - 1] as ExcalidrawElbowArrowElement };
+  };
+  const withoutIds = (elements: ExcalidrawElement[], ...ids: string[]) =>
+    elements.map((e) => (ids.includes(e.id) ? ({ ...e, isDeleted: true } as ExcalidrawElement) : e));
+
+  it("wires the agent clicked first to the other, a plain wire recorded on both ends", () => {
+    const { elements, wire } = linked();
+    expect(elements).toHaveLength(base.length + 2);
+    expect(wire).toMatchObject({ type: "arrow", elbowed: true, startBinding: { elementId: lone.id }, endBinding: { elementId: peer.id } });
+    expect(isWire(wire)).toBe(true);
+    expect(isSpawnWire(wire)).toBe(false);
+    for (const end of [lone.id, peer.id]) expect(elements.find((e) => e.id === end)!.boundElements).toEqual([{ id: wire.id, type: "arrow" }]);
+  });
+
+  it("is symmetric: each end finds the other, and which way the wire runs", () => {
+    const { elements, wire } = linked();
+    expect(agentLinksOf(elements, lone.id)).toEqual([{ peerId: peer.id, wireId: wire.id, outgoing: true }]);
+    expect(agentLinksOf(elements, peer.id)).toEqual([{ peerId: lone.id, wireId: wire.id, outgoing: false }]);
+    expect(agentLinksOf(elements, member.id)).toEqual([]);
+  });
+
+  it("adds no second wire for a pair already linked, either way round, and no link to itself", () => {
+    const { elements } = linked();
+    expect(withAgentLink(elements, lone.id, peer.id)).toHaveLength(elements.length);
+    expect(withAgentLink(elements, peer.id, lone.id)).toHaveLength(elements.length);
+    expect(withAgentLink([...base, peer], lone.id, lone.id)).toHaveLength(base.length + 1);
+  });
+
+  it("links terminals only, alive: not an orchestrator, a group's frame or a closed agent", () => {
+    const scene = [...base, peer];
+    expect(withAgentLink(scene, lone.id, orchestrator.id)).toHaveLength(scene.length);
+    expect(withAgentLink(scene, lone.id, frame.id)).toHaveLength(scene.length);
+    expect(withAgentLink(withoutIds(scene, peer.id), lone.id, peer.id)).toHaveLength(scene.length);
+    expect(withAgentLink(scene, lone.id, "nowhere")).toHaveLength(scene.length);
+  });
+
+  it("takes no hand-drawn arrow for a link, nor lets one stop a link", () => {
+    const scene = [...base, peer, handDrawn(lone, peer)];
+    expect(agentLinksOf(scene, lone.id)).toEqual([]);
+    expect(withAgentLink(scene, lone.id, peer.id)).toHaveLength(scene.length + 1);
+  });
+
+  it("is never read as an orchestrator's link, and no upkeep touches it", () => {
+    const { elements } = linked();
+    const links = orchestratorLinks(elements);
+    expect(links).toEqual({ [orchestrator.id]: { groupIds: [], nodeIds: [] } });
+    expect(orchestratorsOf(lone.id, links, framesFromScene(elements))).toEqual([]);
+    expect(orchestratorsOf(peer.id, links, framesFromScene(elements))).toEqual([]);
+    expect(unmarkedWires(elements)).toEqual([]);
+    expect(orphanWires(elements)).toEqual([]);
+  });
+
+  it("leaves an orchestrator's wire to an agent out of the agent's links", () => {
+    const scene = withWire([...base, peer], orchestrator.id, lone.id);
+    expect(agentLinksOf(scene, lone.id)).toEqual([]);
+  });
+
+  it("counts spawn_agent's wire as a link between parent and sub-agent", () => {
+    const scene = withWire([...base, peer], lone.id, peer.id, "calm", true);
+    const wire = scene[scene.length - 1];
+    expect(agentLinksOf(scene, peer.id)).toEqual([{ peerId: lone.id, wireId: wire.id, outgoing: false }]);
+    // Already wired: "+ Link" adds nothing.
+    expect(withAgentLink(scene, peer.id, lone.id)).toHaveLength(scene.length);
+  });
+
+  it("is cut by deleting the wire, or an end, which takes the wire with it", () => {
+    const { elements, wire } = linked();
+    expect(agentLinksOf(withoutIds(elements, wire.id), lone.id)).toEqual([]);
+    expect(agentLinksOf(withoutIds(elements, peer.id), lone.id)).toEqual([]);
+    expect(orphanWires(withoutIds(elements, peer.id))).toEqual([wire.id]);
+    const dropped = { ...wire, isDeleted: true, customData: { dummyplane: { kind: "wire", orphaned: true } } } as ExcalidrawElement;
+    // An undo bringing the agent back brings the link back.
+    expect(revivableWires([...elements.slice(0, -1), dropped])).toEqual([wire.id]);
   });
 });

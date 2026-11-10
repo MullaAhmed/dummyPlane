@@ -350,6 +350,19 @@ export function rerouteWires(elements: readonly ExcalidrawElement[], nodeIds: Re
   return changed ? next : elements;
 }
 
+/** `elements` with a new wire from `from` to `to`, recorded on both ends. */
+function addWire(elements: readonly ExcalidrawElement[], from: ExcalidrawElement, to: ExcalidrawElement, palette: ThemeChoice, spawn: boolean): ExcalidrawElement[] {
+  const wire = createWire(from, to, palette, spawn);
+  const bind = (e: ExcalidrawElement): ExcalidrawElement => ({
+    ...e,
+    boundElements: [...(e.boundElements ?? []), { id: wire.id, type: "arrow" }],
+    version: e.version + 1,
+    versionNonce: Math.floor(Math.random() * 2 ** 31),
+    updated: Date.now(),
+  });
+  return [...elements.map((e) => (e.id === from.id || e.id === to.id ? bind(e) : e)), wire];
+}
+
 /** `elements` with a new wire, recorded on both ends, unless one already joins them (spec §13); `spawn` as for `createWire`. */
 export function withWire(
   elements: readonly ExcalidrawElement[],
@@ -363,15 +376,60 @@ export function withWire(
   if (!orchestrator || !target) return [...elements];
   const links = orchestratorTargets(elements, orchestratorId);
   if (links.groupIds.includes(targetId) || links.nodeIds.includes(targetId)) return [...elements];
-  const wire = createWire(orchestrator, target, palette, spawn);
-  const bind = (e: ExcalidrawElement): ExcalidrawElement => ({
-    ...e,
-    boundElements: [...(e.boundElements ?? []), { id: wire.id, type: "arrow" }],
-    version: e.version + 1,
-    versionNonce: Math.floor(Math.random() * 2 ** 31),
-    updated: Date.now(),
-  });
-  return [...elements.map((e) => (e.id === orchestratorId || e.id === targetId ? bind(e) : e)), wire];
+  return addWire(elements, orchestrator, target, palette, spawn);
+}
+
+const isLiveTerminal = (element: ExcalidrawElement | undefined): element is ExcalidrawElement =>
+  element !== undefined && !element.isDeleted && nodeKindOf(element) === "terminal";
+
+/**
+ * A wire whose two ends are live terminals: two agents linked to each other, by
+ * an agent's "+ Link" or by spawn_agent (`isSpawnWire`). No mark tells it apart,
+ * so the orphan upkeep and its undo keep it as they keep any wire; and it is
+ * never an orchestrator's link: `orchestratorTargets` only follows arrows bound
+ * to an orchestrator.
+ */
+export function isAgentLink(element: ExcalidrawElement, byId: ReadonlyMap<string, ExcalidrawElement>): boolean {
+  if (element.isDeleted || element.type !== "arrow" || !isWire(element)) return false;
+  const { startBinding, endBinding } = element as ExcalidrawArrowElement;
+  if (!startBinding || !endBinding) return false;
+  return isLiveTerminal(byId.get(startBinding.elementId)) && isLiveTerminal(byId.get(endBinding.elementId));
+}
+
+/** One agent linked to another: the agent at the other end, and whether the wire starts at the first one. */
+export interface AgentLink {
+  peerId: string;
+  wireId: string;
+  outgoing: boolean;
+}
+
+/** The agents wired to `agentId`, either way round: links are symmetric, deleting the wire cuts it. */
+export function agentLinksOf(elements: readonly ExcalidrawElement[], agentId: string): AgentLink[] {
+  const byId = new Map(elements.map((e) => [e.id, e]));
+  const links: AgentLink[] = [];
+  for (const element of elements) {
+    if (!isAgentLink(element, byId)) continue;
+    const { startBinding, endBinding } = element as ExcalidrawArrowElement;
+    const start = startBinding!.elementId;
+    const end = endBinding!.elementId;
+    if (start === end || (start !== agentId && end !== agentId)) continue;
+    const peerId = start === agentId ? end : start;
+    if (!links.some((l) => l.peerId === peerId)) links.push({ peerId, wireId: element.id, outgoing: start === agentId });
+  }
+  return links;
+}
+
+/**
+ * `elements` with a wire from agent `fromId` to agent `toId`, unless they are
+ * the same, one is not a live terminal, or a wire already joins them either way
+ * round. Only wires count: an arrow drawn by hand between them links nothing.
+ */
+export function withAgentLink(elements: readonly ExcalidrawElement[], fromId: string, toId: string, palette: ThemeChoice = currentPalette()): ExcalidrawElement[] {
+  const from = elements.find((e) => e.id === fromId);
+  const to = elements.find((e) => e.id === toId);
+  if (fromId === toId || !isLiveTerminal(from) || !isLiveTerminal(to)) return [...elements];
+  if (agentLinksOf(elements, fromId).some((l) => l.peerId === toId)) return [...elements];
+  return addWire(elements, from, to, palette, false);
 }
 
 /** Arrows drawn by hand between an orchestrator and a group or terminal: they get the wire mark (spec §13). */

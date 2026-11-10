@@ -8,11 +8,13 @@ import { canvasStore, EMPTY_VIEW } from "@/canvas/canvasStore";
 import { createNodeElement } from "@/canvas/nodeElement";
 import { nodesStore } from "@/store/nodes";
 import { uiStore } from "@/store/ui";
+import { linkAgents } from "./agentLinks";
 import { LinkMode } from "./LinkMode";
 import { linkOrchestrator } from "./orchestrators";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
 vi.mock("./orchestrators", () => ({ linkOrchestrator: vi.fn() }));
+vi.mock("./agentLinks", async (importOriginal) => ({ ...(await importOriginal<typeof import("./agentLinks")>()), linkAgents: vi.fn() }));
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -59,7 +61,7 @@ it("runs the other way from an agent's foot: a click on an orchestrator wires th
     canvasStore.setState({ api: { getSceneElements: () => [atlas, isis] } as never, view: EMPTY_VIEW, frames: [], links: { atlas: { nodeIds: [], groupIds: [] } } });
     uiStore.setState({ linking: "isis" });
   });
-  expect(document.body.textContent).toContain("Click a fleet to link this agent");
+  expect(document.body.textContent).toContain("Click another agent or a fleet to link this agent");
   const layer = host.ownerDocument.querySelector<HTMLElement>(".cursor-crosshair")!;
   // A click on the agent itself designates nothing from its end: it ends the mode without a wire.
   await act(async () => layer.dispatchEvent(new MouseEvent("click", { bubbles: true, clientX: isis.x + 10, clientY: isis.y + 10 })));
@@ -69,6 +71,40 @@ it("runs the other way from an agent's foot: a click on an orchestrator wires th
   const layerAgain = host.ownerDocument.querySelector<HTMLElement>(".cursor-crosshair")!;
   await act(async () => layerAgain.dispatchEvent(new MouseEvent("click", { bubbles: true, clientX: atlas.x + 10, clientY: atlas.y + 10 })));
   expect(linkOrchestrator).toHaveBeenCalledWith("atlas", "isis");
+  expect(linkAgents).not.toHaveBeenCalled();
+  expect(uiStore.getState().linking).toBeNull();
+  await act(async () => canvasStore.setState({ api: null, links: {} }));
+});
+
+it("links two agents from an agent's foot with no orchestrator on the canvas, and never to a plain shell", async () => {
+  mockIPC(() => undefined);
+  vi.mocked(linkOrchestrator).mockClear();
+  vi.mocked(linkAgents).mockClear();
+  Object.defineProperty(document, "elementsFromPoint", { value: () => [], configurable: true });
+  const isis = { ...createNodeElement("terminal", { x: 400, y: 400 }), id: "isis" } as unknown as ExcalidrawElement;
+  const thot = { ...createNodeElement("terminal", { x: 1600, y: 400 }), id: "thot" } as unknown as ExcalidrawElement;
+  const sh = { ...createNodeElement("terminal", { x: 400, y: 1600 }), id: "sh" } as unknown as ExcalidrawElement;
+  const terminal = (id: string, agent: "claude" | "shell") =>
+    nodesStore.getState().create(id, { workspaceId: "w1", kind: "terminal", payload: { title: id, name: id, agent, cwd: "C:/code", shell: "default", command: "" } });
+  await terminal("isis", "claude");
+  await terminal("thot", "claude");
+  await terminal("sh", "shell");
+  await act(async () => {
+    canvasStore.setState({ api: { getSceneElements: () => [isis, thot, sh] } as never, view: EMPTY_VIEW, frames: [], links: {} });
+    uiStore.setState({ linking: "isis" });
+  });
+  const click = async (at: ExcalidrawElement) => {
+    const layer = host.ownerDocument.querySelector<HTMLElement>(".cursor-crosshair")!;
+    await act(async () => layer.dispatchEvent(new MouseEvent("click", { bubbles: true, clientX: at.x + 10, clientY: at.y + 10 })));
+  };
+  // A shell would run the linked agent's messages as commands: it designates nothing, the mode ends.
+  await click(sh);
+  expect(linkAgents).not.toHaveBeenCalled();
+  expect(uiStore.getState().linking).toBeNull();
+  await act(async () => uiStore.setState({ linking: "isis" }));
+  await click(thot);
+  expect(linkAgents).toHaveBeenCalledWith("isis", "thot");
+  expect(linkOrchestrator).not.toHaveBeenCalled();
   expect(uiStore.getState().linking).toBeNull();
   await act(async () => canvasStore.setState({ api: null, links: {} }));
 });

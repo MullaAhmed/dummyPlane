@@ -58,7 +58,20 @@ it("reads a spawn wire from the agent that spawned the sub-agent, no orchestrato
   ]);
 });
 
-it("leaves out a wire between two terminals without the spawn mark, and a deleted or unbound spawn wire", () => {
+const terminal = (id: string) => ({ id, type: "embeddable", isDeleted: false, customData: { kind: "terminal" } }) as unknown as ExcalidrawElement;
+
+it("reads a link between two agents from the agent it starts at, and lights it for a message either way", () => {
+  const [link] = wirePaths([terminal("isis"), terminal("thot"), arrow("l1", "isis", "thot")]);
+  expect(link).toMatchObject({ id: "l1", orchestratorId: "isis", targetId: "thot" });
+  // isis to thot: a pulse on the wire's end naming its start, running toward the end.
+  expect(activeWires([link], [], { thot: { direction: "toAgent", at: 4, orchestratorId: "isis" } })).toEqual([{ wire: link, direction: "toAgent", at: 4 }]);
+  // thot to isis: the same pulse, running back.
+  expect(activeWires([link], [], { thot: { direction: "toOrchestrator", at: 5, orchestratorId: "isis" } })).toEqual([{ wire: link, direction: "toOrchestrator", at: 5 }]);
+  // A plain wire whose ends are not both live terminals is nobody's link.
+  expect(wirePaths([terminal("isis"), { ...terminal("thot"), isDeleted: true } as ExcalidrawElement, arrow("l1", "isis", "thot")])).toEqual([]);
+});
+
+it("leaves out a wire between two unknown ends without the spawn mark, and a deleted or unbound spawn wire", () => {
   expect(wirePaths([arrow("w", "isis", "thot")])).toEqual([]);
   expect(wirePaths([arrow("spawn-only", "isis", "thot", { customData: { dummyplane: { spawn: true } } })])).toEqual([]);
   expect(wirePaths([arrow("gone", "isis", "thot", { ...SPAWN, isDeleted: true })])).toEqual([]);

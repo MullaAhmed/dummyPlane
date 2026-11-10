@@ -21,6 +21,15 @@ export const agentMessages = defineMessages({
       spawnTask: "The complete instructions: the sub-agent starts from nothing and knows only this.",
       spawnTitle: "A short title for its terminal.",
       spawnModel: "Optional Claude model (opus, sonnet, haiku, or a model id); by default Claude's own.",
+      linkedAgents:
+        "The agents linked to yours by a wire on the canvas (the user draws one with \"+ Link\" under a terminal; spawn_agent's wire to a sub-agent counts too): name, id, state and relation. Only these can be messaged or read.",
+      messageAgent:
+        "Send a message to a linked agent: it is typed into its terminal and submitted, as \"[dummyPlane] Message from <your name> …: <text>\". " +
+        "An answer, if any, arrives in your terminal the same way: do not wait or poll for it.",
+      linkedAgent: "The linked agent's name (or its id), as linked_agents gives it.",
+      messageText: "The message, on one line.",
+      readAgent: "The end of a linked agent's terminal, as plain text.",
+      readLines: "How many lines, 50 by default.",
       finishCheck: "What the user will have to check by hand: it tops the morning report.",
       mission: "The mission: state, name, task, overall budget, maximum number of agents working at once (max_agents) and how many are (active_agents), model router, branch, plan, the linked Claude agents available and the linked groups, with each one's group and speciality.",
       proposePlan: "Propose your plan: it replaces the pending plan and waits for the user's go-ahead (\"Launch the mission\" in the panel). One sub-task per agent; beyond Max agents, sub-tasks (agent \"new\") wait in the queue and start as seats free up.",
@@ -83,6 +92,20 @@ export const agentMessages = defineMessages({
       sent: "Report passed on to the orchestrator.",
       sentToParent: (name: string) => `Report passed on to ${name}.`,
       unheardParent: "Report not passed on: the agent that opened you is closed.",
+    },
+    /** Two agents linked by a wire (`./linkTools.ts`). */
+    links: {
+      noCanvas: "Your workspace's canvas is not loaded: open it in dummyPlane, then try again.",
+      none: "No agent is linked to you. The user links two agents with \"+ Link\" under a terminal, then a click on the other agent.",
+      whom: "Name the linked agent (agent).",
+      notLinked: (name: string, linked: string) => `"${name}" is not linked to you. Linked: ${linked}.`,
+      ambiguous: (name: string, ids: string) => `Several linked agents are named "${name}": give its id instead (${ids}).`,
+      nothingToSend: "Nothing to send (text).",
+      stopped: (name: string) => `${name} is stopped: its terminal is not running, the message is not sent.`,
+      message: (from: string, text: string) => `Message from ${from} (a linked agent; answer with message_agent only if it calls for an answer): ${text}`,
+      sent: (name: string) => `Sent to ${name}. An answer, if any, will be typed into your terminal: carry on, do not wait for it.`,
+      held: (name: string) => `${name} is waiting for the user's answer to a dialog: your message is typed as soon as it is answered.`,
+      emptyTerminal: "(empty terminal)",
     },
     steps: {
       tooLong: (max: number) => `Each step is a short title (${max} characters at most).`,

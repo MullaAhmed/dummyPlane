@@ -33,6 +33,9 @@ const TOOLS: Record<string, string> = {
   notes: "notes",
   board: "board",
   spawn_agent: "spawn_agent",
+  linked_agents: "linked_agents",
+  message_agent: "message_agent",
+  read_agent: "read_agent",
 };
 
 /** The former names, for the agent that still calls one: what it is called now. */
