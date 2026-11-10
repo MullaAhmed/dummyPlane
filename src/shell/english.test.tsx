@@ -89,9 +89,10 @@ it("the close agent dialog speaks English", async () => {
 
 it("sentences with a count follow English grammar", () => {
   const t = messages(shellMessages);
-  expect(t.removeWorkspace.confirm("API", 1)).toBe('Delete "API"? 1 agent will be stopped and its contents erased.');
-  expect(t.removeWorkspace.confirm("API", 3)).toBe('Delete "API"? 3 agents will be stopped and its contents erased.');
-  expect(t.removeWorkspace.confirm("API", 0)).toBe('Delete "API"? Its contents will be erased.');
+  expect(t.removeWorkspace.title("API")).toBe("Delete “API”?");
+  expect(t.removeWorkspace.description(1)).toBe("1 agent will be stopped and the workspace's canvas erased.");
+  expect(t.removeWorkspace.description(3)).toBe("3 agents will be stopped and the workspace's canvas erased.");
+  expect(t.removeWorkspace.description(0)).toBe("The workspace's canvas will be erased.");
   expect(t.agentCounts.activeCount(3)).toBe("3 active");
   expect(t.percent(56)).toBe("56%");
   expect(messages(homeMessages).card.workspaces(0)).toBe("0 workspaces");

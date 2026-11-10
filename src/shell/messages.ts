@@ -180,15 +180,13 @@ export const shellMessages = defineMessages(
       folderFailed: "Could not change the folder",
     },
     removeWorkspace: {
-      confirm: (name: string, running: number, names: string[] = []) => {
+      title: (name: string) => `Delete “${name}”?`,
+      description: (running: number, names: string[] = []) => {
         const who = names.length > 0 ? ` (${names.join(", ")})` : "";
-        const consequence =
-          running > 0
-            ? `${plural(running, "agent will be stopped", "agents will be stopped")}${who} and its contents erased.`
-            : "Its contents will be erased.";
-        return `Delete "${name}"? ${consequence}`;
+        return running > 0
+          ? `${plural(running, "agent will be stopped", "agents will be stopped")}${who} and the workspace's canvas erased.`
+          : "The workspace's canvas will be erased.";
       },
-      title: "Delete the workspace",
       ok: "Delete",
       cancel: "Cancel",
     },

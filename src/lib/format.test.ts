@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { formatAgo, formatDuration, plural } from "./format";
+import { AppError } from "@/ipc/invoke";
+import { errorText, formatAgo, formatDuration, plural } from "./format";
+
+it("tells an error by its message alone, as a toast reads it", () => {
+  expect(errorText(new AppError("db", "the workspace is gone"))).toBe("the workspace is gone");
+  expect(errorText(new Error("disk full"))).toBe("disk full");
+  expect(errorText("refused")).toBe("refused");
+});
 
 describe("formatAgo", () => {
   const now = 1_000_000_000;

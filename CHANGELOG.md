@@ -19,6 +19,7 @@ All notable changes to dummyPlane are documented here. The format follows [Keep 
 - **Agents stacked under a Fleet or in a group are spaced further apart,** to leave room for their step frieze.
 
 ### Fixed
+- Deleting a workspace (its tab's ×, its menu or the palette) and removing a project from the home screen now ask in dummyPlane's own dialog, in the app's look, instead of a Windows message box; Cancel is where the keyboard starts. A failure reads as a plain sentence, without "AppError:" in front.
 - The eraser no longer erases terminals or the Fleet, nor takes them along with a group's frame or with a drawing grouped with either; it still erases the drawings that are grouped with none of them.
 - Agents that arrive on their own (a mission's team and queue, `spawn_agent` sub-agents, replacements) no longer scroll the canvas to them or take the keyboard while you work. They start where they are, a quiet *joined · Show* toast tells you (one toast for several arrivals), and a launch you asked for still comes into view.
 - The README model-router tables now use the effort IDs accepted by the fleet (`low`, `medium`, `high`, `extreme`), with French labels alongside them in the French README.

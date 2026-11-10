@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { useUiRequest } from "@/commands/uiRequests";
 import { folderName, launchFolderStore, pickFolder } from "@/agents/launchFolder";
 import { messages, useMessages } from "@/i18n";
+import { errorText } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useProjects } from "@/store/projects";
 import { useRunningCount } from "@/store/running";
@@ -27,7 +28,7 @@ type Failure = "renameFailed" | "deleteFailed" | "createFailed" | "folderFailed"
 
 const fail = (what: Failure) => (error: unknown) => {
   const t = messages(shellMessages);
-  toast.error(t.failed(t.tabs[what], String(error)));
+  toast.error(t.failed(t.tabs[what], errorText(error)));
 };
 
 /** The tab being dragged (a drag stays inside this row). */

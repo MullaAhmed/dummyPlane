@@ -7,6 +7,7 @@ import { LoopsDialog } from "@/loops/LoopsDialog";
 import { LoopsIndicator } from "@/loops/LoopsIndicator";
 import { SavePresetDialog } from "@/presets/SavePresetDialog";
 import { appMessages } from "@/app/messages";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { HomeScreen } from "@/home/HomeScreen";
@@ -62,6 +63,9 @@ export default function App() {
       </ErrorBoundary>
       <ErrorBoundary scope="troubleshooting dialog" fallback={() => null}>
         <TroubleshootingDialog />
+      </ErrorBoundary>
+      <ErrorBoundary scope="confirmation dialog" fallback={() => null}>
+        <ConfirmDialog />
       </ErrorBoundary>
       <AppToaster />
     </TooltipProvider>

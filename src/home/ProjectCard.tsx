@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Ellipsis, Folder } from "lucide-react";
-import { ask, open } from "@tauri-apps/plugin-dialog";
+import { open } from "@tauri-apps/plugin-dialog";
 import { toast } from "sonner";
+import { confirmAction } from "@/components/confirm";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -11,14 +12,14 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { messages, useMessages } from "@/i18n";
-import { formatAgo } from "@/lib/format";
+import { errorText, formatAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { projectsStore, type Project } from "@/store/projects";
 import { homeMessages } from "./messages";
 
 type Failure = "openFailed" | "renameFailed" | "changeFailed" | "removeFailed";
 
-const fail = (what: Failure) => (error: unknown) => toast.error(messages(homeMessages).card[what](String(error)));
+const fail = (what: Failure) => (error: unknown) => toast.error(messages(homeMessages).card[what](errorText(error)));
 
 async function relocate(project: Project) {
   const picked = await open({ directory: true, defaultPath: project.path, title: messages(homeMessages).card.newFolder });
@@ -27,7 +28,7 @@ async function relocate(project: Project) {
 
 async function remove(project: Project) {
   const t = messages(homeMessages).card;
-  const confirmed = await ask(t.removeConfirm(project.name), { title: t.removeTitle, kind: "warning", okLabel: t.removeOk, cancelLabel: t.cancel });
+  const confirmed = await confirmAction({ title: t.removeTitle(project.name), description: t.removeConfirm, confirm: t.removeOk, cancel: t.cancel, destructive: true });
   if (confirmed) await projectsStore.getState().remove(project.id);
 }
 

@@ -7,6 +7,7 @@ import { nodesStore } from "@/store/nodes";
 import { projectsStore, type Project } from "@/store/projects";
 import { terminalStatusStore } from "@/store/terminalStatus";
 import { requestUi } from "@/commands/uiRequests";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import type { Workspace } from "@/ipc/db";
 import { workspacesStore } from "@/store/workspaces";
 import { TABS_HEIGHT } from "./layout";
@@ -44,7 +45,14 @@ beforeEach(async () => {
   host = document.createElement("div");
   document.body.append(host);
   root = createRoot(host);
-  await act(async () => root.render(<WorkspaceTabs />));
+  await act(async () =>
+    root.render(
+      <>
+        <WorkspaceTabs />
+        <ConfirmDialog />
+      </>,
+    ),
+  );
 });
 afterEach(async () => {
   await act(async () => root.unmount());
@@ -93,11 +101,15 @@ it("selects a tab from anywhere on it, its badge included", async () => {
   expect(badge.closest("button")!.className).toContain("self-stretch");
 });
 
-it("deletes a workspace from its × after the existing confirmation, never the last one", async () => {
+it("deletes a workspace from its × after the app's own confirmation, never the last one", async () => {
   const close = tabs()[0].querySelector<HTMLButtonElement>('[aria-label="Delete the workspace"]')!;
   expect(close.className).toContain("group-hover:opacity-100");
   await act(async () => close.click());
-  expect(calls.some((cmd) => cmd.startsWith("plugin:dialog|"))).toBe(true);
+  // Asked in the app's dialog, in its look: never the system's message box.
+  expect(calls.some((cmd) => cmd.startsWith("plugin:dialog|"))).toBe(false);
+  const dialog = document.querySelector('[role="dialog"]')!;
+  expect(dialog.textContent).toContain("Delete “Workspace 1”?");
+  await act(async () => [...dialog.querySelectorAll("button")].find((b) => b.textContent === "Cancel")!.click());
   expect(workspacesStore.getState().workspaces).toHaveLength(2);
   await act(async () => workspacesStore.setState({ workspaces: workspacesStore.getState().workspaces.slice(0, 1) }));
   expect(host.querySelector('[aria-label="Delete the workspace"]')).toBeNull();

@@ -1,5 +1,5 @@
-import { ask } from "@tauri-apps/plugin-dialog";
 import { forgetWorkspaces } from "@/app/forget";
+import { confirmAction } from "@/components/confirm";
 import { flushAll } from "@/lib/flush";
 import { messages } from "@/i18n";
 import { nodeNameOf, nodesStore } from "@/store/nodes";
@@ -14,11 +14,12 @@ export async function removeWorkspace(workspace: Workspace, running: number) {
   const names = Object.entries(nodesStore.getState().nodes)
     .filter(([id, node]) => node.workspaceId === workspace.id && isRunning(id))
     .map(([, node]) => nodeNameOf(node) || "Agent");
-  const confirmed = await ask(t.confirm(workspace.name, running, names), {
-    title: t.title,
-    kind: "warning",
-    okLabel: t.ok,
-    cancelLabel: t.cancel,
+  const confirmed = await confirmAction({
+    title: t.title(workspace.name),
+    description: t.description(running, names),
+    confirm: t.ok,
+    cancel: t.cancel,
+    destructive: true,
   });
   if (!confirmed) return;
   // Pending saves are written first: once the row is gone they would fail.

@@ -43,9 +43,8 @@ export const homeMessages = defineMessages({
     },
     card: {
       newFolder: "New project folder",
-      removeConfirm: (name: string) =>
-        `Remove "${name}" from the list? Its workspaces will be deleted and its agents stopped. The folder is not touched.`,
-      removeTitle: "Remove the project",
+      removeConfirm: "Its workspaces will be deleted and its agents stopped. The folder is not touched.",
+      removeTitle: (name: string) => `Remove “${name}” from the list?`,
       removeOk: "Remove",
       cancel: "Cancel",
       actions: "Project actions",

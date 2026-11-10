@@ -17,6 +17,9 @@ export function formatAgo(timestampMs: number, nowMs = Date.now()): string {
   return t.ago(Math.floor(hours / 24), "d");
 }
 
+/** What went wrong, as a toast says it: an error's message, without the "Error:" or "AppError:" that String() puts first. */
+export const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));
+
 /** "1 agent active", "3 agents active": singular for 1 only. */
 export function plural(count: number, one: string, many: string): string {
   return `${count} ${count === 1 ? one : many}`;
