@@ -6,17 +6,17 @@ import "@excalidraw/excalidraw/index.css";
 import { toast } from "sonner";
 import { usePalette, useTheme } from "@/app/theme";
 import { completeArrival } from "@/commands/pendingArrival";
-import { assignMissingNames } from "@/fleet/naming";
-import { dismissResumeOffer, offerResumeAll } from "@/fleet/ResumeAllToast";
-import { withSpawnedChildren } from "@/fleet/spawnFamily";
-import { createSpawnDragWatch, reflowSpawnTreesOf } from "@/fleet/spawnTree";
-import { adoptCopies } from "@/fleet/terminals";
-import { scheduleWireUpkeep } from "@/fleet/wireUpkeep";
-import { orchestratorLinks } from "@/fleet/wires";
+import { assignMissingNames } from "@/agents/naming";
+import { dismissResumeOffer, offerResumeAll } from "@/agents/ResumeAllToast";
+import { withSpawnedChildren } from "@/agents/spawnFamily";
+import { createSpawnDragWatch, reflowSpawnTreesOf } from "@/agents/spawnTree";
+import { adoptCopies } from "@/agents/terminals";
+import { scheduleWireUpkeep } from "@/agents/wireUpkeep";
+import { fleetLinks } from "@/agents/wires";
 import { saveFiles, saveScene } from "@/ipc/db";
 import { onFlushAll } from "@/lib/flush";
 import { NodeHost } from "@/nodes/NodeHost";
-import { setOrchestratorClosed } from "@/mission/store";
+import { setFleetClosed } from "@/mission/store";
 import { disposeTerminal, focusTerminal } from "@/nodes/terminal/registry";
 import { nodesStore } from "@/store/nodes";
 import { isRunning } from "@/store/terminalStatus";
@@ -24,6 +24,8 @@ import { uiStore } from "@/store/ui";
 import { setActiveTerminal } from "./activeTerminal";
 import { createActivationTracker } from "./activation";
 import { canvasStore, fullSizeView, viewFrom } from "./canvasStore";
+import { installDoubleClickSelect } from "./doubleClickSelect";
+import { scheduleEraserGuard } from "./eraserGuard";
 import { framesFromScene } from "./groups";
 import { drawnSelectionOf } from "./drawnSelection";
 import { SelectionPanel } from "./SelectionPanel";
@@ -97,6 +99,9 @@ function LoadedCanvas({ workspaceId, scene }: { workspaceId: string; scene: Load
   // A box scrolled under the canvas would leave Excalidraw's hit tests off by that much (after a resize).
   useEffect(() => (api ? pinCanvasScroll(api.refresh) : undefined), [api]);
 
+  // A double-click on a terminal or the Fleet selects it, whatever tool is active.
+  useEffect(() => (api ? installDoubleClickSelect() : undefined), [api]);
+
   // A Ctrl+P target of this workspace waits for its scene to be on screen (spec fenêtre §7.2).
   useEffect(() => {
     if (!api) return;
@@ -138,8 +143,8 @@ function LoadedCanvas({ workspaceId, scene }: { workspaceId: string; scene: Load
             const added = classifyAddedNodes(ids, elements, (id) => id in nodesStore.getState().nodes);
             // An undo can bring back a node whose row the last scene save purged.
             added.restored.forEach((id) => void nodesStore.getState().persist(id).catch(reportSaveError));
-            // A closed orchestrator brought back takes its mission up again (spec première version §5.4).
-            added.restored.forEach((id) => setOrchestratorClosed(id, false));
+            // A closed fleet brought back takes its mission up again (spec première version §5.4).
+            added.restored.forEach((id) => setFleetClosed(id, false));
             // A spawned agent brought back takes its place in its tree again.
             reflowSpawnTreesOf(workspaceId, added.restored);
             if (added.copies.length) void adoptCopies(workspaceId, added.copies).catch(reportSaveError);
@@ -191,9 +196,11 @@ function LoadedCanvas({ workspaceId, scene }: { workspaceId: string; scene: Load
       canvasStore.getState().setFrames(framesFromScene(elements));
       canvasStore.getState().setNodeIds(liveNodeIds(elements));
       canvasStore.getState().setNodeRects(liveNodeRects(elements));
-      canvasStore.getState().setLinks(orchestratorLinks(elements));
+      canvasStore.getState().setLinks(fleetLinks(elements));
       canvasStore.getState().setWires(wirePaths(elements));
       if (api) scheduleWireUpkeep(api, elements);
+      // The eraser never erases a node: with it active, the nodes are locked, which it skips.
+      if (api) scheduleEraserGuard(api, elements, appState.activeTool.type === "eraser");
       const activated = trackActivation(appState.activeEmbeddable);
       if (activated) setActiveTerminal(activated);
       // Deferred: changing the view from inside onChange would re-enter it.
@@ -243,7 +250,7 @@ function showAtFullSize(api: ExcalidrawImperativeAPI, nodeId: string) {
  */
 function settleRemovals({ dispose, restore, ask }: RemovalVerdict) {
   for (const id of dispose) {
-    if (nodesStore.getState().nodes[id]?.kind === "orchestrator") setOrchestratorClosed(id, true);
+    if (nodesStore.getState().nodes[id]?.kind === "fleet") setFleetClosed(id, true);
     disposeTerminal(id);
   }
   if (restore.length === 0) return;

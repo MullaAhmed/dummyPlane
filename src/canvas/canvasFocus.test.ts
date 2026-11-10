@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import { STORED_FLEET_KIND } from "./nodeElement";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
@@ -58,7 +59,7 @@ describe("overview (spec fenêtre §6.6)", () => {
     const scene = [
       groupFrame("backend"),
       node("isis", "terminal", "backend"),
-      node("chef", "orchestrator"),
+      node("chef", STORED_FLEET_KIND),
       element({ id: "drawing", type: "frame" }),
       node("in-drawing", "terminal", "drawing"),
       element({ id: "box", type: "rectangle" }),

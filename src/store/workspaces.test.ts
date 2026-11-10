@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import type { Workspace } from "@/ipc/db";
-import { canRemove, createWorkspacesStore, nextDefaultName } from "./workspaces";
+import { canRemove, createWorkspacesStore, nextDefaultName, rebaseWorkspaceFolders, workspacesStore } from "./workspaces";
 
 /** In-memory stand-in for the Rust workspace commands of project "p1". */
 function fakeBackend(initial: string[] = [], activeSetting: string | null = null) {
@@ -14,10 +14,13 @@ function fakeBackend(initial: string[] = [], activeSetting: string | null = null
     position,
     pantheon: null,
     kind,
+    folder: null,
   });
   const db = {
     workspaces: initial.map((name, i) => make(name, i)),
     settings: new Map<string, unknown>(activeSetting ? [["ui.activeWorkspaceId.p1", activeSetting]] : []),
+    /** The next saves of a folder are refused. */
+    folderFails: false,
   };
   mockIPC((cmd, raw) => {
     const args = raw as Record<string, string>;
@@ -37,6 +40,10 @@ function fakeBackend(initial: string[] = [], activeSetting: string | null = null
         return;
       case "delete_workspace":
         db.workspaces = db.workspaces.filter((w) => w.id !== args.id);
+        return;
+      case "set_workspace_folder":
+        if (db.folderFails) throw { kind: "db", message: "database is locked" };
+        db.workspaces = db.workspaces.map((w) => (w.id === args.id ? { ...w, folder: args.folder } : w));
         return;
       case "set_workspace_pantheon":
         db.workspaces = db.workspaces.map((w) => (w.id === args.id ? { ...w, pantheon: args.pantheon } : w));
@@ -64,7 +71,7 @@ afterEach(() => clearMocks());
 describe("nextDefaultName", () => {
   it("uses the smallest free number", () => {
     const ws = (...n: string[]) =>
-      n.map((name, i) => ({ id: String(i), projectId: "p1", name, position: i, pantheon: null, kind: "canvas" as const }));
+      n.map((name, i) => ({ id: String(i), projectId: "p1", name, position: i, pantheon: null, kind: "canvas" as const, folder: null }));
     expect(nextDefaultName([])).toBe("Workspace 1");
     expect(nextDefaultName(ws("Workspace 2"))).toBe("Workspace 1");
     expect(nextDefaultName(ws("Workspace 1", "Workspace 2"))).toBe("Workspace 3");
@@ -180,6 +187,41 @@ describe("workspaces store", () => {
     expect(db.workspaces[0].pantheon).toBe("throne-of-glass");
   });
 
+  it("gives a new workspace the project's folder, and reads a workspace without one the same way", async () => {
+    const db = fakeBackend(["A"]);
+    delete (db.workspaces[0] as Partial<Workspace>).folder;
+    await state().load("p1");
+    await state().create();
+    expect(state().workspaces.map((w) => w.folder)).toEqual([null, null]);
+  });
+
+  it("saves the folder of a workspace, and clears it with null", async () => {
+    const db = fakeBackend(["A", "B"]);
+    await state().load("p1");
+    await state().setFolder("w1", "  D:/work/api  ");
+    expect(state().workspaces.map((w) => w.folder)).toEqual(["D:/work/api", null]);
+    expect(db.workspaces[0].folder).toBe("D:/work/api");
+    await state().setFolder("w1", null);
+    expect(state().workspaces[0].folder).toBeNull();
+    expect(db.workspaces[0].folder).toBeNull();
+    // A blank folder is no folder.
+    await state().setFolder("w1", "D:/work/api");
+    await state().setFolder("w1", "   ");
+    expect(db.workspaces[0].folder).toBeNull();
+  });
+
+  it("changes the folder before the save comes back, and puts the old one back when it is refused", async () => {
+    const db = fakeBackend(["A"]);
+    await state().load("p1");
+    await state().setFolder("w1", "D:/one");
+    db.folderFails = true;
+    const saving = state().setFolder("w1", "D:/two");
+    expect(state().workspaces[0].folder).toBe("D:/two");
+    await expect(saving).rejects.toBeDefined();
+    expect(state().workspaces[0].folder).toBe("D:/one");
+    expect(db.workspaces[0].folder).toBe("D:/one");
+  });
+
   it("reads a workspace without a kind as a canvas", async () => {
     const db = fakeBackend(["A"]);
     delete (db.workspaces[0] as Partial<Workspace>).kind;
@@ -209,7 +251,7 @@ describe("workspaces store", () => {
 
   it("gives a project a canvas when it has only its code workspace", async () => {
     const db = fakeBackend();
-    db.workspaces.push({ id: "c1", projectId: "p1", name: "Code", position: 0, pantheon: null, kind: "code" });
+    db.workspaces.push({ id: "c1", projectId: "p1", name: "Code", position: 0, pantheon: null, kind: "code", folder: null });
     await state().load("p1");
     expect(state().workspaces.map((w) => w.kind)).toEqual(["canvas", "code"]);
   });
@@ -235,5 +277,32 @@ describe("workspaces store", () => {
     await state().load("p1");
     expect(state().status).toBe("error");
     expect(state().error).toContain("disk I/O error");
+  });
+});
+
+describe("rebaseWorkspaceFolders", () => {
+  const workspace = (id: string, folder: string | null): Workspace => ({ id, projectId: "p1", name: id, position: 0, pantheon: null, kind: "canvas", folder });
+  const open = (projectId: string | null, folders: (string | null)[]) =>
+    workspacesStore.setState({ projectId, workspaces: folders.map((folder, i) => workspace(`w${i}`, folder)) });
+  const folders = () => workspacesStore.getState().workspaces.map((w) => w.folder);
+  afterEach(() => workspacesStore.setState({ projectId: null, workspaces: [] }));
+
+  it("moves the own folder of the open project's workspaces that lay inside the old folder, and no other", () => {
+    open("p1", ["C:\\code\\api", "c:/code/API/web", "E:\\docs", "C:\\code\\apis", null]);
+    rebaseWorkspaceFolders("p1", "C:\\code\\api", "D:\\api");
+    expect(folders()).toEqual(["D:\\api", "D:\\api\\web", "E:\\docs", "C:\\code\\apis", null]);
+  });
+
+  it("leaves the workspaces in memory alone when they are another project's", () => {
+    open("p2", ["C:\\code\\api\\web"]);
+    rebaseWorkspaceFolders("p1", "C:\\code\\api", "D:\\api");
+    expect(folders()).toEqual(["C:\\code\\api\\web"]);
+  });
+
+  it("does not touch the store when nothing moves", () => {
+    open("p1", [null, "E:\\docs"]);
+    const before = workspacesStore.getState().workspaces;
+    rebaseWorkspaceFolders("p1", "C:\\code\\api", "D:\\api");
+    expect(workspacesStore.getState().workspaces).toBe(before);
   });
 });

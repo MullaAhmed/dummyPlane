@@ -72,7 +72,7 @@ pub async fn notes_write(
 }
 
 /// The notes for an agent. The project is the first node's; the attached notes
-/// are those of every node's group: an orchestrator also gives its linked agents.
+/// are those of every node's group: a fleet also gives its linked agents.
 #[tauri::command]
 pub async fn notes_agent_list(
     db: State<'_, Db>,

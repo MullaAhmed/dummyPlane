@@ -1,6 +1,6 @@
 import { readExtensionChoice } from "@/ipc/claudeExtensions";
-import type { AgentId, OllamaLaunch, ShellKind, SpawnSpec } from "@/ipc/pty";
-import { AGENTS } from "@/fleet/catalog";
+import { STORED_FLEET_ROLE, type AgentId, type OllamaLaunch, type ShellKind, type SpawnSpec } from "@/ipc/pty";
+import { AGENTS } from "@/agents/catalog";
 import type { TerminalPayload } from "@/nodes/types";
 import { profileNamed } from "@/accounts/store";
 import { messages } from "@/i18n";
@@ -56,14 +56,14 @@ export function newTerminalPayload(input: LaunchInput, name = ""): TerminalPaylo
   return payload;
 }
 
-/** A fresh Claude conversation: its own id, none of the previous one's steps (spec orchestrateur §5). */
+/** A fresh Claude conversation: its own id, none of the previous one's steps nor report (spec orchestrateur §5). */
 export function newConversation(): Partial<TerminalPayload> {
-  return { claudeSessionId: crypto.randomUUID(), steps: undefined };
+  return { claudeSessionId: crypto.randomUUID(), steps: undefined, lastReport: undefined };
 }
 
-/** Another agent in the same terminal: the steps and a one-shot mark go with the old one; Claude gets a conversation if it has none. */
+/** Another agent in the same terminal: the steps, the report and a one-shot mark go with the old one; Claude gets a conversation if it has none. */
 export function switchedAgent(payload: TerminalPayload, agent: AgentId): Partial<TerminalPayload> {
-  const left = { agent, steps: undefined, oneShot: undefined };
+  const left = { agent, steps: undefined, lastReport: undefined, oneShot: undefined };
   return agent === "claude" && !payload.claudeSessionId ? { ...left, claudeSessionId: crypto.randomUUID() } : left;
 }
 
@@ -84,7 +84,7 @@ export function buildSpawnSpec(payload: TerminalPayload, mode: LaunchMode): Spaw
   return spec;
 }
 
-/** An orchestrator's brain: Claude in the project folder, with the manager's role (spec orchestrateur §6). */
-export function orchestratorSession(name: string, options: { cwd: string; shell: ShellKind }): TerminalPayload {
-  return { ...newTerminalPayload({ title: name, cwd: options.cwd, agent: "claude", command: "", shell: options.shell }, name), role: "orchestrator" };
+/** A fleet's brain: Claude in the project folder, with the manager's role (spec orchestrateur §6). */
+export function fleetSession(name: string, options: { cwd: string; shell: ShellKind }): TerminalPayload {
+  return { ...newTerminalPayload({ title: name, cwd: options.cwd, agent: "claude", command: "", shell: options.shell }, name), role: STORED_FLEET_ROLE };
 }

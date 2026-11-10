@@ -4,7 +4,7 @@ import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { canvasStore } from "@/canvas/canvasStore";
-import { agentsPanelStore } from "@/fleet/agentsPanelState";
+import { agentsPanelStore } from "@/agents/agentsPanelState";
 import { agentActivityStore } from "@/store/agentActivity";
 import { nodesStore } from "@/store/nodes";
 import { closeNotes, notesStore } from "@/notes/notesStore";

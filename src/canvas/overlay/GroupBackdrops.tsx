@@ -1,5 +1,5 @@
-import { screenRectOf } from "@/fleet/placement";
-import { ROLES } from "@/fleet/roles";
+import { screenRectOf } from "@/agents/placement";
+import { ROLES } from "@/agents/roles";
 import { useCanvas } from "../canvasStore";
 
 /**

@@ -7,6 +7,7 @@ import {
   presetAgentCount,
   presetNameOf,
   readPresets,
+  storedPresets,
   withoutPreset,
   withPreset,
   type TeamPreset,
@@ -20,21 +21,21 @@ const agents: Record<string, string> = { a: "claude", b: "codex", c: "claude", d
 const input = (over: Partial<Parameters<typeof capturePreset>[0]> = {}) => ({
   frames: [frame("back", 1000, 500, "backend", ["a", "b"], "API"), frame("tests", 1900, 500, "testers", ["c"]), plain],
   agentOf: (id: string) => agents[id] as never,
-  orchestrators: [{ id: "chef", name: "Chef" }, { id: "seul", name: "Seul" }],
+  fleets: [{ id: "chef", name: "Chef" }, { id: "seul", name: "Seul" }],
   links: { chef: { groupIds: ["tests", "back", "p"], nodeIds: ["x"] }, seul: { groupIds: [], nodeIds: ["a"] } },
   ...over,
 });
 
 describe("capturePreset", () => {
-  it("keeps the groups, their agents and the orchestrators linked to a group, positions relative to the top-left", () => {
+  it("keeps the groups, their agents and the fleets linked to a group, positions relative to the top-left", () => {
     const preset = capturePreset(input(), "Dev HQ", "id1", 5)!;
     expect(preset).toMatchObject({ id: "id1", name: "Dev HQ", savedAt: 5 });
     expect(preset.groups).toEqual([
       { name: "BACK", role: "backend", speciality: "API", agents: ["claude", "codex"], x: 0, y: 0 },
       { name: "TESTS", role: "testers", agents: ["claude"], x: 900, y: 0 },
     ]);
-    // Linked to a plain frame and a terminal too: only the groups stay; the orchestrator without a group is left out.
-    expect(preset.orchestrators).toEqual([{ name: "Chef", groups: [1, 0] }]);
+    // Linked to a plain frame and a terminal too: only the groups stay; the fleet without a group is left out.
+    expect(preset.fleets).toEqual([{ name: "Chef", groups: [1, 0] }]);
     expect(presetAgentCount(preset)).toBe(3);
   });
 
@@ -52,28 +53,41 @@ describe("capturePreset", () => {
 });
 
 describe("readPresets", () => {
-  const good: TeamPreset = { id: "1", name: "A", savedAt: 1, groups: [{ name: "G", role: "backend", agents: ["claude"], x: 0, y: 0 }], orchestrators: [{ name: "C", groups: [0] }] };
+  const good: TeamPreset = { id: "1", name: "A", savedAt: 1, groups: [{ name: "G", role: "backend", agents: ["claude"], x: 0, y: 0 }], fleets: [{ name: "C", groups: [0] }] };
+
+  // The preset as the setting holds it: its fleets are under the key they have always had, "orchestrators".
+  const { fleets: goodFleets, ...goodFields } = good;
+  const saved = { ...goodFields, orchestrators: goodFleets };
 
   it("reads a good list, and nothing from a damaged setting", () => {
-    expect(readPresets({ version: 1, presets: [good] })).toEqual([good]);
-    for (const bad of [null, undefined, 3, "x", [], { version: 2, presets: [good] }, { version: 1, presets: "no" }]) expect(readPresets(bad)).toEqual([]);
+    expect(readPresets({ version: 1, presets: [saved] })).toEqual([good]);
+    for (const bad of [null, undefined, 3, "x", [], { version: 2, presets: [saved] }, { version: 1, presets: "no" }]) expect(readPresets(bad)).toEqual([]);
   });
 
   it("drops a preset that is invalid and keeps the others", () => {
     const broken = [
-      { ...good, id: "2", name: "" },
-      { ...good, id: "3", groups: [] },
-      { ...good, id: "4", groups: [{ ...good.groups[0], role: "nope" }] },
-      { ...good, id: "5", groups: [{ ...good.groups[0], agents: ["claude", "robot"] }] },
-      { ...good, id: "6", orchestrators: [{ name: "C", groups: [7] }] },
-      { ...good, id: "7", groups: [{ ...good.groups[0], agents: Array(13).fill("claude") }] },
-      { ...good, id: "8", groups: [{ ...good.groups[0], x: "left" }] },
+      { ...saved, id: "2", name: "" },
+      { ...saved, id: "3", groups: [] },
+      { ...saved, id: "4", groups: [{ ...good.groups[0], role: "nope" }] },
+      { ...saved, id: "5", groups: [{ ...good.groups[0], agents: ["claude", "robot"] }] },
+      { ...saved, id: "6", orchestrators: [{ name: "C", groups: [7] }] },
+      { ...saved, id: "7", groups: [{ ...good.groups[0], agents: Array(13).fill("claude") }] },
+      { ...saved, id: "8", groups: [{ ...good.groups[0], x: "left" }] },
     ];
-    expect(readPresets({ version: 1, presets: [...broken, good] })).toEqual([good]);
+    expect(readPresets({ version: 1, presets: [...broken, saved] })).toEqual([good]);
+  });
+
+  it("saves the fleets under the stored key, so an older build still reads them", () => {
+    expect(storedPresets([good])).toEqual({ version: 1, presets: [saved] });
+    expect(readPresets(storedPresets([good]))).toEqual([good]);
+  });
+
+  it("does not read the in-memory key as a stored one", () => {
+    expect(readPresets({ version: 1, presets: [{ ...goodFields, fleets: goodFleets }] })).toEqual([]);
   });
 
   it("keeps at most 50 presets and trims names", () => {
-    const many = Array.from({ length: MAX_PRESETS + 5 }, (_, i) => ({ ...good, id: String(i), name: ` n${i} ` }));
+    const many = Array.from({ length: MAX_PRESETS + 5 }, (_, i) => ({ ...saved, id: String(i), name: ` n${i} ` }));
     const read = readPresets({ version: 1, presets: many });
     expect(read).toHaveLength(MAX_PRESETS);
     expect(read[0].name).toBe("n0");
@@ -81,7 +95,7 @@ describe("readPresets", () => {
 });
 
 describe("names and the list", () => {
-  const preset = (name: string, id = name): TeamPreset => ({ id, name, savedAt: 1, groups: [{ name: "G", role: "docs", agents: ["claude"], x: 0, y: 0 }], orchestrators: [] });
+  const preset = (name: string, id = name): TeamPreset => ({ id, name, savedAt: 1, groups: [{ name: "G", role: "docs", agents: ["claude"], x: 0, y: 0 }], fleets: [] });
 
   it("trims a name, refuses an empty one and cuts a long one", () => {
     expect(presetNameOf("  Dev   HQ ")).toBe("Dev HQ");

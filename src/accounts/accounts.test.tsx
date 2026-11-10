@@ -10,7 +10,7 @@ import { AccountsDialog } from "./AccountsDialog";
 import { accountsStore, loadAccounts } from "./store";
 
 vi.mock("@/nodes/terminal/registry", () => ({ relaunchTerminal: vi.fn(), stopTerminal: vi.fn(), terminalText: vi.fn(() => "") }));
-vi.mock("@/fleet/quickActions", () => ({ launchLogin: vi.fn(() => Promise.resolve(true)) }));
+vi.mock("@/agents/quickActions", () => ({ launchLogin: vi.fn(() => Promise.resolve(true)) }));
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -82,7 +82,7 @@ it("lists the profiles and uses, logs in and removes them (spec comptes §6), ",
   await act(async () => button("Use").click());
   await vi.waitFor(() => expect(calls.some((c) => c.cmd === "account_use" && c.args.id === "p1")).toBe(true));
   await act(async () => button("Log in").click());
-  const { launchLogin } = await import("@/fleet/quickActions");
+  const { launchLogin } = await import("@/agents/quickActions");
   expect(launchLogin).toHaveBeenCalledWith("p1");
   expect(button("Remove")).toBeTruthy();
   await act(async () => button("Remove").click());

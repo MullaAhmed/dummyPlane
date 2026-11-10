@@ -74,10 +74,10 @@ function GoToLineField() {
             }
           }}
           placeholder={t.goToLinePlaceholder}
-          // The window is the field's frame, as in the palette: no border of its own, its ring inside.
-          className="h-10 rounded-none border-0 px-4 text-sm focus-visible:ring-inset aria-invalid:ring-inset md:text-sm"
+          // The window is the field's frame, as in the palette: no border of its own, its ring inside, the palette's metrics.
+          className="h-10 rounded-none border-0 px-3.5 text-(length:--text-ui) focus-visible:ring-inset aria-invalid:ring-inset"
         />
-        {invalid && <div className="border-t border-dp-line px-4 py-2 text-xs text-dp-text-2">{t.goToLineInvalid}</div>}
+        {invalid && <div className="border-t border-dp-line px-3.5 py-2 text-xs text-dp-text-2">{t.goToLineInvalid}</div>}
       </form>
     </div>
   );

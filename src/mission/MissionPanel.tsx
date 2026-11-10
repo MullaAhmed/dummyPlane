@@ -6,14 +6,14 @@ import { useStore } from "zustand";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useCanvas } from "@/canvas/canvasStore";
 import { BUDGET_COLOR } from "@/canvas/overlay/timeline";
-import { linkedAgents, NO_LINKS } from "@/fleet/wires";
+import { linkedAgents, NO_LINKS } from "@/agents/wires";
 import { messages, useMessages } from "@/i18n";
 import { useNativeKeyDown } from "@/lib/useNativeKeyDown";
 import { useNow } from "@/lib/useNow";
 import { StatusLine } from "@/nodes/foot/StatusLine";
+import { AccentButton, Hint, HintedButton } from "@/shell/buttons";
 import type { DotState } from "@/nodes/terminal/StatusDot";
 import { useActivities } from "@/store/agentActivity";
 import { terminalOf, useNodes } from "@/store/nodes";
@@ -30,7 +30,7 @@ import { LEVELS, modelLabel } from "./router";
 import { agentState, missionOf, setMission } from "./store";
 
 /** A number field of the panel: shadcn's Input at the panel's density, its figures aligned; the two share one width. */
-const NUMBER = "h-6 w-16 rounded-md px-1.5 text-xs tabular-nums md:text-xs";
+const NUMBER = "h-7 w-16 px-1.5 text-xs tabular-nums md:text-xs";
 
 /** A quiet action at the end of a line: its words end on the line's 12px edge, its padding in the line's. */
 const LINE_ACTION = "-mr-2 font-normal text-dp-text-2 hover:text-dp-text aria-pressed:bg-dp-hover aria-pressed:text-dp-text";
@@ -48,14 +48,14 @@ const MISSION_DOT: Record<MissionState, DotState> = {
   terminee: "done",
 };
 
-/** Under the orchestrator's terminal: settings, plan and go-ahead, team, summary (spec orchestrator §6, §7). */
+/** Under the fleet's terminal: settings, plan and go-ahead, team, summary (spec orchestrateur §6, §7). */
 export function MissionPanel({ nodeId }: { nodeId: string }) {
   const mission = useNodes((s) => missionOf(s.nodes[nodeId]));
   return mission ? <MissionView nodeId={nodeId} mission={mission} /> : null;
 }
 
 /**
- * The orchestrator's foot, built like an agent's (nodes/foot): a status line
+ * The fleet's foot, built like an agent's (nodes/foot): a status line
  * first, where the mission stands, then what it needs at that moment. The
  * settings fold into one line that tells their values, so the terminal above,
  * where the task is written, keeps its height.
@@ -154,7 +154,7 @@ function TeamLink({ nodeId }: { nodeId: string }) {
         type="button"
         variant="ghost"
         size="xs"
-        // Whose Link it is: the link layer passes a click on to the linker's own "Done" only (fleet/LinkMode.tsx).
+        // Whose Link it is: the link layer passes a click on to the linker's own "Done" only (agents/LinkMode.tsx).
         data-link-toggle={nodeId}
         aria-pressed={linking}
         onClick={() => uiStore.getState().setLinking(linking ? null : nodeId)}
@@ -167,7 +167,7 @@ function TeamLink({ nodeId }: { nodeId: string }) {
   );
 }
 
-/** The settings, a label per row and every control on one line, all 24px tall (28px rows, as the lines above). */
+/** The settings, a label per row and every control on one line, all 28px tall (as the lines above). */
 function SettingsGrid({ id, nodeId, mission }: { id: string; nodeId: string; mission: Mission }) {
   const t = useMessages(missionMessages);
   const budget = useId();
@@ -175,10 +175,10 @@ function SettingsGrid({ id, nodeId, mission }: { id: string; nodeId: string; mis
   const router = useId();
   return (
     <div id={id} className="grid grid-cols-[auto_1fr] items-center gap-x-4 gap-y-1 pt-1">
-      <label htmlFor={budget} title={t.globalBudgetTitle}>
-        {t.globalBudget}
-      </label>
-      <div className="flex h-6 items-center gap-2">
+      <Hint label={t.globalBudgetTitle} side="bottom">
+        <label htmlFor={budget}>{t.globalBudget}</label>
+      </Hint>
+      <div className="flex h-7 items-center gap-2">
         <Input
           id={budget}
           type="number"
@@ -192,7 +192,7 @@ function SettingsGrid({ id, nodeId, mission }: { id: string; nodeId: string; mis
         {t.min}
       </div>
       <label htmlFor={agents}>{t.maxAgents}</label>
-      <div className="flex h-6 items-center">
+      <div className="flex h-7 items-center">
         <Input
           id={agents}
           type="number"
@@ -207,10 +207,12 @@ function SettingsGrid({ id, nodeId, mission }: { id: string; nodeId: string; mis
           className={NUMBER}
         />
       </div>
-      <label htmlFor={router} title={t.routerTitle} className="cursor-pointer">
-        {t.routerLabel}
-      </label>
-      <div className="flex h-6 items-center">
+      <Hint label={t.routerTitle} side="bottom">
+        <label htmlFor={router} className="cursor-pointer">
+          {t.routerLabel}
+        </label>
+      </Hint>
+      <div className="flex h-7 items-center">
         <Checkbox
           id={router}
           aria-label={t.routerLabel}
@@ -296,9 +298,9 @@ function PlanActions({ nodeId, mission }: { nodeId: string; mission: Mission }) 
   return (
     <footer data-mission-actions className="flex shrink-0 items-center gap-2 border-t border-dp-line px-3 py-2">
       <span className="font-mono tabular-nums">{t.total(total, mission.budgetMin)}</span>
-      <Button size="sm" disabled={launching} onClick={() => void launchMission(nodeId)} className="ml-auto">
+      <AccentButton size="sm" disabled={launching} onClick={() => void launchMission(nodeId)} className="ml-auto">
         {launching ? t.launching : t.launch}
-      </Button>
+      </AccentButton>
     </footer>
   );
 }
@@ -321,10 +323,17 @@ function Team({ mission }: { mission: Mission }) {
             <span className="font-medium text-dp-text">{member.name}</span>
             <span className="min-w-0 truncate">{member.task}</span>
             {member.done && member.done.length > 0 && (
-              <span data-finished className="flex shrink-0 items-center gap-0.5 font-mono text-dp-text-3 tabular-nums" title={t.finishedBefore(member.done.join(", "))}>
-                <Check aria-hidden className="size-3.5" />
-                {member.done.length}
-              </span>
+              <Hint label={t.finishedBefore(member.done.join(", "))} side="bottom">
+                {/* A tab stop, so the hint reaches the keyboard as well. */}
+                <span
+                  data-finished
+                  tabIndex={0}
+                  className="flex shrink-0 items-center gap-0.5 rounded-sm font-mono text-dp-text-3 tabular-nums focus-visible:ring-2 focus-visible:ring-dp-accent/50 focus-visible:outline-none"
+                >
+                  <Check aria-hidden className="size-3.5" />
+                  {member.done.length}
+                </span>
+              </Hint>
             )}
             {member.model && <span className="shrink-0 font-mono text-dp-text-3">{modelLabel(member.model)}</span>}
             <span className="ml-auto shrink-0">{t.agent[agentState(member.nodeId)]}</span>
@@ -338,20 +347,17 @@ function Team({ mission }: { mission: Mission }) {
             ) : member.sentAt !== undefined ? (
               <MemberTime spent={memberTime(mission, member, now)} budget={budgetOf(member)} />
             ) : null}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  aria-label={t.reviewLabel(member.name)}
-                  onClick={() => openReview(member.nodeId)}
-                  className="h-5 shrink-0 rounded-sm px-1 font-mono font-normal text-dp-text-2 hover:bg-dp-field"
-                >
-                  {t.diff}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>{t.reviewTitle(member.name)}</TooltipContent>
-            </Tooltip>
+            {/* -my-1: its 24px box reaches into the row's padding, so the row keeps its height. */}
+            <HintedButton
+              hint={t.reviewTitle(member.name)}
+              variant="ghost"
+              size="xs"
+              aria-label={t.reviewLabel(member.name)}
+              onClick={() => openReview(member.nodeId)}
+              className="-my-1 shrink-0 px-1.5 font-mono font-normal text-dp-text-2 hover:bg-dp-field"
+            >
+              {t.diff}
+            </HintedButton>
             {member.report && (
               <span title={member.report.summary} className={cn("shrink-0", member.report.status === "termine" ? "text-dp-text" : "text-dp-danger")}>
                 {t.report[member.report.status]}

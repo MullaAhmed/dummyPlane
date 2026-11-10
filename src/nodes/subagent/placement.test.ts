@@ -2,7 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { createGroupFrame, groupInfoOf } from "@/canvas/groups";
 import { createNodeElement } from "@/canvas/nodeElement";
-import { cellAt, freeCell, NODE_GAP } from "@/fleet/groupLayout";
+import { TIMELINE_ROOM } from "@/canvas/overlay/timeline";
+import { cellAt, COLUMN_GAP, freeCell, groupGrid, ROW_GAP } from "@/agents/groupLayout";
 import { placeSubagent } from "./placement";
 import { withoutSubagents } from "./scene";
 
@@ -16,14 +17,14 @@ const overlaps = (a: ExcalidrawElement, b: ExcalidrawElement) =>
 
 describe("placeSubagent", () => {
   it("joins its terminal's group in the first free cell, the frame grown and unfolded", () => {
-    const frame = createGroupFrame({ x: 0, y: 0, width: 784, height: 520 }, "G", { role: "general", pantheon: "egyptian", folded: true }) as unknown as ExcalidrawElement;
+    const frame = createGroupFrame({ x: 0, y: 0, ...groupGrid(1) }, "G", { role: "general", pantheon: "egyptian", folded: true }) as unknown as ExcalidrawElement;
     const cell0 = cellAt(frame, 0, 0);
     const terminal = at("terminal", cell0.x, cell0.y, frame.id);
     const sub = at("subagent", 0, 0);
     const placed = placeSubagent([frame, terminal], sub, terminal.id)!;
     const node = placed.find((e) => e.id === sub.id)!;
     expect(node.frameId).toBe(frame.id);
-    // The group's own rule for a new member, whatever its order (src/fleet/groupLayout.ts).
+    // The group's own rule for a new member, whatever its order (src/agents/groupLayout.ts).
     const expected = freeCell(frame, [terminal]);
     expect({ x: node.x, y: node.y }).toEqual({ x: expected.cell.x, y: expected.cell.y });
     expect(overlaps(node, terminal)).toBe(false);
@@ -35,17 +36,19 @@ describe("placeSubagent", () => {
     expect(placed.map((e) => e.id)).toEqual([sub.id, frame.id, terminal.id]);
   });
 
-  it("goes just below a terminal without a group", () => {
+  it("goes ROW_GAP below a terminal without a group, its frieze of steps in between", () => {
     const terminal = at("terminal", 100, 50);
     const sub = at("subagent", 0, 0);
     const node = placeSubagent([terminal], sub, terminal.id)!.find((e) => e.id === sub.id)!;
-    expect({ x: node.x, y: node.y }).toEqual({ x: 100, y: 50 + terminal.height + NODE_GAP });
+    expect({ x: node.x, y: node.y }).toEqual({ x: 100, y: 50 + terminal.height + ROW_GAP });
+    // Clear of the anchor's frieze of steps, with air.
+    expect(node.y - (50 + terminal.height + TIMELINE_ROOM)).toBeGreaterThanOrEqual(COLUMN_GAP);
     expect(node.frameId).toBeNull();
   });
 
   it("moves clear of a node already below its terminal: a second subagent never covers the first", () => {
     const terminal = at("terminal", 0, 0);
-    const first = at("subagent", 0, terminal.height + NODE_GAP);
+    const first = at("subagent", 0, terminal.height + ROW_GAP);
     const second = at("subagent", 0, 0);
     const placed = placeSubagent([terminal, first], second, terminal.id)!;
     const node = placed.find((e) => e.id === second.id)!;
@@ -58,7 +61,7 @@ describe("placeSubagent", () => {
     const parent = at("subagent", 900, 0);
     const child = at("subagent", 0, 0);
     const node = placeSubagent([terminal, parent], child, parent.id)!.find((e) => e.id === child.id)!;
-    expect({ x: node.x, y: node.y }).toEqual({ x: 900, y: parent.height + NODE_GAP });
+    expect({ x: node.x, y: node.y }).toEqual({ x: 900, y: parent.height + ROW_GAP });
   });
 
   it("places nothing beside an anchor that is not on the scene", () => {

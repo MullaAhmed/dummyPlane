@@ -33,8 +33,39 @@ export function Hint({ label, side = "top", expanded = false, children }: { labe
   );
 }
 
+/** Whether the button's own menu or popover is open: its `aria-expanded`, which keeps the hint shut. */
+const isExpanded = (props: ComponentProps<"button">) => props["aria-expanded"] === true || props["aria-expanded"] === "true";
+
 /**
- * A button of the floating rails (spec identité §5.4, §5.5): 36 × 34, the active
+ * A button's onFocus that also stops Radix opening the hint on a focus the pointer
+ * brought (a menu that closes hands it back): only the keyboard's shows it.
+ */
+const keyboardOnlyHint =
+  (onFocus: ComponentProps<"button">["onFocus"]) =>
+  (event: FocusEvent<HTMLButtonElement>) => {
+    onFocus?.(event);
+    if (!keyboardFocus(event.currentTarget)) event.preventDefault();
+  };
+
+/**
+ * A Button that names itself in a hint (`hint`) on hover and on keyboard focus, shut while its
+ * own menu or popover is open. The kit's buttons and the title bar's meters are built on it.
+ */
+export function HintedButton({
+  hint,
+  hintSide = "bottom",
+  onFocus,
+  ...props
+}: ComponentProps<typeof Button> & { hint: ReactNode; hintSide?: HintSide }) {
+  return (
+    <Hint label={hint} side={hintSide} expanded={isExpanded(props)}>
+      <Button type="button" onFocus={keyboardOnlyHint(onFocus)} {...props} />
+    </Hint>
+  );
+}
+
+/**
+ * A button of the floating rails (spec identité §5.4, §5.5): 36 × 36, the active
  * one in the accent. Its name shows as a hint on the rail's open side
  * (`hintSide`); a menu it opens passes `aria-expanded`, which keeps the hint shut.
  */
@@ -46,55 +77,66 @@ export function ToolButton({
   onFocus,
   ...props
 }: ComponentProps<"button"> & Labelled & { active?: boolean; hintSide?: HintSide }) {
-  const expanded = props["aria-expanded"] === true || props["aria-expanded"] === "true";
   return (
-    <Hint label={label} side={hintSide} expanded={expanded}>
-      <Button
-        type="button"
-        variant="ghost"
-        aria-label={label}
-        aria-pressed={active}
-        onFocus={(event: FocusEvent<HTMLButtonElement>) => {
-          onFocus?.(event);
-          // Radix opens the hint on any focus unless told otherwise: only the keyboard's shows it.
-          if (!keyboardFocus(event.currentTarget)) event.preventDefault();
-        }}
-        className={cn(
-          "relative h-8.5 w-9 rounded-md px-0 text-dp-text-2 hover:text-dp-text [&_svg:not([class*='size-'])]:size-4",
-          active && "bg-dp-accent-soft text-dp-accent-ink hover:bg-dp-accent-soft hover:text-dp-accent-ink aria-expanded:bg-dp-accent-soft aria-expanded:text-dp-accent-ink",
-          className,
-        )}
-        {...props}
-      />
-    </Hint>
-  );
-}
-
-/**
- * A small icon button of panels, tabs and bars. It keeps the native `title`:
- * the panels that use it put their own hints around it.
- */
-export function IconButton({ label, className, ...props }: ComponentProps<"button"> & Labelled) {
-  return (
-    <Button
-      type="button"
+    <HintedButton
+      hint={label}
+      hintSide={hintSide}
       variant="ghost"
-      size="icon"
-      title={label}
+      size="icon-lg"
       aria-label={label}
-      className={cn("size-7 rounded-md text-dp-text-2 hover:text-dp-text [&_svg:not([class*='size-'])]:size-4", className)}
+      aria-pressed={active}
+      onFocus={onFocus}
+      className={cn(
+        "relative text-dp-text-2 hover:text-dp-text [&_svg:not([class*='size-'])]:size-4",
+        active && "bg-dp-accent-soft text-dp-accent-ink hover:bg-dp-accent-soft hover:text-dp-accent-ink aria-expanded:bg-dp-accent-soft aria-expanded:text-dp-accent-ink",
+        className,
+      )}
       {...props}
     />
   );
 }
 
-/** The main action of a screen or a popover (spec identité §4.4): the accent, brighter under the pointer. */
-export function AccentButton({ className, ...props }: ComponentProps<"button">) {
+/**
+ * A small icon button of panels, tabs and bars: 28 px. Its name shows in the same hint as
+ * the rails' (`hintSide`, below by default), never in a native `title`: the two would stack,
+ * and a bar mixing them would show two kinds of tooltip.
+ */
+export function IconButton({
+  label,
+  hintSide = "bottom",
+  className,
+  onFocus,
+  ...props
+}: ComponentProps<"button"> & Labelled & { hintSide?: HintSide }) {
+  return (
+    <HintedButton
+      hint={label}
+      hintSide={hintSide}
+      variant="ghost"
+      size="icon-sm"
+      aria-label={label}
+      onFocus={onFocus}
+      className={cn("text-dp-text-2 hover:text-dp-text [&_svg:not([class*='size-'])]:size-4", className)}
+      {...props}
+    />
+  );
+}
+
+/** The dismissing action of a dialog (Cancel, Later): ghost and a step quieter than its primary, `lg` like it. */
+export function QuietButton({ className, ...props }: ComponentProps<typeof Button>) {
+  return <Button type="button" variant="ghost" size="lg" className={cn("text-dp-text-2 hover:text-dp-text", className)} {...props} />;
+}
+
+/**
+ * The main action of a screen or a popover (spec identité §4.4): the accent, brighter under the
+ * pointer. It takes the Button's `size` (`lg` for a dialog's primary action).
+ */
+export function AccentButton({ className, ...props }: ComponentProps<typeof Button>) {
   return (
     <Button
       type="button"
       className={cn(
-        "h-8 rounded-md px-4 text-(length:--text-ui) transition-[color,background-color,transform,filter] hover:bg-dp-accent hover:brightness-110 [&_svg:not([class*='size-'])]:size-4",
+        "px-4 text-(length:--text-ui) transition-[color,background-color,scale,filter] hover:bg-dp-accent hover:brightness-110 [&_svg:not([class*='size-'])]:size-4",
         className,
       )}
       {...props}

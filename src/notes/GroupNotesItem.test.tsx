@@ -4,7 +4,7 @@ import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { requestUi } from "@/commands/uiRequests";
-import { GroupMenu } from "@/fleet/GroupMenu";
+import { GroupMenu } from "@/agents/GroupMenu";
 import { closeGroupNotes, notesStore } from "./notesStore";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));

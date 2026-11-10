@@ -8,6 +8,10 @@ import { ToggleGroupItem } from "@/components/ui/toggle-group";
  * house skin, small soft tabs with the chosen one in the accent's tint, the same in every palette.
  * A panel whose tabs head its whole body (a terminal's edit panel) takes the line look instead:
  * the labels on a hairline, the chosen one underlined in ink.
+ * Both follow the design system: hover tints with --dp-hover (the line look, which has no padding
+ * to fill, darkens its label), the chosen one keeps its tint under the pointer, nothing moves or
+ * changes size on hover, the focus ring shows on the keyboard only, and only the listed properties
+ * transition, on the motion tokens.
  */
 
 /** Radix picks a tab on mousedown, keys and focus; a bare click (assistive tech, scripts) picks it too. */
@@ -18,7 +22,7 @@ type Look = "soft" | "line";
 const LookOf = createContext<Look>("soft");
 
 const SOFT =
-  "h-6 flex-none rounded-md border-transparent px-2.5 py-0 text-xs font-normal text-dp-text-2 transition-[background-color,color] duration-150 ease-out motion-reduce:transition-none hover:bg-dp-hover hover:text-dp-text focus-visible:border-transparent focus-visible:ring-2 focus-visible:ring-dp-accent/50 focus-visible:outline-none";
+  "h-7 flex-none rounded-md border-transparent px-2.5 py-0 text-xs font-normal text-dp-text-2 transition-[background-color,color,scale] duration-(--dp-dur-fast) ease-(--dp-ease-out) motion-reduce:transition-none hover:bg-dp-hover hover:text-dp-text active:scale-[0.97] focus-visible:border-transparent focus-visible:ring-2 focus-visible:ring-dp-accent/50 focus-visible:outline-none";
 
 /**
  * As wide as its label, no side padding: the first label starts on the panel's edge, under its
@@ -26,7 +30,7 @@ const SOFT =
  * focus ring stands 2 px off the label.
  */
 const LINE =
-  "h-8 flex-none rounded-sm border-transparent px-0 py-0 text-(length:--text-ui) font-normal text-dp-text-2 transition-colors duration-(--dp-dur-fast) ease-(--dp-ease-out) motion-reduce:transition-none hover:text-dp-text focus-visible:border-transparent focus-visible:ring-2 focus-visible:ring-dp-accent/50 focus-visible:ring-offset-2 focus-visible:ring-offset-dp-surface focus-visible:outline-none dark:text-dp-text-2 dark:hover:text-dp-text data-active:bg-transparent data-active:text-dp-text dark:data-active:border-transparent dark:data-active:bg-transparent dark:data-active:text-dp-text after:bg-dp-accent after:duration-(--dp-dur-fast) after:ease-(--dp-ease-out) motion-reduce:after:transition-none group-data-horizontal/tabs:after:-bottom-px";
+  "h-8 flex-none rounded-sm border-transparent px-0 py-0 text-(length:--text-ui) font-normal text-dp-text-2 transition-[color] duration-(--dp-dur-fast) ease-(--dp-ease-out) motion-reduce:transition-none hover:text-dp-text focus-visible:border-transparent focus-visible:ring-2 focus-visible:ring-dp-accent/50 focus-visible:ring-offset-2 focus-visible:ring-offset-dp-surface focus-visible:outline-none dark:text-dp-text-2 dark:hover:text-dp-text data-active:bg-transparent data-active:text-dp-text dark:data-active:border-transparent dark:data-active:bg-transparent dark:data-active:text-dp-text after:bg-dp-accent after:duration-(--dp-dur-fast) after:ease-(--dp-ease-out) motion-reduce:after:transition-none group-data-horizontal/tabs:after:-bottom-px";
 
 export function PanelTabs({ onValueChange, className, ...props }: ComponentProps<typeof Tabs>) {
   return (
@@ -66,7 +70,7 @@ export function PanelTabsTrigger({ value, onClick, className, ...props }: Compon
       className={cn(
         look === "line" ? LINE : SOFT,
         look === "soft" &&
-          "dark:text-dp-text-2 dark:hover:text-dp-text data-active:bg-dp-accent-soft data-active:text-dp-text dark:data-active:border-transparent dark:data-active:bg-dp-accent-soft dark:data-active:text-dp-text group-data-[variant=default]/tabs-list:data-active:shadow-none",
+          "dark:text-dp-text-2 dark:hover:text-dp-text data-active:bg-dp-accent-soft data-active:hover:bg-dp-accent-soft data-active:text-dp-text dark:data-active:border-transparent dark:data-active:bg-dp-accent-soft dark:data-active:text-dp-text group-data-[variant=default]/tabs-list:data-active:shadow-none",
         className,
       )}
       {...props}

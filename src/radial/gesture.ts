@@ -1,4 +1,4 @@
-import type { Point } from "@/fleet/terminals";
+import type { Point } from "@/agents/terminals";
 
 /**
  * The wheel (spec menu radial §5.1): a round hub in the middle, then a donut of

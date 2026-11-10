@@ -8,12 +8,12 @@ import { APP } from "./catalog/app";
 import { CURRENT } from "./catalog/current";
 import { DRAWING, SCENE } from "./catalog/drawing";
 import { NAVIGATION } from "./catalog/navigation";
-import { ORCHESTRATOR } from "./catalog/orchestrator";
+import { FLEET } from "./catalog/fleet";
 import { WORKSPACES } from "./catalog/workspaces";
 import type { Command, CommandContext } from "./command";
 
 /** Every function of the application, by section in the spec's order (spec window §7.3). */
-export const COMMANDS: readonly Command[] = [...NAVIGATION, ...WORKSPACES, ...AGENT_COMMANDS, ...CURRENT, ...ORCHESTRATOR, ...DRAWING, ...SCENE, ...APP];
+export const COMMANDS: readonly Command[] = [...NAVIGATION, ...WORKSPACES, ...AGENT_COMMANDS, ...CURRENT, ...FLEET, ...DRAWING, ...SCENE, ...APP];
 
 /** The context of a command, read at this moment from the stores and the keyboard focus. */
 export function commandContext(): CommandContext {

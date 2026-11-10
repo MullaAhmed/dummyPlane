@@ -42,7 +42,7 @@ pub struct NoteList {
 #[serde(rename_all = "camelCase")]
 pub struct AgentNote {
     pub name: String,
-    /// Attached to the caller's group, or for an orchestrator to its agents' groups.
+    /// Attached to the caller's group, or for a fleet to its agents' groups.
     pub attached: bool,
 }
 

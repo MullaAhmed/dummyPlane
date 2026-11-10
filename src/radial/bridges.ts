@@ -1,7 +1,7 @@
 import { toast } from "sonner";
 import { messages } from "@/i18n";
 import { canvasStore } from "@/canvas/canvasStore";
-import type { Point } from "@/fleet/terminals";
+import type { Point } from "@/agents/terminals";
 import { radialMessages } from "./messages";
 
 /** Excalidraw's container: its keys, copy and paste act when it has the keyboard. */
@@ -63,7 +63,7 @@ export async function readClipboard(): Promise<DataTransfer | null> {
   return data;
 }
 
-/** The clipboard's text, for a terminal or an orchestrator; null, with a toast, when there is none. */
+/** The clipboard's text, for a terminal or a fleet; null, with a toast, when there is none. */
 export async function readClipboardText(): Promise<string | null> {
   const data = await readClipboard();
   return data ? clipboardTextOf(data) : null;
@@ -82,7 +82,7 @@ export async function pasteOnCanvasAt(client: Point) {
   const data = await readClipboard();
   if (!data) return;
   // Excalidraw does not paste over an active node (its body takes the pointer): say so.
-  if (document.elementFromPoint(client.x, client.y)?.closest("[data-terminal], [data-orchestrator]")) {
+  if (document.elementFromPoint(client.x, client.y)?.closest("[data-terminal], [data-fleet]")) {
     toast(messages(radialMessages).pasteBlocked);
     return;
   }

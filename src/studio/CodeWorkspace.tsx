@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ComponentProps, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ComponentProps } from "react";
 import { ChevronDown, ChevronRight, Code2, Eye, File, Folder, FolderTree, PanelTopOpen, RotateCw, Save, X } from "lucide-react";
 import { useStore } from "zustand";
 import { useTheme } from "@/app/theme";
@@ -7,8 +7,7 @@ import { studioTree, type TreeEntry } from "@/ipc/studio";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { AccentButton, IconButton, ToolButton } from "@/shell/buttons";
+import { AccentButton, Hint, HintedButton, IconButton, QuietButton, ToolButton } from "@/shell/buttons";
 import { TOP_ROW_HEIGHT } from "@/shell/layout";
 import { useProjects } from "@/store/projects";
 import { CodeEditor } from "./CodeEditor";
@@ -16,7 +15,7 @@ import { insertFileNode } from "./insert";
 import { isDirty as sessionIsDirty } from "./fileSession";
 import { isMarkdown, renderMarkdown } from "./markdown";
 import { studioMessages } from "./messages";
-import { DiskBanner, errorText } from "./parts";
+import { BAR_FIELD, DiskBanner, errorText, ListMessage, Message } from "./parts";
 import { useDiskWatch, useSaveKey } from "./sessionEffects";
 import { closeStudio, closeTab, editFile, isDirty, openFile, openStudio, saveFile, useStudio, type StudioTab } from "./studioStore";
 import { ancestors, baseName, buildTree, toggle, visibleRows } from "./tree";
@@ -115,13 +114,13 @@ function FileTree({ project, active, expanded, setExpanded, onOpen }: FileTreePr
 
   return (
     <aside data-files className="dp-glass-strong flex w-70 shrink-0 flex-col overflow-hidden rounded-xl">
-      <div className="flex h-10 shrink-0 items-center gap-1 border-b border-dp-line px-2">
+      <div className="flex h-10 shrink-0 items-center gap-2 border-b border-dp-line px-3">
         <Input
           aria-label={t.filterLabel}
           placeholder={t.filterPlaceholder}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          className="h-7 min-w-0 flex-1 rounded-md px-2 text-xs md:text-xs"
+          className={cn(BAR_FIELD, "flex-1")}
         />
         <IconButton label={t.refresh} onClick={() => setRefresh((n) => n + 1)}>
           <RotateCw />
@@ -129,11 +128,11 @@ function FileTree({ project, active, expanded, setExpanded, onOpen }: FileTreePr
       </div>
       <div role="tree" aria-label={t.filterLabel} className="min-h-0 flex-1 overflow-auto py-1">
         {error !== null ? (
-          <Message>{t.treeFailed(error)}</Message>
+          <ListMessage>{t.treeFailed(error)}</ListMessage>
         ) : entries === null ? (
-          <Message>{t.readingTree}</Message>
+          <ListMessage>{t.readingTree}</ListMessage>
         ) : rows.length === 0 ? (
-          <Message>{query.trim() ? t.noMatch : t.empty}</Message>
+          <ListMessage>{query.trim() ? t.noMatch : t.empty}</ListMessage>
         ) : (
           rows.slice(0, MAX_ROWS).map(({ node, depth, expanded: isOpen }) => (
             // A tree row, not a control: role="treeitem", and up to 2000 of them, kept to the bare element.
@@ -147,7 +146,7 @@ function FileTree({ project, active, expanded, setExpanded, onOpen }: FileTreePr
               title={node.path}
               onClick={() => (node.kind === "dir" ? setExpanded(toggle(expanded, node.path)) : onOpen(node.path))}
               className={cn(
-                "flex h-7 w-full items-center gap-1 pr-2 text-left text-sm text-dp-text-2 transition-colors duration-150 ease-out hover:bg-dp-hover hover:text-dp-text focus-visible:ring-2 focus-visible:ring-dp-accent/50 focus-visible:outline-none focus-visible:ring-inset motion-reduce:transition-none [&_svg]:size-4 [&_svg]:shrink-0",
+                "flex h-7 w-full items-center gap-1 pr-2 text-left text-sm text-dp-text-2 transition-colors duration-(--dp-dur-fast) ease-(--dp-ease-out) hover:bg-dp-hover hover:text-dp-text focus-visible:ring-2 focus-visible:ring-dp-accent/50 focus-visible:outline-none focus-visible:ring-inset motion-reduce:transition-none [&_svg]:size-4 [&_svg]:shrink-0",
                 node.path === active && "bg-dp-accent-soft text-dp-text hover:bg-dp-accent-soft",
               )}
               style={{ paddingLeft: 8 + depth * 12 }}
@@ -192,13 +191,13 @@ function Tabs({ tabs, active }: { tabs: StudioTab[]; active: string | null }) {
       {pending && (
         <div role="alert" className="flex shrink-0 flex-wrap items-center gap-2 border-b border-dp-line bg-dp-surface px-3 py-2 text-sm">
           <span className="mr-auto">{t.discardTitle(baseName(pending.path))}</span>
-          <Button variant="ghost" size="sm" className="text-xs text-dp-text-2" onClick={() => setConfirming(null)}>
+          {/* The dialogs' footer in a bar: dismiss, destructive, primary; `sm` like the bar's other controls. */}
+          <QuietButton size="sm" onClick={() => setConfirming(null)}>
             {t.cancel}
-          </Button>
+          </QuietButton>
           <Button
             variant="destructive"
             size="sm"
-            className="text-xs"
             onClick={() => {
               setConfirming(null);
               closeTab(pending.path);
@@ -207,7 +206,7 @@ function Tabs({ tabs, active }: { tabs: StudioTab[]; active: string | null }) {
             {t.discard}
           </Button>
           <AccentButton
-            className="h-7 px-3 text-xs"
+            size="sm"
             onClick={async () => {
               setConfirming(null);
               if (await saveFile(pending.path)) closeTab(pending.path);
@@ -235,16 +234,17 @@ function TabItem({ tab, active, onClose }: { tab: StudioTab; active: boolean; on
   return (
     <div
       data-tab={tab.path}
-      title={tab.path}
       onAuxClick={(e) => e.button === 1 && onClose()}
       className={cn(
-        "flex h-8 shrink-0 items-center rounded-t-md text-dp-text-2 transition-colors duration-150 ease-out hover:bg-dp-hover hover:text-dp-text motion-reduce:transition-none",
+        "flex h-8 shrink-0 items-center rounded-t-md text-dp-text-2 transition-colors duration-(--dp-dur-fast) ease-(--dp-ease-out) hover:bg-dp-hover hover:text-dp-text motion-reduce:transition-none",
         active && "bg-dp-tab-on text-dp-text hover:bg-dp-tab-on",
       )}
     >
+      {/* The path is on the name, not on the tab: a native title on the tab would stack under the close hint. */}
       <Button
         variant="ghost"
         role="tab"
+        title={tab.path}
         aria-selected={active}
         onClick={() => void openFile(tab.path)}
         className="h-full gap-2 rounded-none rounded-tl-md bg-transparent pr-1 pl-3 text-sm font-normal text-current hover:bg-transparent hover:text-current focus-visible:ring-inset active:scale-100"
@@ -252,9 +252,10 @@ function TabItem({ tab, active, onClose }: { tab: StudioTab; active: boolean; on
         <span className="max-w-48 truncate">{name}</span>
         {dirty && <span data-dirty aria-label={t.modified} title={t.modified} className="size-2 shrink-0 rounded-full bg-dp-accent" />}
       </Button>
-      <Button variant="ghost" size="icon-xs" aria-label={t.closeTab(name)} title={t.closeTab(name)} onClick={onClose} className="mr-1 text-dp-text-3 hover:text-dp-text">
+      {/* IconButton is 28 px: a tab is 32, so this one is the kit's `icon-xs` made from the same HintedButton. */}
+      <HintedButton hint={t.closeTab(name)} variant="ghost" size="icon-xs" aria-label={t.closeTab(name)} onClick={onClose} className="mr-1 text-dp-text-3 hover:text-dp-text">
         <X />
-      </Button>
+      </HintedButton>
     </div>
   );
 }
@@ -287,19 +288,18 @@ function FilePane({ tab }: { tab: StudioTab }) {
               {previewing ? <Code2 /> : <Eye />}
             </ToolbarButton>
           )}
-          {/* Where it goes is not in the word: the tooltip says it. */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <ToolbarButton label={t.insert} onClick={() => void insertFileNode(tab.path)}>
-                <PanelTopOpen />
-              </ToolbarButton>
-            </TooltipTrigger>
-            <TooltipContent>{t.insertTitle}</TooltipContent>
-          </Tooltip>
-          <AccentButton className="h-7 px-3 text-xs" disabled={!dirty || saving} title={t.save} onClick={() => void saveFile(tab.path)}>
-            <Save />
-            {saving ? t.saving : t.save.replace(/ \(.*\)$/, "")}
-          </AccentButton>
+          {/* Where it goes is not in the word: the hint says it. */}
+          <Hint label={t.insertTitle} side="bottom">
+            <ToolbarButton label={t.insert} onClick={() => void insertFileNode(tab.path)}>
+              <PanelTopOpen />
+            </ToolbarButton>
+          </Hint>
+          <Hint label={t.save} side="bottom">
+            <AccentButton size="sm" disabled={!dirty || saving} onClick={() => void saveFile(tab.path)}>
+              <Save />
+              {saving ? t.saving : t.saveLabel}
+            </AccentButton>
+          </Hint>
         </span>
       </div>
       <div className="min-h-0 flex-1 overflow-hidden">
@@ -329,7 +329,7 @@ function ToolbarButton({ label, active, className, children, ...props }: Compone
       variant="ghost"
       size="sm"
       aria-pressed={active}
-      className={cn("text-xs font-normal text-dp-text-2", active && "bg-dp-accent-soft text-dp-text hover:bg-dp-accent-soft", className)}
+      className={cn("text-dp-text-2", active && "bg-dp-accent-soft text-dp-text hover:bg-dp-accent-soft", className)}
       {...props}
     >
       {children}
@@ -338,6 +338,3 @@ function ToolbarButton({ label, active, className, children, ...props }: Compone
   );
 }
 
-function Message({ children }: { children: ReactNode }) {
-  return <p className="px-4 py-6 text-center text-xs text-dp-text-2">{children}</p>;
-}

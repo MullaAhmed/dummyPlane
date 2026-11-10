@@ -3,7 +3,7 @@ import { cn } from "@/lib/utils";
 import { StatusDot, type DotState } from "../terminal/StatusDot";
 
 /**
- * The first line of a node's foot, an agent's or an orchestrator's mission:
+ * The first line of a node's foot, an agent's or a Fleet's mission:
  * the status dot, where it stands in a word, then quiet facts ("4 min",
  * "from Atlas"), then what sits at the end of the line (one quiet action, or
  * meta). One text run, so a narrow node cuts the facts before the state.

@@ -13,17 +13,17 @@ afterEach(() => {
 
 const pulses = () => wireActivityStore.getState().pulses;
 
-it("records each agent's latest message, its direction and, when known, its orchestrator", () => {
+it("records each agent's latest message, its direction and, when known, its fleet", () => {
   signalWire("isis", "toAgent", "chef");
-  signalWire("thoth", "toOrchestrator");
+  signalWire("thoth", "toFleet");
   expect(pulses()).toEqual({
-    isis: { direction: "toAgent", at: 10_000, orchestratorId: "chef" },
-    thoth: { direction: "toOrchestrator", at: 10_000 },
+    isis: { direction: "toAgent", at: 10_000, fleetId: "chef" },
+    thoth: { direction: "toFleet", at: 10_000 },
   });
   vi.setSystemTime(10_400);
   // A newer message replaces the older one: its direction wins and its animation starts again.
-  signalWire("isis", "toOrchestrator", "chef");
-  expect(pulses().isis).toEqual({ direction: "toOrchestrator", at: 10_400, orchestratorId: "chef" });
+  signalWire("isis", "toFleet", "chef");
+  expect(pulses().isis).toEqual({ direction: "toFleet", at: 10_400, fleetId: "chef" });
 });
 
 it("drops a pulse once it has faded, with one timer and none while the wires are quiet", () => {

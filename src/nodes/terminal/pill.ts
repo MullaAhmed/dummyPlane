@@ -3,14 +3,27 @@ import type { AgentId } from "@/ipc/pty";
 import type { TerminalStatus } from "@/store/terminalStatus";
 import { messages } from "@/i18n";
 import { nodesMessages } from "@/nodes/messages";
+import type { TerminalReportStatus } from "@/nodes/types";
 
 export type PillTone = "live" | "ready" | "working" | "workingIndigo" | "waiting" | "stopped" | "done" | "failed";
 
+/** A report reads like a status: done rests (ok), blocked waits for the user, failed is an error. */
+const REPORT_TONES: Record<TerminalReportStatus, PillTone> = { done: "done", blocked: "waiting", failed: "failed" };
+
+export interface Pill {
+  label: string;
+  tone: PillTone;
+  /** Set when the pill tells what the agent's last report said (it is not at work). */
+  report?: TerminalReportStatus;
+}
+
 /**
  * The status pill of a terminal header (spec habillage §7.2): the process
- * state, and for a running process its activity.
+ * state, and for a running process its activity. A running agent that is not at
+ * work and whose last `report` stands has finished: done, blocked or failed
+ * rather than Ready. As soon as it works again it is Working.
  */
-export function pillOf(status: TerminalStatus, activity?: Activity, indigo = false): { label: string; tone: PillTone } {
+export function pillOf(status: TerminalStatus, activity?: Activity, indigo = false, report?: TerminalReportStatus): Pill {
   const t = messages(nodesMessages).pill;
   switch (status.state) {
     case "starting":
@@ -18,6 +31,7 @@ export function pillOf(status: TerminalStatus, activity?: Activity, indigo = fal
     case "running":
       if (activity === "working") return { label: t.working, tone: indigo ? "workingIndigo" : "working" };
       if (activity === "waiting") return { label: t.waiting, tone: "waiting" };
+      if (report) return { label: t[report], tone: REPORT_TONES[report], report };
       if (activity === "idle") return { label: t.ready, tone: "ready" };
       return { label: t.active, tone: "live" };
     case "stopped":
@@ -28,14 +42,14 @@ export function pillOf(status: TerminalStatus, activity?: Activity, indigo = fal
         tone: status.code === null || status.code === 0 ? "done" : "failed",
       };
     case "error":
-      return { label: t.error, tone: "failed" };
+      return { label: status.kind === "toolsUnavailable" ? t.toolsUnavailable : t.error, tone: "failed" };
   }
 }
 
 /** What the card over a stopped terminal offers (spec habillage §7.3). */
 export function resumeOfferOf(status: TerminalStatus, agent: AgentId, hasSession: boolean): "resume" | "relaunch" | null {
   if (status.state === "running" || status.state === "starting") return null;
-  // A refused orchestrator's node says why and offers its own retry.
+  // A refused fleet's node says why and offers its own retry.
   if (status.state === "error" && status.kind === "toolsUnavailable") return null;
   return agent === "claude" && hasSession ? "resume" : "relaunch";
 }

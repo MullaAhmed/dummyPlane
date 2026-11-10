@@ -27,7 +27,7 @@ async function deploy(preset: TeamPreset) {
   const t = text().toast;
   toast(t.deployed(preset.name, result));
   if (result.substituted > 0) toast.warning(t.substituted(result.substituted));
-  if (result.orchestratorsSkipped > 0) toast.warning(t.orchestratorsSkipped(result.orchestratorsSkipped));
+  if (result.fleetsSkipped > 0) toast.warning(t.fleetsSkipped(result.fleetsSkipped));
 }
 
 /**

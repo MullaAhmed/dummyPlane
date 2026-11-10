@@ -1,7 +1,7 @@
 import { createStore, useStore } from "zustand";
 
-/** Which way a message goes along a wire: from the orchestrator to an agent, or back. */
-export type WireDirection = "toAgent" | "toOrchestrator";
+/** Which way a message goes along a wire: from the fleet to an agent, or back. */
+export type WireDirection = "toAgent" | "toFleet";
 
 /** How long a wire shows a message passing, its fade included. */
 export const WIRE_PULSE_MS = 1500;
@@ -10,8 +10,8 @@ export const WIRE_PULSE_MS = 1500;
 export interface WirePulse {
   direction: WireDirection;
   at: number;
-  /** The orchestrator at the other end when it is known; else every wire reaching the agent lights. */
-  orchestratorId?: string;
+  /** The fleet at the other end when it is known; else every wire reaching the agent lights. */
+  fleetId?: string;
 }
 
 interface WireActivityState {
@@ -40,9 +40,9 @@ function scheduleSweep() {
   }, Math.max(0, next - Date.now()));
 }
 
-/** A message passed between `agentId` and an orchestrator: the wire between them shows it for a moment. */
-export function signalWire(agentId: string, direction: WireDirection, orchestratorId?: string, now = Date.now()) {
-  const pulse: WirePulse = orchestratorId ? { direction, at: now, orchestratorId } : { direction, at: now };
+/** A message passed between `agentId` and a fleet: the wire between them shows it for a moment. */
+export function signalWire(agentId: string, direction: WireDirection, fleetId?: string, now = Date.now()) {
+  const pulse: WirePulse = fleetId ? { direction, at: now, fleetId } : { direction, at: now };
   wireActivityStore.setState((s) => ({ pulses: { ...s.pulses, [agentId]: pulse } }));
   scheduleSweep();
 }

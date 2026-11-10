@@ -47,4 +47,8 @@ export const studioMessages = defineMessages({
   goToLine: "Go to line",
   goToLinePlaceholder: "Line or line:column",
   goToLineInvalid: "A line number, e.g. 42 or 42:7",
+  // The label beside the Save icon: `save` above is the hint, with the shortcut.
+  saveLabel: "Save",
+  // What the Markdown preview shows for an image without alt text.
+  markdownImage: "image",
 });

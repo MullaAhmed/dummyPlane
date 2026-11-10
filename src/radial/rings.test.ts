@@ -6,8 +6,8 @@ import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { canvasStore } from "@/canvas/canvasStore";
 import type { CommandContext } from "@/commands/command";
 import { COMMANDS } from "@/commands/registry";
-import { agentsStore } from "@/fleet/agentsStore";
-import { AGENTS } from "@/fleet/catalog";
+import { agentsStore } from "@/agents/agentsStore";
+import { AGENTS } from "@/agents/catalog";
 import { agentActivityStore } from "@/store/agentActivity";
 import { nodesStore } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
@@ -19,7 +19,7 @@ vi.mock("@/nodes/terminal/registry", async (importOriginal) => ({
   terminalSelection: vi.fn(() => ""),
 }));
 
-const ctx: CommandContext = { project: true, workspaceId: "w1", terminalCount: 1, terminalId: "isis", at: { x: 0, y: 0 }, groupId: "g1", orchestratorId: "chef" };
+const ctx: CommandContext = { project: true, workspaceId: "w1", terminalCount: 1, terminalId: "isis", at: { x: 0, y: 0 }, groupId: "g1", fleetId: "chef" };
 const labels = (kind: keyof typeof RINGS) => RINGS[kind].map((slot) => lineOf(slot, ctx)!.label);
 
 beforeAll(async () => {
@@ -29,7 +29,7 @@ beforeAll(async () => {
     kind: "terminal",
     payload: { title: "Isis", name: "Isis", agent: "claude", cwd: "C:/code", shell: "default", command: "" },
   });
-  await nodesStore.getState().create("chef", { workspaceId: "w1", kind: "orchestrator", payload: { name: "chef" } });
+  await nodesStore.getState().create("chef", { workspaceId: "w1", kind: "fleet", payload: { name: "chef" } });
   canvasStore.setState({ frames: [{ id: "g1", name: "Serveurs", x: 0, y: 0, width: 10, height: 10, group: { role: "backend", pantheon: "egypt" }, memberIds: ["isis"] }] });
   agentsStore.setState({ agents: [{ id: "claude", available: true }] } as never);
 });
@@ -46,10 +46,10 @@ describe("the rings (spec menu radial §4)", () => {
   });
 
   it("names each ring's positions as the spec does, clockwise from the top", () => {
-    expect(labels("canvas")).toEqual(["Launch Claude", "Launch Shell", "Fleet", "Paste", "Text", "Other agent…", "Overview"]);
+    expect(labels("canvas")).toEqual(["Launch Claude", "Launch Shell", "New terminal in folder…", "Fleet", "Paste", "Text", "Other agent…", "Overview"]);
     expect(labels("terminal")).toEqual(["Copy", "Paste", "Rename", "Restart", "Close", "Duplicate", "Pause", "Stop the process"]);
     expect(labels("group")).toEqual(["Add an agent…", "Rename the group", "Link a fleet", "Pause group", "Close the group", "Ungroup", "Resume group", "Zoom to group"]);
-    expect(labels("orchestrator")).toEqual(["Write an instruction", "Rename", "Delete", "Link", "Paste"]);
+    expect(labels("fleet")).toEqual(["Write an instruction", "Rename", "Delete", "Link", "Paste"]);
     expect(labels("selection")).toEqual(["Copy", "Paste", "Duplicate", "Bring to front", "Delete", "Send to back", "Lock", "More…"]);
   });
 
@@ -73,10 +73,10 @@ describe("the wedges' short names", () => {
   const shorts = (kind: keyof typeof RINGS) => RINGS[kind].map((slot) => lineOf(slot, ctx)!.short);
 
   it("names each wedge in a word or two, clockwise from the top", () => {
-    expect(shorts("canvas")).toEqual(["Claude", "Shell", "Fleet", "Paste", "Text", "Other agent", "Overview"]);
+    expect(shorts("canvas")).toEqual(["Claude", "Shell", "In folder", "Fleet", "Paste", "Text", "Other agent", "Overview"]);
     expect(shorts("terminal")).toEqual(["Copy", "Paste", "Rename", "Restart", "Close", "Duplicate", "Pause", "Stop"]);
     expect(shorts("group")).toEqual(["Add agent", "Rename", "Link fleet", "Pause", "Close", "Ungroup", "Resume", "Zoom"]);
-    expect(shorts("orchestrator")).toEqual(["Write", "Rename", "Delete", "Link", "Paste"]);
+    expect(shorts("fleet")).toEqual(["Write", "Rename", "Delete", "Link", "Paste"]);
     expect(shorts("selection")).toEqual(["Copy", "Paste", "Duplicate", "To front", "Delete", "To back", "Lock", "More"]);
   });
 
@@ -165,5 +165,15 @@ describe("the canvas ring when the default agent is the Shell (plan G1)", () => 
     expect(canvas()[1]).not.toBe("Launch Shell");
     agentsStore.setState({ agents: [{ id: "claude", available: true }] } as never);
     expect(canvas()[1]).toBe("Launch Shell");
+  });
+});
+
+describe("the canvas ring's « In folder » (plan folders)", () => {
+  it("starts a terminal in a folder to pick, after the two agents and within the 8 places", () => {
+    const place = RINGS.canvas.findIndex((slot) => slot.command === "agent.inFolder");
+    expect(place).toBe(2);
+    const line = lineOf(RINGS.canvas[place]!, ctx)!;
+    expect([line.label, line.short, line.enabled]).toEqual(["New terminal in folder…", "In folder", true]);
+    expect(RINGS.canvas.length).toBeLessThanOrEqual(8);
   });
 });

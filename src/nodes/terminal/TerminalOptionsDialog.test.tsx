@@ -3,6 +3,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
+import { toast } from "sonner";
 import type { TerminalPayload } from "@/nodes/types";
 import { nodesStore, terminalOf } from "@/store/nodes";
 import { TerminalOptionsDialog } from "./TerminalOptionsDialog";
@@ -94,4 +95,98 @@ it("changes nothing on Cancel", async () => {
   await act(async () => cancel.click());
   expect(stored().command).toBe("npm run dev");
   expect(onClose).toHaveBeenCalled();
+});
+
+it("starts a new conversation for a Claude terminal moved to another folder, as the edit panel does", async () => {
+  await openFor(terminal({ claudeSessionId: "old-conversation", model: "claude-haiku-5-5" }));
+  await type(field("Folder")!, "D:/other");
+  await apply();
+  expect(stored().cwd).toBe("D:/other");
+  expect(stored().claudeSessionId).toMatch(/^[0-9a-f-]{36}$/);
+  expect(stored().claudeSessionId).not.toBe("old-conversation");
+  // Only the folder and its conversation move: the model stays.
+  expect(stored().model).toBe("claude-haiku-5-5");
+});
+
+it("keeps the conversation when the folder is only written another way", async () => {
+  await openFor(terminal({ claudeSessionId: "old-conversation" }));
+  await type(field("Folder")!, "c:\\CODE\\");
+  await apply();
+  expect(stored().cwd).toBe("C:/code");
+  expect(stored().claudeSessionId).toBe("old-conversation");
+});
+
+it("moves another agent by its folder alone, and an empty folder changes nothing", async () => {
+  await openFor(terminal({ agent: "codex" }));
+  await type(field("Folder")!, "D:/other");
+  await apply();
+  expect(stored().cwd).toBe("D:/other");
+  expect("claudeSessionId" in stored()).toBe(false);
+  nodesStore.setState({ nodes: { isis: { workspaceId: "w1", kind: "terminal", payload: terminal() } } });
+  await act(async () => root.unmount());
+  await openFor(terminal());
+  await type(field("Folder")!, "   ");
+  await apply();
+  expect(stored().cwd).toBe("C:/code");
+});
+
+/** A Fleet whose running mission has put the terminal "isis" in its own worktree. */
+const missionOf = (worktree: string) => ({
+  workspaceId: "w1",
+  kind: "fleet" as const,
+  payload: {
+    name: "Fleet",
+    mission: {
+      state: "en_cours" as const,
+      maxAgents: 3,
+      members: [{ nodeId: "isis", name: "Isis", task: "", budgetMin: 10, linked: false, branch: "m/isis", worktree }],
+    },
+  },
+});
+const WORKTREE_REASON = "Fixed while its mission runs: this agent works in its own worktree";
+const browse = () => document.body.querySelector('[aria-label="Browse"]');
+const hintOf = (input: HTMLInputElement) => document.getElementById(input.getAttribute("aria-describedby") ?? "")?.textContent;
+
+it("shows the folder of a mission's agent read-only, with the reason and no Browse, and applies the shell and title as usual", async () => {
+  const payload = terminal({ cwd: "D:/wt/isis", claudeSessionId: "old-conversation" });
+  nodesStore.setState({ nodes: { fleet: missionOf("D:/wt/isis"), isis: { workspaceId: "w1", kind: "terminal", payload } } });
+  const host = document.createElement("div");
+  document.body.append(host);
+  root = createRoot(host);
+  await act(async () => root.render(<TerminalOptionsDialog nodeId="isis" payload={payload} onClose={onClose} />));
+  const folder = field("Folder")!;
+  expect(folder.value).toBe("D:/wt/isis");
+  expect(folder.readOnly).toBe(true);
+  expect(hintOf(folder)).toBe(WORKTREE_REASON);
+  expect(browse()).toBeNull();
+  // Nothing typed into it counts: the field keeps showing the worktree, and the apply leaves it, without a word.
+  const info = vi.spyOn(toast, "info");
+  await type(folder, "D:/elsewhere");
+  expect(folder.value).toBe("D:/wt/isis");
+  await type(field("Title")!, "Review");
+  await apply();
+  expect(stored()).toMatchObject({ cwd: "D:/wt/isis", claudeSessionId: "old-conversation", title: "Review" });
+  expect(info).not.toHaveBeenCalled();
+  expect(onClose).toHaveBeenCalled();
+});
+
+it("lets a free terminal's folder be edited and browsed, and locks it as soon as a mission takes the terminal", async () => {
+  await openFor(terminal());
+  const folder = field("Folder")!;
+  expect(folder.readOnly).toBe(false);
+  expect(folder.hasAttribute("aria-describedby")).toBe(false);
+  expect(browse()).not.toBeNull();
+  // A mission starting while the dialog is open: the folder follows the lock, as the edit panel's does.
+  await act(async () => nodesStore.setState({ nodes: { ...nodesStore.getState().nodes, fleet: missionOf("C:/code") } }));
+  expect(field("Folder")!.readOnly).toBe(true);
+  expect(hintOf(field("Folder")!)).toBe(WORKTREE_REASON);
+  expect(browse()).toBeNull();
+});
+
+it("tells a Claude terminal moved to another folder that it starts a new conversation", async () => {
+  await openFor(terminal());
+  const info = vi.spyOn(toast, "info");
+  await type(field("Folder")!, "D:/other");
+  await apply();
+  expect(info).toHaveBeenCalledWith("New folder, new conversation: Claude keeps each conversation with its folder");
 });

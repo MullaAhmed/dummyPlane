@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useMessages } from "@/i18n";
 import { repoCommit, repoDiscard, repoPush, repoState, type RepoState } from "@/ipc/repo";
 import type { ChangedFile } from "@/ipc/review";
@@ -14,9 +13,9 @@ import { cn } from "@/lib/utils";
 import { FILE_STATUS } from "@/review/DiffRow";
 import { reviewMessages } from "@/review/messages";
 import { useReview } from "@/review/reviewStore";
-import { AccentButton, IconButton } from "@/shell/buttons";
+import { AccentButton, Hint, IconButton, QuietButton } from "@/shell/buttons";
 import { BOTTOM_BAR_HEIGHT, TOP_ROW_HEIGHT } from "@/shell/layout";
-import { useProjects } from "@/store/projects";
+import { useActiveFolder } from "@/store/workspaceFolder";
 import { GitDiff, GitMessage } from "./GitDiff";
 import { gitWindowStore, useGitWindow } from "./gitWindowStore";
 import { HistoryTab } from "./HistoryTab";
@@ -34,12 +33,13 @@ const MIXED =
 /** The project's changes, commit, history and push, opened from the branch chip (spec fenêtre git). */
 export function GitWindow() {
   const path = useGitWindow((s) => s.path);
-  const projectPath = useProjects((s) => s.projects.find((p) => p.id === s.activeId)?.path);
+  // The window follows the active workspace's folder: it closes when another one comes up.
+  const folder = useActiveFolder().folder;
   const reviewing = useReview((s) => s.nodeId);
 
   useEffect(() => {
-    if (reviewing || projectPath !== gitWindowStore.getState().path) gitWindowStore.getState().close();
-  }, [reviewing, projectPath]);
+    if (reviewing || folder !== gitWindowStore.getState().path) gitWindowStore.getState().close();
+  }, [reviewing, folder]);
 
   return path ? <GitDrawer key={path} path={path} /> : null;
 }
@@ -169,21 +169,18 @@ function PushButton({ repo, pushing, onPush }: { repo: RepoState; pushing: boole
   const label = !target ? t.label : repo.ahead > 0 ? t.count(repo.ahead, target) : repo.upstream === null ? t.to(target) : t.label;
   const why = repo.noPush ? t[repo.noPush] : ready ? undefined : t.upToDate;
   const button = (
-    <AccentButton disabled={!ready || pushing} title={why} onClick={onPush} className="h-7 max-w-64 truncate px-3 text-xs">
+    <AccentButton size="sm" disabled={!ready || pushing} onClick={onPush} className="max-w-64 truncate">
       {pushing ? t.pushing : label}
     </AccentButton>
   );
   if (!why) return button;
   // A disabled button takes no pointer and no focus: the span around it tells why, on hover and on Tab.
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span tabIndex={0} className="rounded-md focus-visible:ring-2 focus-visible:ring-dp-accent/50 focus-visible:outline-none">
-          {button}
-        </span>
-      </TooltipTrigger>
-      <TooltipContent>{why}</TooltipContent>
-    </Tooltip>
+    <Hint label={why} side="bottom">
+      <span tabIndex={0} className="rounded-md focus-visible:ring-2 focus-visible:ring-dp-accent/50 focus-visible:outline-none">
+        {button}
+      </span>
+    </Hint>
   );
 }
 
@@ -267,7 +264,7 @@ function ChangesTab(props: {
                 key={file.path}
                 data-git-file={file.path}
                 className={cn(
-                  "group flex h-7 items-center gap-2 px-3 text-xs text-dp-text-2 transition-colors duration-150 ease-out hover:bg-dp-hover motion-reduce:transition-none",
+                  "group flex h-7 items-center gap-2 px-3 text-xs text-dp-text-2 transition-colors duration-(--dp-dur-fast) ease-(--dp-ease-out) hover:bg-dp-hover motion-reduce:transition-none",
                   current && "bg-dp-accent-soft text-dp-text hover:bg-dp-accent-soft",
                 )}
               >
@@ -310,7 +307,7 @@ function ChangesTab(props: {
             onChange={(e) => setMessage(e.target.value)}
             className="min-h-0 resize-none rounded-md px-2 py-1.5 text-xs field-sizing-fixed md:text-xs"
           />
-          <AccentButton disabled={committing || chosen.length === 0 || !message.trim()} onClick={() => void commit()} className="justify-center text-xs">
+          <AccentButton disabled={committing || chosen.length === 0 || !message.trim()} onClick={() => void commit()}>
             {committing ? t.committing : t.commit(chosen.length)}
           </AccentButton>
         </div>
@@ -332,10 +329,8 @@ function DiscardDialog({ file, onCancel, onConfirm }: { file: ChangedFile | null
           <DialogDescription className="break-words">{description}</DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button variant="ghost" onClick={onCancel}>
-            {t.cancel}
-          </Button>
-          <Button variant="destructive" onClick={() => file && onConfirm(file)}>
+          <QuietButton onClick={onCancel}>{t.cancel}</QuietButton>
+          <Button variant="destructive" size="lg" onClick={() => file && onConfirm(file)}>
             {t.confirm}
           </Button>
         </DialogFooter>

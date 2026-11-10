@@ -2,7 +2,7 @@ import { createStore, useStore } from "zustand";
 import { messages } from "@/i18n";
 import { getSetting, setSetting } from "@/ipc/db";
 import { presetsMessages } from "./messages";
-import { PRESETS_VERSION, readPresets, withoutPreset, withPreset, type TeamPreset } from "./model";
+import { readPresets, storedPresets, withoutPreset, withPreset, type TeamPreset } from "./model";
 
 /** The setting that holds the presets (spec presets §3). */
 export const PRESETS_KEY = "presets.teams";
@@ -17,7 +17,7 @@ interface PresetsState {
   remove: (id: string) => Promise<void>;
 }
 
-const persist = (presets: TeamPreset[]) => setSetting(PRESETS_KEY, { version: PRESETS_VERSION, presets });
+const persist = (presets: TeamPreset[]) => setSetting(PRESETS_KEY, storedPresets(presets));
 
 let reading: Promise<void> | null = null;
 

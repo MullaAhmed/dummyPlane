@@ -1,5 +1,5 @@
 import { expect, it, vi } from "vitest";
-import { cn } from "cn";
+import { cn } from "@/lib/utils";
 
 // Slow under the load of the full suite: this file's tests get their own timeout.
 vi.setConfig({ testTimeout: 30_000 });

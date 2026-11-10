@@ -5,18 +5,21 @@ import { gitWindowStore } from "@/git/gitWindowStore";
 import { gitMessages } from "@/git/messages";
 import { useMessages } from "@/i18n";
 import { gitStatus, type GitStatus } from "@/ipc/git";
-import { useProjects } from "@/store/projects";
+import { useActiveFolder } from "@/store/workspaceFolder";
+import { Hint } from "./buttons";
 
 const POLL_MS = 5000;
 
-/** "⑂ main 7": branch and changed files of the project folder (spec identité §5.8); a click opens the git window. */
+/** "⑂ main 7": branch and changed files of the active workspace's folder (spec identité §5.8); a click opens the git window. */
 export function GitChip() {
   const t = useMessages(gitMessages);
-  const path = useProjects((s) => s.projects.find((p) => p.id === s.activeId)?.path);
+  const path = useActiveFolder().folder;
   const [status, setStatus] = useState<GitStatus | null>(null);
 
   useEffect(() => {
     if (!path) return;
+    // Another folder: the branch of the previous one must not stay while this one is read.
+    setStatus(null);
     let alive = true;
     let timer: ReturnType<typeof setTimeout> | undefined;
     // The next read is scheduled once the previous one is done: on a large
@@ -40,19 +43,25 @@ export function GitChip() {
   // Outside a git repository, no chip (spec identité §5.8).
   if (!status || !path) return null;
   return (
-    // The titles show what the chip cuts short: the folder, and a long branch name.
-    <Button
-      variant="ghost"
-      title={path}
-      aria-label={t.open(status.branch)}
-      onClick={() => gitWindowStore.getState().open(path)}
-      className="dp-glass-strong pointer-events-auto h-8 gap-2 rounded-lg px-3 font-mono text-xs font-normal text-dp-text-2 hover:bg-dp-hover hover:text-dp-text"
+    // The hint shows what the chip cuts short: a long branch name, and the folder.
+    <Hint
+      label={
+        <span className="flex flex-col">
+          <span className="break-all font-mono">{status.branch}</span>
+          <span className="break-all font-mono opacity-70">{path}</span>
+        </span>
+      }
     >
-      <GitBranch className="text-dp-text-3" />
-      <span title={status.branch} className="max-w-[150px] truncate">
-        {status.branch}
-      </span>
-      {status.changed > 0 && <span className="tabular-nums text-dp-accent-ink">{status.changed}</span>}
-    </Button>
+      <Button
+        variant="ghost"
+        aria-label={t.open(status.branch)}
+        onClick={() => gitWindowStore.getState().open(path)}
+        className="dp-glass-strong pointer-events-auto h-8 gap-2 rounded-lg px-3 font-mono text-xs font-normal text-dp-text-2 hover:bg-dp-hover hover:text-dp-text"
+      >
+        <GitBranch className="text-dp-text-3" />
+        <span className="max-w-[150px] truncate">{status.branch}</span>
+        {status.changed > 0 && <span className="tabular-nums text-dp-accent-ink">{status.changed}</span>}
+      </Button>
+    </Hint>
   );
 }

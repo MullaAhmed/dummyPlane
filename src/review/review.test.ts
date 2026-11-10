@@ -68,7 +68,7 @@ describe("missionBranchFor", () => {
   it("compares a mission's agent with the mission's branch, where its own forked", async () => {
     await nodesStore.getState().create("chef", {
       workspaceId: "w1",
-      kind: "orchestrator",
+      kind: "fleet",
       payload: {
         name: "Chef",
         mission: { ...NEW_MISSION, state: "en_cours", branch: "dummyplane/auth", members: [{ nodeId: "isis", name: "Isis", task: "t", budgetMin: 5, linked: true, branch: "dummyplane/auth-isis", worktree: "C:/w" }] },

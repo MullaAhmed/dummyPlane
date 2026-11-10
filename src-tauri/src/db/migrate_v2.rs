@@ -1,6 +1,7 @@
 //! Migration 002 (spec habillage §15.1): workspaces move into projects — one per
 //! folder, taken from each workspace's first terminal — and nodes accept the
-//! `orchestrator` kind. Both tables are rebuilt: SQLite cannot add a NOT NULL
+//! `orchestrator` kind (the stored name of the fleet node kind, see
+//! `nodes::STORED_FLEET_KIND`). Both tables are rebuilt: SQLite cannot add a NOT NULL
 //! foreign key or change a CHECK constraint in place.
 
 use std::collections::HashMap;
@@ -181,9 +182,10 @@ mod tests {
     }
 
     #[test]
-    fn accepts_orchestrator_nodes() {
+    fn accepts_fleet_nodes() {
         let mut conn = v1_database();
         migrate_up_to(&mut conn, 2, "C:/home").unwrap();
+        // Stored data: a fleet node's kind is still 'orchestrator' in the table.
         conn.execute(
             "INSERT INTO nodes VALUES ('o1', 'w1', 'orchestrator', '{}', 1)",
             [],

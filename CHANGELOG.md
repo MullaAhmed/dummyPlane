@@ -4,8 +4,25 @@ All notable changes to dummyPlane are documented here. The format follows [Keep 
 
 ## [Unreleased]
 
+### Added
+- **A folder per workspace:** each canvas workspace can work in its own folder (the workspace tab's menu: *Folder…*, *Use the project folder*, or the launch folder at the top of the agent menu). Terminals, Fleet sessions, installs, sign-in, the git chip and the missions' repository (its worktrees too) all follow it; a workspace without a folder keeps following its project. Terminals already open keep their own folder, *Change folder* on the project moves a workspace's own folder along when it lay inside the old one, and a mission agent's folder is shown read-only in its options, with the reason. Code Studio and notes stay per project.
+- **An *Edit* tab for the Fleet,** like the terminals' one, and a terminal's folder, shell and title can be edited from its panel.
+- **Taken to the agent that asks:** when an agent starts waiting for you, dummyPlane brings you to its terminal and gives it the keyboard, one agent at a time, oldest first. It never moves while you write (it waits for a 3 s pause after your last key, and up to 10 s while the field you are in holds a draft you have not sent; a field that merely has the focus does not hold it), while you answer another waiting agent (one that starts asking while you are in its terminal is gone to as well), while a dialog, menu or the palette is open, in reading mode, or while the window is not in focus (it goes when you come back, if the agent still waits). A setting in the settings menu, *Go to agents that ask*, turns it off.
+- **Done, Blocked and Failed:** once an agent reports and rests, its status reads *Done*, *Blocked* or *Failed* instead of *Ready* (header, minimized card, agents panel, *Go to* and the `@` list) until it works again. Its steps settle with the report, and its budget bar fills in the report's tone. The agents panel filters are now *All*, *Waiting*, *Working* and *Done*; a saved filter that no longer exists moves to the one that took its place.
+
+### Changed
+- **The manager is the Fleet** everywhere you read it: menus, panels, nodes, the palette, the prompts agents are given, the README and the docs. Nothing is lost on the way: saved projects and canvases keep the `orchestrator` kind they were stored with, and recently used commands under their old names are carried over.
+- **The database is upgraded once more on first start:** migration 5 gives each workspace an optional folder. dummyPlane keeps a copy of the database first (`dummyplane.v4-backup.db`).
+- **One header for terminals and the Fleet:** the same name field, status, buttons and overflow menu (⋯) on both, and the same rules when a node is narrow.
+- **Interface consistency:** panels, dialogs, menus and hints follow the design system: the same controls, dialog footers, one hint at a time and one set of motions, with a press that eases on scale.
+- **Double-click selects:** a double-click on a terminal or the Fleet selects it with any tool.
+- **Agents stacked under a Fleet or in a group are spaced further apart,** to leave room for their step frieze.
+
 ### Fixed
-- The README model-router tables now use the effort IDs accepted by the orchestrator (`low`, `medium`, `high`, `extreme`), with French labels alongside them in the French README.
+- The eraser no longer erases terminals or the Fleet, nor takes them along with a group's frame or with a drawing grouped with either; it still erases the drawings that are grouped with none of them.
+- Agents that arrive on their own (a mission's team and queue, `spawn_agent` sub-agents, replacements) no longer scroll the canvas to them or take the keyboard while you work. They start where they are, a quiet *joined · Show* toast tells you (one toast for several arrivals), and a launch you asked for still comes into view.
+- The README model-router tables now use the effort IDs accepted by the fleet (`low`, `medium`, `high`, `extreme`), with French labels alongside them in the French README.
+
 ## [1.2.0-beta.1] - 2026-11-01
 
 ### Added

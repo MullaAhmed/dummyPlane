@@ -18,7 +18,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useNativeKeyDown } from "@/lib/useNativeKeyDown";
 import { resumeTerminal } from "@/nodes/terminal/registry";
-import { nodesStore, terminalOf } from "@/store/nodes";
+import { nodesStore, sessionOf, updateSession, useNodes } from "@/store/nodes";
 import { canvasMessages } from "./messages";
 import { keepCanvasFocus } from "./PanelAction";
 import { forgetStartedChoice, noteChoiceChange, useRestartPending } from "./startedChoice";
@@ -84,12 +84,17 @@ function keepListWheel(node: HTMLElement | null): (() => void) | undefined {
 
 const folderName = (cwd: string) => cwd.split(/[\\/]/).filter(Boolean).pop() ?? cwd;
 
-/** One kind's list in the edit panel of a Claude terminal: its items, each on or off for this terminal. */
+/**
+ * One kind's list in the edit panel of a Claude terminal, or of a Fleet (its
+ * session's, nested in the node): its items, each on or off for it alone.
+ * dummyPlane's own MCP server is not among them (`withoutOwnServer`).
+ */
 export function ExtensionList(props: { nodeId: string; kind: ExtensionKind; cwd: string; choice: ExtensionChoice | undefined; lists: ExtensionLists; onRetry: () => void }) {
   const { nodeId, kind, lists } = props;
   const t = useMessages(canvasMessages);
   const s = t.selection;
   const [query, setQuery] = useState("");
+  const fleet = useNodes((state) => state.nodes[nodeId]?.kind === "fleet");
 
   if (lists.state === "loading") return <Note>{t.loading}</Note>;
   if (lists.state === "error") {
@@ -98,7 +103,7 @@ export function ExtensionList(props: { nodeId: string; kind: ExtensionKind; cwd:
         <p role="alert" className="text-xs break-words text-dp-text-2">
           {s.listFailed(lists.message)}
         </p>
-        <Button type="button" variant="secondary" size="xs" onMouseDown={keepCanvasFocus} onClick={props.onRetry} className="font-normal">
+        <Button type="button" variant="secondary" size="sm" onMouseDown={keepCanvasFocus} onClick={props.onRetry} className="text-xs font-normal">
           {s.retry}
         </Button>
       </div>
@@ -107,7 +112,13 @@ export function ExtensionList(props: { nodeId: string; kind: ExtensionKind; cwd:
 
   const items = lists.data[kind] ?? [];
   // claude.ai's connectors come from the account: nothing on disk names them, so the MCP tab says so.
-  const connectors = kind === "mcp" && <Note>{s.connectorsNotListed}</Note>;
+  // A Fleet's own mission server has no row (it cannot be switched off), and the tab says that too.
+  const connectors = kind === "mcp" && (
+    <>
+      <Note>{s.connectorsNotListed}</Note>
+      {fleet && <Note>{s.missionServerAlwaysOn}</Note>}
+    </>
+  );
   if (items.length === 0) {
     return (
       <>
@@ -120,10 +131,11 @@ export function ExtensionList(props: { nodeId: string; kind: ExtensionKind; cwd:
   const needle = query.trim().toLowerCase();
   const shown = needle ? items.filter((item) => [item.name, item.id, item.description ?? ""].some((text) => text.toLowerCase().includes(needle))) : items;
   // The latest stored choice, not the one of this render: two quick clicks both count.
-  const latest = () => terminalOf(nodesStore.getState().nodes[nodeId])?.extensions;
+  // Read and written where the session lives: a terminal's payload, a Fleet's `session`.
+  const latest = () => sessionOf(nodesStore.getState().nodes[nodeId])?.extensions;
   const store = (before: ExtensionChoice | undefined, next: ExtensionChoice | undefined) => {
     noteChoiceChange(nodeId, before);
-    nodesStore.getState().update(nodeId, { extensions: next });
+    updateSession(nodeId, { extensions: next });
   };
   const toggle = (item: ExtensionItem, on: boolean) => {
     const before = latest();
@@ -315,16 +327,17 @@ function ExtensionRow({ item, on, locked, onToggle }: { item: ExtensionItem; on:
 function RestartLine({ nodeId, choice }: { nodeId: string; choice: ExtensionChoice | undefined }) {
   const t = useMessages(canvasMessages).selection;
   const pending = useRestartPending(nodeId, choice);
+  const fleet = useNodes((state) => state.nodes[nodeId]?.kind === "fleet");
   const restart = () => {
     forgetStartedChoice(nodeId);
     resumeTerminal(nodeId);
   };
-  // One line either way, as tall as the button (leading-6): beside it, the shorter note fits the panel's width.
+  // One line either way, as tall as the button (leading-7): beside it, the shorter note fits the panel's width.
   return (
     <div className="flex shrink-0 items-center justify-between gap-3 border-t border-dp-line pt-2">
-      <p className="min-w-0 truncate text-xs leading-6 text-dp-text-3">{pending ? t.runningOldChoice : t.appliesOnRestart}</p>
+      <p className="min-w-0 truncate text-xs leading-7 text-dp-text-3">{pending ? t.runningOldChoice : fleet ? t.appliesOnRestartFleet : t.appliesOnRestart}</p>
       {pending && (
-        <Button type="button" variant="secondary" size="xs" onMouseDown={keepCanvasFocus} onClick={restart} className="font-normal text-dp-text-2 hover:text-dp-text">
+        <Button type="button" variant="secondary" size="sm" onMouseDown={keepCanvasFocus} onClick={restart} className="text-xs font-normal text-dp-text-2 hover:text-dp-text">
           <RotateCw className="size-3.5" />
           {t.restartNow}
         </Button>

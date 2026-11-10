@@ -55,9 +55,9 @@ The recordings are made from the real app. The scripts drive the page through We
 
    `broadcast` and `review` start their own group, and `commands` reuses the group that `broadcast` left. `sheet.py <gif> <png>` makes a contact sheet to check a GIF at a glance.
 
-   `mission` runs a real mission: an orchestrator on Sonnet 5.5, wired to a group of two Claude agents, with the model router on. It streams the start, then takes a frame every 1.5 s while the team works, until the mission ends. Commit `acme-shop` first, so the mission starts from a clean tree. `gif.py --ramp t:speed,…` speeds up the long part and marks it with a `×N` badge. If a run stops after the plan, record the rest with `missionGo`, then stitch the two with `join.py <first frames> <cut, UTC HH:MM:SS> <second frames> <out>`.
+   `mission` runs a real mission: a fleet on Sonnet 5.5, wired to a group of two Claude agents, with the model router on. It streams the start, then takes a frame every 1.5 s while the team works, until the mission ends. Commit `acme-shop` first, so the mission starts from a clean tree. `gif.py --ramp t:speed,…` speeds up the long part and marks it with a `×N` badge. If a run stops after the plan, record the rest with `missionGo`, then stitch the two with `join.py <first frames> <cut, UTC HH:MM:SS> <second frames> <out>`.
 
 4. `board.mjs <png> [dark|light]` takes the board screenshot once the canvas holds a group with answers.
 
 > [!WARNING]
-> The scenes run **real agents on your account**. `broadcast` sends one short question to three Claude Code sessions on Haiku, which is a few cents of usage. `mission` costs more: a Sonnet orchestrator and two agents work for several minutes. The other scenes send no prompt. Do not record in a repository you care about.
+> The scenes run **real agents on your account**. `broadcast` sends one short question to three Claude Code sessions on Haiku, which is a few cents of usage. `mission` costs more: a Sonnet fleet and two agents work for several minutes. The other scenes send no prompt. Do not record in a repository you care about.

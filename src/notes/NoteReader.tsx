@@ -3,6 +3,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useMessages } from "@/i18n";
 import { cn } from "@/lib/utils";
+import { Message } from "@/studio/parts";
 import { noteNamed } from "./links";
 import { parseInline, parseMarkdown, type Block } from "./markdown";
 import { notesMessages } from "./messages";
@@ -23,7 +24,7 @@ const HEADINGS = ["text-lg", "text-base", "text-sm", "text-sm text-dp-text-2", "
  * which shadcn's inline-flex Button, a control of its own height, cannot.
  */
 const LINK =
-  "rounded-sm underline underline-offset-2 transition-colors duration-150 ease-out hover:bg-dp-hover focus-visible:ring-2 focus-visible:ring-dp-accent/50 focus-visible:outline-none motion-reduce:transition-none";
+  "rounded-sm underline underline-offset-2 transition-colors duration-(--dp-dur-fast) ease-(--dp-ease-out) hover:bg-dp-hover focus-visible:ring-2 focus-visible:ring-dp-accent/50 focus-visible:outline-none motion-reduce:transition-none";
 
 /** A note, read: elements built by React from the parsed text, never HTML (spec notes §3). */
 export function NoteReader({ text, notes, onOpen, onCreate }: Props) {
@@ -121,14 +122,17 @@ export function NoteReader({ text, notes, onOpen, onCreate }: Props) {
     }
   };
 
+  // An empty note is the pane's empty state, centred like the others: the reader is a column for it.
+  if (blocks.length === 0)
+    return (
+      <div data-reader className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <Message>{t.emptyNote}</Message>
+      </div>
+    );
   return (
     <div data-reader className="min-h-0 min-w-0 flex-1 overflow-y-auto px-6 py-5">
-      {blocks.length === 0 ? (
-        <p className="text-xs text-dp-text-3">{t.emptyNote}</p>
-      ) : (
-        // About 72 characters a line at 14px: a reading measure, not the window's width.
-        <div className="mx-auto flex max-w-xl flex-col gap-3 text-sm leading-6 text-dp-text">{blocks.map(block)}</div>
-      )}
+      {/* About 72 characters a line at 14px: a reading measure, not the window's width. */}
+      <div className="mx-auto flex max-w-xl flex-col gap-3 text-sm leading-6 text-dp-text">{blocks.map(block)}</div>
     </div>
   );
 }

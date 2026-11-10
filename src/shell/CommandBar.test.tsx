@@ -6,12 +6,12 @@ import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { activeTerminalStore, setActiveTerminal } from "@/canvas/activeTerminal";
 import { canvasStore, EMPTY_VIEW } from "@/canvas/canvasStore";
 import type { SceneFrame } from "@/canvas/groups";
-import { sendCommand } from "@/fleet/broadcast";
+import { sendCommand } from "@/agents/broadcast";
 import { nodesStore, type NodeRecord } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
 import { CommandBar } from "./CommandBar";
 
-vi.mock("@/fleet/broadcast", () => ({ sendCommand: vi.fn(() => Promise.resolve()) }));
+vi.mock("@/agents/broadcast", () => ({ sendCommand: vi.fn(() => Promise.resolve()) }));
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 

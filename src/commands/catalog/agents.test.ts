@@ -1,18 +1,18 @@
 // @vitest-environment happy-dom
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
-import { agentsPanelStore } from "@/fleet/agentsPanelState";
-import { agentsStore } from "@/fleet/agentsStore";
-import { pauseAll, resumeAll } from "@/fleet/broadcast";
-import { launchAt, newConsole, placeOrchestrator } from "@/fleet/quickActions";
+import { agentsPanelStore } from "@/agents/agentsPanelState";
+import { agentsStore } from "@/agents/agentsStore";
+import { pauseAll, resumeAll } from "@/agents/broadcast";
+import { launchAt, newConsole, newTerminalInFolder, placeFleet } from "@/agents/quickActions";
 import { labelOf, type Command, type CommandContext } from "../command";
 import { pendingUiRequest } from "../uiRequests";
 import { AGENT_COMMANDS } from "./agents";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
-vi.mock("@/fleet/quickActions", () => ({ launchAt: vi.fn(), newConsole: vi.fn(), placeOrchestrator: vi.fn() }));
+vi.mock("@/agents/quickActions", () => ({ launchAt: vi.fn(), newConsole: vi.fn(), newTerminalInFolder: vi.fn(), placeFleet: vi.fn() }));
 vi.mock("@/kanban/place", () => ({ placeKanban: vi.fn() }));
-vi.mock("@/fleet/broadcast", () => ({ pauseAll: vi.fn(() => Promise.resolve()), resumeAll: vi.fn(() => Promise.resolve()), workspaceTerminalIds: () => ["isis"] }));
+vi.mock("@/agents/broadcast", () => ({ pauseAll: vi.fn(() => Promise.resolve()), resumeAll: vi.fn(() => Promise.resolve()), workspaceTerminalIds: () => ["isis"] }));
 
 const busy: CommandContext = { project: true, workspaceId: "w1", terminalCount: 1, terminalId: "isis" };
 const find = (id: string) => AGENT_COMMANDS.find((c) => c.id === id)!;
@@ -46,6 +46,7 @@ describe("Agents (spec fenêtre §7.3)", () => {
       "Other agent…",
       "Claude accounts…",
       "New console",
+      "New terminal in folder…",
       "Fleet",
       "Kanban",
       "Compose a group…",
@@ -66,8 +67,8 @@ describe("Agents (spec fenêtre §7.3)", () => {
     expect(pendingUiRequest()).toEqual({ kind: "agentMenu", view: { install: "codex" }, at: { x: 1, y: 2 } });
   });
 
-  it("still finds the fleet by its former name, orchestrator", () => {
-    expect(find("agent.orchestrator").keywords).toEqual(expect.arrayContaining(["fleet", "orchestrator"]));
+  it("still finds the fleet by its former name, fleet", () => {
+    expect(find("agent.fleet").keywords).toEqual(expect.arrayContaining(["fleet", "fleet"]));
   });
 
   it("speaks English when it offers an install", () => {
@@ -102,10 +103,10 @@ describe("Agents (spec fenêtre §7.3)", () => {
 
   it("does what the panel and the ＋ menu do", async () => {
     await find("agent.console").run(busy);
-    await find("agent.orchestrator").run(busy);
+    await find("agent.fleet").run(busy);
     await find("agents.pauseAll").run(busy);
     await find("agents.resumeAll").run(busy);
-    expect([newConsole, placeOrchestrator].every((f) => vi.mocked(f).mock.calls.length === 1)).toBe(true);
+    expect([newConsole, placeFleet].every((f) => vi.mocked(f).mock.calls.length === 1)).toBe(true);
     expect(pauseAll).toHaveBeenCalledWith(["isis"]);
     expect(resumeAll).toHaveBeenCalledWith(["isis"]);
   });
@@ -114,8 +115,8 @@ describe("Agents (spec fenêtre §7.3)", () => {
     const at = { x: 10, y: 20 };
     await find("agent.launch.claude").run({ ...busy, at });
     expect(launchAt).toHaveBeenLastCalledWith("claude", at);
-    await find("agent.orchestrator").run({ ...busy, at });
-    expect(placeOrchestrator).toHaveBeenLastCalledWith(at);
+    await find("agent.fleet").run({ ...busy, at });
+    expect(placeFleet).toHaveBeenLastCalledWith(at);
     agentsStore.setState({ agents: [{ id: "claude", available: true }, { id: "ollama", available: true }] } as never);
     await find("agent.launch.ollama").run({ ...busy, at });
     expect(pendingUiRequest()).toEqual({ kind: "agentMenu", view: "ollama", at });
@@ -124,6 +125,15 @@ describe("Agents (spec fenêtre §7.3)", () => {
   it("opens the Agent menu on its catalog, the chosen agent launched at the radial menu's point (Other agent…)", async () => {
     await find("agent.other").run({ ...busy, at: { x: 1, y: 2 } });
     expect(pendingUiRequest()).toEqual({ kind: "agentMenu", view: "agents", at: { x: 1, y: 2 } });
+  });
+
+  it("asks for a folder, then starts the default agent there, where the radial menu was opened when it says so", async () => {
+    const command = find("agent.inFolder");
+    expect(command.keywords).toEqual(expect.arrayContaining(["folder", "directory", "terminal"]));
+    await command.run(busy);
+    expect(newTerminalInFolder).toHaveBeenLastCalledWith(undefined);
+    await command.run({ ...busy, at: { x: 5, y: 6 } });
+    expect(newTerminalInFolder).toHaveBeenLastCalledWith({ x: 5, y: 6 });
   });
 
   it("composes a group from the agents panel, opened if needed", async () => {

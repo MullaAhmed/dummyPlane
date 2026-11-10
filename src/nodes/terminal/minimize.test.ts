@@ -6,7 +6,7 @@ import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { canvasStore } from "@/canvas/canvasStore";
 import { createNodeElement, NODE_SIZE } from "@/canvas/nodeElement";
 import { cachedElements, editStoredScene } from "@/canvas/sceneCache";
-import { createWire } from "@/fleet/wires";
+import { createWire } from "@/agents/wires";
 import { ptySendText } from "@/ipc/pty";
 import type { TerminalPayload } from "@/nodes/types";
 import { nodesStore, terminalOf } from "@/store/nodes";
@@ -103,7 +103,7 @@ describe("minimizing and expanding a terminal of the workspace on screen", () =>
   it("does not expand a terminal that is not minimized, nor touch a node that is no terminal", async () => {
     expect(expandTerminal("isis")).toBe(false);
     expect(payload()).toEqual(terminal);
-    await nodesStore.getState().create("chef", { workspaceId: "w1", kind: "orchestrator", payload: { name: "Chef" } });
+    await nodesStore.getState().create("chef", { workspaceId: "w1", kind: "fleet", payload: { name: "Chef" } });
     expect(minimizeTerminal("chef")).toBe(false);
     expect(minimizeTerminal("nobody")).toBe(false);
     expect(expandTerminal("nobody")).toBe(false);
@@ -201,7 +201,7 @@ it("settles nothing for a terminal that is not minimized", () => {
 });
 
 describe("resizedScene", () => {
-  const chef = createNodeElement("orchestrator", { x: 0, y: 0 }) as unknown as ExcalidrawElement;
+  const chef = createNodeElement("fleet", { x: 0, y: 0 }) as unknown as ExcalidrawElement;
   const isis = { ...createNodeElement("terminal", { x: 1500, y: 0 }), id: "isis" } as unknown as ExcalidrawElement;
   const seth = createNodeElement("terminal", { x: 1500, y: 1200 }) as unknown as ExcalidrawElement;
   const wire = createWire(chef, isis);
@@ -249,6 +249,44 @@ describe("onAgentReported", () => {
     expect(updateScene).not.toHaveBeenCalled();
   });
 
+  describe("the steps of the agent that reports", () => {
+    const steps = [
+      { title: "Plan", state: "fait" as const },
+      { title: "Commit and report", state: "en_cours" as const },
+      { title: "Ship", state: "a_venir" as const },
+    ];
+    const states = () => payload()?.steps?.map((s) => s.state);
+
+    it("finishes them all when the agent reports done without having marked its last one", () => {
+      nodesStore.getState().update("isis", { steps });
+      onAgentReported("isis", "termine", "All good");
+      expect(states()).toEqual(["fait", "fait", "fait"]);
+    });
+
+    it.each(["bloque", "echec"])("fails the step under way when it reports %s, the steps to come staying to come", (statut) => {
+      nodesStore.getState().update("isis", { steps });
+      onAgentReported("isis", statut, "Needs a key");
+      expect(states()).toEqual(["fait", "echec", "a_venir"]);
+    });
+
+    it("leaves a terminal without steps without any, and the steps of a refused report as they were", () => {
+      onAgentReported("isis", "termine", "All good");
+      expect(payload()).not.toHaveProperty("steps");
+      nodesStore.getState().update("isis", { steps });
+      onAgentReported("isis", "termine", "  ");
+      onAgentReported("isis", "done", "All good");
+      expect(states()).toEqual(["fait", "en_cours", "a_venir"]);
+    });
+
+    it("keeps them settled when the agent gets new work: it declares new ones when it starts", () => {
+      nodesStore.getState().update("isis", { steps });
+      onAgentReported("isis", "termine", "All good");
+      onNewWork("isis");
+      expect(payload()?.lastReport).toBeUndefined();
+      expect(states()).toEqual(["fait", "fait", "fait"]);
+    });
+  });
+
   it("changes nothing for a report `report` refuses: no summary, or a status it does not know", () => {
     const before = nodesStore.getState().nodes.isis;
     onAgentReported("isis", "termine", undefined);
@@ -266,14 +304,14 @@ describe("onAgentReported", () => {
   });
 
   it("ignores a node that is no terminal", async () => {
-    await nodesStore.getState().create("chef", { workspaceId: "w1", kind: "orchestrator", payload: { name: "Chef" } });
+    await nodesStore.getState().create("chef", { workspaceId: "w1", kind: "fleet", payload: { name: "Chef" } });
     const before = nodesStore.getState().nodes;
     expect(() => onAgentReported("chef", "termine", "Done")).not.toThrow();
     expect(() => onAgentReported("nobody", "termine", "Done")).not.toThrow();
     expect(nodesStore.getState().nodes).toBe(before);
   });
 
-  it("never throws, even when the canvas does: the report must still reach its orchestrator", () => {
+  it("never throws, even when the canvas does: the report must still reach its fleet", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const broken = {
       ...api,

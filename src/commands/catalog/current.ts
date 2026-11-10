@@ -2,12 +2,12 @@ import { showNode } from "@/canvas/arrive";
 import { focusGroup } from "@/canvas/canvasFocus";
 import { canvasStore } from "@/canvas/canvasStore";
 import { groupOf, isGroup, type SceneGroup } from "@/canvas/groups";
-import { setAgentsFilter, setAgentsPanel } from "@/fleet/agentsPanelState";
-import { canPause, canResume, pauseAgents, pauseAll, resumeAgent, resumeAll, type AgentFacts } from "@/fleet/broadcast";
-import { AGENTS } from "@/fleet/catalog";
-import { groupMembers, requestCloseGroup, setGroupFolded, ungroup } from "@/fleet/groups";
-import { orchestrateGroup } from "@/fleet/orchestrators";
-import { duplicateTerminal, requestClose } from "@/fleet/terminals";
+import { setAgentsFilter, setAgentsPanel } from "@/agents/agentsPanelState";
+import { canPause, canResume, pauseAgents, pauseAll, resumeAgent, resumeAll, type AgentFacts } from "@/agents/broadcast";
+import { AGENTS } from "@/agents/catalog";
+import { groupMembers, requestCloseGroup, setGroupFolded, ungroup } from "@/agents/groups";
+import { addFleetToGroup } from "@/fleet/fleets";
+import { duplicateTerminal, requestClose } from "@/agents/terminals";
 import type { TerminalPayload } from "@/nodes/types";
 import { expandTerminal, minimizeTerminal } from "@/nodes/terminal/minimize";
 import { pasteImageIntoTerminal, pasteIntoTerminal, relaunchTerminal, stopTerminal, terminalSelection } from "@/nodes/terminal/registry";
@@ -177,11 +177,11 @@ export const CURRENT: readonly Command[] = [
       requestUi({ kind: "groupMenu", id });
     }),
   }),
-  command("group.orchestrate", {
+  command("group.linkFleet", {
     section: groupSection,
     available: hasGroup,
     run: forGroup(async (id) => {
-      await orchestrateGroup(id);
+      await addFleetToGroup(id);
     }),
   }),
   command("group.fold", {

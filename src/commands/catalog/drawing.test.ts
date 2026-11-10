@@ -3,13 +3,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { canvasStore } from "@/canvas/canvasStore";
 import { CANVAS_KEYS, copyCanvasSelection, openNativeMenuAt, pasteOnCanvasAt, pressCanvasKey, startTextAt } from "@/radial/bridges";
-import { groupSelection } from "@/fleet/selectionGroup";
+import { groupSelection } from "@/agents/selectionGroup";
 import { exportCurrentPng, exportCurrentScene, importIntoScene } from "@/shell/sceneActions";
 import { labelOf, sectionOf, type CommandContext } from "../command";
 import { DRAWING, SCENE } from "./drawing";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
-vi.mock("@/fleet/selectionGroup", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/fleet/selectionGroup")>()), groupSelection: vi.fn() }));
+vi.mock("@/agents/selectionGroup", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/agents/selectionGroup")>()), groupSelection: vi.fn() }));
 vi.mock("@/shell/sceneActions", () => ({ exportCurrentScene: vi.fn(), importIntoScene: vi.fn(), exportCurrentPng: vi.fn() }));
 vi.mock("@/radial/bridges", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/radial/bridges")>()),

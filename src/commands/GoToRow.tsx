@@ -1,8 +1,9 @@
 import { Folder, Layers, LayoutGrid, Network } from "lucide-react";
-import { agentInk, AGENTS, INDIGO } from "@/fleet/catalog";
+import { agentInk, AGENTS, INDIGO } from "@/agents/catalog";
 import { useMessages } from "@/i18n";
 import { StatusPill } from "@/nodes/terminal/StatusPill";
 import { useActivity } from "@/store/agentActivity";
+import { terminalOf, useNodes } from "@/store/nodes";
 import { useTerminalStatus } from "@/store/terminalStatus";
 import type { GoToItem } from "./goTo";
 import { commandsMessages } from "./messages";
@@ -14,6 +15,7 @@ function TerminalLine({ item }: { item: GoToItem }) {
   const id = item.targetId ?? "";
   const status = useTerminalStatus(id);
   const activity = useActivity(id);
+  const report = useNodes((s) => terminalOf(s.nodes[id])?.lastReport?.status);
   const meta = AGENTS[item.agent ?? "shell"];
   return (
     <>
@@ -33,7 +35,7 @@ function TerminalLine({ item }: { item: GoToItem }) {
       )}
       <Elsewhere item={item} />
       <span className="ml-auto shrink-0">
-        <StatusPill status={status} activity={activity} indigo={meta.tint === INDIGO} />
+        <StatusPill status={status} activity={activity} indigo={meta.tint === INDIGO} report={report} />
       </span>
     </>
   );
@@ -55,7 +57,7 @@ export function GoToRow({ item }: { item: GoToItem }) {
           <Layers className="ml-auto size-3.5 shrink-0 text-dp-text-3" />
         </>
       );
-    case "orchestrator":
+    case "fleet":
       return (
         <>
           <Network className="size-3.5 shrink-0 text-dp-accent-ink" />

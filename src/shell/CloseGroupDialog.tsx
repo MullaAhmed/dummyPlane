@@ -10,39 +10,39 @@ import {
 } from "@/components/ui/dialog";
 import { useCanvas } from "@/canvas/canvasStore";
 import { useMessages } from "@/i18n";
-import { closeGroup } from "@/fleet/groups";
-import { livingAgents } from "@/fleet/groupSummary";
+import { closeGroup } from "@/agents/groups";
+import { livingAgents } from "@/agents/groupSummary";
 import { nodeNameOf, useNodes } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
 import { uiStore, useUi } from "@/store/ui";
+import { QuietButton } from "./buttons";
 import { shellMessages } from "./messages";
 
 /** "Close the group Backend?" listing the agents still running (spec habillage §11.4). */
 export function CloseGroupDialog() {
-  const t = useMessages(shellMessages).closeGroup;
+  const all = useMessages(shellMessages);
+  const t = all.closeGroup;
   const groupId = useUi((s) => s.closingGroup);
   const group = useCanvas((s) => s.frames.find((f) => f.id === groupId) ?? null);
   const nodes = useNodes((s) => s.nodes);
   const statuses = useStore(terminalStatusStore, (s) => s.statuses);
   const living = group
-    ? livingAgents(group.memberIds, (id) => nodeNameOf(nodes[id]) || "Agent", (id) => statuses[id]?.state === "running")
+    ? livingAgents(group.memberIds, (id) => nodeNameOf(nodes[id]) || all.fallbackAgent, (id) => statuses[id]?.state === "running")
     : [];
   const close = () => uiStore.getState().setClosingGroup(null);
 
   return (
     <Dialog open={groupId !== null} onOpenChange={(open) => !open && close()}>
-      <DialogContent showCloseButton={false} className="rounded-xl bg-dp-surface text-dp-text ring-dp-line sm:max-w-sm">
+      <DialogContent showCloseButton={false}>
         <DialogHeader>
           <DialogTitle>{t.title(group?.name)}</DialogTitle>
-          <DialogDescription className="text-dp-text-2">{t.description(living)}</DialogDescription>
+          <DialogDescription>{t.description(living)}</DialogDescription>
         </DialogHeader>
-        <DialogFooter className="border-dp-line bg-dp-hover">
-          <Button variant="ghost" onClick={close} className="rounded-md text-dp-text-2 hover:text-dp-text">
-            {t.cancel}
-          </Button>
+        <DialogFooter>
+          <QuietButton onClick={close}>{t.cancel}</QuietButton>
           <Button
             variant="destructive"
-            className="rounded-md"
+            size="lg"
             onClick={() => {
               if (groupId) closeGroup(groupId);
               close();

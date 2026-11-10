@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { loadAccounts, useAccounts } from "@/accounts/store";
-import { AGENTS } from "@/fleet/catalog";
+import { AGENTS } from "@/agents/catalog";
 import { useMessages } from "@/i18n";
 import { formatDecimal } from "@/i18n/format";
 import { tokenUsage, type TokenReport } from "@/ipc/tokens";

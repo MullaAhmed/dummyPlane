@@ -35,7 +35,7 @@ export const kanbanNodeMessages = defineMessages<{
   githubIssue: (repo: string, number: number) => string;
   agentChip: (name: string) => string;
   agentAlert: Record<"blocked" | "failed", (name: string) => string>;
-  orchestrator: { plan: string; create: string; linked: (name: string) => string };
+  fleet: { plan: string; create: string; linked: (name: string) => string };
   github: {
     boardMenu: string;
     link: string;
@@ -70,7 +70,7 @@ export const kanbanNodeMessages = defineMessages<{
     removeColumn: "Delete the column",
     agentChip: (name) => `${name} is working on it`,
     agentAlert: { blocked: (name) => `${name} is blocked`, failed: (name) => `${name} failed` },
-    orchestrator: { plan: "Plan with the fleet", create: "New fleet", linked: (name) => `${name} (linked)` },
+    fleet: { plan: "Plan with the fleet", create: "New fleet", linked: (name) => `${name} (linked)` },
     doubleClickRename: "Double-click to rename",
     cardCount: (count) => `${count} card${count === 1 ? "" : "s"}`,
     newCard: "New card",

@@ -1,10 +1,11 @@
+import { STORED_FLEET_KIND } from "@/canvas/nodeElement";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { canvasStore } from "@/canvas/canvasStore";
 import { nodesStore, type NodeRecord } from "@/store/nodes";
 import { NEW_MISSION } from "./mission";
 import { rememberScene, forgetScene } from "@/canvas/sceneCache";
 import { workspacesStore } from "@/store/workspaces";
-import { agentGroup, canvasKnown, linkedClaudeAgents, linkedGroups, memberBudgets, memberOf, orchestratorShown, setOrchestratorClosed, workspaceCanvas } from "./store";
+import { agentGroup, canvasKnown, linkedClaudeAgents, linkedGroups, memberBudgets, memberOf, fleetShown, setFleetClosed, workspaceCanvas } from "./store";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
 
@@ -13,28 +14,63 @@ it("gives each agent of a running mission its time and budget, for the bars (spe
   const nodes: Record<string, NodeRecord> = {
     chef: {
       workspaceId: "w1",
-      kind: "orchestrator",
+      kind: "fleet",
       payload: { name: "Chef", mission: { ...NEW_MISSION, state: "en_cours", members: [{ ...member, nodeId: "isis", sentAt: 0, extraMin: 5 }, { ...member, nodeId: "horus" }, { ...member, nodeId: "seth", sentAt: 0, handedTo: "Isis" }] } },
     },
-    fini: { workspaceId: "w1", kind: "orchestrator", payload: { name: "Fini", mission: { ...NEW_MISSION, state: "terminee", members: [{ ...member, nodeId: "thot", sentAt: 0 }] } } },
+    fini: { workspaceId: "w1", kind: "fleet", payload: { name: "Fini", mission: { ...NEW_MISSION, state: "terminee", members: [{ ...member, nodeId: "thot", sentAt: 0 }] } } },
   };
   expect(memberBudgets(nodes, 6 * 60_000)).toEqual({ isis: { spent: 6, budget: 15 } });
 });
 
-it("forgets the mission of a closed orchestrator until an undo brings it back (spec première version §5.4)", () => {
-  const member = { nodeId: "isis", name: "Isis", task: "Login", budgetMin: 10, linked: false, branch: "b", worktree: "w", sentAt: 0 };
-  nodesStore.setState({
-    nodes: { chef: { workspaceId: "w1", kind: "orchestrator", payload: { name: "Chef", mission: { ...NEW_MISSION, state: "en_cours", members: [member] } } } },
+it("freezes the time of an agent that reported at its report and gives its status for the bar", () => {
+  const member = { name: "Isis", task: "Login", budgetMin: 50, linked: false, branch: "b", worktree: "w", sentAt: 0 };
+  const min = 60_000;
+  const report = (status: "termine" | "bloque" | "echec") => ({ summary: "s", status, at: 22 * min });
+  const nodes: Record<string, NodeRecord> = {
+    chef: {
+      workspaceId: "w1",
+      kind: "fleet",
+      payload: {
+        name: "Chef",
+        mission: {
+          ...NEW_MISSION,
+          state: "en_cours",
+          members: [
+            { ...member, nodeId: "isis", report: report("termine") },
+            { ...member, nodeId: "horus", report: report("bloque") },
+            { ...member, nodeId: "seth", report: report("echec") },
+            { ...member, nodeId: "ra" },
+          ],
+        },
+      },
+    },
+  };
+  const at = (minutes: number) => memberBudgets(nodes, minutes * min);
+  expect(at(30)).toEqual({
+    isis: { spent: 22, budget: 50, report: "termine" },
+    horus: { spent: 22, budget: 50, report: "bloque" },
+    seth: { spent: 22, budget: 50, report: "echec" },
+    ra: { spent: 30, budget: 50 },
   });
-  expect(memberOf("isis")?.orchestratorId).toBe("chef");
-  setOrchestratorClosed("chef", true);
-  expect(memberOf("isis")).toBeNull();
-  expect(memberOf("isis", { evenClosed: true })?.orchestratorId).toBe("chef");
-  setOrchestratorClosed("chef", false);
-  expect(memberOf("isis")?.orchestratorId).toBe("chef");
+  // Never growing after the report; the one still working goes on.
+  expect(at(200).isis).toEqual({ spent: 22, budget: 50, report: "termine" });
+  expect(at(200).ra).toEqual({ spent: 200, budget: 50 });
 });
 
-describe("what the orchestrator reads of the groups (spec groupes spécialisés §3)", () => {
+it("forgets the mission of a closed fleet until an undo brings it back (spec première version §5.4)", () => {
+  const member = { nodeId: "isis", name: "Isis", task: "Login", budgetMin: 10, linked: false, branch: "b", worktree: "w", sentAt: 0 };
+  nodesStore.setState({
+    nodes: { chef: { workspaceId: "w1", kind: "fleet", payload: { name: "Chef", mission: { ...NEW_MISSION, state: "en_cours", members: [member] } } } },
+  });
+  expect(memberOf("isis")?.fleetId).toBe("chef");
+  setFleetClosed("chef", true);
+  expect(memberOf("isis")).toBeNull();
+  expect(memberOf("isis", { evenClosed: true })?.fleetId).toBe("chef");
+  setFleetClosed("chef", false);
+  expect(memberOf("isis")?.fleetId).toBe("chef");
+});
+
+describe("what the fleet reads of the groups (spec groupes spécialisés §3)", () => {
   const frame = (id: string, name: string, memberIds: string[], speciality?: string) => ({
     id, name, x: 0, y: 0, width: 10, height: 10, memberIds, group: { role: "general" as const, pantheon: "egyptian", ...(speciality ? { speciality } : {}) },
   });
@@ -62,14 +98,14 @@ describe("what the orchestrator reads of the groups (spec groupes spécialisés 
   });
 });
 
-it("draws no budget bar for a closed orchestrator's mission (final review R3)", () => {
+it("draws no budget bar for a closed fleet's mission (final review R3)", () => {
   const member = { nodeId: "isis", name: "Isis", task: "Login", budgetMin: 10, linked: false, branch: "b", worktree: "w", sentAt: 0 };
   const nodes: Record<string, NodeRecord> = {
-    chef: { workspaceId: "w1", kind: "orchestrator", payload: { name: "Chef", mission: { ...NEW_MISSION, state: "en_cours", members: [member] } } },
+    chef: { workspaceId: "w1", kind: "fleet", payload: { name: "Chef", mission: { ...NEW_MISSION, state: "en_cours", members: [member] } } },
   };
-  setOrchestratorClosed("chef", true);
+  setFleetClosed("chef", true);
   expect(memberBudgets(nodes, 60 * 60_000)).toEqual({});
-  setOrchestratorClosed("chef", false);
+  setFleetClosed("chef", false);
   expect(memberBudgets(nodes, 60 * 60_000)).toEqual({ isis: { spent: 60, budget: 10 } });
 });
 
@@ -77,11 +113,11 @@ describe("a workspace not on screen (spec mission de nuit §6.1)", () => {
   const terminal = { title: "", name: "Isis", agent: "claude" as const, cwd: "C:/", shell: "default" as const, command: "" };
   const frame = { id: "g1", type: "frame", name: "Interface", x: 0, y: 0, width: 10, height: 10, isDeleted: false, frameId: null, customData: { dummyplane: { kind: "group", role: "frontend", pantheon: "norse", speciality: "Frontend" } } };
   const isis = { id: "isis", type: "embeddable", isDeleted: false, frameId: "g1", x: 0, y: 0, width: 1, height: 1, customData: { kind: "terminal" } };
-  const chef = { id: "chef", type: "embeddable", isDeleted: false, frameId: null, x: 0, y: 0, width: 1, height: 1, customData: { kind: "orchestrator" } };
+  const chef = { id: "chef", type: "embeddable", isDeleted: false, frameId: null, x: 0, y: 0, width: 1, height: 1, customData: { kind: STORED_FLEET_KIND } };
   const wire = { id: "w", type: "arrow", isDeleted: false, frameId: null, startBinding: { elementId: "chef" }, endBinding: { elementId: "g1" } };
 
   beforeEach(() => {
-    nodesStore.setState({ nodes: { chef: { workspaceId: "w1", kind: "orchestrator", payload: { name: "Chef" } }, isis: { workspaceId: "w1", kind: "terminal", payload: terminal } } });
+    nodesStore.setState({ nodes: { chef: { workspaceId: "w1", kind: "fleet", payload: { name: "Chef" } }, isis: { workspaceId: "w1", kind: "terminal", payload: terminal } } });
     workspacesStore.setState({ activeId: "w2" });
     canvasStore.setState({ frames: [], links: {} });
     rememberScene("w1", [frame, isis, chef, wire] as never, {} as never, {}, []);
@@ -112,7 +148,7 @@ describe("a workspace not on screen (spec mission de nuit §6.1)", () => {
 
   it("reads its stored scene from the home screen: the workspace is still the active one, no canvas is mounted (review)", () => {
     workspacesStore.setState({ activeId: "w1" });
-    expect(orchestratorShown("chef")).toBe(false);
+    expect(fleetShown("chef")).toBe(false);
     expect(linkedClaudeAgents("chef")).toEqual([{ nodeId: "isis", name: "Isis" }]);
     forgetScene("w1");
   });
@@ -124,8 +160,8 @@ it("does not offer an agent already in another running mission (backlog H2)", ()
   nodesStore.setState({
     nodes: {
       isis: { workspaceId: "w1", kind: "terminal", payload: terminal },
-      busy: { workspaceId: "w1", kind: "orchestrator", payload: { name: "Busy", mission: { ...NEW_MISSION, state: "en_cours", members: [{ ...member, nodeId: "isis" }] } } },
-      free: { workspaceId: "w1", kind: "orchestrator", payload: { name: "Free" } },
+      busy: { workspaceId: "w1", kind: "fleet", payload: { name: "Busy", mission: { ...NEW_MISSION, state: "en_cours", members: [{ ...member, nodeId: "isis" }] } } },
+      free: { workspaceId: "w1", kind: "fleet", payload: { name: "Free" } },
     },
   });
   canvasStore.setState({ api: {} as never, links: { busy: { nodeIds: ["isis"], groupIds: [] }, free: { nodeIds: ["isis"], groupIds: [] } }, frames: [] });

@@ -1,5 +1,5 @@
 //! Where an overnight mission takes its tasks (spec mission de nuit §5.1). The
-//! orchestrator may not run commands: dummyPlane reads the source for it.
+//! fleet may not run commands: dummyPlane reads the source for it.
 
 use std::path::Path;
 use std::process::Command;

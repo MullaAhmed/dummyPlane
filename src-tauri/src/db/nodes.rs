@@ -4,11 +4,19 @@ use serde::{Deserialize, Serialize};
 use super::now_ms;
 use crate::error::AppResult;
 
+/// Stored data: the kind of a fleet node in the nodes table, kept from the time
+/// it was called the orchestrator. Never change it: saved databases, scenes and
+/// older interfaces carry it. (`NodeKind::Fleet`'s serde name repeats it: an
+/// attribute only takes a literal, and a test keeps both equal.)
+pub const STORED_FLEET_KIND: &str = "orchestrator";
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum NodeKind {
     Terminal,
-    Orchestrator,
+    /// The manager node. Its stored and wire name is `STORED_FLEET_KIND`.
+    #[serde(rename = "orchestrator")]
+    Fleet,
     Note,
     Kanban,
     Git,
@@ -19,7 +27,7 @@ impl NodeKind {
     fn as_str(self) -> &'static str {
         match self {
             NodeKind::Terminal => "terminal",
-            NodeKind::Orchestrator => "orchestrator",
+            NodeKind::Fleet => STORED_FLEET_KIND,
             NodeKind::Note => "note",
             NodeKind::Kanban => "kanban",
             NodeKind::Git => "git",
@@ -90,24 +98,38 @@ mod tests {
     }
 
     #[test]
-    fn stores_orchestrator_nodes() {
+    fn stores_fleet_nodes() {
         Db::open_in_memory()
             .unwrap()
             .with(|conn| {
                 let w = test_workspace(conn, "A")?;
-                save(
-                    conn,
-                    "o1",
-                    &w.id,
-                    NodeKind::Orchestrator,
-                    r#"{"name":"Chef"}"#,
-                )?;
+                save(conn, "o1", &w.id, NodeKind::Fleet, r#"{"name":"Chef"}"#)?;
                 let kind: String =
                     conn.query_row("SELECT kind FROM nodes WHERE id = 'o1'", [], |r| r.get(0))?;
+                // Stored data: a fleet node is still saved under its old name.
                 assert_eq!(kind, "orchestrator");
+                assert_eq!(kind, STORED_FLEET_KIND);
                 Ok(())
             })
             .unwrap();
+    }
+
+    #[test]
+    fn a_stored_orchestrator_kind_loads_as_the_fleet_kind() {
+        assert_eq!(
+            serde_json::from_str::<NodeKind>(r#""orchestrator""#).unwrap(),
+            NodeKind::Fleet
+        );
+        assert_eq!(
+            serde_json::to_string(&NodeKind::Fleet).unwrap(),
+            r#""orchestrator""#
+        );
+        assert_eq!(
+            serde_json::to_string(&NodeKind::Fleet).unwrap(),
+            format!("\"{STORED_FLEET_KIND}\"")
+        );
+        // The kind of the saved rows is not a name the renamed code would invent.
+        assert!(serde_json::from_str::<NodeKind>(r#""fleet""#).is_err());
     }
 
     #[test]

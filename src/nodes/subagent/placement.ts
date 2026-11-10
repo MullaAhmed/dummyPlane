@@ -2,13 +2,14 @@ import { newElementWith } from "@excalidraw/excalidraw";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { groupInfoOf, insertIntoFrame, withGroupFolded } from "@/canvas/groups";
 import { nodeKindOf } from "@/canvas/nodeElement";
-import { freeCell, freeSpot, NODE_GAP } from "@/fleet/groupLayout";
+import { freeCell, freeSpot, ROW_GAP } from "@/agents/groupLayout";
 
 /**
  * `elements` with a subagent's node `element` placed beside `anchorId`, the
  * terminal that runs it (or the subagent that spawned it): in the anchor's
  * group, the first free cell of its grid, as addTerminal does; without a
- * group, just below the anchor, moved clear of every node and group frame.
+ * group, below the anchor (ROW_GAP down: its frieze of steps hangs in it),
+ * moved clear of every node and group frame.
  * Null when the anchor is not on the scene: nothing to place it beside.
  */
 export function placeSubagent(
@@ -28,7 +29,7 @@ export function placeSubagent(
       newElementWith(frame, { width: placed.frame.width, height: placed.frame.height, customData: withGroupFolded(frame.customData, false) }),
     );
   }
-  const below = { x: anchor.x, y: anchor.y + anchor.height + NODE_GAP, width: element.width, height: element.height };
+  const below = { x: anchor.x, y: anchor.y + anchor.height + ROW_GAP, width: element.width, height: element.height };
   const obstacles = elements
     .filter((e) => !e.isDeleted && e.id !== element.id && (nodeKindOf(e) !== null || e.type === "frame"))
     .map(({ x, y, width, height }) => ({ x, y, width, height }));

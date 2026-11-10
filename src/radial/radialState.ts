@@ -1,6 +1,6 @@
 import { createStore, useStore } from "zustand";
 import type { CommandContext } from "@/commands/command";
-import type { Point } from "@/fleet/terminals";
+import type { Point } from "@/agents/terminals";
 import type { RingKind } from "./rings";
 
 export interface RadialOpen {

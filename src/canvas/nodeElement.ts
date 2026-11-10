@@ -1,12 +1,41 @@
 import type { ExcalidrawElement, ExcalidrawEmbeddableElement } from "@excalidraw/excalidraw/element/types";
 
-export type NodeKind = "terminal" | "orchestrator" | "note" | "kanban" | "git" | "file" | "subagent";
+export type NodeKind = "terminal" | "fleet" | "note" | "kanban" | "git" | "file" | "subagent";
 
-const NODE_KINDS: readonly NodeKind[] = ["terminal", "orchestrator", "note", "kanban", "git", "file", "subagent"];
+const NODE_KINDS: readonly NodeKind[] = ["terminal", "fleet", "note", "kanban", "git", "file", "subagent"];
+
+/**
+ * Stored data: how a fleet's kind is saved, in the `nodes` table of the database (`nodes.kind`), in the
+ * `customData.kind` of its scene element and in that element's link (`dummyplane://orchestrator/<id>`).
+ * It dates from when the fleet was called the orchestrator: saved projects and older builds read it, so it
+ * never changes. Everything else in the app says `"fleet"`: `toStoredKind` and `fromStoredKind` are the only
+ * places that translate, and every stored kind goes through them (scene elements, `ipc/db.ts`).
+ */
+export const STORED_FLEET_KIND = "orchestrator";
+
+/** A node kind as it is saved. */
+export type StoredNodeKind = Exclude<NodeKind, "fleet"> | typeof STORED_FLEET_KIND;
+
+/** The kind to write in a scene element or in the database. */
+export function toStoredKind(kind: NodeKind): StoredNodeKind {
+  return kind === "fleet" ? STORED_FLEET_KIND : kind;
+}
+
+/** The kind of a saved node, null for one this build does not know. */
+export function fromStoredKind(stored: unknown): NodeKind | null {
+  if (stored === STORED_FLEET_KIND) return "fleet";
+  // "fleet" itself is never written: it is not a stored kind.
+  return stored !== "fleet" && NODE_KINDS.includes(stored as NodeKind) ? (stored as NodeKind) : null;
+}
+
+/** The link of a node's embeddable element (`dummyplane://<stored kind>/<id>`). */
+export function nodeLink(kind: NodeKind, id: string): string {
+  return `dummyplane://${toStoredKind(kind)}/${id}`;
+}
 
 export const NODE_SIZE: Record<NodeKind, { width: number; height: number }> = {
   terminal: { width: 720, height: 440 },
-  orchestrator: { width: 640, height: 760 },
+  fleet: { width: 640, height: 760 },
   note: { width: 320, height: 240 },
   kanban: { width: 640, height: 400 },
   git: { width: 360, height: 320 },
@@ -15,16 +44,16 @@ export const NODE_SIZE: Record<NodeKind, { width: number; height: number }> = {
   subagent: { width: 720, height: 440 },
 };
 
-const LINK_PATTERN = /^dummyplane:\/\/(terminal|orchestrator|note|kanban|git|file|subagent)\/[\w-]+$/;
+const LINK_PATTERN = new RegExp(`^dummyplane://(${NODE_KINDS.map(toStoredKind).join("|")})/[\\w-]+$`);
 
 /** Only our own nodes may be embedded: no arbitrary iframes on the canvas. */
 export function isDummyPlaneLink(link: string): boolean {
   return LINK_PATTERN.test(link);
 }
 
+/** The kind of the dummyPlane node an element is, read from its stored kind; null for any other element. */
 export function nodeKindOf(element: ExcalidrawElement): NodeKind | null {
-  const kind: unknown = element.customData?.kind;
-  return element.type === "embeddable" && NODE_KINDS.includes(kind as NodeKind) ? (kind as NodeKind) : null;
+  return element.type === "embeddable" ? fromStoredKind(element.customData?.kind) : null;
 }
 
 /**
@@ -61,8 +90,8 @@ export function createNodeElement(kind: NodeKind, center: { x: number; y: number
     frameId: null,
     boundElements: null,
     updated: Date.now(),
-    link: `dummyplane://${kind}/${id}`,
+    link: nodeLink(kind, id),
     locked: false,
-    customData: { kind },
+    customData: { kind: toStoredKind(kind) },
   };
 }

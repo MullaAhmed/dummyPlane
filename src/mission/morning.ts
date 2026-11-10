@@ -66,7 +66,7 @@ export function morningReport(mission: Mission, now: number): MorningReport {
   };
 }
 
-/** A night that ended, or whose time ran out: an orchestrator that died must not hide what happened. */
+/** A night that ended, or whose time ran out: a fleet that died must not hide what happened. */
 export function morningShown(mission: Mission, now: number): boolean {
   if (!mission.overnight) return false;
   return mission.state === "terminee" || (mission.state === "en_cours" && remainingGlobal(mission, now) === 0);

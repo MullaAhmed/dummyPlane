@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { readKanbanPayload, type KanbanPayload } from "@/nodes/types";
-import { boardView, doneTarget, flagCard, inProgressColumn, setCardAgent, linkedTo, linkOrchestrator, planRequest, startCard, withInProgressColumn, type RequestTexts } from "./missionLink";
+import { boardView, doneTarget, flagCard, inProgressColumn, setCardAgent, linkedTo, linkFleet, planRequest, startCard, withInProgressColumn, type RequestTexts } from "./missionLink";
 
 const ids = () => {
   let n = 0;
@@ -27,9 +27,9 @@ const texts: RequestTexts = {
   issue: (number, repo) => `#${number} ${repo}`,
 };
 
-describe("linkOrchestrator", () => {
-  it("remembers the column and its orchestrator", () => {
-    const linked = linkOrchestrator(board(), "orc", "todo");
+describe("linkFleet", () => {
+  it("remembers the column and its fleet", () => {
+    const linked = linkFleet(board(), "orc", "todo");
     expect(linked.orchestrator).toEqual({ nodeId: "orc", columnId: "todo" });
     expect(linkedTo(linked, "orc")).toBe(true);
     expect(linkedTo(linked, "other")).toBe(false);
@@ -37,11 +37,11 @@ describe("linkOrchestrator", () => {
 
   it("ignores an unknown column", () => {
     const b = board();
-    expect(linkOrchestrator(b, "orc", "nope")).toBe(b);
+    expect(linkFleet(b, "orc", "nope")).toBe(b);
   });
 
   it("survives a save, and a broken link is dropped", () => {
-    const saved = JSON.parse(JSON.stringify(linkOrchestrator(board(), "orc", "todo")));
+    const saved = JSON.parse(JSON.stringify(linkFleet(board(), "orc", "todo")));
     expect(readKanbanPayload(saved).orchestrator).toEqual({ nodeId: "orc", columnId: "todo" });
     expect(readKanbanPayload({ ...saved, orchestrator: { nodeId: 3 } }).orchestrator).toBeUndefined();
     expect(readKanbanPayload({ ...saved, orchestrator: "orc" }).orchestrator).toBeUndefined();
@@ -159,7 +159,7 @@ describe("doneTarget", () => {
 
 describe("boardView", () => {
   it("gives columns and cards with their ids, the linked column marked", () => {
-    const view = boardView("k1", linkOrchestrator(board(), "orc", "todo"));
+    const view = boardView("k1", linkFleet(board(), "orc", "todo"));
     expect(view.board).toBe("k1");
     expect(view.columns[0]).toMatchObject({ id: "todo", linked: true });
     expect(view.columns[1].linked).toBe(false);

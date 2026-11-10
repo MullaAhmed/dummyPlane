@@ -5,7 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { clearMocks, mockIPC, mockWindows } from "@tauri-apps/api/mocks";
 import { toast } from "sonner";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { agentsStore } from "@/fleet/agentsStore";
+import { agentsStore } from "@/agents/agentsStore";
 import { AGENT_IDS, type AgentInfo } from "@/ipc/pty";
 import type { Project } from "@/ipc/db";
 import { HomeScreen } from "./HomeScreen";
@@ -74,7 +74,7 @@ it("guides a newcomer without agent nor project: three steps, Claude Code's comm
   const card = host.querySelector<HTMLElement>("[data-no-agent]")!;
   expect(card.textContent).toContain("No coding agent found");
   expect(card.querySelector("code")!.textContent).toBe("irm https://claude.ai/install.ps1 | iex");
-  // Claude Code first: the orchestrator, missions and usage need it.
+  // Claude Code first: the fleet, missions and usage need it.
   expect(card.textContent!.indexOf("Claude Code")).toBeLessThan(card.textContent!.indexOf("Codex"));
 });
 

@@ -52,6 +52,8 @@ export const missionMessages = defineMessages({
       agentsLabel: "Number of agents",
       source: "Ticket source",
       github: "GitHub issues",
+      // The file's name, as the option shows it.
+      backlog: "BACKLOG.md",
       label: "Label",
       labelLabel: "Issue label",
       labelTitle: "Only issues with this label are read: anybody can open an issue on a public repository, and labelling takes rights",
@@ -65,7 +67,7 @@ export const missionMessages = defineMessages({
         ask: "As usual; each dialog stops the agent until you are back",
       },
       noPush: "git push is blocked. This block is not a security boundary: an agent running commands can get past it, as a review did with -c remote.origin.pushurl and GIT_CONFIG_COUNT=0. Your settings are not changed.",
-      blocked: { git: "The project folder is not a git repository", gh: "gh does not answer: install GitHub CLI and log in, or choose BACKLOG.md" },
+      blocked: { git: "The workspace's folder is not a git repository", gh: "gh does not answer: install GitHub CLI and log in, or choose BACKLOG.md" },
       usage: (percent: number) => `Plan usage at ${percent} %: the night could stop on the limit`,
       awake: "The PC stays awake during the mission. Closing the lid or asking for sleep still puts it to sleep.",
       cancel: "Cancel",

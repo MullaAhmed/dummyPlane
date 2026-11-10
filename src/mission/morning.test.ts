@@ -40,7 +40,7 @@ describe("what the morning report gathers (spec mission de nuit §6.2)", () => {
     expect(morningReport(night({ members: [], queue: [{ title: "API", brief: "b", budgetMin: 5 }] }), 0).waiting.map((t) => t.title)).toEqual(["API"]);
   });
 
-  it("gathers what to check by hand: the agents', named, and the orchestrator's", () => {
+  it("gathers what to check by hand: the agents', named, and the fleet's", () => {
     const past = [{ task: "Login", status: "termine" as const, summary: "ok", merged: true, spentMin: 1, budgetMin: 2, branch: "b", check: "Le bouton sur Windows 10" }];
     const result = morningReport(night({ handChecks: ["Relire la migration"], members: [member("n1", "Isis", { task: "API", past, report: { ...report("termine"), check: "La vue en anglais" } })] }), 400 * min);
     expect(result.check).toEqual(["Relire la migration", "Isis · Login : Le bouton sur Windows 10", "Isis · API : La vue en anglais"]);

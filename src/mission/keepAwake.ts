@@ -2,9 +2,9 @@ import { setKeepAwake } from "@/ipc/mission";
 import { nodesStore, type NodeRecord } from "@/store/nodes";
 import { CLOCK_MS } from "./clock";
 import type { Mission } from "./mission";
-import { isOrchestratorClosed, missionOf } from "./store";
+import { isFleetClosed, missionOf } from "./store";
 
-/** Past the time away, a night is over even if nobody said so: an orchestrator that died never calls `finish`. */
+/** Past the time away, a night is over even if nobody said so: a fleet that died never calls `finish`. */
 const GRACE_MIN = 30;
 const MINUTE = 60_000;
 
@@ -16,7 +16,7 @@ function pastTheNight({ startedAt, budgetMin }: Mission, now: number): boolean {
 export function wantsAwake(nodes: Record<string, NodeRecord>, now = Date.now()): boolean {
   return Object.entries(nodes).some(([id, record]) => {
     const mission = missionOf(record);
-    return mission?.state === "en_cours" && mission.overnight === true && !isOrchestratorClosed(id) && !pastTheNight(mission, now);
+    return mission?.state === "en_cours" && mission.overnight === true && !isFleetClosed(id) && !pastTheNight(mission, now);
   });
 }
 
@@ -32,7 +32,7 @@ export function installKeepAwake(): () => void {
   };
   apply();
   const off = nodesStore.subscribe(apply);
-  // Closing an orchestrator changes no node.
+  // Closing a fleet changes no node.
   const timer = setInterval(apply, CLOCK_MS);
   return () => {
     off();

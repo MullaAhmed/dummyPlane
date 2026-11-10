@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { groupGrid } from "@/fleet/groupLayout";
-import type { GroupPlan } from "@/fleet/groups";
+import { groupGrid } from "@/agents/groupLayout";
+import type { GroupPlan } from "@/agents/groups";
 import type { TeamPreset } from "./model";
 import { deployPreset, type DeployDeps } from "./deploy";
 
@@ -12,7 +12,7 @@ const preset: TeamPreset = {
     { name: "Backend", role: "backend", speciality: "API", agents: ["claude", "codex"], x: 0, y: 0 },
     { name: "Tests", role: "testers", agents: ["gemini"], x: 1000, y: 0 },
   ],
-  orchestrators: [{ name: "Chef", groups: [1, 0] }],
+  fleets: [{ name: "Chef", groups: [1, 0] }],
 };
 
 function deps(over: Partial<DeployDeps> = {}) {
@@ -29,8 +29,8 @@ function deps(over: Partial<DeployDeps> = {}) {
       return { frameId: `f${plans.length}`, nodeIds: plan.agents.map((_a: string, i: number) => `n${plans.length}${i}`) };
     }),
     setSpeciality: vi.fn((frameId, speciality) => void calls.push(`speciality ${frameId} ${speciality}`)),
-    orchestrate: vi.fn(async (groupId) => {
-      calls.push(`orchestrate ${groupId}`);
+    addFleet: vi.fn(async (groupId) => {
+      calls.push(`addFleet ${groupId}`);
       return "chef1";
     }),
     link: vi.fn((o, g) => void calls.push(`link ${o} ${g}`)),
@@ -42,12 +42,12 @@ function deps(over: Partial<DeployDeps> = {}) {
 }
 
 describe("deployPreset", () => {
-  it("poses each group in order, then the orchestrator linked to the first of its groups, then the others, and says what it made", async () => {
+  it("poses each group in order, then the fleet linked to the first of its groups, then the others, and says what it made", async () => {
     const { made, calls } = deps();
     const result = await deployPreset(preset, made);
-    // The view ends on the whole team: every group and orchestrator posed, once, after the last one.
-    expect(calls).toEqual(["group Backend", "speciality f1 API", "group Tests", "orchestrate f2", "link chef1 f1", "rename chef1 Chef", "fit f1,f2,chef1"]);
-    expect(result).toEqual({ groups: 2, agents: 3, orchestrators: 1, substituted: 0, orchestratorsSkipped: 0 });
+    // The view ends on the whole team: every group and fleet posed, once, after the last one.
+    expect(calls).toEqual(["group Backend", "speciality f1 API", "group Tests", "addFleet f2", "link chef1 f1", "rename chef1 Chef", "fit f1,f2,chef1"]);
+    expect(result).toEqual({ groups: 2, agents: 3, fleets: 1, substituted: 0, fleetsSkipped: 0 });
   });
 
   it("keeps the team's shape around the view's center: relative positions, each group centered on its own grid", async () => {
@@ -77,11 +77,11 @@ describe("deployPreset", () => {
     expect(result.substituted).toBe(1);
   });
 
-  it("leaves the orchestrator out without Claude Code, and says so", async () => {
-    const { made, calls } = deps({ orchestrate: vi.fn(async () => null) });
+  it("leaves the fleet out without Claude Code, and says so", async () => {
+    const { made, calls } = deps({ addFleet: vi.fn(async () => null) });
     const result = await deployPreset(preset, made);
     expect(calls.some((c) => c.startsWith("link") || c.startsWith("rename"))).toBe(false);
-    expect(result).toMatchObject({ orchestrators: 0, orchestratorsSkipped: 1 });
+    expect(result).toMatchObject({ fleets: 0, fleetsSkipped: 1 });
   });
 
   it("goes on with the next group when one cannot be posed", async () => {
@@ -89,8 +89,8 @@ describe("deployPreset", () => {
     const { made, calls } = deps({ launchGroup: launch });
     const result = await deployPreset(preset, made);
     expect(result.groups).toBe(1);
-    // The orchestrator links to what exists: the second group only.
-    expect(calls).toContain("orchestrate f9");
+    // The fleet links to what exists: the second group only.
+    expect(calls).toContain("addFleet f9");
     expect(calls.some((c) => c.startsWith("link"))).toBe(false);
   });
 });

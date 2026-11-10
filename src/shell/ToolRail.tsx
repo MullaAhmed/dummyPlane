@@ -2,7 +2,7 @@ import { Eraser, Hand, Image as ImageIcon, Maximize, MousePointer2, Plus, Type }
 import { canvasStore, useCanvas } from "@/canvas/canvasStore";
 import { fitScene } from "@/canvas/viewActions";
 import { Separator as Rule } from "@/components/ui/separator";
-import { AgentMenu } from "@/fleet/AgentMenu";
+import { AgentMenu } from "@/agents/AgentMenu";
 import { useMessages } from "@/i18n";
 import { ToolButton as RailButton } from "./buttons";
 import { shellMessages } from "./messages";

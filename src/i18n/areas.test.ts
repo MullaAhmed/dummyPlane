@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import { canvasMessages } from "@/canvas/messages";
-import { fleetMessages } from "@/fleet/messages";
+import { agentsMessages } from "@/agents/messages";
 import { notesMessages } from "@/notes/messages";
 import { presetsMessages } from "@/presets/messages";
 import { shellMessages } from "@/shell/messages";
@@ -23,8 +23,8 @@ it("Team presets", () => {
 });
 
 it("Agent install", () => {
-  expect(messages(fleetMessages).install.installAgent("Codex")).toBe("Install Codex");
-  expect(messages(fleetMessages).install.installed("Codex")).toBe("Codex is installed");
+  expect(messages(agentsMessages).install.installAgent("Codex")).toBe("Install Codex");
+  expect(messages(agentsMessages).install.installed("Codex")).toBe("Codex is installed");
 });
 
 it("The notice of an agent that waits", () => {
@@ -33,10 +33,10 @@ it("The notice of an agent that waits", () => {
 });
 
 it("Group folding and tab moves", () => {
-  expect(messages(fleetMessages).groupMenu.fold).toBe("Fold the group");
-  expect(messages(fleetMessages).groupMenu.unfold).toBe("Unfold the group");
+  expect(messages(agentsMessages).groupMenu.fold).toBe("Fold the group");
+  expect(messages(agentsMessages).groupMenu.unfold).toBe("Unfold the group");
   expect(messages(canvasMessages).foldGroup).toBe("Fold the group");
-  expect(messages(fleetMessages).foldWaiting).toContain("Wait for the group's agents");
+  expect(messages(agentsMessages).foldWaiting).toContain("Wait for the group's agents");
   expect(messages(shellMessages).tabs.moveLeft).toBe("Move left");
 });
 

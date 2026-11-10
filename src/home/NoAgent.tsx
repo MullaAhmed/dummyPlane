@@ -3,10 +3,10 @@ import { Copy, Download, ExternalLink, RefreshCw } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { agentsStore } from "@/fleet/agentsStore";
-import { AGENTS, agentInk } from "@/fleet/catalog";
-import { AGENT_INSTALLS } from "@/fleet/installCommands";
-import { InstallPrompt } from "@/fleet/InstallPrompt";
+import { agentsStore } from "@/agents/agentsStore";
+import { AGENTS, agentInk } from "@/agents/catalog";
+import { AGENT_INSTALLS } from "@/agents/installCommands";
+import { InstallPrompt } from "@/agents/InstallPrompt";
 import { useMessages } from "@/i18n";
 import type { AgentId } from "@/ipc/pty";
 import { cn } from "@/lib/utils";
@@ -19,7 +19,7 @@ const CLAUDE = AGENT_INSTALLS.claude!;
 const OTHERS = (Object.keys(AGENT_INSTALLS) as AgentId[]).filter((id) => id !== "claude");
 
 /** A quiet text action: 28 px, its icons in the secondary text role. */
-const linkClass = "gap-1.5 rounded-md px-2 text-xs font-normal [&_svg]:text-dp-text-2";
+const linkClass = "gap-1.5 px-2 text-xs font-normal [&_svg]:text-dp-text-2";
 
 /** "No code agent found": Claude Code first, then the others (spec installation §4.2). */
 export function NoAgent() {
@@ -88,11 +88,11 @@ export function NoAgent() {
               </Button>
               <Button
                 variant="outline"
-                size="xs"
+                size="sm"
                 data-install={id}
                 aria-label={t.installAgent(agent.label)}
                 onClick={() => setAsked(id)}
-                className="rounded-sm px-2 font-normal"
+                className="px-2 text-xs font-normal"
               >
                 {t.install}
               </Button>

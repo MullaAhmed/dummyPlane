@@ -1,4 +1,6 @@
 import type { ReactNode } from "react";
+import { messages } from "@/i18n";
+import { studioMessages } from "./messages";
 
 /** The file's extension, lower case, without the dot; "" when it has none. */
 export function extensionOf(path: string): string {
@@ -61,7 +63,7 @@ function renderInline(text: string): ReactNode[] {
         </code>,
       );
     } else if (m[2] !== undefined) {
-      out.push(<span key={k} className="text-dp-text-3">[{m[2] || "image"}]</span>);
+      out.push(<span key={k} className="text-dp-text-3">[{m[2] || messages(studioMessages).markdownImage}]</span>);
     } else if (m[4] !== undefined) {
       const href = safeHref(m[5]);
       out.push(
@@ -73,7 +75,7 @@ function renderInline(text: string): ReactNode[] {
             href={href}
             target="_blank"
             rel="noreferrer noopener"
-            className="rounded-sm text-dp-accent-ink underline underline-offset-2 transition-colors duration-150 ease-out motion-reduce:transition-none hover:bg-dp-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50"
+            className="rounded-sm text-dp-accent-ink underline underline-offset-2 transition-colors duration-(--dp-dur-fast) ease-(--dp-ease-out) motion-reduce:transition-none hover:bg-dp-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50"
           >
             {renderInline(m[4])}
           </a>

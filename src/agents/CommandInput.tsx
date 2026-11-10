@@ -1,0 +1,396 @@
+import { useEffect, useId, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type RefObject } from "react";
+import { ComposerPrimitive, useAui, useAuiState } from "@assistant-ui/react";
+import { ArrowUp, X } from "lucide-react";
+import { useStore } from "zustand";
+import { cn } from "@/lib/utils";
+import type { SceneFrame } from "@/canvas/groups";
+import { Button } from "@/components/ui/button";
+import { useMessages } from "@/i18n";
+import { useNativeKeyDown } from "@/lib/useNativeKeyDown";
+import { sendCommand } from "./broadcast";
+import { Keycap } from "./composer/Keycap";
+import { LocalComposer } from "./composer/LocalComposer";
+import { routeCommand } from "./composer/route";
+import { AgentStatusDot, TargetIcon } from "./composer/TargetMark";
+import { agentsMessages } from "./messages";
+import { browseHistory, historyStore } from "./history";
+import { commandAt, isKnownCommand, matchCommands } from "./slashCommands";
+import {
+  completedMention,
+  keptDismissal,
+  matchOptions,
+  mentionAt,
+  mentionParts,
+  partTargets,
+  targetKey,
+  targetOptions,
+  uniqueTargets,
+  withoutMention,
+  type Target,
+  type TargetAgent,
+} from "./targets";
+
+const MENU_SIZE = 8;
+
+/** A line of the list above the field: a target, or a command of the agents' CLI. */
+interface Suggestion {
+  key: string;
+  label: string;
+  detail: string;
+  /** A target's line shows its icon, and an agent's its status dot. */
+  target?: Target;
+  pick: () => void;
+}
+
+/** Escape keeps the list closed while the same `@` mention or `/command` is typed. */
+type Dismissal = { kind: "mention" | "command"; at: number };
+
+function keptClosed(dismissed: Dismissal | null, text: string, caret: number): Dismissal | null {
+  if (dismissed === null) return null;
+  if (dismissed.kind === "mention") return keptDismissal(dismissed.at, text, caret) === null ? null : dismissed;
+  return commandAt(text, caret)?.start === dismissed.at ? dismissed : null;
+}
+
+interface CommandInputProps {
+  agents: readonly TargetAgent[];
+  groups: readonly SceneFrame[];
+  /** Reached without `@`: the selection, or a fleet's agents. */
+  fallback: readonly string[];
+  placeholder: string;
+  /** Why Envoyer is grey when nothing is targeted. */
+  emptyHint: string;
+  /** Who `fallback` is, when it is one agent the user did not select (the active terminal): named so Send never surprises. */
+  sendsTo?: string;
+  compact?: boolean;
+  /** The field takes the keyboard when it mounts (a fleet's field opened by hand). */
+  autoFocus?: boolean;
+}
+
+/**
+ * The field of the command bar and of a fleet (spec theme §12, §13):
+ * `@` targets in chips (`@athena/zeus` for several), `/` the agents' commands,
+ * Enter sends to them (or to `fallback`), ↑ ↓ recall. It is assistant-ui's
+ * composer (Root, Input, Send) on a runtime with no model: the composer holds
+ * the text and sends it, the field decides who receives it.
+ */
+export function CommandInput(props: CommandInputProps) {
+  // Filled by the field on each render: who a send reaches depends on its chips and on the canvas.
+  const deliver = useRef<(text: string) => void>(() => undefined);
+  return (
+    <LocalComposer onSend={(text) => deliver.current(text)}>
+      <CommandField {...props} deliver={deliver} />
+    </LocalComposer>
+  );
+}
+
+function CommandField(props: CommandInputProps & { deliver: RefObject<(text: string) => void> }) {
+  const { agents, groups, fallback, placeholder, emptyHint, sendsTo, compact = false, autoFocus = false, deliver } = props;
+  const t = useMessages(agentsMessages).command;
+  const aui = useAui();
+  // The composer owns the text: typing, completing, recalling and sending all go through it.
+  const text = useAuiState((s) => s.composer.text);
+  const [caret, setCaret] = useState(0);
+  const [targets, setTargets] = useState<Target[]>([]);
+  const [active, setActive] = useState(0);
+  // Escape closes the list for the mention typed at that position.
+  const [dismissed, setDismissed] = useState<Dismissal | null>(null);
+  const [browsing, setBrowsing] = useState<{ index: number; draft: string } | null>(null);
+  // The field has the keyboard: how to target shows before the first word, not after it.
+  const [focused, setFocused] = useState(false);
+  const field = useRef<HTMLTextAreaElement>(null);
+  const listId = useId();
+  const history = useStore(historyStore, (s) => s.entries);
+
+  const options = useMemo(() => targetOptions(agents, groups), [agents, groups]);
+  const labels = new Map(options.map((o) => [targetKey(o.target), o.label]));
+  const chips = targets.filter((t) => labels.has(targetKey(t)));
+  const mention = mentionAt(text, caret);
+  const parts = mention ? mentionParts(mention.query, options) : null;
+  const command = mention ? null : commandAt(text, caret);
+  const menuStart = mention?.start ?? command?.start ?? null;
+  const menuKind = mention ? "mention" : "command";
+  // A recalled command keeps its list closed: ↑ goes on through the history.
+  const shown = menuStart !== null && !(dismissed?.kind === menuKind && dismissed.at === menuStart) && browsing === null;
+  const fullCommand = command !== null && isKnownCommand(`/${command.query}`);
+  const suggestions: Suggestion[] = !shown
+    ? []
+    : parts
+      ? matchOptions(options, parts.query)
+          .slice(0, MENU_SIZE)
+          .map((option, i) => ({
+            key: `${targetKey(option.target)}-${i}`,
+            label: option.label,
+            detail: option.detail,
+            target: option.target,
+            pick: () => {
+              const known = partTargets(parts.typed, options);
+              // An unknown name stays as typed: the mention is completed, not reduced to the known ones.
+              if (known.length < parts.typed.length) completeText(completedMention(parts.typed, option));
+              else insertTargets([...known, option.target]);
+            },
+          }))
+      : matchCommands(command?.query ?? "")
+          .slice(0, MENU_SIZE)
+          .map((found) => ({ key: found.name, label: found.name, detail: found.hint, pick: () => insertCommand(found.name) }));
+  // A list that shrank under the highlight starts again at the top.
+  const row = active < suggestions.length ? active : 0;
+  const listOpen = suggestions.length > 0;
+  const scope = { chips, options, agents, groups, fallback };
+  const { targets: allTargets, ids, unknown, canSend } = routeCommand(text, scope);
+  const nothingTargeted = allTargets.length === 0 && fallback.length === 0;
+  // Targets were chosen, but they hold no agent (an empty group).
+  const noAgents = allTargets.length > 0 && ids.length === 0;
+  // Nothing was typed after `@`: the command goes to who `fallback` names.
+  const namedFallback = allTargets.length === 0 ? sendsTo : undefined;
+
+  useEffect(() => {
+    if (autoFocus) field.current?.focus();
+  }, [autoFocus]);
+
+  /** A change the field makes itself; what the user types reaches the composer through its Input. */
+  const edit = (value: string, at: number) => {
+    aui.composer.setText(value);
+    typed(value, at);
+  };
+
+  const typed = (value: string, at: number) => {
+    setCaret(at);
+    setActive(0);
+    setBrowsing(null);
+    setDismissed((current) => keptClosed(current, value, at));
+  };
+
+  const moveCaret = (at: number) => requestAnimationFrame(() => field.current?.setSelectionRange(at, at));
+
+  const insertTargets = (picked: readonly Target[]) => {
+    if (!mention) return;
+    setTargets(uniqueTargets([...chips, ...picked]));
+    const next = withoutMention(text, mention.start, caret);
+    edit(next.text, next.caret);
+    moveCaret(next.caret);
+  };
+
+  const completeText = (mentionText: string) => {
+    if (!mention) return;
+    const value = `${text.slice(0, mention.start)}${mentionText}${text.slice(caret)}`;
+    const at = mention.start + mentionText.length;
+    edit(value, at);
+    moveCaret(at);
+  };
+
+  const insertCommand = (name: string) => {
+    if (!command) return;
+    // The space that follows the caret already separates the command from the rest.
+    const rest = text.slice(caret);
+    const value = `${text.slice(0, command.start)}${name}${rest.startsWith(" ") ? "" : " "}${rest}`;
+    const at = command.start + name.length + 1;
+    edit(value, at);
+    moveCaret(at);
+  };
+
+  // The composer empties itself, then hands over what it sent: its targets stay as chips for the next one.
+  deliver.current = (sent: string) => {
+    const route = routeCommand(sent, scope);
+    if (!route.canSend) {
+      aui.composer.setText(sent);
+      return;
+    }
+    historyStore.getState().add(sent);
+    setTargets(route.targets);
+    typed("", 0);
+    void sendCommand(route.ids, route.instruction);
+  };
+
+  // Only what this field can deliver is sent: the composer alone would send any text, and empty the field.
+  const send = () => {
+    if (canSend) aui.composer.send();
+  };
+
+  const recall = (direction: "up" | "down") => {
+    const index = browseHistory(history, browsing?.index ?? null, direction);
+    const draft = browsing?.draft ?? text;
+    const value = index === null ? draft : history[index];
+    aui.composer.setText(value);
+    setCaret(value.length);
+    setBrowsing(index === null ? null : { index, draft });
+  };
+
+  const onKeyDown = (e: KeyboardEvent) => {
+    // The Enter (or arrow) of an IME composition picks a candidate: it is not ours.
+    if (e.isComposing || e.keyCode === 229) return;
+    if (listOpen && menuStart !== null) {
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        const step = e.key === "ArrowDown" ? 1 : suggestions.length - 1;
+        setActive((i) => (i + step) % suggestions.length);
+        return;
+      }
+      if (e.key === "Tab" || (e.key === "Enter" && !e.shiftKey && !fullCommand)) {
+        e.preventDefault();
+        suggestions[row].pick();
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setDismissed({ kind: menuKind, at: menuStart });
+        return;
+      }
+    }
+    const element = e.currentTarget as HTMLTextAreaElement;
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      send();
+    } else if (e.key === "ArrowUp" && !element.value.slice(0, element.selectionStart).includes("\n")) {
+      e.preventDefault();
+      recall("up");
+    } else if (e.key === "ArrowDown" && browsing && !element.value.slice(element.selectionEnd).includes("\n")) {
+      e.preventDefault();
+      recall("down");
+    } else if (e.key === "Backspace" && element.selectionEnd === 0 && chips.length > 0) {
+      setTargets(chips.slice(0, -1));
+    }
+  };
+  // In a fleet the field sits inside the canvas, which must not see its keys. The native
+  // listener also stops them before React: the Input's own key handling never runs, these keys rule.
+  useNativeKeyDown(field, onKeyDown);
+  // The same for every key of the composer: Tab can bring the keyboard to Send or to a chip's ✕, and
+  // a Backspace there must not delete the node. The field's keys stop at the field and never get here.
+  const root = useRef<HTMLFormElement>(null);
+  useNativeKeyDown(root, () => undefined);
+
+  // A click on a chip's ✕ or on Send leaves the caret in the field, never the keyboard on a button the canvas would read.
+  const keepCaret = (e: ReactMouseEvent<HTMLButtonElement>) => e.preventDefault();
+
+  // An empty field shows its keys as keycaps, where the placeholder used to spell them out.
+  const showKeys = !compact && text === "" && chips.length === 0;
+
+  return (
+    <ComposerPrimitive.Root ref={root} className="relative flex min-w-0 flex-1 items-end gap-2">
+      {listOpen && (
+        <ul
+          id={listId}
+          role="listbox"
+          className={cn("dp-glass-strong absolute bottom-full left-0 z-10 mb-2 overflow-hidden rounded-lg p-1", parts ? "w-72" : "w-96 max-w-full")}
+        >
+          {suggestions.map((suggestion, i) => (
+            <li
+              key={suggestion.key}
+              id={`${listId}-${i}`}
+              role="option"
+              aria-selected={i === row}
+              title={suggestion.detail}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                suggestion.pick();
+              }}
+              onMouseMove={() => i !== row && setActive(i)}
+              // No transition: the highlight follows the arrow keys at once.
+              className={cn("flex h-8 cursor-pointer items-center gap-2 rounded-md px-2 text-xs", i === row ? "bg-dp-hover text-dp-text" : "text-dp-text-2")}
+            >
+              {suggestion.target && <TargetIcon target={suggestion.target} />}
+              <span className="shrink-0 font-mono text-dp-text">{suggestion.label}</span>
+              <span className="ml-auto truncate">{suggestion.detail}</span>
+              {suggestion.target?.kind === "agent" && <AgentStatusDot id={suggestion.target.id} />}
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        {(text.trim() || focused) && nothingTargeted && <p className="text-xs text-dp-text-2">{emptyHint}</p>}
+        {text.trim() && noAgents && !unknown && <p className="text-xs text-dp-text-2">{t.noAgents}</p>}
+        {unknown && <p className="text-xs text-dp-text-2">{t.unknownTarget(unknown)}</p>}
+        {text.trim() && namedFallback && !unknown && <p className="text-xs text-dp-text-2">{t.sendsTo(namedFallback)}</p>}
+        <div
+          className={cn(
+            "flex min-w-0 flex-wrap items-center gap-1",
+            // In a fleet the field is a control of its own, beside Send and of its radius.
+            compact &&
+              "min-h-8 rounded-md bg-dp-field px-1 ring-1 ring-dp-line ring-inset transition-[box-shadow] duration-(--dp-dur-fast) ease-(--dp-ease-out) focus-within:ring-2 focus-within:ring-dp-accent/50 motion-reduce:transition-none",
+          )}
+        >
+          {chips.map((target) => {
+            const label = labels.get(targetKey(target)) ?? "";
+            return (
+              <span
+                key={targetKey(target)}
+                data-target-chip
+                className="flex h-6 items-center gap-1 rounded-sm bg-dp-accent-soft pl-2 pr-1 font-mono text-xs text-dp-text"
+              >
+                {label}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
+                  aria-label={t.remove(label)}
+                  onMouseDown={keepCaret}
+                  onClick={() => setTargets(chips.filter((c) => targetKey(c) !== targetKey(target)))}
+                  className="size-4 rounded-sm text-dp-text-2 hover:bg-dp-hover hover:text-dp-text"
+                >
+                  <X className="size-3" />
+                </Button>
+              </span>
+            );
+          })}
+          <ComposerPrimitive.Input
+            ref={field}
+            minRows={1}
+            placeholder={chips.length > 0 ? "" : placeholder}
+            // The keys are this field's (see useNativeKeyDown); the composer neither submits, cancels nor attaches by itself.
+            submitMode="none"
+            cancelOnEscape={false}
+            addAttachmentOnPaste={false}
+            aria-autocomplete="list"
+            aria-controls={listOpen ? listId : undefined}
+            aria-activedescendant={listOpen ? `${listId}-${row}` : undefined}
+            aria-describedby={showKeys ? `${listId}-keys` : undefined}
+            onChange={(e) => typed(e.target.value, e.target.selectionStart)}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setFocused(false)}
+            onSelect={(e) => {
+              const at = e.currentTarget.selectionStart;
+              if (at !== caret) setActive(0);
+              setCaret(at);
+            }}
+            // One line is 32px tall, as Send is; six lines at most, then it scrolls.
+            className={cn(
+              "max-h-32 min-w-32 flex-1 resize-none bg-transparent py-1.5 leading-5 text-dp-text caret-dp-accent outline-none placeholder:text-dp-text-2 selection:bg-dp-accent-soft",
+              compact ? "px-1 text-xs" : "text-(length:--text-ui)",
+            )}
+          />
+          {showKeys && (
+            <span id={`${listId}-keys`} data-field-keys className="flex shrink-0 items-center gap-3 text-xs text-dp-text-3">
+              <span className="flex items-center gap-1">
+                <Keycap>@</Keycap>
+                {t.keys.target}
+              </span>
+              <span className="flex items-center gap-1">
+                <Keycap>/</Keycap>
+                {t.keys.command}
+              </span>
+              <span className="flex items-center gap-1">
+                <Keycap>↑</Keycap>
+                {t.keys.history}
+              </span>
+            </span>
+          )}
+        </div>
+      </div>
+      <ComposerPrimitive.Send asChild disabled={!canSend}>
+        <Button
+          size={compact ? "icon" : "default"}
+          aria-label={t.send}
+          title={canSend ? (namedFallback ? t.sendTo(namedFallback) : t.send) : nothingTargeted ? emptyHint : noAgents ? t.noAgents : t.writeInstruction}
+          onMouseDown={keepCaret}
+          className={cn(
+            // The one primary action, at the control radius the field shares. Grey but legible while there is nothing to send: the hint beside it says why.
+            "rounded-md font-medium disabled:bg-dp-field disabled:text-dp-text-3 disabled:opacity-100",
+            !compact && "px-3 text-(length:--text-ui)",
+          )}
+        >
+          <ArrowUp className="size-4" />
+          {!compact && t.send}
+        </Button>
+      </ComposerPrimitive.Send>
+    </ComposerPrimitive.Root>
+  );
+}

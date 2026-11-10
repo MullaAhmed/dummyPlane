@@ -1,5 +1,5 @@
 // node board.mjs <out.png> [light|dark] — the README's board screenshot: fits the view on
-// everything but orchestrators, Agents panel closed, the theme switched for the shot only.
+// everything but fleets, Agents panel closed, the theme switched for the shot only.
 import fs from "node:fs";
 import { connect, sleep } from "./lib.mjs";
 import * as s from "./scenes.mjs";
@@ -14,7 +14,7 @@ const before = await d.eval(`(async () => {
   return choice;
 })()`);
 await s.panel(d, sleep, false);
-await s.fit(d, sleep, 0.9, 1, -10, `!["orchestrator", "wire"].includes(e.customData?.dummyplane?.kind ?? e.customData?.kind)`, 14);
+await s.fit(d, sleep, 0.9, 1, -10, `!["orchestrator", "wire"].includes(e.customData?.dummyplane?.kind ?? e.customData?.kind)`, 14); // "orchestrator" is the stored kind of a fleet.
 await sleep(1500);
 const shot = await d.send("Page.captureScreenshot", { format: "png" });
 fs.writeFileSync(out, Buffer.from(shot.data, "base64"));

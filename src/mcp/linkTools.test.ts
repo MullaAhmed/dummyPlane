@@ -5,8 +5,8 @@ import { mockIPC } from "@tauri-apps/api/mocks";
 import { canvasStore } from "@/canvas/canvasStore";
 import { createNodeElement } from "@/canvas/nodeElement";
 import { wireActivityStore } from "@/canvas/wireActivity";
-import { markLaunching } from "@/fleet/spawnFamily";
-import { withAgentLink, withWire } from "@/fleet/wires";
+import { markLaunching } from "@/agents/spawnFamily";
+import { withAgentLink, withWire } from "@/agents/wires";
 import { notify } from "@/mission/events";
 import { terminalText } from "@/nodes/terminal/registry";
 import { agentActivityStore } from "@/store/agentActivity";
@@ -23,8 +23,8 @@ const call = (nodeId: string, name: string, args: Record<string, unknown> = {}) 
   answer({ callId: 1, nodeId, method: "tools/call", params: { name, arguments: args } }) as Promise<{ content: { text: string }[]; isError?: boolean }>;
 const textOf = (result: { content: { text: string }[] }) => result.content[0].text;
 
-const element = (kind: "terminal" | "orchestrator", id: string, x: number) => ({ ...createNodeElement(kind, { x, y: 0 }), id }) as unknown as ExcalidrawElement;
-const nodes = [element("terminal", "isis", 0), element("terminal", "thot", 1200), element("terminal", "horus", 2400), element("terminal", "sh", 3600), element("orchestrator", "chef", 4800)];
+const element = (kind: "terminal" | "fleet", id: string, x: number) => ({ ...createNodeElement(kind, { x, y: 0 }), id }) as unknown as ExcalidrawElement;
+const nodes = [element("terminal", "isis", 0), element("terminal", "thot", 1200), element("terminal", "horus", 2400), element("terminal", "sh", 3600), element("fleet", "chef", 4800)];
 let scene: readonly ExcalidrawElement[] = nodes;
 
 const terminal = (id: string, name: string, agent: "claude" | "shell" = "claude") =>
@@ -38,7 +38,7 @@ beforeAll(async () => {
   await terminal("thot", "Thot");
   await terminal("horus", "Horus");
   await terminal("sh", "Shell", "shell");
-  await nodesStore.getState().create("chef", { workspaceId: "w1", kind: "orchestrator", payload: { name: "Chef" } });
+  await nodesStore.getState().create("chef", { workspaceId: "w1", kind: "fleet", payload: { name: "Chef" } });
 });
 beforeEach(() => {
   scene = nodes;
@@ -53,7 +53,7 @@ afterEach(() => {
 });
 
 describe("linked agents' tools", () => {
-  it("are listed for agents after their own tools, and refused to an orchestrator", async () => {
+  it("are listed for agents after their own tools, and refused to a fleet", async () => {
     const list = (await answer({ callId: 1, nodeId: "isis", method: "tools/list", params: {} })) as { tools: { name: string }[] };
     expect(list.tools.map((t) => t.name)).toEqual(["declare_steps", "step", "report", "spawn_agent", "linked_agents", "message_agent", "read_agent", "notes"]);
     const manager = (await answer({ callId: 1, nodeId: "chef", method: "tools/list", params: {} })) as { tools: { name: string }[] };
@@ -61,7 +61,7 @@ describe("linked agents' tools", () => {
     expect(textOf(await call("chef", "message_agent", { agent: "Isis", text: "hi" }))).toBe("This tool is for agents.");
   });
 
-  it("say no agent is linked when no wire joins the caller to another agent, an orchestrator's wire included", async () => {
+  it("say no agent is linked when no wire joins the caller to another agent, a fleet's wire included", async () => {
     scene = withWire(nodes, "chef", "isis");
     expect(textOf(await call("isis", "linked_agents"))).toContain("No agent is linked to you");
     const refused = await call("isis", "message_agent", { agent: "Chef", text: "hi" });
@@ -84,11 +84,11 @@ describe("linked agents' tools", () => {
     expect(textOf(sent)).toContain("Sent to Thot");
     expect(notify).toHaveBeenCalledWith("thot", expect.stringMatching(/^Message from Isis \(a linked agent.*\): The API is ready, please rebase\.$/));
     // The light runs from the wire's start (isis) to its end (thot).
-    expect(wireActivityStore.getState().pulses.thot).toMatchObject({ direction: "toAgent", orchestratorId: "isis" });
+    expect(wireActivityStore.getState().pulses.thot).toMatchObject({ direction: "toAgent", fleetId: "isis" });
     await call("thot", "message_agent", { agent: "Isis", text: "Rebased." });
     expect(notify).toHaveBeenLastCalledWith("isis", expect.stringContaining("Message from Thot"));
     // Back the other way along the same wire.
-    expect(wireActivityStore.getState().pulses.thot).toMatchObject({ direction: "toOrchestrator", orchestratorId: "isis" });
+    expect(wireActivityStore.getState().pulses.thot).toMatchObject({ direction: "toFleet", fleetId: "isis" });
   });
 
   it("refuse an agent that is not linked, naming those that are, and send nothing", async () => {

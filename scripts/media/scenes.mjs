@@ -3,8 +3,8 @@
 /** Starts a named group of Claude agents on `model` (setup only, not recorded). */
 export async function team(d, sleep, { name = "Frontend", role = "frontend", names = ["Athena", "Hermes", "Apollo"], model = "claude-haiku-5-5" } = {}) {
   await d.eval(`(async () => {
-    const { launchGroup } = await import("/src/fleet/groups.ts");
-    const { defaultLaunchOptions } = await import("/src/fleet/launchAgent.ts");
+    const { launchGroup } = await import("/src/agents/groups.ts");
+    const { defaultLaunchOptions } = await import("/src/agents/launchAgent.ts");
     const options = defaultLaunchOptions();
     const names = ${JSON.stringify(names)};
     return launchGroup({ name: ${JSON.stringify(name)}, role: ${JSON.stringify(role)}, agents: names.map(() => "claude") }, options, undefined, {
@@ -121,34 +121,34 @@ export const review = {
   },
 };
 
-/** The mission's state as the panel shows it, read from the orchestrator node. */
+/** The mission's state as the panel shows it, read from the fleet node. */
 async function missionState(d) {
   return d.eval(`(async () => {
     const { nodesStore } = await import("/src/store/nodes.ts");
     const { missionOf } = await import("/src/mission/store.ts");
-    const node = Object.values(nodesStore.getState().nodes).find((n) => n?.kind === "orchestrator");
+    const node = Object.values(nodesStore.getState().nodes).find((n) => n?.kind === "fleet");
     const m = node && missionOf(node);
     return m ? { state: m.state, plan: m.plan?.length ?? 0, merged: (m.members ?? []).filter((x) => x.merged).length, members: (m.members ?? []).length, error: m.error ?? null } : null;
   })()`);
 }
 
 /**
- * Starts a group of `names` and an orchestrator wired to it, on `model` (setup only).
- * The orchestrator is made the way "Relier un orchestrateur" makes it, with a model.
+ * Starts a group of `names` and a fleet wired to it, on `model` (setup only).
+ * The fleet is made the way "Link a fleet" makes it, with a model.
  */
-export async function orchestratedTeam(d, sleep, { names = ["Athena", "Hermes"], model = "claude-sonnet-5-5" } = {}) {
+export async function fleetTeam(d, sleep, { names = ["Athena", "Hermes"], model = "claude-sonnet-5-5" } = {}) {
   await d.eval(`(async () => {
-    const { launchGroup } = await import("/src/fleet/groups.ts");
-    const { defaultLaunchOptions } = await import("/src/fleet/launchAgent.ts");
+    const { launchGroup } = await import("/src/agents/groups.ts");
+    const { defaultLaunchOptions } = await import("/src/agents/launchAgent.ts");
     const { canvasStore } = await import("/src/canvas/canvasStore.ts");
     const { createNodeElement } = await import("/src/canvas/nodeElement.ts");
-    const { orchestratorSession } = await import("/src/nodes/terminal/launch.ts");
+    const { fleetSession } = await import("/src/nodes/terminal/launch.ts");
     const { markForAutostart } = await import("/src/nodes/terminal/registry.ts");
-    const { ORCHESTRATOR_NAME } = await import("/src/nodes/types.ts");
+    const { FLEET_DEFAULT_NAME } = await import("/src/nodes/types.ts");
     const { nodesStore } = await import("/src/store/nodes.ts");
     const { workspacesStore } = await import("/src/store/workspaces.ts");
-    const { orchestratorSpot } = await import("/src/fleet/groupLayout.ts");
-    const { withWire } = await import("/src/fleet/wires.ts");
+    const { fleetSpot } = await import("/src/agents/groupLayout.ts");
+    const { withWire } = await import("/src/agents/wires.ts");
     const options = defaultLaunchOptions();
     const names = ${JSON.stringify(names)};
     const g = await launchGroup({ name: "Backend", role: "backend", agents: names.map(() => "claude") }, options, undefined, {
@@ -156,21 +156,21 @@ export async function orchestratedTeam(d, sleep, { names = ["Athena", "Hermes"],
     });
     const api = canvasStore.getState().api;
     const frame = canvasStore.getState().frames.find((f) => f.id === g.frameId);
-    const element = createNodeElement("orchestrator", orchestratorSpot(frame));
-    const session = { ...orchestratorSession(ORCHESTRATOR_NAME, options), model: ${JSON.stringify(model)} };
-    await nodesStore.getState().create(element.id, { workspaceId: workspacesStore.getState().activeId, kind: "orchestrator", payload: { name: ORCHESTRATOR_NAME, session } });
+    const element = createNodeElement("fleet", fleetSpot(frame));
+    const session = { ...fleetSession(FLEET_DEFAULT_NAME, options), model: ${JSON.stringify(model)} };
+    await nodesStore.getState().create(element.id, { workspaceId: workspacesStore.getState().activeId, kind: "fleet", payload: { name: FLEET_DEFAULT_NAME, session } });
     markForAutostart(element.id);
     api.updateScene({ elements: withWire([...api.getSceneElementsIncludingDeleted(), element], element.id, g.frameId), captureUpdate: "IMMEDIATELY" });
   })()`);
   await sleep(14000);
 }
 
-/** A real mission: the router on, a goal typed to the orchestrator, its plan, the go-ahead, the team at work, the merge. */
+/** A real mission: the router on, a goal typed to the fleet, its plan, the go-ahead, the team at work, the merge. */
 export const mission = {
   record: { format: "jpeg", quality: 82 },
   goal: "Add validation to the cart: addItem must reject a quantity below 1 or a negative price, with unit tests. Also add unit tests for src/coupons.ts. Write the code and the tests only: install nothing, run nothing.",
   async setup(d, sleep) {
-    await orchestratedTeam(d, sleep);
+    await fleetTeam(d, sleep);
     await panel(d, sleep, false);
     await fit(d, sleep, 0.94, 1, -20, "true", 20);
     await d.move(900, 700, 10);
@@ -178,10 +178,10 @@ export const mission = {
   async play(d, sleep) {
     const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
     await sleep(800);
-    // Ctrl+P to the orchestrator: the view comes to it and its terminal takes the keyboard.
+    // Ctrl+P to the fleet: the view comes to it and its terminal takes the keyboard.
     await d.key("Ctrl+P");
     await sleep(700);
-    await d.type("orchestrateur", 12);
+    await d.type("fleet", 12);
     await sleep(800);
     await d.key("Enter");
     await sleep(1500);
@@ -194,16 +194,16 @@ export const mission = {
       const b = host.querySelector(".xterm-screen").getBoundingClientRect();
       return { x: b.left + b.width / 2, y: b.top + b.height * 0.55 };
     })()`);
-    if (!term) throw new Error("no orchestrator terminal");
+    if (!term) throw new Error("no fleet terminal");
     await d.click(term, { ms: 700 });
     await sleep(400);
     const focused = await d.eval(`document.activeElement?.className === "xterm-helper-textarea"`);
-    if (!focused) throw new Error("the orchestrator's terminal has no keyboard");
+    if (!focused) throw new Error("the fleet's terminal has no keyboard");
     await d.type(mission.goal, 28);
     await sleep(500);
     await d.key("Enter");
     log("goal sent");
-    // The plan: streamed until it shows (the orchestrator reads the code first).
+    // The plan: streamed until it shows (the fleet reads the code first).
     let s;
     for (let i = 0; i < 360; i++) {
       s = await missionState(d);

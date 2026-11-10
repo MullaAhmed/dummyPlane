@@ -8,7 +8,7 @@ import { useTheme } from "@/app/theme";
 import { displayColorFor, sceneColorFor } from "@/theme/sceneColors";
 import { PEN_COLORS } from "@/theme/penColors";
 import { PEN_WIDTHS } from "./tools";
-import { ToolButton } from "./buttons";
+import { Hint, ToolButton } from "./buttons";
 import { shellMessages } from "./messages";
 
 /**
@@ -16,10 +16,10 @@ import { shellMessages } from "./messages";
  * ring in the accent, the others a hairline ring on hover; no scale but the press.
  */
 const SWATCH =
-  "size-6 rounded-full min-w-0 p-0 ring-offset-2 ring-offset-dp-surface hover:ring-2 hover:ring-dp-line data-[state=on]:ring-2 data-[state=on]:ring-dp-accent transition-[box-shadow,transform] duration-150 ease-out active:scale-[0.97] focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none";
+  "size-6 rounded-full min-w-0 p-0 ring-offset-2 ring-offset-dp-surface hover:ring-2 hover:ring-dp-line data-[state=on]:ring-2 data-[state=on]:ring-dp-accent transition-[box-shadow,scale] duration-(--dp-dur-fast) ease-(--dp-ease-out) active:scale-[0.97] focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none";
 /** A width: a 32 px square, the chosen one on the accent's soft surface. */
 const WIDTH =
-  "size-8 min-w-0 rounded-md border border-transparent bg-dp-card p-0 hover:bg-dp-hover data-[state=on]:border-dp-accent data-[state=on]:bg-dp-accent-soft transition-[background-color,border-color,transform] duration-150 ease-out active:scale-[0.97] focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none";
+  "size-8 min-w-0 rounded-md border border-transparent bg-dp-card p-0 hover:bg-dp-hover data-[state=on]:border-dp-accent data-[state=on]:bg-dp-accent-soft transition-[background-color,border-color,scale] duration-(--dp-dur-fast) ease-(--dp-ease-out) active:scale-[0.97] focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none";
 
 /** Pen tool with its color and width menu (spec habillage §5.3). */
 export function PenMenu({ active }: { active: boolean }) {
@@ -69,29 +69,31 @@ export function PenMenu({ active }: { active: boolean }) {
           <ToggleGroup type="single" value={color} aria-label={t.color} spacing={2} className="flex-wrap">
             {PEN_COLORS.map(({ scene }, index) => (
               // The label is the French one stored with the color; the interface shows its own language's.
-              <ToggleGroupItem
-                key={scene}
-                value={scene}
-                aria-label={t.colors[index]}
-                title={t.colors[index]}
-                onClick={() => choose({ color: scene })}
-                className={SWATCH}
-                style={{ backgroundColor: displayColorFor(scene, theme) }}
-              />
+              // The hint hangs on a span: on the toggle itself it would overwrite its `data-state` (on / off), which the selection ring reads.
+              <Hint key={scene} label={t.colors[index]}>
+                <span className="inline-flex rounded-full">
+                  <ToggleGroupItem
+                    value={scene}
+                    aria-label={t.colors[index]}
+                    onClick={() => choose({ color: scene })}
+                    className={SWATCH}
+                    style={{ backgroundColor: displayColorFor(scene, theme) }}
+                  />
+                </span>
+              </Hint>
             ))}
             {/* No shadcn colour picker: the native one, behind a swatch of the same size. */}
-            <label
-              title={t.custom}
-              className="relative grid size-6 cursor-pointer place-items-center overflow-hidden rounded-full border border-dp-line text-dp-text-2 transition-[color,background-color,transform] duration-150 ease-out hover:bg-dp-hover hover:text-dp-text active:scale-[0.97] has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-dp-accent/50 motion-reduce:transition-none"
-            >
-              <Pipette aria-hidden className="size-3.5" />
-              <input
-                type="color"
-                aria-label={t.custom}
-                className="absolute inset-0 cursor-pointer opacity-0"
-                onChange={(e) => choose({ color: sceneColorFor(e.target.value, theme) })}
-              />
-            </label>
+            <Hint label={t.custom}>
+              <label className="relative grid size-6 cursor-pointer place-items-center overflow-hidden rounded-full border border-dp-line text-dp-text-2 transition-[color,background-color,scale] duration-(--dp-dur-fast) ease-(--dp-ease-out) hover:bg-dp-hover hover:text-dp-text active:scale-[0.97] has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-dp-accent/50 motion-reduce:transition-none">
+                <Pipette aria-hidden className="size-3.5" />
+                <input
+                  type="color"
+                  aria-label={t.custom}
+                  className="absolute inset-0 cursor-pointer opacity-0"
+                  onChange={(e) => choose({ color: sceneColorFor(e.target.value, theme) })}
+                />
+              </label>
+            </Hint>
           </ToggleGroup>
         </section>
         <section className="flex flex-col gap-2">

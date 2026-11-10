@@ -30,10 +30,10 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 describe("goTo (spec fenêtre §7.2)", () => {
-  it("arrives on a terminal or an orchestrator of the workspace on screen, fits a group", () => {
+  it("arrives on a terminal or a fleet of the workspace on screen, fits a group", () => {
     goTo(item({ workspaceId: "w1", targetId: "isis" }));
     expect(arrive).toHaveBeenCalledWith("isis");
-    goTo(item({ kind: "orchestrator", workspaceId: "w1", targetId: "chef" }));
+    goTo(item({ kind: "fleet", workspaceId: "w1", targetId: "chef" }));
     expect(arrive).toHaveBeenLastCalledWith("chef");
     goTo(item({ kind: "group", workspaceId: "w1", targetId: "g" }));
     expect(focusGroup).toHaveBeenCalledWith("g");
@@ -87,7 +87,7 @@ describe("goTo (spec fenêtre §7.2)", () => {
   it("goes to a waiting agent like a line of Go to", () => {
     goToAgent({ id: "isis", kind: "terminal", name: "Isis", workspaceId: "w1", since: 0 });
     expect(arrive).toHaveBeenCalledWith("isis");
-    goToAgent({ id: "chef", kind: "orchestrator", name: "Chef", workspaceId: "w2", since: 0 });
+    goToAgent({ id: "chef", kind: "fleet", name: "Chef", workspaceId: "w2", since: 0 });
     expect(select).toHaveBeenCalledWith("w2");
     completeArrival("w2");
     expect(arrive).toHaveBeenLastCalledWith("chef");
@@ -107,9 +107,9 @@ describe("goTo (spec fenêtre §7.2)", () => {
     expect(arrive).toHaveBeenCalledTimes(1);
   });
 
-  it("is completed by the canvas of a workspace, and orchestrators are found by their field", () => {
+  it("is completed by the canvas of a workspace, and fleets are found by their field", () => {
     expect(readSource("canvas/Canvas.tsx")).toContain("completeArrival(workspaceId)");
-    expect(readSource("nodes/orchestrator/OrchestratorNode.tsx")).toContain("data-orchestrator={nodeId}");
+    expect(readSource("nodes/fleet/FleetNode.tsx")).toContain("data-fleet={nodeId}");
   });
 });
 
@@ -127,11 +127,11 @@ describe("goToNextWaiting (spec notification §6)", () => {
     agentActivityStore.setState({ activities: { a: { activity: "waiting", since: 1 }, b: { activity: "waiting", since: 2 } } });
   });
 
-  it("gets past an orchestrator, whose keyboard is not in the context", () => {
-    nodesStore.setState({ nodes: { chef: { workspaceId: "w1", kind: "orchestrator", payload: { name: "Chef" } }, a: terminal("A") } } as never);
+  it("gets past a fleet, whose keyboard is not in the context", () => {
+    nodesStore.setState({ nodes: { chef: { workspaceId: "w1", kind: "fleet", payload: { name: "Chef" } }, a: terminal("A") } } as never);
     terminalStatusStore.setState({ statuses: { chef: { state: "running" }, a: { state: "running" } } });
     agentActivityStore.setState({ activities: { chef: { activity: "waiting", since: 1 }, a: { activity: "waiting", since: 2 } } });
-    // The context keeps naming the last terminal, « a », while the orchestrator has the keyboard.
+    // The context keeps naming the last terminal, « a », while the fleet has the keyboard.
     for (const expected of ["chef", "a", "chef"]) {
       goToNextWaiting("a");
       expect(arrive).toHaveBeenLastCalledWith(expected);
@@ -151,13 +151,13 @@ describe("goToNextWaiting (spec notification §6)", () => {
     expect(arrive).toHaveBeenLastCalledWith("c");
   });
 
-  it("remembers an orchestrator reached from the notice", () => {
-    nodesStore.setState({ nodes: { chef: { workspaceId: "w1", kind: "orchestrator", payload: { name: "Chef" } }, a: terminal("A"), b: terminal("B") } } as never);
+  it("remembers a fleet reached from the notice", () => {
+    nodesStore.setState({ nodes: { chef: { workspaceId: "w1", kind: "fleet", payload: { name: "Chef" } }, a: terminal("A"), b: terminal("B") } } as never);
     terminalStatusStore.setState({ statuses: { chef: { state: "running" }, a: { state: "running" }, b: { state: "running" } } });
     agentActivityStore.setState({
       activities: { chef: { activity: "waiting", since: 1 }, a: { activity: "waiting", since: 2 }, b: { activity: "waiting", since: 3 } },
     });
-    goToAgent({ id: "chef", kind: "orchestrator", name: "Chef", workspaceId: "w1", since: 1 });
+    goToAgent({ id: "chef", kind: "fleet", name: "Chef", workspaceId: "w1", since: 1 });
     goToNextWaiting("b");
     expect(arrive).toHaveBeenLastCalledWith("a");
   });

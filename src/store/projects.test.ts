@@ -56,7 +56,7 @@ function fakeBackend(projects: Project[], active: string | null = null) {
   return db;
 }
 
-const deps = { loadWorkspaces: vi.fn(async () => undefined), forgetWorkspaces: vi.fn(), rebaseTerminals: vi.fn() };
+const deps = { loadWorkspaces: vi.fn(async () => undefined), forgetWorkspaces: vi.fn(), rebaseTerminals: vi.fn(), rebaseWorkspaces: vi.fn() };
 let store: ReturnType<typeof createProjectsStore>;
 const state = () => store.getState();
 
@@ -64,6 +64,7 @@ beforeEach(() => {
   deps.loadWorkspaces.mockClear();
   deps.forgetWorkspaces.mockClear();
   deps.rebaseTerminals.mockClear();
+  deps.rebaseWorkspaces.mockClear();
   store = createProjectsStore(deps);
 });
 afterEach(() => clearMocks());
@@ -135,6 +136,7 @@ describe("projects store", () => {
     await state().relocate("a", "D:\\api");
     expect(state().projects[0]).toMatchObject({ name: "API", path: "D:\\api" });
     expect(deps.rebaseTerminals).toHaveBeenCalledWith("C:\\a", "D:\\api");
+    expect(deps.rebaseWorkspaces).toHaveBeenCalledWith("a", "C:\\a", "D:\\api");
   });
 
   it("reports a backend failure at startup", async () => {

@@ -7,15 +7,15 @@ import { diagnosticText, guideUrl, issueUrl, openDataDir } from "@/app/diagnosti
 import { openLogDir } from "@/app/logs";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { AGENTS } from "@/fleet/catalog";
+import { AGENTS } from "@/agents/catalog";
 import { useMessages } from "@/i18n";
 import { cn } from "@/lib/utils";
-import { AccentButton } from "./buttons";
+import { AccentButton, QuietButton } from "./buttons";
 import { shellMessages } from "./messages";
 import { checkAgain, troubleshootStore, useTroubleshoot } from "./troubleshoot";
 
 /** The dialog's tools: hairline buttons, one size, their icons in the secondary text role. */
-const secondaryButton = "rounded-md bg-transparent font-normal [&_svg]:text-dp-text-2";
+const secondaryButton = "bg-transparent font-normal [&_svg]:text-dp-text-2";
 
 /** One check of the dialog: its state, what was found, and why it matters when missing. */
 function Check({ id, ok, label, value, hint, plain = false }: { id: string; ok: boolean; label: string; value: ReactNode; hint?: string; plain?: boolean }) {
@@ -55,10 +55,10 @@ export function TroubleshootingDialog() {
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && troubleshootStore.setState({ open: false })}>
-      <DialogContent className="rounded-xl bg-dp-surface text-dp-text ring-dp-line sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{t.title}</DialogTitle>
-          <DialogDescription className="text-dp-text-2">{t.description}</DialogDescription>
+          <DialogDescription>{t.description}</DialogDescription>
         </DialogHeader>
         {error && <p className="text-sm text-dp-danger">{t.failed(error)}</p>}
         {!d && !error && <p className="text-sm text-dp-text-2">{t.loading}</p>}
@@ -103,11 +103,11 @@ export function TroubleshootingDialog() {
             <FolderOpen /> {t.openData}
           </Button>
         </div>
-        <DialogFooter className="border-dp-line bg-dp-hover">
-          <Button variant="ghost" onClick={() => void openUrl(guideUrl())} className="rounded-md text-dp-text-2 hover:text-dp-text">
+        <DialogFooter>
+          <QuietButton onClick={() => void openUrl(guideUrl())}>
             <BookOpen /> {t.guide}
-          </Button>
-          <AccentButton onClick={() => void report()} className="px-3 text-sm">
+          </QuietButton>
+          <AccentButton size="lg" onClick={() => void report()}>
             <Bug /> {t.report}
           </AccentButton>
         </DialogFooter>

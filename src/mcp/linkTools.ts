@@ -1,7 +1,7 @@
 import { signalWire } from "@/canvas/wireActivity";
-import { AGENTS } from "@/fleet/catalog";
-import { linkedAgentsOf, type LinkedAgent } from "@/fleet/agentLinks";
-import { isLaunching, spawnedByOf } from "@/fleet/spawnFamily";
+import { AGENTS } from "@/agents/catalog";
+import { linkedAgentsOf, type LinkedAgent } from "@/agents/agentLinks";
+import { isLaunching, spawnedByOf } from "@/agents/spawnFamily";
 import { messages } from "@/i18n";
 import { notify } from "@/mission/events";
 import { oneLine, sameName } from "@/mission/mission";
@@ -15,8 +15,8 @@ import { agentMessages } from "./messages";
 import { outAgentState } from "./protocol";
 
 /**
- * The tools of two agents linked by a wire (`@/fleet/agentLinks`): list, message
- * and read each other, either way round, with no orchestrator. A message goes
+ * The tools of two agents linked by a wire (`@/agents/agentLinks`): list, message
+ * and read each other, either way round, with no fleet. A message goes
  * through the same line queue as a sub-agent's report (`notify`): it waits while
  * a dialog is open in the receiving terminal, so it never answers one.
  */
@@ -101,7 +101,7 @@ function messageLinked(nodeId: string, args: Record<string, unknown>): ToolResul
   notify(peer.nodeId, l.message(nameOf(nodeId), text));
   // The light runs along the wire from the sender: a pulse on the wire's end, naming its start.
   if (peer.outgoing) signalWire(peer.nodeId, "toAgent", nodeId);
-  else signalWire(nodeId, "toOrchestrator", peer.nodeId);
+  else signalWire(nodeId, "toFleet", peer.nodeId);
   const waiting = agentActivityStore.getState().activities[peer.nodeId]?.activity === "waiting";
   return said(waiting ? l.held(peer.name) : l.sent(peer.name));
 }
@@ -109,7 +109,7 @@ function messageLinked(nodeId: string, args: Record<string, unknown>): ToolResul
 function readLinked(nodeId: string, args: Record<string, unknown>): ToolResult {
   const peer = linkedNamed(nodeId, args.agent);
   if (typeof peer === "string") return refused(peer);
-  // As the orchestrator's read_output reads a mission agent.
+  // As the fleet's read_output reads a mission agent.
   const lines = typeof args.lines === "number" ? Math.min(200, Math.max(1, Math.floor(args.lines))) : 50;
   return said(terminalText(peer.nodeId, lines) || t().links.emptyTerminal);
 }

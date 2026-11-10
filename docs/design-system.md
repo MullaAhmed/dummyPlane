@@ -1,14 +1,23 @@
 # Design system
 
-Short rules for dummyPlane UI. Source of truth: `src/theme/tokens.css`.
+Short rules for dummyPlane UI. Source of truth: `src/theme/tokens.css` and `src/index.css`. When this page and the code disagree, the code wins: fix the page.
 
 ## Palettes
 
-Three palettes. Each follows 60/30/10: canvas, text and surfaces, accent.
+Three palettes. Each is two colours: a ground (the canvas) and an ink.
 
-- `calm`: light. Default for daylight work.
-- `electric`: dark blue. Accent is lime.
-- `expressive`: dark. Default when no palette is set (`:root`).
+- `calm`: light. Cream ground, deep green ink.
+- `electric`: dark. Blue ground, off-white ink.
+- `expressive`: dark. Near-black ground, off-white ink. Default when no palette is set (`:root`).
+
+The ink writes the text and is also the accent: `--dp-accent`, `--dp-accent-ink`, `--dp-secondary` and `--dp-draw` all take its value. Everything else is a quiet step of the two:
+
+- Surfaces and cards are the ground a step lighter or darker.
+- Hairlines, hovers and the selection are the ink at a low alpha.
+- The second and third text roles are the ink a step toward the ground.
+- Only the status colours (`--dp-wait`, `--dp-ok`, `--dp-danger`) and `--dp-on-role` stand outside the two.
+
+No glows and no coloured shadows. Depth is surface steps and hairlines.
 
 Every palette defines the same token names. Never add a token to one palette only.
 
@@ -16,39 +25,43 @@ Every palette defines the same token names. Never add a token to one palette onl
 
 Surfaces, from back to front:
 
-- `--dp-canvas`: app background. Dot grid sits on it.
+- `--dp-canvas`: app background. The dot grid (`--dp-dot`) sits on it.
 - `--dp-surface`: panels, dialogs, menus. Base for cards.
 - `--dp-card`: nested cards and rows inside a surface.
 - `--dp-field`: input fill.
 - `--dp-hover`: hover and subtle fill.
-- `--dp-glass`, `--dp-glass-strong`: translucent layers. Strong glass carries text.
+- `--dp-tray`: faint ink fill for trays and wells. Defined in each palette; no component reads it yet.
+- `--dp-tab-on`: fill of the active tab.
+
+Every surface is opaque. There is no glass, no blur and no transparency setting. `.dp-glass` and `.dp-glass-strong` survive as class names for the rails and bars that already use them, and both draw the same raised surface: the `--dp-surface` fill, a `--dp-line` hairline and `--dp-float-shadow`.
 
 Lines and shadows:
 
 - `--dp-line`: borders and dividers.
-- `--dp-shadow`, `--dp-float-shadow`: elevation for dialogs and floating bars.
-- `--dp-glass-hi`, `--dp-glass-edge`: inner highlight and edge ring of glass.
-- `--dp-scrim`: veil behind dialogs and sheets. Per palette.
+- `--dp-shadow`, `--dp-float-shadow`: elevation for dialogs, menus and floating bars. A small neutral shadow in `calm` only; no visible shadow in the dark palettes (`0 0 #0000`).
+- `--dp-scrim`: veil behind dialogs and sheets. Flat, nothing blurred behind it. Per palette.
 
 Text:
 
 - `--dp-text`: primary text. Titles, values, active labels.
 - `--dp-text-2`: secondary text. Labels, helper text, menu items.
 - `--dp-text-3`: tertiary text. Hints, idle state, metadata.
-- `--dp-secondary`: secondary accent for chrome and links in some palettes.
 
 Accent:
 
 - `--dp-accent`: fills, focus ring, primary buttons, selection.
-- `--dp-accent-ink`: accent used as text. Use it when the accent is too pale on the canvas.
+- `--dp-accent-ink`: accent used as text. Same value as `--dp-accent` in the three palettes; write text with it so a palette can split the two.
 - `--dp-accent-soft`: tinted background for selected rows.
-- `--dp-on-accent`: text drawn on an accent fill.
+- `--dp-on-accent`: text drawn on an accent fill. It is the ground colour.
+- `--dp-secondary`: accent for chrome and links. Same value as the ink.
+- `--dp-draw`: the ink for drawing on the canvas (the pen). Defined in each palette; no component reads it yet.
 
 Status:
 
 - `--dp-wait`: waiting or attention state.
 - `--dp-ok`: success or live state.
 - `--dp-danger`: errors and destructive actions.
+- `--dp-on-role`: text drawn on a role colour (a group's role). One dark ink, the same in every palette.
 
 Terminals:
 
@@ -68,15 +81,18 @@ Check any new pair with a contrast tool before use.
 
 Use the scale. Never hard-code a pixel radius.
 
-- `rounded-sm`: chips, small tags.
-- `rounded-md`: inputs, small buttons.
-- `rounded-lg` (`--radius-lg`, 12px): buttons, menus, popovers, toasts.
-- `rounded-xl` (`--radius-xl`, about 17px): dialogs.
+- `rounded-sm` (`--radius-sm`, 6px): chips, tags, keycaps.
+- `rounded-md` (`--radius-md`, 8px): controls. Buttons, inputs, menu rows.
+- `rounded-lg` (`--radius-lg`, 12px): cards, menus, popovers, toasts.
+- `rounded-xl` (`--radius-xl`, 16px): panels, dialogs, windows.
+
+Nested radius: inner = outer minus the padding, never below 4px.
 
 ## Type
 
 - Font: Inter Variable for UI, JetBrains Mono for code and terminals.
-- Section labels: `.dp-label`. 11px, medium, uppercase, `text-dp-text-2`.
+- Section labels: `.dp-label`. 12px, medium, sentence case, `text-dp-text-2`. Do not resize it where you use it.
+- Scale: `text-xs` (12px), the UI step (13px), `text-sm` (14px). Write the step `text-(length:--text-ui)`, never `text-ui` (`cn` reads that as a colour and drops it beside `text-dp-text`) and never `text-[13px]`. Menu rows, tabs, node titles and small buttons use it. No arbitrary pixel size, and nothing under 12px.
 - Body: 13px to 14px. Keep line length short in menus.
 - Headings: weight 600 at most. Avoid 700 for chrome.
 
@@ -88,19 +104,22 @@ Use the scale. Never hard-code a pixel radius.
 
 ## Heights
 
-Controls share one height scale:
+Controls share one height scale. The `Button` sizes:
 
-- `sm`: `h-7`. Dense toolbars and menus.
-- default: `h-8`. Buttons and inputs.
-- `lg`: `h-9`. Primary actions in dialogs.
+- `sm` and `icon-sm`: `h-7`. Dense toolbars and menus.
+- default and `icon`: `h-8`. Buttons and inputs.
+- `lg` and `icon-lg`: `h-9`. Primary actions in dialogs.
+- `xs` and `icon-xs`: `h-6`, still in use. Off the scale above, kept for inline chips and compact controls (about 40 call sites). Use them only there; for a standalone control pick `sm`, default or `lg`.
 
 ## Motion
 
 Tokens live in `tokens.css`:
 
-- `--dp-ease-out: cubic-bezier(.23,1,.32,1)`. Default for every entrance and press.
+- `--dp-ease-out: cubic-bezier(0.22, 1, 0.36, 1)`. Default for every entrance and press. Tailwind's `ease-out` reads it.
 - `--dp-dur-fast: 150ms`. Presses, hovers, tooltips.
 - `--dp-dur: 200ms`. Popovers, menus, dialogs.
+
+In class names write `duration-(--dp-dur-fast)` or `duration-(--dp-dur)` and `ease-(--dp-ease-out)`. Never a literal `duration-150`, `ease-out` and the like.
 
 Rules:
 
@@ -117,15 +136,30 @@ Rules:
 
 - Hover: subtle fill from `--dp-hover`. Never change layout.
 - Focus: `focus-visible:ring-2 ring-dp-accent/50`. Show on keyboard focus only.
-- Press: buttons scale to `0.97` on `:active`.
+- Press: buttons scale to `0.97` on `:active`. Ease it on `scale`, not `transform` (see Node chrome).
 - Disabled: `opacity-50` and `pointer-events-none`.
-- Touch devices: gate hover effects behind `(hover: hover) and (pointer: fine)`.
+- Touch: hover styles are not gated behind `(hover: hover) and (pointer: fine)` today (a desktop app, mouse first). Gate any new hover-only effect that a touch screen could stick on.
+- Hints: use the app's `Hint` tooltip, not a native `title`, on controls.
 
 ## Surfaces and layers
 
-- Menus, popovers, selects, toasts: dense glass, radius `lg`.
-- Dialogs: dense glass, radius `xl`, veil from `--dp-scrim`.
-- Transparency off: glass becomes solid `surface`. Respect `prefers-reduced-transparency`.
+- Menus, popovers, selects, toasts: opaque `--dp-surface`, hairline, radius `lg`, `--dp-shadow`.
+- Dialogs: opaque `--dp-surface`, hairline, radius `xl`, veil from `--dp-scrim`.
+- Raised bars and rails: `.dp-glass` or `.dp-glass-strong` (the same opaque look, see Token roles).
+- The shadcn parts set this once, through `data-slot` rules in `index.css`. Do not re-set the fill, border or radius on a dialog or menu.
+
+## Node chrome
+
+A terminal and a fleet share one header, `NodeHeader` in `src/nodes/terminal`, built from the same pieces so the two cannot drift:
+
+- One 36px row (`h-9`) on the terminal's head colour (`bg-dp-terminal-head`), a hairline below.
+- The name is 13px (`text-(length:--text-ui)`), medium weight. It gives way first: the end group never shrinks.
+- At the end, the quiet facts, then the actions as `icon-sm` (28px) buttons, muted until pointed at. Use `RemoteButton` and the other header buttons as they are; do not wrap them to resize them.
+- What a node needs only now and then lives in one `⋯` menu (`HeaderMenu`), not on the row.
+- Close is the last control.
+- The chips and the clock (`WIDE_ONLY`) hide when the node is narrower than 448px. The header is a size container (`@md/head`), so it is the node's width that decides, not the window's.
+
+Press rule: `active:scale-[0.97]` sets the CSS `scale` property, not `transform`. A transition list that names `transform` leaves the press snapping, so name `scale`: `transition-[color,background-color,scale]`, with `duration-(--dp-dur-fast)`, `ease-(--dp-ease-out)` and `motion-reduce:transition-none`. `Button` already does this; when a class overrides its transition list, keep `scale` in it. (`transition-transform` is fine for a rotate or a translate: it covers `translate`, `scale` and `rotate`. A bare `transition-[transform]` does not.)
 
 ## Colour rules
 
@@ -144,3 +178,6 @@ These names still work. New code uses the base token.
 - `--dp-waiting` becomes `--dp-wait`.
 - `--dp-idle` becomes `--dp-text-3`.
 - `--dp-done`, `--dp-live` become `--dp-ok`.
+- `--dp-glow-1`, `--dp-glow-2`, `--dp-glow-3` are `transparent`: glows are retired.
+
+Removed, no longer defined: `--dp-glass`, `--dp-glass-strong`, `--dp-glass-hi`, `--dp-glass-edge`.

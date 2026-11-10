@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useUiRequest } from "@/commands/uiRequests";
 import { messages, useMessages } from "@/i18n";
+import { AccentButton, QuietButton } from "@/shell/buttons";
 import { captureCurrentTeam } from "./live";
 import { presetNameOf } from "./model";
 import { presetsMessages } from "./messages";
@@ -66,12 +66,10 @@ export function SavePresetDialog() {
         />
         {replaced && <p className="text-xs text-dp-wait">{t.replaces(replaced.name)}</p>}
         <DialogFooter>
-          <Button variant="ghost" onClick={() => setOpen(false)}>
-            {t.cancel}
-          </Button>
-          <Button disabled={!kept} onClick={() => void save()}>
+          <QuietButton onClick={() => setOpen(false)}>{t.cancel}</QuietButton>
+          <AccentButton size="lg" disabled={!kept} onClick={() => void save()}>
             {t.save}
-          </Button>
+          </AccentButton>
         </DialogFooter>
       </DialogContent>
     </Dialog>

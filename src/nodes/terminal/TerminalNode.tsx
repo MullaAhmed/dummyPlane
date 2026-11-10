@@ -1,19 +1,18 @@
 import { useEffect, useRef } from "react";
-import { Copy, X } from "lucide-react";
 import { toast } from "sonner";
 import { canvasStore, useCanvas } from "@/canvas/canvasStore";
-import { duplicateTerminal, requestClose } from "@/fleet/terminals";
+import { duplicateTerminal, requestClose } from "@/agents/terminals";
 import { cn } from "@/lib/utils";
 import { useActivity } from "@/store/agentActivity";
 import { terminalOf, useNodes } from "@/store/nodes";
 import { useTerminalStatus } from "@/store/terminalStatus";
 import { AgentFoot, hasAgentFoot } from "./AgentFoot";
 import { ArrivalFlash } from "./ArrivalFlash";
-import { frameStyle } from "./frame";
+import { frameStyle, NODE_FRAME, TERMINAL_BODY } from "./frame";
 import { MinimizedCard } from "./MinimizedCard";
 import { MissingNode } from "./MissingNode";
 import { ResumeCard } from "./ResumeCard";
-import { HeaderButton, TerminalHeader } from "./TerminalHeader";
+import { TerminalHeader } from "./TerminalHeader";
 import { useTerminalHost } from "./useTerminalHost";
 import { layoutTerminal, xtermOf } from "./registry";
 import { keepTerminalWheel } from "./terminalWheel";
@@ -49,7 +48,7 @@ export function TerminalNode({ nodeId }: { nodeId: string }) {
   }, [nodeId, minimized]);
 
   // Excalidraw would pan the canvas on a wheel over this terminal (terminalWheel.ts). Only over its
-  // body, as an orchestrator's: the foot's field keeps its own wheel, and a minimized card's hidden body takes none.
+  // body, as a Fleet's: the foot's field keeps its own wheel, and a minimized card's hidden body takes none.
   useEffect(() => {
     const body = bodyRef.current;
     const canvas = body?.closest<HTMLElement>(".excalidraw");
@@ -65,7 +64,7 @@ export function TerminalNode({ nodeId }: { nodeId: string }) {
   return (
     <div
       data-terminal={nodeId}
-      className="relative flex h-full flex-col overflow-hidden rounded-xl bg-dp-terminal"
+      className={cn(NODE_FRAME, "bg-dp-terminal")}
       style={frameStyle(selected, waiting)}
     >
       {minimized ? (
@@ -77,29 +76,16 @@ export function TerminalNode({ nodeId }: { nodeId: string }) {
           status={status}
           activity={activity}
           showStatus={!foot}
-          actions={
-            <>
-              <HeaderButton
-                label={t.duplicate}
-                onClick={() =>
-                  workspaceId &&
-                  void duplicateTerminal(workspaceId, nodeId).catch((error: unknown) =>
-                    toast.error(t.duplicateFailed(String(error))),
-                  )
-                }
-              >
-                <Copy />
-              </HeaderButton>
-              <HeaderButton label={t.close} onClick={() => requestClose(nodeId)}>
-                <X />
-              </HeaderButton>
-            </>
+          onDuplicate={
+            workspaceId
+              ? () => void duplicateTerminal(workspaceId, nodeId).catch((error: unknown) => toast.error(t.duplicateFailed(String(error))))
+              : undefined
           }
+          onClose={() => requestClose(nodeId)}
         />
       )}
-      {/* The padding sits on a wrapper: the grid is sized from the host's
-          client size, which would include padding set on the host itself. */}
-      <div ref={bodyRef} className={cn("relative min-h-0 flex-1 px-1 pt-1", minimized && "hidden")}>
+      {/* The padding sits on a wrapper (TERMINAL_BODY says why). */}
+      <div ref={bodyRef} className={cn(TERMINAL_BODY, minimized && "hidden")}>
         <div ref={hostRef} className="relative h-full w-full overflow-hidden" />
         <ResumeCard nodeId={nodeId} payload={payload} status={status} />
       </div>

@@ -1,12 +1,12 @@
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { nodeKindOf } from "@/canvas/nodeElement";
-import type { Point } from "@/fleet/terminals";
+import type { Point } from "@/agents/terminals";
 
 /** What a right press points at (spec menu radial §6.4). */
 export type RadialTarget =
   | { kind: "canvas" }
   | { kind: "terminal"; id: string }
-  | { kind: "orchestrator"; id: string }
+  | { kind: "fleet"; id: string }
   | { kind: "group"; id: string }
   | { kind: "selection"; ids: string[]; groupId?: string };
 
@@ -20,8 +20,8 @@ export function isTextField(element: Element): boolean {
 export function domTarget(element: Element): RadialTarget | null {
   const terminal = element.closest("[data-terminal]")?.getAttribute("data-terminal");
   if (terminal) return { kind: "terminal", id: terminal };
-  const orchestrator = element.closest("[data-orchestrator]")?.getAttribute("data-orchestrator");
-  if (orchestrator) return { kind: "orchestrator", id: orchestrator };
+  const fleet = element.closest("[data-fleet]")?.getAttribute("data-fleet");
+  if (fleet) return { kind: "fleet", id: fleet };
   return null;
 }
 
@@ -140,7 +140,7 @@ export function sceneTarget({ point, zoom, elements, selectedIds, groupIds }: Sc
     const element = elements[i];
     if (element.type === "frame" || element.type === "magicframe" || !hits(element, point, tolerance)) continue;
     const kind = nodeKindOf(element);
-    if (kind === "terminal" || kind === "orchestrator") return { kind, id: element.id };
+    if (kind === "terminal" || kind === "fleet") return { kind, id: element.id };
     return drawingAt(element, elements);
   }
   for (let i = elements.length - 1; i >= 0; i--) {

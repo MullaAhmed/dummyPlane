@@ -5,25 +5,25 @@ import { nodesStore, terminalOf } from "@/store/nodes";
 import { AGENT_ONLY, agentTools, declareSteps, markStep, refused, report, spawnAgentTool } from "./agentTools";
 import { linkTool, linkTools } from "./linkTools";
 import { agentMessages } from "./messages";
-import { ORCHESTRATOR_ONLY, orchestratorTool, orchestratorTools } from "./orchestratorTools";
+import { FLEET_ONLY, fleetTool, fleetTools } from "./fleetTools";
 import { internalCall, RENAMED } from "./protocol";
 
 const t = () => messages(agentMessages).router;
 
-/** The interface's answer to one MCP call of a node, by its kind (spec orchestrator §4.1, §4.3). */
+/** The interface's answer to one MCP call of a node, by its kind (spec orchestrateur §4.1, §4.3). */
 export async function answer(call: McpCall): Promise<unknown> {
   const record = nodesStore.getState().nodes[call.nodeId];
-  const orchestrator = record?.kind === "orchestrator";
-  if (call.method === "tools/list") return { tools: [...(orchestrator ? orchestratorTools() : [...agentTools(), ...linkTools()]), notesToolSpec()] };
+  const fleet = record?.kind === "fleet";
+  if (call.method === "tools/list") return { tools: [...(fleet ? fleetTools() : [...agentTools(), ...linkTools()]), notesToolSpec()] };
   const asked = String(call.params.name ?? "");
   const { name, args } = internalCall(asked, (call.params.arguments ?? {}) as Record<string, unknown>);
   // A conversation resumed from before the English names may still call a former one.
   if (!name) return refused(Object.prototype.hasOwnProperty.call(RENAMED, asked) ? t().renamed(RENAMED[asked]) : t().unknown(asked));
   // Read-only and for all: the caller's project comes from the base, it may not be the one on screen.
-  if (name === "notes") return notesTool(call.nodeId, orchestrator, args);
-  if (orchestrator) return AGENT_ONLY.has(name) ? refused(t().agentsOnly) : orchestratorTool(call.nodeId, name, args);
+  if (name === "notes") return notesTool(call.nodeId, fleet, args);
+  if (fleet) return AGENT_ONLY.has(name) ? refused(t().agentsOnly) : fleetTool(call.nodeId, name, args);
   if (!terminalOf(record)) return refused(t().gone);
-  if (ORCHESTRATOR_ONLY.has(name)) return refused(t().orchestratorOnly);
+  if (FLEET_ONLY.has(name)) return refused(t().fleetOnly);
   switch (name) {
     case "declarer_etapes":
       return declareSteps(call.nodeId, args);

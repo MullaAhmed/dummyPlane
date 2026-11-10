@@ -55,13 +55,16 @@ pub enum ClaudeMode {
 }
 
 /// What a Claude session is for (spec orchestrateur §4.2): an agent, or the
-/// orchestrator that manages a team without coding.
+/// fleet that manages a team without coding.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Role {
     #[default]
     Agent,
-    Orchestrator,
+    /// The wire value sent by the interface is still "orchestrator": kept for
+    /// saved data and older builds.
+    #[serde(rename = "orchestrator")]
+    Fleet,
 }
 
 /// What a mission lets its agents do unasked (spec mission de nuit §5.3).
@@ -93,13 +96,13 @@ pub struct ClaudeLaunch {
     pub mode: ClaudeMode,
     pub session_id: String,
     pub title: String,
-    /// Interfaces of before the orchestrator send none: an agent.
+    /// Interfaces of before the fleet send none: an agent.
     #[serde(default)]
     pub role: Role,
     /// Remote Control from the start, under this name (`--remote-control`).
     #[serde(default)]
     pub remote_control: Option<String>,
-    /// The model the orchestrator's router chose (`--model`).
+    /// The model the fleet's router chose (`--model`).
     #[serde(default)]
     pub model: Option<String>,
     /// A mission's choice; none outside a mission that made one.
@@ -174,10 +177,10 @@ pub struct AgentHooks {
     pub system_prompt: Option<PathBuf>,
 }
 
-/// What keeps an orchestrator a manager (spec première version §4.1): its
+/// What keeps a fleet a manager (spec première version §4.1): its
 /// settings (`deny`), dummyPlane's tools and its role. Without one of them it
 /// would start as a plain Claude in the user's folder, so it does not start.
-pub fn orchestrator_tools(hooks: &AgentHooks, server_running: bool) -> Result<(), String> {
+pub fn fleet_tools(hooks: &AgentHooks, server_running: bool) -> Result<(), String> {
     if !server_running {
         return Err("dummyPlane's local server did not start".to_string());
     }
@@ -432,9 +435,9 @@ fn claude_command(
                 " {flag} {}",
                 quote(syntax, &path.to_string_lossy())
             ));
-            // The orchestrator gets dummyPlane's tools only: the user's MCP
+            // The fleet gets dummyPlane's tools only: the user's MCP
             // servers could write files out of reach of its `deny` list.
-            if flag == "--mcp-config" && launch.role == Role::Orchestrator {
+            if flag == "--mcp-config" && launch.role == Role::Fleet {
                 claude.push_str(" --strict-mcp-config");
             }
         }
@@ -907,10 +910,10 @@ mod tests {
     }
 
     #[test]
-    fn an_orchestrator_needs_all_its_tools() {
-        assert_eq!(orchestrator_tools(&tooled(), true), Ok(()));
+    fn a_fleet_needs_all_its_tools() {
+        assert_eq!(fleet_tools(&tooled(), true), Ok(()));
         assert_eq!(
-            orchestrator_tools(&AgentHooks::default(), false),
+            fleet_tools(&AgentHooks::default(), false),
             Err("dummyPlane's local server did not start".to_string())
         );
         for partial in [
@@ -928,16 +931,16 @@ mod tests {
             },
         ] {
             assert_eq!(
-                orchestrator_tools(&partial, true),
+                fleet_tools(&partial, true),
                 Err("its settings could not be written (see the log)".to_string())
             );
         }
     }
 
     #[test]
-    fn an_orchestrator_gets_only_dummyplanes_tools() {
+    fn a_fleet_gets_only_dummyplanes_tools() {
         let mut launch = claude(ClaudeMode::New, "");
-        launch.as_mut().unwrap().role = Role::Orchestrator;
+        launch.as_mut().unwrap().role = Role::Fleet;
         let manager = agent_command(&spec(Agent::Claude, launch), ShellSyntax::Cmd, &tooled())
             .unwrap()
             .unwrap();
@@ -1320,10 +1323,12 @@ mod tests {
             }))
             .unwrap()
         };
-        let orchestrator = spec(
+        // The wire value is still "orchestrator": the interface sends it, saved
+        // data and older builds keep it.
+        let fleet = spec(
             serde_json::json!({ "mode": "new", "sessionId": SESSION, "title": "t", "role": "orchestrator" }),
         );
-        assert_eq!(orchestrator.claude.unwrap().role, Role::Orchestrator);
+        assert_eq!(fleet.claude.unwrap().role, Role::Fleet);
         let older = spec(serde_json::json!({ "mode": "new", "sessionId": SESSION, "title": "t" }));
         assert_eq!(older.claude.unwrap().role, Role::Agent);
     }

@@ -5,10 +5,10 @@ import { useActiveTerminal } from "@/canvas/activeTerminal";
 import { useCanvas } from "@/canvas/canvasStore";
 import { isGroup } from "@/canvas/groups";
 import { Button } from "@/components/ui/button";
-import { AGENTS } from "@/fleet/catalog";
-import { CommandInput } from "@/fleet/CommandInput";
-import { HINT_KEY, historyStore } from "@/fleet/history";
-import { activeTarget, selectionTargets, targetAgents } from "@/fleet/targets";
+import { AGENTS } from "@/agents/catalog";
+import { CommandInput } from "@/agents/CommandInput";
+import { HINT_KEY, historyStore } from "@/agents/history";
+import { activeTarget, selectionTargets, targetAgents } from "@/agents/targets";
 import { useMessages } from "@/i18n";
 import { getSetting, setSetting } from "@/ipc/db";
 import { terminalOf, useNodes } from "@/store/nodes";
@@ -62,8 +62,8 @@ export function CommandBar() {
   const activeName = nothingSelected && active !== null ? agents.find((a) => a.id === active)?.name : undefined;
 
   return (
-    // A panel round enough to hold Send's 8px corner 8px in from its own (16 = 8 + 8).
-    <div data-command-bar className="dp-glass-strong pointer-events-auto flex min-h-12 w-[680px] max-w-[calc(100vw-360px)] items-end gap-2 rounded-[16px] py-2 pl-3 pr-2">
+    // A panel round enough (rounded-xl, 16) to hold Send's 8px corner 8px in from its own (16 = 8 + 8).
+    <div data-command-bar className="dp-glass-strong pointer-events-auto flex min-h-12 w-[680px] max-w-[calc(100vw-360px)] items-end gap-2 rounded-xl py-2 pl-3 pr-2">
       {/* The prompt sits at the foot of the bar, centred on Send, however tall the field grows. */}
       <ChevronRight className="mb-2 size-4 shrink-0 text-dp-text-3" aria-hidden />
       <CommandInput
@@ -96,8 +96,8 @@ export function CommandHint() {
 
   if (!shown) return null;
   return (
-    // 12 round, 4 in: its ✕ is 8 round.
-    <div className="dp-glass-strong pointer-events-auto flex items-center gap-2 rounded-[12px] py-1 pl-3 pr-1 text-xs text-dp-text-2">
+    // rounded-lg (12), 4 in: its ✕ (icon-xs) is 8 round.
+    <div className="dp-glass-strong pointer-events-auto flex items-center gap-2 rounded-lg py-1 pl-3 pr-1 text-xs text-dp-text-2">
       {t.hint}
       <Button
         variant="ghost"
@@ -107,7 +107,7 @@ export function CommandHint() {
           setShown(false);
           void setSetting(HINT_KEY, true).catch(() => undefined);
         }}
-        className="size-5 rounded-[8px] text-dp-text-2 hover:text-dp-text"
+        className="text-dp-text-2 hover:text-dp-text"
       >
         <X className="size-3" />
       </Button>

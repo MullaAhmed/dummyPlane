@@ -1,20 +1,22 @@
 // @vitest-environment happy-dom
+import { STORED_FLEET_KIND } from "@/canvas/nodeElement";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mockIPC } from "@tauri-apps/api/mocks";
-import { showNode } from "@/canvas/arrive";
 import { canvasStore } from "@/canvas/canvasStore";
+import { userIsTyping } from "@/canvas/typing";
 import { clearWirePulses, wireActivityStore } from "@/canvas/wireActivity";
-import { pauseAgents } from "@/fleet/broadcast";
+import { pauseAgents } from "@/agents/broadcast";
 import { forgetScene, rememberScene } from "@/canvas/sceneCache";
-import { closeGroup, closeStoredGroup, launchGroup, showGroups } from "@/fleet/groups";
-import { nextName } from "@/fleet/names";
-import { linkOrchestrator } from "@/fleet/orchestrators";
-import { addTerminal, removeFromStoredScene, removeNodes } from "@/fleet/terminals";
+import { closeGroup, closeStoredGroup, launchGroup, showGroups } from "@/agents/groups";
+import { nextName } from "@/agents/names";
+import { linkFleet } from "@/fleet/fleets";
+import { addTerminal, removeFromStoredScene, removeNodes } from "@/agents/terminals";
 import { missionAddAgent, missionCleanup, missionDiscard, missionMerge, missionPrepare, type Worktree } from "@/ipc/mission";
 import { ptySendText } from "@/ipc/pty";
 import { relaunchTerminal, stopTerminal } from "@/nodes/terminal/registry";
 import type { TerminalPayload } from "@/nodes/types";
 import { nodesStore, terminalOf } from "@/store/nodes";
+import { projectsStore, type Project } from "@/store/projects";
 import { terminalStatusStore } from "@/store/terminalStatus";
 import { workspacesStore } from "@/store/workspaces";
 import { notify } from "./events";
@@ -31,17 +33,22 @@ vi.mock("@/ipc/pty", async (importOriginal) => ({
   ptyWrite: vi.fn(() => Promise.resolve()),
 }));
 vi.mock("@/nodes/terminal/registry", () => ({ relaunchTerminal: vi.fn(), stopTerminal: vi.fn(), quietFor: vi.fn(() => 0), typedAgo: vi.fn(() => Infinity), freshText: vi.fn(() => ""), markForAutostart: vi.fn() }));
-vi.mock("@/fleet/groups", () => ({ launchGroup: vi.fn(), closeGroup: vi.fn(), closeStoredGroup: vi.fn(), showGroups: vi.fn() }));
-vi.mock("@/fleet/orchestrators", () => ({ linkOrchestrator: vi.fn() }));
-vi.mock("@/fleet/terminals", () => ({ addTerminal: vi.fn(() => Promise.resolve("n9")), removeNodes: vi.fn(), removeFromStoredScene: vi.fn() }));
-vi.mock("@/fleet/broadcast", () => ({ pauseAgents: vi.fn(() => Promise.resolve(1)) }));
+vi.mock("@/agents/groups", () => ({ launchGroup: vi.fn(), closeGroup: vi.fn(), closeStoredGroup: vi.fn(), showGroups: vi.fn() }));
+vi.mock("@/fleet/fleets", () => ({ linkFleet: vi.fn() }));
+vi.mock("@/agents/terminals", () => ({ addTerminal: vi.fn(() => Promise.resolve("n9")), removeNodes: vi.fn(), removeFromStoredScene: vi.fn() }));
+vi.mock("@/agents/broadcast", () => ({ pauseAgents: vi.fn(() => Promise.resolve(1)) }));
 vi.mock("@/canvas/arrive", () => ({ showNode: vi.fn() }));
+vi.mock("@/canvas/typing", () => ({ userIsTyping: vi.fn(() => false) }));
 vi.mock("./ready", () => ({ whenReady: vi.fn(() => Promise.resolve(true)) }));
 vi.mock("./events", () => ({ notify: vi.fn() }));
 vi.mock("./store", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./store")>()),
   linkedClaudeAgents: vi.fn(() => [{ nodeId: "isis", name: "Isis" }]),
 }));
+
+// How agents arrive: the go-ahead's team comes into view (the user just asked for it), a replacement's agent never does.
+const inView = { reveal: true };
+const quiet = { reveal: false, source: "mission" };
 
 const session: TerminalPayload = { title: "Chef", name: "Chef", agent: "claude", cwd: "C:/code/proj", shell: "default", command: "", claudeSessionId: "s0", role: "orchestrator" };
 const plan = [
@@ -57,7 +64,7 @@ const missionNow = () => missionOf(nodesStore.getState().nodes.chef)!;
 async function setup(mission: Partial<Mission> = {}) {
   await nodesStore.getState().create("chef", {
     workspaceId: "w1",
-    kind: "orchestrator",
+    kind: "fleet",
     payload: { name: "Chef", session, mission: { state: "plan", maxAgents: 4, members: [], name: "Auth", plan, ...mission } },
   });
   await nodesStore.getState().create("isis", {
@@ -70,6 +77,7 @@ async function setup(mission: Partial<Mission> = {}) {
 beforeEach(() => {
   mockIPC(() => undefined);
   vi.clearAllMocks();
+  vi.mocked(userIsTyping).mockReturnValue(false);
   vi.mocked(missionPrepare).mockResolvedValue(tree("auth"));
   vi.mocked(missionAddAgent).mockImplementation(async (_project, mission, agent) => tree(`${mission}-${agent.toLowerCase()}`));
   vi.mocked(launchGroup).mockResolvedValue({ frameId: "f1", nodeIds: ["n1"] });
@@ -103,7 +111,7 @@ describe("what dummyPlane types to agents, in English (spec première version §
       expect(handoverText(member("n1", "Horus", false))).toContain("it did not report");
     }));
 
-  it("tells the orchestrator in English that the mission could not start", () =>
+  it("tells the fleet in English that the mission could not start", () =>
     english(async () => {
       await setup();
       vi.mocked(missionPrepare).mockRejectedValueOnce(new Error("boom"));
@@ -135,7 +143,7 @@ describe("the model router (spec maj §3)", () => {
   it("starts each agent on the model of its sub-task's level, and gives the linked ones theirs back at the end", async () => {
     await setup({ router: true, plan: [{ ...plan[0], level: "eleve" }, { ...plan[1], level: "faible" }] });
     await launchMission("chef");
-    expect(launchGroup).toHaveBeenCalledWith(expect.anything(), expect.anything(), undefined, expect.objectContaining({ models: ["claude-haiku-5-5"] }));
+    expect(launchGroup).toHaveBeenCalledWith(expect.anything(), expect.anything(), undefined, expect.objectContaining({ models: ["claude-haiku-5-5"] }), inView);
     expect(terminalOf(nodesStore.getState().nodes.isis)?.model).toBe("claude-opus-5-5");
     expect(relaunchTerminal).toHaveBeenCalledWith("isis", expect.objectContaining({ model: "claude-opus-5-5" }), "new");
     expect(missionNow().members.map((m) => m.model)).toEqual(["claude-opus-5-5", "claude-haiku-5-5"]);
@@ -155,7 +163,7 @@ describe("the model router (spec maj §3)", () => {
   it("leaves the models alone without the router", async () => {
     await setup({ plan: [{ ...plan[0], level: "eleve" }, { ...plan[1], level: "faible" }] });
     await launchMission("chef");
-    expect(launchGroup).toHaveBeenCalledWith(expect.anything(), expect.anything(), undefined, expect.objectContaining({ models: [undefined] }));
+    expect(launchGroup).toHaveBeenCalledWith(expect.anything(), expect.anything(), undefined, expect.objectContaining({ models: [undefined] }), inView);
     expect(terminalOf(nodesStore.getState().nodes.isis)?.model).toBeUndefined();
     expect(missionNow().members.map((m) => m.model)).toEqual([undefined, undefined]);
   });
@@ -182,8 +190,9 @@ describe("launchMission (spec §7.3)", () => {
       expect.anything(),
       undefined,
       expect.objectContaining({ names: [fresh], cwds: [tree(`auth-${fresh.toLowerCase()}`).path] }),
+      inView,
     );
-    expect(linkOrchestrator).toHaveBeenCalledWith("chef", "f1");
+    expect(linkFleet).toHaveBeenCalledWith("chef", "f1");
     expect(mission).toMatchObject({ state: "en_cours", project: "C:/code/proj", slug: "auth", branch: "dummyplane/auth", frameId: "f1" });
     expect(mission.startedAt).toEqual(expect.any(Number));
     expect(mission.members.map((m) => [m.nodeId, m.linked, m.branch])).toEqual([
@@ -205,7 +214,7 @@ describe("launchMission (spec §7.3)", () => {
     await launchMission("chef");
     const mission = missionNow();
     expect(missionAddAgent).toHaveBeenCalledTimes(2);
-    expect(launchGroup).toHaveBeenCalledWith(expect.anything(), expect.anything(), undefined, expect.objectContaining({ names: mission.members.map((m) => m.name) }));
+    expect(launchGroup).toHaveBeenCalledWith(expect.anything(), expect.anything(), undefined, expect.objectContaining({ names: mission.members.map((m) => m.name) }), inView);
     expect(mission.members.map((m) => [m.nodeId, m.task])).toEqual([
       ["n1", "A"],
       ["n2", "B"],
@@ -240,7 +249,7 @@ describe("launchMission (spec §7.3)", () => {
     await setup();
     await launchMission("chef");
     await vi.waitFor(() => expect(ptySendText).toHaveBeenCalledWith("n1", expect.any(String)));
-    await vi.waitFor(() => expect(wireActivityStore.getState().pulses.n1).toMatchObject({ direction: "toAgent", orchestratorId: "chef" }));
+    await vi.waitFor(() => expect(wireActivityStore.getState().pulses.n1).toMatchObject({ direction: "toAgent", fleetId: "chef" }));
     clearWirePulses();
   });
 
@@ -279,7 +288,7 @@ describe("launchMission (spec §7.3)", () => {
     expect(ptySendText).not.toHaveBeenCalled();
   });
 
-  it("tells the orchestrator when an agent did not start, instead of typing into nothing", async () => {
+  it("tells the fleet when an agent did not start, instead of typing into nothing", async () => {
     await setup();
     terminalStatusStore.getState().set("n1", { state: "stopped" });
     await launchMission("chef");
@@ -304,7 +313,7 @@ describe("a new agent in a chosen group (spec groupes spécialisés §4)", () =>
     const joined = mission.members[0];
     expect(launchGroup).not.toHaveBeenCalled();
     expect(joined).toMatchObject({ nodeId: "n9", name: nextName("norse", ["Isis"]), linked: false, group: "g1" });
-    expect(addTerminal).toHaveBeenCalledWith("w1", expect.objectContaining({ name: joined.name, cwd: joined.worktree, agent: "claude", model: "claude-haiku-5-5" }), { x: 200, y: 150 }, "g1");
+    expect(addTerminal).toHaveBeenCalledWith("w1", expect.objectContaining({ name: joined.name, cwd: joined.worktree, agent: "claude", model: "claude-haiku-5-5" }), { x: 200, y: 150 }, "g1", inView);
     expect(mission.frameId).toBeUndefined();
     expect(showGroups).toHaveBeenCalledWith(["g1"]);
     await vi.waitFor(() => expect(ptySendText).toHaveBeenCalledWith("n9", expect.stringContaining("API")));
@@ -315,11 +324,26 @@ describe("a new agent in a chosen group (spec groupes spécialisés §4)", () =>
     vi.mocked(addTerminal).mockResolvedValueOnce("n9").mockResolvedValueOnce("n8");
     terminalStatusStore.getState().set("n8", { state: "running" });
     await launchMission("chef");
-    expect(launchGroup).toHaveBeenCalledWith(expect.objectContaining({ agents: ["claude"] }), expect.anything(), undefined, expect.anything());
+    expect(launchGroup).toHaveBeenCalledWith(expect.objectContaining({ agents: ["claude"] }), expect.anything(), undefined, expect.anything(), inView);
     expect(missionNow().members.map((m) => m.nodeId)).toEqual(["isis", "n1", "n9", "n8"]);
     expect(new Set(missionNow().members.map((m) => m.name)).size).toBe(4);
     expect(showGroups).toHaveBeenCalledWith(["g1", "f1"]);
     expect(missionNow().frameId).toBe("f1");
+  });
+
+  it("forms the team quietly when the user is typing by then: nothing framed, the agents arrive where they are", async () => {
+    await setup({ plan: [plan[0], plan[1], inFront, { ...inFront, title: "Style" }] });
+    vi.mocked(addTerminal).mockResolvedValueOnce("n9").mockResolvedValueOnce("n8");
+    terminalStatusStore.getState().set("n8", { state: "running" });
+    vi.mocked(userIsTyping).mockReturnValue(true);
+    await launchMission("chef");
+    expect(launchGroup).toHaveBeenCalledWith(expect.objectContaining({ agents: ["claude"] }), expect.anything(), undefined, expect.anything(), quiet);
+    expect(addTerminal).toHaveBeenCalledWith("w1", expect.anything(), { x: 200, y: 150 }, "g1", quiet);
+    expect(addTerminal).toHaveBeenCalledTimes(2);
+    expect(showGroups).not.toHaveBeenCalled();
+    // The mission still runs: the team is there, and its sub-tasks are sent.
+    expect(missionNow().state).toBe("en_cours");
+    expect(missionNow().members.map((m) => m.nodeId)).toEqual(["isis", "n1", "n9", "n8"]);
   });
 
   it("frames nothing more when nobody joins a group, as before", async () => {
@@ -411,7 +435,7 @@ describe("a new agent in a chosen group (spec groupes spécialisés §4)", () =>
     const running = { state: "en_cours" as const, project: "C:/code/proj", slug: "auth", plan: [{ ...inFront, title: "t" }], members: [member("n7", "Thor", false, { group: "g1" })] };
     await setup(running);
     await reassignTask("chef", "n7", "nouveau");
-    expect(addTerminal).toHaveBeenCalledWith("w1", expect.anything(), { x: 200, y: 150 }, "g1");
+    expect(addTerminal).toHaveBeenCalledWith("w1", expect.anything(), { x: 200, y: 150 }, "g1", quiet);
     expect(missionNow().members.find((m) => m.nodeId === "n9")).toMatchObject({ group: "g1" });
 
     nodesStore.setState({ nodes: {} });
@@ -419,14 +443,14 @@ describe("a new agent in a chosen group (spec groupes spécialisés §4)", () =>
     canvasStore.setState({ frames: [{ ...front, id: "m1" }] });
     vi.mocked(addTerminal).mockClear();
     await reassignTask("chef", "n7", "nouveau");
-    expect(addTerminal).toHaveBeenCalledWith("w1", expect.anything(), { x: 200, y: 150 }, "m1");
+    expect(addTerminal).toHaveBeenCalledWith("w1", expect.anything(), { x: 200, y: 150 }, "m1", quiet);
     expect(missionNow().members.find((m) => m.nodeId === "n9")?.group).toBeUndefined();
   });
 });
 
 describe("a mission whose workspace is not on screen (spec mission de nuit §6.1)", () => {
   const wired = [
-    { id: "chef", type: "embeddable", isDeleted: false, frameId: null, x: 0, y: 0, width: 640, height: 760, customData: { kind: "orchestrator" } },
+    { id: "chef", type: "embeddable", isDeleted: false, frameId: null, x: 0, y: 0, width: 640, height: 760, customData: { kind: STORED_FLEET_KIND } },
     { id: "isis", type: "embeddable", isDeleted: false, frameId: null, x: 0, y: 0, width: 10, height: 10, customData: { kind: "terminal" } },
   ];
 
@@ -441,10 +465,10 @@ describe("a mission whose workspace is not on screen (spec mission de nuit §6.1
     rememberScene("w1", [...wired, { id: "g1", type: "frame", name: "Interface", x: 0, y: 0, width: 800, height: 500, isDeleted: false, frameId: null, customData: { dummyplane: { kind: "group", role: "frontend", pantheon: "norse" } } }, { id: "w", type: "arrow", isDeleted: false, frameId: null, startBinding: { elementId: "chef" }, endBinding: { elementId: "g1" } }] as never, {} as never, {}, []);
     await launchMission("chef");
     expect(missionNow().state).toBe("en_cours");
-    expect(launchGroup).toHaveBeenCalledWith(expect.anything(), expect.anything(), expect.objectContaining({ x: expect.any(Number) }), expect.objectContaining({ workspaceId: "w1" }));
-    expect(addTerminal).toHaveBeenCalledWith("w1", expect.anything(), { x: 400, y: 250 }, "g1");
+    expect(launchGroup).toHaveBeenCalledWith(expect.anything(), expect.anything(), expect.objectContaining({ x: expect.any(Number) }), expect.objectContaining({ workspaceId: "w1" }), inView);
+    expect(addTerminal).toHaveBeenCalledWith("w1", expect.anything(), { x: 400, y: 250 }, "g1", inView);
     expect(showGroups).not.toHaveBeenCalled();
-    expect(linkOrchestrator).toHaveBeenCalledWith("chef", "f1");
+    expect(linkFleet).toHaveBeenCalledWith("chef", "f1");
   });
 
   it("closes the created agents in the stored scene at the end, the group that a member joined staying", async () => {
@@ -463,8 +487,7 @@ describe("a mission whose workspace is not on screen (spec mission de nuit §6.1
     rememberScene("w1", [...wired, { id: "f1", type: "frame", name: "Mission", x: 0, y: 0, width: 800, height: 500, isDeleted: false, frameId: null, customData: { dummyplane: { kind: "group", role: "general", pantheon: "norse" } } }] as never, {} as never, {}, []);
     await setup(running);
     expect(await reassignTask("chef", "isis", "nouveau")).toEqual({ name: expect.any(String) });
-    expect(addTerminal).toHaveBeenCalledWith("w1", expect.anything(), { x: 400, y: 250 }, "f1");
-    expect(showNode).not.toHaveBeenCalled();
+    expect(addTerminal).toHaveBeenCalledWith("w1", expect.anything(), { x: 400, y: 250 }, "f1", quiet);
   });
 
   it("closes them too from the home screen: no canvas is mounted to do it, and they would run on (review)", async () => {
@@ -518,7 +541,7 @@ describe("a mission's permissions (spec mission de nuit §5.3)", () => {
   it("reach every agent of the team, and leave the linked ones at the end", async () => {
     await setup({ permission: "work" });
     await launchMission("chef");
-    expect(launchGroup).toHaveBeenCalledWith(expect.anything(), expect.anything(), undefined, expect.objectContaining({ permission: "work" }));
+    expect(launchGroup).toHaveBeenCalledWith(expect.anything(), expect.anything(), undefined, expect.objectContaining({ permission: "work" }), inView);
     expect(terminalOf(nodesStore.getState().nodes.isis)?.permission).toBe("work");
     expect(relaunchTerminal).toHaveBeenCalledWith("isis", expect.objectContaining({ permission: "work" }), "new");
     endMission("chef", "Fini.");
@@ -565,7 +588,7 @@ it("merges the branches of the agents done, and says what happened to each (spec
   expect(missionNow().members.map((m) => m.merged === true)).toEqual([true, false, false]);
 });
 
-it("cleans a finished mission and frees the orchestrator for the next, its settings kept", async () => {
+it("cleans a finished mission and frees the fleet for the next, its settings kept", async () => {
   await setup({ state: "terminee", budgetMin: 90, maxAgents: 3, project: "C:/code/proj", slug: "auth", summary: "ok", members: [member("isis", "Isis", true)] });
   vi.mocked(missionCleanup).mockResolvedValue({ removed: ["auth-isis", "auth"], kept: [] });
   expect(await cleanMission("chef")).toEqual({ removed: ["auth-isis", "auth"], kept: [] });
@@ -604,7 +627,7 @@ describe("what the final review of H2 found", () => {
     expect(missionDiscard).toHaveBeenCalledWith("C:/code/proj", [tree("auth"), tree("auth-isis"), tree(`auth-${fresh.toLowerCase()}`)]);
   });
 
-  it("forms no team once the user left the orchestrator's workspace", async () => {
+  it("forms no team once the user left the fleet's workspace", async () => {
     await setup();
     vi.mocked(missionPrepare).mockImplementationOnce(async () => {
       workspacesStore.setState({ activeId: "w2" });
@@ -626,7 +649,7 @@ describe("what the final review of H2 found", () => {
     expect(relaunchTerminal).toHaveBeenCalledWith("isis", expect.objectContaining({ cwd: "C:/code/proj" }), "new");
   });
 
-  it("frees the orchestrator even when the cleanup fails", async () => {
+  it("frees the fleet even when the cleanup fails", async () => {
     await setup({ state: "terminee", project: "C:/gone", slug: "auth", members: [member("isis", "Isis", true)] });
     vi.mocked(missionCleanup).mockRejectedValueOnce(new Error("The project folder is not a git repository."));
     expect(await cleanMission("chef")).toBe("The project folder is not a git repository.");
@@ -742,9 +765,7 @@ describe("reassignTask (spec §7.2 reattribuer)", () => {
     expect(typeof result === "object" && result.name).toBeTruthy();
     const name = (result as { name: string }).name;
     expect(missionAddAgent).toHaveBeenCalledWith("C:/code/proj", "auth", name);
-    expect(addTerminal).toHaveBeenCalledWith("w1", expect.objectContaining({ name, cwd: tree(`auth-${name.toLowerCase()}`).path, agent: "claude" }), { x: 400, y: 250 }, "f1");
-    // Shown, it starts like any new agent; a second start would break its session (seen in the app, H3).
-    expect(showNode).toHaveBeenCalledWith("n9");
+    expect(addTerminal).toHaveBeenCalledWith("w1", expect.objectContaining({ name, cwd: tree(`auth-${name.toLowerCase()}`).path, agent: "claude" }), { x: 400, y: 250 }, "f1", quiet);
     expect(relaunchTerminal).not.toHaveBeenCalled();
     expect(missionNow().members.map((m) => [m.nodeId, m.task, m.handedTo])).toEqual([
       ["isis", "Login", name],
@@ -776,6 +797,64 @@ it("gives a reassigned new agent the model of the sub-task's level when the rout
   canvasStore.setState({ frames: [{ id: "f1", x: 0, y: 0, width: 800, height: 500, name: "Mission Auth", group: { role: "general", pantheon: "egyptian" }, memberIds: ["isis"] }] });
   const result = await reassignTask("chef", "isis", "nouveau");
   expect(typeof result).toBe("object");
-  expect(addTerminal).toHaveBeenCalledWith("w1", expect.objectContaining({ model: "claude-opus-5-5" }), expect.anything(), "f1");
+  expect(addTerminal).toHaveBeenCalledWith("w1", expect.objectContaining({ model: "claude-opus-5-5" }), expect.anything(), "f1", quiet);
   expect(missionNow().members[missionNow().members.length - 1]?.model).toBe("claude-opus-5-5");
+});
+
+describe("the repository a mission branches from", () => {
+  const inWorkspace = (folder: string | null) => {
+    projectsStore.setState({ projects: [{ id: "p1", name: "proj", path: "C:/code/proj", lastOpenedAt: 0, missing: false } as Project], activeId: "p1" });
+    workspacesStore.setState({
+      projectId: "p1",
+      workspaces: [{ id: "w1", projectId: "p1", name: "Workspace 1", position: 0, pantheon: null, kind: "canvas", folder }],
+      activeId: "w1",
+      status: "ready",
+    });
+  };
+  afterEach(() => {
+    projectsStore.setState({ projects: [], activeId: null });
+    workspacesStore.setState({ workspaces: [] });
+  });
+
+  it("is the folder of the fleet's workspace, even though the fleet's own session started in the project's", async () => {
+    inWorkspace("D:/work/repo");
+    await setup();
+    await launchMission("chef");
+    expect(missionPrepare).toHaveBeenCalledWith("D:/work/repo", "Auth");
+    expect(vi.mocked(missionAddAgent).mock.calls.map(([project]) => project)).toEqual(["D:/work/repo", "D:/work/repo"]);
+    // Recorded on the mission: the merge, the cleanup and the later agents use it.
+    expect(missionNow().project).toBe("D:/work/repo");
+  });
+
+  it("stays where the mission started when the workspace's folder changes afterwards", async () => {
+    inWorkspace("D:/work/repo");
+    await setup();
+    await launchMission("chef");
+    workspacesStore.setState({ workspaces: [{ ...workspacesStore.getState().workspaces[0], folder: "E:/elsewhere" }] });
+    expect(missionNow().project).toBe("D:/work/repo");
+  });
+
+  it("is the project's folder for a workspace that picked none", async () => {
+    inWorkspace(null);
+    await setup();
+    await launchMission("chef");
+    expect(missionPrepare).toHaveBeenCalledWith("C:/code/proj", "Auth");
+  });
+
+  it("is the fleet's own folder when its workspace is not among the open project's", async () => {
+    inWorkspace("D:/work/repo");
+    workspacesStore.setState({ workspaces: [] });
+    await setup();
+    await launchMission("chef");
+    expect(missionPrepare).toHaveBeenCalledWith("C:/code/proj", "Auth");
+  });
+
+  it("fails the go-ahead, naming the folder, when it is not a git repository, and keeps the plan", async () => {
+    inWorkspace("D:/work/plain");
+    await setup();
+    vi.mocked(missionPrepare).mockRejectedValueOnce(new Error("The folder D:/work/plain is not a git repository."));
+    await launchMission("chef");
+    expect(missionNow()).toMatchObject({ state: "plan", error: "The folder D:/work/plain is not a git repository.", members: [] });
+    expect(notify).toHaveBeenCalledWith("chef", "The mission could not start: The folder D:/work/plain is not a git repository.");
+  });
 });

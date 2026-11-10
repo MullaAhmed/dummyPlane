@@ -1,7 +1,7 @@
 import { beforeEach, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import { sceneGone, sceneReady } from "@/canvas/sceneReady";
-import { installAgent } from "@/fleet/installAgent";
+import { installAgent } from "@/agents/installAgent";
 import type { Project } from "@/ipc/db";
 import { projectsStore } from "@/store/projects";
 import { workspacesStore } from "@/store/workspaces";
@@ -9,7 +9,7 @@ import { addProject } from "./addProject";
 import { installFromHome } from "./installFromHome";
 
 vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { error: vi.fn() }) }));
-vi.mock("@/fleet/installAgent", () => ({ installAgent: vi.fn(() => Promise.resolve("node")) }));
+vi.mock("@/agents/installAgent", () => ({ installAgent: vi.fn(() => Promise.resolve("node")) }));
 vi.mock("./addProject", () => ({ addProject: vi.fn(() => Promise.resolve()) }));
 
 const project = (id: string, lastOpenedAt: number, missing = false): Project => ({
@@ -42,7 +42,7 @@ beforeEach(() => {
 });
 
 it("goes to a canvas when the project reopens on its code workspace", async () => {
-  const workspace = (id: string, kind: "canvas" | "code") => ({ id, projectId: "a", name: id, position: 0, pantheon: null, kind });
+  const workspace = (id: string, kind: "canvas" | "code") => ({ id, projectId: "a", name: id, position: 0, pantheon: null, kind, folder: null });
   workspacesStore.setState({ workspaces: [workspace("code", "code"), workspace("w1", "canvas")] });
   projectsStore.setState({ projects: [project("a", 1)] });
   open.mockImplementationOnce(async () => {

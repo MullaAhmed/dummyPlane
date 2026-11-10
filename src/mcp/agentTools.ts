@@ -3,11 +3,11 @@ import { messages } from "@/i18n";
 import { declaredSteps, markedSteps, MAX_STEPS } from "@/nodes/steps";
 import { notify } from "@/mission/events";
 import { oneLine, type ReportStatus } from "@/mission/mission";
-import { finishMissionCard, flagMissionCard } from "@/kanban/orchestrate";
+import { finishMissionCard, flagMissionCard } from "@/kanban/fleetBoards";
 import { afterReport } from "@/mission/queue";
-import { isOrchestratorClosed, memberOf, missionOf, updateMember } from "@/mission/store";
-import { spawnAgent } from "@/fleet/spawn";
-import { markReported, MAX_SPAWN_DEPTH, spawnedByOf } from "@/fleet/spawnFamily";
+import { isFleetClosed, memberOf, missionOf, updateMember } from "@/mission/store";
+import { spawnAgent } from "@/agents/spawn";
+import { markReported, MAX_SPAWN_DEPTH, spawnedByOf } from "@/agents/spawnFamily";
 import { onAgentReported } from "@/nodes/terminal/minimize";
 import { nodeNameOf, nodesStore, terminalOf } from "@/store/nodes";
 import { isRunning } from "@/store/terminalStatus";
@@ -25,7 +25,7 @@ export const refused = (text: string): ToolResult => ({ ...said(text), isError: 
 
 const t = () => messages(agentMessages);
 
-/** The tools of any Claude session (spec orchestrator §4.4), described in the interface's language. */
+/** The tools of any Claude session (spec orchestrateur §4.4), described in the interface's language. */
 export function agentTools() {
   const d = t().tools;
   return [
@@ -75,14 +75,14 @@ export function agentTools() {
 /** Internal names of the agents' tools (`./protocol.ts`), linked agents' included (`./linkTools.ts`). */
 export const AGENT_ONLY = new Set(["declarer_etapes", "etape", "rendre_compte", "spawn_agent", "linked_agents", "message_agent", "read_agent"]);
 
-/** Who hears an agent's news over a wire: its mission's orchestrator, else the agent that spawned it. */
-const listenerOf = (nodeId: string) => memberOf(nodeId)?.orchestratorId ?? spawnedByOf(nodeId);
+/** Who hears an agent's news over a wire: its mission's fleet, else the agent that spawned it. */
+const listenerOf = (nodeId: string) => memberOf(nodeId)?.fleetId ?? spawnedByOf(nodeId);
 
 export function declareSteps(nodeId: string, args: Record<string, unknown>): ToolResult {
   const steps = declaredSteps(args.etapes);
   if (typeof steps === "string") return refused(steps);
   nodesStore.getState().update(nodeId, { steps });
-  signalWire(nodeId, "toOrchestrator", listenerOf(nodeId));
+  signalWire(nodeId, "toFleet", listenerOf(nodeId));
   return said(t().agent.declared(steps.length));
 }
 
@@ -91,14 +91,14 @@ export function markStep(nodeId: string, args: Record<string, unknown>): ToolRes
   const steps = markedSteps(current, args.titre, args.etat);
   if (typeof steps === "string") return refused(steps);
   nodesStore.getState().update(nodeId, { steps });
-  // Its orchestrator's wire (or its parent's) shows the news coming up, whether or not a mission runs.
-  signalWire(nodeId, "toOrchestrator", listenerOf(nodeId));
+  // Its fleet's wire (or its parent's) shows the news coming up, whether or not a mission runs.
+  signalWire(nodeId, "toFleet", listenerOf(nodeId));
   const step = steps.find((s) => s.title.toLowerCase() === String(args.titre).trim().toLowerCase())!;
   const state = outStep(step.state);
   return said(t().agent.marked(step.title, state));
 }
 
-/** spawn_agent: a sub-agent opens as a terminal beside the caller (`@/fleet/spawn`). */
+/** spawn_agent: a sub-agent opens as a terminal beside the caller (`@/agents/spawn`). */
 export async function spawnAgentTool(nodeId: string, args: Record<string, unknown>): Promise<ToolResult> {
   const result = await spawnAgent(nodeId, args);
   return result.error ? refused(result.text) : said(result.text);
@@ -106,7 +106,7 @@ export async function spawnAgentTool(nodeId: string, args: Record<string, unknow
 
 /**
  * A spawned agent's report, typed into the agent that spawned it as a mission
- * report is into its orchestrator: queued while that one is busy. Null when
+ * report is into its fleet: queued while that one is busy. Null when
  * nobody spawned it.
  */
 function reportToParent(nodeId: string, summary: string, status: ReportStatus): ToolResult | null {
@@ -116,14 +116,14 @@ function reportToParent(nodeId: string, summary: string, status: ReportStatus): 
   const name = nodeNameOf(nodes[nodeId]) || "A sub-agent";
   // Its task is done: it no longer counts against the sub-agents at work.
   markReported(nodeId);
-  signalWire(nodeId, "toOrchestrator", parentId);
+  signalWire(nodeId, "toFleet", parentId);
   if (!terminalOf(nodes[parentId]) || !isRunning(parentId)) return said(t().agent.unheardParent);
   notify(parentId, t().agent.reported(name, outReport(status), oneLine(summary)));
   return said(t().agent.sentToParent(nodeNameOf(nodes[parentId]) || "your parent agent"));
 }
 
 /**
- * `report`: inside a mission its orchestrator hears it (spec §7.5); an agent
+ * `report`: inside a mission its fleet hears it (spec §7.5); an agent
  * opened with spawn_agent reports to its parent too; otherwise nobody listens.
  */
 export function report(nodeId: string, args: Record<string, unknown>): ToolResult {
@@ -139,16 +139,16 @@ export function report(nodeId: string, args: Record<string, unknown>): ToolResul
   if (!found) return toParent!;
   // `merge` merges every "done" branch again: a merged one stays so until then (final review H2).
   const check = typeof args.check === "string" ? oneLine(args.check) : "";
-  updateMember(found.orchestratorId, nodeId, { report: { summary, status, at: Date.now(), ...(check ? { check } : {}) } });
-  signalWire(nodeId, "toOrchestrator", found.orchestratorId);
+  updateMember(found.fleetId, nodeId, { report: { summary, status, at: Date.now(), ...(check ? { check } : {}) } });
+  signalWire(nodeId, "toFleet", found.fleetId);
   // Its Kanban card follows: done, or on alert in "In progress".
-  const plan = missionOf(nodesStore.getState().nodes[found.orchestratorId])?.plan;
-  if (status === "termine") void finishMissionCard(found.orchestratorId, plan, found.member.task).catch(() => undefined);
-  else flagMissionCard(found.orchestratorId, plan, found.member.task, status === "bloque" ? "blocked" : "failed");
-  // Queued even when nobody listens: a relaunched or restored orchestrator hears it then (final review R3).
-  notify(found.orchestratorId, t().agent.reported(found.member.name, outReport(status), oneLine(summary)));
-  // The queue moves on without it: a stopped orchestrator must not stall the night.
-  void afterReport(found.orchestratorId, nodeId);
-  const toOrchestrator = isOrchestratorClosed(found.orchestratorId) || !isRunning(found.orchestratorId) ? t().agent.unheard : t().agent.sent;
-  return said(toParent ? `${toOrchestrator} ${toParent.content[0].text}` : toOrchestrator);
+  const plan = missionOf(nodesStore.getState().nodes[found.fleetId])?.plan;
+  if (status === "termine") void finishMissionCard(found.fleetId, plan, found.member.task).catch(() => undefined);
+  else flagMissionCard(found.fleetId, plan, found.member.task, status === "bloque" ? "blocked" : "failed");
+  // Queued even when nobody listens: a relaunched or restored fleet hears it then (final review R3).
+  notify(found.fleetId, t().agent.reported(found.member.name, outReport(status), oneLine(summary)));
+  // The queue moves on without it: a stopped fleet must not stall the night.
+  void afterReport(found.fleetId, nodeId);
+  const toFleet = isFleetClosed(found.fleetId) || !isRunning(found.fleetId) ? t().agent.unheard : t().agent.sent;
+  return said(toParent ? `${toFleet} ${toParent.content[0].text}` : toFleet);
 }

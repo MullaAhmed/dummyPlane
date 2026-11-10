@@ -25,6 +25,7 @@ export const canvasMessages = defineMessages(
       edit: "Edit",
       editTerminal: (name: string) => `Edit ${name}`,
       thisTerminal: "this terminal",
+      thisFleet: "this fleet",
       foldPanel: "Fold the panel",
       rename: "Rename",
       copy: "Copy",
@@ -34,11 +35,27 @@ export const canvasMessages = defineMessages(
       copyPath: "Copy the path",
       pathCopied: "Path copied",
       copyPathFailed: "Could not copy the path",
+      changeFolder: "Change…",
+      changeFolderLabel: "Change the folder",
+      pickFolder: "Working folder",
+      pickFolderFailed: (error: string) => `Could not open the folder picker: ${error}`,
+      // Under the folder of a fleet or of a mission's agent, which cannot be moved.
+      folderFleet: "A fleet stays in the project: its missions branch from it",
+      folderMission: "Fixed while its mission runs: this agent works in its own worktree",
+      // Claude keeps a conversation with the folder it started in (it cannot resume one from another folder).
+      folderNewConversation: "New folder, new conversation: Claude keeps each conversation with its folder",
       command: "Command",
+      shell: "Shell",
+      title: "Title",
       model: "Model",
       defaultModel: "Default",
-      // Only a Custom terminal's command is still edited here, and read at its next launch.
-      nextLaunch: "The command applies at the next launch",
+      useDefaultModel: "Use default",
+      // The fields above are read when the terminal starts: the command only for a Custom one, a fleet's title is its name.
+      nextLaunch: "Folder, shell and title apply at the next launch",
+      nextLaunchCustom: "Command, folder, shell and title apply at the next launch",
+      nextLaunchFleet: "The shell applies at the next launch",
+      // Beside "Restart now": the running session still has the settings it started with.
+      launchChanged: "Running with the old launch settings",
       tabs: { general: "General", skills: "Skills", plugins: "Plugins", mcp: "MCP", agents: "Subagents" },
       claudeOnly: "Skills, plugins and MCP servers can be chosen for Claude terminals",
       /** What a list holds, inside a sentence. */
@@ -70,7 +87,10 @@ export const canvasMessages = defineMessages(
       offInSettings: "Off in your Claude settings",
       offWithPlugin: "Its plugin is off: turn it on in Plugins first",
       connectorsNotListed: "claude.ai connectors aren't listed here",
+      // A fleet's session always has dummyPlane's own server: it carries the mission's tools, so it has no switch.
+      missionServerAlwaysOn: "The fleet's mission server is always on",
       appliesOnRestart: "Changes apply when the terminal restarts",
+      appliesOnRestartFleet: "Changes apply when the fleet restarts",
       // Beside "Restart now": the running session still has the choices it started with.
       runningOldChoice: "Running with the old choices",
       restartNow: "Restart now",

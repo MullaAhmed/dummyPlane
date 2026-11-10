@@ -25,8 +25,8 @@ describe("frameStyle", () => {
   });
 });
 
-it("draws no waiting glow over a terminal or an orchestrator any more", () => {
-  for (const file of ["nodes/terminal/TerminalNode.tsx", "nodes/orchestrator/OrchestratorNode.tsx", "nodes/terminal/frame.ts"]) {
+it("draws no waiting glow over a terminal or a fleet any more", () => {
+  for (const file of ["nodes/terminal/TerminalNode.tsx", "nodes/fleet/FleetNode.tsx", "nodes/terminal/frame.ts"]) {
     expect(readSource(file), file).not.toMatch(/WAITING_GLOW|inset 0 0 28px/);
   }
 });

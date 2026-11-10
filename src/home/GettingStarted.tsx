@@ -1,7 +1,7 @@
 import { Check, ExternalLink } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { Button } from "@/components/ui/button";
-import { useAgents } from "@/fleet/agentsStore";
+import { useAgents } from "@/agents/agentsStore";
 import { useMessages } from "@/i18n";
 import { keyLabel } from "@/i18n/format";
 import { cn } from "@/lib/utils";
@@ -56,7 +56,7 @@ export function GettingStarted({ hasProject }: { hasProject: boolean }) {
                   size="xs"
                   data-link
                   onClick={() => void openUrl(GIT_DOWNLOAD)}
-                  className="-mx-2 mt-1 rounded-md px-2 font-normal text-dp-accent-ink hover:text-dp-accent-ink"
+                  className="-mx-2 mt-1 px-2 font-normal text-dp-accent-ink hover:text-dp-accent-ink"
                 >
                   {t.installGit} <ExternalLink />
                 </Button>

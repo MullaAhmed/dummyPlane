@@ -3,7 +3,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 import { mockIPC } from "@tauri-apps/api/mocks";
 import { ptySendText } from "@/ipc/pty";
 import { typedAgo } from "@/nodes/terminal/registry";
-import { remoteBusy } from "@/fleet/remoteControl";
+import { remoteBusy } from "@/agents/remoteControl";
 import { agentActivityStore } from "@/store/agentActivity";
 import { nodesStore } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
@@ -13,10 +13,10 @@ import type { Member } from "./mission";
 
 vi.mock("@/ipc/pty", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/ipc/pty")>()), ptySendText: vi.fn(() => Promise.resolve()) }));
 vi.mock("@/nodes/terminal/registry", () => ({ freshText: vi.fn(() => ""), quietFor: vi.fn(() => 0), typedAgo: vi.fn(() => Infinity) }));
-vi.mock("@/fleet/remoteControl", () => ({ remoteBusy: vi.fn(() => false) }));
+vi.mock("@/agents/remoteControl", () => ({ remoteBusy: vi.fn(() => false) }));
 vi.mock("./ready", () => ({ whenReady: vi.fn(() => Promise.resolve(true)) }));
 
-/** Lets the started orchestrator's readiness settle. */
+/** Lets the started fleet's readiness settle. */
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 const member = (nodeId: string, name: string, sentAt?: number): Member => ({ nodeId, name, task: "t", budgetMin: 5, linked: false, branch: `dummyplane/m-${nodeId}`, worktree: "C:/w", sentAt });
@@ -30,7 +30,7 @@ beforeAll(async () => {
   mockIPC(() => undefined);
   await nodesStore.getState().create("chef", {
     workspaceId: "w1",
-    kind: "orchestrator",
+    kind: "fleet",
     payload: { name: "Chef", mission: { state: "en_cours", maxAgents: 4, members: [member("isis", "Isis", 1), member("horus", "Horus")] } },
   });
   uninstall = installMissionEvents();
@@ -45,8 +45,8 @@ beforeEach(async () => {
   vi.mocked(ptySendText).mockClear();
 });
 
-describe("events to the orchestrator (spec orchestrateur §7.5)", () => {
-  it("holds a line while a Remote Control flow is typing in the orchestrator (backlog 27 oct)", async () => {
+describe("events to the fleet (spec orchestrateur §7.5)", () => {
+  it("holds a line while a Remote Control flow is typing in the fleet (backlog 27 oct)", async () => {
     vi.useFakeTimers();
     vi.mocked(remoteBusy).mockReturnValueOnce(true).mockReturnValue(false);
     notify("chef", "Isis a rendu compte");
@@ -66,7 +66,7 @@ describe("events to the orchestrator (spec orchestrateur §7.5)", () => {
     vi.useRealTimers();
   });
 
-  it("types a line in a free orchestrator at once", () => {
+  it("types a line in a free fleet at once", () => {
     notify("chef", "Isis a rendu compte (termine) : fait");
     expect(sent()).toEqual(["chef: [dummyPlane] Isis a rendu compte (termine) : fait"]);
   });
@@ -114,7 +114,7 @@ describe("events to the orchestrator (spec orchestrateur §7.5)", () => {
     expect(sent()).toEqual(["chef: [dummyPlane] Isis stopped: its terminal is no longer running."]);
   });
 
-  it("waits for a restarted orchestrator's Claude to be up, never typing into its trust dialog (final review H2)", async () => {
+  it("waits for a restarted fleet's Claude to be up, never typing into its trust dialog (final review H2)", async () => {
     let up!: (ready: boolean) => void;
     vi.mocked(whenReady).mockImplementationOnce(() => new Promise((resolve) => (up = resolve)));
     status("chef", "stopped");
@@ -128,7 +128,7 @@ describe("events to the orchestrator (spec orchestrateur §7.5)", () => {
     await vi.waitFor(() => expect(sent()).toEqual(["chef: [dummyPlane] Isis a rendu compte"]));
   });
 
-  it("puts back a line that could not be typed, for the orchestrator's next start (final review H2)", async () => {
+  it("puts back a line that could not be typed, for the fleet's next start (final review H2)", async () => {
     vi.mocked(ptySendText).mockRejectedValueOnce(new Error("NotFound"));
     notify("chef", "perdu ?");
     await tick();

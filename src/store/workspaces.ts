@@ -6,12 +6,14 @@ import {
   listWorkspaces,
   renameWorkspace,
   setSetting,
+  setWorkspaceFolder,
   setWorkspacePantheon,
   type Workspace,
   type WorkspaceKind,
 } from "@/ipc/db";
-import { nextPantheon } from "@/fleet/names";
+import { nextPantheon } from "@/agents/names";
 import { messages } from "@/i18n";
+import { rebasePath } from "@/lib/paths";
 import { storeMessages } from "./messages";
 
 export type { Workspace, WorkspaceKind };
@@ -42,14 +44,19 @@ export interface WorkspacesState {
   move: (id: string, index: number) => Promise<void>;
   setPantheon: (id: string, pantheon: string) => Promise<void>;
   /**
+   * Sets the folder the workspace's next terminals start in (null: the project's own). The store
+   * changes at once, so the next launch sees it; a refused save puts the old folder back and throws.
+   */
+  setFolder: (id: string, folder: string | null) => Promise<void>;
+  /**
    * The pantheon of the agents outside any group, chosen and saved on first
    * use; it avoids `taken`, the pantheons of the workspace's groups.
    */
   ensurePantheon: (id: string, taken?: readonly string[]) => Promise<string>;
 }
 
-/** Older rows (and an unknown kind) read as a canvas. */
-const withKind = (w: Workspace): Workspace => ({ ...w, kind: w.kind === "code" ? "code" : "canvas" });
+/** Older rows (and an unknown kind) read as a canvas; one without a folder, as the project's own. */
+const withKind = (w: Workspace): Workspace => ({ ...w, kind: w.kind === "code" ? "code" : "canvas", folder: w.folder ?? null });
 
 export const isCode = (w: Workspace | undefined) => w?.kind === "code";
 
@@ -172,6 +179,19 @@ export function createWorkspacesStore() {
         set((s) => ({ workspaces: s.workspaces.map((w) => (w.id === id ? { ...w, pantheon } : w)) }));
       },
 
+      setFolder: async (id, folder) => {
+        const next = folder?.trim() || null;
+        const before = get().workspaces.find((w) => w.id === id)?.folder ?? null;
+        const put = (value: string | null) => set((s) => ({ workspaces: s.workspaces.map((w) => (w.id === id ? { ...w, folder: value } : w)) }));
+        put(next);
+        try {
+          await setWorkspaceFolder(id, next);
+        } catch (error) {
+          put(before);
+          throw error;
+        }
+      },
+
       ensurePantheon: async (id, taken = []) => {
         const workspace = get().workspaces.find((w) => w.id === id);
         if (workspace?.pantheon) return workspace.pantheon;
@@ -189,6 +209,17 @@ export function createWorkspacesStore() {
 }
 
 export const workspacesStore = createWorkspacesStore();
+
+/** After "Change folder": a workspace of the open project whose own folder lay inside the old one follows it, as Rust moved the saved ones. */
+export function rebaseWorkspaceFolders(projectId: string, from: string, to: string) {
+  const { projectId: open, workspaces } = workspacesStore.getState();
+  if (open !== projectId) return;
+  const moved = workspaces.map((w) => {
+    const folder = w.folder && rebasePath(w.folder, from, to);
+    return folder ? { ...w, folder } : w;
+  });
+  if (moved.some((w, i) => w !== workspaces[i])) workspacesStore.setState({ workspaces: moved });
+}
 
 export function useWorkspaces<T>(selector: (state: WorkspacesState) => T): T {
   return useStore(workspacesStore, selector);

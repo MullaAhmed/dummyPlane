@@ -21,7 +21,7 @@ pub fn settings_json(url: &str, role: Role) -> Value {
     let every = json!([{ "hooks": [hook] }]);
     // dummyPlane's own tools never ask (spec orchestrateur §4.2).
     let mut permissions = json!({ "allow": ["mcp__dummyplane"] });
-    if role == Role::Orchestrator {
+    if role == Role::Fleet {
         // A manager does not code itself, nor run commands in the user's folder.
         permissions["deny"] = json!(["Edit", "Write", "NotebookEdit", "Bash"]);
     }
@@ -40,7 +40,7 @@ pub fn settings_json(url: &str, role: Role) -> Value {
     });
     if role == Role::Agent {
         // Always asked, decided at each call: the user's "Sub-agents open as
-        // terminals" reaches the sessions already running. An orchestrator has no
+        // terminals" reaches the sessions already running. A fleet has no
         // spawn_agent to send its sub-agents to.
         settings["hooks"]["PreToolUse"] =
             json!([{ "matcher": BUILTIN_SUBAGENTS, "hooks": [hook] }]);
@@ -323,8 +323,8 @@ mod tests {
             agent["hooks"]["PreToolUse"],
             json!([{ "matcher": "Task|Agent", "hooks": [hook] }])
         );
-        // An orchestrator has no spawn_agent: its hooks only report.
-        let manager = settings_json(URL, Role::Orchestrator);
+        // A fleet has no spawn_agent: its hooks only report.
+        let manager = settings_json(URL, Role::Fleet);
         assert!(manager["hooks"].get("PreToolUse").is_none());
         let mut reporting = agent["hooks"].clone();
         reporting.as_object_mut().unwrap().remove("PreToolUse");
@@ -660,8 +660,8 @@ until [ -e release ] || [ ! -e statusline.sh ]; do sleep 0.05; done\n\
     }
 
     #[test]
-    fn an_orchestrator_may_neither_edit_files_nor_run_commands() {
-        let manager = settings_json(URL, Role::Orchestrator);
+    fn a_fleet_may_neither_edit_files_nor_run_commands() {
+        let manager = settings_json(URL, Role::Fleet);
         assert_eq!(manager["permissions"]["allow"], json!(["mcp__dummyplane"]));
         assert_eq!(
             manager["permissions"]["deny"],
@@ -711,7 +711,7 @@ until [ -e release ] || [ ! -e statusline.sh ]; do sleep 0.05; done\n\
 
     #[test]
     fn a_mission_keeps_a_managers_own_refusals() {
-        let mut settings = settings_json(URL, Role::Orchestrator);
+        let mut settings = settings_json(URL, Role::Fleet);
         apply_permission(&mut settings, Some(Permission::Ask));
         let deny = settings["permissions"]["deny"].as_array().unwrap();
         assert!(deny.contains(&json!("Edit")));

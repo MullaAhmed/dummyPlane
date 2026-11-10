@@ -30,7 +30,7 @@ afterEach(async () => {
 async function show(mission?: Partial<Mission>) {
   await nodesStore.getState().create("chef", {
     workspaceId: "w1",
-    kind: "orchestrator",
+    kind: "fleet",
     payload: mission ? { name: "Chef", mission: { ...NEW_MISSION, ...mission } } : { name: "Chef" },
   });
   host = document.createElement("div");
@@ -166,9 +166,12 @@ it("shows the sub-tasks an agent finished before taking another (backlog H3)", a
     name: "Auth",
     members: [{ nodeId: "isis", name: "Isis", task: "Login", budgetMin: 20, linked: true, branch: "b", worktree: "C:/w", sentAt: 0, done: ["API", "Docs"] }],
   });
-  const finished = host.querySelector('[data-member="Isis"] [data-finished]');
-  expect(finished?.textContent).toContain("2");
-  expect(finished?.getAttribute("title")).toBe("Already finished: API, Docs");
+  const finished = host.querySelector<HTMLElement>('[data-member="Isis"] [data-finished]')!;
+  expect(finished.textContent).toContain("2");
+  // In the app's hint, reached by the keyboard too: never a native title beside the "diff" button's hint.
+  expect(finished.hasAttribute("title")).toBe(false);
+  await act(async () => finished.focus());
+  expect(document.querySelector('[role="tooltip"]')?.textContent).toBe("Already finished: API, Docs");
 });
 
 it("shows the mission panel in English", async () => {

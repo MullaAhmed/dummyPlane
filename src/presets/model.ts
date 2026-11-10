@@ -1,9 +1,9 @@
 import { isGroup, type SceneFrame } from "@/canvas/groups";
-import { AGENTS } from "@/fleet/catalog";
-import { MAX_GROUP_SIZE } from "@/fleet/composer";
-import { isRoleId, type RoleId } from "@/fleet/roles";
+import { AGENTS } from "@/agents/catalog";
+import { MAX_GROUP_SIZE } from "@/agents/composer";
+import { isRoleId, type RoleId } from "@/agents/roles";
 import type { AgentId } from "@/ipc/pty";
-import type { Links } from "@/fleet/wires";
+import type { Links } from "@/agents/wires";
 
 /** A group of a preset: what it is for and who staffs it, placed relative to the team's top-left corner. */
 export interface PresetGroup {
@@ -15,8 +15,8 @@ export interface PresetGroup {
   y: number;
 }
 
-/** An orchestrator of a preset: its name and the groups it is linked to (indexes into `groups`). */
-export interface PresetOrchestrator {
+/** A fleet of a preset: its name and the groups it is linked to (indexes into `groups`). */
+export interface PresetFleet {
   name: string;
   groups: number[];
 }
@@ -27,13 +27,20 @@ export interface TeamPreset {
   name: string;
   savedAt: number;
   groups: PresetGroup[];
-  orchestrators: PresetOrchestrator[];
+  fleets: PresetFleet[];
 }
 
 export const MAX_PRESETS = 50;
 export const MAX_NAME = 60;
 /** Version of the saved setting (`presets.teams`). */
 export const PRESETS_VERSION = 1;
+
+/**
+ * Stored data: the key under which a saved preset lists its fleets. It dates from when the fleet was called
+ * the orchestrator; presets saved since then, and older builds, use it, so it never changes. In memory a
+ * preset says `fleets`: `readPreset` and `storedPresets` are the only places that translate.
+ */
+const STORED_FLEETS_KEY = "orchestrators";
 
 /** A name as kept: spaces folded and trimmed, cut at the limit; null when nothing is left. */
 export function presetNameOf(raw: string): string | null {
@@ -47,14 +54,14 @@ export interface CaptureInput {
   frames: readonly SceneFrame[];
   /** The agent of a terminal node, undefined when unknown. */
   agentOf: (nodeId: string) => AgentId | undefined;
-  /** The orchestrators of the scene on screen. */
-  orchestrators: readonly { id: string; name: string }[];
+  /** The fleets of the scene on screen. */
+  fleets: readonly { id: string; name: string }[];
   links: Readonly<Record<string, Links>>;
 }
 
 /**
  * The team on screen as a preset (spec presets §3): groups with at least one
- * agent, and the orchestrators linked to one of them. Null when there is no
+ * agent, and the fleets linked to one of them. Null when there is no
  * group to keep.
  */
 export function capturePreset(input: CaptureInput, name: string, id: string, now: number): TeamPreset | null {
@@ -74,11 +81,11 @@ export function capturePreset(input: CaptureInput, name: string, id: string, now
     y: frame.y - top,
   }));
   const indexOf = new Map(kept.map((e, i) => [e.frame.id, i]));
-  const orchestrators = input.orchestrators.flatMap((o) => {
+  const fleets = input.fleets.flatMap((o) => {
     const linked = (input.links[o.id]?.groupIds ?? []).flatMap((groupId) => indexOf.get(groupId) ?? []);
     return linked.length > 0 ? [{ name: o.name, groups: linked }] : [];
   });
-  return { id, name, savedAt: now, groups, orchestrators };
+  return { id, name, savedAt: now, groups, fleets };
 }
 
 export function presetAgentCount(preset: TeamPreset): number {
@@ -99,22 +106,28 @@ function readGroup(raw: unknown): PresetGroup | null {
 function readPreset(raw: unknown): TeamPreset | null {
   if (!isObject(raw) || typeof raw.id !== "string" || typeof raw.name !== "string" || typeof raw.savedAt !== "number") return null;
   const name = presetNameOf(raw.name);
-  if (name === null || !Array.isArray(raw.groups) || raw.groups.length === 0 || !Array.isArray(raw.orchestrators)) return null;
+  const storedFleets = raw[STORED_FLEETS_KEY];
+  if (name === null || !Array.isArray(raw.groups) || raw.groups.length === 0 || !Array.isArray(storedFleets)) return null;
   const groups = raw.groups.map(readGroup);
   if (groups.some((g) => g === null)) return null;
-  const orchestrators: PresetOrchestrator[] = [];
-  for (const o of raw.orchestrators) {
+  const fleets: PresetFleet[] = [];
+  for (const o of storedFleets) {
     if (!isObject(o) || typeof o.name !== "string" || !Array.isArray(o.groups) || o.groups.length === 0) return null;
     if (!o.groups.every((g): g is number => Number.isInteger(g) && g >= 0 && g < groups.length)) return null;
-    orchestrators.push({ name: o.name, groups: o.groups });
+    fleets.push({ name: o.name, groups: o.groups });
   }
-  return { id: raw.id, name, savedAt: raw.savedAt, groups: groups as PresetGroup[], orchestrators };
+  return { id: raw.id, name, savedAt: raw.savedAt, groups: groups as PresetGroup[], fleets };
 }
 
 /** The presets of the saved setting: a damaged one is left out, the others stay (spec presets §3). */
 export function readPresets(raw: unknown): TeamPreset[] {
   if (!isObject(raw) || raw.version !== PRESETS_VERSION || !Array.isArray(raw.presets)) return [];
   return raw.presets.flatMap((p) => readPreset(p) ?? []).slice(0, MAX_PRESETS);
+}
+
+/** The setting to save for these presets: what `readPresets` reads back, with the stored key for the fleets. */
+export function storedPresets(presets: readonly TeamPreset[]) {
+  return { version: PRESETS_VERSION, presets: presets.map(({ fleets, ...rest }) => ({ ...rest, [STORED_FLEETS_KEY]: fleets })) };
 }
 
 /** The list with `preset` added, replacing the one of the same name; null when the list is full. */

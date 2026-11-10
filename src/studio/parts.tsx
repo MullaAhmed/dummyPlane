@@ -2,6 +2,7 @@ import type { ComponentProps, ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { DialogContent } from "@/components/ui/dialog";
 import { useMessages } from "@/i18n";
+import { cn } from "@/lib/utils";
 import type { FileSession, SessionState } from "./fileSession";
 import { studioMessages } from "./messages";
 
@@ -23,8 +24,17 @@ export const FULL_WINDOW: ComponentProps<typeof DialogContent>["style"] = {
 
 export const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
+/** The Input of a panel's bar (the file filter, the notes' search): shadcn's Input at h-7. */
+export const BAR_FIELD = "h-7 px-2 text-xs";
+
+/** A pane with nothing to show (no file picked, still reading): centred in what is left. */
 export function Message({ children }: { children: ReactNode }) {
   return <p className="grid flex-1 place-items-center p-6 text-center text-xs text-dp-text-2">{children}</p>;
+}
+
+/** The same inside a list (the tree, the notes): a line among the rows, not a pane. */
+export function ListMessage({ children, danger = false }: { children: ReactNode; danger?: boolean }) {
+  return <p className={cn("px-3 py-4 text-center text-xs", danger ? "text-dp-danger" : "text-dp-text-2")}>{children}</p>;
 }
 
 /** The disk no longer holds what the buffer knows: only the user decides (spec studio code §3). */

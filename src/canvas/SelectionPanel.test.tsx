@@ -7,7 +7,8 @@ import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { mockIPC } from "@tauri-apps/api/mocks";
 import { accountsStore } from "@/accounts/store";
 import type { ClaudeExtensions, ExtensionItem } from "@/ipc/claudeExtensions";
-import type { TerminalPayload } from "@/nodes/types";
+import { agentsStore } from "@/agents/agentsStore";
+import type { FleetPayload, TerminalPayload } from "@/nodes/types";
 import { nodesStore } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
 import { canvasStore, EMPTY_VIEW } from "./canvasStore";
@@ -16,11 +17,20 @@ import { SelectionPanel } from "./SelectionPanel";
 const { mutateElement } = vi.hoisted(() => ({ mutateElement: vi.fn() }));
 vi.mock("@excalidraw/excalidraw", () => ({ CaptureUpdateAction: { IMMEDIATELY: "immediately" }, mutateElement }));
 const { duplicateTerminal, requestClose } = vi.hoisted(() => ({ duplicateTerminal: vi.fn(async () => undefined), requestClose: vi.fn() }));
-vi.mock("@/fleet/terminals", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/fleet/terminals")>()),
+vi.mock("@/agents/terminals", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/agents/terminals")>()),
   duplicateTerminal,
   requestClose,
 }));
+// A fleet closes through its own request; its rename is the real one.
+const { requestCloseFleet } = vi.hoisted(() => ({ requestCloseFleet: vi.fn() }));
+vi.mock("@/fleet/fleets", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/fleet/fleets")>()),
+  requestCloseFleet,
+}));
+// The native folder picker.
+const { open } = vi.hoisted(() => ({ open: vi.fn() }));
+vi.mock("@tauri-apps/plugin-dialog", () => ({ open }));
 const { resumeTerminal } = vi.hoisted(() => ({ resumeTerminal: vi.fn() }));
 vi.mock("@/nodes/terminal/registry", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/nodes/terminal/registry")>()),
@@ -64,6 +74,8 @@ beforeEach(() => {
   mutateElement.mockClear();
   duplicateTerminal.mockClear();
   requestClose.mockClear();
+  requestCloseFleet.mockClear();
+  open.mockReset();
   resumeTerminal.mockClear();
   noteChoiceChange.mockClear();
   host = document.createElement("div");
@@ -269,7 +281,7 @@ async function mountTerminal(payload: TerminalPayload, selectedIds = ["t1"], mod
     nodes: {
       t1: { workspaceId: "w", kind: "terminal", payload },
       t2: { workspaceId: "w", kind: "terminal", payload: terminal({ name: "Thoth" }) },
-      o1: { workspaceId: "w", kind: "orchestrator", payload: { name: "Orchestrator" } },
+      o1: { workspaceId: "w", kind: "fleet", payload: { name: "Fleet" } },
     },
   });
   canvasStore.setState({ drawnSelection: [], view: { ...EMPTY_VIEW, mode, selectedIds } });
@@ -332,12 +344,14 @@ it("sits beside the selected terminal, and follows it when the view moves", asyn
   expect([panel.style.left, panel.style.top]).toEqual(["612px", "120px"]);
 });
 
-it("stays hidden for several selected terminals, an orchestrator, and in reading mode", async () => {
+it("stays hidden for several selected nodes, and in reading mode", async () => {
   await mountTerminal(terminal(), ["t1", "t2"]);
   expect(host.innerHTML).toBe("");
-  await mountTerminal(terminal(), ["o1"]);
+  await mountTerminal(terminal(), ["t1", "o1"]);
   expect(host.innerHTML).toBe("");
   await mountTerminal(terminal(), ["t1"], "reading");
+  expect(host.innerHTML).toBe("");
+  await mountTerminal(terminal(), ["o1"], "reading");
   expect(host.innerHTML).toBe("");
 });
 
@@ -361,19 +375,19 @@ it("keeps the stored value when Escape ends the edit", async () => {
   expect(name.value).toBe("Isis");
 });
 
-it("shows the folder read only, whole on hover, its end in view, and copies it", async () => {
+it("shows the folder as a path, whole on hover, its end in view, and copies it", async () => {
   await mountTerminal(terminal({ cwd: "/home/ada/work/api" }));
+  // Changed with the picker, never typed into.
   expect(field("Folder")).toBeNull();
   expect(host.querySelector("[data-folder] input")).toBeNull();
-  expect(button("Browse")).toBeNull();
   const folder = host.querySelector<HTMLElement>("[data-folder]")!;
   expect(folder.textContent).toBe("/home/ada/work/api");
   expect(folder.title).toBe("/home/ada/work/api");
   // Cut from the start; the path itself stays left to right, its leading "/" included.
   expect(folder.style.direction).toBe("rtl");
   expect(folder.querySelector("bdi")).not.toBeNull();
-  // A Claude terminal edits nothing that waits for the next launch.
-  expect(host.textContent).not.toContain("next launch");
+  // The folder, shell and title wait for the next launch, and the panel says so.
+  expect(host.textContent).toContain("Folder, shell and title apply at the next launch");
   const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue(undefined);
   await act(async () => button("Copy the path")!.click());
   expect(writeText).toHaveBeenCalledWith("/home/ada/work/api");
@@ -383,16 +397,18 @@ it("shows the folder read only, whole on hover, its end in view, and copies it",
 it("edits the command of a custom agent only", async () => {
   await mountTerminal(terminal({ agent: "custom", command: "npm run dev" }));
   expect(field("Command")!.value).toBe("npm run dev");
-  expect(host.textContent).toContain("The command applies at the next launch");
+  expect(host.textContent).toContain("Command, folder, shell and title apply at the next launch");
   await typeInto(field("Command")!, "npm test");
   expect(payloadOf().command).toBe("npm test");
 });
 
-it("lets a model a mission chose go back to the default", async () => {
+it("lets a model a mission chose go back to the default, and says Default when none is chosen", async () => {
   await mountTerminal(terminal({ model: "claude-haiku-5-5" }));
   expect(host.textContent).toContain("Model");
-  await act(async () => [...host.querySelectorAll("button")].find((b) => b.textContent === "Default")!.click());
+  await act(async () => [...host.querySelectorAll("button")].find((b) => b.textContent === "Use default")!.click());
   expect(payloadOf().model).toBeUndefined();
+  expect(host.textContent).toContain("Default");
+  expect([...host.querySelectorAll("button")].find((b) => b.textContent === "Use default")).toBeUndefined();
 });
 
 it("starts on a small Edit tab beside the terminal, in the panel's place, and opens the panel there on a click", async () => {
@@ -769,5 +785,286 @@ it("offers to restart a running terminal whose choice is no longer the one it st
   await act(async () => checkbox("commit")!.click());
   await act(async () => restartNow()!.click());
   expect(resumeTerminal).toHaveBeenCalledWith("t1");
+  expect(restartNow()).toBeUndefined();
+});
+
+// The fleet: a node of its own, its Claude session nested in its payload.
+const fleetSession = (overrides: Partial<TerminalPayload> = {}): TerminalPayload =>
+  terminal({ name: "Fleet", title: "Fleet", role: "orchestrator", cwd: "D:/work/api", ...overrides });
+const fleetOf = () => (nodesStore.getState().nodes.f1 as { payload: FleetPayload }).payload;
+
+/** Selects the fleet alone and, unless told not to, opens its panel from its Edit tab. */
+async function mountFleet(payload: FleetPayload = { name: "Fleet", session: fleetSession() }, opened = true) {
+  nodesStore.setState({
+    nodes: {
+      f1: { workspaceId: "w", kind: "fleet", payload },
+      t1: { workspaceId: "w", kind: "terminal", payload: terminal() },
+    },
+  });
+  canvasStore.setState({ drawnSelection: [], view: { ...EMPTY_VIEW, mode: null, selectedIds: ["f1"] } });
+  await act(async () => root.render(<SelectionPanel />));
+  if (opened) await act(async () => editTab()!.click());
+}
+
+it("gives a selected Fleet the Edit tab, named after it, and opens its panel from there", async () => {
+  await mountFleet(undefined, false);
+  expect(editTab()!.getAttribute("aria-label")).toBe("Edit Fleet");
+  expect(field("Name")).toBeNull();
+  await act(async () => editTab()!.click());
+  expect(host.textContent).toContain("Edit Fleet");
+  expect(field("Name")!.value).toBe("Fleet");
+  // Its session's folder and model, shown; no copy of a fleet, no title of its own (it is its name).
+  expect(host.querySelector("[data-folder]")?.textContent).toBe("D:/work/api");
+  expect(host.textContent).toContain("Model");
+  expect(host.textContent).toContain("Default");
+  expect(button("Rename")).not.toBeNull();
+  expect(button("Delete")).not.toBeNull();
+  expect(button("Copy")).toBeNull();
+  expect(field("Title")).toBeNull();
+  expect(host.textContent).toContain("The shell applies at the next launch");
+  // Said in the fleet's words, never the code's.
+  expect(host.textContent?.toLowerCase()).not.toContain("orchestrator");
+  expect(tabs().map((b) => b.textContent)).toEqual(["General", "Skills", "Plugins", "MCP", "Subagents"]);
+});
+
+it("renames a fleet on its node and deletes it with its own request", async () => {
+  await mountFleet();
+  await act(async () => button("Rename")!.click());
+  expect(document.activeElement).toBe(field("Name"));
+  await typeInto(field("Name")!, "  Atlas ");
+  expect(fleetOf().name).toBe("Atlas");
+  // Its session keeps the name it had: only the node was renamed.
+  expect(fleetOf().session?.name).toBe("Fleet");
+  await typeInto(field("Name")!, "   ");
+  expect(fleetOf().name).toBe("Atlas");
+  await act(async () => button("Delete")!.click());
+  expect(requestCloseFleet).toHaveBeenCalledWith("f1");
+  expect(requestClose).not.toHaveBeenCalled();
+});
+
+it("keeps a fleet in its project: its folder has no Change button, and says why", async () => {
+  await mountFleet();
+  expect(button("Change the folder")).toBeNull();
+  expect(host.textContent).toContain("A fleet stays in the project: its missions branch from it");
+  expect(button("Copy the path")).not.toBeNull();
+  await act(async () => canvasStore.setState({ view: { ...canvasStore.getState().view, selectedIds: ["t1"] } }));
+  await act(async () => editTab()!.click());
+  expect(button("Change the folder")).not.toBeNull();
+});
+
+it("sends a fleet's model back to the default on its session, not on the node", async () => {
+  await mountFleet({ name: "Fleet", session: fleetSession({ model: "claude-haiku-5-5" }) });
+  await act(async () => [...host.querySelectorAll("button")].find((b) => b.textContent === "Use default")!.click());
+  expect(fleetOf().session?.model).toBeUndefined();
+  expect("model" in fleetOf()).toBe(false);
+  expect(fleetOf().name).toBe("Fleet");
+});
+
+it("keeps a fleet's extension choices in its session, each toggle on top of the last", async () => {
+  serveExtensions(() => ({ ...EXTENSIONS, skills: [item("commit"), item("deploy"), item("review")] }));
+  await mountFleet();
+  await openTab("Skills");
+  // Read from the fleet's session: its folder, and its profile's.
+  expect(listCalls).toEqual([{ cwd: "D:/work/api", configDir: null }]);
+  await act(async () => checkbox("commit")!.click());
+  await act(async () => checkbox("deploy")!.click());
+  expect(fleetOf().session?.extensions).toEqual({ skillsOff: ["commit", "deploy"] });
+  // Nothing lands on the node itself, and the rest of the node is as it was.
+  expect("extensions" in fleetOf()).toBe(false);
+  expect(fleetOf().name).toBe("Fleet");
+  expect(fleetOf().session).toMatchObject({ cwd: "D:/work/api", role: "orchestrator", agent: "claude" });
+  expect(noteChoiceChange).toHaveBeenNthCalledWith(1, "f1", undefined);
+  expect(checkbox("commit")!.getAttribute("aria-checked")).toBe("false");
+  // A choice already stored in the session is the one a toggle starts from.
+  await act(async () => checkbox("commit")!.click());
+  expect(fleetOf().session?.extensions).toEqual({ skillsOff: ["deploy"] });
+  await act(async () => checkbox("deploy")!.click());
+  expect(fleetOf().session?.extensions).toBeUndefined();
+});
+
+it("never lists the mission's own MCP server, so it cannot be switched off from the MCP tab", async () => {
+  serveExtensions(() => ({ ...EXTENSIONS, mcp: [item("dummyplane", { description: "http · 127.0.0.1" }), item("DummyPlane"), item("github")] }));
+  await mountFleet();
+  await openTab("MCP");
+  expect([...host.querySelectorAll("[data-extension]")].map((row) => row.getAttribute("data-extension"))).toEqual(["github"]);
+  expect(checkbox("dummyplane")).toBeNull();
+  expect(host.textContent).toContain("The fleet's mission server is always on");
+  // "Unselect all" turns off what is listed: the mission's server is not.
+  await act(async () => buttonText("Unselect all")!.click());
+  expect(fleetOf().session?.extensions).toEqual({ mcpOff: ["github"] });
+  expect(onCount()).toBe("0 of 1 on");
+});
+
+it("shows a terminal's MCP tab without the mission server, and without the fleet's note", async () => {
+  serveExtensions(() => ({ ...EXTENSIONS, mcp: [item("dummyplane"), item("github")] }));
+  await mountTerminal(terminal());
+  await openTab("MCP");
+  expect([...host.querySelectorAll("[data-extension]")].map((row) => row.getAttribute("data-extension"))).toEqual(["github"]);
+  expect(host.textContent).not.toContain("mission server");
+});
+
+it("renames and deletes a fleet that has no session yet, with nothing else to edit", async () => {
+  serveExtensions();
+  await mountFleet({ name: "Fleet" });
+  expect(tabs()).toHaveLength(0);
+  expect(host.querySelector("[data-folder]")).toBeNull();
+  expect(host.textContent).not.toContain("Skills, plugins and MCP servers can be chosen");
+  await typeInto(field("Name")!, "Atlas");
+  expect(fleetOf().name).toBe("Atlas");
+  await act(async () => button("Delete")!.click());
+  expect(requestCloseFleet).toHaveBeenCalledWith("f1");
+  await settle();
+  expect(listCalls).toEqual([]);
+});
+
+it("offers a running Fleet to restart on the choice it was changed to, in its own words", async () => {
+  serveExtensions();
+  terminalStatusStore.getState().set("f1", { state: "running" });
+  await mountFleet();
+  await openTab("Skills");
+  expect(host.textContent).toContain("Changes apply when the fleet restarts");
+  await act(async () => checkbox("commit")!.click());
+  await act(async () => restartNow()!.click());
+  expect(resumeTerminal).toHaveBeenCalledWith("f1");
+});
+
+const changeButton = () => button("Change the folder");
+/** Presses "Change…" and lets the picker answer. */
+async function pickFolder(answer: string | null) {
+  open.mockResolvedValue(answer);
+  await act(async () => changeButton()!.click());
+}
+
+it("changes a terminal's folder with the native picker, from where it is now", async () => {
+  await mountTerminal(terminal({ model: "claude-haiku-5-5", permission: "edits", claudeSessionId: "old-conversation" }));
+  expect(changeButton()!.textContent).toBe("Change…");
+  await pickFolder("D:\\work\\web");
+  expect(open).toHaveBeenCalledWith({ directory: true, defaultPath: "D:/work/api", title: "Working folder" });
+  expect(payloadOf().cwd).toBe("D:\\work\\web");
+  expect(host.querySelector("[data-folder]")?.textContent).toBe("D:\\work\\web");
+  // The model and what it may do are still its own: only the folder, and the conversation that went with it, changed.
+  expect(payloadOf()).toMatchObject({ model: "claude-haiku-5-5", permission: "edits", name: "Isis", title: "Isis · api" });
+});
+
+it("starts a new conversation for a Claude terminal in a new folder, and says so", async () => {
+  await mountTerminal(terminal({ claudeSessionId: "old-conversation", steps: [{ title: "Plan", state: "fait" }] }));
+  // Said before the choice, under the path.
+  expect(host.textContent).toContain("New folder, new conversation: Claude keeps each conversation with its folder");
+  await pickFolder("D:/work/web");
+  const { claudeSessionId, steps } = payloadOf();
+  expect(claudeSessionId).toMatch(/^[0-9a-f-]{36}$/);
+  expect(claudeSessionId).not.toBe("old-conversation");
+  expect(steps).toBeUndefined();
+});
+
+it("moves another agent without a conversation, and has nothing to say about one", async () => {
+  await mountTerminal(terminal({ agent: "codex" }));
+  expect(host.textContent).not.toContain("New folder, new conversation");
+  await pickFolder("D:/work/web");
+  expect(payloadOf().cwd).toBe("D:/work/web");
+  expect("claudeSessionId" in payloadOf()).toBe(false);
+});
+
+it("keeps the conversation when the folder picked is the one it is in, whatever the slashes or the case", async () => {
+  await mountTerminal(terminal({ claudeSessionId: "old-conversation" }));
+  await pickFolder("d:\\WORK\\api\\");
+  expect(payloadOf().cwd).toBe("D:/work/api");
+  expect(payloadOf().claudeSessionId).toBe("old-conversation");
+  // A cancelled picker answers nothing.
+  await pickFolder(null);
+  expect(payloadOf().cwd).toBe("D:/work/api");
+  expect(payloadOf().claudeSessionId).toBe("old-conversation");
+});
+
+it("offers to restart a running terminal that was moved, and not a stopped one", async () => {
+  await mountTerminal(terminal({ claudeSessionId: "old-conversation" }));
+  await pickFolder("D:/work/web");
+  expect(restartNow()).toBeUndefined();
+  terminalStatusStore.getState().set("t1", { state: "running" });
+  await pickFolder("D:/work/docs");
+  expect(host.textContent).toContain("Running with the old launch settings");
+  await act(async () => restartNow()!.click());
+  expect(resumeTerminal).toHaveBeenCalledWith("t1");
+  expect(restartNow()).toBeUndefined();
+});
+
+const mission = (state: "en_cours" | "terminee") => ({
+  state,
+  maxAgents: 3,
+  members: [{ nodeId: "t1", name: "Isis", task: "", budgetMin: 10, linked: false, branch: "m/isis", worktree: "D:/wt/isis" }],
+});
+async function inMission(state: "en_cours" | "terminee") {
+  await act(async () => nodesStore.setState({ nodes: { ...nodesStore.getState().nodes, o1: { workspaceId: "w", kind: "fleet", payload: { name: "Fleet", mission: mission(state) } } } }));
+}
+
+it("keeps the folder of an agent whose mission is running in its worktree, and frees it when the mission ends", async () => {
+  await mountTerminal(terminal({ cwd: "D:/wt/isis" }));
+  await inMission("en_cours");
+  expect(changeButton()).toBeNull();
+  expect(host.textContent).toContain("Fixed while its mission runs: this agent works in its own worktree");
+  expect(host.textContent).not.toContain("New folder, new conversation");
+  await inMission("terminee");
+  expect(changeButton()).not.toBeNull();
+});
+
+it("sets the title of a terminal, a blank one keeping the stored title", async () => {
+  await mountTerminal(terminal());
+  expect(field("Title")!.value).toBe("Isis · api");
+  await typeInto(field("Title")!, "  Review of api ");
+  expect(payloadOf().title).toBe("Review of api");
+  await typeInto(field("Title")!, "   ");
+  expect(payloadOf().title).toBe("Review of api");
+  expect(field("Title")!.value).toBe("Review of api");
+});
+
+it("shows the shell a terminal will start with, among the ones the machine has", async () => {
+  agentsStore.setState({ shells: ["default", "powershell", "gitbash"] });
+  await mountTerminal(terminal({ shell: "gitbash" }));
+  const shell = host.querySelector<HTMLElement>("button[role='combobox'][aria-label='Shell']")!;
+  expect(shell.textContent).toBe("Git Bash");
+  agentsStore.setState({ shells: [] });
+});
+
+/** Opens the Shell dropdown with the keyboard and picks a shell by its label, as a user does. */
+async function pickShell(label: string) {
+  const trigger = host.querySelector<HTMLElement>("button[role='combobox'][aria-label='Shell']")!;
+  await act(async () => {
+    trigger.focus();
+    trigger.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+  });
+  const option = [...document.body.querySelectorAll<HTMLElement>("[role='option']")].find((o) => o.textContent === label)!;
+  await act(async () => {
+    option.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, cancelable: true, pointerType: "mouse", button: 0 }));
+    option.click();
+  });
+}
+
+it("picks the shell of the next launch, on a terminal and on a fleet's session", async () => {
+  // Radix scrolls the chosen option into view; happy-dom has no layout to do it with.
+  const scrollIntoView = Element.prototype.scrollIntoView;
+  Element.prototype.scrollIntoView = () => undefined;
+  agentsStore.setState({ shells: ["default", "powershell", "gitbash"] });
+  try {
+    await mountTerminal(terminal({ shell: "default" }));
+    await pickShell("PowerShell");
+    expect(payloadOf().shell).toBe("powershell");
+    await mountFleet();
+    await pickShell("Git Bash");
+    expect(fleetOf().session?.shell).toBe("gitbash");
+    expect("shell" in fleetOf()).toBe(false);
+  } finally {
+    Element.prototype.scrollIntoView = scrollIntoView;
+    agentsStore.setState({ shells: [] });
+  }
+});
+
+it("offers a restart when the title of a running terminal changes", async () => {
+  terminalStatusStore.getState().set("t1", { state: "running" });
+  await mountTerminal(terminal());
+  expect(host.textContent).not.toContain("Running with the old launch settings");
+  await typeInto(field("Title")!, "Review of api");
+  expect(host.textContent).toContain("Running with the old launch settings");
+  // Back to what it started with: nothing to restart.
+  await typeInto(field("Title")!, "Isis · api");
   expect(restartNow()).toBeUndefined();
 });

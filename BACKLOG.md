@@ -9,12 +9,12 @@ Ce qui est reporté. La spec en cours est `docs/superpowers/specs/2026-10-24-dum
 - Pouvoir via la consigne aux agents, executer une commande pour plusieurs agents en même temps type @athena/zeus/héra /effort ultracode etça executera "/effort ultracode" dans les fenêtres des agents athena zeus et héra.
 - Pouvoir visualiser les diffs réalisés, par les agents et faciliter le code review de la sortie des agents. (un peu IDE embarqué avec visualisation de fichiers du workspace)
 - Pouvoir importer/embarqué nativement les icones de system design, aws azure et GCP d'excalidraw dans l'application.
-- Avoir une option Routeur dans l'orchestrateur, qui attribue pour chaque agent un modèle faible pour les tâches faibles Haiku 5.5, moyen Sonnet 5.5, elevé Opus, extrême Fable 5.1
-- Permettre d'activer le remote-control sur plusieurs terminaux, à l'unité ou au travers de l'orchestrateur pour gérer et avoir accès aux workflows à distance.
+- Avoir une option Routeur dans la Fleet, qui attribue pour chaque agent un modèle faible pour les tâches faibles Haiku 5.5, moyen Sonnet 5.5, elevé Opus, extrême Fable 5.1
+- Permettre d'activer le remote-control sur plusieurs terminaux, à l'unité ou au travers de la Fleet pour gérer et avoir accès aux workflows à distance.
 
 - Faciliter l'installation des agents (Claude Code, Gemini, Qwen Code, Cursor, Ollama, Aider etc... en un clic depuis l'interface, et permettre de configurer/installer des modèles locaux facilement sur Ollama)
-- Permettre à un orchestrateur, quand il est lié à plusieurs groupes, de donner du travail au groupe qui lui semble le plus pertinent. Quand il a des groupes (frontend, backend, design etc...), Il distribue sans vraiment de distinction les tâches attribuées. L'idée est d'avoir des groupes spécialisée.
-- Ajouter des foncitonnalitée de prise de notes et de gestion de mémoires types obsidian, attribuables à des groupes comme contexte optionnel, que toi au l'orchestrateur peut utiliser comme base potentielle de documentation supplémentaires. Avec une fonctionnalités d'affichage par graphique.
+- Permettre à la Fleet, quand elle est liée à plusieurs groupes, de donner du travail au groupe qui lui semble le plus pertinent. Quand elle a des groupes (frontend, backend, design etc...), elle distribue sans vraiment de distinction les tâches attribuées. L'idée est d'avoir des groupes spécialisée.
+- Ajouter des foncitonnalitée de prise de notes et de gestion de mémoires types obsidian, attribuables à des groupes comme contexte optionnel, que toi ou la Fleet peut utiliser comme base potentielle de documentation supplémentaires. Avec une fonctionnalités d'affichage par graphique.
 - Quand un agent à une question, permettre de répondre facilement à sa question avec une notification type "un agent a une question", quand tu cliques, ça t'emmènes directement pour y répondre.
 
 ## Fonctionnalités inspirées de Symvibe
@@ -39,8 +39,8 @@ Ce qui est reporté. La spec en cours est `docs/superpowers/specs/2026-10-24-dum
 ### Automatisation
 
 - **Mémoire** : faits par dépôt ou globaux (Architecture, Structure, Commandes, Conventions, Pièges, Contexte), scan du dépôt par un agent jetable avec revue, éditeur, carte mémoire posée sur le board et poussée aux consoles reliées. Vidéo : node-memory.
-- **Carte de mission** : arbre Orchestrateur → Équipe → consoles, filtres par état, recherche, inspecteur (aller à la console, pause, fermer, cadrer l'équipe). Vidéo : teams.
-- **Presets d'équipes** : déployer une topologie complète (plusieurs groupes, orchestrateur, tuile web), ex. « Dev HQ ». Vidéo : voice.
+- **Carte de mission** : arbre Fleet → Équipe → consoles, filtres par état, recherche, inspecteur (aller à la console, pause, fermer, cadrer l'équipe). Vidéo : teams.
+- **Presets d'équipes** : déployer une topologie complète (plusieurs groupes, Fleet, tuile web), ex. « Dev HQ ». Vidéo : voice.
 - **Menu Outils** (mallette de la barre du haut) regroupant ces entrées.
 
 ### Comptes et quotas
@@ -51,7 +51,7 @@ Ce qui est reporté. La spec en cours est `docs/superpowers/specs/2026-10-24-dum
 ### Voix et directeur IA
 
 - Maintenir Espace pour parler (reconnaissance locale, Whisper ou équivalent : WebView2 n'en fournit pas hors ligne), forme d'onde, « J'écoute » / « Je réfléchis ».
-- Directeur IA : interprète la demande et agit sur le canvas (créer des groupes, relier un orchestrateur, déployer un preset, fermer avec confirmation), fil de discussion dépliable avec lignes « Plan ». Vidéo : voice.
+- Directeur IA : interprète la demande et agit sur le canvas (créer des groupes, relier une Fleet, déployer un preset, fermer avec confirmation), fil de discussion dépliable avec lignes « Plan ». Vidéo : voice.
 
 ### Interface
 
@@ -80,7 +80,7 @@ Ce qui est reporté. La spec en cours est `docs/superpowers/specs/2026-10-24-dum
 
 - Non traités : un proxy HTTP qui intercepterait `127.0.0.1` (les hooks échouent, l'activité du terminal prend le relais) ; un dialogue d'autorisation répondu hors du terminal (IDE, à distance) laisse ATTEND jusqu'au hook suivant.
 
-## Constats du plan B3 (commande et orchestrateur, relecture finale)
+## Constats du plan B3 (commande et Fleet, relecture finale)
 
 - Le test Windows de `pty_send_text` vérifie l'effet de la commande, pas les octets écrits.
 
@@ -94,7 +94,7 @@ Ce qui est reporté. La spec en cours est `docs/superpowers/specs/2026-10-24-dum
 ## Constats du plan D1 (fondations de l'identité, relecture finale)
 
 - `index.html` garde `<html class="dark">` et la variante Tailwind `dark` vaut `&:is(.dark *)` : les `dark:` de shadcn (boutons outline/ghost, champs, listes) s'appliquent aussi en Ivoire. Retirer la classe et redéfinir la variante sur `[data-theme="dark"]` avant que R2 n'écrive des `dark:`.
-- `text-white` on the accent in 8 places (home, Agent menu, instruction input, takeover offer, orchestrator, git dot, `ui.tsx`, tabs) instead of `text-dp-on-accent` (white on `#D97757`: 3.1:1).
+- `text-white` on the accent in 8 places (home, Agent menu, instruction input, takeover offer, Fleet, git dot, `ui.tsx`, tabs) instead of `text-dp-on-accent` (white on `#D97757`: 3.1:1).
 - Le voile des dialogues shadcn (`backdrop-blur-xs`) ignore le réglage « Effets de transparence ».
 - Commentaires périmés : « cream strokes » (`sceneDefaults.ts`), « The orange of the wires (spec habillage §13) » (`wires.ts`).
 - `hover:brightness-125` des puces (`ChipButton`) sans effet sur le blanc d'Ivoire (les puces disparaissent en R2).
@@ -104,7 +104,7 @@ Ce qui est reporté. La spec en cours est `docs/superpowers/specs/2026-10-24-dum
 
 ## Constats du plan D2 (structure façon canvas libre, relecture finale)
 
-- Réglés par R2, parmi les constats D1 : variante `dark` liée à `data-theme` (plus de `class="dark"`), voile des dialogues qui suit « Effets de transparence », puces disparues ; `text-white` sur l'accent ne reste que dans le menu Agent (commande personnalisée) et l'orchestrateur (R3).
+- Réglés par R2, parmi les constats D1 : variante `dark` liée à `data-theme` (plus de `class="dark"`), voile des dialogues qui suit « Effets de transparence », puces disparues ; `text-white` sur l'accent ne reste que dans le menu Agent (commande personnalisée) et la Fleet (R3).
 - Restes d'ancien style dans des fichiers touchés par R2 : liste des mentions de la saisie de consigne opaque (`CommandInput`), boutons en pilule dans les options du menu Agent et dans « Composer un groupe », boutons de fenêtre de 38 px dans une barre de 37 px utiles, pastille d'attente absente du nom accessible du bouton Agents.
 - Lignes d'agent du panneau (actions au survol Centrer, Pause/Reprendre, Fermer, spec identité §5.6) : avec R3, qui refait `AgentRow`.
 
@@ -125,9 +125,9 @@ Ce qui est reporté. La spec en cours est `docs/superpowers/specs/2026-10-24-dum
 - Le compte des sous-agents se perd au rechargement de la page (pas d'instantané depuis Rust).
 - Conversations commencées avant H1 et reprises : `--system-prompt-snapshot` (Claude Code 2.1.304) peut garder l'ancien prompt système, sans la consigne de rôle.
 
-## Constats du plan H2 (mission de l'orchestrateur, relecture finale)
+## Constats du plan H2 (mission de la Fleet, relecture finale)
 
-- Les orchestrateurs créés avant H2 gardent leur taille 320 × 420 : le terminal de Claude et le panneau y sont à l'étroit.
+- Les Fleets créées avant H2 gardent leur taille 320 × 420 : le terminal de Claude et le panneau y sont à l'étroit.
 - La détection « Claude est prêt » lit l'écran : la boîte de saisie (`❯` sous un trait) et l'invite de confiance (« trust » + « folder »). Une autre mise en page de Claude retombe sur le délai de 60 s.
 
 ## Constats du plan H3 (temps d'une mission, relecture finale)
@@ -143,7 +143,7 @@ Ce qui est reporté. La spec en cours est `docs/superpowers/specs/2026-10-24-dum
 - Juste après un démarrage, Claude dessine encore son écran : dummyPlane le croit au travail ~1,5 s et répond « à la fin de son tour ». La demande est appliquée dès qu'il se calme.
 
 ### Routeur de modèles
-- Supprimer un orchestrateur en pleine mission laisse ses agents reliés dans leur worktree, avec le modèle du routeur (la puce de l'en-tête permet de revenir au modèle par défaut).
+- Supprimer une Fleet en pleine mission laisse ses agents reliés dans leur worktree, avec le modèle du routeur (la puce de l'en-tête permet de revenir au modèle par défaut).
 
 ### Revue des changements
 - Une erreur de lecture reste affichée si le dossier de l'agent change (les clés des onglets n'incluent pas le dossier).
@@ -160,7 +160,7 @@ Ce qui est reporté. La spec en cours est `docs/superpowers/specs/2026-10-24-dum
 
 ## Constats du jalon R3 (missions)
 
-- Tant qu'un nœud n'est pas activé, le canvas d'Excalidraw recouvre ses boutons : le premier clic sur le × d'un orchestrateur ou d'un terminal le sélectionne, le second agit.
+- Tant qu'un nœud n'est pas activé, le canvas d'Excalidraw recouvre ses boutons : le premier clic sur le × d'une Fleet ou d'un terminal le sélectionne, le second agit.
 
 ## Constats du jalon R4 (installeur et mises à jour)
 
@@ -177,9 +177,9 @@ Ce qui est reporté. La spec en cours est `docs/superpowers/specs/2026-10-24-dum
 ## Constats du jalon R5c (ce qui est dit aux agents)
 
 - Un gros diff affiche le repère `[diff tronqué]` tel que Rust l'écrit (`review.rs`), en français même dans une interface anglaise : `parseDiff` pourrait le reconnaître et montrer son texte traduit.
-- Le tableau des niveaux du README (EN et FR) montre encore les identifiants français (`faible (low)`…), alors que l'orchestrateur reçoit et envoie `low`, `medium`, `high`, `extreme`.
+- Le tableau des niveaux du README (EN et FR) montre encore les identifiants français (`faible (low)`…), alors que la Fleet reçoit et envoie `low`, `medium`, `high`, `extreme`.
 - En français, l'agent envoie `done` à `step` et lit en retour « fait » ou « en cours » : les deux vocabulaires se côtoient (textes français gardés tels quels).
-- Un orchestrateur relancé (`--resume`) reçoit ses consignes dans la langue courante, qui peut différer de celle de son historique.
+- Une Fleet relancée (`--resume`) reçoit ses consignes dans la langue courante, qui peut différer de celle de son historique.
 - La fenêtre d'erreur de base de données montre le français puis l'anglais ; l'erreur elle-même y est en français dans les deux moitiés.
 
 ## Constats de la nuit du 31 octobre
@@ -215,7 +215,7 @@ Ce qui est reporté. La spec en cours est `docs/superpowers/specs/2026-10-24-dum
 - Les builds copiés ne sont plus côte à côte (instance unique).
 
 ### Groupes
-- Un groupe relié à deux orchestrateurs.
+- Un groupe relié à deux Fleets.
 - Le texte de la spécialité est perdu sans Entrée.
 - Flèche haut dans le champ de spécialité.
 - Deux groupes de même nom.
@@ -224,7 +224,7 @@ Ce qui est reporté. La spec en cours est `docs/superpowers/specs/2026-10-24-dum
 ### Missions de nuit (suite du ticket #92)
 - Tâche abandonnée après `next_task`.
 - Une branche par agent.
-- Les permissions propres de l'orchestrateur.
+- Les permissions propres de la Fleet.
 - Les barrières de push ne sont pas une frontière de sécurité.
 - Une fin de mission pendant une relance.
 - Le lien Remote Control change.
@@ -236,7 +236,7 @@ Ce qui est reporté. La spec en cours est `docs/superpowers/specs/2026-10-24-dum
 - Les contrôles `gh` avant le premier démarrage.
 - Délai de `sceneAccess`.
 - Une issue étiquetée puis modifiée plus tard.
-- Une permission conservée après la fermeture d'un orchestrateur.
+- Une permission conservée après la fermeture d'une Fleet.
 - La fermeture d'un projet ne libère pas le PC.
 - Une sauvegarde stockée qui échoue n'est que journalisée.
 
@@ -245,7 +245,7 @@ Ce qui est reporté. La spec en cours est `docs/superpowers/specs/2026-10-24-dum
 - Tokens : Claude seulement, jours comptés en UTC.
 - Une commande `/…` n'atteint pas les terminaux « Personnalisé » (question laissée ouverte).
 - Fenêtre « occupé » de ~1,5 s après le démarrage de Claude.
-- Orchestrateur supprimé en pleine mission : sort des agents reliés à décider.
+- Fleet supprimée en pleine mission : sort des agents reliés à décider.
 - « Ne répond pas » reste inexpliqué.
 
 ### Tests et techniques

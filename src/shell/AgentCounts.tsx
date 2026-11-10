@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
-import { useWorkspaceAgentCounts } from "@/fleet/agentCounts";
-import { showAgents } from "@/fleet/agentsPanelState";
-import type { FleetFilter } from "@/fleet/fleetView";
+import { useWorkspaceAgentCounts } from "@/agents/agentCounts";
+import { showAgents } from "@/agents/agentsPanelState";
+import type { PanelFilter } from "@/agents/agentsView";
 import { useMessages } from "@/i18n";
 import { useRunningCount } from "@/store/running";
 import { useWorkspaces } from "@/store/workspaces";
@@ -10,7 +10,7 @@ import { Hint } from "./buttons";
 import { shellMessages } from "./messages";
 
 /** A count with its status dot: the number alone says nothing, so its hint names what it counts. */
-function Count({ label, color, filter, children }: { label: string; color: string; filter: FleetFilter; children: ReactNode }) {
+function Count({ label, color, filter, children }: { label: string; color: string; filter: PanelFilter; children: ReactNode }) {
   return (
     <Hint label={label} side="bottom">
       <Button

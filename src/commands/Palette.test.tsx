@@ -6,8 +6,8 @@ import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { toast } from "sonner";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { canvasStore } from "@/canvas/canvasStore";
-import { agentsPanelStore } from "@/fleet/agentsPanelState";
-import { agentsStore } from "@/fleet/agentsStore";
+import { agentsPanelStore } from "@/agents/agentsPanelState";
+import { agentsStore } from "@/agents/agentsStore";
 import { nodesStore } from "@/store/nodes";
 import { projectsStore } from "@/store/projects";
 import { workspacesStore } from "@/store/workspaces";
@@ -254,7 +254,7 @@ describe("while scenes are read (plan F1 finding)", () => {
 describe("the team presets in the functions list (spec presets §3)", () => {
   it("lists the saved presets under Teams, and reads them when the functions open", async () => {
     presetsStore.setState({
-      presets: [{ id: "1", name: "Dev HQ", savedAt: 1, groups: [{ name: "G", role: "docs", agents: ["claude", "codex"], x: 0, y: 0 }], orchestrators: [] }],
+      presets: [{ id: "1", name: "Dev HQ", savedAt: 1, groups: [{ name: "G", role: "docs", agents: ["claude", "codex"], x: 0, y: 0 }], fleets: [] }],
       loaded: true,
     });
     await act(async () => openPalette("functions", busy));

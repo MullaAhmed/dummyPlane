@@ -26,3 +26,21 @@ it("opening the menu picks the pen without rewriting the colour and width shared
   await act(async () => root.unmount());
   host.remove();
 });
+
+it("keeps the chosen swatch and width marked `data-state=on` under their hints: the selection ring reads it", async () => {
+  mockIPC(() => undefined);
+  canvasStore.setState({
+    api: { updateScene: vi.fn(), setActiveTool: vi.fn(), getAppState: () => ({ currentItemStrokeColor: "#29261B", currentItemStrokeWidth: 2 }) } as unknown as ExcalidrawImperativeAPI,
+  });
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = createRoot(host);
+  await act(async () => root.render(<PenMenu active={false} />));
+  await act(async () => host.querySelector<HTMLButtonElement>("button")!.click());
+  const chosen = [...document.querySelectorAll<HTMLElement>('[role="radio"][aria-checked="true"]')];
+  // One colour and one width.
+  expect(chosen).toHaveLength(2);
+  for (const radio of chosen) expect(radio.getAttribute("data-state"), "the hint must not overwrite the toggle's state").toBe("on");
+  await act(async () => root.unmount());
+  host.remove();
+});

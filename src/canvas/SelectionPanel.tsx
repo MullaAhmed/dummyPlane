@@ -8,11 +8,11 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useMessages } from "@/i18n";
 import { cn } from "@/lib/utils";
-import { terminalOf, useNodes } from "@/store/nodes";
+import { nodeNameOf, useNodes } from "@/store/nodes";
 import { PEN_COLORS } from "@/theme/penColors";
 import { displayColorFor } from "@/theme/sceneColors";
 import { canvasStore, useCanvas } from "./canvasStore";
-import { screenRectOf } from "@/fleet/placement";
+import { screenRectOf } from "@/agents/placement";
 import {
   arrowTypeOf,
   deleteSelection,
@@ -27,7 +27,7 @@ import {
 import { canvasMessages } from "./messages";
 import { keepCanvasFocus, PanelAction } from "./PanelAction";
 import { besideRect, PANEL_WIDTH, TAB_WIDTH, type PanelPlace } from "./panelPlace";
-import { selectedTerminalId, TerminalEdit } from "./TerminalEdit";
+import { selectedEditId, TerminalEdit } from "./TerminalEdit";
 
 const TRANSPARENT = "transparent";
 /** Excalidraw's roughness 0, 1 and 2: its architect, artist and cartoonist. */
@@ -39,18 +39,19 @@ const ARROW_TYPES: readonly ArrowType[] = ["sharp", "round", "elbow"];
  * The small panel that replaces Excalidraw's properties panel. A drawn element
  * gets its stroke and background colours, Duplicate and Delete, and a line or
  * an arrow also its sloppiness (and an arrow its type), at the canvas's left
- * edge. A terminal selected alone gets a small Edit tab beside it, which opens
- * its edit panel there (TerminalEdit); both follow it as the view moves. The
- * panel folds back to the tab, and every terminal selected starts on its tab:
- * an open panel never stands beside a terminal unasked. It does not show in
- * reading mode.
+ * edge. A terminal, or the Fleet, selected alone gets a small Edit tab beside
+ * it, which opens its edit panel there (TerminalEdit); both follow it as the
+ * view moves. The panel folds back to the tab, and every terminal or Fleet
+ * selected starts on its tab: an open panel never stands beside a node unasked.
+ * It does not show in reading mode.
  */
 export function SelectionPanel() {
   const drawn = useCanvas((s) => s.drawnSelection);
   const readOnly = useCanvas((s) => s.view.mode === "reading");
   const selectedIds = useCanvas((s) => s.view.selectedIds);
-  const terminalId = useNodes((s) => selectedTerminalId(selectedIds, s.nodes));
-  // The terminal whose panel was opened from its tab; selecting another, or none, folds it.
+  // The terminal or Fleet selected alone: the one with an edit panel (the names below say terminal, as the code does).
+  const terminalId = useNodes((s) => selectedEditId(selectedIds, s.nodes));
+  // The node whose panel was opened from its tab; selecting another, or none, folds it.
   const [openFor, setOpenFor] = useState<string | null>(null);
   useEffect(() => {
     if (openFor !== null && openFor !== terminalId) setOpenFor(null);
@@ -63,7 +64,7 @@ export function SelectionPanel() {
   return (
     <div
       className={cn(
-        "dp-glass-strong absolute z-10 rounded-xl p-3",
+        "dp-glass-strong absolute z-10 rounded-lg p-3",
         // A terminal's panel (PANEL_WIDTH) keeps its title and tabs in place and scrolls the page under them;
         // a drawing's is one native scroller. Either way bounded by a max-height only, which a ScrollArea's viewport cannot follow.
         terminalId ? "flex w-84 flex-col overflow-hidden" : "w-56 overflow-y-auto",
@@ -87,8 +88,9 @@ export function SelectionPanel() {
  */
 function EditTab({ nodeId, place, onOpen }: { nodeId: string; place: PanelPlace | undefined; onOpen: () => void }) {
   const t = useMessages(canvasMessages).selection;
-  const name = useNodes((s) => terminalOf(s.nodes[nodeId])?.name);
-  const label = t.editTerminal(name || t.thisTerminal);
+  const name = useNodes((s) => nodeNameOf(s.nodes[nodeId]));
+  const fleet = useNodes((s) => s.nodes[nodeId]?.kind === "fleet");
+  const label = t.editTerminal(name || (fleet ? t.thisFleet : t.thisTerminal));
   return (
     <button
       type="button"
@@ -99,8 +101,8 @@ function EditTab({ nodeId, place, onOpen }: { nodeId: string; place: PanelPlace 
       onClick={onOpen}
       className={cn(
         "absolute z-10 flex h-7 w-18 items-center justify-center gap-1.5 rounded-lg bg-dp-accent text-xs font-medium text-dp-on-accent shadow-dp",
-        "transition-[filter] duration-(--dp-dur-fast) ease-(--dp-ease-out) hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dp-accent",
-        "animate-in fade-in-0 duration-(--dp-dur-fast) motion-reduce:animate-none",
+        "transition-[background-color,scale] duration-(--dp-dur-fast) ease-(--dp-ease-out) motion-reduce:transition-none hover:bg-dp-accent/85 active:scale-[0.97] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-dp-accent",
+        "animate-in fade-in-0 duration-(--dp-dur-fast) ease-(--dp-ease-out) motion-reduce:animate-none",
         !place && "left-[70px] top-1/2 -translate-y-1/2",
       )}
       style={place && { left: place.left, top: place.top }}
@@ -226,8 +228,8 @@ function routeElbows(api: ExcalidrawImperativeAPI, selected: Readonly<Record<str
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div>
-      <p className="dp-label mb-2">{label}</p>
+    <div className="grid gap-1.5">
+      <p className="dp-label">{label}</p>
       {children}
     </div>
   );
@@ -260,7 +262,7 @@ function Swatches({ label, swatches, value, onPick }: { label: string; swatches:
               onMouseDown={keepCanvasFocus}
               // Styled on aria-checked: the tooltip's trigger takes over data-state.
               className={cn(
-                "size-6 min-w-0 rounded-full border p-0 ring-offset-2 ring-offset-dp-surface transition-[transform,box-shadow] duration-150 ease-out motion-reduce:transition-none active:scale-[0.97] hover:bg-transparent hover:ring-1 hover:ring-dp-text-3 focus-visible:ring-2 focus-visible:ring-dp-accent/50 aria-checked:ring-2 aria-checked:ring-dp-accent",
+                "size-6 min-w-0 rounded-full border p-0 ring-offset-2 ring-offset-dp-surface transition-[scale,box-shadow] duration-(--dp-dur-fast) ease-(--dp-ease-out) motion-reduce:transition-none active:scale-[0.97] hover:bg-transparent hover:ring-1 hover:ring-dp-text-3 focus-visible:ring-2 focus-visible:ring-dp-accent/50 aria-checked:ring-2 aria-checked:ring-dp-accent",
                 color === null ? "border-dashed border-dp-line focus-visible:border-dp-line" : "border-dp-line/60 focus-visible:border-dp-line/60",
               )}
               style={color === null ? undefined : { backgroundColor: color }}
@@ -301,7 +303,7 @@ function Segmented<V extends string | number>(props: {
           key={value}
           value={String(value)}
           onMouseDown={keepCanvasFocus}
-          className="h-auto min-w-0 flex-1 rounded-md px-1.5 py-1 text-xs font-normal text-dp-text-2 transition-[background-color,color,transform] duration-150 ease-out motion-reduce:transition-none hover:bg-dp-hover hover:text-dp-text focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] data-[state=on]:bg-dp-accent-soft data-[state=on]:text-dp-text"
+          className="h-6 min-w-0 flex-1 rounded-md px-1.5 py-0 text-xs font-normal text-dp-text-2 transition-[background-color,color,scale] duration-(--dp-dur-fast) ease-(--dp-ease-out) motion-reduce:transition-none hover:bg-dp-hover hover:text-dp-text focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] data-[state=on]:bg-dp-accent-soft data-[state=on]:text-dp-text"
         >
           {text}
         </ToggleGroupItem>

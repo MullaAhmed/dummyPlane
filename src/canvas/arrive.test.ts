@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import { STORED_FLEET_KIND } from "@/canvas/nodeElement";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { expandTerminal } from "@/nodes/terminal/minimize";
@@ -15,7 +16,7 @@ vi.mock("@/nodes/terminal/minimize", () => ({ expandTerminal: vi.fn(() => false)
 const viewport = { width: 1400, height: 900 };
 const at100 = { scrollX: 0, scrollY: 0, zoom: 1, ...viewport };
 const isis = { id: "isis", type: "embeddable", customData: { kind: "terminal" }, x: 100, y: 200, width: 720, height: 440 };
-const chef = { id: "chef", type: "embeddable", customData: { kind: "orchestrator" }, x: 100, y: 200, width: 320, height: 420 };
+const chef = { id: "chef", type: "embeddable", customData: { kind: STORED_FLEET_KIND }, x: 100, y: 200, width: 320, height: 420 };
 
 describe("needsMove (spec fenêtre §6.4, zone utile of spec identité §7)", () => {
   it("keeps the view when the terminal shows whole at 100 % in the zone utile", () => {
@@ -73,7 +74,7 @@ describe("arrive", () => {
     expect(arrivalStore.getState()).toEqual({ nodeId: "isis", seq: before + 1 });
   });
 
-  it("makes the terminal the one Send goes to, but not an orchestrator", () => {
+  it("makes the terminal the one Send goes to, but not a fleet", () => {
     withScene(at100);
     activeTerminalStore.setState({ id: null });
     arrive("isis");
@@ -144,7 +145,7 @@ describe("arrive", () => {
     document.body.replaceChildren();
   });
 
-  it("gives an orchestrator's terminal the keyboard, without the terminals' flash (spec orchestrateur §6)", () => {
+  it("gives a fleet's terminal the keyboard, without the terminals' flash (spec orchestrateur §6)", () => {
     withScene(at100);
     const before = arrivalStore.getState();
     expect(arrive("chef")).toBe(true);
@@ -234,7 +235,7 @@ describe("arriving at a terminal of a folded group (spec replier un groupe §2)"
   it("unfolds the group first, then arrives", async () => {
     const setGroupFolded = vi.fn();
     vi.stubGlobal("requestAnimationFrame", () => 0);
-    vi.doMock("@/fleet/groups", () => ({ setGroupFolded }));
+    vi.doMock("@/agents/groups", () => ({ setGroupFolded }));
     const updateScene = vi.fn();
     canvasStore.setState({
       frames: [{ id: "g", name: "G", x: 0, y: 0, width: 1, height: 1, group: { role: "general", pantheon: "greek", folded: true }, memberIds: ["isis"] }] as never,

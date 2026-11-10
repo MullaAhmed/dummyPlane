@@ -4,7 +4,7 @@ import { agentMessages } from "@/mcp/messages";
 import { readLevel, type Level } from "./router";
 import type { TicketSource } from "./tickets";
 
-/** The mission of an orchestrator (spec orchestrator §7), saved in its payload. */
+/** The mission of a fleet (spec orchestrateur §7), saved in its payload. */
 export type MissionState = "redaction" | "plan" | "lancement" | "en_cours" | "terminee";
 export type ReportStatus = "termine" | "bloque" | "echec";
 
@@ -146,7 +146,7 @@ const MAX_TITLE = 60;
 const text = (value: unknown) => (typeof value === "string" ? value.trim() : "");
 const fold = (name: string) => name.normalize("NFD").replace(/\p{Diacritic}/gu, "").trim().toLowerCase();
 
-/** The orchestrator names agents as it reads them: case and accents aside. */
+/** The fleet names agents as it reads them: case and accents aside. */
 export const sameName = (a: string, b: string) => fold(a) === fold(b);
 
 /** Text typed in a terminal ends at its first line break: briefs and messages go on one line. */
@@ -432,7 +432,7 @@ export function remainingGlobal(mission: Mission, now: number): number | undefin
 /** The last minutes of an overnight mission keep the time to merge and finish: 10 %, 10 min at least, half of a short one. */
 const windDownMin = (budget: number) => Math.min(budget / 2, Math.max(10, budget / 10));
 
-/** An overnight mission near its end: no new work, the orchestrator wraps up (spec overnight mission §3). */
+/** An overnight mission near its end: no new work, the fleet wraps up (spec overnight mission §3). */
 export function windingDown(mission: Mission, now: number): boolean {
   if (!mission.overnight || mission.budgetMin === undefined || mission.startedAt === undefined) return false;
   return (now - mission.startedAt) / MINUTE >= mission.budgetMin - windDownMin(mission.budgetMin);
@@ -445,13 +445,20 @@ export function noNewWork(mission: Mission, now: number): boolean {
 
 export type BudgetTone = "ok" | "late" | "over";
 
-/** A budget's bar (spec §8.3): green, orange past 80 %, red past 100 %. */
-export function budgetBar(spent: number, budget: number): { ratio: number; tone: BudgetTone } {
+/** The tone of the complete bar of a reported member: done is ok, blocked waits, failed is in danger. */
+const REPORT_TONE: Record<ReportStatus, BudgetTone> = { termine: "ok", bloque: "late", echec: "over" };
+
+/**
+ * A budget's bar (spec §8.3): green, orange past 80 %, red past 100 %. A member
+ * that reported is finished, its time frozen: its bar is complete, in the tone of its report.
+ */
+export function budgetBar(spent: number, budget: number, report?: ReportStatus): { ratio: number; tone: BudgetTone } {
+  if (report) return { ratio: 1, tone: REPORT_TONE[report] };
   const ratio = budget > 0 ? spent / budget : 0;
   return { ratio: Math.min(1, ratio), tone: ratio > 1 ? "over" : ratio > 0.8 ? "late" : "ok" };
 }
 
-/** The orchestrator's header during a mission (spec §8.3): time spent, over the global budget if any. */
+/** The fleet's header during a mission (spec §8.3): time spent, over the global budget if any. */
 export function clockText(mission: Mission, now: number): string | null {
   if (mission.state !== "en_cours" || mission.startedAt === undefined) return null;
   const spent = Math.floor((now - mission.startedAt) / MINUTE);

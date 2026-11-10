@@ -11,7 +11,7 @@ describe("the model router (spec maj §3)", () => {
     });
   });
 
-  it("reads a level as the orchestrator writes it, accents and case aside", () => {
+  it("reads a level as the fleet writes it, accents and case aside", () => {
     expect(readLevel("Élevé")).toBe("eleve");
     expect(readLevel("extrême")).toBe("extreme");
     expect(readLevel(" faible ")).toBe("faible");

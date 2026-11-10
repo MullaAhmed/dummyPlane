@@ -48,7 +48,7 @@ export function ProjectCard({ project }: { project: Project }) {
       onClick={openProject}
       onKeyDown={(e) => e.key === "Enter" && openProject()}
       className={cn(
-        "dp-glass-strong group rounded-xl p-5 transition-[color,background-color,border-color] duration-150 ease-out motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50",
+        "dp-glass-strong group rounded-xl p-5 transition-[color,background-color,border-color] duration-(--dp-dur-fast) ease-(--dp-ease-out) motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50",
         openable && "cursor-pointer hover:bg-dp-hover",
       )}
     >
@@ -88,7 +88,7 @@ export function ProjectCard({ project }: { project: Project }) {
               size="icon-sm"
               aria-label={t.actions}
               onClick={(e) => e.stopPropagation()}
-              className="-mr-1 -mt-1 rounded-md text-dp-text-2 opacity-0 transition-[color,background-color,opacity,transform] hover:text-dp-text focus-visible:opacity-100 group-hover:opacity-100 data-[state=open]:opacity-100"
+              className="-mr-1 -mt-1 text-dp-text-2 opacity-0 transition-[color,background-color,opacity,scale] hover:text-dp-text focus-visible:opacity-100 group-hover:opacity-100 data-[state=open]:opacity-100"
             >
               <Ellipsis />
             </Button>

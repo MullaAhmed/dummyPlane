@@ -2,13 +2,13 @@
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { beforeEach, expect, it, vi } from "vitest";
-import { removeNode } from "@/fleet/terminals";
+import { removeNode } from "@/agents/terminals";
 import { nodesStore } from "@/store/nodes";
 import { subagentNodesStore } from "./store";
 import { SubagentNode } from "./SubagentNode";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
-vi.mock("@/fleet/terminals", () => ({ removeNode: vi.fn() }));
+vi.mock("@/agents/terminals", () => ({ removeNode: vi.fn() }));
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 beforeEach(() => {

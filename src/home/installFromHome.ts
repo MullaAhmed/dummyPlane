@@ -1,6 +1,6 @@
 import { toast } from "sonner";
 import { whenSceneReady } from "@/canvas/sceneReady";
-import { installAgent } from "@/fleet/installAgent";
+import { installAgent } from "@/agents/installAgent";
 import { messages } from "@/i18n";
 import type { AgentId } from "@/ipc/pty";
 import { projectsStore, recentProject } from "@/store/projects";

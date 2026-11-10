@@ -1,8 +1,8 @@
 import { toast } from "sonner";
 import { canvasStore } from "@/canvas/canvasStore";
 import { findTerminalAt } from "@/canvas/hitTest";
-import { sendToAgents } from "@/fleet/broadcast";
-import { sceneOf } from "@/fleet/placement";
+import { sendToAgents } from "@/agents/broadcast";
+import { sceneOf } from "@/agents/placement";
 import { messages } from "@/i18n";
 import { nodesStore, terminalOf } from "@/store/nodes";
 import { isRunning } from "@/store/terminalStatus";

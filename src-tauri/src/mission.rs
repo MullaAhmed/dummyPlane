@@ -100,8 +100,9 @@ fn git(dir: &Path, args: &[&str]) -> Result<String, String> {
 
 /// The repository's root, and the folder of its worktrees: `<parent>/<folder>.worktrees`.
 fn locate(project: &Path) -> Result<(PathBuf, PathBuf), String> {
+    // The folder is named: a workspace may work in another one than the project's.
     let root = git(project, &["rev-parse", "--show-toplevel"]).map_err(|_| {
-        "The project folder is not a git repository.".to_string()
+        format!("The folder {} is not a git repository.", project.display())
     })?;
     // git answers with forward slashes, even on Windows.
     let root = PathBuf::from(if cfg!(windows) {
@@ -432,7 +433,7 @@ mod tests {
         std::fs::create_dir(&plain).unwrap();
         assert_eq!(
             prepare(&plain, "auth").unwrap_err(),
-            "The project folder is not a git repository."
+            format!("The folder {} is not a git repository.", plain.display())
         );
     }
 

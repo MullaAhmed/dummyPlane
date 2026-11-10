@@ -76,7 +76,7 @@ it("saves the team on screen under the name typed, on the button and on Enter", 
 });
 
 it("does not save an empty name, does not close on the Enter that ends an IME composition, and says when a name is taken", async () => {
-  presetsStore.setState({ presets: [{ id: "1", name: "Dev HQ", savedAt: 1, groups: [{ name: "G", role: "docs", agents: ["claude"], x: 0, y: 0 }], orchestrators: [] }] });
+  presetsStore.setState({ presets: [{ id: "1", name: "Dev HQ", savedAt: 1, groups: [{ name: "G", role: "docs", agents: ["claude"], x: 0, y: 0 }], fleets: [] }] });
   await act(async () => requestUi({ kind: "savePreset" }));
   expect(button("Save").disabled).toBe(true);
   await type("dev hq");

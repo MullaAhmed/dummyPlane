@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { useMessages } from "@/i18n";
+import { Message } from "@/studio/parts";
 import { fitView, layoutGraph, neighbours, zoomAt, type Layout, type Point, type View } from "./graph";
 import { edges, type LinkedNote } from "./links";
 import { notesMessages } from "./messages";
@@ -43,7 +44,7 @@ export function NoteGraph({ notes, current, onOpen }: Props) {
 
   const near = useMemo(() => (hovered ? neighbours(hovered, links) : null), [hovered, links]);
 
-  if (notes.length === 0) return <p className="grid flex-1 place-items-center p-6 text-center text-xs text-dp-text-2">{t.graphEmpty}</p>;
+  if (notes.length === 0) return <Message>{t.graphEmpty}</Message>;
 
   const pointerOf = (event: { clientX: number; clientY: number }): Point => {
     const box = svg.current?.getBoundingClientRect();

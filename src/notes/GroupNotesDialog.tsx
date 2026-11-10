@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useMessages } from "@/i18n";
+import { AccentButton, QuietButton } from "@/shell/buttons";
+import { ListMessage } from "@/studio/parts";
 import { useProjects } from "@/store/projects";
 import { groupNotesOf, setGroupNotes } from "./groupNotes";
 import { notesAll } from "./ipc";
@@ -48,16 +49,16 @@ function Chooser({ groupId }: { groupId: string }) {
           <DialogDescription>{t.description}</DialogDescription>
         </DialogHeader>
         {failure ? (
-          <p className="text-xs text-dp-danger">{failure}</p>
+          <ListMessage danger>{failure}</ListMessage>
         ) : names === null ? (
-          <p className="text-xs text-dp-text-2">{t.reading}</p>
+          <ListMessage>{t.reading}</ListMessage>
         ) : rows.length === 0 ? (
-          <p className="text-xs text-dp-text-2">{t.empty}</p>
+          <ListMessage>{t.empty}</ListMessage>
         ) : (
           <ul className="flex max-h-64 flex-col gap-0.5 overflow-y-auto">
             {rows.map((name) => (
               <li key={name}>
-                <label className="flex h-8 cursor-pointer items-center gap-2 rounded-md px-2 text-sm text-dp-text transition-colors duration-150 ease-out hover:bg-dp-hover motion-reduce:transition-none">
+                <label className="flex h-8 cursor-pointer items-center gap-2 rounded-md px-2 text-sm text-dp-text transition-colors duration-(--dp-dur-fast) ease-(--dp-ease-out) hover:bg-dp-hover motion-reduce:transition-none">
                   <Checkbox
                     data-attach={name}
                     checked={chosen.some((n) => n.toLowerCase() === name.toLowerCase())}
@@ -72,10 +73,9 @@ function Chooser({ groupId }: { groupId: string }) {
           </ul>
         )}
         <DialogFooter>
-          <Button variant="ghost" onClick={closeGroupNotes}>
-            {t.cancel}
-          </Button>
-          <Button
+          <QuietButton onClick={closeGroupNotes}>{t.cancel}</QuietButton>
+          <AccentButton
+            size="lg"
             disabled={names === null}
             onClick={() => {
               setGroupNotes(groupId, chosen);
@@ -83,7 +83,7 @@ function Chooser({ groupId }: { groupId: string }) {
             }}
           >
             {t.save}
-          </Button>
+          </AccentButton>
         </DialogFooter>
       </DialogContent>
     </Dialog>

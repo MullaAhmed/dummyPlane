@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readFilePayload, readOrchestratorPayload, readTerminalPayload } from "./types";
+import { readFilePayload, readFleetPayload, readTerminalPayload } from "./types";
 
 describe("readTerminalPayload", () => {
   it("reads a payload saved before agents and names existed", () => {
@@ -42,36 +42,36 @@ describe("readTerminalPayload", () => {
   });
 });
 
-describe("readOrchestratorPayload", () => {
+describe("readFleetPayload", () => {
   it("keeps the given name and names the others Fleet", () => {
-    expect(readOrchestratorPayload({ name: "Chef" })).toEqual({ name: "Chef" });
-    expect(readOrchestratorPayload({ name: "  " })).toEqual({ name: "Fleet" });
-    expect(readOrchestratorPayload({})).toEqual({ name: "Fleet" });
-    expect(readOrchestratorPayload(null)).toEqual({ name: "Fleet" });
+    expect(readFleetPayload({ name: "Chef" })).toEqual({ name: "Chef" });
+    expect(readFleetPayload({ name: "  " })).toEqual({ name: "Fleet" });
+    expect(readFleetPayload({})).toEqual({ name: "Fleet" });
+    expect(readFleetPayload(null)).toEqual({ name: "Fleet" });
   });
 
   it("reads the former default names as Fleet, its session's too, and keeps a chosen one", () => {
     const session = { agent: "claude", cwd: "D:/p", name: "Orchestrator", title: "Orchestrator" };
-    const read = readOrchestratorPayload({ name: "Orchestrator", session });
+    const read = readFleetPayload({ name: "Orchestrator", session });
     expect(read.name).toBe("Fleet");
     expect(read.session).toMatchObject({ name: "Fleet", title: "Fleet", role: "orchestrator" });
-    expect(readOrchestratorPayload({ name: "Orchestrateur" }).name).toBe("Fleet");
-    expect(readOrchestratorPayload({ name: "Orchestrator of Atlas" }).name).toBe("Orchestrator of Atlas");
+    expect(readFleetPayload({ name: "Orchestrateur" }).name).toBe("Fleet");
+    expect(readFleetPayload({ name: "Orchestrator of Atlas" }).name).toBe("Orchestrator of Atlas");
   });
 
   it("keeps its message field open only when it was opened", () => {
-    expect(readOrchestratorPayload({ name: "Chef", inputOpen: true })).toEqual({ name: "Chef", inputOpen: true });
-    expect(readOrchestratorPayload({ name: "Chef", inputOpen: false })).toEqual({ name: "Chef" });
-    expect(readOrchestratorPayload({ name: "Chef", inputOpen: "yes" })).toEqual({ name: "Chef" });
+    expect(readFleetPayload({ name: "Chef", inputOpen: true })).toEqual({ name: "Chef", inputOpen: true });
+    expect(readFleetPayload({ name: "Chef", inputOpen: false })).toEqual({ name: "Chef" });
+    expect(readFleetPayload({ name: "Chef", inputOpen: "yes" })).toEqual({ name: "Chef" });
   });
 });
 
-describe("an orchestrator's session (spec orchestrateur §6)", () => {
+describe("a fleet's session (spec orchestrateur §6)", () => {
   const session = { title: "Chef", name: "Chef", agent: "claude", cwd: "C:/code", shell: "default", command: "", claudeSessionId: "s1", role: "orchestrator" };
 
-  it("reads it back as the orchestrator's Claude session", () => {
-    expect(readOrchestratorPayload({ name: "Chef", session })).toEqual({ name: "Chef", session });
-    expect(readTerminalPayload(session)?.role).toBe("orchestrator");
+  it("reads it back as the fleet's Claude session", () => {
+    expect(readFleetPayload({ name: "Chef", session })).toEqual({ name: "Chef", session });
+    expect(readTerminalPayload(session)?.role).toBe("orchestrator"); // The stored role, see STORED_FLEET_ROLE.
   });
 
   it("keeps the model the router chose (spec maj §3)", () => {
@@ -85,15 +85,15 @@ describe("an orchestrator's session (spec orchestrateur §6)", () => {
   });
 
   it("drops a session that is not Claude's or cannot launch", () => {
-    expect(readOrchestratorPayload({ name: "Chef", session: { ...session, agent: "shell" } })).toEqual({ name: "Chef" });
-    expect(readOrchestratorPayload({ name: "Chef", session: 3 })).toEqual({ name: "Chef" });
+    expect(readFleetPayload({ name: "Chef", session: { ...session, agent: "shell" } })).toEqual({ name: "Chef" });
+    expect(readFleetPayload({ name: "Chef", session: 3 })).toEqual({ name: "Chef" });
   });
 });
 
-it("reads an orchestrator's mission with it (spec orchestrateur §7)", () => {
+it("reads a fleet's mission with it (spec orchestrateur §7)", () => {
   const mission = { state: "plan", maxAgents: 4, name: "Auth", members: [] };
-  expect(readOrchestratorPayload({ name: "Chef", mission })).toEqual({ name: "Chef", mission });
-  expect(readOrchestratorPayload({ name: "Chef", mission: { state: "?" } })).toEqual({ name: "Chef" });
+  expect(readFleetPayload({ name: "Chef", mission })).toEqual({ name: "Chef", mission });
+  expect(readFleetPayload({ name: "Chef", mission: { state: "?" } })).toEqual({ name: "Chef" });
 });
 
 describe("readFilePayload", () => {

@@ -71,6 +71,19 @@ it.each([
   await view.unmount();
 });
 
+it("reads its report only while the agent rests: Working as soon as it works again", async () => {
+  const reported = { ...isis, lastReport: { status: "done" as const, summary: "Login fixed" } };
+  const view = await render(<MinimizedCard nodeId="isis" payload={reported} status={{ state: "running" }} activity={{ activity: "idle", since: 1 }} />);
+  expect(view.host.querySelector("[data-report]")!.textContent).toBe("Done");
+  await view.unmount();
+  const again = await render(<MinimizedCard nodeId="isis" payload={reported} status={{ state: "running" }} activity={{ activity: "working", since: 2 }} />);
+  expect(again.host.querySelector("[data-report]")).toBeNull();
+  expect(again.host.textContent).toContain("Working");
+  // Its last report is still what the line says.
+  expect(again.host.textContent).toContain("Login fixed");
+  await again.unmount();
+});
+
 it("shows the live status when no report was made", async () => {
   const view = await render(<MinimizedCard nodeId="isis" payload={isis} status={{ state: "stopped" }} />);
   expect(view.host.querySelector("[data-report]")).toBeNull();
@@ -112,7 +125,8 @@ it("replaces the header by the card, its xterm kept mounted underneath, hidden",
   expect(view.host.querySelector("[data-minimized]")).toBeNull();
   expect(view.host.querySelector("header")).not.toBeNull();
   expect(view.host.querySelector("[data-terminal] > div.hidden")).toBeNull();
-  expect(view.host.querySelector("button[aria-label='Minimize']")).not.toBeNull();
+  // Minimize is one of the header's menu entries now.
+  expect(view.host.querySelector("button[aria-label='More actions']")).not.toBeNull();
   await view.unmount();
   clearMocks();
 });

@@ -1,7 +1,7 @@
 import { createStore, useStore } from "zustand";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { AppState, ExcalidrawImperativeAPI, NormalizedZoomValue } from "@excalidraw/excalidraw/types";
-import { sameLinks, type Links } from "@/fleet/wires";
+import { sameLinks, type Links } from "@/agents/wires";
 import { sameFrames, type Rect, type SceneFrame } from "./groups";
 import { sameDrawn } from "./drawnSelection";
 import { sameWirePaths, type WirePath } from "./overlay/wirePaths";
@@ -101,10 +101,10 @@ interface CanvasState {
   /** Ids of the dummyPlane nodes on the canvas on screen (deleted ones excluded). */
   nodeIds: string[];
   setNodeIds: (ids: string[]) => void;
-  /** What each orchestrator of the scene is wired to (spec habillage §13). */
+  /** What each fleet of the scene is wired to (spec habillage §13). */
   links: Record<string, Links>;
   setLinks: (links: Record<string, Links>) => void;
-  /** The route of each wire, from its orchestrator: where WireActivity shows the messages. */
+  /** The route of each wire, from its fleet: where WireActivity shows the messages. */
   wires: WirePath[];
   setWires: (wires: WirePath[]) => void;
   /** The scene rectangle of each node: where the overlays anchor (spec orchestrateur §5.1). */

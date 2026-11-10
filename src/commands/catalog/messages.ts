@@ -7,7 +7,10 @@ export interface Entry {
 }
 const e = (label: string, ...keywords: string[]): Entry => ({ label, keywords });
 
-/** Texts of the palette's catalogs (labels, sections, keywords, reasons), by command id. */
+/**
+ * Texts of the palette's catalogs (labels, sections, keywords, reasons), by command id.
+ * The keyword "orchestrator" of the fleet commands is deliberate: it is the fleet's former name, so the search still finds it.
+ */
 export const catalogMessages = defineMessages({
     sections: {
       navigation: "Navigation",
@@ -20,7 +23,7 @@ export const catalogMessages = defineMessages({
       help: "Help",
       terminal: (name: string) => `Terminal · ${name}`,
       group: (name: string) => `Group · ${name}`,
-      orchestrator: (name: string) => `Fleet · ${name}`,
+      fleet: (name: string) => `Fleet · ${name}`,
     },
     reasons: {
       notFound: (binary: string) => `${binary} not found in PATH`,
@@ -81,7 +84,8 @@ export const catalogMessages = defineMessages({
       "agent.other": e("Other agent…", "agent", "catalog", "launch"),
       "agent.accounts": e("Claude accounts…", "account", "profile", "login", "log in", "use", "claude"),
       "agent.console": e("New console", "console", "terminal"),
-      "agent.orchestrator": e("Fleet", "fleet", "orchestrator", "lead"),
+      "agent.inFolder": e("New terminal in folder…", "folder", "directory", "path", "cwd", "open", "terminal", "console"),
+      "agent.fleet": e("Fleet", "fleet", "orchestrator", "lead"),
       "studio.kanban": e("Kanban", "kanban", "board", "tasks", "cards", "columns"),
       "group.compose": e("Compose a group…", "group", "compose", "role"),
       "agents.pauseAll": e("Pause all", "pause", "interrupt", "all"),
@@ -101,7 +105,7 @@ export const catalogMessages = defineMessages({
       "terminal.paste": e("Paste", "paste", "clipboard"),
       "group.rename": e("Rename the group", "group", "name"),
       "group.addAgent": e("Add an agent…", "group", "agent", "add"),
-      "group.orchestrate": e("Link a fleet", "fleet", "orchestrator", "link", "connect", "group"),
+      "group.linkFleet": e("Link a fleet", "fleet", "orchestrator", "link", "connect", "group"),
       "group.fold": e("Fold or unfold the group", "group", "fold", "unfold", "collapse", "expand"),
       "group.ungroup": e("Ungroup", "group", "ungroup"),
       "group.close": e("Close the group", "group", "close"),
@@ -109,11 +113,11 @@ export const catalogMessages = defineMessages({
       "group.resume": e("Resume group", "group", "resume"),
       "group.frame": e("Zoom to group", "group", "frame", "zoom", "see"),
 
-      "orchestrator.write": e("Write an instruction", "instruction", "prompt", "fleet", "orchestrator"),
-      "orchestrator.rename": e("Rename", "name", "fleet", "orchestrator"),
-      "orchestrator.link": e("Link", "link", "connect", "fleet", "orchestrator"),
-      "orchestrator.paste": e("Paste", "paste", "clipboard"),
-      "orchestrator.remove": e("Delete", "delete", "remove", "fleet", "orchestrator"),
+      "fleet.write": e("Write an instruction", "instruction", "prompt", "fleet", "orchestrator"),
+      "fleet.rename": e("Rename", "name", "fleet", "orchestrator"),
+      "fleet.link": e("Link", "link", "connect", "fleet", "orchestrator"),
+      "fleet.paste": e("Paste", "paste", "clipboard"),
+      "fleet.remove": e("Delete", "delete", "remove", "fleet", "orchestrator"),
 
       "edit.undo": e("Undo", "undo", "revert"),
       "edit.redo": e("Redo", "redo"),

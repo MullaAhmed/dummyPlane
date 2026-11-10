@@ -3,13 +3,13 @@ import { ZONE_OFFSETS } from "@/canvas/canvasFocus";
 import { canvasStore } from "@/canvas/canvasStore";
 import { withGroupSpeciality } from "@/canvas/groups";
 import { nodeKindOf } from "@/canvas/nodeElement";
-import { agentsStore } from "@/fleet/agentsStore";
-import { defaultAgent } from "@/fleet/catalog";
-import { launchGroup } from "@/fleet/groups";
-import { defaultLaunchOptions } from "@/fleet/launchAgent";
-import { linkOrchestrator, orchestrateGroup, renameOrchestrator } from "@/fleet/orchestrators";
-import { viewportCenter } from "@/fleet/placement";
-import { readOrchestratorPayload } from "@/nodes/types";
+import { agentsStore } from "@/agents/agentsStore";
+import { defaultAgent } from "@/agents/catalog";
+import { launchGroup } from "@/agents/groups";
+import { defaultLaunchOptions } from "@/agents/launchAgent";
+import { linkFleet, addFleetToGroup, renameFleet } from "@/fleet/fleets";
+import { viewportCenter } from "@/agents/placement";
+import { readFleetPayload } from "@/nodes/types";
 import { nodesStore, terminalOf } from "@/store/nodes";
 import type { DeployDeps } from "./deploy";
 import { capturePreset, type TeamPreset } from "./model";
@@ -21,10 +21,10 @@ export function captureCurrentTeam(name: string): TeamPreset | "noCanvas" | null
   const { api, frames, links } = canvasStore.getState();
   if (!api) return "noCanvas";
   const nodes = nodesStore.getState().nodes;
-  const orchestrators = api.getSceneElements()
-    .filter((e) => nodeKindOf(e) === "orchestrator")
-    .map((e) => ({ id: e.id, name: readOrchestratorPayload(nodes[e.id]?.payload).name }));
-  return capturePreset({ frames, agentOf: (id) => terminalOf(nodes[id])?.agent, orchestrators, links }, name, crypto.randomUUID(), Date.now());
+  const fleets = api.getSceneElements()
+    .filter((e) => nodeKindOf(e) === "fleet")
+    .map((e) => ({ id: e.id, name: readFleetPayload(nodes[e.id]?.payload).name }));
+  return capturePreset({ frames, agentOf: (id) => terminalOf(nodes[id])?.agent, fleets, links }, name, crypto.randomUUID(), Date.now());
 }
 
 /** The canvas tells its frames after React's commit: what follows a group needs it known. */
@@ -68,9 +68,9 @@ export async function liveDeployDeps(): Promise<DeployDeps> {
         captureUpdate: CaptureUpdateAction.NEVER,
       });
     },
-    orchestrate: orchestrateGroup,
-    link: linkOrchestrator,
-    rename: renameOrchestrator,
+    addFleet: addFleetToGroup,
+    link: linkFleet,
+    rename: renameFleet,
     fit: (ids) => {
       const scene = canvasStore.getState().api;
       const targets = scene?.getSceneElements().filter((e) => ids.includes(e.id) || (e.frameId !== null && ids.includes(e.frameId)));

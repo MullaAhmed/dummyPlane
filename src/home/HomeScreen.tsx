@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { FolderPlus, LifeBuoy } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { agentsStore } from "@/fleet/agentsStore";
+import { agentsStore } from "@/agents/agentsStore";
 import { toast } from "sonner";
 import { messages, useMessages } from "@/i18n";
 import { AccentButton } from "@/shell/buttons";
@@ -59,7 +59,7 @@ export function HomeScreen() {
             variant="ghost"
             size="sm"
             onClick={() => void showTroubleshooting()}
-            className="mx-auto mt-10 flex gap-2 rounded-md px-2 text-xs font-normal text-dp-text-2 hover:text-dp-text [&_svg]:text-dp-text-3"
+            className="mx-auto mt-10 flex gap-2 px-2 text-xs font-normal text-dp-text-2 hover:text-dp-text [&_svg]:text-dp-text-3"
           >
             <LifeBuoy /> {t.troubleshoot}
           </Button>

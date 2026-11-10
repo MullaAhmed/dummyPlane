@@ -1,3 +1,4 @@
+import { STORED_FLEET_KIND } from "@/canvas/nodeElement";
 import { describe, expect, it } from "vitest";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { Project, Workspace } from "@/ipc/db";
@@ -8,7 +9,7 @@ const element = (fields: Record<string, unknown>) =>
   ({ x: 0, y: 0, width: 300, height: 200, isDeleted: false, frameId: null, ...fields }) as unknown as ExcalidrawElement;
 const terminal = (id: string, x: number, frameId: string | null = null) =>
   element({ id, type: "embeddable", customData: { kind: "terminal" }, x, y: 40, frameId });
-const orchestrator = (id: string) => element({ id, type: "embeddable", customData: { kind: "orchestrator" }, x: 2000, y: 0 });
+const fleet = (id: string) => element({ id, type: "embeddable", customData: { kind: STORED_FLEET_KIND }, x: 2000, y: 0 });
 const group = (id: string, name: string) =>
   element({ id, type: "frame", name, x: 0, y: 0, width: 1400, height: 400, customData: { dummyplane: { kind: "group", role: "backend", pantheon: "egypt" } } });
 const node = (workspaceId: string, name: string, agent = "claude"): NodeRecord =>
@@ -32,14 +33,14 @@ const input = (fields: Partial<GoToInput> = {}): GoToInput => ({
   workspaces,
   activeWorkspaceId: "w2",
   scenes: {
-    w1: [terminal("isis", 0), orchestrator("chef")],
+    w1: [terminal("isis", 0), fleet("chef")],
     w2: [group("g", "Serveurs"), terminal("thot", 500, "g"), terminal("hermes", 0, "g")],
   },
   nodes: {
     isis: node("w1", "Isis"),
     thot: node("w2", "Thoth", "codex"),
     hermes: node("w2", "Hermes"),
-    chef: { workspaceId: "w1", kind: "orchestrator", payload: { name: "chef de backend" } } as NodeRecord,
+    chef: { workspaceId: "w1", kind: "fleet", payload: { name: "chef de backend" } } as NodeRecord,
   },
   live: { w1: 1, w2: 2 },
   ...fields,
@@ -49,14 +50,14 @@ describe("goToItems (spec fenêtre §7.2)", () => {
   it("lists the workspace on screen first, then the others in tab order, terminals in Ctrl+Tab order", () => {
     const items = goToItems(input());
     expect(items.filter((i) => i.kind === "terminal").map((i) => i.label)).toEqual(["Hermes", "Thoth", "Isis"]);
-    expect(items.map((i) => i.kind)).toEqual(["terminal", "terminal", "terminal", "group", "orchestrator", "workspace", "workspace", "project", "project"]);
+    expect(items.map((i) => i.kind)).toEqual(["terminal", "terminal", "terminal", "group", "fleet", "workspace", "workspace", "project", "project"]);
   });
 
   it("names the workspace of an item only when it is not the one on screen", () => {
     const items = goToItems(input());
     expect(items.find((i) => i.label === "Thoth")!.elsewhere).toBeUndefined();
     expect(items.find((i) => i.label === "Isis")!.elsewhere).toBe("Workspace 1");
-    expect(items.find((i) => i.kind === "orchestrator")!).toMatchObject({ label: "chef de backend", elsewhere: "Workspace 1", targetId: "chef", workspaceId: "w1" });
+    expect(items.find((i) => i.kind === "fleet")!).toMatchObject({ label: "chef de backend", elsewhere: "Workspace 1", targetId: "chef", workspaceId: "w1" });
   });
 
   it("tells a terminal's agent and group, a group's members, a workspace's live agents and whether it is on screen", () => {
@@ -98,8 +99,8 @@ describe("goToSections", () => {
     expect(sections.map((s) => [s.label, s.items.map((i) => i.label)])).toEqual([["Terminals", ["Isis"]]]);
   });
 
-  it("finds a fleet by the word fleet, and by orchestrator, its former name", () => {
-    for (const query of ["fleet", "orchestrator"]) {
+  it("finds a fleet by the word fleet, and by fleet, its former name", () => {
+    for (const query of ["fleet", "fleet"]) {
       expect(goToSections(goToItems(input()), query).map((s) => [s.label, s.items.map((i) => i.label)])).toEqual([["Fleets", ["chef de backend"]]]);
     }
   });

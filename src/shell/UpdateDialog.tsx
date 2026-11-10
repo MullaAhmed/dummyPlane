@@ -2,7 +2,7 @@ import { CircleArrowDown } from "lucide-react";
 import { toast } from "sonner";
 import { useStore } from "zustand";
 import { Button } from "@/components/ui/button";
-import { AccentButton } from "./buttons";
+import { AccentButton, QuietButton } from "./buttons";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { installUpdate, updatesStore, useUpdates } from "@/app/updates";
 import { messages, useMessages } from "@/i18n";
@@ -31,13 +31,14 @@ export function UpdateChip() {
 
 /** What an update will stop, then download, save and install. */
 export function UpdateDialog() {
-  const t = useMessages(shellMessages).update;
+  const all = useMessages(shellMessages);
+  const t = all.update;
   const { available, dialogOpen, progress } = useUpdates((s) => s);
   const nodes = useNodes((s) => s.nodes);
   useStore(terminalStatusStore, (s) => s.statuses);
   const running = Object.entries(nodes)
     .filter(([id]) => isRunning(id))
-    .map(([, record]) => nodeNameOf(record) || ("title" in record.payload ? record.payload.title : "") || "Agent");
+    .map(([, record]) => nodeNameOf(record) || ("title" in record.payload ? record.payload.title : "") || all.fallbackAgent);
   const close = () => updatesStore.setState({ dialogOpen: false });
   const busy = progress !== null;
   const install = () =>
@@ -48,19 +49,17 @@ export function UpdateDialog() {
 
   return (
     <Dialog open={dialogOpen && available !== null} onOpenChange={(open) => !open && !busy && close()}>
-      <DialogContent showCloseButton={false} className="rounded-xl bg-dp-surface text-dp-text ring-dp-line sm:max-w-md">
+      <DialogContent showCloseButton={false} className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>dummyPlane {available?.version}</DialogTitle>
-          <DialogDescription className="text-dp-text-2">
-            {running.length > 0 ? t.willStop(running) : t.willClose}
-          </DialogDescription>
+          <DialogDescription>{running.length > 0 ? t.willStop(running) : t.willClose}</DialogDescription>
         </DialogHeader>
         {available?.notes && <ReleaseNotes notes={available.notes} />}
-        <DialogFooter className="border-dp-line bg-dp-hover">
-          <Button variant="ghost" onClick={close} disabled={busy} className="rounded-md text-dp-text-2 hover:text-dp-text">
+        <DialogFooter>
+          <QuietButton onClick={close} disabled={busy}>
             {t.later}
-          </Button>
-          <AccentButton onClick={install} disabled={busy} className="px-3 text-sm tabular-nums">
+          </QuietButton>
+          <AccentButton size="lg" onClick={install} disabled={busy} className="tabular-nums">
             {busy ? t.downloading(Math.round((progress ?? 0) * 100)) : t.install}
           </AccentButton>
         </DialogFooter>

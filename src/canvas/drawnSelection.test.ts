@@ -162,9 +162,9 @@ describe("sloppiness and arrow type", () => {
   });
 
   it("gives each bound end of an elbow arrow the ratio of the element it sits on, kept inside it", () => {
-    const orchestrator = el("o", { x: 0, y: 0, width: 100, height: 100 });
+    const fleet = el("o", { x: 0, y: 0, width: 100, height: 100 });
     const target = el("t", { x: 400, y: 0, width: 100, height: 200 });
-    // From 8 right of the orchestrator's side to 8 left of the target's, both at mid height.
+    // From 8 right of the fleet's side to 8 left of the target's, both at mid height.
     const wire = arrow("w", {
       x: 108,
       y: 50,
@@ -175,7 +175,7 @@ describe("sloppiness and arrow type", () => {
       startBinding: { elementId: "o", focus: 0, gap: 8 },
       endBinding: { elementId: "t", focus: 0, gap: 8 },
     });
-    const out = byId(restyleSelection([orchestrator, target, wire], select("w"), { arrowType: "elbow" })).w;
+    const out = byId(restyleSelection([fleet, target, wire], select("w"), { arrowType: "elbow" })).w;
     expect((out.startBinding as { fixedPoint: number[] }).fixedPoint).toEqual([1, 0.5]);
     expect((out.endBinding as { fixedPoint: number[] }).fixedPoint).toEqual([0, 0.5]);
     expect(out.startBinding).toMatchObject({ elementId: "o", gap: 8 });

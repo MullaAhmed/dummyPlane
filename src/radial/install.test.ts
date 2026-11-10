@@ -4,7 +4,7 @@ import { mockIPC } from "@tauri-apps/api/mocks";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { canvasStore } from "@/canvas/canvasStore";
-import { requestClose } from "@/fleet/terminals";
+import { requestClose } from "@/agents/terminals";
 import { nodesStore } from "@/store/nodes";
 import { projectsStore } from "@/store/projects";
 import { workspacesStore } from "@/store/workspaces";
@@ -13,8 +13,8 @@ import { installRadial } from "./install";
 import { radialStore } from "./radialState";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
-vi.mock("@/fleet/terminals", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/fleet/terminals")>()),
+vi.mock("@/agents/terminals", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/agents/terminals")>()),
   requestClose: vi.fn(),
 }));
 

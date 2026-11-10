@@ -20,7 +20,7 @@ use serde_json::{Map, Value, json};
 
 use super::claude_settings::config_dir_for;
 
-/// dummyPlane's MCP server (`mcp_files::config_json`): the orchestration's tools.
+/// dummyPlane's MCP server (`mcp_files::config_json`): the fleet's tools.
 const OWN_SERVER: &str = "dummyplane";
 /// A description longer than this is cut: the panel shows one line of it.
 const DESCRIPTION_MAX: usize = 300;

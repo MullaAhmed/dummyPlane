@@ -27,6 +27,23 @@ export function readSteps(raw: unknown): Step[] | undefined {
   return steps.map((s) => ({ title: titleOf(s.title)!, state: s.state as StepState }));
 }
 
+/**
+ * The steps of an agent that reported (`report`): its work is over, so the frieze
+ * reads as such. Done finishes everything still under way or to come; blocked or
+ * failed marks the step under way as failed and leaves the ones to come. Agents
+ * often report without marking their last step, hence this. Idempotent: a frieze
+ * already settled comes back as it is (the same array).
+ */
+export function settledSteps(steps: Step[], report: "done" | "blocked" | "failed" | undefined): Step[] {
+  if (!report) return steps;
+  const settle = (step: Step): Step => {
+    if (report === "done") return step.state === "en_cours" || step.state === "a_venir" ? { ...step, state: "fait" } : step;
+    return step.state === "en_cours" ? { ...step, state: "echec" } : step;
+  };
+  const settled = steps.map(settle);
+  return settled.every((step, i) => step === steps[i]) ? steps : settled;
+}
+
 /** `declare_steps`: the steps, all to come; or what is wrong. */
 export function declaredSteps(raw: unknown): Step[] | string {
   if (!Array.isArray(raw) || raw.length === 0 || raw.length > MAX_STEPS) return t().count(MAX_STEPS);

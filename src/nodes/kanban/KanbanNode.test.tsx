@@ -46,7 +46,17 @@ it("shows its columns with their counts, and adds a card through the dialog (iss
   expect(columns.map((c) => c.querySelector('[data-testid="column-count"]')!.textContent)).toEqual(["1", "0"]);
   expect(host.querySelector('[data-card-id="c1"]')!.textContent).toContain("Écrire le test");
 
-  await act(async () => columns[1].querySelector<HTMLButtonElement>('button[aria-label="New card"]')!.click());
+  const add = columns[1].querySelector<HTMLButtonElement>('button[aria-label="New card"]')!;
+  // The column's buttons name themselves in the app's hint, never a native title.
+  expect(add.hasAttribute("title")).toBe(false);
+  await act(async () => add.click());
+  const dialog = document.querySelector('[role="dialog"]')!;
+  // One way out, the footer's Cancel; and every choice pill, due date or priority, is one height.
+  expect(dialog.querySelector('[data-slot="dialog-close"]')).toBeNull();
+  expect(button("Cancel").getAttribute("data-variant")).toBe("ghost");
+  const pills = [...dialog.querySelectorAll('[data-slot="toggle-group-item"]')];
+  expect(pills).toHaveLength(8);
+  for (const pill of pills) expect(pill.className).toMatch(/\bh-7\b/);
   const title = document.querySelector<HTMLInputElement>("#kanban-card-title")!;
   await act(async () => type(title, "Relire la PR"));
   await act(async () => button("High").click());
@@ -66,7 +76,7 @@ it("shows its columns with their counts, and adds a card through the dialog (iss
 
 it("renders nothing for a node that is not a board", async () => {
   mockIPC(() => undefined);
-  await nodesStore.getState().create("chef", { workspaceId: "w1", kind: "orchestrator", payload: { name: "Chef" } });
+  await nodesStore.getState().create("chef", { workspaceId: "w1", kind: "fleet", payload: { name: "Chef" } });
   const host = document.createElement("div");
   const root = createRoot(host);
   await act(async () => root.render(<KanbanNode nodeId="chef" />));
@@ -92,6 +102,9 @@ it("opens a linked card's issue from its chip, and syncs a linked board (issue #
   await act(async () => root.render(<KanbanNode nodeId="linked" />));
 
   const chip = [...host.querySelectorAll("button")].find((b) => b.textContent === "#7")!;
+  // A control: its name is its label and its hint, never a native title.
+  expect(chip.getAttribute("aria-label")).toBe("Issue o/r#7");
+  expect(chip.hasAttribute("title")).toBe(false);
   await act(async () => chip.click());
   expect(opened).toHaveBeenCalledWith(url);
   // The chip opens the issue, not the card's dialog.

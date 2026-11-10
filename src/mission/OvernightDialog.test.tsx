@@ -21,7 +21,7 @@ let root: Root;
 const session = { title: "Chef", name: "Chef", agent: "claude" as const, cwd: "C:/p", shell: "default" as const, command: "", role: "orchestrator" as const };
 
 async function show(mission: Partial<Mission> = {}, withSession?: typeof session) {
-  await nodesStore.getState().create("chef", { workspaceId: "w1", kind: "orchestrator", payload: { name: "Chef", ...(withSession ? { session: withSession } : {}), mission: { ...NEW_MISSION, ...mission } } });
+  await nodesStore.getState().create("chef", { workspaceId: "w1", kind: "fleet", payload: { name: "Chef", ...(withSession ? { session: withSession } : {}), mission: { ...NEW_MISSION, ...mission } } });
   host = document.createElement("div");
   document.body.append(host);
   root = createRoot(host);
@@ -56,7 +56,7 @@ it("asks for the time away, the agents and the source; Kanban is not offered, it
   expect(document.body.textContent).not.toContain("Kanban");
 });
 
-it("sets up the mission and gives the orchestrator its orders", async () => {
+it("sets up the mission and gives the fleet its orders", async () => {
   await show();
   await act(async () => type(field("Time away (hours)"), "6.5"));
   await act(async () => type(field("Number of agents"), "5"));
@@ -156,6 +156,14 @@ it("warns on the plan's usage without blocking, and says what can still put the 
   expect(checks).toContain("Closing the lid");
   expect(button("Prepare the night").disabled).toBe(false);
   usageStore.setState({ limits: null });
+});
+
+it("has one way out, the footer's Cancel: no corner ✕, a quiet dismiss beside the accent's primary", async () => {
+  await show();
+  expect(document.querySelector('[data-slot="dialog-close"]')).toBeNull();
+  expect(button("Cancel").getAttribute("data-variant")).toBe("ghost");
+  expect(button("Cancel").className).toMatch(/\bh-9\b/);
+  expect(button("Prepare the night").className).toMatch(/\bh-9\b/);
 });
 
 it("speaks English", async () => {

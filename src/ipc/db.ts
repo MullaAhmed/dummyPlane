@@ -1,4 +1,4 @@
-import type { NodeKind } from "@/canvas/nodeElement";
+import { toStoredKind, type NodeKind, type StoredNodeKind } from "@/canvas/nodeElement";
 import { onFlushAll } from "@/lib/flush";
 import { createQueue } from "@/lib/queue";
 import { call } from "./invoke";
@@ -27,6 +27,8 @@ export interface Workspace {
   /** Pantheon of the agents outside any group (spec habillage §9.2). */
   pantheon: string | null;
   kind: WorkspaceKind;
+  /** The folder its terminals start in; null is the project's own, so a moved project is followed. */
+  folder: string | null;
 }
 
 /** An Excalidraw image, stored as its data URL. */
@@ -39,7 +41,8 @@ export interface StoredFile {
 
 export interface StoredNode {
   id: string;
-  kind: NodeKind;
+  /** As saved in `nodes.kind`: a fleet is "orchestrator" there (`fromStoredKind` reads it, `saveNode` writes it). */
+  kind: StoredNodeKind;
   payloadJson: string;
 }
 
@@ -75,6 +78,9 @@ export const createWorkspace = (projectId: string, name: string, kind: Workspace
   write(() => call<Workspace>("create_workspace", { projectId, name, kind }));
 export const setWorkspacePantheon = (id: string, pantheon: string) =>
   write(() => call<void>("set_workspace_pantheon", { id, pantheon }));
+/** `folder` null goes back to the project's folder. */
+export const setWorkspaceFolder = (id: string, folder: string | null) =>
+  write(() => call<void>("set_workspace_folder", { id, folder }));
 export const renameWorkspace = (id: string, name: string) =>
   write(() => call<void>("rename_workspace", { id, name }));
 export const deleteWorkspace = (id: string) => write(() => call<void>("delete_workspace", { id }));
@@ -82,6 +88,7 @@ export const saveScene = (workspaceId: string, elementsJson: string, appStateJso
   write(() => call<void>("save_scene", { workspaceId, elementsJson, appStateJson, nodeIds }));
 export const saveFiles = (workspaceId: string, files: StoredFile[]) =>
   write(() => call<void>("save_files", { workspaceId, files }));
+/** Writes the node under its stored kind (`toStoredKind`): the database keeps the name a fleet always had. */
 export const saveNode = (id: string, workspaceId: string, kind: NodeKind, payloadJson: string) =>
-  write(() => call<void>("save_node", { id, workspaceId, kind, payloadJson }));
+  write(() => call<void>("save_node", { id, workspaceId, kind: toStoredKind(kind), payloadJson }));
 export const setSetting = (key: string, value: unknown) => write(() => call<void>("set_setting", { key, value }));

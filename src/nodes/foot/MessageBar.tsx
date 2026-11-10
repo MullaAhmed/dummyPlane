@@ -5,7 +5,7 @@ import { useNativeKeyDown } from "@/lib/useNativeKeyDown";
 import { cn } from "@/lib/utils";
 
 /**
- * The last line of a node's foot, an orchestrator's or an agent's: one folded
+ * The last line of a node's foot, a Fleet's or an agent's: one folded
  * line, "Message …"; opened, the command bar's field in its compact form
  * below it. Whether it is open is the node's: `onOpenChange` keeps it there.
  * `field` receives whether to take the keyboard: only opening it by hand
@@ -38,7 +38,7 @@ export function MessageBar(props: { label: string; open: boolean; onOpenChange: 
           className={cn("size-4 text-dp-text-3 transition-transform duration-(--dp-dur-fast) ease-(--dp-ease-out) motion-reduce:transition-none", open && "rotate-180")}
         />
       </Button>
-      {open && <div className="px-2 pb-2">{field(focusOnOpen)}</div>}
+      {open && <div className="px-3 pb-3">{field(focusOnOpen)}</div>}
     </>
   );
 }

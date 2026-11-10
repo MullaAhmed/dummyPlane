@@ -143,6 +143,7 @@ pub fn run() {
             commands::project::open_project,
             commands::project::delete_project,
             commands::workspace::set_workspace_pantheon,
+            commands::workspace::set_workspace_folder,
             commands::git::git_status,
             commands::repo::repo_state,
             commands::repo::repo_history,

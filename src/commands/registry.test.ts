@@ -158,7 +158,7 @@ describe("what each context lists (spec fenêtre §11)", () => {
         "Help",
       ]
     `);
-    expect(idsOf(empty).filter((id) => id.startsWith("terminal.") || id.startsWith("group.") || id.startsWith("orchestrator."))).toEqual(["group.compose"]);
+    expect(idsOf(empty).filter((id) => id.startsWith("terminal.") || id.startsWith("group.") || id.startsWith("fleet."))).toEqual(["group.compose"]);
   });
 
   it("on a terminal: the lines of the terminal section", () => {
@@ -181,7 +181,7 @@ describe("what each context lists (spec fenêtre §11)", () => {
 
 it("a failed command says what its button says (plan F2)", async () => {
   const error = vi.spyOn(toast, "error").mockImplementation(() => "");
-  for (const id of ["terminal.duplicate", "workspace.new", "workspace.delete", "group.orchestrate"]) {
+  for (const id of ["terminal.duplicate", "workspace.new", "workspace.delete", "group.linkFleet"]) {
     runCommand({ ...command(id), run: () => Promise.reject(new Error("boom")) }, busy);
   }
   await vi.waitFor(() => expect(error).toHaveBeenCalledTimes(4));

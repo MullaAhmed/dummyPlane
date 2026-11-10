@@ -45,18 +45,22 @@ afterEach(async () => {
 });
 
 const meter = () => host.querySelector<HTMLButtonElement>("[data-usage]")!;
+const hint = () => document.querySelector('[role="tooltip"]')?.textContent ?? null;
 
 it("says no Claude session yet when none is running, whatever the Git Bash state", async () => {
   mockIPC((cmd) => (cmd === "diagnostics" ? { gitBash: null } : undefined));
   await act(async () => root.render(<UsageMeter />));
   expect(meter().textContent).toBe("Usage· no Claude session yet");
-  expect(meter().title).toContain("first reply");
+  expect(meter().hasAttribute("title"), "a hint, not a native title").toBe(false);
+  await act(async () => meter().focus());
+  expect(hint()).toContain("first reply");
 });
 
 it("waits for a Claude session's first answer before showing the limits (spec maj §6)", async () => {
   await act(async () => terminalStatusStore.getState().set("isis", { state: "running" }));
   expect(meter().textContent).toBe("Usage· waiting for the first answer");
-  expect(meter().title).toContain("first reply");
+  await act(async () => meter().focus());
+  expect(hint()).toContain("first reply");
 });
 
 it("says usage needs Git Bash when a running Claude session has none", async () => {

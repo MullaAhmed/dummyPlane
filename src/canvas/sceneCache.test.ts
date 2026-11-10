@@ -42,7 +42,7 @@ it("elbows the wires saved curved, before Excalidraw restores them", async () =>
     endBinding: { elementId: "isis", focus: 0, gap: 8 },
     customData: { dummyplane: { kind: "wire" } },
   };
-  const elementsJson = JSON.stringify([box("chef", 0, "orchestrator"), box("isis", 800, "terminal"), curved]);
+  const elementsJson = JSON.stringify([box("chef", 0, "fleet"), box("isis", 800, "terminal"), curved]);
   mockIPC((cmd) => (cmd === "load_workspace" ? { nodes: [], files: [], elementsJson, appStateJson: null } : undefined));
   const { initialData } = await loadScene("w1");
   const wire = initialData.elements?.find((e) => e.id === "w");
@@ -73,7 +73,7 @@ it("drops the stored nodes of subagents, which ended with their session, and sti
     endBinding: { elementId: "isis", focus: 0, gap: 8 },
     customData: { dummyplane: { kind: "wire" } },
   };
-  const elementsJson = JSON.stringify([box("chef", 0, "orchestrator"), box("isis", 800, "terminal"), box("sub", 800, "subagent"), wire]);
+  const elementsJson = JSON.stringify([box("chef", 0, "fleet"), box("isis", 800, "terminal"), box("sub", 800, "subagent"), wire]);
   mockIPC((cmd) => (cmd === "load_workspace" ? { nodes: [], files: [], elementsJson, appStateJson: null } : undefined));
   const { initialData } = await loadScene("w1");
   expect(initialData.elements?.map((e) => e.id)).toEqual(["chef", "isis", "w"]);

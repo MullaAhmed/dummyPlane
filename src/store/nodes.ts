@@ -1,4 +1,5 @@
 import { createStore, useStore } from "zustand";
+import { fromStoredKind } from "@/canvas/nodeElement";
 import { saveNode, type StoredNode } from "@/ipc/db";
 import { toast } from "sonner";
 import { messages } from "@/i18n";
@@ -9,17 +10,17 @@ import { rebasePath } from "@/lib/paths";
 import {
   readFilePayload,
   readKanbanPayload,
-  readOrchestratorPayload,
+  readFleetPayload,
   readTerminalPayload,
   type FilePayload,
   type KanbanPayload,
-  type OrchestratorPayload,
+  type FleetPayload,
   type TerminalPayload,
 } from "@/nodes/types";
 
 export type NodeRecord =
   | { workspaceId: string; kind: "terminal"; payload: TerminalPayload }
-  | { workspaceId: string; kind: "orchestrator"; payload: OrchestratorPayload }
+  | { workspaceId: string; kind: "fleet"; payload: FleetPayload }
   | { workspaceId: string; kind: "file"; payload: FilePayload }
   | { workspaceId: string; kind: "kanban"; payload: KanbanPayload };
 
@@ -30,7 +31,7 @@ export interface NodesState {
   /** Adds a node and saves it at once (its row must exist before its scrollback). */
   create: (id: string, record: NodeRecord) => Promise<void>;
   /** Changes a node; the save waits 500 ms for further changes. */
-  update: (id: string, patch: Partial<TerminalPayload> | Partial<OrchestratorPayload> | Partial<KanbanPayload> | Partial<FilePayload>) => void;
+  update: (id: string, patch: Partial<TerminalPayload> | Partial<FleetPayload> | Partial<KanbanPayload> | Partial<FilePayload>) => void;
   /** Saves a node now, e.g. when an undo brings back a node purged from SQLite. */
   persist: (id: string) => Promise<void>;
   /** Drops the nodes of a deleted workspace and returns their ids. */
@@ -119,23 +120,25 @@ function readRecord(workspaceId: string, node: StoredNode): NodeRecord | null {
   } catch {
     return null;
   }
-  if (node.kind === "orchestrator") return { workspaceId, kind: "orchestrator", payload: readOrchestratorPayload(raw) };
-  if (node.kind === "file") {
+  // The one place a saved node's kind becomes the app's: a stored "orchestrator" is a fleet.
+  const kind = fromStoredKind(node.kind);
+  if (kind === "fleet") return { workspaceId, kind: "fleet", payload: readFleetPayload(raw) };
+  if (kind === "file") {
     const file = readFilePayload(raw);
     return file ? { workspaceId, kind: "file", payload: file } : null;
   }
-  if (node.kind === "kanban") return { workspaceId, kind: "kanban", payload: readKanbanPayload(raw) };
-  if (node.kind !== "terminal") return null;
+  if (kind === "kanban") return { workspaceId, kind: "kanban", payload: readKanbanPayload(raw) };
+  if (kind !== "terminal") return null;
   const payload = readTerminalPayload(raw);
   return payload ? { workspaceId, kind: "terminal", payload } : null;
 }
 
-/** The name a node shows: an agent's or an orchestrator's, "" for a board or a file. */
+/** The name a node shows: an agent's or a fleet's, "" for a board or a file. */
 export function nodeNameOf(record: NodeRecord | undefined): string {
   return record && record.kind !== "kanban" && record.kind !== "file" ? record.payload.name : "";
 }
 
-/** The terminal payload of a node; undefined for an orchestrator or a missing node. */
+/** The terminal payload of a node; undefined for a fleet or a missing node. */
 export function terminalOf(record: NodeRecord | undefined): TerminalPayload | undefined {
   return record?.kind === "terminal" ? record.payload : undefined;
 }
@@ -152,14 +155,14 @@ export function useNodes<T>(selector: (state: NodesState) => T): T {
 /** After "Change folder": terminals in memory follow the project's new folder. */
 export function rebaseTerminalFolders(from: string, to: string) {
   for (const [id, node] of Object.entries(nodesStore.getState().nodes)) {
-    if (node.kind === "orchestrator") {
+    if (node.kind === "fleet") {
       // Its Claude session and the paths of its mission follow the project too.
       const { session, mission } = node.payload;
       const cwd = session && rebasePath(session.cwd, from, to);
       const project = mission?.project && rebasePath(mission.project, from, to);
       const worktree = mission?.worktree && rebasePath(mission.worktree, from, to);
       const members = mission?.members.map((m) => ({ ...m, worktree: rebasePath(m.worktree, from, to) ?? m.worktree }));
-      const patch: Partial<OrchestratorPayload> = {};
+      const patch: Partial<FleetPayload> = {};
       if (session && cwd) patch.session = { ...session, cwd };
       if (mission && (project || worktree || members?.some((m, i) => m.worktree !== mission.members[i].worktree))) {
         patch.mission = { ...mission, project: project || mission.project, worktree: worktree || mission.worktree, members: members ?? mission.members };
@@ -174,17 +177,17 @@ export function rebaseTerminalFolders(from: string, to: string) {
   }
 }
 
-/** The Claude session of a node: a terminal's own, or an orchestrator's (spec orchestrateur §6). */
+/** The Claude session of a node: a terminal's own, or a fleet's (spec orchestrateur §6). */
 export function sessionOf(record: NodeRecord | undefined): TerminalPayload | undefined {
   if (record?.kind === "terminal") return record.payload;
-  return record?.kind === "orchestrator" ? record.payload.session : undefined;
+  return record?.kind === "fleet" ? record.payload.session : undefined;
 }
 
-/** Changes a node's session where it lives: the payload of a terminal, the `session` of an orchestrator. */
+/** Changes a node's session where it lives: the payload of a terminal, the `session` of a fleet. */
 export function updateSession(nodeId: string, patch: Partial<TerminalPayload>) {
   const record = nodesStore.getState().nodes[nodeId];
   if (record?.kind === "terminal") nodesStore.getState().update(nodeId, patch);
-  else if (record?.kind === "orchestrator" && record.payload.session) {
+  else if (record?.kind === "fleet" && record.payload.session) {
     nodesStore.getState().update(nodeId, { session: { ...record.payload.session, ...patch } });
   }
 }

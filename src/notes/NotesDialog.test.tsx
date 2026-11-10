@@ -203,6 +203,16 @@ describe("the notes (spec notes §6)", () => {
     expect(editor().state.doc.toString()).toBe("Nothing.x");
   });
 
+  it("answers the guard with Cancel, Don't save (destructive), then Save", async () => {
+    await open("Plain");
+    await click(tab("Edit"));
+    await typeInEditor("x");
+    await click(row("Auth"));
+    const footer = [...document.body.querySelectorAll<HTMLElement>("[data-unsaved] button")];
+    expect(footer.map((b) => b.textContent)).toEqual(["Cancel", "Don't save", "Save"]);
+    expect(footer[1].dataset.variant).toBe("destructive");
+  });
+
   it("closes through the same guard", async () => {
     await open("Plain");
     await click(button("Close the notes"));

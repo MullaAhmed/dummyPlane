@@ -4,7 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { toast } from "sonner";
-import { agentsStore } from "@/fleet/agentsStore";
+import { agentsStore } from "@/agents/agentsStore";
 import { projectsStore } from "@/store/projects";
 import { labelOf, runCommand, sectionOf, type CommandContext } from "./command";
 import { functionSections } from "./functions";
@@ -137,7 +137,7 @@ describe("the go-to rows in English", () => {
       return host.textContent;
     };
     expect(await row({ key: "g", kind: "group", label: "Servers", keywords: [], members: 3, group: { name: "Servers", color: "#fff" } })).toContain("3 agents");
-    expect(await row({ key: "o", kind: "orchestrator", label: "Chief", keywords: [], links: 2 })).toContain("linked to 2");
+    expect(await row({ key: "o", kind: "fleet", label: "Chief", keywords: [], links: 2 })).toContain("linked to 2");
     expect(await row({ key: "w", kind: "workspace", label: "Main", keywords: [], live: 1, current: true })).toBe("Main1 activeshown");
     await act(async () => root.unmount());
     host.remove();

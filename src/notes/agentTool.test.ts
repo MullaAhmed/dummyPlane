@@ -42,7 +42,7 @@ describe("the notes tool (spec notes §3)", () => {
     expect(asked[0]).toMatchObject({ command: "notes_agent_list", args: { nodeIds: ["anubis"] } });
   });
 
-  it("asks for the orchestrator's agents too", async () => {
+  it("asks for the fleet's agents too", async () => {
     await notesTool("chef", true, {});
     expect(linkedClaudeAgents).toHaveBeenCalledWith("chef");
     expect(asked[0]).toMatchObject({ args: { nodeIds: ["chef", "isis", "thot"] } });

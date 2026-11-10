@@ -15,11 +15,11 @@ dummyPlane launches the agent CLIs installed on your PC; it looks for them on Wi
 2. In dummyPlane, click **Check again** (on the home screen, or in the Troubleshooting dialog). It reads Windows' `PATH` again, so an agent installed while dummyPlane runs is found without restarting it.
 3. Still not found: `where.exe claude` in PowerShell shows the folder it is in. That folder must be in your user or system `PATH` (Windows settings → "Edit environment variables for your account").
 
-Claude Code is needed for the orchestrator, missions and the usage meter. Its official installer, in PowerShell: `irm https://claude.ai/install.ps1 | iex` (see [Claude Code's setup page](https://code.claude.com/docs/en/setup)).
+Claude Code is needed for the fleet, missions and the usage meter. Its official installer, in PowerShell: `irm https://claude.ai/install.ps1 | iex` (see [Claude Code's setup page](https://code.claude.com/docs/en/setup)).
 
 ### Installing an agent from dummyPlane
 
-*Installer*, next to a missing agent, shows the official command and runs it in a visible terminal on the canvas of the open project (open a project first). Read the terminal if it fails: the installer's own message is there, and `Ctrl+C` stops it. Gemini CLI, OpenCode and Ollama's models need **npm**: if dummyPlane says it is missing, install [Node.js](https://nodejs.org/), which brings it, then click **Check again**. dummyPlane looks for the new agent for up to 30 minutes after the command starts, and says when it is installed.
+*Install*, next to a missing agent, shows the official command and runs it in a visible terminal on the canvas of the open project (open a project first). Read the terminal if it fails: the installer's own message is there, and `Ctrl+C` stops it. Gemini CLI, OpenCode and Ollama's models need **npm**: if dummyPlane says it is missing, install [Node.js](https://nodejs.org/), which brings it, then click **Check again**. dummyPlane looks for the new agent for up to 30 minutes after the command starts, and says when it is installed.
 
 ## No Windows notification when an agent has a question
 
@@ -39,7 +39,7 @@ dummyPlane never overwrites what an agent wrote meanwhile. If the file changed o
 
 ## An agent has disappeared from a group
 
-The group is probably **folded**: only its label shows, with its counters, while its agents keep running. Click the chevron on the label, or *Déplier le groupe* in its menu. Going to one of its agents from the Agents panel or `Ctrl+P` unfolds it too. A group cannot be folded while its agents are still starting; wait a moment and try again.
+The group is probably **folded**: only its label shows, with its counters, while its agents keep running. Click the chevron on the label, or *Unfold the group* in its menu. Going to one of its agents from the Agents panel or `Ctrl+P` unfolds it too. A group cannot be folded while its agents are still starting; wait a moment and try again.
 
 ## A team preset deploys with a different agent
 
@@ -49,9 +49,9 @@ A preset remembers the agent of each cell. If one is not installed on this PC, d
 
 Notes are plain Markdown files in the project's `.dummyplane/notes/`. dummyPlane does not touch the project's `.gitignore`: add `.dummyplane/` to it to keep your notes out of git, or commit them to share them.
 
-## "dummyPlane tools unavailable" on an orchestrator
+## "dummyPlane tools unavailable" on a Fleet
 
-An orchestrator only starts with dummyPlane's own tools, served by a local server inside dummyPlane; without them it could change your branch, so it does not start. Click **Try again**. If it happens again, the Troubleshooting dialog shows whether the local server runs; restart dummyPlane, and if it goes on, attach the log to a bug report.
+A fleet only starts with dummyPlane's own tools, served by a local server inside dummyPlane; without them it could change your branch, so it does not start. Click **Try again**. If it happens again, the Troubleshooting dialog shows whether the local server runs; restart dummyPlane, and if it goes on, attach the log to a bug report.
 
 ## A mission says the repository has no commit
 
@@ -59,25 +59,25 @@ A mission works on git branches, which need a first commit. In the project's fol
 
 ## An overnight run did little, or did more than you wanted
 
-- **Agents stopped early.** Under *Fichiers*, the default, an agent stops at its first command until you are back: the morning report shows those tasks as not finished. *Fichiers et commandes* avoids that, but agents then run any command unasked, and the network and the accounts logged in on this PC are open to them. Choose it knowingly.
-- **Nothing started.** By default the plan waits for your go-ahead: click *Lancer la mission* before you leave, or tick *Lancer sans attendre mon feu vert*.
+- **Agents stopped early.** Under *Files*, the default, an agent stops at its first command until you are back: the morning report shows those tasks as not finished. *Files and commands* avoids that, but agents then run any command unasked, and the network and the accounts logged in on this PC are open to them. Choose it knowingly.
+- **Nothing started.** By default the plan waits for your go-ahead: click *Launch the mission* before you leave, or tick *Start without waiting for my go-ahead*.
 - **No tickets.** GitHub issues are read with `gh`, which must be installed and logged in, and only issues with the label you gave are read. `BACKLOG.md` must be at the project's root. Kanban is not a source yet.
 - **The run stopped in the night.** The PC stays awake during the mission, but closing the lid or asking for sleep still puts it to sleep.
-- **An agent pushed, or acted on GitHub.** The push block is not a security boundary. `git push` and the `gh` commands that reach the remote are denied by rules on the command's text and by a git setting in the terminal: they stop accidents, and an agent running commands can get past them, as a review did with `-c remote.origin.pushurl` and `GIT_CONFIG_COUNT=0`. If that matters, stay with *Fichiers*, or use a repository and accounts you can afford to expose.
+- **An agent pushed, or acted on GitHub.** The push block is not a security boundary. `git push` and the `gh` commands that reach the remote are denied by rules on the command's text and by a git setting in the terminal: they stop accidents, and an agent running commands can get past them, as a review did with `-c remote.origin.pushurl` and `GIT_CONFIG_COUNT=0`. If that matters, stay with *Files*, or use a repository and accounts you can afford to expose.
 
 ## A loop does not send
 
-A loop never writes to an agent that waits for you (a permission dialog included), is stopped or is still starting; such a turn is skipped and does not count. An agent that was closed is ignored, and a loop with no live target switches itself off. Every loop is off again after dummyPlane restarts: switch it on from the loops window (*Gérer les boucles…* in the function palette). The pill at the bottom left, or *Boucles : tout arrêter*, stops them all.
+A loop never writes to an agent that waits for you (a permission dialog included), is stopped or is still starting; such a turn is skipped and does not count. An agent that was closed is ignored, and a loop with no live target switches itself off. Every loop is off again after dummyPlane restarts: switch it on from the loops window (*Manage loops…* in the function palette). The pill at the bottom left, or *Loops: stop all*, stops them all.
 
 ## A Claude agent uses the wrong account
 
-A terminal keeps the profile it started with; changing the active one in *Comptes Claude…* only affects the agents you launch afterwards. Close and relaunch the agent, or launch a new one. To sign in to a profile, use its *Se connecter* button: it opens a visible Claude terminal where you log in (or type `/login`). A profile whose folder is invalid makes the agent refuse to start, with a message, rather than fall back to another account. If you remove a profile, its folder stays on your disk and its old terminals restart with the default account.
+A terminal keeps the profile it started with; changing the active one in *Claude accounts…* only affects the agents you launch afterwards. Close and relaunch the agent, or launch a new one. To sign in to a profile, use its *Log in* button: it opens a visible Claude terminal where you log in (or type `/login`). A profile whose folder is invalid makes the agent refuse to start, with a message, rather than fall back to another account. If you remove a profile, its folder stays on your disk and its old terminals restart with the default account.
 
 ## The git window will not commit, discard or push
 
 - During a merge, a rebase, a cherry-pick or a revert, committing and discarding are refused: finish or abort the operation first.
 - Discarding refuses a file that changed since the list was read (an agent may have written it meanwhile): refresh and look again.
-- *Pousser* is greyed, with the reason, when HEAD is detached, there is no remote, or several remotes exist and none is called `origin`. It never forces. Git does not prompt in dummyPlane; Windows' credential manager may open its own window after your click. A refused push shows git's message in the window.
+- *Push* is greyed, with the reason, when HEAD is detached, there is no remote, or several remotes exist and none is called `origin`. It never forces. Git does not prompt in dummyPlane; Windows' credential manager may open its own window after your click. A refused push shows git's message in the window.
 - A commit that git refuses (no identity, a hook) shows git's own message, and your commit message stays.
 
 ## dummyPlane will not open a second window

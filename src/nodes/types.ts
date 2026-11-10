@@ -1,8 +1,8 @@
 import { readExtensionChoice, type ExtensionChoice } from "@/ipc/claudeExtensions";
 import type { IssueState } from "@/ipc/github";
-import { AGENT_IDS, type AgentId, type OllamaLaunch, type Permission, type ShellKind } from "@/ipc/pty";
+import { AGENT_IDS, STORED_FLEET_ROLE, type AgentId, type OllamaLaunch, type Permission, type ShellKind } from "@/ipc/pty";
 import { readMission, type Mission } from "@/mission/mission";
-import { readSteps, type Step } from "./steps";
+import { readSteps, settledSteps, type Step } from "./steps";
 
 /** Content of a terminal node (spec habillage §15.2). */
 export interface TerminalPayload {
@@ -20,8 +20,8 @@ export interface TerminalPayload {
   ollama?: OllamaLaunch;
   /** The steps its agent declared (spec orchestrateur §5). */
   steps?: Step[];
-  /** An orchestrator's session (spec orchestrateur §4.2); absent for an agent. */
-  role?: "orchestrator";
+  /** A fleet's session (spec orchestrateur §4.2); absent for an agent. Stored data: see `STORED_FLEET_ROLE`. */
+  role?: typeof STORED_FLEET_ROLE;
   /** Claude starts with Remote Control (spec maj §2). */
   remoteControl?: boolean;
   /** Claude's model, chosen by a mission's router (spec maj §3). */
@@ -61,8 +61,8 @@ function readTerminalReport(raw: unknown): TerminalReport | undefined {
   return { status: r.status as TerminalReportStatus, summary: r.summary };
 }
 
-/** Content of an orchestrator node (spec habillage §13, spec orchestrateur §6). */
-export interface OrchestratorPayload {
+/** Content of a fleet node (spec habillage §13, spec orchestrateur §6). */
+export interface FleetPayload {
   name: string;
   /** Its Claude session, created when it is first shown. */
   session?: TerminalPayload;
@@ -72,11 +72,11 @@ export interface OrchestratorPayload {
   inputOpen?: boolean;
 }
 
-export const ORCHESTRATOR_NAME = "Fleet";
+export const FLEET_DEFAULT_NAME = "Fleet";
 
-/** The names an orchestrator got by default before it was called a fleet: read as "Fleet", a name the user chose is kept. */
+/** The names a fleet got by default before it was called "Fleet": read as "Fleet", a name the user chose is kept. Stored data: they are the old names, in English and in French. */
 const FORMER_DEFAULT_NAMES = new Set(["Orchestrator", "Orchestrateur"]);
-const renamed = (name: string) => (FORMER_DEFAULT_NAMES.has(name.trim()) ? ORCHESTRATOR_NAME : name);
+const renamed = (name: string) => (FORMER_DEFAULT_NAMES.has(name.trim()) ? FLEET_DEFAULT_NAME : name);
 
 /** Content of a file node (issue #49): a file of the project, shown read-only. */
 export interface FilePayload {
@@ -84,7 +84,7 @@ export interface FilePayload {
   path: string;
 }
 
-export type NodePayload = TerminalPayload | OrchestratorPayload | KanbanPayload | FilePayload;
+export type NodePayload = TerminalPayload | FleetPayload | KanbanPayload | FilePayload;
 
 /** Reads a stored file payload; null without a usable path. */
 export function readFilePayload(raw: unknown): FilePayload | null {
@@ -139,25 +139,28 @@ export interface KanbanPayload {
   cards: Record<string, KanbanCard>;
   /** Set by "Link to GitHub". */
   github?: KanbanBoardLink;
-  /** Set by "Plan with the orchestrator": the orchestrator node planning one of its columns. */
-  orchestrator?: KanbanOrchestratorLink;
+  /**
+   * Set by "Plan with the fleet": the fleet node planning one of its columns. Stored data: saved boards
+   * keep this key under the name it had when the fleet was called the orchestrator, so it never changes.
+   */
+  orchestrator?: KanbanFleetLink;
 }
 
-/** A board's column handed to an orchestrator node. */
-export interface KanbanOrchestratorLink {
+/** A board's column handed to a fleet node. */
+export interface KanbanFleetLink {
   nodeId: string;
   columnId: string;
 }
 
 
 
-/** Reads a stored orchestrator payload; a missing or blank name, or a former default one, becomes "Fleet". */
-export function readOrchestratorPayload(raw: unknown): OrchestratorPayload {
+/** Reads a stored fleet payload; a missing or blank name, or a former default one, becomes "Fleet". */
+export function readFleetPayload(raw: unknown): FleetPayload {
   const r = typeof raw === "object" && raw !== null ? (raw as Record<string, unknown>) : {};
-  const payload: OrchestratorPayload = { name: typeof r.name === "string" && r.name.trim() ? renamed(r.name) : ORCHESTRATOR_NAME };
+  const payload: FleetPayload = { name: typeof r.name === "string" && r.name.trim() ? renamed(r.name) : FLEET_DEFAULT_NAME };
   const session = readTerminalPayload(r.session);
-  // Its session carries the same default as its name and title (`orchestratorSession`): Claude shows the title.
-  if (session?.agent === "claude") payload.session = { ...session, name: renamed(session.name), title: renamed(session.title), role: "orchestrator" };
+  // Its session carries the same default as its name and title (`fleetSession`): Claude shows the title.
+  if (session?.agent === "claude") payload.session = { ...session, name: renamed(session.name), title: renamed(session.title), role: STORED_FLEET_ROLE };
   const mission = readMission(r.mission);
   if (mission) payload.mission = mission;
   if (r.inputOpen === true) payload.inputOpen = true;
@@ -191,9 +194,11 @@ export function readTerminalPayload(raw: unknown): TerminalPayload | null {
   if (ollama && typeof ollama.model === "string" && (ollama.mode === "chat" || ollama.mode === "code")) {
     payload.ollama = { model: ollama.model, mode: ollama.mode };
   }
+  // A payload saved with a report and its steps not settled (before they were) reads as finished.
+  const lastReport = readTerminalReport(r.lastReport);
   const steps = readSteps(r.steps);
-  if (steps) payload.steps = steps;
-  if (r.role === "orchestrator") payload.role = "orchestrator";
+  if (steps) payload.steps = settledSteps(steps, lastReport?.status);
+  if (r.role === STORED_FLEET_ROLE) payload.role = STORED_FLEET_ROLE;
   if (r.remoteControl === true) payload.remoteControl = true;
   if (typeof r.model === "string" && r.model) payload.model = r.model;
   if (r.permission === "ask" || r.permission === "edits" || r.permission === "work") payload.permission = r.permission;
@@ -203,7 +208,6 @@ export function readTerminalPayload(raw: unknown): TerminalPayload | null {
   if (r.minimized === true) payload.minimized = true;
   if (r.inputOpen === true) payload.inputOpen = true;
   if (typeof r.expandedHeight === "number" && Number.isFinite(r.expandedHeight) && r.expandedHeight > 0) payload.expandedHeight = r.expandedHeight;
-  const lastReport = readTerminalReport(r.lastReport);
   if (lastReport) payload.lastReport = lastReport;
   const extensions = readExtensionChoice(r.extensions);
   if (extensions) payload.extensions = extensions;
@@ -270,9 +274,9 @@ export function readKanbanPayload(raw: unknown): KanbanPayload {
   const payload: KanbanPayload = { columns, cards };
   const github = readBoardLink(r.github);
   if (github) payload.github = github;
-  const orchestrator = r.orchestrator as Record<string, unknown> | undefined;
-  if (orchestrator && typeof orchestrator.nodeId === "string" && orchestrator.nodeId && typeof orchestrator.columnId === "string") {
-    payload.orchestrator = { nodeId: orchestrator.nodeId, columnId: orchestrator.columnId };
+  const fleet = r.orchestrator as Record<string, unknown> | undefined; // The stored key, see `KanbanPayload.orchestrator`.
+  if (fleet && typeof fleet.nodeId === "string" && fleet.nodeId && typeof fleet.columnId === "string") {
+    payload.orchestrator = { nodeId: fleet.nodeId, columnId: fleet.columnId };
   }
   return payload;
 }

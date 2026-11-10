@@ -44,7 +44,7 @@ export function DiffRow({ line, onClick }: { line: DiffLine; onClick?: () => voi
       className={cn(
         "flex",
         tone?.rest,
-        onClick && "cursor-pointer transition-colors duration-150 ease-out motion-reduce:transition-none",
+        onClick && "cursor-pointer transition-colors duration-(--dp-dur-fast) ease-(--dp-ease-out) motion-reduce:transition-none",
         onClick && (tone?.hover ?? "hover:bg-dp-hover"),
       )}
     >

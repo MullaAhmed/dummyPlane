@@ -114,6 +114,23 @@ const opened = async () => {
   await vi.waitFor(() => expect(studioStore.getState().tabs[0]?.session.getState().version).toBe("v1"));
 };
 
+it("names its controls in the shared hint: a native title stays on the truncated names only", async () => {
+  await opened();
+  await vi.waitFor(() => expect(modal().querySelector("[data-editor]")).not.toBeNull());
+  const titled = [...modal().querySelectorAll("button[title]")].filter((b) => !["tab", "treeitem"].includes(b.getAttribute("role") ?? ""));
+  expect(titled).toEqual([]);
+  expect(modal().querySelector('[role="tab"]')?.getAttribute("title")).toBe("main.ts");
+});
+
+it("answers a tab's discard bar like a dialog: Cancel, destructive, then the primary action", async () => {
+  await opened();
+  await act(async () => editFile("main.ts", "changed"));
+  await click(modal().querySelector('[aria-label="Close main.ts"]'));
+  const bar = [...modal().querySelectorAll<HTMLElement>('[role="alert"] button')];
+  expect(bar.map((b) => b.textContent)).toEqual(["Cancel", "Close without saving", "Save and close"]);
+  expect(bar[1].dataset.variant).toBe("destructive");
+});
+
 it("warns when a file with unsaved changes moved on the disk, and overwrites only on request", async () => {
   await opened();
   await act(async () => editFile("main.ts", "mine"));

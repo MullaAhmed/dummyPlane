@@ -14,7 +14,7 @@ import { GoToRow } from "./GoToRow";
 import { goTo } from "./goToRun";
 import { commandsMessages } from "./messages";
 import { closePalette, modeOf, setPaletteQuery, stripPrefix, usePalette } from "./paletteState";
-import { agentsStore, useAgents } from "@/fleet/agentsStore";
+import { agentsStore, useAgents } from "@/agents/agentsStore";
 import { loopCommands } from "@/loops/commands";
 import { presetCommands } from "@/presets/commands";
 import { presetsStore, usePresets } from "@/presets/store";
@@ -27,7 +27,7 @@ import { useGoToData } from "./useGoToData";
 const HEADING =
   "[&_[cmdk-group-heading]]:px-2.5 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:pt-3 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-dp-text-2 [&_[cmdk-group:first-child]_[cmdk-group-heading]]:pt-1";
 const ITEM =
-  "flex h-8 cursor-default items-center gap-2 rounded-md px-2.5 text-(length:--text-ui) text-dp-text-2 transition-[background-color] duration-150 ease-out hover:bg-dp-hover data-[selected=true]:bg-dp-accent-soft motion-reduce:transition-none";
+  "flex h-8 cursor-default items-center gap-2 rounded-md px-2.5 text-(length:--text-ui) text-dp-text-2 transition-[background-color] duration-(--dp-dur-fast) ease-(--dp-ease-out) hover:bg-dp-hover data-[selected=true]:bg-dp-accent-soft motion-reduce:transition-none";
 
 /** The palette (spec window §7.1), under the title bar, centered; rendered only while open. */
 export function Palette() {
@@ -103,7 +103,7 @@ function PaletteBody() {
             value={query}
             onValueChange={setPaletteQuery}
             placeholder={mode === "goTo" ? t.placeholderGoTo : t.placeholderFunctions}
-            className="h-11 w-full border-b border-dp-line bg-transparent px-3.5 text-(length:--text-ui) text-dp-text outline-none placeholder:text-dp-text-3 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-dp-accent/50"
+            className="h-10 w-full border-b border-dp-line bg-transparent px-3.5 text-(length:--text-ui) text-dp-text outline-none placeholder:text-dp-text-3 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-dp-accent/50"
           />
           {/* 4 px in, rows 10 px in: every row's text starts 14 px in, on the field's own line. */}
           <Command.List className={`max-h-[420px] overflow-y-auto p-1 ${HEADING}`}>
@@ -155,8 +155,8 @@ function PaletteBody() {
                   ))}
                 </Command.Group>
               ))}
-            {goToBusy && <div className="px-2.5 py-1.5 text-xs text-dp-text-3">{t.loading}</div>}
-            {!goToBusy && <Command.Empty className="px-2.5 py-3 text-(length:--text-ui) text-dp-text-3">{t.empty}</Command.Empty>}
+            {goToBusy && <div className="px-2.5 py-4 text-center text-xs text-dp-text-2">{t.loading}</div>}
+            {!goToBusy && <Command.Empty className="px-2.5 py-4 text-center text-xs text-dp-text-2">{t.empty}</Command.Empty>}
           </Command.List>
           <footer className="border-t border-dp-line px-3.5 py-1.5 text-xs text-dp-text-3">{t.footer}</footer>
         </Command>

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { DOT_OF_TONE } from "./StatusDot";
 import { isTypingKey, pillOf, resumeOfferOf, startsNewConversation, startsOnKeystroke } from "./pill";
 
 describe("pillOf", () => {
@@ -103,7 +104,37 @@ describe("a running agent's activity (spec habillage §7.2)", () => {
   });
 });
 
-it("offers no resume to an orchestrator refused for lack of dummyPlane's tools: its node says why", () => {
+describe("a running agent that reported", () => {
+  const running = { state: "running" } as const;
+
+  it("reads Done instead of Ready once its last report is done and it rests, then Working as soon as it works again", () => {
+    expect(pillOf(running, "idle")).toEqual({ label: "Ready", tone: "ready" });
+    expect(pillOf(running, "idle", false, "done")).toEqual({ label: "Done", tone: "done", report: "done" });
+    expect(pillOf(running, "working", false, "done")).toEqual({ label: "Working", tone: "working" });
+    expect(pillOf(running, "working", true, "done")).toEqual({ label: "Working", tone: "workingIndigo" });
+  });
+
+  it("reads Blocked or Failed likewise, in their tones", () => {
+    expect(pillOf(running, "idle", false, "blocked")).toEqual({ label: "Blocked", tone: "waiting", report: "blocked" });
+    expect(pillOf(running, "idle", false, "failed")).toEqual({ label: "Failed", tone: "failed", report: "failed" });
+  });
+
+  it("reads its report while its activity is unknown, but leaves a question it asks as Waiting", () => {
+    expect(pillOf(running, undefined, false, "done")).toEqual({ label: "Done", tone: "done", report: "done" });
+    expect(pillOf(running, "waiting", false, "done")).toEqual({ label: "Waiting", tone: "waiting" });
+  });
+
+  it("says the process state of one that does not run, whatever its report", () => {
+    expect(pillOf({ state: "stopped" }, "idle", false, "done")).toEqual({ label: "Stopped", tone: "stopped" });
+    expect(pillOf({ state: "starting" }, undefined, false, "done")).toEqual({ label: "Starting", tone: "stopped" });
+  });
+
+  it("takes the dot that its Done tone says: a ring in the ok colour", () => {
+    expect(DOT_OF_TONE[pillOf(running, "idle", false, "done").tone]).toBe("done");
+  });
+});
+
+it("offers no resume to a fleet refused for lack of dummyPlane's tools: its node says why", () => {
   expect(resumeOfferOf({ state: "error", message: "m", kind: "toolsUnavailable" }, "claude", true)).toBeNull();
   expect(resumeOfferOf({ state: "error", message: "m" }, "claude", true)).toBe("resume");
 });

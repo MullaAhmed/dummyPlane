@@ -3,8 +3,9 @@ import type { SceneData } from "@excalidraw/excalidraw/types";
 import { canvasStore } from "@/canvas/canvasStore";
 import { NODE_SIZE } from "@/canvas/nodeElement";
 import { cachedElements, editStoredScene } from "@/canvas/sceneCache";
-import { rerouteWires } from "@/fleet/wires";
+import { rerouteWires } from "@/agents/wires";
 import { onTextSent } from "@/ipc/pty";
+import { settledSteps } from "@/nodes/steps";
 import type { TerminalReportStatus } from "@/nodes/types";
 import { nodesStore, terminalOf } from "@/store/nodes";
 import { workspacesStore } from "@/store/workspaces";
@@ -80,7 +81,7 @@ function inSpawnTree(nodeId: string): boolean {
  */
 function reflowAround(nodeId: string, workspaceId: string) {
   if (!inSpawnTree(nodeId)) return;
-  void import("@/fleet/spawnTree")
+  void import("@/agents/spawnTree")
     .then(({ reflowSpawnTree }) => reflowSpawnTree(workspaceId, nodeId))
     .catch((error: unknown) => console.warn(`terminal ${nodeId}: spawn tree not laid out again`, error));
 }
@@ -142,16 +143,22 @@ const REPORTED = new Map<unknown, TerminalReportStatus>([
 /**
  * An agent's `report` (mission member or not): its card shows it, and a
  * terminal whose work is done minimizes. Blocked or failed stays open: someone
- * has to look. A report `report` refuses (no summary, unknown status) changes
- * nothing. Never throws: the report must reach its orchestrator whatever happens here.
+ * has to look. A reported agent is finished: its steps are settled with its
+ * report, whether or not it marked its last one. A report `report` refuses (no
+ * summary, unknown status) changes nothing. Never throws: the report must
+ * reach its fleet whatever happens here.
  */
 export function onAgentReported(nodeId: string, status: unknown, summary: unknown) {
   try {
     const reported = REPORTED.get(status);
     const text = typeof summary === "string" ? summary.trim() : "";
     if (!reported || !text) return;
-    if (!terminalOf(nodesStore.getState().nodes[nodeId])) return;
-    nodesStore.getState().update(nodeId, { lastReport: { status: reported, summary: text } });
+    const payload = terminalOf(nodesStore.getState().nodes[nodeId]);
+    if (!payload) return;
+    nodesStore.getState().update(nodeId, {
+      lastReport: { status: reported, summary: text },
+      ...(payload.steps ? { steps: settledSteps(payload.steps, reported) } : {}),
+    });
     if (reported === "done") minimizeTerminal(nodeId);
   } catch (error) {
     console.warn(`terminal ${nodeId}: report not shown`, error);
@@ -174,7 +181,7 @@ export function onNewWork(nodeId: string) {
   }
 }
 
-/** For the app's life: every text sent to an agent (a mission's task, the orchestrator's messages, the command bar's Send) is new work. */
+/** For the app's life: every text sent to an agent (a mission's task, the Fleet's messages, the command bar's Send) is new work. */
 export function installMinimizing(): () => void {
   return onTextSent(onNewWork);
 }

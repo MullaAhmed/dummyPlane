@@ -1,11 +1,13 @@
 // @vitest-environment happy-dom
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { nodesStore } from "@/store/nodes";
+import { projectsStore, type Project } from "@/store/projects";
 import { terminalStatusStore } from "@/store/terminalStatus";
 import { requestUi } from "@/commands/uiRequests";
+import type { Workspace } from "@/ipc/db";
 import { workspacesStore } from "@/store/workspaces";
 import { TABS_HEIGHT } from "./layout";
 import { WorkspaceTabs } from "./WorkspaceTabs";
@@ -13,20 +15,29 @@ import { WorkspaceTabs } from "./WorkspaceTabs";
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 let calls: string[];
+/** What the folder picker answers next; null is a cancelled picker. */
+let picked: string | null;
+/** What the backend was told about the folders of workspaces. */
+let folderWrites: { id: string; folder: string | null }[];
 let host: HTMLDivElement;
 let root: Root;
 
 beforeEach(async () => {
   calls = [];
+  picked = null;
+  folderWrites = [];
+  projectsStore.setState({ projects: [{ id: "p1", name: "api", path: "D:/code/api", lastOpenedAt: 0, missing: false } as Project], activeId: "p1" });
   // The confirmation is answered "no": nothing is deleted.
-  mockIPC((cmd) => {
+  mockIPC((cmd, args) => {
     calls.push(cmd);
+    if (cmd === "set_workspace_folder") folderWrites.push(args as { id: string; folder: string | null });
+    if (cmd === "plugin:dialog|open") return picked;
     return cmd.startsWith("plugin:dialog|") ? false : undefined;
   });
   workspacesStore.setState({
     workspaces: [
-      { id: "w1", projectId: "p1", name: "Workspace 1", position: 0, pantheon: null },
-      { id: "w2", projectId: "p1", name: "Backend", position: 1, pantheon: null },
+      { id: "w1", projectId: "p1", name: "Workspace 1", position: 0, pantheon: null, folder: null },
+      { id: "w2", projectId: "p1", name: "Backend", position: 1, pantheon: null, folder: null },
     ],
     activeId: "w2",
   } as never);
@@ -112,4 +123,82 @@ it("moves a tab with Alt+arrows from the keyboard, or by dragging it onto anothe
     tabs()[1].dispatchEvent(drop);
   });
   expect(tabs().map((t) => t.dataset.tab)).toEqual(["w1", "w2"]);
+});
+
+describe("the folder of a workspace", () => {
+  const withFolder = (folder: string | null, extra: Partial<Workspace>[] = []) =>
+    act(async () =>
+      workspacesStore.setState({
+        workspaces: [
+          { id: "w1", projectId: "p1", name: "Workspace 1", position: 0, pantheon: null, kind: "canvas", folder },
+          { id: "w2", projectId: "p1", name: "Backend", position: 1, pantheon: null, kind: "canvas", folder: null },
+          ...extra.map((w, i) => ({ id: `x${i}`, projectId: "p1", name: `X${i}`, position: 2 + i, pantheon: null, kind: "canvas" as const, folder: null, ...w })),
+        ],
+        activeId: "w2",
+      }),
+    );
+  const folderTag = (id: string) => host.querySelector(`[data-tab="${id}"] [data-tab-folder]`)?.textContent ?? null;
+  const hintOf = async (id: string) => {
+    await act(async () => host.querySelector<HTMLElement>(`[data-tab="${id}"] button`)!.focus());
+    return document.querySelector('[role="tooltip"]')?.textContent ?? null;
+  };
+  const openMenu = async (id: string) => {
+    await act(async () => void host.querySelector(`[data-tab="${id}"]`)!.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true })));
+  };
+  const item = (text: string) => [...document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((e) => e.textContent === text);
+
+  it("shows after the tab's name the folder it picked, and the full path in its hint; the project's own is only in the hint", async () => {
+    await withFolder("D:/work/lib");
+    expect(folderTag("w1")).toBe("lib");
+    expect(folderTag("w2")).toBeNull();
+    expect(await hintOf("w1")).toContain("D:/work/lib");
+    await act(async () => host.querySelector<HTMLElement>('[data-tab="w1"] button')!.blur());
+    expect(await hintOf("w2")).toContain("D:/code/api");
+  });
+
+  it("is picked from the tab's menu, for that tab's workspace even when it is not the active one", async () => {
+    await withFolder(null);
+    await openMenu("w1");
+    expect(item("Folder…")).toBeTruthy();
+    picked = "D:/work/picked";
+    await act(async () => item("Folder…")!.click());
+    expect(folderWrites).toEqual([{ id: "w1", folder: "D:/work/picked" }]);
+    expect(folderTag("w1")).toBe("picked");
+    expect(workspacesStore.getState().activeId).toBe("w2");
+  });
+
+  it("changes nothing when the picker is cancelled", async () => {
+    await withFolder(null);
+    await openMenu("w1");
+    await act(async () => item("Folder…")!.click());
+    expect(folderWrites).toEqual([]);
+    expect(folderTag("w1")).toBeNull();
+  });
+
+  it("goes back to the project's folder from « Use the project folder », which is only offered after a pick", async () => {
+    await withFolder(null);
+    await openMenu("w1");
+    expect(item("Use the project folder")!.hasAttribute("data-disabled")).toBe(true);
+    await act(async () => void document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+    await withFolder("D:/work/lib");
+    await openMenu("w1");
+    expect(item("Use the project folder")!.hasAttribute("data-disabled")).toBe(false);
+    await act(async () => item("Use the project folder")!.click());
+    expect(folderWrites).toEqual([{ id: "w1", folder: null }]);
+    expect(folderTag("w1")).toBeNull();
+  });
+
+  it("tells that terminals already open stay where they are", async () => {
+    await withFolder(null);
+    await openMenu("w1");
+    expect(document.body.textContent).toContain("terminals already open stay where they are");
+  });
+
+  it("is not offered on the code workspace, which stays on the project", async () => {
+    await withFolder(null, [{ kind: "code", name: "Code" }]);
+    await openMenu("x0");
+    expect(item("Rename")).toBeTruthy();
+    expect(item("Folder…")).toBeUndefined();
+    expect(folderTag("x0")).toBeNull();
+  });
 });

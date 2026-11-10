@@ -1,3 +1,4 @@
+import { STORED_FLEET_KIND } from "@/canvas/nodeElement";
 import { expect, it, vi } from "vitest";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { expandTerminal } from "@/nodes/terminal/minimize";
@@ -11,7 +12,7 @@ vi.mock("@/nodes/terminal/registry", () => ({ focusTerminal: vi.fn() }));
 // No terminal here is minimized, but the one a test makes so.
 vi.mock("@/nodes/terminal/minimize", () => ({ expandTerminal: vi.fn(() => false) }));
 
-it("activates the element a fleet panel click centers on (spec habillage §5.5)", () => {
+it("activates the element an agents panel click centers on (spec habillage §5.5)", () => {
   const element = { id: "t1", x: 0, y: 0, width: 400, height: 300 };
   const updateScene = vi.fn();
   const api = {
@@ -27,7 +28,7 @@ it("activates the element a fleet panel click centers on (spec habillage §5.5)"
 it("unfolds the folded group of the agent first (spec replier un groupe §2)", async () => {
   const setGroupFolded = vi.fn();
   vi.stubGlobal("requestAnimationFrame", () => 0);
-  vi.doMock("@/fleet/groups", () => ({ setGroupFolded }));
+  vi.doMock("@/agents/groups", () => ({ setGroupFolded }));
   const element = { id: "t1", x: 0, y: 0, width: 400, height: 300 };
   canvasStore.setState({
     frames: [{ id: "g", name: "G", x: 0, y: 0, width: 1, height: 1, group: { role: "general", pantheon: "greek", folded: true }, memberIds: ["t1"] }] as never,
@@ -62,8 +63,8 @@ it("replaces the old selection with the terminal it opens, so Send goes to that 
   activeTerminalStore.setState({ id: null });
 });
 
-it("does not make an orchestrator the active terminal", () => {
-  const element = { id: "o1", type: "embeddable", customData: { kind: "orchestrator" }, x: 0, y: 0, width: 400, height: 300 };
+it("does not make a fleet the active terminal", () => {
+  const element = { id: "o1", type: "embeddable", customData: { kind: STORED_FLEET_KIND }, x: 0, y: 0, width: 400, height: 300 };
   activeTerminalStore.setState({ id: "t1" });
   canvasStore.setState({
     frames: [],

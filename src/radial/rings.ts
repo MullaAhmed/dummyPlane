@@ -6,6 +6,7 @@ import {
   CopyPlus,
   Ellipsis,
   Focus,
+  FolderOpen,
   Group,
   Link,
   Lock,
@@ -30,12 +31,12 @@ import {
 import { labelOf, type Command, type CommandContext } from "@/commands/command";
 import { selectionLocked } from "@/commands/catalog/drawing";
 import { COMMANDS } from "@/commands/registry";
-import { agentsStore } from "@/fleet/agentsStore";
-import { AGENTS, defaultAgent } from "@/fleet/catalog";
+import { agentsStore } from "@/agents/agentsStore";
+import { AGENTS, defaultAgent } from "@/agents/catalog";
 import { messages } from "@/i18n";
 import { radialMessages } from "./messages";
 
-export type RingKind = "canvas" | "terminal" | "group" | "orchestrator" | "selection";
+export type RingKind = "canvas" | "terminal" | "group" | "fleet" | "selection";
 type Icon = ComponentType<{ className?: string }>;
 type ShortName = keyof (typeof radialMessages)["short"];
 
@@ -93,7 +94,8 @@ export const RINGS: Record<RingKind, readonly RingSlot[]> = {
       iconOf: () => AGENTS[defaultAgent(agentsStore.getState().agents)].Icon,
     },
     { command: secondLaunch, short: () => agentNameOf(secondLaunch()), icon: Terminal, iconOf: () => agentIconOf(secondLaunch()) },
-    { command: "agent.orchestrator", short: "fleet", icon: Network },
+    { command: "agent.inFolder", short: "inFolder", icon: FolderOpen },
+    { command: "agent.fleet", short: "fleet", icon: Network },
     { command: "drawing.paste", short: "paste", icon: ClipboardPaste },
     { command: "tool.text", short: "text", icon: Type },
     { command: "agent.other", short: "otherAgent", icon: Plus },
@@ -117,19 +119,19 @@ export const RINGS: Record<RingKind, readonly RingSlot[]> = {
   group: [
     { command: "group.addAgent", short: "addAgent", icon: UserPlus },
     { command: "group.rename", short: "rename", icon: Pencil },
-    { command: "group.orchestrate", short: "linkFleet", icon: Network },
+    { command: "group.linkFleet", short: "linkFleet", icon: Network },
     { command: "group.pause", short: "pause", icon: Pause },
     { command: "group.close", short: "close", icon: X, danger: true },
     { command: "group.ungroup", short: "ungroup", icon: Ungroup },
     { command: "group.resume", short: "resume", icon: Play },
     { command: "group.frame", short: "zoom", icon: Focus },
   ],
-  orchestrator: [
-    { command: "orchestrator.write", short: "write", icon: MessageSquare },
-    { command: "orchestrator.rename", short: "rename", icon: Pencil },
-    { command: "orchestrator.remove", short: "delete", icon: Trash2, danger: true },
-    { command: "orchestrator.link", short: "link", icon: Link },
-    { command: "orchestrator.paste", short: "paste", icon: ClipboardPaste },
+  fleet: [
+    { command: "fleet.write", short: "write", icon: MessageSquare },
+    { command: "fleet.rename", short: "rename", icon: Pencil },
+    { command: "fleet.remove", short: "delete", icon: Trash2, danger: true },
+    { command: "fleet.link", short: "link", icon: Link },
+    { command: "fleet.paste", short: "paste", icon: ClipboardPaste },
   ],
   selection: [
     { command: "drawing.copy", short: "copy", icon: Copy },

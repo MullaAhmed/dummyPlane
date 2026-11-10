@@ -41,9 +41,9 @@ it("moves only while an agent waits for the user, and never with reduced motion"
   for (const state of STATES.filter((s) => s !== "waiting")) expect(looks[state], state).not.toMatch(/animate-/);
 });
 
-it("is the status of the terminal header, the minimized card and the fleet panel alike", () => {
+it("is the status of the terminal header, the minimized card and the agents panel alike", () => {
   expect(readSource("nodes/terminal/StatusPill.tsx")).toContain("<StatusDot");
-  for (const file of ["nodes/terminal/TerminalHeader.tsx", "nodes/terminal/MinimizedCard.tsx", "fleet/AgentRow.tsx"]) {
+  for (const file of ["nodes/terminal/TerminalHeader.tsx", "nodes/terminal/MinimizedCard.tsx", "agents/AgentRow.tsx"]) {
     expect(readSource(file), file).toContain("<StatusPill");
   }
 });

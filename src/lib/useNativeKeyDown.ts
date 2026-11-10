@@ -1,7 +1,7 @@
 import { useEffect, useRef, type RefObject } from "react";
 
 /**
- * Handles the keys of a field inside an Excalidraw embeddable (an orchestrator)
+ * Handles the keys of a field inside an Excalidraw embeddable (a fleet)
  * and keeps them from the canvas, as xterm does for terminals. Excalidraw
  * listens on its container, below React's root listener: a React handler's
  * stopPropagation comes too late, and Escape would deactivate the node, after

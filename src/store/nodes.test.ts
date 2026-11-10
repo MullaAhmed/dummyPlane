@@ -8,12 +8,12 @@ import { createNodesStore, nodesStore, rebaseTerminalFolders, sessionOf, termina
 vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 
 const payload: TerminalPayload = { title: "A", name: "", cwd: "C:/code", agent: "shell", command: "", shell: "default" };
-let saves: { id: string; payloadJson: string }[];
+let saves: { id: string; kind: string; payloadJson: string }[];
 
 beforeEach(() => {
   saves = [];
   mockIPC((cmd, args) => {
-    if (cmd === "save_node") saves.push(args as { id: string; payloadJson: string });
+    if (cmd === "save_node") saves.push(args as { id: string; kind: string; payloadJson: string });
   });
 });
 afterEach(() => {
@@ -80,23 +80,46 @@ it("reads payloads saved with a preset instead of an agent", () => {
   expect(store.getState().nodes.bad).toBeUndefined();
 });
 
-it("reads orchestrator nodes and keeps them apart from terminals", () => {
+it("reads a node saved as an orchestrator as a fleet, and keeps it apart from terminals", () => {
   const { store } = createNodesStore();
   store.getState().hydrate("w1", [
     { id: "o1", kind: "orchestrator", payloadJson: '{"name":"Chef"}' },
     { id: "t1", kind: "terminal", payloadJson: JSON.stringify(payload) },
   ]);
-  expect(store.getState().nodes.o1).toEqual({ workspaceId: "w1", kind: "orchestrator", payload: { name: "Chef" } });
+  expect(store.getState().nodes.o1).toEqual({ workspaceId: "w1", kind: "fleet", payload: { name: "Chef" } });
   expect(terminalOf(store.getState().nodes.t1)).toEqual(payload);
   expect(terminalOf(store.getState().nodes.o1)).toBeUndefined();
   expect(terminalOf(undefined)).toBeUndefined();
 });
 
-it("finds a node's Claude session, a terminal's own or an orchestrator's, and changes it where it lives", async () => {
+it("saves a fleet under the kind it always had in the database, and the other kinds under their own", async () => {
+  const { store } = createNodesStore();
+  await store.getState().create("o1", { workspaceId: "w1", kind: "fleet", payload: { name: "Chef" } });
+  await store.getState().create("t1", { workspaceId: "w1", kind: "terminal", payload });
+  expect(saves.map((s) => [s.id, s.kind])).toEqual([["o1", "orchestrator"], ["t1", "terminal"]]);
+});
+
+it("reads what a fleet saved as an orchestrator holds, and writes it back as an orchestrator", async () => {
+  const { store } = createNodesStore();
+  const session = { ...payload, agent: "claude", role: "orchestrator" };
+  store.getState().hydrate("w1", [{ id: "o1", kind: "orchestrator", payloadJson: JSON.stringify({ name: "Orchestrator", session }) }]);
+  expect(store.getState().nodes.o1).toMatchObject({ kind: "fleet", payload: { name: "Fleet", session: { role: "orchestrator" } } });
+  await store.getState().persist("o1");
+  expect(saves.map((s) => s.kind)).toEqual(["orchestrator"]);
+  expect(JSON.parse(saves[0].payloadJson).session.role).toBe("orchestrator");
+});
+
+it("does not read a row whose kind is the in-memory name: that was never saved", () => {
+  const { store } = createNodesStore();
+  store.getState().hydrate("w1", [{ id: "x", kind: "fleet" as never, payloadJson: '{"name":"Chef"}' }]);
+  expect(store.getState().nodes.x).toBeUndefined();
+});
+
+it("finds a node's Claude session, a terminal's own or a fleet's, and changes it where it lives", async () => {
   const session: TerminalPayload = { title: "Chef", name: "Chef", agent: "claude", cwd: "C:/code", shell: "default", command: "", claudeSessionId: "s1", role: "orchestrator" };
   await nodesStore.getState().create("t1", { workspaceId: "w1", kind: "terminal", payload: { ...payload, agent: "claude", claudeSessionId: "s0" } });
-  await nodesStore.getState().create("o1", { workspaceId: "w1", kind: "orchestrator", payload: { name: "Chef", session } });
-  await nodesStore.getState().create("o2", { workspaceId: "w1", kind: "orchestrator", payload: { name: "Ancien" } });
+  await nodesStore.getState().create("o1", { workspaceId: "w1", kind: "fleet", payload: { name: "Chef", session } });
+  await nodesStore.getState().create("o2", { workspaceId: "w1", kind: "fleet", payload: { name: "Ancien" } });
   expect(sessionOf(nodesStore.getState().nodes.o1)).toEqual(session);
   expect(sessionOf(nodesStore.getState().nodes.o2)).toBeUndefined();
   updateSession("o1", { claudeSessionId: "s2" });
@@ -107,10 +130,10 @@ it("finds a node's Claude session, a terminal's own or an orchestrator's, and ch
   expect(nodesStore.getState().nodes.o2.payload).toEqual({ name: "Ancien" });
 });
 
-it("moves an orchestrator's session and mission paths with the project's folder (backlog H2)", async () => {
+it("moves a fleet's session and mission paths with the project's folder (backlog H2)", async () => {
   await nodesStore.getState().create("chef", {
     workspaceId: "w1",
-    kind: "orchestrator",
+    kind: "fleet",
     payload: {
       name: "Chef",
       session: { ...payload, cwd: "C:/code/api", agent: "claude" },
@@ -119,8 +142,8 @@ it("moves an orchestrator's session and mission paths with the project's folder 
   });
   rebaseTerminalFolders("C:/code/api", "D:/api");
   const record = nodesStore.getState().nodes.chef;
-  expect(record.kind === "orchestrator" && record.payload.session?.cwd).toBe("D:/api");
-  expect(record.kind === "orchestrator" && record.payload.mission?.project).toBe("D:/api");
+  expect(record.kind === "fleet" && record.payload.session?.cwd).toBe("D:/api");
+  expect(record.kind === "fleet" && record.payload.mission?.project).toBe("D:/api");
 });
 
 it("tells the user when a deferred save is refused", async () => {

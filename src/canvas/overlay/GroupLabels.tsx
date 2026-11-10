@@ -2,11 +2,11 @@ import { useEffect, useRef } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { renameGroup, setGroupFolded } from "@/fleet/groups";
-import { GroupMenu } from "@/fleet/GroupMenu";
-import { countsText, membersIn, waitingText } from "@/fleet/groupSummary";
-import { screenRectOf } from "@/fleet/placement";
-import { ROLES } from "@/fleet/roles";
+import { renameGroup, setGroupFolded } from "@/agents/groups";
+import { GroupMenu } from "@/agents/GroupMenu";
+import { countsText, membersIn, waitingText } from "@/agents/groupSummary";
+import { screenRectOf } from "@/agents/placement";
+import { ROLES } from "@/agents/roles";
 import { useActivities } from "@/store/agentActivity";
 import { terminalStatusStore } from "@/store/terminalStatus";
 import { useStore } from "zustand";
@@ -145,7 +145,7 @@ function NameField({ name, onDone }: { name: string; onDone: (name: string | nul
         if (e.key === "Escape") finish(null);
       }}
       // Sized by its `size`, in the label's own type; the ink ring says it is being edited.
-      className="pointer-events-auto h-5 w-auto rounded-sm border-0 bg-dp-card px-1 py-0 text-xs font-medium ring-1 ring-dp-accent focus-visible:ring-1 focus-visible:ring-dp-accent md:text-xs"
+      className="pointer-events-auto h-5 w-auto rounded-sm border-0 bg-dp-field px-1 py-0 text-xs font-medium ring-1 ring-dp-accent focus-visible:ring-1 focus-visible:ring-dp-accent md:text-xs"
     />
   );
 }

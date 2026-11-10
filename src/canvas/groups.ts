@@ -1,5 +1,5 @@
 import type { ExcalidrawElement, ExcalidrawFrameElement } from "@excalidraw/excalidraw/element/types";
-import { isRoleId, type RoleId } from "@/fleet/roles";
+import { isRoleId, type RoleId } from "@/agents/roles";
 import { nodeKindOf } from "./nodeElement";
 
 export interface Rect {
@@ -13,7 +13,7 @@ export interface Rect {
 export interface GroupInfo {
   role: RoleId;
   pantheon: string;
-  /** What the group is for, told to its orchestrator (spec groupes spécialisés §2). */
+  /** What the group is for, told to its fleet (spec groupes spécialisés §2). */
   speciality?: string;
   /** Folded onto its label: its terminals are not shown, nothing stops (spec replier un groupe). */
   folded?: boolean;

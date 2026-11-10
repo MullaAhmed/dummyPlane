@@ -4,11 +4,11 @@ import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { showNode } from "@/canvas/arrive";
 import { focusGroup } from "@/canvas/canvasFocus";
 import { canvasStore } from "@/canvas/canvasStore";
-import { agentsPanelStore } from "@/fleet/agentsPanelState";
-import { pauseAgents, pauseAll, resumeAgent } from "@/fleet/broadcast";
-import { requestCloseGroup, setGroupFolded, ungroup } from "@/fleet/groups";
-import { orchestrateGroup } from "@/fleet/orchestrators";
-import { duplicateTerminal, requestClose } from "@/fleet/terminals";
+import { agentsPanelStore } from "@/agents/agentsPanelState";
+import { pauseAgents, pauseAll, resumeAgent } from "@/agents/broadcast";
+import { requestCloseGroup, setGroupFolded, ungroup } from "@/agents/groups";
+import { addFleetToGroup } from "@/fleet/fleets";
+import { duplicateTerminal, requestClose } from "@/agents/terminals";
 import { expandTerminal, minimizeTerminal } from "@/nodes/terminal/minimize";
 import { pasteImageIntoTerminal, pasteIntoTerminal, relaunchTerminal, stopTerminal, terminalSelection } from "@/nodes/terminal/registry";
 import { agentActivityStore } from "@/store/agentActivity";
@@ -22,16 +22,16 @@ import { CURRENT } from "./current";
 vi.mock("@excalidraw/excalidraw", () => ({}));
 vi.mock("@/canvas/arrive", () => ({ showNode: vi.fn(() => true), arrive: vi.fn(), arrivingNode: vi.fn(() => null) }));
 vi.mock("@/canvas/canvasFocus", () => ({ focusGroup: vi.fn(() => true), releaseToCanvas: vi.fn() }));
-vi.mock("@/fleet/broadcast", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/fleet/broadcast")>()),
+vi.mock("@/agents/broadcast", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/agents/broadcast")>()),
   pauseAgents: vi.fn(() => Promise.resolve(1)),
   resumeAgent: vi.fn(() => Promise.resolve(true)),
   pauseAll: vi.fn(() => Promise.resolve()),
   resumeAll: vi.fn(() => Promise.resolve()),
 }));
-vi.mock("@/fleet/groups", () => ({ requestCloseGroup: vi.fn(), ungroup: vi.fn(), setGroupFolded: vi.fn(), groupMembers: vi.fn(() => ["isis"]) }));
-vi.mock("@/fleet/orchestrators", () => ({ orchestrateGroup: vi.fn(() => Promise.resolve()) }));
-vi.mock("@/fleet/terminals", () => ({ duplicateTerminal: vi.fn(() => Promise.resolve()), requestClose: vi.fn() }));
+vi.mock("@/agents/groups", () => ({ requestCloseGroup: vi.fn(), ungroup: vi.fn(), setGroupFolded: vi.fn(), groupMembers: vi.fn(() => ["isis"]) }));
+vi.mock("@/fleet/fleets", () => ({ addFleetToGroup: vi.fn(() => Promise.resolve()) }));
+vi.mock("@/agents/terminals", () => ({ duplicateTerminal: vi.fn(() => Promise.resolve()), requestClose: vi.fn() }));
 vi.mock("@/nodes/terminal/registry", () => ({
   relaunchTerminal: vi.fn(),
   stopTerminal: vi.fn(),
@@ -122,7 +122,7 @@ describe("Terminal · <prénom> and Groupe · <nom> (spec fenêtre §7.3)", () =
       "terminal.paste",
       "group.rename",
       "group.addAgent",
-      "group.orchestrate",
+      "group.linkFleet",
       "group.fold",
       "group.ungroup",
       "group.close",
@@ -160,8 +160,8 @@ describe("Terminal · <prénom> and Groupe · <nom> (spec fenêtre §7.3)", () =
   });
 
   it("acts on the group of the moment, as its menu does", async () => {
-    await find("group.orchestrate").run(ctx("isis"));
-    expect(orchestrateGroup).toHaveBeenCalledWith("g1");
+    await find("group.linkFleet").run(ctx("isis"));
+    expect(addFleetToGroup).toHaveBeenCalledWith("g1");
     await find("group.fold").run(ctx("isis"));
     expect(setGroupFolded).toHaveBeenLastCalledWith("g1", true);
     canvasStore.setState({ frames: [{ ...canvasStore.getState().frames[0], group: { role: "backend", pantheon: "egypt", folded: true } }] as never });
@@ -223,7 +223,7 @@ it("opens the review of the terminal of the moment (spec maj §5)", async () => 
 describe("a target that went between the palette and Entrée (plan F2)", () => {
   it("does nothing, without a TypeError: the group is gone", async () => {
     canvasStore.setState({ frames: [] });
-    for (const id of ["group.rename", "group.addAgent", "group.orchestrate", "group.fold", "group.ungroup", "group.close", "group.pause", "group.resume", "group.frame"]) {
+    for (const id of ["group.rename", "group.addAgent", "group.linkFleet", "group.fold", "group.ungroup", "group.close", "group.pause", "group.resume", "group.frame"]) {
       await expect(Promise.resolve(find(id).run(ctx("isis")))).resolves.toBeUndefined();
     }
     expect(ungroup).not.toHaveBeenCalled();

@@ -19,8 +19,8 @@ export function notesToolSpec() {
   };
 }
 
-async function list(nodeId: string, orchestrator: boolean): Promise<ToolResult> {
-  const callers = orchestrator ? [nodeId, ...linkedClaudeAgents(nodeId).map((agent) => agent.nodeId)] : [nodeId];
+async function list(nodeId: string, fleet: boolean): Promise<ToolResult> {
+  const callers = fleet ? [nodeId, ...linkedClaudeAgents(nodeId).map((agent) => agent.nodeId)] : [nodeId];
   const notes = await notesAgentList(callers);
   if (notes.length === 0) return said(t().none);
   const lines = notes.map((note) => `- ${note.name}${note.attached ? ` (${t().attached})` : ""}`);
@@ -33,11 +33,11 @@ async function read(nodeId: string, name: string): Promise<ToolResult> {
 }
 
 /** The tool `notes`: the list without argument, a note with `name`. */
-export async function notesTool(nodeId: string, orchestrator: boolean, args: Record<string, unknown>): Promise<ToolResult> {
+export async function notesTool(nodeId: string, fleet: boolean, args: Record<string, unknown>): Promise<ToolResult> {
   const { name } = args;
   if (name !== undefined && typeof name !== "string") return refused(t().noName);
   try {
-    return name ? await read(nodeId, name) : await list(nodeId, orchestrator);
+    return name ? await read(nodeId, name) : await list(nodeId, fleet);
   } catch (error) {
     return refused(errorText(error));
   }

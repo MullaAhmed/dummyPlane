@@ -11,7 +11,7 @@ import { ResumeCard } from "./terminal/ResumeCard";
 import { StatusPill } from "./terminal/StatusPill";
 import { TerminalHeader } from "./terminal/TerminalHeader";
 import { TerminalOptionsDialog } from "./terminal/TerminalOptionsDialog";
-import { ToolsUnavailable } from "./orchestrator/ToolsUnavailable";
+import { ToolsUnavailable } from "./fleet/ToolsUnavailable";
 
 vi.mock("./terminal/registry", () => ({ relaunchTerminal: vi.fn(), stopTerminal: vi.fn(), terminalText: vi.fn(() => "") }));
 vi.mock("@/app/logs", () => ({ openLogDir: vi.fn() }));
@@ -37,6 +37,9 @@ it("labels the status pill in English", () => {
   expect(pillOf({ state: "running" }, "working")).toEqual({ label: "Working", tone: "working" });
   expect(pillOf({ state: "stopped" })).toEqual({ label: "Stopped", tone: "stopped" });
   expect(pillOf({ state: "exited", code: 2 })).toEqual({ label: "Exited · 2", tone: "failed" });
+  expect(pillOf({ state: "error", message: "x" })).toEqual({ label: "Error", tone: "failed" });
+  // A Fleet refused its start says so on its header.
+  expect(pillOf({ state: "error", message: "x", kind: "toolsUnavailable" })).toEqual({ label: "Tools unavailable", tone: "failed" });
 });
 
 it("tells in English how long the agent has been in its state", async () => {
@@ -47,10 +50,14 @@ it("tells in English how long the agent has been in its state", async () => {
 });
 
 it("shows the header's menus and tooltips in English", async () => {
-  const { host, root } = await mount(<TerminalHeader nodeId="isis" payload={payload} status={{ state: "stopped" }} />);
-  expect(host.querySelector('[aria-label="Restart"]')).not.toBeNull();
-  expect(host.querySelector('[aria-label="Review changes"]')).not.toBeNull();
+  const { host, root } = await mount(<TerminalHeader nodeId="isis" payload={payload} status={{ state: "stopped" }} onClose={() => {}} />);
+  expect(host.querySelector('[aria-label="Agent"]')).not.toBeNull();
+  expect(host.querySelector('[aria-label="More actions"]')).not.toBeNull();
+  expect(host.querySelector('[aria-label="Close"]')).not.toBeNull();
   expect(host.querySelector("header span[title]")!.getAttribute("title")).toBe("Double-click to rename");
+  await act(async () => host.querySelector('[aria-label="More actions"]')!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true })));
+  const menu = document.querySelector('[role="menu"]')!.textContent!;
+  for (const text of ["Review changes", "Minimize", "Restart", "Resume the session", "New session", "Latest in the folder"]) expect(menu).toContain(text);
   await act(async () => root.unmount());
 });
 
@@ -74,9 +81,9 @@ it("shows the options dialog in English", async () => {
   expect(text).toContain("Apply at next launch");
 });
 
-it("says in English why the orchestrator did not start", async () => {
+it("says in English why the fleet did not start", async () => {
   mockIPC(() => undefined);
-  await nodesStore.getState().create("o", { workspaceId: "w", kind: "orchestrator", payload: { name: "Orchestrator" } });
+  await nodesStore.getState().create("o", { workspaceId: "w", kind: "fleet", payload: { name: "Fleet" } });
   const { host, root } = await mount(<ToolsUnavailable nodeId="o" message="x" />);
   const text = host.textContent!;
   expect(text).toContain("dummyPlane tools unavailable");

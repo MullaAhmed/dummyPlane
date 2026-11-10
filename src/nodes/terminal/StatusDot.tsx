@@ -7,7 +7,7 @@ export type DotState = "working" | "waiting" | "idle" | "done" | "stopped" | "er
 
 /**
  * The signature of dummyPlane (unslop direction): one 8px dot per agent, the
- * same in a terminal's header, its minimized card and the fleet panel. Shape
+ * same in a terminal's header, its minimized card and the agents panel. Shape
  * carries the state as much as colour does, so states stay apart in every
  * palette (in calm the ink, the ok green and the text are all greens):
  * solid while the process lives, a ring once it rests or ended, a square on

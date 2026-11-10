@@ -69,7 +69,7 @@ it("shows a failed launch in the terminal and as an error status", async () => {
   expect(term.written.join("")).toContain("folder not found");
 });
 
-it("keeps the kind of a refused orchestrator, which its node shows instead of a red line", async () => {
+it("keeps the kind of a refused fleet, which its node shows instead of a red line", async () => {
   const message = "dummyPlane tools unavailable: the local dummyPlane server did not start.";
   mockIPC(() => {
     throw { kind: "toolsUnavailable", message };

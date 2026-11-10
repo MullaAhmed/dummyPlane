@@ -1,6 +1,6 @@
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { BinaryFileData, BinaryFiles, ExcalidrawInitialDataState } from "@excalidraw/excalidraw/types";
-import { elbowWires } from "@/fleet/wires";
+import { elbowWires } from "@/agents/wires";
 import { loadWorkspace, saveScene } from "@/ipc/db";
 import { withoutSubagents } from "@/nodes/subagent/scene";
 import { nodesStore } from "@/store/nodes";

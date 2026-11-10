@@ -4,6 +4,7 @@ import { Copy, Minus, Square, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useMessages } from "@/i18n";
 import { cn } from "@/lib/utils";
+import { Hint } from "./buttons";
 import { shellMessages } from "./messages";
 import { closeWindow, minimizeWindow, toggleMaximizeWindow, windowStore } from "./windowState";
 
@@ -33,23 +34,25 @@ function useMaximized(): boolean {
 }
 
 /**
- * A caption button, as Windows draws them: the title bar's full 38 px height,
- * 46 wide, square, no press scale, and the native title Windows shows there.
+ * A caption button, as Windows draws them: the title bar's full height, 46 wide,
+ * square, no press scale. Its name shows in the same hint as the bar's other
+ * buttons (below), not a native title: the counters beside it use hints.
  */
 function WindowButton({ label, danger, className, ...props }: ComponentProps<"button"> & { label: string; danger?: boolean }) {
   return (
-    <Button
-      type="button"
-      variant="ghost"
-      title={label}
-      aria-label={label}
-      className={cn(
-        "h-[38px] w-[46px] rounded-none border-0 px-0 text-dp-text-2 hover:text-dp-text focus-visible:ring-inset active:scale-100",
-        danger && "hover:bg-dp-danger hover:text-dp-surface",
-        className,
-      )}
-      {...props}
-    />
+    <Hint label={label} side="bottom">
+      <Button
+        type="button"
+        variant="ghost"
+        aria-label={label}
+        className={cn(
+          "h-full w-[46px] rounded-none border-0 px-0 text-dp-text-2 hover:text-dp-text focus-visible:ring-inset active:scale-100",
+          danger && "hover:bg-dp-danger hover:text-dp-surface",
+          className,
+        )}
+        {...props}
+      />
+    </Hint>
   );
 }
 
@@ -58,7 +61,7 @@ export function WindowControls() {
   const t = useMessages(shellMessages).window;
   const maximized = useMaximized();
   return (
-    <div className="flex shrink-0 items-stretch">
+    <div className="flex h-full shrink-0 items-stretch">
       <WindowButton label={t.minimize} onClick={minimizeWindow}>
         <Minus />
       </WindowButton>

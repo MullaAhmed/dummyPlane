@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BUDGET_COLOR, dotsOf, STEP_COLOR } from "./timeline";
+import { BUDGET_COLOR, budgetTitle, dotsOf, STEP_COLOR } from "./timeline";
 
 describe("the steps' frieze (spec orchestrateur §5.1)", () => {
   it("spreads the steps evenly along the terminal's width, half a slot from each end", () => {
@@ -24,4 +24,11 @@ describe("the steps' frieze (spec orchestrateur §5.1)", () => {
 
 it("colours a budget's bar with the identity's tokens (spec orchestrateur §8.3)", () => {
   expect(BUDGET_COLOR).toEqual({ ok: "var(--dp-ok)", late: "var(--dp-wait)", over: "var(--dp-danger)" });
+});
+
+it("titles a budget's bar with the time over the budget, and says how a reported agent ended", () => {
+  expect(budgetTitle({ spent: 6.8, budget: 15 })).toBe("6 / 15 min");
+  expect(budgetTitle({ spent: 22.4, budget: 50, report: "termine" })).toBe("Done in 22 min of 50");
+  expect(budgetTitle({ spent: 22, budget: 50, report: "bloque" })).toBe("Blocked after 22 min of 50");
+  expect(budgetTitle({ spent: 22, budget: 50, report: "echec" })).toBe("Failed after 22 min of 50");
 });

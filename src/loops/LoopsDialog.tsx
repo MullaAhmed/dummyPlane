@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useUiRequest } from "@/commands/uiRequests";
 import { messages, useMessages } from "@/i18n";
+import { AccentButton, QuietButton } from "@/shell/buttons";
 import { nodeNameOf, useNodes } from "@/store/nodes";
 import { useLoops, loopsStore } from "./live";
 import { loopsMessages } from "./messages";
@@ -25,6 +26,10 @@ interface Form {
   maxRuns: string;
   maxMinutes: string;
 }
+
+/** A loop's own actions: quiet until hovered, as a profile's in the accounts dialog; removing reads in the danger tone there too. */
+const ROW_BUTTON = "font-normal text-dp-text-2 hover:text-dp-text";
+const ROW_REMOVE = "font-normal text-dp-danger hover:bg-dp-danger/10 hover:text-dp-danger";
 
 const BLANK: Form = { id: null, name: "", instruction: "", targets: [], trigger: "interval", minutes: "30", text: "", maxRuns: "", maxMinutes: "" };
 
@@ -119,7 +124,7 @@ export function LoopsDialog() {
         </DialogHeader>
         {form === null ? (
           <div className="flex flex-col gap-2">
-            {loops.length === 0 && <p className="text-sm text-dp-text-2">{t.empty}</p>}
+            {loops.length === 0 && <p className="py-4 text-center text-xs text-dp-text-2">{t.empty}</p>}
             {loops.map((loop) => {
               const state = runtime[loop.id];
               const running = state?.running === true;
@@ -128,7 +133,7 @@ export function LoopsDialog() {
                   ? Math.max(0, Math.ceil(loop.maxMinutes - (Date.now() - state.startedAt) / 60_000))
                   : null;
               return (
-                <div key={loop.id} className="flex items-center gap-2 rounded-lg border border-dp-line px-3 py-2">
+                <div key={loop.id} className="flex items-center gap-2 rounded-md bg-dp-card px-3 py-2">
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium text-dp-text">{loop.name}</p>
                     <p className="truncate text-xs text-dp-text-2">
@@ -145,10 +150,10 @@ export function LoopsDialog() {
                   <Button size="sm" variant={running ? "destructive" : "default"} onClick={() => (running ? loopsStore.getState().stop(loop.id) : loopsStore.getState().start(loop.id))}>
                     {running ? t.turnOff : t.turnOn}
                   </Button>
-                  <Button size="sm" variant="ghost" onClick={() => setForm(formOf(loop))}>
+                  <Button size="sm" variant="ghost" className={ROW_BUTTON} onClick={() => setForm(formOf(loop))}>
                     {t.edit}
                   </Button>
-                  <Button size="sm" variant="ghost" onClick={() => void loopsStore.getState().remove(loop.id)}>
+                  <Button size="sm" variant="ghost" className={ROW_REMOVE} onClick={() => void loopsStore.getState().remove(loop.id)}>
                     {t.remove}
                   </Button>
                 </div>
@@ -178,9 +183,9 @@ export function LoopsDialog() {
             </div>
             <fieldset className="flex flex-col gap-1">
               <legend className="dp-label mb-1">{t.targets}</legend>
-              {terminals.length === 0 && <p className="text-xs text-dp-text-3">{t.noTargets}</p>}
+              {terminals.length === 0 && <p className="text-xs text-dp-text-2">{t.noTargets}</p>}
               {terminals.map(([id, node]) => (
-                <label key={id} className="-mx-2 flex h-8 cursor-pointer items-center gap-2 rounded-md px-2 text-sm text-dp-text transition-colors duration-150 ease-out hover:bg-dp-hover motion-reduce:transition-none">
+                <label key={id} className="-mx-2 flex h-8 cursor-pointer items-center gap-2 rounded-md px-2 text-sm text-dp-text transition-colors duration-(--dp-dur-fast) ease-(--dp-ease-out) hover:bg-dp-hover motion-reduce:transition-none">
                   <Checkbox
                     data-target={id}
                     checked={form.targets.includes(id)}
@@ -218,24 +223,23 @@ export function LoopsDialog() {
         <DialogFooter>
           {form === null ? (
             <>
-              <Button variant="ghost" onClick={() => setOpen(false)}>
-                {t.close}
-              </Button>
-              <Button
+              <QuietButton onClick={() => setOpen(false)}>{t.close}</QuietButton>
+              <AccentButton
+                size="lg"
                 onClick={() => {
                   setForm({ ...BLANK });
                   setError(null);
                 }}
               >
                 {t.new}
-              </Button>
+              </AccentButton>
             </>
           ) : (
             <>
-              <Button variant="ghost" onClick={() => setForm(null)}>
-                {t.cancel}
-              </Button>
-              <Button onClick={() => void save()}>{t.save}</Button>
+              <QuietButton onClick={() => setForm(null)}>{t.cancel}</QuietButton>
+              <AccentButton size="lg" onClick={() => void save()}>
+                {t.save}
+              </AccentButton>
             </>
           )}
         </DialogFooter>

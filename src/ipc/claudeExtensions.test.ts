@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildSpawnSpec } from "@/nodes/terminal/launch";
 import { readTerminalPayload, type TerminalPayload } from "@/nodes/types";
-import { canSwitch, isOn, readExtensionChoice, withItem, withItems, type ExtensionItem } from "./claudeExtensions";
+import { canSwitch, isOn, isOwnMcpServer, readExtensionChoice, withItem, withItems, withoutOwnServer, type ExtensionItem } from "./claudeExtensions";
 
 const item = (id: string, enabled = true): ExtensionItem => ({ id, name: id, source: "user", enabled });
 
@@ -61,5 +61,40 @@ describe("a terminal's choice of skills, plugins, MCP servers and subagents", ()
     expect(stored.extensions).toEqual({ mcpOff: ["github"] });
     expect(buildSpawnSpec(stored, "new").claude?.extensions).toEqual({ mcpOff: ["github"] });
     expect(buildSpawnSpec({ ...stored, extensions: undefined }, "new").claude?.extensions).toBeUndefined();
+  });
+});
+
+describe("dummyPlane's own MCP server, the Fleet's mission tools", () => {
+  it("is recognised by its name, whatever the case or the spaces", () => {
+    expect(isOwnMcpServer("dummyplane")).toBe(true);
+    expect(isOwnMcpServer(" DummyPlane ")).toBe(true);
+    expect(isOwnMcpServer("github")).toBe(false);
+    expect(isOwnMcpServer("plugin_dummyplane_x")).toBe(false);
+  });
+
+  it("is left out of the lists an answer brings, and only the MCP one", () => {
+    const lists = withoutOwnServer({
+      skills: [item("dummyplane")],
+      plugins: [],
+      mcp: [item("dummyplane"), item("DummyPlane"), item("github")],
+      agents: [],
+    });
+    expect(lists.mcp.map((i) => i.id)).toEqual(["github"]);
+    expect(lists.skills.map((i) => i.id)).toEqual(["dummyplane"]);
+  });
+
+  it("is never stored in a choice, even one saved by an older build or edited by hand", () => {
+    expect(readExtensionChoice({ mcpOff: ["dummyplane", "github", "DummyPlane"] })).toEqual({ mcpOff: ["github"] });
+    expect(readExtensionChoice({ mcpOff: ["dummyplane"] })).toBeUndefined();
+    expect(withItem("mcp", item("dummyplane"), false, { mcpOff: ["github"] })).toEqual({ mcpOff: ["github"] });
+    expect(withItems("mcp", [item("dummyplane"), item("github")], false, undefined)).toEqual({ mcpOff: ["github"] });
+  });
+
+  it("has no switch, and is not given to Claude as a deny rule at launch", () => {
+    expect(canSwitch("mcp", item("dummyplane"))).toBe(false);
+    const stored = readTerminalPayload({ agent: "claude", cwd: "D:/p", extensions: { mcpOff: ["dummyplane"] } }) as TerminalPayload;
+    expect(stored.extensions).toBeUndefined();
+    const spec = buildSpawnSpec({ ...stored, extensions: { mcpOff: ["dummyplane", "github"] } }, "new");
+    expect(spec.claude?.extensions).toEqual({ mcpOff: ["github"] });
   });
 });

@@ -5,8 +5,8 @@ import { PanelTabs, PanelTabsContent, PanelTabsList, PanelTabsTrigger, PanelTogg
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ToggleGroup } from "@/components/ui/toggle-group";
-import { sendToAgents } from "@/fleet/broadcast";
-import { AGENTS } from "@/fleet/catalog";
+import { sendToAgents } from "@/agents/broadcast";
+import { AGENTS } from "@/agents/catalog";
 import { reviewChanges, reviewDefaultBase, reviewFileDiff, reviewFiles, reviewReadFile, type ChangedFile, type FileText } from "@/ipc/review";
 import { cn } from "@/lib/utils";
 import { BOTTOM_BAR_HEIGHT, TOP_ROW_HEIGHT } from "@/shell/layout";
@@ -26,7 +26,7 @@ const TOAST_AWAY = { position: "top-center" } as const;
 
 /** A row of a file list: the whole width, a hover step, the file being read in the accent's tint. */
 const ROW =
-  "flex h-7 w-full items-center gap-2 px-3 text-left text-xs text-dp-text-2 transition-colors duration-150 ease-out hover:bg-dp-hover hover:text-dp-text motion-reduce:transition-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 focus-visible:outline-none focus-visible:ring-inset";
+  "flex h-7 w-full items-center gap-2 px-3 text-left text-xs text-dp-text-2 transition-colors duration-(--dp-dur-fast) ease-(--dp-ease-out) hover:bg-dp-hover hover:text-dp-text motion-reduce:transition-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 focus-visible:outline-none focus-visible:ring-inset";
 const ROW_ON = "bg-dp-accent-soft text-dp-text hover:bg-dp-accent-soft";
 
 /** A field of the panel: shadcn's Input at the panel's density. */
@@ -416,7 +416,9 @@ function Remarks({ nodeId, name }: { nodeId: string; name: string }) {
         <Button variant="ghost" size="sm" className="ml-auto text-dp-text-2 hover:text-dp-text" onClick={() => reviewStore.getState().clear()}>
           {t.clear}
         </Button>
-        <AccentButton onClick={() => void send()}>{t.sendTo(name)}</AccentButton>
+        <AccentButton size="sm" onClick={() => void send()}>
+          {t.sendTo(name)}
+        </AccentButton>
       </div>
     </footer>
   );

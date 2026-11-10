@@ -43,7 +43,7 @@ dummyPlane is a local desktop app. It is designed around these rules:
   - Request bodies are capped (64 KiB for hooks, 256 KiB for MCP), and node ids are checked against a strict pattern.
 - **Your Claude settings are only read.** dummyPlane reads your `~/.claude/settings.json` and the project's `.claude/settings*.json` to keep your own status line. It never writes to them.
   - Its own per-session files (the `--settings` file, the MCP configuration and the role prompt) are written to its app data folder, deleted when the session ends, and cleared at startup.
-- **The orchestrator cannot change your files.** Its Claude session is denied `Edit`, `Write`, `NotebookEdit` and `Bash`, and only gets dummyPlane's own MCP tools. If its settings, tools or role cannot be given to it, it does not start, and its node says why.
+- **The fleet cannot change your files.** Its Claude session is denied `Edit`, `Write`, `NotebookEdit` and `Bash`, and only gets dummyPlane's own MCP tools. If its settings, tools or role cannot be given to it, it does not start, and its node says why.
 - **The interface runs under a strict Content Security Policy.** Only the app's own scripts, styles, fonts and images load. No remote content, frame or plugin.
 - **Git stays local.** Missions create branches and worktrees next to your repository. dummyPlane never pushes, and never merges into your own branch.
 - **No telemetry.** The app's only request of its own is the update check: it reads the latest release's `latest.json` on GitHub, 10 seconds after the start and every 6 hours, and the settings menu turns it off. Fonts are bundled. Links you click, such as a Remote Control link, open in your browser.

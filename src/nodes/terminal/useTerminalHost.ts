@@ -6,7 +6,7 @@ import { layoutTerminal, mountTerminal } from "./registry";
 
 /**
  * Shows the xterm of a node's session in `host` — a terminal's or an
- * orchestrator's — and keeps its grid fitted to the host and the zoom.
+ * fleet's — and keeps its grid fitted to the host and the zoom.
  * `ready`: the node has a session to show.
  */
 export function useTerminalHost(nodeId: string, host: RefObject<HTMLDivElement | null>, ready: boolean) {

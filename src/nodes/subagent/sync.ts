@@ -2,7 +2,7 @@ import { CaptureUpdateAction, newElementWith } from "@excalidraw/excalidraw";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { canvasStore } from "@/canvas/canvasStore";
 import { createNodeElement } from "@/canvas/nodeElement";
-import { sceneAccess } from "@/fleet/sceneAccess";
+import { sceneAccess } from "@/agents/sceneAccess";
 import { nodesStore } from "@/store/nodes";
 import { workspacesStore } from "@/store/workspaces";
 import { onSubagent, onSubagentOutput, onSubagentSessionEnded, subagentSnapshot } from "./ipc";
@@ -39,7 +39,7 @@ export function ensureSubagentNode(agentId: string): string | undefined {
   if (!workspaceId || !scene) return undefined;
   if (entry.elementId) {
     if (isLive(scene.elements(), entry.elementId)) return entry.elementId;
-    // Deleted by the user (Delete, the eraser): closed like its ✕.
+    // Deleted by the user (Delete; the eraser leaves nodes alone): closed like its ✕.
     subagentNodesStore.getState().dismiss(agentId);
     return undefined;
   }

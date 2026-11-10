@@ -1,6 +1,7 @@
 import { useId, type ReactElement, type ReactNode } from "react";
-import { Bell, CircleArrowDown, Download, FileText, Gauge, ImageDown, Info, LifeBuoy, RefreshCw, SquareTerminal, Upload } from "lucide-react";
+import { Bell, CircleArrowDown, Download, FileText, Gauge, ImageDown, Info, LifeBuoy, LocateFixed, RefreshCw, SquareTerminal, Upload } from "lucide-react";
 import { showAbout } from "@/app/about";
+import { setFollowWaiting, useFollowWaiting } from "@/app/followWaitingSetting";
 import { openLogDir } from "@/app/logs";
 import { setNativeNotifications, useNativeNotifications } from "@/app/nativeNotifications";
 import { MAX_SPAWNED_CHOICES, setMaxSpawned, setSubagentTerminalsSetting, useSubagentSettings } from "@/app/subagentSettings";
@@ -31,18 +32,15 @@ import { exportCurrentScene, exportCurrentPng, importIntoScene } from "./sceneAc
  * One 32 px row everywhere, a 16 px icon column and a 10 px gap, so every label
  * starts on the same line and every tick sits in the same column; the highlight eases.
  */
-const ROW = "h-8 gap-2.5 text-(length:--text-ui) transition-[background-color,color] duration-150 ease-out motion-reduce:transition-none";
+const ROW = "h-8 gap-2.5 text-(length:--text-ui) transition-[background-color,color] duration-(--dp-dur-fast) ease-(--dp-ease-out) motion-reduce:transition-none";
 /** An action, or a submenu's trigger. */
 const ITEM = cn(ROW, "px-2");
 /** A setting: its tick sits at the right, so the row keeps room for it. */
 const CHOICE = cn(ROW, "pl-2 pr-8");
 /** The leading icons stay a step quieter than the labels; a highlighted row lights them up. */
 const ICON = "text-dp-text-2";
-/**
- * A group's name, as `.dp-label` draws it (12 px, 500, secondary, sentence case), set again
- * here because the menu label's own utilities outrank a component class; closer to its rows than to the group above.
- */
-const LABEL = "dp-label px-2 pb-1 pt-1 text-xs font-medium text-dp-text-2";
+/** A group's name: the menu label already wears `.dp-label`; this sets it closer to its rows than to the group above. */
+const LABEL = "px-2 pb-1 pt-1";
 /** A hairline with room on both sides: the groups read apart. */
 const SEPARATOR = "-mx-1 my-2";
 
@@ -90,6 +88,7 @@ export function SettingsMenu({
   const choice = usePalette();
   const autoUpdates = useUpdates((s) => s.auto);
   const nativeNotifications = useNativeNotifications();
+  const followWaiting = useFollowWaiting();
   const subagentTerminals = useSubagentSettings((s) => s.terminals);
   const maxSpawned = useSubagentSettings((s) => s.maxSpawned);
   return (
@@ -101,7 +100,7 @@ export function SettingsMenu({
             {(Object.keys(PALETTES) as ThemeChoice[]).map((palette) => (
               <DropdownMenuRadioItem key={palette} className={CHOICE} value={palette} onSelect={stayOpen}>
                 <Swatch palette={palette} />
-                {PALETTES[palette].name}
+                {t.palettes[palette]}
               </DropdownMenuRadioItem>
             ))}
           </DropdownMenuRadioGroup>
@@ -154,6 +153,14 @@ export function SettingsMenu({
             onSelect={stayOpen}
           >
             <Bell className={ICON} /> {t.nativeNotifications}
+          </DropdownMenuCheckboxItem>
+          <DropdownMenuCheckboxItem
+            className={CHOICE}
+            checked={followWaiting}
+            onCheckedChange={(on) => void setFollowWaiting(on === true)}
+            onSelect={stayOpen}
+          >
+            <LocateFixed className={ICON} /> {t.followWaiting}
           </DropdownMenuCheckboxItem>
         </Section>
         <DropdownMenuSeparator className={SEPARATOR} />

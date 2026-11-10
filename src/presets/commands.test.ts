@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { toast } from "sonner";
 import { canvasStore, EMPTY_VIEW } from "@/canvas/canvasStore";
-import { agentsStore } from "@/fleet/agentsStore";
+import { agentsStore } from "@/agents/agentsStore";
 import type { CommandContext } from "@/commands/command";
 import { labelOf, runCommand, sectionOf } from "@/commands/command";
 import { pendingUiRequest } from "@/commands/uiRequests";
@@ -13,7 +13,7 @@ import { presetsStore } from "./store";
 import { deployPreset } from "./deploy";
 
 vi.mock("@excalidraw/excalidraw", () => ({ CaptureUpdateAction: { NEVER: "n" }, newElementWith: (e: object, patch: object) => ({ ...e, ...patch }) }));
-vi.mock("./deploy", () => ({ deployPreset: vi.fn(async () => ({ groups: 2, agents: 3, orchestrators: 1, substituted: 1, orchestratorsSkipped: 0 })) }));
+vi.mock("./deploy", () => ({ deployPreset: vi.fn(async () => ({ groups: 2, agents: 3, fleets: 1, substituted: 1, fleetsSkipped: 0 })) }));
 vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { error: vi.fn(), warning: vi.fn() }) }));
 
 const preset = (name: string, id: string): TeamPreset => ({
@@ -21,7 +21,7 @@ const preset = (name: string, id: string): TeamPreset => ({
   name,
   savedAt: 1,
   groups: [{ name: "G", role: "docs", agents: ["claude", "codex"], x: 0, y: 0 }, { name: "H", role: "backend", agents: ["claude"], x: 900, y: 0 }],
-  orchestrators: [],
+  fleets: [],
 });
 const project: CommandContext = { project: true, workspaceId: "w1", terminalCount: 1, terminalId: null };
 const home: CommandContext = { project: false, workspaceId: null, terminalCount: 0, terminalId: null };

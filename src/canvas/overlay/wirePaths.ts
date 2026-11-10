@@ -1,24 +1,24 @@
 import type { ExcalidrawArrowElement, ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
-import { isAgentLink, isSpawnWire, isWire } from "@/fleet/wires";
-import type { Point } from "@/fleet/terminals";
+import { isAgentLink, isSpawnWire, isWire } from "@/agents/wires";
+import type { Point } from "@/agents/terminals";
 import type { WireDirection, WirePulse } from "../wireActivity";
 import { nodeKindOf } from "../nodeElement";
 import type { SceneFrame } from "../groups";
 
-/** A wire of the scene on screen, read from the orchestrator's end to the other one. */
+/** A wire of the scene on screen, read from the fleet's end to the other one. */
 export interface WirePath {
   id: string;
-  /** The orchestrator; for a wire between two agents, the one it starts at (for a spawn wire, the parent). */
-  orchestratorId: string;
+  /** The fleet; for a wire between two agents, the one it starts at (for a spawn wire, the parent). */
+  fleetId: string;
   /** A group's frame or a terminal. */
   targetId: string;
-  /** Scene coordinates, the orchestrator's end first. */
+  /** Scene coordinates, the fleet's end first. */
   points: Point[];
 }
 
-/** The wires of the scene that join an orchestrator to something, or two agents (a spawn wire, a link), with their route. */
+/** The wires of the scene that join a fleet to something, or two agents (a spawn wire, a link), with their route. */
 export function wirePaths(elements: readonly ExcalidrawElement[]): WirePath[] {
-  const orchestrators = new Set(elements.filter((e) => !e.isDeleted && nodeKindOf(e) === "orchestrator").map((e) => e.id));
+  const fleets = new Set(elements.filter((e) => !e.isDeleted && nodeKindOf(e) === "fleet").map((e) => e.id));
   const byId = new Map(elements.map((e) => [e.id, e]));
   const paths: WirePath[] = [];
   for (const element of elements) {
@@ -28,11 +28,11 @@ export function wirePaths(elements: readonly ExcalidrawElement[]): WirePath[] {
     const end = arrow.endBinding?.elementId;
     if (!start || !end) continue;
     const points = arrow.points.map(([x, y]) => ({ x: arrow.x + x, y: arrow.y + y }));
-    // A wire drawn by hand from the target to the orchestrator reads the other way.
-    if (orchestrators.has(start)) paths.push({ id: arrow.id, orchestratorId: start, targetId: end, points });
-    else if (orchestrators.has(end)) paths.push({ id: arrow.id, orchestratorId: end, targetId: start, points: points.reverse() });
+    // A wire drawn by hand from the target to the fleet reads the other way.
+    if (fleets.has(start)) paths.push({ id: arrow.id, fleetId: start, targetId: end, points });
+    else if (fleets.has(end)) paths.push({ id: arrow.id, fleetId: end, targetId: start, points: points.reverse() });
     // spawn_agent drew it from the parent, "+ Link" from the agent clicked first: a pulse on its end naming its start lights it.
-    else if (isSpawnWire(arrow) || isAgentLink(arrow, byId)) paths.push({ id: arrow.id, orchestratorId: start, targetId: end, points });
+    else if (isSpawnWire(arrow) || isAgentLink(arrow, byId)) paths.push({ id: arrow.id, fleetId: start, targetId: end, points });
   }
   return paths;
 }
@@ -44,7 +44,7 @@ export function sameWirePaths(a: readonly WirePath[], b: readonly WirePath[]): b
       const q = b[i];
       return (
         p.id === q.id &&
-        p.orchestratorId === q.orchestratorId &&
+        p.fleetId === q.fleetId &&
         p.targetId === q.targetId &&
         p.points.length === q.points.length &&
         p.points.every((pt, j) => pt.x === q.points[j].x && pt.y === q.points[j].y)
@@ -64,7 +64,7 @@ export interface ActiveWire {
 /**
  * The wires that carry a recent message: a wire to a group carries its
  * members' messages, a wire to a terminal that terminal's. A pulse that names
- * its orchestrator lights only that orchestrator's wire.
+ * its fleet lights only that fleet's wire.
  */
 export function activeWires(
   wires: readonly WirePath[],
@@ -78,7 +78,7 @@ export function activeWires(
     let latest: WirePulse | undefined;
     for (const id of agents) {
       const pulse = pulses[id];
-      if (!pulse || (pulse.orchestratorId !== undefined && pulse.orchestratorId !== wire.orchestratorId)) continue;
+      if (!pulse || (pulse.fleetId !== undefined && pulse.fleetId !== wire.fleetId)) continue;
       if (!latest || pulse.at > latest.at) latest = pulse;
     }
     if (latest) active.push({ wire, direction: latest.direction, at: latest.at });

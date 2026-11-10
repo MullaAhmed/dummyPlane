@@ -1,15 +1,15 @@
-import { screenRectOf } from "@/fleet/placement";
+import { screenRectOf } from "@/agents/placement";
 import { useNow } from "@/lib/useNow";
 import { cn } from "@/lib/utils";
 import { budgetBar, type BudgetTone } from "@/mission/mission";
-import { memberBudgets } from "@/mission/store";
-import type { Step } from "@/nodes/steps";
+import { memberBudgets, type MemberBudget } from "@/mission/store";
+import { settledSteps, type Step } from "@/nodes/steps";
 import { terminalOf, useNodes } from "@/store/nodes";
 import { useSubagents } from "@/store/subagents";
 import { useTerminalStatus } from "@/store/terminalStatus";
 import { useCanvas, type CanvasView } from "../canvasStore";
 import type { Rect } from "../groups";
-import { BUDGET_COLOR, dotsOf, TIMELINE_GAP } from "./timeline";
+import { BUDGET_COLOR, budgetTitle, dotsOf, TIMELINE_GAP } from "./timeline";
 
 /**
  * Each Claude terminal's steps, under it (spec orchestrateur §5). Like the
@@ -27,7 +27,9 @@ export function StepTimelines() {
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden">
       {Object.entries(rects).map(([id, rect]) => {
-        const steps = terminalOf(nodes[id])?.steps ?? [];
+        const payload = terminalOf(nodes[id]);
+        // A reported agent's frieze reads as finished even where its steps were not settled with its report.
+        const steps = settledSteps(payload?.steps ?? [], payload?.lastReport?.status);
         const budget = budgets[id];
         return steps.length || budget ? <Timeline key={id} nodeId={id} steps={steps} budget={budget} rect={rect} view={view} /> : null;
       })}
@@ -35,7 +37,7 @@ export function StepTimelines() {
   );
 }
 
-function Timeline(props: { nodeId: string; steps: Step[]; budget?: { spent: number; budget: number }; rect: Rect; view: CanvasView }) {
+function Timeline(props: { nodeId: string; steps: Step[]; budget?: MemberBudget; rect: Rect; view: CanvasView }) {
   const { nodeId, steps, budget, rect, view } = props;
   const running = useSubagents(nodeId);
   // A step "en cours" is only marked as live under a process that runs (not after an interruption or a crash).
@@ -43,8 +45,8 @@ function Timeline(props: { nodeId: string; steps: Step[]; budget?: { spent: numb
   const screen = screenRectOf(rect, view);
   const dots = dotsOf(steps, rect.width);
   return (
-    // No height of its own: everything in it is placed from its top. It takes 8 + 1 + 12 = 21,
-    // what TIMELINE_GAP leaves of the 24 between two rows.
+    // No height of its own: everything in it is placed from its top. It takes 8 + 1 + 12 = TIMELINE_HEIGHT (21),
+    // and with TIMELINE_GAP the TIMELINE_ROOM (24) that ROW_GAP keeps free under every terminal.
     <div
       data-steps={nodeId}
       className="absolute"
@@ -56,7 +58,7 @@ function Timeline(props: { nodeId: string; steps: Step[]; budget?: { spent: numb
         transformOrigin: "0 0",
       }}
     >
-      {budget && <BudgetBar {...budgetBar(budget.spent, budget.budget)} title={`${Math.floor(budget.spent)} / ${budget.budget} min`} />}
+      {budget && <BudgetBar {...budgetBar(budget.spent, budget.budget, budget.report)} title={budgetTitle(budget)} />}
       {/* Through the middle of the 8px dots. */}
       {steps.length > 0 && <div className="absolute inset-x-0 top-1 h-px -translate-y-1/2 bg-dp-line" />}
       {dots.map((dot, i) => (
@@ -67,7 +69,7 @@ function Timeline(props: { nodeId: string; steps: Step[]; budget?: { spent: numb
             className={cn("size-2 rounded-full", dot.state === "en_cours" && alive && "ring-1 ring-dp-text-3 ring-offset-1 ring-offset-transparent")}
             style={{ backgroundColor: dot.color }}
           />
-          {/* 8 + 1 + 12: the frieze stays within the 21 left under the terminal. */}
+          {/* 8 + 1 + 12: TIMELINE_HEIGHT, the frieze's whole height. */}
           <span className="mt-px flex max-w-full px-1 text-xs leading-3 text-dp-text-2">
             <span className="truncate">{dot.title}</span>
             {dot.state === "en_cours" && running > 0 && <span className="shrink-0">{` ×${running}`}</span>}
@@ -78,7 +80,7 @@ function Timeline(props: { nodeId: string; steps: Step[]; budget?: { spent: numb
   );
 }
 
-/** Time spent over budget, in the gap between the terminal and its steps. */
+/** Time spent over budget, in the gap between the terminal and its steps; complete once the agent reported. */
 function BudgetBar({ ratio, tone, title }: { ratio: number; tone: BudgetTone; title: string }) {
   return (
     // In the TIMELINE_GAP between the terminal and its frieze, against the terminal's edge.

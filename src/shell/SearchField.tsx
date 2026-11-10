@@ -25,7 +25,7 @@ export function SearchField() {
     >
       <Search />
       <span className="truncate">{home ? t.project : t.inProject(name)}</span>
-      <kbd className="ml-auto shrink-0 rounded-sm border border-dp-line px-1 font-mono text-xs leading-4 text-dp-text-3">Ctrl+P</kbd>
+      <kbd className="ml-auto shrink-0 rounded-sm border border-dp-line px-1 font-mono text-xs leading-4 text-dp-text-3">{t.shortcut}</kbd>
     </Button>
   );
 }

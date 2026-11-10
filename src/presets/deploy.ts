@@ -1,7 +1,7 @@
 import type { Rect } from "@/canvas/groups";
-import { clearSpot, groupGrid } from "@/fleet/groupLayout";
-import type { GroupPlan } from "@/fleet/groups";
-import type { Point } from "@/fleet/terminals";
+import { clearSpot, groupGrid } from "@/agents/groupLayout";
+import type { GroupPlan } from "@/agents/groups";
+import type { Point } from "@/agents/terminals";
 import type { AgentId } from "@/ipc/pty";
 import type { TeamPreset } from "./model";
 
@@ -17,26 +17,26 @@ export interface DeployDeps {
   /** Poses a group centered on `at`; null when it could not. */
   launchGroup: (plan: GroupPlan, at: Point) => Promise<{ frameId: string; nodeIds: string[] } | null>;
   setSpeciality: (frameId: string, speciality: string) => void;
-  /** A new orchestrator linked to a group; its id, or null (without Claude Code, nothing is posed). */
-  orchestrate: (groupId: string) => Promise<string | null>;
-  link: (orchestratorId: string, groupId: string) => void;
-  rename: (orchestratorId: string, name: string) => void;
-  /** Brings the view onto what was posed: every group and orchestrator, once, at the end. */
+  /** A new fleet linked to a group; its id, or null (without Claude Code, nothing is posed). */
+  addFleet: (groupId: string) => Promise<string | null>;
+  link: (fleetId: string, groupId: string) => void;
+  rename: (fleetId: string, name: string) => void;
+  /** Brings the view onto what was posed: every group and fleet, once, at the end. */
   fit: (ids: string[]) => void;
 }
 
 export interface DeployResult {
   groups: number;
   agents: number;
-  orchestrators: number;
+  fleets: number;
   /** Agents replaced by the default one. */
   substituted: number;
-  orchestratorsSkipped: number;
+  fleetsSkipped: number;
 }
 
 /**
  * Poses a preset (spec presets §3): its groups around the view's center, in
- * their saved places, then each orchestrator linked to its groups. A group
+ * their saved places, then each fleet linked to its groups. A group
  * that cannot be posed is left out; the rest goes on.
  */
 export async function deployPreset(preset: TeamPreset, deps: DeployDeps): Promise<DeployResult> {
@@ -44,7 +44,7 @@ export async function deployPreset(preset: TeamPreset, deps: DeployDeps): Promis
   const width = Math.max(...preset.groups.map((g, i) => g.x + grids[i].width));
   const height = Math.max(...preset.groups.map((g, i) => g.y + grids[i].height));
   const origin = clearSpot({ x: deps.center.x - width / 2, y: deps.center.y - height / 2, width, height }, deps.obstacles);
-  const result: DeployResult = { groups: 0, agents: 0, orchestrators: 0, substituted: 0, orchestratorsSkipped: 0 };
+  const result: DeployResult = { groups: 0, agents: 0, fleets: 0, substituted: 0, fleetsSkipped: 0 };
   const frames: (string | null)[] = [];
   const posed: string[] = [];
   for (const [i, group] of preset.groups.entries()) {
@@ -62,21 +62,21 @@ export async function deployPreset(preset: TeamPreset, deps: DeployDeps): Promis
     result.agents += made.nodeIds.length;
     if (group.speciality) deps.setSpeciality(made.frameId, group.speciality);
   }
-  for (const orchestrator of preset.orchestrators) {
-    const targets = orchestrator.groups.flatMap((i) => frames[i] ?? []);
+  for (const fleet of preset.fleets) {
+    const targets = fleet.groups.flatMap((i) => frames[i] ?? []);
     if (targets.length === 0) {
-      result.orchestratorsSkipped += 1;
+      result.fleetsSkipped += 1;
       continue;
     }
-    const id = await deps.orchestrate(targets[0]);
+    const id = await deps.addFleet(targets[0]);
     if (id === null) {
-      result.orchestratorsSkipped += 1;
+      result.fleetsSkipped += 1;
       continue;
     }
     for (const groupId of targets.slice(1)) deps.link(id, groupId);
-    deps.rename(id, orchestrator.name);
+    deps.rename(id, fleet.name);
     posed.push(id);
-    result.orchestrators += 1;
+    result.fleets += 1;
   }
   if (posed.length > 0) deps.fit(posed);
   return result;

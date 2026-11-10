@@ -2,7 +2,7 @@ import type { KanbanAgentStatus, KanbanColumn, KanbanPayload, KanbanPriority } f
 import { addColumn, columnOf, updateCard, type NewId } from "./board";
 import { doneColumn } from "./githubSync";
 
-// Pure Kanban <-> orchestrator logic: a column handed to an orchestrator, the request
+// Pure Kanban <-> fleet logic: a column handed to a fleet, the request
 // typed in its terminal, what its `board` tool reads, and where a mission's cards go. No IO here.
 
 const IN_PROGRESS_TITLES = ["en cours", "in progress", "doing", "wip"];
@@ -12,14 +12,14 @@ const MAX_NOTES = 280;
 const normalize = (title: string) => title.trim().toLowerCase();
 const oneLine = (value: string) => value.replace(/\s*[\r\n]+\s*/g, " ").trim();
 
-/** Remembers that `columnId` of the board is planned by the orchestrator `nodeId`. */
-export function linkOrchestrator(board: KanbanPayload, nodeId: string, columnId: string): KanbanPayload {
+/** Remembers that `columnId` of the board is planned by the fleet `nodeId`. */
+export function linkFleet(board: KanbanPayload, nodeId: string, columnId: string): KanbanPayload {
   if (!board.columns.some((c) => c.id === columnId)) return board;
   return { ...board, orchestrator: { nodeId, columnId } };
 }
 
-/** Whether the board was handed to this orchestrator. */
-export const linkedTo = (board: KanbanPayload, orchestratorId: string) => board.orchestrator?.nodeId === orchestratorId;
+/** Whether the board was handed to this fleet. */
+export const linkedTo = (board: KanbanPayload, fleetId: string) => board.orchestrator?.nodeId === fleetId;
 
 /** Column titled like "En cours" / "In progress", if any. */
 export function inProgressColumn(board: KanbanPayload): KanbanColumn | undefined {
@@ -77,7 +77,7 @@ export interface RequestTexts {
 }
 
 /**
- * What "Plan with the orchestrator" types in the orchestrator's terminal:
+ * What "Plan with the fleet" types in the fleet's terminal:
  * one line (a line break would send it early) listing the column's cards. Null
  * for an unknown or empty column.
  */
@@ -97,7 +97,7 @@ export function planRequest(board: KanbanPayload, columnId: string, texts: Reque
   return texts.request(oneLine(column.title), cards.length, items.join(" | "));
 }
 
-/** What the orchestrator's `board` tool reads of one board. */
+/** What the fleet's `board` tool reads of one board. */
 export function boardView(nodeId: string, board: KanbanPayload) {
   return {
     board: nodeId,

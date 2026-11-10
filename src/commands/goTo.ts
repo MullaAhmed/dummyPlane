@@ -3,17 +3,17 @@ import { framesFromScene, groupOf, isGroup } from "@/canvas/groups";
 import { nodeKindOf } from "@/canvas/nodeElement";
 import { readingOrder, terminalOrder } from "@/canvas/terminalOrder";
 import { messages } from "@/i18n";
-import { AGENTS } from "@/fleet/catalog";
-import { ROLES } from "@/fleet/roles";
-import { orchestratorLinks } from "@/fleet/wires";
+import { AGENTS } from "@/agents/catalog";
+import { ROLES } from "@/agents/roles";
+import { fleetLinks } from "@/agents/wires";
 import type { Project, Workspace } from "@/ipc/db";
 import type { AgentId } from "@/ipc/pty";
-import { readOrchestratorPayload } from "@/nodes/types";
+import { readFleetPayload } from "@/nodes/types";
 import { terminalOf, type NodeRecord } from "@/store/nodes";
 import { commandsMessages } from "./messages";
 import { rank, rankSections } from "./search";
 
-export type GoToKind = "terminal" | "group" | "orchestrator" | "workspace" | "project";
+export type GoToKind = "terminal" | "group" | "fleet" | "workspace" | "project";
 
 /** A line of "Go to" (spec window §7.2). */
 export interface GoToItem {
@@ -37,7 +37,7 @@ export interface GoToItem {
   path?: string;
 }
 
-export const GO_TO_SECTIONS: readonly GoToKind[] = ["terminal", "group", "orchestrator", "workspace", "project"];
+export const GO_TO_SECTIONS: readonly GoToKind[] = ["terminal", "group", "fleet", "workspace", "project"];
 
 export interface GoToInput {
   home: boolean;
@@ -70,7 +70,7 @@ export function goToItems(input: GoToInput): GoToItem[] {
   );
   const terminals: GoToItem[] = [];
   const groups: GoToItem[] = [];
-  const orchestrators: GoToItem[] = [];
+  const fleets: GoToItem[] = [];
   for (const workspace of onScreenFirst) {
     const scene = input.scenes[workspace.id];
     if (!scene) continue;
@@ -107,14 +107,14 @@ export function goToItems(input: GoToInput): GoToItem[] {
         members: frame.memberIds.length,
       });
     }
-    const links = orchestratorLinks(scene);
-    for (const element of readingOrder(scene.filter((e) => !e.isDeleted && nodeKindOf(e) === "orchestrator"))) {
+    const links = fleetLinks(scene);
+    for (const element of readingOrder(scene.filter((e) => !e.isDeleted && nodeKindOf(e) === "fleet"))) {
       const wired = links[element.id];
-      orchestrators.push({
-        key: `orchestrator:${element.id}`,
-        kind: "orchestrator",
-        label: readOrchestratorPayload(input.nodes[element.id]?.payload).name,
-        keywords: [words.orchestrator, workspace.name],
+      fleets.push({
+        key: `fleet:${element.id}`,
+        kind: "fleet",
+        label: readFleetPayload(input.nodes[element.id]?.payload).name,
+        keywords: [words.fleet, workspace.name],
         workspaceId: workspace.id,
         targetId: element.id,
         elsewhere,
@@ -133,7 +133,7 @@ export function goToItems(input: GoToInput): GoToItem[] {
       current: w.id === input.activeWorkspaceId,
     }),
   );
-  return [...terminals, ...groups, ...orchestrators, ...workspaces, ...projectItems(input)];
+  return [...terminals, ...groups, ...fleets, ...workspaces, ...projectItems(input)];
 }
 
 export interface GoToSection {

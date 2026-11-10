@@ -1,5 +1,5 @@
 import { useStore } from "zustand";
-import { sendToAgents } from "@/fleet/broadcast";
+import { sendToAgents } from "@/agents/broadcast";
 import { getSetting, setSetting } from "@/ipc/db";
 import { freshText } from "@/nodes/terminal/registry";
 import { agentActivityStore } from "@/store/agentActivity";

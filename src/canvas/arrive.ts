@@ -79,10 +79,10 @@ export function arrivingNode(): string | null {
   return arriving;
 }
 
-/** Gives the keyboard to the xterm of a terminal or of an orchestrator's session. */
+/** Gives the keyboard to the xterm of a terminal or of a fleet's session. */
 function focusNodeInput(nodeId: string, kind: NodeKind | null): boolean {
   focusTerminal(nodeId);
-  if (kind === "orchestrator") return document.activeElement?.closest(`[data-orchestrator="${nodeId}"]`) != null;
+  if (kind === "fleet") return document.activeElement?.closest(`[data-fleet="${nodeId}"]`) != null;
   return terminalWithKeyboard() === nodeId;
 }
 
@@ -91,7 +91,7 @@ function focusNodeInput(nodeId: string, kind: NodeKind | null): boolean {
  * the view moves only if needed; the node is activated as by a click in its
  * body, without selecting it, and the selection left behind is cleared: the
  * canvas keys (Suppr, arrows) must not act on a node out of sight. A terminal
- * takes the keyboard and flashes; an orchestrator gets the cursor in its
+ * takes the keyboard and flashes; a fleet gets the cursor in its
  * field. False when the node is not on the canvas.
  */
 export function arrive(nodeId: string): boolean {
@@ -101,7 +101,7 @@ export function arrive(nodeId: string): boolean {
   // A folded group keeps its terminals off the screen: unfold it, then arrive (spec replier un groupe §2).
   const folded = canvasStore.getState().frames.find((f) => f.group?.folded && f.memberIds.includes(nodeId));
   if (folded) {
-    void import("@/fleet/groups").then(({ setGroupFolded }) => {
+    void import("@/agents/groups").then(({ setGroupFolded }) => {
       setGroupFolded(folded.id, false);
       setTimeout(() => arrive(nodeId), 0);
     });

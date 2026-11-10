@@ -19,7 +19,7 @@ export function ModeExit() {
       variant="ghost"
       onClick={leave}
       style={{ top: TOP_ROW_HEIGHT + 12 }}
-      className="dp-glass-strong absolute right-3 z-30 h-8 gap-2 rounded-lg px-3 text-xs font-normal text-dp-text-2 transition-[color,background-color,opacity,transform] starting:opacity-0 hover:bg-dp-hover hover:text-dp-text"
+      className="dp-glass-strong absolute right-3 z-30 h-8 gap-2 rounded-lg px-3 text-xs font-normal text-dp-text-2 transition-[color,background-color,opacity,scale] starting:opacity-0 hover:bg-dp-hover hover:text-dp-text"
     >
       <X className="text-dp-text-3" />
       {mode === "zen" ? t.zen : t.reading}

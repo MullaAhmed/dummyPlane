@@ -1,6 +1,6 @@
 import { defineMessages } from "@/i18n";
 
-/** The texts of the nodes: terminals, orchestrators (spec première version §7.1). */
+/** The texts of the nodes: terminals, the Fleet (spec première version §7.1). */
 export const nodesMessages = defineMessages(
   {
     unknownNode: "Unknown node",
@@ -14,10 +14,15 @@ export const nodesMessages = defineMessages(
       waiting: "Waiting",
       ready: "Ready",
       active: "Active",
+      // What its last report says of an agent that is not at work.
+      done: "Done",
+      blocked: "Blocked",
+      failed: "Failed",
       stopped: "Stopped",
       exited: "Exited",
       exitedWith: (code: number) => `Exited · ${code}`,
       error: "Error",
+      toolsUnavailable: "Tools unavailable",
       since: (label: string, duration: string) => `${label} for ${duration}`,
     },
     resumeCard: {
@@ -35,6 +40,8 @@ export const nodesMessages = defineMessages(
       apply: "Apply at next launch",
     },
     header: {
+      agent: "Agent",
+      more: "More actions",
       relaunch: "Restart",
       resumeSession: "Resume the session",
       newSession: "New session",
@@ -51,7 +58,13 @@ export const nodesMessages = defineMessages(
     minimized: {
       expand: "Expand",
       doubleClickExpand: "Double-click to expand",
-      report: { done: "Done", blocked: "Blocked", failed: "Failed" },
+    },
+    /** The title of a member's budget bar under its terminal: its time over its budget, in minutes. */
+    budgetBar: {
+      spent: (spent: number, budget: number) => `${spent} / ${budget} min`,
+      done: (spent: number, budget: number) => `Done in ${spent} min of ${budget}`,
+      blocked: (spent: number, budget: number) => `Blocked after ${spent} min of ${budget}`,
+      failed: (spent: number, budget: number) => `Failed after ${spent} min of ${budget}`,
     },
     file: {
       notFound: "File not found",
@@ -78,7 +91,7 @@ export const nodesMessages = defineMessages(
     session: {
       restartMarker: "── restart ──",
     },
-    orchestrator: {
+    fleet: {
       defaultName: "Fleet",
       notFound: "Fleet not found",
       clockTitle: "Time spent / overall budget",
@@ -88,19 +101,10 @@ export const nodesMessages = defineMessages(
       remoteTeam: "Remote Control for the team",
       remoteOff: "Turn off Remote Control",
       close: "Close the fleet",
-      doubleClickRename: "Double-click to rename",
       input: {
         toggle: "Message agents",
         placeholder: (agents: string) => `Message ${agents}`,
         emptyHint: "Link agents to this fleet",
-      },
-      session: {
-        starting: "starting",
-        toolsUnavailable: "tools unavailable",
-        stopped: "stopped",
-        working: "working",
-        waiting: "waiting for a reply",
-        idle: "idle",
       },
     },
     toolsUnavailable: {

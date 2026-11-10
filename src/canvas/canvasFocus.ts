@@ -38,7 +38,7 @@ export function overviewTargets(elements: readonly ExcalidrawElement[]): Excalid
   const live = elements.filter((e) => !e.isDeleted);
   const nodes = live.filter((e) => {
     const kind = nodeKindOf(e);
-    return kind === "terminal" || kind === "orchestrator";
+    return kind === "terminal" || kind === "fleet";
   });
   if (nodes.length === 0) return live;
   const holding = new Set(nodes.map((n) => n.frameId));

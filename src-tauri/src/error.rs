@@ -10,7 +10,7 @@ pub enum AppError {
     NotFound(String),
     #[error("{0}")]
     Pty(String),
-    /// An orchestrator without dummyPlane's tools and guards does not start (spec première version §4.1).
+    /// A fleet without dummyPlane's tools and guards does not start (spec première version §4.1).
     #[error("{0}")]
     ToolsUnavailable(String),
     /// The `gh` CLI is missing, not logged in, or failed (Kanban GitHub sync).
@@ -52,7 +52,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn an_orchestrator_without_its_tools_has_its_own_kind() {
+    fn a_fleet_without_its_tools_has_its_own_kind() {
         let json = serde_json::to_value(AppError::ToolsUnavailable("x".into())).unwrap();
         assert_eq!(
             json,

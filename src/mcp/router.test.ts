@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import { STORED_FLEET_KIND } from "@/canvas/nodeElement";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { mockIPC } from "@tauri-apps/api/mocks";
 import { canvasStore } from "@/canvas/canvasStore";
@@ -6,13 +7,13 @@ import { forgetScene, rememberScene } from "@/canvas/sceneCache";
 import { nodesStore, terminalOf } from "@/store/nodes";
 import { answer, handleCall, replyable } from "./router";
 import type { McpCall } from "@/ipc/mcp";
-import { pauseAgents } from "@/fleet/broadcast";
-import { setRemoteControl } from "@/fleet/remoteControl";
+import { pauseAgents } from "@/agents/broadcast";
+import { setRemoteControl } from "@/agents/remoteControl";
 import { ptySendText } from "@/ipc/pty";
 import { terminalText } from "@/nodes/terminal/registry";
 import { notify } from "@/mission/events";
 import { endMission, reassignTask } from "@/mission/launch";
-import { missionOf, setMission, setOrchestratorClosed, updateMember } from "@/mission/store";
+import { missionOf, setMission, setFleetClosed, updateMember } from "@/mission/store";
 import { workspacesStore } from "@/store/workspaces";
 import { agentActivityStore } from "@/store/agentActivity";
 import { terminalStatusStore } from "@/store/terminalStatus";
@@ -25,8 +26,8 @@ vi.mock("@/mission/launch", () => ({
   reassignTask: vi.fn(() => Promise.resolve({ name: "Horus" })),
 }));
 vi.mock("@/mission/events", () => ({ notify: vi.fn() }));
-vi.mock("@/fleet/broadcast", () => ({ pauseAgents: vi.fn(() => Promise.resolve(1)) }));
-vi.mock("@/fleet/remoteControl", () => ({ setRemoteControl: vi.fn() }));
+vi.mock("@/agents/broadcast", () => ({ pauseAgents: vi.fn(() => Promise.resolve(1)) }));
+vi.mock("@/agents/remoteControl", () => ({ setRemoteControl: vi.fn() }));
 vi.mock("@/mission/store", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/mission/store")>()),
   linkedClaudeAgents: vi.fn(() => [{ nodeId: "isis", name: "Isis" }]),
@@ -47,14 +48,14 @@ beforeAll(async () => {
     kind: "terminal",
     payload: { title: "", name: "Isis", agent: "claude", cwd: "C:/code", shell: "default", command: "" },
   });
-  await nodesStore.getState().create("chef", { workspaceId: "w1", kind: "orchestrator", payload: { name: "chef" } });
+  await nodesStore.getState().create("chef", { workspaceId: "w1", kind: "fleet", payload: { name: "chef" } });
 });
 
 describe("the notes tool (spec notes §3)", () => {
   const notes = (node: string) => call(node, "notes", {});
   afterEach(() => void mockIPC(() => undefined));
 
-  it("answers agents and orchestrators alike, with the same tool", async () => {
+  it("answers agents and fleets alike, with the same tool", async () => {
     mockIPC((command) => (command === "notes_agent_list" ? [{ name: "Auth", attached: true }] : undefined));
     expect(textOf(await notes("isis"))).toContain("Auth (attached to your group)");
     expect(textOf(await notes("chef"))).toContain("Auth");
@@ -106,7 +107,7 @@ describe("the agent's tools (spec orchestrateur §4.4)", () => {
   });
 });
 
-describe("the orchestrator's tools (spec orchestrateur §7.2)", () => {
+describe("the fleet's tools (spec orchestrateur §7.2)", () => {
   const plan = {
     name: "Auth",
     task: "Ajoute l'authentification",
@@ -116,12 +117,12 @@ describe("the orchestrator's tools (spec orchestrateur §7.2)", () => {
     ],
   };
 
-  it("lists them for the orchestrator only, and each side refuses the other's", async () => {
+  it("lists them for the fleet only, and each side refuses the other's", async () => {
     const list = (await answer({ callId: 1, nodeId: "chef", method: "tools/list", params: {} })) as { tools: { name: string }[] };
     expect(list.tools.map((t) => t.name)).toEqual(["mission", "propose_plan", "add_tasks", "queue", "next_task", "tickets", "board", "team", "read_output", "write", "extend", "interrupt", "reassign", "merge", "finish", "remote_control", "notes"]);
-    expect(textOf(await call("isis", "propose_plan", plan))).toBe("This tool is for the orchestrator.");
+    expect(textOf(await call("isis", "propose_plan", plan))).toBe("This tool is for the fleet.");
     expect(textOf(await call("chef", "report", { summary: "x", status: "done" }))).toBe("This tool is for agents.");
-    expect(textOf(await call("isis", "board", {}))).toBe("This tool is for the orchestrator.");
+    expect(textOf(await call("isis", "board", {}))).toBe("This tool is for the fleet.");
   });
 
   it("reads the Kanban boards handed to it with board", async () => {
@@ -195,8 +196,8 @@ describe("the orchestrator's tools (spec orchestrateur §7.2)", () => {
 
   describe("a workspace not on screen whose scene is known (spec mission de nuit §6.1)", () => {
     it("reads its linked agents and groups as on screen", async () => {
-      await nodesStore.getState().create("ailleurs", { workspaceId: "w8", kind: "orchestrator", payload: { name: "Ailleurs" } });
-      rememberScene("w8", [{ id: "g", type: "frame", name: "Interface", isDeleted: false, frameId: null, x: 0, y: 0, width: 1, height: 1, customData: { dummyplane: { kind: "group", role: "frontend", pantheon: "norse", speciality: "Frontend" } } }, { id: "ailleurs", type: "embeddable", isDeleted: false, frameId: null, x: 0, y: 0, width: 1, height: 1, customData: { kind: "orchestrator" } }, { id: "a", type: "arrow", isDeleted: false, frameId: null, startBinding: { elementId: "ailleurs" }, endBinding: { elementId: "g" } }] as never, {} as never, {}, []);
+      await nodesStore.getState().create("ailleurs", { workspaceId: "w8", kind: "fleet", payload: { name: "Ailleurs" } });
+      rememberScene("w8", [{ id: "g", type: "frame", name: "Interface", isDeleted: false, frameId: null, x: 0, y: 0, width: 1, height: 1, customData: { dummyplane: { kind: "group", role: "frontend", pantheon: "norse", speciality: "Frontend" } } }, { id: "ailleurs", type: "embeddable", isDeleted: false, frameId: null, x: 0, y: 0, width: 1, height: 1, customData: { kind: STORED_FLEET_KIND } }, { id: "a", type: "arrow", isDeleted: false, frameId: null, startBinding: { elementId: "ailleurs" }, endBinding: { elementId: "g" } }] as never, {} as never, {}, []);
       const mission = JSON.parse(textOf(await call("ailleurs", "mission", {})));
       expect(mission.linked_groups).toEqual([{ name: "Interface", speciality: "Frontend" }]);
       expect(mission.linked_agents).toEqual(expect.any(Array));
@@ -210,7 +211,7 @@ describe("the orchestrator's tools (spec orchestrateur §7.2)", () => {
     const task = { title: "Docs", brief: "Écris la doc", budget_min: 10 };
 
     it("adds tasks beyond the team, says how many wait and reads them back", async () => {
-      await nodesStore.getState().create("file", { workspaceId: "w1", kind: "orchestrator", payload: { name: "File" } });
+      await nodesStore.getState().create("file", { workspaceId: "w1", kind: "fleet", payload: { name: "File" } });
       expect(textOf(await call("file", "add_tasks", { tasks: [task, { ...task, title: "Tests", level: "low" }] }))).toBe("2 tasks added. Waiting: 2.");
       expect(JSON.parse(textOf(await call("file", "queue", {})))).toEqual({
         waiting: [
@@ -225,13 +226,13 @@ describe("the orchestrator's tools (spec orchestrateur §7.2)", () => {
 
     it("refuses what a plan would refuse, and a finished mission", async () => {
       expect(await call("file", "add_tasks", { tasks: [{ ...task, title: "docs" }] })).toMatchObject({ isError: true });
-      expect(textOf(await call("isis", "add_tasks", { tasks: [task] }))).toBe("This tool is for the orchestrator.");
+      expect(textOf(await call("isis", "add_tasks", { tasks: [task] }))).toBe("This tool is for the fleet.");
       setMission("file", { state: "terminee" });
       expect(textOf(await call("file", "add_tasks", { tasks: [{ ...task, title: "Autre" }] }))).toContain("finished");
     });
 
     it("takes a plan longer than Max agents and says the rest waits in the queue", async () => {
-      await nodesStore.getState().create("long", { workspaceId: "w1", kind: "orchestrator", payload: { name: "Long" } });
+      await nodesStore.getState().create("long", { workspaceId: "w1", kind: "fleet", payload: { name: "Long" } });
       const subtasks = ["A", "B", "C", "D", "E"].map((title) => ({ title, brief: "b", agent: "new", budget_min: 10 }));
       expect(textOf(await call("long", "propose_plan", { name: "Long", task: "t", subtasks }))).toContain(
         "Plan proposed: 5 sub-tasks. The first 4 start at the go-ahead, the rest wait in the queue for a seat.",
@@ -240,7 +241,7 @@ describe("the orchestrator's tools (spec orchestrateur §7.2)", () => {
     });
 
     it("says next_task needs a formed team", async () => {
-      await nodesStore.getState().create("seul", { workspaceId: "w1", kind: "orchestrator", payload: { name: "Seul" } });
+      await nodesStore.getState().create("seul", { workspaceId: "w1", kind: "fleet", payload: { name: "Seul" } });
       expect(textOf(await call("seul", "next_task", { agent: "Isis" }))).toBe("The team is not formed yet.");
     });
   });
@@ -286,11 +287,11 @@ describe("the orchestrator's tools (spec orchestrateur §7.2)", () => {
   });
 
   it("says so when its workspace is not on screen, instead of finding no linked agent (final review H2)", async () => {
-    await nodesStore.getState().create("loin", { workspaceId: "w9", kind: "orchestrator", payload: { name: "Loin" } });
+    await nodesStore.getState().create("loin", { workspaceId: "w9", kind: "fleet", payload: { name: "Loin" } });
     const hidden = JSON.parse(textOf(await call("loin", "mission", {})));
     expect(hidden.linked_agents).toBeNull();
     expect(hidden.linked_groups).toBeNull();
-    expect(hidden.linked_agents_note).toBe("unknown: the orchestrator's workspace is not on screen");
+    expect(hidden.linked_agents_note).toBe("unknown: the fleet's workspace is not on screen");
     expect(textOf(await call("loin", "propose_plan", plan))).toContain("not on screen");
     expect(textOf(await call("loin", "propose_plan", { ...plan, subtasks: [plan.subtasks[1]] }))).toContain("Plan proposed: 1 sub-task.");
     // Its groups are as unknown as its agents: refused, not told that the group does not exist.
@@ -356,9 +357,9 @@ describe("the orchestrator's tools (spec orchestrateur §7.2)", () => {
       expect(ptySendText).toHaveBeenCalledWith("isis", "Relance les tests");
     });
 
-    it("takes an agent's report to its orchestrator", async () => {
+    it("takes an agent's report to its fleet", async () => {
       expect(await call("isis", "report", { summary: "Fait", status: "fini" })).toMatchObject({ isError: true });
-      expect(textOf(await call("isis", "report", { summary: "Login fait", status: "done" }))).toBe("Report passed on to the orchestrator.");
+      expect(textOf(await call("isis", "report", { summary: "Login fait", status: "done" }))).toBe("Report passed on to the fleet.");
       expect(missionOf(nodesStore.getState().nodes.chef)?.members[0].report).toMatchObject({ summary: "Login fait", status: "termine" });
       expect(notify).toHaveBeenCalledWith("chef", "Isis reported (done): Login fait");
     });
@@ -368,16 +369,16 @@ describe("the orchestrator's tools (spec orchestrateur §7.2)", () => {
       expect(missionOf(nodesStore.getState().nodes.chef)?.members[0].report?.check).toBe("Le bouton sur Windows 10");
     });
 
-    it("records a report no orchestrator hears, and says so (spec première version §5.4)", async () => {
-      const unheard = "Report saved, but the orchestrator is closed: nobody will read it for now.";
+    it("records a report no fleet hears, and says so (spec première version §5.4)", async () => {
+      const unheard = "Report saved, but the fleet is closed: nobody will read it for now.";
       vi.mocked(notify).mockClear();
       terminalStatusStore.getState().set("chef", { state: "stopped" });
       expect(textOf(await call("isis", "report", { summary: "Fini", status: "done" }))).toBe(unheard);
       expect(missionOf(nodesStore.getState().nodes.chef)?.members[0].report).toMatchObject({ summary: "Fini" });
       terminalStatusStore.getState().set("chef", { state: "running" });
-      setOrchestratorClosed("chef", true);
+      setFleetClosed("chef", true);
       expect(textOf(await call("isis", "report", { summary: "Fini encore", status: "done" }))).toBe(unheard);
-      setOrchestratorClosed("chef", false);
+      setFleetClosed("chef", false);
       // Queued all the same: it hears them when it runs again (final review R3).
       expect(notify).toHaveBeenCalledWith("chef", "Isis reported (done): Fini");
       expect(notify).toHaveBeenCalledWith("chef", "Isis reported (done): Fini encore");
@@ -398,7 +399,7 @@ describe("the orchestrator's tools (spec orchestrateur §7.2)", () => {
       expect(textOf(await call("chef", "extend", { agent: "Isis", minutes: 10 }))).toBe("Isis: +10 min, budget 30 min.");
       expect(missionOf(nodesStore.getState().nodes.chef)?.members[0]).toMatchObject({ extraMin: 10 });
       expect(missionOf(nodesStore.getState().nodes.chef)?.members[0].overdue).toBeUndefined();
-      // The orchestrator reads the time with its extensions, and what is left (final review H3).
+      // The fleet reads the time with its extensions, and what is left (final review H3).
       expect(JSON.parse(textOf(await call("chef", "team", {})))[0]).toMatchObject({ time: "0 / 30 min" });
       expect(JSON.parse(textOf(await call("chef", "mission", {})))).toMatchObject({ left_min: 30, elapsed_min: 0 });
       expect(await call("chef", "extend", { agent: "Isis", minutes: 0 })).toMatchObject({ isError: true });

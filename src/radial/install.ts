@@ -3,8 +3,8 @@ import { isGroup } from "@/canvas/groups";
 import type { CommandContext } from "@/commands/command";
 import { closeOpenMenus } from "@/commands/openMenus";
 import { commandContext } from "@/commands/registry";
-import { sceneOf } from "@/fleet/placement";
-import type { Point } from "@/fleet/terminals";
+import { sceneOf } from "@/agents/placement";
+import type { Point } from "@/agents/terminals";
 import { isNativeMenu } from "./bridges";
 import { chooseSlot } from "./choose";
 import { isSlide, ringCenter, slideSlot } from "./gesture";
@@ -43,8 +43,8 @@ export function ringAt(element: Element, client: Point): { kind: RingKind; conte
   switch (target.kind) {
     case "terminal":
       return { kind: "terminal", context: { ...context, terminalId: target.id } };
-    case "orchestrator":
-      return { kind: "orchestrator", context: { ...context, orchestratorId: target.id } };
+    case "fleet":
+      return { kind: "fleet", context: { ...context, fleetId: target.id } };
     case "group":
       return { kind: "group", context: { ...context, groupId: target.id } };
     case "selection": {

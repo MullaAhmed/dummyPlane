@@ -8,7 +8,7 @@ import { NodeHost } from "./NodeHost";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
 vi.mock("./terminal/TerminalNode", () => ({ TerminalNode: ({ nodeId }: { nodeId: string }) => <div data-shown={nodeId} /> }));
-vi.mock("./orchestrator/OrchestratorNode", () => ({ OrchestratorNode: () => null }));
+vi.mock("./fleet/FleetNode", () => ({ FleetNode: () => null }));
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 const element = { id: "a", type: "embeddable", customData: { kind: "terminal" } } as unknown as NonDeleted<ExcalidrawEmbeddableElement>;

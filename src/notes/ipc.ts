@@ -15,7 +15,7 @@ export interface NoteList {
 
 export interface AgentNote {
   name: string;
-  /** Attached to the caller's group, or to the groups of an orchestrator's agents. */
+  /** Attached to the caller's group, or to the groups of a fleet's agents. */
   attached: boolean;
 }
 

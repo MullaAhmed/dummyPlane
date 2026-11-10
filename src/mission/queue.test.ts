@@ -2,8 +2,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { mockIPC } from "@tauri-apps/api/mocks";
 import { canvasStore } from "@/canvas/canvasStore";
-import { launchGroup } from "@/fleet/groups";
-import { addTerminal } from "@/fleet/terminals";
+import { launchGroup } from "@/agents/groups";
+import { addTerminal } from "@/agents/terminals";
 import { missionAddAgent, missionMerge, missionPrepare } from "@/ipc/mission";
 import { ptySendText } from "@/ipc/pty";
 import { buildSpawnSpec } from "@/nodes/terminal/launch";
@@ -28,10 +28,10 @@ vi.mock("@/ipc/pty", async (importOriginal) => ({
   ptyWrite: vi.fn(() => Promise.resolve()),
 }));
 vi.mock("@/nodes/terminal/registry", () => ({ relaunchTerminal: vi.fn(() => Promise.resolve()), stopTerminal: vi.fn(), quietFor: vi.fn(() => 0), typedAgo: vi.fn(() => Infinity), freshText: vi.fn(() => ""), markForAutostart: vi.fn() }));
-vi.mock("@/fleet/groups", () => ({ launchGroup: vi.fn(), closeGroup: vi.fn(), showGroups: vi.fn() }));
-vi.mock("@/fleet/orchestrators", () => ({ linkOrchestrator: vi.fn() }));
-vi.mock("@/fleet/terminals", () => ({ addTerminal: vi.fn(), removeNodes: vi.fn() }));
-vi.mock("@/fleet/broadcast", () => ({ pauseAgents: vi.fn(() => Promise.resolve(1)) }));
+vi.mock("@/agents/groups", () => ({ launchGroup: vi.fn(), closeGroup: vi.fn(), showGroups: vi.fn() }));
+vi.mock("@/fleet/fleets", () => ({ linkFleet: vi.fn() }));
+vi.mock("@/agents/terminals", () => ({ addTerminal: vi.fn(), removeNodes: vi.fn() }));
+vi.mock("@/agents/broadcast", () => ({ pauseAgents: vi.fn(() => Promise.resolve(1)) }));
 vi.mock("@/canvas/arrive", () => ({ showNode: vi.fn() }));
 vi.mock("./ready", () => ({ whenReady: vi.fn(() => Promise.resolve(true)) }));
 vi.mock("./events", () => ({ notify: vi.fn() }));
@@ -53,7 +53,7 @@ let made = 0;
 async function setup(mission: Partial<Mission>) {
   await nodesStore.getState().create("chef", {
     workspaceId: "w1",
-    kind: "orchestrator",
+    kind: "fleet",
     payload: {
       name: "Chef",
       session,
@@ -177,7 +177,7 @@ describe("an agent that reports « done » (spec mission de nuit §4.3)", () => 
     }
   });
 
-  it("tells the orchestrator of a conflict and leaves the branch unmerged; merge restarts the queue, merging it first", async () => {
+  it("tells the fleet of a conflict and leaves the branch unmerged; merge restarts the queue, merging it first", async () => {
     await setup({});
     // Out of sight: no new agent takes its seat meanwhile.
     workspacesStore.setState({ activeId: "w2" });
@@ -217,12 +217,12 @@ describe("an agent that reports « done » (spec mission de nuit §4.3)", () => 
     await setup({ router: true, queue: [{ ...next, level: "eleve" }] });
     await afterReport("chef", "isis");
     expect(relaunchTerminal).not.toHaveBeenCalled();
-    expect(addTerminal).toHaveBeenCalledWith("w1", expect.objectContaining({ model: "claude-opus-5-5" }), expect.anything(), "f1");
+    expect(addTerminal).toHaveBeenCalledWith("w1", expect.objectContaining({ model: "claude-opus-5-5" }), expect.anything(), "f1", { reveal: false, source: "mission" });
     expect(created()[0].model).toBe("claude-opus-5-5");
     expect(missionNow().members[0].model).toBeUndefined();
   });
 
-  it("merges nothing and restarts no one without a task waiting: the orchestrator merges as before", async () => {
+  it("merges nothing and restarts no one without a task waiting: the fleet merges as before", async () => {
     await setup({ queue: undefined });
     await afterReport("chef", "isis");
     expect(missionMerge).not.toHaveBeenCalled();
@@ -259,7 +259,7 @@ describe("an agent that reports « done » (spec mission de nuit §4.3)", () => 
 describe("an agent that reports « blocked » or « failed »", () => {
   const stuck = { summary: "Bloqué", status: "bloque" as const, at: 60_000 };
 
-  it("keeps its task: the orchestrator decides", async () => {
+  it("keeps its task: the fleet decides", async () => {
     await setup({ members: [member("isis", "Isis", { report: stuck })] });
     workspacesStore.setState({ activeId: "w2" });
     await afterReport("chef", "isis");
@@ -277,7 +277,7 @@ describe("an agent that reports « blocked » or « failed »", () => {
     const result = await giveNext("chef", missionNow().members[0]);
     const name = created()[0].name;
     expect(result).toEqual({ given: `${name}, a new agent, takes "API". Still waiting: 0.` });
-    // The tool answers it: the orchestrator does not hear it twice.
+    // The tool answers it: the fleet does not hear it twice.
     expect(lines()).toEqual([]);
     expect(missionMerge).not.toHaveBeenCalled();
     expect(relaunchTerminal).not.toHaveBeenCalled();
@@ -493,7 +493,7 @@ describe("what the review of the queue found", () => {
     await afterReport("chef", "isis");
     expect(lines()).toHaveLength(1);
     vi.mocked(notify).mockClear();
-    await nodesStore.getState().create("chef", { workspaceId: "w1", kind: "orchestrator", payload: { name: "Chef", session, mission: { ...missionNow(), startedAt: 2, state: "terminee" } } });
+    await nodesStore.getState().create("chef", { workspaceId: "w1", kind: "fleet", payload: { name: "Chef", session, mission: { ...missionNow(), startedAt: 2, state: "terminee" } } });
     await afterReport("chef", "isis");
     expect(lines()).toEqual([]);
   });
@@ -504,7 +504,7 @@ describe("what the review of the queue found", () => {
     expect(await giveNext("chef", missionNow().members[0])).toEqual({ refused: "The end of the night is near: the queue gives out no more tasks." });
     nodesStore.getState().update("chef", { mission: { ...missionNow(), overnight: undefined } });
     workspacesStore.setState({ activeId: "w2" });
-    expect(await giveNext("chef", missionNow().members[0])).toEqual({ refused: "The orchestrator's workspace is not on screen: no agent can be created there." });
+    expect(await giveNext("chef", missionNow().members[0])).toEqual({ refused: "The fleet's workspace is not on screen: no agent can be created there." });
     workspacesStore.setState({ activeId: "w1" });
     // Done, its branch goes in first: on a conflict, no new agent starts from a branch without its work.
     nodesStore.getState().update("chef", { mission: { ...missionNow(), members: [member("isis", "Isis", { report: done })] } });
@@ -535,7 +535,7 @@ describe("a task taken from the queue keeps every tool working (spec mission de 
   });
 });
 
-describe("what the orchestrator hears when nobody is left working", () => {
+describe("what the fleet hears when nobody is left working", () => {
   it("is told once all have reported and the queue is empty", async () => {
     await setup({ queue: [] });
     await afterReport("chef", "isis");

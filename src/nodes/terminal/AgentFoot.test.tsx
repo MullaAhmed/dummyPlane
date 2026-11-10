@@ -4,8 +4,8 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { canvasStore, EMPTY_VIEW } from "@/canvas/canvasStore";
-import { sendCommand } from "@/fleet/broadcast";
-import type { Links } from "@/fleet/wires";
+import { sendCommand } from "@/agents/broadcast";
+import type { Links } from "@/agents/wires";
 import type { TerminalPayload } from "@/nodes/types";
 import { agentActivityStore } from "@/store/agentActivity";
 import { nodesStore, terminalOf } from "@/store/nodes";
@@ -17,8 +17,8 @@ vi.mock("@excalidraw/excalidraw", () => ({}));
 vi.mock("./useTerminalHost", () => ({ useTerminalHost: () => undefined }));
 vi.mock("./registry", () => ({ relaunchTerminal: vi.fn(), stopTerminal: vi.fn(), layoutTerminal: vi.fn(), xtermOf: vi.fn(), terminalText: vi.fn(() => "") }));
 vi.mock("./minimize", () => ({ expandTerminal: vi.fn(() => true), minimizeTerminal: vi.fn(() => true), settleMinimizedSize: vi.fn() }));
-vi.mock("@/fleet/broadcast", async (original) => ({
-  ...(await original<typeof import("@/fleet/broadcast")>()),
+vi.mock("@/agents/broadcast", async (original) => ({
+  ...(await original<typeof import("@/agents/broadcast")>()),
   sendCommand: vi.fn(() => Promise.resolve()),
 }));
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -31,8 +31,8 @@ let root: Root;
 
 async function show(payload: TerminalPayload = isis, links: Record<string, Links> = {}) {
   await nodesStore.getState().create("isis", { workspaceId: "w1", kind: "terminal", payload });
-  await nodesStore.getState().create("atlas", { workspaceId: "w1", kind: "orchestrator", payload: { name: "Atlas" } });
-  await nodesStore.getState().create("hermes", { workspaceId: "w1", kind: "orchestrator", payload: { name: "Hermes" } });
+  await nodesStore.getState().create("atlas", { workspaceId: "w1", kind: "fleet", payload: { name: "Atlas" } });
+  await nodesStore.getState().create("hermes", { workspaceId: "w1", kind: "fleet", payload: { name: "Hermes" } });
   canvasStore.setState({ nodeIds: ["isis", "atlas", "hermes"], frames: [], view: EMPTY_VIEW, links });
   canvas = document.createElement("div");
   canvas.className = "excalidraw";
@@ -64,11 +64,34 @@ const field = () => foot()!.querySelector<HTMLTextAreaElement>("textarea");
 const linkButton = () => foot()!.querySelector<HTMLButtonElement>("[data-link-toggle]");
 
 describe("the status line under an agent's terminal", () => {
-  it("says where the agent stands, for how long, and which orchestrator commands it", async () => {
+  it("says where the agent stands, for how long, and which fleet commands it", async () => {
     terminalStatusStore.setState({ statuses: { isis: { state: "running" } } });
     agentActivityStore.setState({ activities: { isis: { activity: "working", since: Date.now() - 4 * 60_000 } } });
     await show(isis, { atlas: { nodeIds: ["isis"], groupIds: [] }, hermes: { nodeIds: [], groupIds: [] } });
     expect(statusLine().textContent).toContain("Working · 4 min · from Atlas");
+    expect(statusLine().querySelector("[data-status]")!.getAttribute("data-status")).toBe("working");
+  });
+
+  it("says Done, not Ready, once the agent reported done and rests, its dot the ok ring", async () => {
+    terminalStatusStore.setState({ statuses: { isis: { state: "running" } } });
+    agentActivityStore.setState({ activities: { isis: { activity: "idle", since: Date.now() - 4 * 60_000 } } });
+    await show({ ...isis, lastReport: { status: "done", summary: "Login fixed" } });
+    expect(statusLine().textContent).toContain("Done · 4 min");
+    expect(statusLine().textContent).not.toContain("Ready");
+    expect(statusLine().querySelector("[data-status]")!.getAttribute("data-status")).toBe("done");
+  });
+
+  it("says Blocked or Failed likewise, and Working as soon as the agent works again", async () => {
+    terminalStatusStore.setState({ statuses: { isis: { state: "running" } } });
+    agentActivityStore.setState({ activities: { isis: { activity: "idle", since: Date.now() } } });
+    await show({ ...isis, lastReport: { status: "blocked", summary: "Needs a key" } });
+    expect(statusLine().textContent).toContain("Blocked");
+    expect(statusLine().querySelector("[data-status]")!.getAttribute("data-status")).toBe("waiting");
+    await act(async () => nodesStore.getState().update("isis", { lastReport: { status: "failed", summary: "Broke" } }));
+    expect(statusLine().textContent).toContain("Failed");
+    expect(statusLine().querySelector("[data-status]")!.getAttribute("data-status")).toBe("error");
+    await act(async () => agentActivityStore.setState({ activities: { isis: { activity: "working", since: Date.now() } } }));
+    expect(statusLine().textContent).toContain("Working");
     expect(statusLine().querySelector("[data-status]")!.getAttribute("data-status")).toBe("working");
   });
 
@@ -118,7 +141,7 @@ describe("Link from the agent's end", () => {
     expect(uiStore.getState().linking).toBeNull();
   });
 
-  it("is always offered: two agents link without any orchestrator, and one already commanding it does not hide it", async () => {
+  it("is always offered: two agents link without any fleet, and one already commanding it does not hide it", async () => {
     await show(isis, {});
     expect(linkButton()).not.toBeNull();
     await act(async () => canvasStore.setState({ links: { atlas: { nodeIds: ["isis"], groupIds: [] } } }));

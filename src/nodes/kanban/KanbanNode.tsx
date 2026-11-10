@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState, type DragEvent, type FormEvent } from "react";
+import { useEffect, useRef, useState, type ComponentProps, type DragEvent, type FormEvent } from "react";
 import { CaptureUpdateAction, newElementWith } from "@excalidraw/excalidraw";
-import { cn } from "cn";
+import { cn } from "@/lib/utils";
 import { Bot, Calendar, CircleDot, KanbanSquare, MoreHorizontal, Plus, RefreshCw } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useMessages } from "@/i18n";
 import {
   addCard,
@@ -36,6 +35,7 @@ import { canvasStore, useCanvas } from "@/canvas/canvasStore";
 import { dropCardOutside, startCardDrag } from "@/kanban/dropOnTerminal";
 import { createIssueForCard, detectRepo, linkBoard, moveCardWithGithub, parseProject, syncBoard } from "@/kanban/github";
 import { useNativeKeyDown } from "@/lib/useNativeKeyDown";
+import { AccentButton, Hint, HintedButton, IconButton, QuietButton } from "@/shell/buttons";
 import { nodesStore, useNodes } from "@/store/nodes";
 import { KANBAN_PRIORITIES, type KanbanBoardLink, type KanbanCard, type KanbanColumn, type KanbanPayload, type KanbanPriority } from "@/nodes/types";
 import { KANBAN_CARD_MIME } from "./drag";
@@ -58,6 +58,16 @@ type Editing = { mode: "new"; columnId: string } | { mode: "edit"; cardId: strin
 
 /** A card's meta (priority, due date, issue, agent): small quiet tags, 6px corners inside the card's 8. */
 const CHIP = "inline-flex items-center gap-1 rounded-sm px-1.5 py-0.5 text-xs";
+
+/** A chip with a hint when it has one to give: the system's own title would stack with the app's hints. */
+function Tag({ hint, ...props }: ComponentProps<"span"> & { hint?: string }) {
+  const chip = <span {...props} />;
+  return hint ? <Hint label={hint}>{chip}</Hint> : chip;
+}
+
+/** A choice of the card dialog: a hairline, filled with the soft ink once chosen. The due dates and the priorities share it. */
+const CHOICE =
+  "h-7 min-w-0 gap-1.5 rounded-md border border-dp-line px-2 text-xs font-normal text-dp-text-2 transition-[color,background-color,border-color,scale] duration-(--dp-dur-fast) ease-(--dp-ease-out) motion-reduce:transition-none hover:bg-dp-hover hover:text-dp-text focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] data-[state=on]:border-dp-accent data-[state=on]:bg-dp-accent-soft data-[state=on]:text-dp-text";
 
 /** Where a dragged card would land. */
 interface DropSpot {
@@ -195,7 +205,7 @@ export function KanbanNode({ nodeId }: { nodeId: string }) {
         )}
         <span className="ml-auto shrink-0 font-mono text-xs text-dp-text-2 tabular-nums">{t.cardCount(Object.keys(board.cards).length)}</span>
         {board.github && (
-          <Button size="sm" variant="ghost" className="gap-1 rounded-md px-2 text-xs font-normal" disabled={syncing} onClick={() => void sync()}>
+          <Button size="sm" variant="ghost" className="gap-1 px-2 text-xs font-normal" disabled={syncing} onClick={() => void sync()}>
             {/* Turns while the sync is under way: it is live. */}
             <RefreshCw className={cn("size-3.5", syncing && "animate-spin motion-reduce:animate-none")} />
             {syncing ? t.github.syncing : t.github.sync}
@@ -203,9 +213,9 @@ export function KanbanNode({ nodeId }: { nodeId: string }) {
         )}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon-sm" aria-label={t.github.boardMenu}>
-              <MoreHorizontal className="size-4" />
-            </Button>
+            <IconButton label={t.github.boardMenu}>
+              <MoreHorizontal />
+            </IconButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
             <DropdownMenuItem onSelect={() => setLinking(true)}>{board.github ? t.github.editLink : t.github.link}</DropdownMenuItem>
@@ -225,12 +235,12 @@ export function KanbanNode({ nodeId }: { nodeId: string }) {
       </header>
       <div ref={scroller} className="flex min-h-0 flex-1 gap-3 overflow-x-auto overflow-y-hidden p-3">
         {board.columns.length === 0 ? (
-          <div className="flex flex-1 flex-col items-center justify-center gap-3 text-sm text-dp-text-2">
+          <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center text-xs text-dp-text-2">
             <p>{t.empty}</p>
-            <Button size="sm" onClick={newColumn}>
+            <AccentButton size="sm" onClick={newColumn}>
               <Plus />
               {t.addColumn}
-            </Button>
+            </AccentButton>
           </div>
         ) : (
           <>
@@ -265,8 +275,9 @@ export function KanbanNode({ nodeId }: { nodeId: string }) {
             <Button
               type="button"
               variant="outline"
+              size="lg"
               onClick={newColumn}
-              className="h-9 w-56 justify-start gap-2 rounded-lg border-dashed bg-transparent px-3 text-(length:--text-ui) font-normal text-dp-text-2 hover:text-dp-text"
+              className="w-56 justify-start gap-2 rounded-lg border-dashed bg-transparent px-3 text-(length:--text-ui) font-normal text-dp-text-2 hover:text-dp-text"
             >
               <Plus className="size-4" />
               {t.addColumn}
@@ -361,7 +372,7 @@ function LinkDialog({
 
   return (
     <Dialog open onOpenChange={(next) => !next && onClose()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent showCloseButton={false} className="sm:max-w-md">
         <form onSubmit={submit} className="grid gap-4">
           <DialogHeader>
             <DialogTitle>{t.github.linkTitle}</DialogTitle>
@@ -390,12 +401,10 @@ function LinkDialog({
             {!projectValid && <p className="text-xs text-dp-danger">{t.github.projectInvalid}</p>}
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose}>
-              {t.cancel}
-            </Button>
-            <Button type="submit" disabled={!repoValid || !projectValid}>
+            <QuietButton onClick={onClose}>{t.cancel}</QuietButton>
+            <AccentButton type="submit" size="lg" disabled={!repoValid || !projectValid}>
               {t.github.confirm}
-            </Button>
+            </AccentButton>
           </DialogFooter>
         </form>
       </DialogContent>
@@ -439,30 +448,25 @@ function ColumnView(props: ColumnViewProps) {
         {props.renaming ? (
           <TitleInput initial={column.title} onDone={props.onRenameDone} />
         ) : (
-          <h3 className="truncate text-(length:--text-ui) font-medium text-dp-text" title={t.doubleClickRename} onDoubleClick={props.onRenameStart}>
-            {column.title}
-          </h3>
+          <Hint label={t.doubleClickRename} side="bottom">
+            <h3 className="truncate text-(length:--text-ui) font-medium text-dp-text" onDoubleClick={props.onRenameStart}>
+              {column.title}
+            </h3>
+          </Hint>
         )}
         {/* A count is quiet text, not a pill. */}
         <span data-testid="column-count" className="font-mono text-xs text-dp-text-2 tabular-nums">
           {cards.length}
         </span>
         <span className="ml-auto flex items-center">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon-xs" aria-label={t.newCard} onClick={props.onNewCard} className="rounded-sm text-dp-text-2 hover:text-dp-text">
-                <Plus className="size-3.5" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom" sideOffset={6}>
-              {t.newCard}
-            </TooltipContent>
-          </Tooltip>
+          <IconButton label={t.newCard} onClick={props.onNewCard}>
+            <Plus />
+          </IconButton>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon-xs" aria-label={t.columnMenu(column.title)}>
-                <MoreHorizontal className="size-3.5" />
-              </Button>
+              <IconButton label={t.columnMenu(column.title)}>
+                <MoreHorizontal />
+              </IconButton>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
               <DropdownMenuItem onSelect={props.onRenameStart}>{t.rename}</DropdownMenuItem>
@@ -496,7 +500,7 @@ function ColumnView(props: ColumnViewProps) {
           type="button"
           variant="ghost"
           onClick={props.onNewCard}
-          className="justify-start gap-2 rounded-md px-2 text-xs font-normal text-dp-text-2 hover:text-dp-text active:scale-100"
+          className="justify-start gap-2 px-2 text-xs font-normal text-dp-text-2 hover:text-dp-text active:scale-100"
         >
           <Plus className="size-4" />
           {t.newCard}
@@ -532,7 +536,7 @@ function CardView({
       onDragEnd={onDragEnd}
       onClick={onOpen}
       className={cn(
-        "relative shrink-0 cursor-grab overflow-hidden rounded-md border border-dp-line bg-dp-card px-3 py-2 text-left text-dp-text shadow-dp transition-[border-color,opacity] duration-150 ease-out hover:border-dp-text-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none",
+        "relative shrink-0 cursor-grab overflow-hidden rounded-md border border-dp-line bg-dp-card px-3 py-2 text-left text-dp-text shadow-dp transition-[border-color,opacity] duration-(--dp-dur-fast) ease-(--dp-ease-out) hover:border-dp-text-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none",
         dragging && "opacity-40",
       )}
     >
@@ -547,19 +551,16 @@ function CardView({
             </span>
           )}
           {card.due && (
-            <span
-              title={overdue ? t.overdue : undefined}
-              className={cn(CHIP, overdue ? "bg-dp-danger/15 text-dp-danger" : "bg-dp-surface text-dp-text-2")}
-            >
+            <Tag hint={overdue ? t.overdue : undefined} className={cn(CHIP, overdue ? "bg-dp-danger/15 text-dp-danger" : "bg-dp-surface text-dp-text-2")}>
               <Calendar className="size-3" />
               {formatDue(card.due)}
-            </span>
+            </Tag>
           )}
           {card.github && (
-            <Button
-              type="button"
+            <HintedButton
+              hint={t.githubIssue(card.github.repo, card.github.number)}
               variant="ghost"
-              title={t.githubIssue(card.github.repo, card.github.number)}
+              aria-label={t.githubIssue(card.github.repo, card.github.number)}
               onClick={(e) => {
                 e.stopPropagation();
                 if (card.github?.url) void openUrl(card.github.url).catch(() => undefined);
@@ -571,17 +572,17 @@ function CardView({
               )}
             >
               <CircleDot className="size-3" />#{card.github.number}
-            </Button>
+            </HintedButton>
           )}
           {card.agent && (
-            <span
-              title={card.agentStatus ? t.agentAlert[card.agentStatus](card.agent) : t.agentChip(card.agent)}
+            <Tag
+              hint={card.agentStatus ? t.agentAlert[card.agentStatus](card.agent) : t.agentChip(card.agent)}
               data-agent-status={card.agentStatus}
               className={cn(CHIP, card.agentStatus ? "bg-dp-danger/15 text-dp-danger" : "bg-dp-accent-soft text-dp-text")}
             >
               <Bot className="size-3" />
               {card.agent}
-            </span>
+            </Tag>
           )}
         </div>
       )}
@@ -619,7 +620,7 @@ function TitleInput({ initial, onDone }: { initial: string; onDone: (title: stri
       onBlur={() => {
         if (!cancelled.current) onDone(draft);
       }}
-      className="h-7 min-w-0 flex-1 rounded-md border-transparent bg-dp-card px-1 text-(length:--text-ui) font-medium md:text-(length:--text-ui)"
+      className="h-7 min-w-0 flex-1 border-transparent bg-dp-card px-1 text-(length:--text-ui) font-medium md:text-(length:--text-ui)"
     />
   );
 }
@@ -663,15 +664,12 @@ function CardDialog({
     onSave({ title: name.trim(), notes, due, priority });
   };
 
-  /** A choice of the dialog: a hairline, filled with the soft ink once chosen. */
-  const CHOICE =
-    "h-7 min-w-0 rounded-md border border-dp-line px-2 text-xs font-normal text-dp-text-2 transition-[color,background-color,border-color,transform] duration-150 ease-out motion-reduce:transition-none hover:bg-dp-hover hover:text-dp-text focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] data-[state=on]:border-dp-accent data-[state=on]:bg-dp-accent-soft data-[state=on]:text-dp-text";
   // "None" and the presets are one choice; a date typed in the field is the choice of none of them.
   const dueChoice = due === undefined ? NO_DUE : (presets.find((p) => p.date === due)?.preset ?? "");
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent showCloseButton={false} className="sm:max-w-md">
         <form onSubmit={submit} className="grid gap-4">
           <DialogHeader>
             <DialogTitle>{title}</DialogTitle>
@@ -688,7 +686,7 @@ function CardDialog({
               value={notes}
               placeholder={t.notesPlaceholder}
               onChange={(e) => setNotes(e.target.value)}
-              className="max-h-60 min-h-24 resize-y rounded-md border-dp-line bg-transparent px-2.5 py-1.5 text-sm text-dp-text placeholder:text-dp-text-3 focus-visible:border-dp-line focus-visible:ring-2 focus-visible:ring-dp-accent/50 dark:bg-transparent"
+              className="max-h-60 min-h-24 resize-y py-1.5"
             />
           </div>
           <div className="grid gap-2">
@@ -725,21 +723,17 @@ function CardDialog({
           </div>
           <div className="grid gap-2">
             <Label>{t.priority}</Label>
-            {/* One segmented control: the chosen priority is a raised step inside the hairline. */}
+            {/* The same choices as the due dates above: one h-7 pill, filled once chosen. */}
             <ToggleGroup
               type="single"
               aria-label={t.priority}
               value={priority}
               onValueChange={(p) => p && setPriority(p as KanbanPriority)}
-              spacing={0.5}
-              className="w-fit rounded-lg border border-dp-line p-0.5"
+              spacing={1.5}
+              className="flex-wrap"
             >
               {KANBAN_PRIORITIES.map((p) => (
-                <ToggleGroupItem
-                  key={p}
-                  value={p}
-                  className="h-6 min-w-0 gap-1.5 rounded-md px-2.5 text-xs font-normal text-dp-text-2 transition-[color,background-color] duration-150 ease-out motion-reduce:transition-none hover:bg-transparent hover:text-dp-text focus-visible:ring-2 focus-visible:ring-dp-accent/50 data-[state=on]:bg-dp-card data-[state=on]:text-dp-text data-[state=on]:shadow-dp"
-                >
+                <ToggleGroupItem key={p} value={p} className={CHOICE}>
                   {p !== "none" && <span className="size-2 rounded-full" style={{ background: PRIORITY_COLOR[p] }} />}
                   {t.priorities[p]}
                 </ToggleGroupItem>
@@ -748,14 +742,16 @@ function CardDialog({
           </div>
           <DialogFooter>
             {onDelete && (
-              <Button type="button" variant="destructive" className="sm:mr-auto" onClick={onDelete}>
+              <Button type="button" variant="destructive" size="lg" className="sm:mr-auto" onClick={onDelete}>
                 {t.remove}
               </Button>
             )}
+            <QuietButton onClick={onClose}>{t.cancel}</QuietButton>
             {onCreateIssue && (
               <Button
                 type="button"
                 variant="outline"
+                size="lg"
                 disabled={creating}
                 onClick={async () => {
                   // The issue is made from what the dialog shows: typed changes are saved first.
@@ -768,12 +764,9 @@ function CardDialog({
                 {creating ? t.github.creatingIssue : t.github.createIssue}
               </Button>
             )}
-            <Button type="button" variant="outline" onClick={onClose}>
-              {t.cancel}
-            </Button>
-            <Button type="submit" disabled={!name.trim()}>
+            <AccentButton type="submit" size="lg" disabled={!name.trim()}>
               {t.save}
-            </Button>
+            </AccentButton>
           </DialogFooter>
         </form>
       </DialogContent>

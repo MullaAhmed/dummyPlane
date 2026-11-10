@@ -5,7 +5,7 @@ import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { canvasStore } from "@/canvas/canvasStore";
 import { framesFromScene } from "@/canvas/groups";
-import { agentsStore } from "@/fleet/agentsStore";
+import { agentsStore } from "@/agents/agentsStore";
 import { workspacesStore } from "@/store/workspaces";
 import { deployPreset } from "./deploy";
 import { liveDeployDeps } from "./live";
@@ -45,14 +45,14 @@ afterEach(() => {
   canvasStore.setState({ api: null, frames: [] });
 });
 
-it("links the orchestrator of the last group it posed, whose frame the canvas has not told yet (review)", async () => {
+it("links the fleet of the last group it posed, whose frame the canvas has not told yet (review)", async () => {
   const preset: TeamPreset = {
     id: "p",
     name: "Dev HQ",
     savedAt: 1,
     groups: [{ name: "Front", role: "general", agents: ["claude"], x: 0, y: 0 }],
-    orchestrators: [{ name: "Chef", groups: [0] }],
+    fleets: [{ name: "Chef", groups: [0] }],
   };
   const result = await deployPreset(preset, await liveDeployDeps());
-  expect(result).toMatchObject({ groups: 1, orchestrators: 1, orchestratorsSkipped: 0 });
+  expect(result).toMatchObject({ groups: 1, fleets: 1, fleetsSkipped: 0 });
 });

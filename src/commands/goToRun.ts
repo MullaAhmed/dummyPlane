@@ -1,5 +1,5 @@
 import { toast } from "sonner";
-import { currentWaitingAgents, nextWaiting, type WaitingAgent } from "@/fleet/waitingAgents";
+import { currentWaitingAgents, nextWaiting, type WaitingAgent } from "@/agents/waitingAgents";
 import { messages } from "@/i18n";
 import { projectsStore } from "@/store/projects";
 import { workspacesStore } from "@/store/workspaces";
@@ -49,13 +49,13 @@ export function goToAgent(agent: WaitingAgent) {
 
 /**
  * The next waiting agent (spec notification §6), after the current node. The
- * keyboard of an orchestrator is not in the context, which keeps naming the
- * last terminal: an orchestrator just reached counts as the current node, or
+ * keyboard of a fleet is not in the context, which keeps naming the
+ * last terminal: a fleet just reached counts as the current node, or
  * the command would never get past it.
  */
 export function goToNextWaiting(currentId: string | null) {
   const agents = currentWaitingAgents();
   const reached = agents.find((a) => a.id === lastReached);
-  const next = nextWaiting(agents, reached?.kind === "orchestrator" ? reached.id : currentId);
+  const next = nextWaiting(agents, reached?.kind === "fleet" ? reached.id : currentId);
   if (next) goToAgent(next);
 }

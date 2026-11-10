@@ -12,7 +12,7 @@ import { AccentButton, IconButton } from "@/shell/buttons";
 import { closeWindow } from "@/shell/windowState";
 import { CodeEditor, type CodeEditorHandle } from "@/studio/CodeEditor";
 import { createFileSession, isDirty } from "@/studio/fileSession";
-import { DiskBanner, errorText, FULL_WINDOW, Message } from "@/studio/parts";
+import { BAR_FIELD, DiskBanner, errorText, FULL_WINDOW, ListMessage, Message } from "@/studio/parts";
 import { useFileSessionEffects } from "@/studio/sessionEffects";
 import { UnsavedDialog } from "@/studio/UnsavedDialog";
 import { notesAll, notesRead, notesVersion, notesWrite, type NoteList } from "./ipc";
@@ -25,9 +25,6 @@ import { closeNotes } from "./notesStore";
 import { searchNotes } from "./search";
 
 type Tab = "edit" | "read" | "graph";
-
-/** A field of the notes' list: shadcn's Input at the panel's density. */
-const FIELD = "h-7 rounded-md px-2 text-xs md:text-xs";
 
 /** The project's notes (spec notes): one open at a time, under the code studio's guards. */
 export default function NotesDialog({ projectId }: { projectId: string }) {
@@ -157,7 +154,7 @@ export default function NotesDialog({ projectId }: { projectId: string }) {
               <PanelTabsTrigger value="graph">{t.tabGraph}</PanelTabsTrigger>
             </PanelTabsList>
             <span className="flex shrink-0 items-center gap-1">
-              <AccentButton disabled={!dirty || saving} onClick={() => void state.save()} className="h-7 px-3 text-xs">
+              <AccentButton size="sm" disabled={!dirty || saving} onClick={() => void state.save()}>
                 {saving ? t.saving : t.save}
               </AccentButton>
               <IconButton label={t.refresh} onClick={() => void refresh()}>
@@ -176,7 +173,7 @@ export default function NotesDialog({ projectId }: { projectId: string }) {
                   placeholder={t.searchPlaceholder(notes.length)}
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  className={cn(FIELD, "flex-1")}
+                  className={cn(BAR_FIELD, "flex-1")}
                 />
                 <IconButton label={t.newNote} onClick={() => askName("")}>
                   <Plus />
@@ -198,20 +195,20 @@ export default function NotesDialog({ projectId }: { projectId: string }) {
                     onKeyDown={(e) => {
                       if (e.key === "Enter") void create();
                     }}
-                    className={FIELD}
+                    className={BAR_FIELD}
                   />
                   {badName && <p className="pt-1 text-xs text-dp-danger">{t.badName}</p>}
                 </div>
               )}
               <div className="min-h-0 flex-1 overflow-y-auto pb-1">
                 {listError ? (
-                  <p className="px-3 py-2 text-xs text-dp-danger">{listError}</p>
+                  <ListMessage danger>{listError}</ListMessage>
                 ) : !list ? (
-                  <p className="px-3 py-2 text-xs text-dp-text-2">{t.reading}</p>
+                  <ListMessage>{t.reading}</ListMessage>
                 ) : list.notes.length === 0 ? (
-                  <p className="px-3 py-2 text-xs text-dp-text-2">{t.empty}</p>
+                  <ListMessage>{t.empty}</ListMessage>
                 ) : hits.length === 0 ? (
-                  <p className="px-3 py-2 text-xs text-dp-text-2">{t.noResult}</p>
+                  <ListMessage>{t.noResult}</ListMessage>
                 ) : (
                   hits.map((hit) => (
                     // A row of the list, not a control: Button's centred box would be undone class by class.
@@ -223,7 +220,7 @@ export default function NotesDialog({ projectId }: { projectId: string }) {
                       aria-current={hit.name === file}
                       onClick={() => open(hit.name)}
                       className={cn(
-                        "block w-full px-3 py-1.5 text-left transition-colors duration-150 ease-out hover:bg-dp-hover focus-visible:ring-2 focus-visible:ring-dp-accent/50 focus-visible:outline-none focus-visible:ring-inset motion-reduce:transition-none",
+                        "block w-full px-3 py-1.5 text-left transition-colors duration-(--dp-dur-fast) ease-(--dp-ease-out) hover:bg-dp-hover focus-visible:ring-2 focus-visible:ring-dp-accent/50 focus-visible:outline-none focus-visible:ring-inset motion-reduce:transition-none",
                         hit.name === file && "bg-dp-accent-soft hover:bg-dp-accent-soft",
                       )}
                     >

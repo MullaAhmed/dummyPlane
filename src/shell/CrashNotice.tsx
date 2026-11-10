@@ -10,7 +10,7 @@ import { TitleBar } from "./TitleBar";
 /** The secondary action of a notice: the raised surface with a hairline. */
 function PlainButton({ onClick, children }: { onClick: () => void; children: ReactNode }) {
   return (
-    <Button variant="outline" size="sm" onClick={onClick} className="rounded-md px-3 text-xs font-normal">
+    <Button variant="outline" onClick={onClick} className="px-3 text-(length:--text-ui) font-normal">
       {children}
     </Button>
   );

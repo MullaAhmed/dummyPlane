@@ -8,6 +8,7 @@ import type { LogEntry, NoPush, RepoState } from "@/ipc/repo";
 import type { ChangedFile } from "@/ipc/review";
 import { reviewStore } from "@/review/reviewStore";
 import { projectsStore } from "@/store/projects";
+import { workspacesStore } from "@/store/workspaces";
 import { sourceFiles } from "@/theme/cssBlocks";
 import { GitWindow } from "./GitWindow";
 import { gitWindowStore } from "./gitWindowStore";
@@ -378,11 +379,18 @@ describe("pushing (spec fenêtre git §3.5)", () => {
     expect(button("Push → origin/main")!.disabled).toBe(false);
   });
 
+  /** A disabled button takes no focus: its wrapper tells why, in the app's hint, never a native title. */
+  const whyHint = async () => {
+    expect(button("Push")!.hasAttribute("title"), "a hint, not a native title").toBe(false);
+    await act(async () => button("Push")!.parentElement!.focus());
+    return document.querySelector('[role="tooltip"]')?.textContent ?? null;
+  };
+
   it("is greyed when up to date", async () => {
     repo = { ...repo, ahead: 0 };
     await render();
     expect(button("Push")!.disabled).toBe(true);
-    expect(button("Push")!.title).toBe("Already up to date");
+    expect(await whyHint()).toBe("Already up to date");
   });
 
   it.each<[NoPush, string]>([
@@ -395,7 +403,7 @@ describe("pushing (spec fenêtre git §3.5)", () => {
     repo = { ...repo, upstream: null, ahead: 0, pushTo: null, noPush };
     await render();
     expect(button("Push")!.disabled).toBe(true);
-    expect(button("Push")!.title).toBe(why);
+    expect(await whyHint()).toBe(why);
   });
 
   it("shows a refused push", async () => {
@@ -440,8 +448,34 @@ describe("the window", () => {
     expect(button("Push 2 → origin/main")).toBeTruthy();
     await act(async () => labelled("Discard src/a.ts").click());
     expect(document.body.querySelector("[role='dialog']")!.textContent).toContain("cannot be undone");
+    // One way out: the footer's Cancel, no corner ✕ beside it.
+    expect(document.body.querySelector("[data-slot='dialog-close']")).toBeNull();
+    expect(button("Cancel")!.getAttribute("data-variant")).toBe("ghost");
+    expect(button("Discard this file")!.getAttribute("data-variant")).toBe("destructive");
     await act(async () => button("Cancel")!.click());
     await act(async () => button("History")!.click());
     expect(document.body.querySelector("[data-git-commit]")).not.toBeNull();
+  });
+});
+
+describe("the folder it follows", () => {
+  const own = (id: string, folder: string | null) => ({ id, projectId: "p", name: id, position: 0, pantheon: null, kind: "canvas" as const, folder });
+
+  it("is the active workspace's: it stays open on that folder, and closes when a workspace of another one comes up", async () => {
+    workspacesStore.setState({ projectId: "p", workspaces: [own("w1", "D:/work/lib"), own("w2", null)], activeId: "w1", status: "ready" });
+    gitWindowStore.getState().open("D:/work/lib");
+    await act(async () => root.render(<GitWindow />));
+    expect(gitWindowStore.getState().path).toBe("D:/work/lib");
+    expect(calls.some((c) => c.cmd === "repo_state" && c.args.path === "D:/work/lib")).toBe(true);
+    await act(async () => workspacesStore.setState({ activeId: "w2" }));
+    expect(gitWindowStore.getState().path).toBeNull();
+  });
+
+  it("closes when the workspace's folder changes under it", async () => {
+    workspacesStore.setState({ projectId: "p", workspaces: [own("w1", null)], activeId: "w1", status: "ready" });
+    await render();
+    expect(gitWindowStore.getState().path).toBe("C:/code/api");
+    await act(async () => workspacesStore.setState({ workspaces: [own("w1", "D:/work/lib")] }));
+    expect(gitWindowStore.getState().path).toBeNull();
   });
 });

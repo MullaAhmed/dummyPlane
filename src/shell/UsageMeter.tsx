@@ -5,7 +5,7 @@ import { loadDiagnostics } from "@/app/diagnostics";
 import { BUDGET_COLOR } from "@/canvas/overlay/timeline";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { AGENTS } from "@/fleet/catalog";
+import { AGENTS } from "@/agents/catalog";
 import { useMessages } from "@/i18n";
 import { formatClock, formatDecimal } from "@/i18n/format";
 import { formatDuration } from "@/lib/format";
@@ -14,6 +14,7 @@ import { sessionOf, useNodes } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
 import { currentLimit, formatUsd, limitTone, liveCacheSessions, totals, type Limit, type Limits } from "@/usage/usage";
 import { useUsage } from "@/usage/usageStore";
+import { HintedButton } from "./buttons";
 import { shellMessages } from "./messages";
 import { TokensView } from "./TokensView";
 
@@ -33,7 +34,7 @@ function Bar({ limit, wide = false }: { limit: Limit; wide?: boolean }) {
   );
 }
 
-/** Whether a Claude session dummyPlane started (an agent or an orchestrator's) is running. */
+/** Whether a Claude session dummyPlane started (an agent or a fleet's) is running. */
 function useClaudeSessionRunning(): boolean {
   const nodes = useNodes((s) => s.nodes);
   const statuses = useStore(terminalStatusStore, (s) => s.statuses);
@@ -88,12 +89,12 @@ export function UsageMeter() {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        {/* The native title explains a meter that may show nothing yet: no hint on a popover trigger. */}
-        <Button
+        {/* The hint explains a meter that may show nothing yet; it stays shut while the popover is open. */}
+        <HintedButton
+          hint={limits ? u.titleWithLimits : u.titleWithoutLimits}
           variant="ghost"
           size="xs"
           data-usage
-          title={limits ? u.titleWithLimits : u.titleWithoutLimits}
           className="gap-2 rounded-md px-1.5 font-mono font-normal tabular-nums text-dp-text-2 hover:text-dp-text"
         >
           {!hasLimits ? (
@@ -120,7 +121,7 @@ export function UsageMeter() {
               ))}
             </>
           )}
-        </Button>
+        </HintedButton>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-[380px]">
         <UsageContent />

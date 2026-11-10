@@ -5,18 +5,18 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { canvasStore } from "@/canvas/canvasStore";
-import { newConsole } from "@/fleet/quickActions";
-import { launchAgent } from "@/fleet/launchAgent";
-import { agentsStore } from "@/fleet/agentsStore";
+import { newConsole } from "@/agents/quickActions";
+import { launchAgent } from "@/agents/launchAgent";
+import { agentsStore } from "@/agents/agentsStore";
 import { requestUi } from "@/commands/uiRequests";
 import { ToolRail } from "./ToolRail";
 
 // Excalidraw does not load under Vitest (roughjs); the rail drives it through the store's api only.
 vi.mock("@excalidraw/excalidraw", () => ({}));
 vi.mock("@/kanban/place", () => ({ placeKanban: vi.fn() }));
-vi.mock("@/fleet/quickActions", () => ({ newConsole: vi.fn(), placeOrchestrator: vi.fn() }));
-vi.mock("@/fleet/launchAgent", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/fleet/launchAgent")>()),
+vi.mock("@/agents/quickActions", () => ({ newConsole: vi.fn(), placeFleet: vi.fn() }));
+vi.mock("@/agents/launchAgent", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/agents/launchAgent")>()),
   launchAgent: vi.fn(() => Promise.resolve()),
 }));
 
@@ -59,12 +59,14 @@ it("offers the canvas tools in the spec's order, each setting its Excalidraw too
   }
 });
 
-it("holds the catalog, New console, Orchestrator and Kanban in its ＋ (spec identité §5.4, §11)", async () => {
+it("holds the catalog, New console, Fleet and Kanban in its ＋ (spec identité §5.4, §11)", async () => {
   const menuEntries = () =>
     [...document.querySelectorAll<HTMLButtonElement>('[data-slot="popover-content"] button')].map((b) => b.textContent ?? "");
   await act(async () => byLabel("Launch an agent").click());
   const entries = menuEntries();
-  expect(entries[0]).toContain("Claude");
+  // The launch folder comes first (its Change… button), then the agents.
+  expect(entries[0]).toBe("Change…");
+  expect(entries[1]).toContain("Claude");
   expect(entries.slice(-4, -1)).toEqual(["New console", expect.stringContaining("Fleet"), expect.stringContaining("Kanban")]);
   expect(entries).not.toContain("Launch 4 agents");
   const click = (text: string) =>

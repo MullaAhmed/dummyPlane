@@ -1,6 +1,6 @@
 import { createStore, useStore } from "zustand";
 import { loadDiagnostics, type Diagnostics } from "@/app/diagnostics";
-import { agentsStore } from "@/fleet/agentsStore";
+import { agentsStore } from "@/agents/agentsStore";
 import { refreshPath } from "@/ipc/pty";
 
 interface TroubleshootState {

@@ -110,6 +110,16 @@ pub async fn set_workspace_pantheon(
     db.with(|conn| workspaces::set_pantheon(conn, &id, &pantheon))
 }
 
+/// The folder the workspace's next terminals start in; `None` is the project's own.
+#[tauri::command]
+pub async fn set_workspace_folder(
+    db: State<'_, Db>,
+    id: String,
+    folder: Option<String>,
+) -> AppResult<()> {
+    db.with(|conn| workspaces::set_folder(conn, &id, folder.as_deref()))
+}
+
 #[cfg(all(test, windows))]
 mod tests {
     use std::time::Duration;

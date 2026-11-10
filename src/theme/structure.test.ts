@@ -53,12 +53,12 @@ it("draws the bottom row and its command bar in dense glass: they carry text ove
 
 it("rounds the composer on the scale: the bar a floating panel (16), Send and the field controls (8)", () => {
   // 16 = Send's 8 + the bar's 8 of padding: the corners nest.
-  expect(readSource("shell/CommandBar.tsx")).toMatch(/data-command-bar className="[^"]*\brounded-\[16px\]/);
-  const input = readSource("fleet/CommandInput.tsx");
+  expect(readSource("shell/CommandBar.tsx")).toMatch(/data-command-bar className="[^"]*\brounded-xl\b/);
+  const input = readSource("agents/CommandInput.tsx");
   const send = input.slice(input.indexOf("<ComposerPrimitive.Send"), input.indexOf("</ComposerPrimitive.Send>"));
-  expect(send).toContain("rounded-[8px]");
-  // An orchestrator's field is a control of its own, beside Send.
-  expect(input).toMatch(/compact &&\s*"[^"]*\brounded-\[8px\]/);
+  expect(send).toMatch(/rounded-(\[8px\]|md)/);
+  // A fleet's field is a control of its own, beside Send.
+  expect(input).toMatch(/compact &&\s*"[^"]*\brounded-(\[8px\]|md)/);
   expect(input, "the old odd radius").not.toContain("rounded-[10px]");
 });
 
@@ -81,7 +81,7 @@ it("out-ranks sonner's own injected style, which comes later in a release build"
 });
 
 it("starts the placement and link layers under the bars, and truncates a long branch name", () => {
-  for (const file of ["fleet/LinkMode.tsx", "fleet/PlacementGhost.tsx"]) {
+  for (const file of ["agents/LinkMode.tsx", "agents/PlacementGhost.tsx"]) {
     const text = readSource(file);
     expect(text, file).not.toMatch(/fixed inset-0 z-40/);
     expect(text, file).toContain("top: TOP_ROW_HEIGHT");

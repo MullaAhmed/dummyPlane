@@ -2,7 +2,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { onAction, sendNotification, type ActionPerformed } from "@tauri-apps/plugin-notification";
 import { nativeNotificationsStore } from "@/app/nativeNotifications";
 import { goToAgent } from "@/commands/goToRun";
-import { currentWaitingAgents } from "@/fleet/waitingAgents";
+import { currentWaitingAgents } from "@/agents/waitingAgents";
 import { messages } from "@/i18n";
 import { agentActivityStore } from "@/store/agentActivity";
 import { projectsStore } from "@/store/projects";

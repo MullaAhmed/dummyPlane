@@ -17,7 +17,7 @@ describe("proposedPlan (spec orchestrateur §7.2)", () => {
     });
   });
 
-  it("refuses what the team cannot do, with a reason the orchestrator can read", () => {
+  it("refuses what the team cannot do, with a reason the fleet can read", () => {
     const budgeted: Mission = { ...NEW_MISSION, budgetMin: 30, maxAgents: 2 };
     expect(proposedPlan(args(task("Zeus")), NEW_MISSION, ["Athena"])).toContain("Zeus");
     expect(proposedPlan(args(task("Athena"), task("Athena")), NEW_MISSION, ["Athena"])).toContain("one sub-task per agent");
@@ -27,7 +27,7 @@ describe("proposedPlan (spec orchestrateur §7.2)", () => {
     // Past Max agents, sub-tasks wait in the queue at the go-ahead: only "new" ones, the queue names no agent.
     expect(proposedPlan(args({ ...task("nouveau"), titre: "A" }, { ...task("nouveau"), titre: "B" }, { ...task("nouveau"), titre: "C" }), budgeted, [])).toMatchObject({ name: "Auth" });
     expect(proposedPlan(args({ ...task("nouveau"), titre: "A" }, { ...task("nouveau"), titre: "B" }, task("Athena")), budgeted, ["Athena"])).toBe(
-      'Sub-task 3: only the first 2 sub-tasks start at the go-ahead (Max agents), the rest wait in the queue for a new agent: give it agent "new".',
+      'Sub-task 3: only the first 2 sub-tasks start at the go-ahead (Max active agents), the rest wait in the queue for a new agent: give it agent "new".',
     );
     expect(proposedPlan(args(task("nouveau", 0)), NEW_MISSION, [])).toContain("budget");
     expect(proposedPlan({ tache: "x", sous_taches: [task("nouveau")] }, NEW_MISSION, [])).toContain("name");
@@ -56,7 +56,7 @@ describe("proposedPlan (spec orchestrateur §7.2)", () => {
 describe("a new agent's group (spec groupes spécialisés §3)", () => {
   const groups = [{ id: "f1", name: "Interface" }];
 
-  it("puts it in a linked group, named as the orchestrator reads it", () => {
+  it("puts it in a linked group, named as the fleet reads it", () => {
     const result = proposedPlan(args({ ...task("nouveau"), groupe: "interface" }), NEW_MISSION, [], groups);
     expect(typeof result === "string" ? result : result.plan[0].group).toEqual({ id: "f1", name: "Interface" });
   });
@@ -286,7 +286,16 @@ describe("the time of a mission (spec orchestrateur §8)", () => {
     expect(budgetBar(25, 10)).toEqual({ ratio: 1, tone: "over" });
   });
 
-  it("writes the mission's time for the orchestrator's header", () => {
+  it("completes the bar of a member that reported, in the tone of its report, whatever its time", () => {
+    expect(budgetBar(22, 50, "termine")).toEqual({ ratio: 1, tone: "ok" });
+    expect(budgetBar(22, 50, "bloque")).toEqual({ ratio: 1, tone: "late" });
+    expect(budgetBar(22, 50, "echec")).toEqual({ ratio: 1, tone: "over" });
+    expect(budgetBar(0, 0, "termine")).toEqual({ ratio: 1, tone: "ok" });
+    // Even past its budget a done member is done, not over.
+    expect(budgetBar(80, 50, "termine")).toEqual({ ratio: 1, tone: "ok" });
+  });
+
+  it("writes the mission's time for the fleet's header", () => {
     expect(clockText(running([], { startedAt: 0, budgetMin: 60 }), 12.4 * min)).toBe("12 / 60 min");
     expect(clockText(running([], { startedAt: 0 }), 3 * min)).toBe("3 min");
     expect(clockText({ ...NEW_MISSION }, 3 * min)).toBeNull();

@@ -29,6 +29,7 @@ const MIGRATIONS: &[Step] = &[
     Step::Rust(migrate_v2::run),
     Step::Sql(include_str!("migrations/003_file_nodes.sql")),
     Step::Sql(include_str!("migrations/004_workspace_kind.sql")),
+    Step::Sql(include_str!("migrations/005_workspace_folder.sql")),
 ];
 
 /// The single SQLite connection shared by every command (spec V1 §8.1).
@@ -287,9 +288,15 @@ mod tests {
 
         migrate_up_to(&mut conn, 4, "C:/home").unwrap();
 
-        let listed = workspaces::list(&conn, &project).unwrap();
-        assert_eq!(listed.len(), 1);
-        assert_eq!(listed[0].kind, "canvas");
+        // Plain SQL: `workspaces::list` reads the last schema, this one is v4.
+        let kinds: Vec<String> = conn
+            .prepare("SELECT kind FROM workspaces WHERE project_id = ?1")
+            .unwrap()
+            .query_map([&project], |row| row.get(0))
+            .unwrap()
+            .collect::<rusqlite::Result<_>>()
+            .unwrap();
+        assert_eq!(kinds, vec!["canvas"]);
         let insert_code = |id: &str| {
             conn.execute(
                 "INSERT INTO workspaces (id, project_id, name, position, created_at, updated_at, kind)
@@ -310,6 +317,36 @@ mod tests {
             .query_row("PRAGMA user_version", [], |r| r.get(0))
             .unwrap();
         assert_eq!(version, 4);
+    }
+
+    #[test]
+    fn migration_5_gives_existing_workspaces_the_project_folder() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch("PRAGMA foreign_keys = ON;").unwrap();
+        migrate_up_to(&mut conn, 4, "C:/home").unwrap();
+        let (project, _) = raw_workspace(&conn);
+        conn.execute_batch(&format!(
+            "INSERT INTO workspaces (id, project_id, name, position, created_at, updated_at, kind)
+               VALUES ('code', '{project}', 'Code', 1, 0, 0, 'code');"
+        ))
+        .unwrap();
+
+        migrate_up_to(&mut conn, 5, "C:/home").unwrap();
+
+        // A null folder is the project's own: nothing moves for a workspace that existed.
+        let listed = workspaces::list(&conn, &project).unwrap();
+        assert_eq!(listed.len(), 2);
+        assert!(listed.iter().all(|w| w.folder.is_none()));
+        assert_eq!(listed[1].kind, "code");
+        workspaces::set_folder(&conn, "w1", Some("D:/work/api")).unwrap();
+        assert_eq!(
+            workspaces::list(&conn, &project).unwrap()[0].folder.as_deref(),
+            Some("D:/work/api")
+        );
+        let version: i64 = conn
+            .query_row("PRAGMA user_version", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(version, 5);
     }
 
     fn base_at_version(path: &Path, version: usize) {
@@ -429,9 +466,9 @@ mod tests {
         .unwrap();
     }
 
-    /// What the night added lives in payloads and settings: a 1.1.0-beta.1 base needs no step.
+    /// What the night added lives in payloads and settings: a v4 base only gains the workspace folder.
     #[test]
-    fn a_base_of_the_published_version_opens_as_it_is() {
+    fn a_base_of_the_published_version_gains_only_the_workspace_folder() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("dummyplane.db");
         base_at_version(&path, 4);
@@ -448,10 +485,16 @@ mod tests {
             .unwrap();
         }
         let db = Db::open(&path).unwrap();
-        assert_eq!(backups_in(dir.path()), 0);
+        // One step to take, so one copy of the v4 base is left behind.
+        assert_eq!(backups_in(dir.path()), 1);
         db.with(|conn| {
             let version: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0))?;
-            assert_eq!(version, 4);
+            assert_eq!(version, MIGRATIONS.len() as i64);
+            let folders: i64 =
+                conn.query_row("SELECT count(*) FROM workspaces WHERE folder IS NULL", [], |r| {
+                    r.get(0)
+                })?;
+            assert_eq!(folders, 2);
             let payload: String =
                 conn.query_row("SELECT payload_json FROM nodes WHERE id = 'k1'", [], |r| {
                     r.get(0)

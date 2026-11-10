@@ -10,23 +10,23 @@ import type { Member, Mission } from "./mission";
 /** Members being moved on, each one once: two reports must not give two tasks. */
 export const moving = new Set<string>();
 
-/** By orchestrator, the tasks a new agent is being started for: each one once, each one a seat already. */
+/** By fleet, the tasks a new agent is being started for: each one once, each one a seat already. */
 const seats = new Map<string, Set<string>>();
 
-export function holdSeat(orchestratorId: string, title: string) {
-  const held = seats.get(orchestratorId) ?? new Set<string>();
+export function holdSeat(fleetId: string, title: string) {
+  const held = seats.get(fleetId) ?? new Set<string>();
   held.add(title);
-  seats.set(orchestratorId, held);
+  seats.set(fleetId, held);
 }
 
-export function freeSeat(orchestratorId: string, title: string) {
-  const held = seats.get(orchestratorId);
+export function freeSeat(fleetId: string, title: string) {
+  const held = seats.get(fleetId);
   held?.delete(title);
-  if (held?.size === 0) seats.delete(orchestratorId);
+  if (held?.size === 0) seats.delete(fleetId);
 }
 
-export const seatHeld = (orchestratorId: string, title: string) => seats.get(orchestratorId)?.has(title) === true;
-export const seatsHeld = (orchestratorId: string) => seats.get(orchestratorId)?.size ?? 0;
+export const seatHeld = (fleetId: string, title: string) => seats.get(fleetId)?.has(title) === true;
+export const seatsHeld = (fleetId: string) => seats.get(fleetId)?.size ?? 0;
 
 /**
  * The members at work: not handed over, on a task (no report, or moving on to
@@ -39,13 +39,13 @@ export function activeMembers(mission: Mission): Member[] {
 }
 
 /** The seats taken: the members at work, and the new agents on their way. */
-export const activeCount = (orchestratorId: string, mission: Mission) => activeMembers(mission).length + seatsHeld(orchestratorId);
+export const activeCount = (fleetId: string, mission: Mission) => activeMembers(mission).length + seatsHeld(fleetId);
 
-/** The agents being created, by orchestrator: one at a time, each named and placed once the previous one exists. */
+/** The agents being created, by fleet: one at a time, each named and placed once the previous one exists. */
 const creating = new Map<string, Promise<unknown>>();
 
-export function oneAtATime<T>(orchestratorId: string, create: () => Promise<T>): Promise<T> {
-  const turn = (creating.get(orchestratorId) ?? Promise.resolve()).then(create, create);
-  creating.set(orchestratorId, turn.catch(() => undefined));
+export function oneAtATime<T>(fleetId: string, create: () => Promise<T>): Promise<T> {
+  const turn = (creating.get(fleetId) ?? Promise.resolve()).then(create, create);
+  creating.set(fleetId, turn.catch(() => undefined));
   return turn;
 }

@@ -3,14 +3,14 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { mockIPC } from "@tauri-apps/api/mocks";
-import { removeNodes } from "@/fleet/terminals";
+import { removeNodes } from "@/agents/terminals";
 import { agentActivityStore } from "@/store/agentActivity";
 import { nodesStore } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
 import { uiStore } from "@/store/ui";
 import { CloseAgentDialog } from "./CloseAgentDialog";
 
-vi.mock("@/fleet/terminals", () => ({ removeNodes: vi.fn() }));
+vi.mock("@/agents/terminals", () => ({ removeNodes: vi.fn() }));
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -65,10 +65,10 @@ it("keeps them when cancelled", async () => {
   expect(uiStore.getState().closing).toBeNull();
 });
 
-it("tells what closing an orchestrator in mission leaves behind (spec première version §5.4)", async () => {
+it("tells what closing a fleet in mission leaves behind (spec première version §5.4)", async () => {
   await nodesStore.getState().create("chef", {
     workspaceId: "w1",
-    kind: "orchestrator",
+    kind: "fleet",
     payload: { name: "Chef", mission: { state: "en_cours", maxAgents: 4, members: [] } },
   });
   await act(async () => uiStore.getState().setClosing({ agents: ["chef"], remove: ["chef", "fil"] }));

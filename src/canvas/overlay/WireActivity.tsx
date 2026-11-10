@@ -3,7 +3,7 @@ import { useWireActivity, type WirePulse } from "../wireActivity";
 import { activeWires, pathData } from "./wirePaths";
 
 /**
- * A message passing over a wire: a light runs along it, from the orchestrator
+ * A message passing over a wire: a light runs along it, from the fleet
  * to the agent or back, then fades (index.css, `.dp-wire-pulse`). The wires
  * are one of the screen's moments, so colour and motion live here, but no
  * glow or blur. Nothing is mounted while the wires are quiet, so no animation

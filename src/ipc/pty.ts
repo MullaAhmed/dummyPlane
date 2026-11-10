@@ -9,11 +9,19 @@ export type ClaudeMode = "new" | "resume" | "continue";
 /** What a mission lets its agents do unasked (spec mission de nuit §5.3). */
 export type Permission = "ask" | "edits" | "work";
 
+/**
+ * Stored data and wire value: the `role` of a fleet's Claude session. It is saved in the node's JSON
+ * (`TerminalPayload.role`) and sent in the launch spec (`ClaudeLaunch.role`), where the backend picks the
+ * manager's tools and denies it Edit and Write. It dates from when the fleet was called the orchestrator:
+ * saved nodes and older builds depend on it, so it never changes.
+ */
+export const STORED_FLEET_ROLE = "orchestrator";
+
 export interface ClaudeLaunch {
   mode: ClaudeMode;
   sessionId: string;
   title: string;
-  role: "agent" | "orchestrator";
+  role: "agent" | typeof STORED_FLEET_ROLE;
   /** Started with Remote Control, under this name (spec maj §2). */
   remoteControl?: string;
   /** `--model`, chosen by a mission's router (spec maj §3). */

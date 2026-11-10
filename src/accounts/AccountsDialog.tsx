@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
-import { launchLogin } from "@/fleet/quickActions";
+import { launchLogin } from "@/agents/quickActions";
 import { useMessages } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { AccentButton, Hint } from "@/shell/buttons";
@@ -74,10 +74,10 @@ export function AccountsDialog() {
           }}
         >
           <p className="dp-label mb-1">{t.addTitle}</p>
-          <Input aria-label={t.nameLabel} placeholder={t.namePlaceholder} value={name} onChange={(e) => setName(e.target.value)} className="rounded-md" />
-          <Input aria-label={t.folderLabel} placeholder={t.folderPlaceholder} value={folder} onChange={(e) => setFolder(e.target.value)} className="rounded-md font-mono text-xs md:text-xs" />
+          <Input aria-label={t.nameLabel} placeholder={t.namePlaceholder} value={name} onChange={(e) => setName(e.target.value)} />
+          <Input aria-label={t.folderLabel} placeholder={t.folderPlaceholder} value={folder} onChange={(e) => setFolder(e.target.value)} className="font-mono text-xs md:text-xs" />
           <div className="flex justify-end">
-            <AccentButton type="submit" disabled={!name.trim() || !folder.trim()} className="h-7 px-3">
+            <AccentButton type="submit" size="sm" disabled={!name.trim() || !folder.trim()}>
               {t.add}
             </AccentButton>
           </div>

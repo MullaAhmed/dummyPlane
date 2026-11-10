@@ -4,14 +4,16 @@ import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import type { TeamPreset } from "./model";
 import { presetsStore } from "./store";
 
-const preset = (name: string, id = name): TeamPreset => ({ id, name, savedAt: 1, groups: [{ name: "G", role: "docs", agents: ["claude"], x: 0, y: 0 }], orchestrators: [] });
+const preset = (name: string, id = name): TeamPreset => ({ id, name, savedAt: 1, groups: [{ name: "G", role: "docs", agents: ["claude"], x: 0, y: 0 }], fleets: [] });
+// A preset as the setting holds it: the fleets are listed under the key they have always had, "orchestrators".
+const savedPreset = (name: string, id = name) => ({ id, name, savedAt: 1, groups: [{ name: "G", role: "docs", agents: ["claude"], x: 0, y: 0 }], orchestrators: [] });
 
 let saved: { key: string; value: unknown }[];
 let stored: unknown;
 
 beforeEach(() => {
   saved = [];
-  stored = { version: 1, presets: [preset("Dev HQ", "1")] };
+  stored = { version: 1, presets: [savedPreset("Dev HQ", "1")] };
   presetsStore.setState({ presets: [], loaded: false });
   mockIPC((cmd, args) => {
     if (cmd === "get_setting") return stored;
@@ -34,7 +36,7 @@ it("saves a preset under presets.teams, versioned, replacing one of the same nam
   await presetsStore.getState().load();
   expect(await presetsStore.getState().save(preset("Tests", "2"))).toBe(true);
   expect(await presetsStore.getState().save(preset("dev hq", "3"))).toBe(true);
-  expect(saved[saved.length - 1]).toEqual({ key: "presets.teams", value: { version: 1, presets: [preset("dev hq", "3"), preset("Tests", "2")] } });
+  expect(saved[saved.length - 1]).toEqual({ key: "presets.teams", value: { version: 1, presets: [savedPreset("dev hq", "3"), savedPreset("Tests", "2")] } });
   expect(presetsStore.getState().presets.map((p) => p.id)).toEqual(["3", "2"]);
 });
 
@@ -45,9 +47,9 @@ it("does not save over a list it has not read: a send before the load would over
     if (cmd === "set_setting") saved.push(args as { key: string; value: unknown });
   });
   const saving = presetsStore.getState().save(preset("Tests", "2"));
-  release({ version: 1, presets: [preset("Dev HQ", "1")] });
+  release({ version: 1, presets: [savedPreset("Dev HQ", "1")] });
   await saving;
-  expect(saved[saved.length - 1]?.value).toEqual({ version: 1, presets: [preset("Dev HQ", "1"), preset("Tests", "2")] });
+  expect(saved[saved.length - 1]?.value).toEqual({ version: 1, presets: [savedPreset("Dev HQ", "1"), savedPreset("Tests", "2")] });
 });
 
 it("removes a preset and saves the rest", async () => {

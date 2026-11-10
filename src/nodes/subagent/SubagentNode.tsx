@@ -2,11 +2,13 @@ import { useLayoutEffect, useRef, type CSSProperties } from "react";
 import { Bot, X } from "lucide-react";
 import { useTheme } from "@/app/theme";
 import { useCanvas } from "@/canvas/canvasStore";
-import { removeNode } from "@/fleet/terminals";
+import { removeNode } from "@/agents/terminals";
 import { useMessages } from "@/i18n";
+import { cn } from "@/lib/utils";
 import { nodeNameOf, useNodes } from "@/store/nodes";
-import { HeaderButton } from "@/nodes/terminal/TerminalHeader";
-import { frameStyle } from "@/nodes/terminal/frame";
+import { HeaderButton, NodeHeader } from "@/nodes/terminal/NodeHeader";
+import { frameStyle, NODE_FRAME } from "@/nodes/terminal/frame";
+import { STATUS_TEXT } from "@/nodes/terminal/StatusPill";
 import { StatusDot } from "@/nodes/terminal/StatusDot";
 import type { SubagentLine } from "./ipc";
 import { subagentMessages } from "./messages";
@@ -105,26 +107,26 @@ export function SubagentNode({ nodeId }: { nodeId: string }) {
     <div
       data-subagent={entry?.agentId ?? ""}
       data-state={done ? "done" : "running"}
-      className="relative flex h-full flex-col overflow-hidden rounded-xl bg-dp-terminal font-mono transition-[filter,opacity] duration-300"
+      className={cn(NODE_FRAME, "bg-dp-terminal font-mono transition-[filter,opacity] duration-(--dp-dur) ease-(--dp-ease-out) motion-reduce:transition-none")}
       style={{
         ...frameStyle(selected, false),
         ...inks(light),
         ...(done ? { filter: "grayscale(1)", opacity: 0.62 } : {}),
       }}
     >
-      <header title={title} className="flex h-8 shrink-0 items-center gap-2 border-b border-dp-line bg-dp-terminal-head px-2 font-sans text-xs text-dp-text">
+      <NodeHeader title={title} className="font-sans text-dp-text">
         <Bot aria-hidden className="size-4 shrink-0 text-dp-text-2" />
-        {entry && <span className="shrink-0 text-dp-text-3">{t.from(parentLabel(parent, terminalName, t.terminal))}</span>}
-        <span className="min-w-0 flex-1 truncate font-medium">{title}</span>
+        {entry && <span className="max-w-28 shrink-0 truncate text-dp-text-3">{t.from(parentLabel(parent, terminalName, t.terminal))}</span>}
+        <span className="min-w-0 flex-1 truncate text-(length:--text-ui) font-medium">{title}</span>
         {/* The agents' signature: its dot and a quiet word, as in a terminal's header. */}
-        <span className="flex shrink-0 items-center gap-2 text-dp-text-2">
+        <span className={STATUS_TEXT}>
           <StatusDot state={done ? "done" : "working"} />
           {done ? t.done : t.running}
         </span>
         <HeaderButton label={t.close} onClick={close}>
           <X />
         </HeaderButton>
-      </header>
+      </NodeHeader>
       <div
         ref={scrollRef}
         onScroll={(e) => {

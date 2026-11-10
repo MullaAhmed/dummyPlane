@@ -15,6 +15,8 @@ pub struct Workspace {
     pub pantheon: Option<String>,
     /// `canvas` (free whiteboard) or `code` (the project's single code workspace).
     pub kind: String,
+    /// The folder its terminals start in; `None` is the project's own, so a moved project is followed.
+    pub folder: Option<String>,
 }
 
 pub const CANVAS: &str = "canvas";
@@ -36,12 +38,13 @@ fn from_row(row: &rusqlite::Row) -> rusqlite::Result<Workspace> {
         position: row.get(3)?,
         pantheon: row.get(4)?,
         kind: read_kind(row.get(5)?),
+        folder: row.get(6)?,
     })
 }
 
 pub fn list(conn: &Connection, project_id: &str) -> AppResult<Vec<Workspace>> {
     let mut stmt = conn.prepare(
-        "SELECT id, project_id, name, position, pantheon, kind FROM workspaces
+        "SELECT id, project_id, name, position, pantheon, kind, folder FROM workspaces
          WHERE project_id = ?1 ORDER BY position, created_at",
     )?;
     let rows = stmt.query_map([project_id], from_row)?;
@@ -58,7 +61,7 @@ pub fn create(conn: &Connection, project_id: &str, name: &str, kind: &str) -> Ap
     if kind == CODE {
         let existing = conn
             .query_row(
-                "SELECT id, project_id, name, position, pantheon, kind FROM workspaces
+                "SELECT id, project_id, name, position, pantheon, kind, folder FROM workspaces
                  WHERE project_id = ?1 AND kind = 'code'",
                 [project_id],
                 from_row,
@@ -80,6 +83,7 @@ pub fn create(conn: &Connection, project_id: &str, name: &str, kind: &str) -> Ap
         position,
         pantheon: None,
         kind: kind.to_string(),
+        folder: None,
     };
     let now = now_ms();
     conn.execute(
@@ -141,6 +145,23 @@ pub fn set_pantheon(conn: &Connection, id: &str, pantheon: &str) -> AppResult<()
     let changed = conn.execute(
         "UPDATE workspaces SET pantheon = ?2 WHERE id = ?1",
         params![id, pantheon],
+    )?;
+    if changed == 0 {
+        return Err(not_found(id));
+    }
+    Ok(())
+}
+
+/// Sets the folder the workspace's next terminals start in; `None` goes back to the project's.
+/// The folder is not looked up: a disk that is away now may be back later.
+pub fn set_folder(conn: &Connection, id: &str, folder: Option<&str>) -> AppResult<()> {
+    let folder = match folder.map(str::trim) {
+        Some("") => return Err(AppError::InvalidInput("empty folder".to_string())),
+        other => other,
+    };
+    let changed = conn.execute(
+        "UPDATE workspaces SET folder = ?2, updated_at = ?3 WHERE id = ?1",
+        params![id, folder, now_ms()],
     )?;
     if changed == 0 {
         return Err(not_found(id));
@@ -292,6 +313,47 @@ mod tests {
                     set_pantheon(conn, "nope", "greek").unwrap_err().kind(),
                     "notFound"
                 );
+                Ok(())
+            })
+            .unwrap();
+    }
+
+    #[test]
+    fn a_workspace_has_the_project_folder_until_it_picks_its_own() {
+        Db::open_in_memory()
+            .unwrap()
+            .with(|conn| {
+                let p = project(conn, "C:/p");
+                let a = create(conn, &p, "A", CANVAS)?;
+                let b = create(conn, &p, "B", CANVAS)?;
+                assert_eq!(a.folder, None);
+                set_folder(conn, &a.id, Some("  D:/work/api  "))?;
+                let listed = list(conn, &p)?;
+                assert_eq!(listed[0].folder.as_deref(), Some("D:/work/api"));
+                // Another workspace of the project keeps the project's folder.
+                assert_eq!(listed[1].folder, None);
+                assert_eq!(serde_json::to_value(&listed[0]).unwrap()["folder"], "D:/work/api");
+                set_folder(conn, &a.id, None)?;
+                assert_eq!(list(conn, &p)?[0].folder, None);
+                assert_eq!(b.folder, None);
+                Ok(())
+            })
+            .unwrap();
+    }
+
+    #[test]
+    fn refuses_a_blank_folder_and_an_unknown_workspace() {
+        Db::open_in_memory()
+            .unwrap()
+            .with(|conn| {
+                let p = project(conn, "C:/p");
+                let w = create(conn, &p, "A", CANVAS)?;
+                let blank = set_folder(conn, &w.id, Some("  ")).unwrap_err();
+                assert_eq!(blank.kind(), "invalidInput");
+                assert_eq!(blank.to_string(), "empty folder");
+                assert_eq!(set_folder(conn, "nope", Some("D:/x")).unwrap_err().kind(), "notFound");
+                assert_eq!(set_folder(conn, "nope", None).unwrap_err().kind(), "notFound");
+                assert_eq!(list(conn, &p)?[0].folder, None);
                 Ok(())
             })
             .unwrap();

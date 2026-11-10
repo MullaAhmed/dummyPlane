@@ -3,14 +3,14 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
-import { sendToAgents } from "@/fleet/broadcast";
+import { sendToAgents } from "@/agents/broadcast";
 import { toast } from "sonner";
 import { nodesStore } from "@/store/nodes";
 import { ReviewPanel } from "./ReviewPanel";
 import { reviewStore } from "./reviewStore";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
-vi.mock("@/fleet/broadcast", () => ({ sendToAgents: vi.fn(() => Promise.resolve({ sent: 1, skipped: [], waiting: [], unsuited: [], starting: [] })) }));
+vi.mock("@/agents/broadcast", () => ({ sendToAgents: vi.fn(() => Promise.resolve({ sent: 1, skipped: [], waiting: [], unsuited: [], starting: [] })) }));
 vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { warning: vi.fn(), error: vi.fn() }) }));
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;

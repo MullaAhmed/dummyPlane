@@ -73,9 +73,10 @@ function themeFor(theme: Theme): Extension {
         ".cm-panels": { backgroundColor: "var(--dp-surface)", color: "var(--dp-text)" },
         ".cm-panels.cm-panels-top": { borderBottom: "1px solid var(--dp-line)" },
         ".cm-panels.cm-panels-bottom": { borderTop: "1px solid var(--dp-line)" },
-        ".cm-textfield": { backgroundColor: "var(--dp-field)", border: "1px solid var(--dp-line)", borderRadius: "6px" },
-        ".cm-button": { backgroundImage: "none", backgroundColor: "var(--dp-field)", border: "1px solid var(--dp-line)", borderRadius: "6px" },
-        ".cm-tooltip": { backgroundColor: "var(--dp-surface)", border: "1px solid var(--dp-line)", borderRadius: "9px" },
+        // The scale's radii, like the Input, the Button and the menus. `--radius-md` is not emitted unless a class uses it as a var: its value is the fallback.
+        ".cm-textfield": { backgroundColor: "var(--dp-field)", border: "1px solid var(--dp-line)", borderRadius: "var(--radius-md, 8px)" },
+        ".cm-button": { backgroundImage: "none", backgroundColor: "var(--dp-field)", border: "1px solid var(--dp-line)", borderRadius: "var(--radius-md, 8px)" },
+        ".cm-tooltip": { backgroundColor: "var(--dp-surface)", border: "1px solid var(--dp-line)", borderRadius: "var(--radius-lg)" },
         ".cm-tooltip-autocomplete ul li[aria-selected]": { backgroundColor: "var(--dp-accent-soft)", color: "var(--dp-text)" },
         ".cm-dp-flash": { backgroundColor: "var(--dp-accent-soft)" },
       },

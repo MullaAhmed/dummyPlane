@@ -1,15 +1,16 @@
 import { useEffect, useState } from "react";
 import { OptionItem, OptionList } from "@/components/OptionList";
-import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useMessages } from "@/i18n";
 import { missionChecks, type ProjectChecks } from "@/ipc/mission";
 import type { Permission } from "@/ipc/pty";
-import { sessionOf, useNodes } from "@/store/nodes";
+import { AccentButton, Hint, QuietButton } from "@/shell/buttons";
+import { useNodes } from "@/store/nodes";
 import { useUsage } from "@/usage/usageStore";
 import { MAX_AGENTS } from "./mission";
+import { useMissionFolder } from "./folder";
 import { missionMessages } from "./messages";
 import { DEFAULT_AWAY_HOURS, DEFAULT_LABEL, MAX_AWAY_HOURS, startOvernight } from "./overnight";
 import { blockers, usageWarning } from "./overnightChecks";
@@ -28,7 +29,7 @@ export function OvernightDialog({ nodeId, open, onOpenChange }: { nodeId: string
   const [label, setLabel] = useState(DEFAULT_LABEL);
   const [auto, setAuto] = useState(false);
   const [permission, setPermission] = useState<Permission>("edits");
-  const project = useNodes((s) => sessionOf(s.nodes[nodeId])?.cwd);
+  const project = useMissionFolder(nodeId);
   const [checks, setChecks] = useState<ProjectChecks | null>(null);
   useEffect(() => {
     if (!project) return;
@@ -56,7 +57,7 @@ export function OvernightDialog({ nodeId, open, onOpenChange }: { nodeId: string
   };
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent showCloseButton={false} className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{t.title}</DialogTitle>
           <DialogDescription>{t.description}</DialogDescription>
@@ -76,14 +77,16 @@ export function OvernightDialog({ nodeId, open, onOpenChange }: { nodeId: string
             <legend className="dp-label mb-1">{t.source}</legend>
             <OptionList label={t.source} value={kind} onValueChange={setKind} className="-mx-2 w-auto">
               <OptionItem value="github" label={t.github} />
-              <OptionItem value="backlog" label="BACKLOG.md" />
+              <OptionItem value="backlog" label={t.backlog} />
             </OptionList>
             {kind === "github" && (
               // Under the option's words, past its 14px dot and 8px gap.
-              <label className="ml-5.5 flex items-center gap-2 text-xs text-dp-text-2" title={t.labelTitle}>
-                {t.label}
-                <Input aria-label={t.labelLabel} value={label} onChange={(e) => setLabel(e.target.value)} className="h-7 w-32 rounded-md px-2 text-xs md:text-xs" />
-              </label>
+              <Hint label={t.labelTitle} side="bottom">
+                <label className="ml-5.5 flex items-center gap-2 text-xs text-dp-text-2">
+                  {t.label}
+                  <Input aria-label={t.labelLabel} value={label} onChange={(e) => setLabel(e.target.value)} className="h-7 w-32 px-2 text-xs md:text-xs" />
+                </label>
+              </Hint>
             )}
           </fieldset>
           <fieldset className="flex flex-col gap-1">
@@ -110,12 +113,10 @@ export function OvernightDialog({ nodeId, open, onOpenChange }: { nodeId: string
           </ul>
         </div>
         <DialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>
-            {t.cancel}
-          </Button>
-          <Button disabled={!valid} onClick={start}>
+          <QuietButton onClick={() => onOpenChange(false)}>{t.cancel}</QuietButton>
+          <AccentButton size="lg" disabled={!valid} onClick={start}>
             {t.start}
-          </Button>
+          </AccentButton>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -195,6 +195,22 @@ pub fn relocate(conn: &Connection, id: &str, path: &str) -> AppResult<()> {
             )?;
         }
     }
+    // A workspace with a folder of its own inside the old one moves too; one without follows the project by itself.
+    let folders: Vec<(String, String)> = {
+        let mut stmt = tx.prepare(
+            "SELECT id, folder FROM workspaces WHERE project_id = ?1 AND folder IS NOT NULL",
+        )?;
+        let rows = stmt.query_map([id], |row| Ok((row.get(0)?, row.get(1)?)))?;
+        rows.collect::<rusqlite::Result<_>>()?
+    };
+    for (workspace_id, folder) in folders {
+        if let Some(moved) = rebase_path(&folder, &old, &path) {
+            tx.execute(
+                "UPDATE workspaces SET folder = ?2, updated_at = ?3 WHERE id = ?1",
+                params![workspace_id, moved, now_ms()],
+            )?;
+        }
+    }
     tx.commit()?;
     Ok(())
 }
@@ -454,10 +470,41 @@ mod tests {
             .unwrap();
     }
 
-    /// The folder is changed from the home screen, with no node in memory: only
-    /// the base can move an orchestrator's session and mission (review).
     #[test]
-    fn relocating_moves_an_orchestrator_s_session_and_mission() {
+    fn relocating_moves_the_folder_of_a_workspace_inside_the_old_one_and_leaves_the_others() {
+        Db::open_in_memory()
+            .unwrap()
+            .with(|conn| {
+                let project = create(conn, "C:\\code\\api")?;
+                let own = workspaces::list(conn, &project.id)?.remove(0);
+                let inside = workspaces::create(conn, &project.id, "Web", workspaces::CANVAS)?;
+                let elsewhere = workspaces::create(conn, &project.id, "Docs", workspaces::CANVAS)?;
+                let follows = workspaces::create(conn, &project.id, "Follows", workspaces::CANVAS)?;
+                workspaces::set_folder(conn, &own.id, Some("C:\\code\\api"))?;
+                workspaces::set_folder(conn, &inside.id, Some("c:/code/API/web"))?;
+                workspaces::set_folder(conn, &elsewhere.id, Some("E:\\docs"))?;
+                // Another project's workspace is never touched, whatever its folder.
+                let other = create(conn, "E:\\other")?;
+                let theirs = workspaces::list(conn, &other.id)?.remove(0);
+                workspaces::set_folder(conn, &theirs.id, Some("C:\\code\\api\\web"))?;
+                relocate(conn, &project.id, "D:\\api")?;
+                let folder = |id: &str| -> Option<String> {
+                    conn.query_row("SELECT folder FROM workspaces WHERE id = ?1", [id], |row| row.get(0)).unwrap()
+                };
+                assert_eq!(folder(&own.id).as_deref(), Some("D:\\api"));
+                assert_eq!(folder(&inside.id).as_deref(), Some("D:\\api\\web"));
+                assert_eq!(folder(&elsewhere.id).as_deref(), Some("E:\\docs"));
+                assert_eq!(folder(&follows.id), None);
+                assert_eq!(folder(&theirs.id).as_deref(), Some("C:\\code\\api\\web"));
+                Ok(())
+            })
+            .unwrap();
+    }
+
+    /// The folder is changed from the home screen, with no node in memory: only
+    /// the base can move a fleet's session and mission (review).
+    #[test]
+    fn relocating_moves_a_fleet_s_session_and_mission() {
         let db = Db::open_in_memory().unwrap();
         db.with(|conn| {
             let project = create(conn, "C:\\code\\api")?;
@@ -466,7 +513,7 @@ mod tests {
                 conn,
                 "chef",
                 &w.id,
-                nodes::NodeKind::Orchestrator,
+                nodes::NodeKind::Fleet,
                 r#"{"name":"Chef","session":{"cwd":"C:/code/api","agent":"claude"},
                     "mission":{"project":"C:/code/api","worktree":"C:/code/api/w","state":"en_cours",
                     "members":[{"name":"Isis","worktree":"C:/code/api/w/isis"},{"name":"Thoth","worktree":"D:/x"}]}}"#,

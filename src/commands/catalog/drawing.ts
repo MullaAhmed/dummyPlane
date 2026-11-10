@@ -1,8 +1,8 @@
 import { releaseToCanvas } from "@/canvas/canvasFocus";
 import { canvasStore } from "@/canvas/canvasStore";
-import { clientOf } from "@/fleet/placement";
-import { groupingOf, groupSelection } from "@/fleet/selectionGroup";
-import type { Point } from "@/fleet/terminals";
+import { clientOf } from "@/agents/placement";
+import { groupingOf, groupSelection } from "@/agents/selectionGroup";
+import type { Point } from "@/agents/terminals";
 import { CANVAS_KEYS, copyCanvasSelection, openNativeMenuAt, pasteOnCanvasAt, pressCanvasKey, startTextAt } from "@/radial/bridges";
 import { exportCurrentPng, exportCurrentScene, importIntoScene } from "@/shell/sceneActions";
 import type { Command, CommandContext } from "../command";

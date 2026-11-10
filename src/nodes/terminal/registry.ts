@@ -192,16 +192,41 @@ export function mountTerminal(nodeId: string, host: HTMLElement, payload: Termin
   }
   layoutTerminal(nodeId, host, zoom);
   if (existing) return;
-  const started = autostart.run(nodeId, () => {
-    // Started by hand meanwhile ("Relancer"): it must not be spawned twice.
-    if (statusOf(nodeId).state !== "starting") return;
-    // The node may have been edited while it waited for its turn.
-    const latest = sessionOf(nodesStore.getState().nodes[nodeId]) ?? payload;
-    void startSession(nodeId, entry.term, latest, "new");
-  });
-  if (started) return;
+  if (runAutostart(nodeId, () => entry, payload)) return;
   if (livePtys.delete(nodeId)) void reattachSession(nodeId, entry.term, entry.session);
   else void restoreSession(nodeId, entry.term, entry.session);
+}
+
+/**
+ * Starts a node marked by `markForAutostart`, at once or after its delay; false if it was not marked, or already started.
+ * `resync`: once the process is up, it learns the grid its xterm has by then.
+ */
+function runAutostart(nodeId: string, entryOf: () => Entry, payload: TerminalPayload, resync = false): boolean {
+  return autostart.run(nodeId, () => {
+    // Started by hand meanwhile ("Relancer"): it must not be spawned twice.
+    if (statusOf(nodeId).state !== "starting") return;
+    const { term } = entryOf();
+    // The node may have been edited while it waited for its turn.
+    const latest = sessionOf(nodesStore.getState().nodes[nodeId]) ?? payload;
+    const started = startSession(nodeId, term, latest, "new");
+    // A canvas may have sized the terminal while its process was still being spawned: that resize had nothing to resize.
+    if (resync) void started.then(() => (isRunning(nodeId) ? ptyResize(nodeId, term.cols, term.rows) : undefined)).catch(() => undefined);
+  });
+}
+
+/**
+ * Starts a terminal just created without waiting for a canvas to show it: one
+ * in another workspace is mounted by nothing, and one that arrives on its own
+ * must not scroll the view to get mounted. Its output waits in xterm's buffer,
+ * which the first mount adopts as it is. The mark of `markForAutostart` is
+ * shared with `mountTerminal`: whichever comes first starts it, once.
+ */
+export function startUnseen(nodeId: string, payload: TerminalPayload) {
+  // Not marked, or no longer (started, closed): nothing to start, and no xterm to make for a node that is gone.
+  if (statusOf(nodeId).state !== "starting") return;
+  // Made now, not at its turn: a mount in between finds it and shows it, instead of restoring a stopped terminal over its start.
+  const entry = entries.get(nodeId) ?? create(nodeId);
+  runAutostart(nodeId, () => entry, payload, true);
 }
 
 /** A new session starts: its screen and its silence are measured from here, not from the previous one's. */

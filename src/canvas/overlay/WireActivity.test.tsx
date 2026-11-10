@@ -21,8 +21,8 @@ beforeEach(async () => {
     view: { ...EMPTY_VIEW, zoom: 0.5, scrollX: 100, scrollY: -20 },
     frames: [{ id: "backend", group: { role: "backend" }, memberIds: ["isis"] }] as unknown as SceneFrame[],
     wires: [
-      { id: "w1", orchestratorId: "chef", targetId: "backend", points: [{ x: 0, y: 0 }, { x: 50, y: 0 }, { x: 50, y: 80 }] },
-      { id: "w2", orchestratorId: "chef", targetId: "seth", points: [{ x: 0, y: 0 }, { x: 0, y: 300 }] },
+      { id: "w1", fleetId: "chef", targetId: "backend", points: [{ x: 0, y: 0 }, { x: 50, y: 0 }, { x: 50, y: 80 }] },
+      { id: "w2", fleetId: "chef", targetId: "seth", points: [{ x: 0, y: 0 }, { x: 0, y: 300 }] },
     ],
   });
   host = document.createElement("div");
@@ -42,13 +42,13 @@ it("mounts nothing while the wires are quiet", () => {
 });
 
 it("runs a light along the wire of a message, the way it goes, at the view's scale, then takes it away", async () => {
-  await act(async () => signalWire("isis", "toOrchestrator", "chef"));
+  await act(async () => signalWire("isis", "toFleet", "chef"));
   const svg = host.querySelector<SVGSVGElement>("[data-wire-activity]")!;
   expect(svg.getAttribute("class")).toContain("pointer-events-none");
   expect(svg.querySelector("g")!.getAttribute("transform")).toBe("scale(0.5) translate(100 -20)");
   const pulse = svg.querySelector<SVGGElement>("[data-wire]")!;
-  expect([pulse.dataset.wire, pulse.dataset.direction]).toEqual(["w1", "toOrchestrator"]);
-  // From the group back to the orchestrator, round its corner like the wire.
+  expect([pulse.dataset.wire, pulse.dataset.direction]).toEqual(["w1", "toFleet"]);
+  // From the group back to the fleet, round its corner like the wire.
   expect([...pulse.querySelectorAll("path")].map((p) => p.getAttribute("d"))).toEqual(Array(2).fill("M50 80 L50 16 Q50 0 34 0 L0 0"));
   // The light runs on the wire; the wire itself does not glow.
   expect(pulse.querySelector(".dp-wire-glow")).toBeNull();
@@ -64,7 +64,7 @@ it("lights only the wires that carry a message", async () => {
   expect(host.querySelector("[data-wire] path")!.getAttribute("d")).toBe("M0 0 L0 300");
 });
 
-it("shows nothing for a message between agents and orchestrators no wire joins", async () => {
+it("shows nothing for a message between agents and fleets no wire joins", async () => {
   await act(async () => signalWire("isis", "toAgent", "boss"));
   expect(host.innerHTML).toBe("");
 });

@@ -1,24 +1,16 @@
 import { useEffect, useRef } from "react";
 import { Maximize2 } from "lucide-react";
-import { agentInk, AGENTS, INDIGO } from "@/fleet/catalog";
+import { agentInk, AGENTS, INDIGO } from "@/agents/catalog";
 import { memberOf } from "@/mission/store";
-import type { TerminalPayload, TerminalReportStatus } from "@/nodes/types";
+import type { TerminalPayload } from "@/nodes/types";
 import type { AgentActivity } from "@/store/agentActivity";
 import { useNodes } from "@/store/nodes";
 import type { TerminalStatus } from "@/store/terminalStatus";
 import { useMessages } from "@/i18n";
 import { nodesMessages } from "@/nodes/messages";
 import { expandTerminal, settleMinimizedSize } from "./minimize";
-import { StatusDot, type DotState } from "./StatusDot";
+import { HeaderButton } from "./NodeHeader";
 import { StatusPill } from "./StatusPill";
-import { HeaderButton } from "./TerminalHeader";
-
-/** A report reads like a status: done rests, blocked waits for the user, failed is an error. */
-const REPORT_DOTS: Record<TerminalReportStatus, DotState> = {
-  done: "done",
-  blocked: "waiting",
-  failed: "error",
-};
 
 function firstLine(text: string): string {
   return text.split(/\r?\n/).map((line) => line.trim()).find(Boolean) ?? "";
@@ -72,16 +64,10 @@ export function MinimizedCard(props: { nodeId: string; payload: TerminalPayload;
     <div ref={ref} data-minimized={nodeId} title={t.doubleClickExpand} className="flex h-full min-h-0 flex-col justify-center bg-dp-terminal-head px-3 text-xs">
       <div className="flex h-8 shrink-0 items-center gap-2">
         <meta.Icon aria-hidden className="size-4 shrink-0" style={{ color: agentInk(meta.tint) }} />
-        <span className="truncate font-medium text-dp-text">{payload.name || meta.label}</span>
+        <span className="min-w-0 truncate text-(length:--text-ui) font-medium text-dp-text">{payload.name || meta.label}</span>
         <div className="ml-auto flex shrink-0 items-center gap-1">
-          {report ? (
-            <span data-report={report.status} className="flex shrink-0 items-center gap-2 text-xs text-dp-text-2">
-              <StatusDot state={REPORT_DOTS[report.status]} />
-              {t.report[report.status]}
-            </span>
-          ) : (
-            <StatusPill status={status} activity={activity} indigo={meta.tint === INDIGO} />
-          )}
+          {/* Its report while it rests; Working again as soon as it is. */}
+          <StatusPill status={status} activity={activity} indigo={meta.tint === INDIGO} report={report?.status} />
           <HeaderButton label={t.expand} onClick={() => expandTerminal(nodeId)}>
             <Maximize2 />
           </HeaderButton>

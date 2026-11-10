@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useMessages } from "@/i18n";
+import { AccentButton, QuietButton } from "@/shell/buttons";
 import { studioMessages } from "./messages";
 
 interface Props {
@@ -21,15 +22,13 @@ export function UnsavedDialog({ file, saving, onAnswer }: Props) {
           <DialogDescription>{t.description}</DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button variant="ghost" onClick={() => onAnswer("cancel")}>
-            {t.cancel}
-          </Button>
-          <Button variant="ghost" onClick={() => onAnswer("discard")}>
+          <QuietButton onClick={() => onAnswer("cancel")}>{t.cancel}</QuietButton>
+          <Button variant="destructive" size="lg" onClick={() => onAnswer("discard")}>
             {t.discard}
           </Button>
-          <Button data-save disabled={saving} onClick={() => onAnswer("save")}>
+          <AccentButton data-save size="lg" disabled={saving} onClick={() => onAnswer("save")}>
             {t.save}
-          </Button>
+          </AccentButton>
         </DialogFooter>
       </DialogContent>
     </Dialog>

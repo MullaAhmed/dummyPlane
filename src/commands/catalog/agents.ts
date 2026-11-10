@@ -1,10 +1,10 @@
 import { openAccounts } from "@/accounts/store";
-import { setAgentsPanel } from "@/fleet/agentsPanelState";
-import { agentsStore } from "@/fleet/agentsStore";
-import { pauseAll, resumeAll, workspaceTerminalIds } from "@/fleet/broadcast";
-import { AGENTS } from "@/fleet/catalog";
-import { AGENT_INSTALLS } from "@/fleet/installCommands";
-import { launchAt, newConsole, placeOrchestrator } from "@/fleet/quickActions";
+import { setAgentsPanel } from "@/agents/agentsPanelState";
+import { agentsStore } from "@/agents/agentsStore";
+import { pauseAll, resumeAll, workspaceTerminalIds } from "@/agents/broadcast";
+import { AGENTS } from "@/agents/catalog";
+import { AGENT_INSTALLS } from "@/agents/installCommands";
+import { launchAt, newConsole, newTerminalInFolder, placeFleet } from "@/agents/quickActions";
 import { placeKanban } from "@/kanban/place";
 import type { AgentId } from "@/ipc/pty";
 import type { Command } from "../command";
@@ -67,7 +67,9 @@ export const AGENT_COMMANDS: readonly Command[] = [
   }),
   command("agent.accounts", { section, available: inProject, run: () => openAccounts() }),
   command("agent.console", { section, available: inProject, run: (ctx) => newConsole(ctx.at) }),
-  command("agent.orchestrator", { section, available: inProject, run: (ctx) => placeOrchestrator(ctx.at) }),
+  // The folder picker first, then the default agent there; one launch, the launch folder of the menu stays as it was.
+  command("agent.inFolder", { section, available: inProject, run: (ctx) => newTerminalInFolder(ctx.at) }),
+  command("agent.fleet", { section, available: inProject, run: (ctx) => placeFleet(ctx.at) }),
   command("studio.kanban", { section, available: inProject, run: (ctx) => placeKanban(ctx.at) }),
   command("group.compose", {
     section,

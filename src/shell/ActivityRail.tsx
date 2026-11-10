@@ -1,8 +1,8 @@
 import type { ComponentProps } from "react";
 import { BookOpen, Code2, Settings, Users } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
-import { useWorkspaceAgentCounts } from "@/fleet/agentCounts";
-import { setAgentsPanel, useAgentsPanel } from "@/fleet/agentsPanelState";
+import { useWorkspaceAgentCounts } from "@/agents/agentCounts";
+import { setAgentsPanel, useAgentsPanel } from "@/agents/agentsPanelState";
 import { useMessages } from "@/i18n";
 import { openNotes } from "@/notes/notesStore";
 import { useProjects } from "@/store/projects";

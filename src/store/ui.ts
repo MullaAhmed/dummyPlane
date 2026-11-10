@@ -1,6 +1,6 @@
 import { createStore, useStore } from "zustand";
 import type { AgentId } from "@/ipc/pty";
-import type { LaunchOptions } from "@/fleet/launchAgent";
+import type { LaunchOptions } from "@/agents/launchAgent";
 
 /**
  * The running agents whose closing waits for confirmation, and what goes with
@@ -9,8 +9,8 @@ import type { LaunchOptions } from "@/fleet/launchAgent";
  */
 export type ClosingAgents = { agents: string[]; remove: string[]; children?: string[] };
 
-/** An agent, or an orchestrator, chosen in the menu and waiting for a click on the canvas (spec habillage §10.1). */
-export type Placement = { agent: AgentId; options: LaunchOptions } | { orchestrator: true };
+/** An agent, or a fleet, chosen in the menu and waiting for a click on the canvas (spec habillage §10.1). */
+export type Placement = { agent: AgentId; options: LaunchOptions } | { fleet: true };
 
 interface UiState {
   placing: Placement | null;
@@ -24,9 +24,9 @@ interface UiState {
   /** The group whose label shows its name editor. */
   renamingGroup: string | null;
   setRenamingGroup: (groupId: string | null) => void;
-  /** The orchestrator in "Relier" mode: each click wires a group or a terminal to it. */
+  /** The fleet in "Relier" mode: each click wires a group or a terminal to it. */
   linking: string | null;
-  setLinking: (orchestratorId: string | null) => void;
+  setLinking: (fleetId: string | null) => void;
 }
 
 export const uiStore = createStore<UiState>()((set) => ({

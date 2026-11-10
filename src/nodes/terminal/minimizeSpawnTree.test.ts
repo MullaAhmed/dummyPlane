@@ -5,7 +5,7 @@ import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { canvasStore } from "@/canvas/canvasStore";
 import { createNodeElement } from "@/canvas/nodeElement";
-import { layoutSpawnTree } from "@/fleet/spawnLayout";
+import { layoutSpawnTree } from "@/agents/spawnLayout";
 import type { TerminalPayload } from "@/nodes/types";
 import { nodesStore } from "@/store/nodes";
 import { workspacesStore } from "@/store/workspaces";

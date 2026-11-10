@@ -6,11 +6,11 @@ import { nodesStore } from "@/store/nodes";
 import { checkBudgets } from "./clock";
 import { notify } from "./events";
 import { terminalStatusStore } from "@/store/terminalStatus";
-import { missionOf, setMission, setOrchestratorClosed, updateMember } from "./store";
+import { missionOf, setMission, setFleetClosed, updateMember } from "./store";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
 vi.mock("sonner", () => ({ toast: { warning: vi.fn() } }));
-vi.mock("./events", () => ({ notify: vi.fn((_orchestrator: string, _line: string, typed?: () => void) => typed?.()) }));
+vi.mock("./events", () => ({ notify: vi.fn((_fleet: string, _line: string, typed?: () => void) => typed?.()) }));
 
 const min = 60_000;
 beforeAll(async () => {
@@ -18,7 +18,7 @@ beforeAll(async () => {
   terminalStatusStore.getState().set("isis", { state: "running" });
   await nodesStore.getState().create("chef", {
     workspaceId: "w1",
-    kind: "orchestrator",
+    kind: "fleet",
     payload: {
       name: "Chef",
       mission: {
@@ -33,7 +33,7 @@ beforeAll(async () => {
   });
 });
 
-it("tells the orchestrator once when a budget runs out, warns the user at 200 % and at the end of the global budget (spec §8.2)", () => {
+it("tells the fleet once when a budget runs out, warns the user at 200 % and at the end of the global budget (spec §8.2)", () => {
   checkBudgets(5 * min);
   expect(notify).not.toHaveBeenCalled();
   checkBudgets(11 * min);
@@ -72,7 +72,7 @@ describe("an overnight mission (spec mission de nuit §3)", () => {
     expect(toast.warning).not.toHaveBeenCalled();
   });
 
-  it("tells the orchestrator once to wind down, and leaves the end of the budget without a toast", () => {
+  it("tells the fleet once to wind down, and leaves the end of the budget without a toast", () => {
     night();
     updateMember("chef", "isis", { overdue: 2 });
     checkBudgets(89 * min);
@@ -107,21 +107,21 @@ describe("an overnight mission (spec mission de nuit §3)", () => {
   });
 });
 
-it("says nothing about the mission of a closed orchestrator (spec première version §5.4)", () => {
+it("says nothing about the mission of a closed fleet (spec première version §5.4)", () => {
   const fresh = { nodeId: "isis", name: "Isis", task: "Login", budgetMin: 10, linked: false, branch: "b", worktree: "w", sentAt: 0 };
   setMission("chef", { members: [fresh], globalOverdue: undefined });
   vi.mocked(notify).mockClear();
   vi.mocked(toast.warning).mockClear();
-  setOrchestratorClosed("chef", true);
+  setFleetClosed("chef", true);
   checkBudgets(100 * min);
   expect(notify).not.toHaveBeenCalled();
   expect(toast.warning).not.toHaveBeenCalled();
-  setOrchestratorClosed("chef", false);
+  setFleetClosed("chef", false);
   checkBudgets(100 * min);
   expect(notify).toHaveBeenCalled();
 });
 
-it("tells the orchestrator and the user in English when the interface is (spec première version §7.1)", () => {
+it("tells the fleet and the user in English when the interface is (spec première version §7.1)", () => {
   const fresh = { nodeId: "isis", name: "Isis", task: "Login", budgetMin: 10, linked: false, branch: "b", worktree: "w", sentAt: 0 };
   setMission("chef", { members: [fresh], globalOverdue: undefined });
   vi.mocked(notify).mockClear();
@@ -150,7 +150,7 @@ it("says nothing for a stopped agent, and records an overrun as told only once i
   expect(notify).not.toHaveBeenCalled();
   expect(toast.warning).not.toHaveBeenCalled();
   terminalStatusStore.getState().set("isis", { state: "running" });
-  // The orchestrator is busy: the line waits, and the overrun is not recorded as told.
+  // The fleet is busy: the line waits, and the overrun is not recorded as told.
   vi.mocked(notify).mockImplementationOnce(() => undefined);
   checkBudgets(60 * min);
   expect(missionOf(nodesStore.getState().nodes.chef)?.members[0].overdue).toBeUndefined();
@@ -158,14 +158,14 @@ it("says nothing for a stopped agent, and records an overrun as told only once i
   expect(notify).toHaveBeenCalledTimes(1);
 });
 
-it("tells a budget once even while the orchestrator cannot hear, and records the worst (review)", async () => {
+it("tells a budget once even while the fleet cannot hear, and records the worst (review)", async () => {
   vi.mocked(notify).mockReset();
   vi.mocked(toast.warning).mockClear();
   const pending: (() => void)[] = [];
-  vi.mocked(notify).mockImplementation((_orchestrator: string, _line: string, typed?: () => void) => void (typed && pending.push(typed)));
+  vi.mocked(notify).mockImplementation((_fleet: string, _line: string, typed?: () => void) => void (typed && pending.push(typed)));
   await nodesStore.getState().create("chef2", {
     workspaceId: "w1",
-    kind: "orchestrator",
+    kind: "fleet",
     payload: {
       name: "Chef",
       mission: {

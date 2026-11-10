@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { goToAgent } from "@/commands/goToRun";
 import { Button } from "@/components/ui/button";
-import { useWaitingAgents, type WaitingAgent } from "@/fleet/waitingAgents";
+import { useWaitingAgents, type WaitingAgent } from "@/agents/waitingAgents";
 import { useMessages } from "@/i18n";
 import { useWorkspaces } from "@/store/workspaces";
 import { shellMessages } from "./messages";
@@ -41,7 +41,7 @@ export function WaitingNotice() {
         <section
           data-waiting-notice
           aria-label={t.agentCounts.waiting}
-          className="dp-glass-strong absolute bottom-14 left-[70px] z-30 flex w-[260px] animate-in fade-in-0 slide-in-from-bottom-1 duration-200 ease-out motion-reduce:animate-none flex-col rounded-lg p-1"
+          className="dp-glass-strong absolute bottom-14 left-[70px] z-30 flex w-[260px] animate-in fade-in-0 slide-in-from-bottom-1 duration-(--dp-dur) ease-(--dp-ease-out) motion-reduce:animate-none flex-col rounded-lg p-1"
         >
           {agents.slice(0, MAX_ROWS).map((agent) => (
             <Row key={agent.id} agent={agent}>

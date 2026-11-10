@@ -1,4 +1,4 @@
-/** What readiness reads of an agent's terminal, and how it answers it (spec orchestrator §7.3). */
+/** What readiness reads of an agent's terminal, and how it answers it (spec orchestrateur §7.3). */
 export interface ReadyProbe {
   running(): boolean;
   quietMs(): number;

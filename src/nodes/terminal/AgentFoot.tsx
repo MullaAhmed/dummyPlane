@@ -3,11 +3,11 @@ import { Plus } from "lucide-react";
 import type { SceneFrame } from "@/canvas/groups";
 import { useCanvas } from "@/canvas/canvasStore";
 import { Button } from "@/components/ui/button";
-import { AGENTS, INDIGO } from "@/fleet/catalog";
-import { CommandInput } from "@/fleet/CommandInput";
-import { takesCommands } from "@/fleet/slashCommands";
-import type { TargetAgent } from "@/fleet/targets";
-import { orchestratorsOf } from "@/fleet/wires";
+import { AGENTS, INDIGO } from "@/agents/catalog";
+import { CommandInput } from "@/agents/CommandInput";
+import { takesCommands } from "@/agents/slashCommands";
+import type { TargetAgent } from "@/agents/targets";
+import { fleetsOf } from "@/agents/wires";
 import { useMessages } from "@/i18n";
 import type { AgentId } from "@/ipc/pty";
 import { formatDuration } from "@/lib/format";
@@ -21,7 +21,7 @@ import { uiStore, useUi } from "@/store/ui";
 import { MessageBar } from "../foot/MessageBar";
 import { StatusLine } from "../foot/StatusLine";
 import { nodesMessages } from "../messages";
-import { keepFieldWheel } from "../orchestrator/keepWheel";
+import { keepFieldWheel } from "../fleet/keepWheel";
 import { pillOf } from "./pill";
 import { DOT_OF_TONE } from "./StatusDot";
 
@@ -33,9 +33,9 @@ export function hasAgentFoot(agent: AgentId): boolean {
 const NO_GROUPS: SceneFrame[] = [];
 
 /**
- * Under an agent's terminal, the same foot as an orchestrator's: a status line
- * (its dot, where it stands and for how long, the orchestrators that command
- * it, Link), then "Message <name>", folded until opened. The status lives
+ * Under an agent's terminal, the same foot as a Fleet's: a status line (its
+ * dot, where it stands and for how long, the Fleets that command it, Link),
+ * then "Message <name>", folded until opened. The status lives
  * here rather than in the header: one dot per agent, beside the question it
  * may be asking at the bottom of its terminal.
  */
@@ -68,19 +68,19 @@ function AgentStatus(props: { nodeId: string; payload: TerminalPayload; status: 
   const now = useNow(15_000);
   const links = useCanvas((s) => s.links);
   const frames = useCanvas((s) => s.frames);
-  const commanders = useMemo(() => orchestratorsOf(nodeId, links, frames), [nodeId, links, frames]);
+  const commanders = useMemo(() => fleetsOf(nodeId, links, frames), [nodeId, links, frames]);
   // A string, so the line renders again only when a name changes, not on every node's change.
   const from = useNodes((s) =>
     commanders
       .map((id) => {
         const record = s.nodes[id];
-        return record?.kind === "orchestrator" ? record.payload.name : "";
+        return record?.kind === "fleet" ? record.payload.name : "";
       })
       .filter(Boolean)
       .join(", "),
   );
   const running = status.state === "running";
-  const pill = pillOf(status, running ? activity?.activity : undefined, AGENTS[payload.agent].tint === INDIGO);
+  const pill = pillOf(status, running ? activity?.activity : undefined, AGENTS[payload.agent].tint === INDIGO, payload.lastReport?.status);
   // How long only when the activity store dates it: a process's start or stop is not dated.
   const since = running && activity ? formatDuration(now - activity.since) : null;
   return (
@@ -96,8 +96,8 @@ function AgentStatus(props: { nodeId: string; payload: TerminalPayload; status: 
 
 /**
  * Link from the agent's end: the link mode, waiting for a click on another
- * agent or an orchestrator (fleet/LinkMode.tsx). Always there: two agents
- * link without any orchestrator on the canvas.
+ * agent or a fleet (agents/LinkMode.tsx). Always there: two agents
+ * link without any fleet on the canvas.
  */
 function AgentLink({ nodeId }: { nodeId: string }) {
   const t = useMessages(nodesMessages).foot;
@@ -107,7 +107,7 @@ function AgentLink({ nodeId }: { nodeId: string }) {
       type="button"
       variant="ghost"
       size="xs"
-      // Whose Link it is: the link layer passes a click on to the linker's own "Done" only (fleet/LinkMode.tsx).
+      // Whose Link it is: the link layer passes a click on to the linker's own "Done" only (agents/LinkMode.tsx).
       data-link-toggle={nodeId}
       aria-pressed={linking}
       title={linking ? undefined : t.linkTitle}

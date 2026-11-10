@@ -8,7 +8,7 @@ const TRUST_QUESTION = "Accessing workspace:\n\nQuick safety check: Is this a pr
 /** Claude's screen as seen in the app: its banner, then its input box between two rules. */
 const CLAUDE = " ▐▛███▜▌   Claude Code v2.1.304\n▝▜█████▛▘  Opus 5.5\n\n──────────────────────── Claude · demo ─\n❯ \n────────────────────────────────────────\n  ⏵⏵ auto mode on (shift+tab to cycle)";
 /** A resumed conversation: its history has pushed the banner off the screen. */
-const RESUMED = "● J'ai clôturé la mission « linked ».\n\n──────────────────────── Orchestrateur ─\n❯ \n────────────────────────────────────────\n  ⏵⏵ auto mode on (shift+tab to cycle)";
+const RESUMED = "● J'ai clôturé la mission « linked ».\n\n──────────────────────────── Fleet ─\n❯ \n────────────────────────────────────────\n  ⏵⏵ auto mode on (shift+tab to cycle)";
 
 /** An agent's terminal on a simulated clock: what it shows, when it last wrote, what was pressed. */
 function agent(first: string, onPress: (keys: string, show: (screen: string) => void) => void = () => undefined) {

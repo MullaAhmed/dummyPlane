@@ -1,6 +1,6 @@
 import { toast } from "sonner";
 import { messages } from "@/i18n";
-import type { Point } from "@/fleet/terminals";
+import type { Point } from "@/agents/terminals";
 import { commandsMessages } from "./messages";
 import type { Shortcut } from "./shortcuts";
 
@@ -17,8 +17,8 @@ export interface CommandContext {
   at?: Point;
   /** The group the radial menu points at; else the current terminal's (spec menu radial §6.1). */
   groupId?: string | null;
-  /** The orchestrator the radial menu points at. */
-  orchestratorId?: string | null;
+  /** The fleet the radial menu points at. */
+  fleetId?: string | null;
   /**
    * The elements the radial menu's selection ring points at. Excalidraw commits the
    * selection the press just made a render later: a command reads these, not its state.

@@ -21,6 +21,7 @@ export const radialMessages = defineMessages(
       fleet: "Fleet",
       text: "Text",
       otherAgent: "Other agent",
+      inFolder: "In folder",
       overview: "Overview",
       addAgent: "Add agent",
       linkFleet: "Link fleet",
