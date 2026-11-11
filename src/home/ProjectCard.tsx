@@ -1,7 +1,7 @@
 import { useId, useRef, useState } from "react";
 import { Ellipsis, Folder } from "lucide-react";
 import { open } from "@tauri-apps/plugin-dialog";
-import { toast } from "sonner";
+import { toastError } from "@/lib/errorToast";
 import { confirmAction } from "@/components/confirm";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,14 +12,14 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { messages, useMessages } from "@/i18n";
-import { errorText, formatAgo } from "@/lib/format";
+import { formatAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { projectsStore, type Project } from "@/store/projects";
 import { homeMessages } from "./messages";
 
 type Failure = "openFailed" | "renameFailed" | "changeFailed" | "removeFailed";
 
-const fail = (what: Failure) => (error: unknown) => toast.error(messages(homeMessages).card[what](errorText(error)));
+const fail = (what: Failure) => (error: unknown) => toastError(messages(homeMessages).card[what], { error });
 
 async function relocate(project: Project) {
   const picked = await open({ directory: true, defaultPath: project.path, title: messages(homeMessages).card.newFolder });

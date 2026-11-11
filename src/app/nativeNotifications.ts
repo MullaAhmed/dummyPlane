@@ -1,4 +1,4 @@
-import { toast } from "sonner";
+import { toastError } from "@/lib/errorToast";
 import { createStore, useStore } from "zustand";
 import { messages } from "@/i18n";
 import { getSetting, setSetting } from "@/ipc/db";
@@ -23,5 +23,5 @@ export async function loadNativeNotifications() {
 
 export async function setNativeNotifications(enabled: boolean) {
   nativeNotificationsStore.setState({ enabled });
-  await setSetting(KEY, enabled).catch((error: unknown) => toast.error(messages(appMessages).settingNotSaved(message(error))));
+  await setSetting(KEY, enabled).catch((error: unknown) => toastError(messages(appMessages).settingNotSaved, { error, next: messages(appMessages).settingForNow }));
 }

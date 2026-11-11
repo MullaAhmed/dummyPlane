@@ -2,6 +2,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import { studioRead, studioVersion, studioWrite } from "@/ipc/studio";
 import { closeStudio, closeTab, dropAllTabs, editFile, guardQuit, hasUnsavedWork, holdQuit, isDirty, openFile, openStudio, saveFile, saveUnsavedTabs, studioStore, unsavedTabs } from "./studioStore";
+import { errorToasts } from "@/lib/errorToast.testkit";
 
 vi.mock("@/ipc/studio", () => ({ studioTree: vi.fn(), studioRead: vi.fn(), studioVersion: vi.fn(), studioWrite: vi.fn() }));
 vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { error: vi.fn() }) }));
@@ -46,7 +47,7 @@ it("keeps the changes and shows a toast when the save fails", async () => {
   expect(await saveFile("src/a.ts")).toBe(false);
   expect(isDirty(tab("src/a.ts"))).toBe(true);
   expect(session("src/a.ts").saving).toBe(false);
-  expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("read-only"));
+  expect(errorToasts(vi.mocked(toast.error))).toEqual([{ title: "Could not save src/a.ts", description: expect.stringMatching(/save again read-only$/) }]);
 });
 
 it("does not write a file that failed to read", async () => {
@@ -148,6 +149,6 @@ it("stops at a tab that cannot be saved, naming it", async () => {
   await openFile("src/a.ts");
   editFile("src/a.ts", "mine");
   expect(await saveUnsavedTabs()).toBe(false);
-  expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("src/a.ts"));
+  expect(errorToasts(vi.mocked(toast.error)).map((t) => t.title)).toEqual(["src/a.ts changed on disk: choose which version to keep first"]);
   expect(isDirty(tab("src/a.ts"))).toBe(true);
 });

@@ -133,7 +133,7 @@ async function alert(nodeId: string, state: State, summary: string) {
   const agent = openAgent(nodeId);
   if (!agent) return;
   const t = messages(shellMessages).finishAlert;
-  const title = t.title(agent.name, t.states[state]);
+  const title = messages(shellMessages).notification.title(agent.name, t.states[state]);
   const body = summaryLine(summary) || (agent.kind === "fleet" && state !== "finished" ? t.missionOver : t.turnOver);
   if (!(await getCurrentWindow().isFocused())) {
     if (nativeNotificationsStore.getState().enabled) sendNotification({ title, body, extra: { nodeId, finished: true } });

@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
-import { toast } from "sonner";
+import { toastError } from "@/lib/errorToast";
 import { OptionItem, OptionList } from "@/components/OptionList";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -136,7 +136,7 @@ export function LoopsDialog() {
     try {
       await loopsStore.getState().remove(loop.id);
     } catch (e) {
-      toast.error(messages(loopsMessages).dialog.failed(String(e)));
+      toastError(messages(loopsMessages).dialog.failed, { error: e });
       return;
     }
     setDeleted({ loop, index });
@@ -148,13 +148,13 @@ export function LoopsDialog() {
     try {
       const result = await loopsStore.getState().restore(deleted.loop, deleted.index);
       if (result === "full") {
-        toast.error(messages(loopsMessages).dialog.full);
+        toastError(messages(loopsMessages).dialog.full);
         return;
       }
       setDeleted(null);
       setFocusRow(deleted.loop.id);
     } catch (e) {
-      toast.error(messages(loopsMessages).dialog.failed(String(e)));
+      toastError(messages(loopsMessages).dialog.failed, { error: e });
     }
   };
 
@@ -174,10 +174,10 @@ export function LoopsDialog() {
     }
     try {
       const result = await loopsStore.getState().save({ ...checked.loop, id: form.id ?? crypto.randomUUID() });
-      if (result === "full") toast.error(messages(loopsMessages).dialog.full);
+      if (result === "full") toastError(messages(loopsMessages).dialog.full);
       else setForm(null);
     } catch (e) {
-      toast.error(messages(loopsMessages).dialog.failed(String(e)));
+      toastError(messages(loopsMessages).dialog.failed, { error: e });
     }
   };
 

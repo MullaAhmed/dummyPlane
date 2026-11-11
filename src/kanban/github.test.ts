@@ -5,6 +5,7 @@ import type { KanbanPayload } from "@/nodes/types";
 import { nodesStore } from "@/store/nodes";
 import { projectsStore } from "@/store/projects";
 import { createIssueForCard, linkBoard, moveCardWithGithub, parseProject, syncBoard } from "./github";
+import { errorToasts } from "@/lib/errorToast.testkit";
 
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
 vi.mock("sonner", () => ({ toast }));
@@ -121,7 +122,7 @@ describe("syncBoard", () => {
     const before = board();
     expect(await syncBoard("b")).toBe(false);
     expect(board()).toBe(before);
-    expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("GitHub CLI (gh) not found"));
+    expect(errorToasts(vi.mocked(toast.error))).toEqual([{ title: "Could not reach GitHub", description: expect.stringContaining("GitHub CLI (gh) not found") }]);
   });
 });
 
@@ -150,7 +151,7 @@ describe("moveCardWithGithub", () => {
     await moveCardWithGithub("b", "k1", "done");
     expect(board().columns.find((c) => c.id === "done")!.cardIds).toEqual(["k1"]);
     expect(board().cards.k1.github!.state).toBe("open");
-    expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("gh auth login"));
+    expect(errorToasts(vi.mocked(toast.error))).toEqual([{ title: "Could not reach GitHub", description: expect.stringContaining("gh auth login") }]);
   });
 
   it("still closes the issue when the Project cannot be read (missing scope)", async () => {
@@ -163,7 +164,7 @@ describe("moveCardWithGithub", () => {
     await moveCardWithGithub("b", "k1", "done");
     expect(calls.map(([cmd]) => cmd)).toContain("github_set_issue_state");
     expect(board().cards.k1.github!.state).toBe("closed");
-    expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("gh auth refresh -s project"));
+    expect(errorToasts(vi.mocked(toast.error))).toEqual([{ title: "Could not reach GitHub", description: expect.stringContaining("gh auth refresh -s project") }]);
   });
 
   it("follows on GitHub from a mission's folder, the user being on the home screen", async () => {

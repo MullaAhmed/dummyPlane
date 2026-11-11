@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { toast } from "sonner";
+import { toastError } from "@/lib/errorToast";
 import { canvasStore, useCanvas } from "@/canvas/canvasStore";
 import { duplicateTerminal, requestClose } from "@/agents/terminals";
 import { cn } from "@/lib/utils";
@@ -78,7 +78,7 @@ export function TerminalNode({ nodeId }: { nodeId: string }) {
           showStatus={!foot}
           onDuplicate={
             workspaceId
-              ? () => void duplicateTerminal(workspaceId, nodeId).catch((error: unknown) => toast.error(t.duplicateFailed(String(error))))
+              ? () => void duplicateTerminal(workspaceId, nodeId).catch((error: unknown) => toastError(t.duplicateFailed, { error }))
               : undefined
           }
           onClose={() => requestClose(nodeId)}

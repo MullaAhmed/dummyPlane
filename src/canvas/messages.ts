@@ -3,7 +3,7 @@ import { defineMessages } from "@/i18n";
 /** The texts of the canvas (spec première version §7.1). */
 export const canvasMessages = defineMessages(
   {
-    saveFailed: (error: string) => `Could not save: ${error}`,
+    saveFailed: "Could not save the canvas",
     loadFailed: (error: string) => `Could not load this workspace: ${error}`,
     retryLoad: "Try again",
     loading: "Loading…",
@@ -32,7 +32,7 @@ export const canvasMessages = defineMessages(
       copyTerminal: "Copy the terminal",
       deleteTerminal: "Delete the terminal",
       deleteFleet: "Delete the fleet",
-      copyFailed: (error: string) => `Could not copy the terminal: ${error}`,
+      copyFailed: "Could not copy the terminal",
       name: "Name",
       /** What the agent is doing now, at the top of the General page. */
       status: "Status",
@@ -50,7 +50,7 @@ export const canvasMessages = defineMessages(
       changeFolder: "Change…",
       changeFolderLabel: "Change the folder",
       pickFolder: "Working folder",
-      pickFolderFailed: (error: string) => `Could not open the folder picker: ${error}`,
+      pickFolderFailed: "Could not open the folder picker",
       // Under the folder of a fleet or of a mission's agent, which cannot be moved.
       folderFleet: "A fleet stays in the project: its missions branch from it",
       folderMission: "Fixed while its mission runs: this agent works in its own worktree",

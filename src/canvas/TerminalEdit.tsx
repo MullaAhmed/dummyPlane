@@ -2,6 +2,7 @@ import { useEffect, useId, useState, type ReactNode } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { Check, ChevronUp, ClipboardCopy, Copy, RotateCw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { toastError } from "@/lib/errorToast";
 import { PanelTabs, PanelTabsContent, PanelTabsList, PanelTabsTrigger } from "@/components/PanelTabs";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -206,7 +207,7 @@ function General({ nodeId, record, session }: { nodeId: string; record: NodeReco
   };
   const copy = () => {
     if (!record.workspaceId) return;
-    duplicateTerminal(record.workspaceId, nodeId).catch((error: unknown) => toast.error(t.copyFailed(String(error))));
+    duplicateTerminal(record.workspaceId, nodeId).catch((error: unknown) => toastError(t.copyFailed, { error }));
   };
   const remove = () => (fleet ? requestCloseFleet(nodeId) : requestClose(nodeId));
   const restart = () => {
@@ -588,7 +589,7 @@ function FolderField({ nodeId, session, lock }: { nodeId: string; session: Termi
     try {
       picked = await open({ directory: true, defaultPath: session.cwd || undefined, title: t.pickFolder });
     } catch (error) {
-      toast.error(t.pickFolderFailed(String(error)));
+      toastError(t.pickFolderFailed, { error });
       return;
     }
     if (typeof picked !== "string") return;
@@ -621,7 +622,7 @@ function FolderPath({ cwd, onChange }: { cwd: string; onChange?: () => void }) {
   const copyPath = () =>
     void navigator.clipboard.writeText(cwd).then(
       () => setCopied(true),
-      () => toast.error(t.copyPathFailed),
+      () => toastError(t.copyPathFailed),
     );
 
   return (

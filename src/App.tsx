@@ -27,6 +27,7 @@ import { updatesStore, useUpdates } from "@/app/updates";
 import { useFleetAgent } from "@/fleet/fleetAgent";
 import { useStudio } from "@/studio/studioStore";
 import { troubleshootStore, useTroubleshoot } from "@/shell/troubleshoot";
+import { errorDetail } from "@/lib/errorToast";
 
 /** What asks each dialog again: read by its own boundary, never here, so App does not re-render on each. */
 const usePaletteOpenings = () => usePalette((s) => s.openings);
@@ -60,7 +61,7 @@ export default function App() {
       {view === "home" && <HomeScreen />}
       {view === "project" && <ProjectView />}
       {view === "loading" && <StatusScreen message={t.loading} />}
-      {view === "error" && <StatusScreen failed message={t.startFailed(String(error))} />}
+      {view === "error" && <StatusScreen failed message={t.startFailed} detail={errorDetail(error)} />}
       {/* A dialog that failed once shows nothing; it tries again the next time it is asked for (its key changes). */}
       <QuietBoundary scope="palette" useResetKey={usePaletteOpenings}>
         <Palette />

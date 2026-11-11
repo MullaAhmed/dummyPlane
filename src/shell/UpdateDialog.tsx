@@ -1,5 +1,5 @@
 import { CircleArrowDown } from "lucide-react";
-import { toast } from "sonner";
+import { toastError } from "@/lib/errorToast";
 import { useStore } from "zustand";
 import { Button } from "@/components/ui/button";
 import { AccentButton, QuietButton } from "./buttons";
@@ -44,7 +44,7 @@ export function UpdateDialog() {
   const install = () =>
     void installUpdate().catch((error: unknown) => {
       updatesStore.setState({ progress: null, step: null });
-      toast.error(messages(shellMessages).update.failed, { description: error instanceof Error ? error.message : String(error) });
+      toastError(messages(shellMessages).update.failed, { error });
     });
 
   return (

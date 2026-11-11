@@ -1,4 +1,4 @@
-import { toast } from "sonner";
+import { toastError } from "@/lib/errorToast";
 import { whenSceneReady } from "@/canvas/sceneReady";
 import { installAgent } from "@/agents/installAgent";
 import { messages } from "@/i18n";
@@ -19,7 +19,7 @@ export async function installFromHome(agent: AgentId) {
     if (project) await projects.open(project.id);
     else await addProject();
   } catch (error) {
-    toast.error(messages(homeMessages).noAgent.openFailed(String(error)));
+    toastError(messages(homeMessages).noAgent.openFailed, { error });
     return;
   }
   const { workspaces, activeId, select } = workspacesStore.getState();

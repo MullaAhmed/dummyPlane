@@ -179,6 +179,44 @@ Rules:
 - Raised bars and rails: `.dp-glass` or `.dp-glass-strong` (the same opaque look, see Token roles).
 - The shadcn parts set this once, through `data-slot` rules in `index.css`. Do not re-set the fill, border or radius on a dialog or menu.
 
+## Alerts
+
+Toasts, the waiting notice, the error screens and the Windows notifications are one family: one surface, a tone per type, the app's buttons, one voice. Their copy lives in each area's `messages.ts`: plain, short English, no exclamation marks.
+
+Toasts (Sonner: `src/components/ui/sonner.tsx`, placed by `AppToaster`):
+
+- Surface: the opaque `--dp-surface`, hairline, `rounded-lg`, `--dp-shadow`, bottom right above the zoom control. Inter, like the rest of the app.
+- Type: the title at the UI step (13px), medium, `--dp-text`. The description `text-xs`, `--dp-text-2`.
+- Tone (`TOAST_TONES`): each type has its own icon shape drawn in its status colour. Success is a check in `--dp-ok`, info an "i" in `--dp-accent-ink`, warning a triangle in `--dp-wait`, error an octagon in `--dp-danger`, loading a spinner in `--dp-text-2`. Never the colour alone, never a tinted fill or a coloured border, no `richColors`: the text stays `--dp-text`.
+- Buttons (`TOAST_CLASSES`): the action (Undo, Show) is the `outline` button at `sm`; the cancel is the quiet ghost at `sm`, in `--dp-text-2`. Both keep the focus ring and the press. A toast that asks for a decision (`ResumeAllToast`) leads with `AccentButton`.
+- Motion: `--dp-dur` on `--dp-ease-out`, with no `box-shadow` in the transition list. Under reduced motion, toasts only fade.
+- Sonner injects its own style unlayered, later than `index.css`, so it beats every utility. `index.css` rolls each property it sets on the title, the description and the buttons back to the utilities' layer (`revert-layer`), with a selector that out-ranks its strongest rule. Opacity stays Sonner's, since it hides the toasts stacked behind. It also puts the app's font back. `src/theme/alerts.test.ts` checks all this against Sonner's stylesheet.
+- A custom toast (`toast.custom`) draws the same: `dp-glass-strong`, `rounded-lg`, the same type steps.
+
+Errors:
+
+- Every error toast goes through `toastError` (`src/lib/errorToast.tsx`). `toast.error` appears nowhere else.
+- The title says what failed, in the app's words ("Could not save the canvas"). It is never the error itself: no `String(error)`, no `error.message`, no "AppError:", nothing in Rust's or the OS's wording.
+- Under it, when the app knows, comes what to do next (`next`): one sentence in `--dp-text-2`. Promise no fix the app cannot know.
+- Last comes the error's own text, as a detail (`errorDetail`). It keeps the first line only, without the class name, the `(os error N)` or a stack, at most 160 characters. It is set in the code font in `--dp-text-3`. The whole error goes to the log.
+- `src/lib/errorToast.test.tsx` rejects a toast whose title is a raw error, and any `toast.error` outside the helper.
+
+Screens and notices:
+
+- The start-up error (`StatusScreen`), a project whose workspaces do not load (`ProjectView`) and a render error (`CrashNotice`, `AppCrash`) all read the same. The title comes in the app's words, then the error's detail in the code font, `text-xs`, `--dp-text-2`. The full screens and the crash notices end with the ways out: try again, the logs, troubleshooting. The project's load error has none of its own; the title bar and the project picker stay usable.
+- The waiting notice (`WaitingNotice`) uses the same raised surface, bottom left, with one row per agent. Each row shows the agent's waiting `StatusDot`, the ringed signature dot, never a plain colour dot.
+
+Windows notifications (`waitingAlert`, `finishAlert`):
+
+- The title is the agent and its state: `<name> · Waiting`, or `<name> · Done`, `· Blocked`, `· Failed`, `· Finished`. The finish toast in the window reads the same. The body is one line.
+- A waiting agent's body is fixed, "Has a question for you". Never the question: a notification can show on the lock screen. A finish's body is its summary line.
+- Never "dummyPlane" in the title: Windows shows the app's name and icon above it. That holds for the installed app, whose Start menu shortcut carries the identifier (`dev.dummyplane.app`). A build run from `target/debug` or `target/release` shows as Windows PowerShell, because the notification plugin leaves the identifier off there.
+
+Native dialogs:
+
+- Only the folder pickers (`@tauri-apps/plugin-dialog` `open`, `directory: true`). Everything else is the app's own dialog or toast, with no `window.alert`, `confirm` or `prompt`.
+- One exception: a database that does not open at start-up (`database_failure`, `src-tauri/src/lib.rs`). It happens before any interface can run, and its text follows the same voice.
+
 ## Node chrome
 
 A terminal and a fleet share one header, `NodeHeader` in `src/nodes/terminal`, built from the same pieces so the two cannot drift:

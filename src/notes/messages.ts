@@ -6,7 +6,7 @@ export const notesMessages = defineMessages({
   saving: "Saving…",
   modified: "Unsaved changes",
   refresh: "Refresh",
-  openFailed: (error: string) => `Could not open the notes: ${error}`,
+  openFailed: "Could not open the notes",
   tabEdit: "Edit",
   tabRead: "Read",
   tabGraph: "Graph",

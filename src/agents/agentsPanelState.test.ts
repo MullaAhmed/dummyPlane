@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { toast } from "sonner";
 import { agentsPanelStore, loadAgentsPanel, readAgentsFilter, readAgentsPanel, setAgentsFilter, setAgentsPanel, showAgents } from "./agentsPanelState";
+import { errorToasts } from "@/lib/errorToast.testkit";
 
 let saved: unknown[];
 
@@ -55,7 +56,7 @@ describe("the agents panel's state (spec identité §5.6)", () => {
       throw new Error("disque plein");
     });
     setAgentsPanel(true);
-    await vi.waitFor(() => expect(error).toHaveBeenCalledWith(expect.stringMatching(/^Setting not saved: .*disque plein/)));
+    await vi.waitFor(() => expect(errorToasts(error)).toEqual([{ title: "Could not save the setting", description: expect.stringContaining("disque plein") }]));
     expect(agentsPanelStore.getState().open).toBe(true);
   });
 });

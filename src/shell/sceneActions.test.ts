@@ -6,6 +6,7 @@ import { canvasStore } from "@/canvas/canvasStore";
 import { workspacesStore } from "@/store/workspaces";
 import { exportCurrentPng, exportCurrentScene, importIntoScene } from "./sceneActions";
 import { exportPng, exportScene, importScene } from "./sceneFiles";
+import { errorToasts } from "@/lib/errorToast.testkit";
 
 vi.mock("./sceneFiles", () => ({
   exportScene: vi.fn(() => Promise.resolve(true)),
@@ -31,6 +32,6 @@ it("exports the scene on screen under its workspace's name, as the settings menu
 it("says so when an import fails", async () => {
   const error = vi.spyOn(toast, "error").mockImplementation(() => "");
   importIntoScene();
-  await vi.waitFor(() => expect(error).toHaveBeenCalledWith(expect.stringMatching(/^Import failed: .*unreadable file/)));
+  await vi.waitFor(() => expect(errorToasts(error)).toEqual([{ title: "Could not import the scene", description: expect.stringContaining("unreadable file") }]));
   expect(importScene).toHaveBeenCalledWith(api);
 });

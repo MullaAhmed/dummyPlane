@@ -1,6 +1,6 @@
 import { useRef, useState, type ReactElement } from "react";
 import { ChevronDown } from "lucide-react";
-import { toast } from "sonner";
+import { toastError } from "@/lib/errorToast";
 import { useCanvas } from "@/canvas/canvasStore";
 import { Button } from "@/components/ui/button";
 import {
@@ -111,7 +111,7 @@ export function GroupMenu({ groupId, trigger, answersRequests = false }: { group
                   disabled={!available(id)}
                   onSelect={() =>
                     void addAgentToGroup(groupId, id).catch((error: unknown) =>
-                      toast.error(messages(agentsMessages).launchFailed(String(error))),
+                      toastError(messages(agentsMessages).launchFailed, { error, next: messages(agentsMessages).launchNext }),
                     )
                   }
                 >
@@ -123,7 +123,7 @@ export function GroupMenu({ groupId, trigger, answersRequests = false }: { group
         </DropdownMenuSub>
         <DropdownMenuItem
           onSelect={() =>
-            void addFleetToGroup(groupId).catch((error: unknown) => toast.error(messages(agentsMessages).fleetFailed(String(error))))
+            void addFleetToGroup(groupId).catch((error: unknown) => toastError(messages(agentsMessages).fleetFailed, { error }))
           }
         >
           {t.groupMenu.linkFleet}

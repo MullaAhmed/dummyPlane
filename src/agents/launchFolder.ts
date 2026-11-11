@@ -1,5 +1,5 @@
 import { open } from "@tauri-apps/plugin-dialog";
-import { toast } from "sonner";
+import { toastError } from "@/lib/errorToast";
 import { createStore, useStore } from "zustand";
 import { messages } from "@/i18n";
 import { getSetting, setSetting } from "@/ipc/db";
@@ -201,7 +201,7 @@ export function useLaunchFolder(): LaunchFolderView {
 }
 
 /** A refused save, told to the user: the workspace is back on its old folder. */
-export const folderSaveFailed = (error: unknown) => toast.error(messages(agentsMessages).launchFolder.saveFailed(String(error)));
+export const folderSaveFailed = (error: unknown) => toastError(messages(agentsMessages).launchFolder.saveFailed, { error });
 
 /** The native folder picker, opened on `from`; null when it was cancelled. */
 export async function pickFolder(from?: string): Promise<string | null> {

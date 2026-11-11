@@ -1,4 +1,4 @@
-import { toast } from "sonner";
+import { toastError } from "@/lib/errorToast";
 import { createStore, useStore } from "zustand";
 import { agentsStore, loadedAgents } from "@/agents/agentsStore";
 import { messages } from "@/i18n";
@@ -46,7 +46,7 @@ export async function loadFleetAgent() {
 
 export async function setFleetAgent(agent: AgentId) {
   fleetAgentStore.setState({ agent });
-  await setSetting(KEY, agent).catch((error: unknown) => toast.error(messages(fleetMessages).agent.notSaved(errorText(error))));
+  await setSetting(KEY, agent).catch((error: unknown) => toastError(messages(fleetMessages).agent.notSaved, { error, next: messages(fleetMessages).agent.forNow }));
 }
 
 /**

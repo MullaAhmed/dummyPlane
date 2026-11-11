@@ -1,7 +1,6 @@
-import { toast } from "sonner";
+import { toastError } from "@/lib/errorToast";
 import { createStore, useStore } from "zustand";
 import { messages } from "@/i18n";
-import { errorText } from "@/lib/format";
 import { workspacesStore } from "@/store/workspaces";
 import { notesMessages } from "./messages";
 
@@ -20,7 +19,7 @@ export function openNotes() {
   void workspacesStore
     .getState()
     .openNotes()
-    .catch((error: unknown) => toast.error(messages(notesMessages).openFailed(errorText(error))));
+    .catch((error: unknown) => toastError(messages(notesMessages).openFailed, { error }));
 }
 
 export const openGroupNotes = (groupId: string) => notesStore.setState({ attaching: groupId });

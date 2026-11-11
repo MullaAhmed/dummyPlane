@@ -229,6 +229,48 @@
   box-shadow: var(--dp-shadow);
 }
 
+/* The app's type in the toasts: sonner sets the system font on its toaster. */
+[data-sonner-toaster][data-sonner-theme] {
+  font-family: var(--font-sans);
+}
+
+/* A toast's title, description and buttons take the app's classes (components/ui/sonner.tsx, TOAST_CLASSES):
+   sonner's injected style is unlayered and wins over every utility, so each property it sets on these parts
+   rolls back past it to the utilities' layer. Opacity stays sonner's: it hides the buttons of the toasts
+   stacked behind. Six attributes out-rank its strongest rule on them (the dark cancel button, five), which
+   comes later in a release build; each is on every toast (a plain toast has no data-type). */
+[data-sonner-toaster][data-sonner-theme] [data-sonner-toast][data-styled="true"][data-x-position] :is([data-title], [data-description], [data-button]) {
+  display: revert-layer;
+  align-items: revert-layer;
+  flex-shrink: revert-layer;
+  height: revert-layer;
+  margin: revert-layer;
+  padding: revert-layer;
+  border: revert-layer;
+  border-radius: revert-layer;
+  outline: revert-layer;
+  box-shadow: revert-layer;
+  background: revert-layer;
+  color: revert-layer;
+  font-size: revert-layer;
+  font-weight: revert-layer;
+  line-height: revert-layer;
+  cursor: revert-layer;
+  transition: revert-layer;
+}
+
+/* Toasts move on the tokens, never past 300 ms, and name no box-shadow: a ring fades in with it. A swipe
+   follows the pointer with no transition, as sonner wants. */
+[data-sonner-toaster] [data-sonner-toast]:not([data-swiping="true"]) {
+  transition-property: transform, opacity, height;
+  transition-duration: var(--dp-dur);
+  transition-timing-function: var(--dp-ease-out);
+}
+
+[data-sonner-toaster] [data-sonner-toast] > * {
+  transition: opacity var(--dp-dur) var(--dp-ease-out);
+}
+
 /* A menu or popover the keyboard opened (the palette, a shortcut) is there at once: never animate a
    keyboard-initiated action. Outside any layer, so it wins over tw-animate's utilities; with no
    animation, Radix unmounts it at once on close too. */

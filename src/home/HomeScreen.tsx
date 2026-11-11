@@ -2,7 +2,7 @@ import { useEffect, type ComponentProps } from "react";
 import { FolderPlus, LifeBuoy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { agentsStore } from "@/agents/agentsStore";
-import { toast } from "sonner";
+import { toastError } from "@/lib/errorToast";
 import { messages, useMessages } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { AccentButton } from "@/shell/buttons";
@@ -36,7 +36,7 @@ export function HomeScreen() {
     agentsStore
       .getState()
       .load()
-      .catch((error: unknown) => toast.error(messages(homeMessages).start.agentsFailed(error instanceof Error ? error.message : String(error))));
+      .catch((error: unknown) => toastError(messages(homeMessages).start.agentsFailed, { error }));
   }, []);
 
   return (

@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactElement } from "react";
 import { ChevronDown, Minus, Plus } from "lucide-react";
-import { toast } from "sonner";
+import { toastError } from "@/lib/errorToast";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -122,7 +122,7 @@ export function ComposeGroup({
     setOpen(false);
     returnKeyboardToCanvas();
     void launchGroup({ name, role, agents: agentsOf(slots, fallback), pantheon }, defaultLaunchOptions()).catch((error: unknown) =>
-      toast.error(messages(agentsMessages).launchFailed(String(error))),
+      toastError(messages(agentsMessages).launchFailed, { error, next: messages(agentsMessages).launchNext }),
     );
   };
 

@@ -8,6 +8,8 @@ import { projectsStore } from "@/store/projects";
 import { terminalStatusStore } from "@/store/terminalStatus";
 import { workspacesStore } from "@/store/workspaces";
 import { readSource } from "@/theme/cssBlocks";
+import { messages } from "@/i18n";
+import { shellMessages } from "./messages";
 import { installWaitingAlerts } from "./waitingAlert";
 
 const win = vi.hoisted(() => ({
@@ -56,13 +58,24 @@ describe("the Windows notification (spec notification §8)", () => {
   it("tells when an agent starts waiting and the window is not focused", async () => {
     apply("batman", "waiting");
     await settled();
-    expect(sendNotification).toHaveBeenCalledExactlyOnceWith({ title: "dummyPlane", body: "Batman has a question", extra: { nodeId: "batman" } });
+    expect(sendNotification).toHaveBeenCalledExactlyOnceWith({ title: "Batman · Waiting", body: "Has a question for you", extra: { nodeId: "batman" } });
+  });
+
+  it("writes the finish's format: the agent and its state in the title, one line in the body, no app name (Windows shows it)", async () => {
+    apply("batman", "waiting");
+    await settled();
+    const { title, body } = vi.mocked(sendNotification).mock.calls[0][0] as { title: string; body: string };
+    // The finish's notification (`./finishAlert`) builds its title with the same function: "Batman · Done".
+    expect(title).toBe(messages(shellMessages).notification.title("Batman", messages(shellMessages).finishAlert.states.done).replace("Done", "Waiting"));
+    expect(readSource("shell/finishAlert.ts")).toContain("notification.title(agent.name, t.states[state])");
+    expect(title).not.toContain("dummyPlane");
+    expect(body).not.toContain("Batman");
   });
 
   it("keeps the preview in the window: a toast can show on the lock screen (spec notification §7)", async () => {
     agentActivityStore.getState().apply({ nodeId: "batman", activity: "waiting", since: 1, message: "Run rm on C:/secret?" });
     await settled();
-    expect(sendNotification).toHaveBeenCalledExactlyOnceWith({ title: "dummyPlane", body: "Batman has a question", extra: { nodeId: "batman" } });
+    expect(sendNotification).toHaveBeenCalledExactlyOnceWith({ title: "Batman · Waiting", body: "Has a question for you", extra: { nodeId: "batman" } });
   });
 
   it("stays silent when the window is focused: the notice is on screen", async () => {

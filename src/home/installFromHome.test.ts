@@ -7,6 +7,7 @@ import { projectsStore } from "@/store/projects";
 import { workspacesStore } from "@/store/workspaces";
 import { addProject } from "./addProject";
 import { installFromHome } from "./installFromHome";
+import { errorToasts } from "@/lib/errorToast.testkit";
 
 vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { error: vi.fn() }) }));
 vi.mock("@/agents/installAgent", () => ({ installAgent: vi.fn(() => Promise.resolve("node")) }));
@@ -99,7 +100,7 @@ it("says so when the project cannot be opened", async () => {
   projectsStore.setState({ projects: [project("a", 1)] });
   open.mockRejectedValueOnce(new Error("locked"));
   await installFromHome("claude");
-  expect(toast.error).toHaveBeenCalledWith("Could not open the project: Error: locked");
+  expect(errorToasts(vi.mocked(toast.error))).toEqual([{ title: "Could not open the project", description: "locked" }]);
   sceneReady("w1");
   expect(installAgent).not.toHaveBeenCalled();
 });

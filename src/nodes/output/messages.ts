@@ -16,7 +16,7 @@ export const outputMessages = defineMessages({
   close: "Close",
   copied: "Copied",
   linkCopied: "Link copied: paste it to an agent, it reads it with read_node",
-  copyFailed: (error: string) => `Could not copy: ${error}`,
+  copyFailed: "Could not copy to the clipboard",
   sent: (label: string, name: string) => `“${label}” sent to ${name}`,
   notSent: (name: string) => `${name} is not running: nothing was sent`,
 });

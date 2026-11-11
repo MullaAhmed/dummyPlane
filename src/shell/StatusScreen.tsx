@@ -11,17 +11,29 @@ const reload = () => location.reload();
 
 /**
  * Loading and error screens keep the title bar: the window stays movable and closable. A failed start is no dead
- * end: it says what failed, and offers to try again, the logs and the troubleshooting dialog.
+ * end: it says what failed in the app's words, the error's own text under it as a detail (`errorDetail`), and
+ * offers to try again, the logs and the troubleshooting dialog. The interface crash (`AppCrash`) reads the same.
  */
-export function StatusScreen({ message, failed = false, retry = reload }: { message: string; failed?: boolean; retry?: () => void }) {
+export function StatusScreen({
+  message,
+  detail,
+  failed = false,
+  retry = reload,
+}: {
+  message: string;
+  detail?: string;
+  failed?: boolean;
+  retry?: () => void;
+}) {
   const t = useMessages(shellMessages).statusScreen;
   return (
     <div className="dp-ambient flex h-screen flex-col">
       <TitleBar leading={<span className="text-(length:--text-ui) font-medium text-dp-text">dummyPlane</span>} />
       {failed ? (
         <div role="alert" className="grid flex-1 place-items-center px-6">
-          <div className="flex max-w-md flex-col items-center gap-4 text-center">
-            <p className="text-sm text-dp-text">{message}</p>
+          <div className="flex max-w-md flex-col items-center gap-3 text-center">
+            <p className="text-base font-medium text-dp-text">{message}</p>
+            {detail && <p className="font-mono text-xs break-words text-dp-text-2">{detail}</p>}
             <div className="flex flex-wrap justify-center gap-2">
               <AccentButton onClick={retry}>{t.tryAgain}</AccentButton>
               <Button variant="outline" onClick={() => void openLogDir()} className="px-3 text-(length:--text-ui) font-normal">

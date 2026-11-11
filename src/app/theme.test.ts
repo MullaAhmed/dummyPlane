@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { toast } from "sonner";
+import { errorToasts } from "@/lib/errorToast.testkit";
 import {
   DEFAULT_THEME,
   PALETTES,
@@ -158,6 +159,6 @@ describe("changing the settings", () => {
     startTheme();
     await setThemeChoice("electric");
     expect(root.dataset.palette).toBe("electric");
-    expect(error).toHaveBeenCalledWith(expect.stringMatching(/^Setting not saved: .*disk full/));
+    expect(errorToasts(error)).toEqual([{ title: "Could not save the setting", description: expect.stringContaining("disk full") }]);
   });
 });

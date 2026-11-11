@@ -1,4 +1,5 @@
 import { toast } from "sonner";
+import { toastError } from "@/lib/errorToast";
 import { messages } from "@/i18n";
 import { canvasStore } from "@/canvas/canvasStore";
 import type { Point } from "@/agents/terminals";
@@ -84,7 +85,7 @@ export async function readClipboard(): Promise<DataTransfer | null> {
       }
     }
   } catch {
-    toast.error(messages(radialMessages).clipboardUnreadable);
+    toastError(messages(radialMessages).clipboardUnreadable);
     return null;
   }
   if (data.types.length === 0) {

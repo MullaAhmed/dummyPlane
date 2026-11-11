@@ -1,4 +1,5 @@
 import { toast } from "sonner";
+import { toastError } from "@/lib/errorToast";
 import { messages } from "@/i18n";
 import { savePastedImage, type ImageExtension } from "@/ipc/pastedImages";
 import type { AgentId } from "@/ipc/pty";
@@ -75,9 +76,7 @@ export async function savedImagePath(image: PastedImage): Promise<string | null>
     return pastedPath(await savePastedImage(new Uint8Array(await image.file.arrayBuffer()), image.extension));
   } catch (error) {
     console.error("image paste failed", error);
-    toast.error(messages(nodesMessages).terminal.imagePasteFailed, {
-      description: error instanceof Error ? error.message : String(error),
-    });
+    toastError(messages(nodesMessages).terminal.imagePasteFailed, { error });
     return null;
   }
 }

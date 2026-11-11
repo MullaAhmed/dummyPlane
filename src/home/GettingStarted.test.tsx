@@ -10,6 +10,7 @@ import { AGENT_IDS, type AgentInfo } from "@/ipc/pty";
 import type { Project } from "@/ipc/db";
 import { HomeScreen } from "./HomeScreen";
 import { installFromHome } from "./installFromHome";
+import { errorToasts } from "@/lib/errorToast.testkit";
 
 // Excalidraw does not load under Vitest (roughjs); the search field reaches it through the command registry.
 vi.mock("@excalidraw/excalidraw", () => ({}));
@@ -181,7 +182,7 @@ it("says so when listing the agents fails, instead of silently hiding the panel"
     if (cmd === "plugin:window|is_maximized") return false;
   });
   await render();
-  expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("boom"));
+  expect(errorToasts(vi.mocked(toast.error))).toEqual([{ title: "Could not look for the installed agents", description: "boom" }]);
 });
 
 it("tells screen readers a step is done, with text instead of an aria-label on a span", async () => {

@@ -1,4 +1,5 @@
 import { toast } from "sonner";
+import { toastError } from "@/lib/errorToast";
 import { canvasStore } from "@/canvas/canvasStore";
 import { isGroup } from "@/canvas/groups";
 import type { Command } from "@/commands/command";
@@ -63,7 +64,7 @@ export function presetCommands(presets: readonly TeamPreset[]): Command[] {
           toast(text().toast.removed(preset.name), {
             action: {
               label: text().toast.undo,
-              onClick: () => void presetsStore.getState().save(preset).catch((error: unknown) => toast.error(text().toast.failed(String(error)))),
+              onClick: () => void presetsStore.getState().save(preset).catch((error: unknown) => toastError(text().toast.failed, { error })),
             },
           });
         },

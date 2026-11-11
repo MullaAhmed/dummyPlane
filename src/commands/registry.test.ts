@@ -13,6 +13,7 @@ import { workspacesStore } from "@/store/workspaces";
 import { commandFor, runCommand, type Command, type CommandContext } from "./command";
 import { paletteStore } from "./paletteState";
 import { COMMANDS, commandContext } from "./registry";
+import { errorToasts } from "@/lib/errorToast.testkit";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
 vi.mock("@/canvas/arrive", () => ({ arrive: vi.fn(), arrivingNode: vi.fn(() => null) }));
@@ -96,7 +97,7 @@ describe("the registry (spec fenêtre §6.1, §8)", () => {
     const error = vi.spyOn(toast, "error").mockImplementation(() => "");
     const failing: Command = { ...command("canvas.overview"), run: () => Promise.reject(new Error("canvas absent")) };
     runCommand(failing, busy);
-    await vi.waitFor(() => expect(error).toHaveBeenCalledWith(expect.stringMatching(/^Overview failed: .*canvas absent/)));
+    await vi.waitFor(() => expect(errorToasts(error)).toEqual([{ title: "Overview failed", description: "canvas absent" }]));
   });
 });
 
@@ -186,10 +187,11 @@ it("a failed command says what its button says (plan F2)", async () => {
     runCommand({ ...command(id), run: () => Promise.reject(new Error("boom")) }, busy);
   }
   await vi.waitFor(() => expect(error).toHaveBeenCalledTimes(4));
-  expect(error.mock.calls.map(([text]) => text)).toEqual([
-    "Could not duplicate: Error: boom",
-    "Could not create: Error: boom",
-    "Could not delete: Error: boom",
-    "Could not create the fleet: Error: boom",
+  // What the button says it does, in a title of its own; the error under it, never "Error:" in the title (Alerts).
+  expect(errorToasts(error)).toEqual([
+    { title: "Could not duplicate the terminal", description: "boom" },
+    { title: "Could not create the workspace", description: "boom" },
+    { title: "Could not delete the workspace", description: "boom" },
+    { title: "Could not create the fleet", description: "boom" },
   ]);
 });

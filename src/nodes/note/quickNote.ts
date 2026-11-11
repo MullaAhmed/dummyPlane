@@ -1,4 +1,4 @@
-import { toast } from "sonner";
+import { toastError } from "@/lib/errorToast";
 import { messages } from "@/i18n";
 import { noteMessages } from "./messages";
 
@@ -14,7 +14,7 @@ export async function quickNote(hostId: string): Promise<string | null> {
     const { addNote } = await import("./notes");
     return await addNote(hostId);
   } catch (error) {
-    toast.error(messages(noteMessages).addFailed(String(error)));
+    toastError(messages(noteMessages).addFailed, { error });
     return null;
   }
 }

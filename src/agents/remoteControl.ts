@@ -1,4 +1,5 @@
 import { toast } from "sonner";
+import { toastError } from "@/lib/errorToast";
 import { createStore, useStore } from "zustand";
 import { messages } from "@/i18n";
 import { ptySendText, ptyWrite } from "@/ipc/pty";
@@ -297,7 +298,7 @@ export async function setRemoteControlAll(nodeIds: readonly string[], on: boolea
   if (later.length > 0) toast(messages(agentsMessages).remote.later(later.map(nameOf).join(", ")));
   ids.forEach((id, i) => {
     const result = results[i];
-    if (result && "error" in result) toast.error(messages(agentsMessages).remote.failedFor(nameOf(id), result.error));
+    if (result && "error" in result) toastRemoteFailure(messages(agentsMessages).remote.failedFor(nameOf(id), on), result.error);
   });
 }
 
@@ -351,4 +352,13 @@ export function remoteErrorText(error: string): string {
     if (now[key] === error) return now[key];
   }
   return error;
+}
+
+/**
+ * A switch that failed, in a toast: dummyPlane's own explanation (consent, a draft, a menu not confirmed) says
+ * what to do next; anything else is Claude's or the system's wording, a detail under the title.
+ */
+export function toastRemoteFailure(title: string, error: string) {
+  const now = messages(agentsMessages).remote;
+  toastError(title, KNOWN_ERRORS.some((key) => now[key] === error) ? { next: error } : { error });
 }

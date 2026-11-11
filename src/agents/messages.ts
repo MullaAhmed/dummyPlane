@@ -6,11 +6,14 @@ const whoJoined = (names: readonly string[]) =>
 
 /** Every text of the agents panel and the agent menus the interface shows (spec first version §7.1). */
 export const agentsMessages = defineMessages({
-    launchFailed: (error: string) => `Could not launch: ${error}`,
-    fleetFailed: (error: string) => `Could not create the fleet: ${error}`,
+    launchFailed: "Could not launch the agent",
+    launchNext: "Check that the agent is installed and its folder exists, then try again",
+    fleetFailed: "Could not create the fleet",
     foldWaiting: "Wait for the group's agents to start before folding it: a hidden agent does not start.",
     noClaude: 'Claude Code is not installed: a fleet needs it. Install it (see "Getting started" on the home screen), then try again.',
-    settingNotSaved: (error: string) => `Setting not saved: ${error}`,
+    settingNotSaved: "Could not save the setting",
+    /** A setting already applied on screen, whose saving failed. */
+    settingForNow: "It applies for now; dummyPlane will not remember it after a restart",
     agentFallback: "Agent",
     catalog: {
       customLabel: "Custom",
@@ -83,6 +86,8 @@ export const agentsMessages = defineMessages({
       pending: "Remote Control at the end of its turn",
       failed: "failed",
       error: (error: string) => `Remote Control: ${error}`,
+      /** The toast of a switch that failed; what went wrong goes under it. */
+      notChanged: (on: boolean) => `Could not turn ${on ? "on" : "off"} Remote Control`,
       requested: "Remote Control requested",
       nextStart: "Remote Control at next start",
       turnOff: "Turn off Remote Control",
@@ -101,7 +106,7 @@ export const agentsMessages = defineMessages({
       done: (on: boolean, names: string) => `Remote Control ${on ? "turned on" : "turned off"}: ${names}`,
       later: (names: string) => `Remote Control at the end of their turn: ${names}`,
       nextStartFor: (names: string) => `Remote Control at next start: ${names}`,
-      failedFor: (name: string, error: string) => `Remote Control for ${name}: ${error}`,
+      failedFor: (name: string, on: boolean) => `Could not turn ${on ? "on" : "off"} Remote Control for ${name}`,
     },
     agentMenu: {
       title: "Launch an agent",
@@ -125,7 +130,7 @@ export const agentsMessages = defineMessages({
       projectFolder: "Project folder",
       backToProject: "Back to the project folder",
       recent: "Recent",
-      saveFailed: (error: string) => `Could not save the folder: ${error}`,
+      saveFailed: "Could not save the launch folder",
     },
     agentRow: {
       remoteOn: "Remote Control on",
@@ -251,6 +256,8 @@ export const agentsMessages = defineMessages({
       terminalTitle: (label: string) => `Install · ${label}`,
       installed: (label: string) => `${label} is installed`,
       noCanvas: "Open a project: the install runs in a terminal on its canvas.",
+      /** The terminal of an install or a model pull did not start; what went wrong goes under it. */
+      terminalFailed: "Could not open the install terminal",
     },
     placement: {
       addToGroup: (name: string) => `Click or press Enter to add it to the group ${name} · Esc to cancel`,

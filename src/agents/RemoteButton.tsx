@@ -12,7 +12,7 @@ import { messages, useMessages } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { IconButton } from "@/shell/buttons";
 import { agentsMessages } from "./messages";
-import { remoteErrorText, setRemoteControl, useRemoteLink, type RemoteLink } from "./remoteControl";
+import { remoteErrorText, setRemoteControl, toastRemoteFailure, useRemoteLink, type RemoteLink } from "./remoteControl";
 
 /** What the phone icon says. */
 export function remoteLabel(link: RemoteLink | undefined, wanted: boolean, running: boolean): string {
@@ -34,7 +34,7 @@ export function remoteActions(link: RemoteLink | undefined, wanted: boolean): ("
 /** Turns Remote Control on or off: now for a running session, at its next start otherwise; a failure says why in a toast. */
 export function switchRemote(nodeId: string, on: boolean) {
   void setRemoteControl(nodeId, on).then((result) => {
-    if (result && "error" in result) toast.error(messages(agentsMessages).remote.error(result.error));
+    if (result && "error" in result) toastRemoteFailure(messages(agentsMessages).remote.notChanged(on), result.error);
   });
 }
 

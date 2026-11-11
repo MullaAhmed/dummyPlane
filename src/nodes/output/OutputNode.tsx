@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Copy, LayoutPanelTop, X } from "lucide-react";
 import { toast } from "sonner";
+import { toastError } from "@/lib/errorToast";
 import { removeNode } from "@/agents/terminals";
 import { useCanvas } from "@/canvas/canvasStore";
 import { nodeLink } from "@/canvas/nodeElement";
@@ -19,12 +20,12 @@ import { nodeNameOf, terminalOf, useNodes } from "@/store/nodes";
 import { isRunning } from "@/store/terminalStatus";
 import { outputMessages } from "./messages";
 
-function copy(text: string | Promise<string>, done: string, failed: (error: string) => string) {
+function copy(text: string | Promise<string>, done: string, failed: string) {
   void Promise.resolve(text)
     .then((value) => navigator.clipboard.writeText(value))
     .then(
       () => toast(done),
-      (error: unknown) => toast.error(failed(String(error))),
+      (error: unknown) => toastError(failed, { error }),
     );
 }
 

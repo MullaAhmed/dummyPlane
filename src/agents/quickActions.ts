@@ -1,4 +1,4 @@
-import { toast } from "sonner";
+import { toastError } from "@/lib/errorToast";
 import { canvasStore } from "@/canvas/canvasStore";
 import { messages } from "@/i18n";
 import type { AgentId } from "@/ipc/pty";
@@ -12,7 +12,7 @@ import { addFleet } from "@/fleet/fleets";
 import { viewportCenter } from "./placement";
 import type { Point } from "./terminals";
 
-const reportLaunchError = (error: unknown) => toast.error(messages(agentsMessages).launchFailed(String(error)));
+const reportLaunchError = (error: unknown) => toastError(messages(agentsMessages).launchFailed, { error, next: messages(agentsMessages).launchNext });
 
 /**
  * An agent at `at`, else at the center of the view, in the group under it if any (spec theme §11.3,

@@ -1,4 +1,5 @@
 import { toast } from "sonner";
+import { toastError } from "@/lib/errorToast";
 import { canvasStore } from "@/canvas/canvasStore";
 import { findTerminalAt } from "@/canvas/hitTest";
 import { sendToAgents } from "@/agents/broadcast";
@@ -93,18 +94,18 @@ export async function sendCardToTerminal(nodeId: string, cardId: string, termina
   const terminal = terminalOf(nodesStore.getState().nodes[terminalId]);
   const name = terminal?.name || terminal?.title || t.agent;
   if (!isRunning(terminalId)) {
-    toast.error(t.notRunning(name));
+    toastError(t.notRunning(name));
     return false;
   }
   if (card.github && terminal?.agent === "shell") {
-    toast.error(t.notInShell);
+    toastError(t.notInShell);
     return false;
   }
   const text = card.github ? `${t.fromIssue}\n\n${cardText(card)}` : cardText(card);
   // Enter would answer an open dialog: `sendToAgents` leaves that agent alone.
   const { sent, waiting } = await sendToAgents([terminalId], text);
   if (sent > 0) toast.success(t.sent(name));
-  else if (waiting.length > 0) toast.error(t.waiting(name));
-  else toast.error(t.notRunning(name));
+  else if (waiting.length > 0) toastError(t.waiting(name));
+  else toastError(t.notRunning(name));
   return sent > 0;
 }

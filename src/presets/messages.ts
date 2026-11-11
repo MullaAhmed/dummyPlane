@@ -31,6 +31,6 @@ export const presetsMessages = defineMessages({
       `Team “${name}” deployed: ${plural(r.groups, "group", "groups")}, ${plural(r.agents, "agent", "agents")}, ${plural(r.fleets, "fleet", "fleets")}`,
     substituted: (count: number) => `${plural(count, "agent", "agents")} not found on this computer replaced by the default agent`,
     fleetsSkipped: (count: number) => `${plural(count, "fleet", "fleets")} not placed (Claude Code is required)`,
-    failed: (error: string) => `Could not change the presets: ${error}`,
+    failed: "Could not change the presets",
   },
 });

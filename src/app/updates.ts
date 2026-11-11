@@ -1,5 +1,6 @@
 import { check, type DownloadEvent, type Update } from "@tauri-apps/plugin-updater";
 import { toast } from "sonner";
+import { toastError } from "@/lib/errorToast";
 import { createStore, useStore } from "zustand";
 import { messages } from "@/i18n";
 import { getSetting, setSetting } from "@/ipc/db";
@@ -50,7 +51,7 @@ export async function loadUpdateSettings() {
 
 export async function setAutoUpdates(auto: boolean) {
   updatesStore.setState({ auto });
-  await setSetting(AUTO_KEY, auto).catch((error: unknown) => toast.error(messages(appMessages).settingNotSaved(message(error))));
+  await setSetting(AUTO_KEY, auto).catch((error: unknown) => toastError(messages(appMessages).settingNotSaved, { error, next: messages(appMessages).settingForNow }));
 }
 
 /** Asks GitHub for the latest release. An automatic check that fails only writes to the log. */
@@ -67,7 +68,7 @@ export async function checkForUpdate({ manual = false } = {}) {
     // An automatic check never closes a dialog the user has open.
     updatesStore.setState((s) => ({ available: { version: update.version, notes: update.body ?? "" }, dialogOpen: manual || s.dialogOpen }));
   } catch (error) {
-    if (manual) toast.error(messages(appMessages).updateCheckFailed, { description: message(error) });
+    if (manual) toastError(messages(appMessages).updateCheckFailed, { error, next: messages(appMessages).updateCheckNext });
     else console.warn(`update check failed: ${message(error)}`);
   }
 }

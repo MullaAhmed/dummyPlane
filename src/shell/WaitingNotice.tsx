@@ -3,6 +3,7 @@ import { goToAgent } from "@/commands/goToRun";
 import { Button } from "@/components/ui/button";
 import { useWaitingAgents, type WaitingAgent } from "@/agents/waitingAgents";
 import { useMessages } from "@/i18n";
+import { StatusDot } from "@/nodes/terminal/StatusDot";
 import { useWorkspaces } from "@/store/workspaces";
 import { shellMessages } from "./messages";
 
@@ -46,7 +47,8 @@ export function WaitingNotice() {
         >
           {agents.slice(0, MAX_ROWS).map((agent) => (
             <Row key={agent.id} agent={agent}>
-              <span aria-hidden className="size-2 shrink-0 rounded-full bg-dp-wait" />
+              {/* The signature waiting dot, ringed, the one every place an agent waits shows: never the colour alone. */}
+              <StatusDot state="waiting" />
               <span className="min-w-0 flex-1">
                 <span className="block truncate">{t.waitingNotice.question(agent.name)}</span>
                 {/* Two lines of the question, never a native title: the row's name reads it whole, and a click shows the agent. */}

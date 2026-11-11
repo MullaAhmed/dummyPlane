@@ -1,5 +1,5 @@
 import { CaptureUpdateAction, newElementWith } from "@excalidraw/excalidraw";
-import { toast } from "sonner";
+import { toastError } from "@/lib/errorToast";
 import { canvasStore } from "@/canvas/canvasStore";
 import { isGroup } from "@/canvas/groups";
 import { createNodeElement, NODE_SIZE } from "@/canvas/nodeElement";
@@ -40,7 +40,7 @@ export async function refusedWithoutItsCli(): Promise<boolean> {
   const agent = await ensureFleetAgent();
   if (agent === null) return true;
   if (await agentInstalled(agent)) return false;
-  toast.error(agent === "claude" ? messages(agentsMessages).noClaude : messages(fleetMessages).agent.notInstalled(AGENTS[agent].label));
+  toastError(agent === "claude" ? messages(agentsMessages).noClaude : messages(fleetMessages).agent.notInstalled(AGENTS[agent].label));
   return true;
 }
 

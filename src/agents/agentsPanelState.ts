@@ -1,4 +1,4 @@
-import { toast } from "sonner";
+import { toastError } from "@/lib/errorToast";
 import { createStore, useStore } from "zustand";
 import { messages } from "@/i18n";
 import { getSetting, setSetting } from "@/ipc/db";
@@ -37,7 +37,7 @@ export function setAgentsPanel(open: boolean) {
   // Reopened from the rail, the panel shows everyone: a filter left by a counter is not remembered.
   agentsPanelStore.setState((s) => ({ open, filter: open && !s.open ? "all" : s.filter }));
   void setSetting(AGENTS_PANEL_KEY, open ? "open" : "closed").catch((error: unknown) => {
-    toast.error(messages(agentsMessages).settingNotSaved(String(error)));
+    toastError(messages(agentsMessages).settingNotSaved, { error, next: messages(agentsMessages).settingForNow });
   });
 }
 

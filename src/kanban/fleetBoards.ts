@@ -1,4 +1,5 @@
 import { toast } from "sonner";
+import { toastError } from "@/lib/errorToast";
 import { canvasStore } from "@/canvas/canvasStore";
 import { addFleet } from "@/fleet/fleets";
 import { messages } from "@/i18n";
@@ -45,7 +46,7 @@ export async function planWithFleet(boardId: string, columnId: string, fleetId: 
   if (!record || !board) return false;
   const text = planRequest(board, columnId, t().plan);
   if (!text) {
-    toast.error(t().plan.empty(board.columns.find((c) => c.id === columnId)?.title ?? ""));
+    toastError(t().plan.empty(board.columns.find((c) => c.id === columnId)?.title ?? ""));
     return false;
   }
   let target = fleetId;
