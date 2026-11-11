@@ -21,7 +21,7 @@ import { freshText, quietFor, relaunchTerminal, stopTerminal } from "@/nodes/ter
 import { addTaskCards, linkedBoards, reassignMissionCard, startMissionCards } from "@/kanban/fleetBoards";
 import { agentMessages } from "@/mcp/messages";
 import { outReport } from "@/mcp/protocol";
-import { nodesStore, sessionOf, terminalOf } from "@/store/nodes";
+import { nodeNameOf, nodesStore, sessionOf, terminalOf } from "@/store/nodes";
 import { isRunning } from "@/store/terminalStatus";
 import { markLaunching } from "@/agents/spawnFamily";
 import { activeCount, freeSeat, holdSeat, oneAtATime } from "./active";
@@ -54,6 +54,15 @@ export function withTicketNote(fleetId: string, mission: Mission, text: string, 
   // A board the go-ahead made holds only the plan's own cards: nobody else wrote them.
   const handed = !mission.boardMade && (task?.card !== undefined || linkedBoards(fleetId).length > 0);
   return mission.tickets || handed ? `${text} ${t().lines.ticketData}` : text;
+}
+
+/**
+ * What an agent of a mission its Manager runs is told beyond its sub-task: who runs it, and that it reaches
+ * the Manager and its teammates with message_agent, no wire drawn by hand (spec babysitter Fleet).
+ */
+export function withTeamNote(mission: Mission, text: string): string {
+  const name = mission.manager ? nodeNameOf(nodesStore.getState().nodes[mission.manager]) : "";
+  return name ? `${text} ${t().lines.teamNote(name)}` : text;
 }
 
 /** What the next agent learns of the previous one (spec §7.2 reassign). */
@@ -284,7 +293,7 @@ export async function launchMission(fleetId: string): Promise<void> {
   talk(fleetId, team.board);
   talk(team.board, team.manager);
   void startMissionCards(fleetId, team.members, carded).catch(() => undefined);
-  team.members.forEach((member, i) => void assign(fleetId, member, withTicketNote(fleetId, started, subTaskText(mission.name ?? "", carded[i], member.branch), carded[i]), restarts.get(member.nodeId)));
+  team.members.forEach((member, i) => void assign(fleetId, member, withTicketNote(fleetId, started, withTeamNote(started, subTaskText(mission.name ?? "", carded[i], member.branch)), carded[i]), restarts.get(member.nodeId)));
   // Fewer sub-tasks than Max agents, and tasks queued: new agents take them now. Imported late: the queue imports this module.
   if (plan.length < mission.maxAgents && queue?.length) void import("./queue").then(({ pumpQueue }) => pumpQueue(fleetId)).catch(() => undefined);
 }
@@ -501,6 +510,6 @@ export async function reassignTask(fleetId: string, fromNodeId: string, target: 
       () => undefined,
     );
   }
-  void assign(fleetId, to, withTicketNote(fleetId, mission, subTaskText(mission.name ?? "", task, to.branch, handoverText(from)), task));
+  void assign(fleetId, to, withTicketNote(fleetId, mission, withTeamNote(mission, subTaskText(mission.name ?? "", task, to.branch, handoverText(from))), task));
   return { name: to.name };
 }

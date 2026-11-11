@@ -153,7 +153,9 @@ export function addTaskCards<T extends CardTask>(fleetId: string, tasks: readonl
   const found = missionBoard(fleetId);
   const column = found ? todoColumnOf(found.board, fleetId) : undefined;
   if (!found || !column) return [...tasks];
-  const carded = withTaskCards(found.board, column.id, tasks);
+  // A task handling a card of another board handed to the fleet keeps it: that card follows it.
+  const elsewhere = new Set(linkedBoards(fleetId).flatMap(({ nodeId, board }) => (nodeId === found.nodeId ? [] : Object.keys(board.cards))));
+  const carded = withTaskCards(found.board, column.id, tasks, undefined, (cardId) => elsewhere.has(cardId));
   if (carded.board !== found.board) nodesStore.getState().update(found.nodeId, { columns: carded.board.columns, cards: carded.board.cards });
   return carded.tasks;
 }

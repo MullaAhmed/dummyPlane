@@ -288,6 +288,19 @@ describe("who alerts", () => {
     expect(notified().map((n) => [n.title, n.body])).toEqual([["Chef · Done", "Board done"]]);
   });
 
+  it("the Fleet: once when its Manager ends the mission while it rests, the wrap-up the end's line wakes it for included", async () => {
+    // Nothing of its own since dummyPlane started (a night's restart): the Manager's finish is its first news.
+    nodesStore.getState().update("chef", { mission: { state: "terminee", maxAgents: 2, manager: "boss", members: [], summary: "Board done" } });
+    signalFinish({ nodeId: "chef", state: "done", summary: "Board done" });
+    await vi.advanceTimersByTimeAsync(0);
+    // "The board is finished: …" wakes it: it tells the user, at length.
+    await turn("chef", LONG, 10_000);
+    expect(notified().map((n) => n.title)).toEqual(["Chef · Done"]);
+    // Its next turn is its own again.
+    await turn("chef", LONG, 100_000);
+    expect(notified().map((n) => n.title)).toEqual(["Chef · Done", "Chef · Finished"]);
+  });
+
   it("the Fleet: its mission's end with its summary, not each turn while the mission runs", async () => {
     nodesStore.getState().update("chef", { mission: { state: "en_cours", maxAgents: 2, members: [] } });
     await turn("chef", LONG);

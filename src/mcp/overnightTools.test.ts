@@ -119,7 +119,7 @@ describe("what is left to check by hand (spec mission de nuit §6.2)", () => {
 describe("the plan of a night (spec mission de nuit §5.1)", () => {
   it("starts by itself when the user said so: the dialog was the go-ahead", async () => {
     await setup({ overnight: true, autoLaunch: true });
-    expect(textOf(await fleetTool("chef", "proposer_plan", plan))).toBe("Plan taken: the overnight mission is starting. You get a line when the team is formed.");
+    expect(textOf(await fleetTool("chef", "proposer_plan", plan))).toBe("Plan taken: the overnight mission is starting. A board and its Manager run it from here: you hear when the board is finished, or when the Manager needs the user.");
     expect(launchMission).toHaveBeenCalledWith("chef");
     expect(missionOf(nodesStore.getState().nodes.chef)?.state).toBe("plan");
   });

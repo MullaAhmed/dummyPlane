@@ -188,6 +188,10 @@ function finished({ nodeId, state, summary }: FinishSignal) {
   const told = `${state}\n${summary}`;
   if (turn.told === told) return;
   turn.told = told;
+  // A Fleet whose Manager ended the mission while it rested: the "board is finished" line wakes it, and that
+  // wrap-up goes on with this turn, which has alerted already.
+  const record = nodesStore.getState().nodes[nodeId];
+  if (record?.kind === "fleet" && (agentActivityStore.getState().activities[nodeId]?.activity ?? "idle") === "idle") turn.held = true;
   turns.set(nodeId, turn);
   void alert(nodeId, state, summary).catch(warn);
 }

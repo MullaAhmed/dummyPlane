@@ -216,6 +216,12 @@ describe("a mission's cards on the board its Manager runs (spec babysitter Fleet
     expect(carded[1]).toMatchObject({ title: "API", brief: "Build the API\nthen test it" });
   });
 
+  it("leaves a task its card on another board of the fleet: that card follows it", () => {
+    const { board: next, tasks } = withTaskCards(board(), "todo", [{ title: "Pay", brief: "b", card: "other1" }], ids(), (id) => id === "other1");
+    expect(tasks[0].card).toBe("other1");
+    expect(Object.keys(next.cards)).toEqual(["a", "b"]);
+  });
+
   it("makes a card again for a task whose card left the board, and nothing for an unknown column", () => {
     expect(withTaskCards(board(), "todo", [{ title: "Gone", brief: "b", card: "zz" }], ids()).tasks[0].card).toBe("new1");
     const same = board();

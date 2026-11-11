@@ -5,7 +5,7 @@ import { stopTerminal } from "@/nodes/terminal/registry";
 import { nodesStore } from "@/store/nodes";
 import { activeCount, freeSeat, holdSeat, moving, oneAtATime, seatHeld, seatsHeld } from "./active";
 import { notify } from "./events";
-import { assign, mergeMember, newMember, subTaskText, withTicketNote } from "./launch";
+import { assign, mergeMember, newMember, subTaskText, withTeamNote, withTicketNote } from "./launch";
 import { NEW_AGENT, noNewWork, type Member, type Mission, type QueuedTask, type Report, type SubTask } from "./mission";
 import { agentState, canvasKnown, isFleetClosed, missionOf, missionRunner, setMission, updateMember } from "./store";
 
@@ -106,7 +106,7 @@ async function create(fleetId: string, task: QueuedTask): Promise<{ said: string
   // In the tick it joins the team: counted once, never twice nor not at all.
   freeSeat(fleetId, task.title);
   void startMissionCards(fleetId, [made], [subTask]).catch(() => undefined);
-  void assign(fleetId, made, withTicketNote(fleetId, now, subTaskText(now.name ?? "", subTask, made.branch), task));
+  void assign(fleetId, made, withTicketNote(fleetId, now, withTeamNote(now, subTaskText(now.name ?? "", subTask, made.branch)), task));
   return { said: t().lines.newAgent(made.name, task.title, queue.length), made };
 }
 

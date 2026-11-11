@@ -49,14 +49,21 @@ export interface CardTask {
 }
 
 /**
- * The tasks of a mission as cards of `columnId`: each task without a card on this board gets one (its title,
- * its brief as notes), at the end of the column, in order. The board and the tasks, each with its card.
+ * The tasks of a mission as cards of `columnId`: each task without a card gets one (its title, its brief as
+ * notes), at the end of the column, in order; a card this board lacks but another board of the fleet has
+ * (`elsewhere`) stays the task's. The board and the tasks, each with its card.
  */
-export function withTaskCards<T extends CardTask>(board: KanbanPayload, columnId: string, tasks: readonly T[], newId?: NewId): { board: KanbanPayload; tasks: T[] } {
+export function withTaskCards<T extends CardTask>(
+  board: KanbanPayload,
+  columnId: string,
+  tasks: readonly T[],
+  newId?: NewId,
+  elsewhere: (cardId: string) => boolean = () => false,
+): { board: KanbanPayload; tasks: T[] } {
   if (!board.columns.some((c) => c.id === columnId)) return { board, tasks: [...tasks] };
   let next = board;
   const carded = tasks.map((task) => {
-    if (task.card && next.cards[task.card]) return task;
+    if (task.card && (next.cards[task.card] || elsewhere(task.card))) return task;
     const before = new Set(Object.keys(next.cards));
     next = addCard(next, columnId, { title: task.title, notes: oneLine(task.brief), priority: "none" }, newId);
     const card = Object.keys(next.cards).find((id) => !before.has(id));
