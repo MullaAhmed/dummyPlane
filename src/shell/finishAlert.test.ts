@@ -103,6 +103,15 @@ describe("a report", () => {
     expect(notified()[0].title).toBe("Batman · Done");
   });
 
+  it("alerts once for the same report made twice, again for a new one", async () => {
+    at("batman", "working", 1_000);
+    signalFinish({ nodeId: "batman", state: "blocked", summary: "Needs a key" });
+    signalFinish({ nodeId: "batman", state: "blocked", summary: "Needs a key" });
+    signalFinish({ nodeId: "batman", state: "done", summary: "Found the key" });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(notified().map((n) => n.title)).toEqual(["Batman · Blocked", "Batman · Done"]);
+  });
+
   it("leaves the next turn its own alert", async () => {
     at("batman", "working", 1_000);
     signalFinish({ nodeId: "batman", state: "done", summary: "Login fixed" });
@@ -172,12 +181,22 @@ describe("the end of a turn", () => {
     expect(sendNotification).not.toHaveBeenCalled();
   });
 
-  it("does not count for an agent that waits for its sub-agents' reports", async () => {
+  it("waits for an agent's sub-agents: the short wrap-up their report wakes it for ends the turn, once", async () => {
     terminalStatusStore.getState().set("robin", { state: "running" });
+    at("robin", "working", 500);
     await turn("batman", LONG);
     expect(sendNotification).not.toHaveBeenCalled();
     terminalStatusStore.getState().set("robin", { state: "exited", code: 0 });
-    await turn("batman", LONG, 100_000);
+    await turn("batman", SHORT, 100_000);
+    expect(notified().map((n) => n.title)).toEqual(["Batman · Finished"]);
+    await turn("batman", SHORT, 200_000);
+    expect(sendNotification).toHaveBeenCalledTimes(1);
+  });
+
+  it("is not held by a sub-agent gone idle without reporting: nothing would wake its parent", async () => {
+    terminalStatusStore.getState().set("robin", { state: "running" });
+    at("robin", "idle", 500);
+    await turn("batman", LONG);
     expect(sendNotification).toHaveBeenCalledTimes(1);
   });
 

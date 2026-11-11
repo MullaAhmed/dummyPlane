@@ -95,9 +95,15 @@ export function runningSpawned(): number {
   return Object.entries(nodesStore.getState().nodes).filter(([id, record]) => Boolean(terminalOf(record)?.spawnedBy) && atWork(id)).length;
 }
 
-/** Whether a sub-agent `nodeId` opened is still at work: its turn ending is a wait for their reports, not the end of its task. */
-export function hasSpawnedAtWork(nodeId: string): boolean {
-  return Object.entries(nodesStore.getState().nodes).some(([id, record]) => terminalOf(record)?.spawnedBy === nodeId && atWork(id));
+/**
+ * Whether a sub-agent `nodeId` opened is still at work: its turn ending is a
+ * wait for their reports, not the end of its task. `busy` narrows the running
+ * ones (their activity); one still launching always counts.
+ */
+export function hasSpawnedAtWork(nodeId: string, busy: (id: string) => boolean = () => true): boolean {
+  return Object.entries(nodesStore.getState().nodes).some(
+    ([id, record]) => terminalOf(record)?.spawnedBy === nodeId && (launching.has(id) || (atWork(id) && busy(id))),
+  );
 }
 
 /** A closing to confirm, with the sub-agents its agents opened that it does not take already. */

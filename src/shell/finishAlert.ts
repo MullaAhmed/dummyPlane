@@ -38,8 +38,14 @@ type State = FinishSignal["state"] | "finished";
 interface Turn {
   /** Time spent working in it, in ms: waiting for the user does not count. */
   worked: number;
-  /** A report or a mission's end already alerted for it: its end says nothing more. */
-  told: boolean;
+  /** The report or mission's end that already alerted for it: its end says nothing more, nor the same report again. */
+  told?: string;
+  /**
+   * It went idle with its task still going (`stillAtWork`): the turn that the
+   * news of its sub-agents or its mission wakes it for goes on with this one,
+   * so a short wrap-up after long work still alerts.
+   */
+  held: boolean;
   /** The idle that may end it, confirmed after SETTLE_MS. */
   settling?: ReturnType<typeof setTimeout>;
 }
@@ -90,12 +96,14 @@ function isMainAgent(nodeId: string): boolean {
 
 /**
  * Its turn ended but its task goes on: a Fleet whose mission runs (its end
- * alerts), an agent whose sub-agents are still at work (their reports wake it).
+ * alerts), an agent whose sub-agents still work (their reports wake it). A
+ * sub-agent gone idle without reporting holds nobody: nothing will wake its
+ * parent, and a report made before a reload is forgotten with it.
  */
 function stillAtWork(nodeId: string): boolean {
   const record = nodesStore.getState().nodes[nodeId];
   if (record?.kind === "fleet" && record.payload.mission?.state === "en_cours") return true;
-  return hasSpawnedAtWork(nodeId);
+  return hasSpawnedAtWork(nodeId, (id) => agentActivityStore.getState().activities[id]?.activity !== "idle");
 }
 
 /** The keyboard is in it: an xterm's textarea, or a fleet's field. */
@@ -140,13 +148,21 @@ function drop(nodeId: string) {
   turns.delete(nodeId);
 }
 
-/** An idle that lasted: the turn is over, and alerts if it was real work nothing told yet. */
+/**
+ * An idle that lasted: the turn is over, and alerts if it was real work nothing
+ * told yet. One that only waits for its sub-agents or its mission is held.
+ */
 function settle(nodeId: string) {
   const turn = turns.get(nodeId);
+  if (!turn) return;
+  turn.settling = undefined;
+  if (agentActivityStore.getState().activities[nodeId]?.activity !== "idle") return;
+  if (turn.told === undefined && stillAtWork(nodeId)) {
+    turn.held = true;
+    return;
+  }
   turns.delete(nodeId);
-  if (!turn || turn.told || turn.worked < MIN_WORK_MS) return;
-  if (agentActivityStore.getState().activities[nodeId]?.activity !== "idle" || stillAtWork(nodeId)) return;
-  void alert(nodeId, "finished", "").catch(warn);
+  if (turn.told === undefined && turn.worked >= MIN_WORK_MS) void alert(nodeId, "finished", "").catch(warn);
 }
 
 function changed(nodeId: string, before: AgentActivity | undefined, now: AgentActivity) {
@@ -154,18 +170,20 @@ function changed(nodeId: string, before: AgentActivity | undefined, now: AgentAc
   const pausing = turn?.settling !== undefined;
   clearTimeout(turn?.settling);
   if (turn) turn.settling = undefined;
-  // Out of idle, not back from a pause: a new turn.
+  // Out of idle, not back from a pause nor woken from a held turn: a new turn.
   const starts = !pausing && (before === undefined || before.activity === "idle") && now.activity !== "idle";
-  if (!turn || starts) turn = { worked: 0, told: false };
+  if (!turn || (starts && !turn.held)) turn = { worked: 0, held: false };
   turns.set(nodeId, turn);
   if (before?.activity === "working") turn.worked += Math.max(0, now.since - before.since);
   if (now.activity === "idle") turn.settling = setTimeout(() => settle(nodeId), SETTLE_MS);
 }
 
-/** A report or a mission's end: it alerts now, and the turn it ends says nothing more. */
+/** A report or a mission's end: it alerts now, and the turn it ends says nothing more. The same report again says nothing. */
 function finished({ nodeId, state, summary }: FinishSignal) {
-  const turn = turns.get(nodeId) ?? { worked: 0, told: false };
-  turn.told = true;
+  const turn = turns.get(nodeId) ?? { worked: 0, held: false };
+  const told = `${state}\n${summary}`;
+  if (turn.told === told) return;
+  turn.told = told;
   turns.set(nodeId, turn);
   void alert(nodeId, state, summary).catch(warn);
 }
