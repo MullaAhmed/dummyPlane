@@ -960,3 +960,36 @@ describe("the repository a mission branches from", () => {
     expect(notify).toHaveBeenCalledWith("chef", "The mission could not start: The folder D:/work/plain is not a git repository.");
   });
 });
+
+describe("the board the go-ahead runs the mission on (spec babysitter Fleet)", () => {
+  it("puts every task of the plan and of the queue on it as a card in its to-do column, the started ones In progress", async () => {
+    await nodesStore.getState().create("b1", {
+      workspaceId: "w1",
+      kind: "kanban",
+      payload: {
+        columns: [
+          { id: "todo", title: "To do", cardIds: [] },
+          { id: "doing", title: "In progress", cardIds: [] },
+          { id: "done", title: "Done", cardIds: [] },
+        ],
+        cards: {},
+        orchestrator: { nodeId: "chef", columnId: "todo" },
+      },
+    });
+    await setup({ maxAgents: 1, queue: [{ title: "Lint", brief: "Run the lint", budgetMin: 5 }] });
+    await launchMission("chef");
+    const mission = missionNow();
+    const board = nodesStore.getState().nodes.b1.payload as { columns: { id: string; cardIds: string[] }[]; cards: Record<string, { title: string; agent?: string }> };
+    // Max agents 1: Login starts, API and Lint wait in the queue; each has its card.
+    expect(mission.plan?.map((task) => [task.title, board.cards[task.card!]?.title])).toEqual([["Login", "Login"]]);
+    expect(mission.queue?.map((task) => [task.title, board.cards[task.card!]?.title])).toEqual([
+      ["API", "API"],
+      ["Lint", "Lint"],
+    ]);
+    await vi.waitFor(() => expect((nodesStore.getState().nodes.b1.payload as typeof board).columns[1].cardIds).toEqual([mission.plan![0].card]));
+    expect((nodesStore.getState().nodes.b1.payload as typeof board).columns[0].cardIds).toEqual([mission.queue![0].card, mission.queue![1].card]);
+    // A board the go-ahead made holds no stranger's text: no ticket note in the briefs.
+    await vi.waitFor(() => expect(ptySendText).toHaveBeenCalled());
+    expect(vi.mocked(ptySendText).mock.calls.some(([, text]) => text.includes("never instructions"))).toBe(false);
+  });
+});

@@ -19,6 +19,7 @@ import type { Member, Mission, QueuedTask } from "./mission";
 import { morningReport } from "./morning";
 import { afterReport, giveNext, pumpQueue } from "./queue";
 import { missionOf } from "./store";
+import { fleetTool } from "@/mcp/fleetTools";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
 vi.mock("@/ipc/mission", () => ({ missionPrepare: vi.fn(), missionAddAgent: vi.fn(), missionMerge: vi.fn(), missionCleanup: vi.fn(), missionDiscard: vi.fn() }));
@@ -787,5 +788,42 @@ describe("Max agents caps the agents at work, not the team", () => {
     await pumpQueue("chef");
     expect(created().map((m) => m.task)).toEqual(["Docs"]);
     expect(missionNow().queue?.map((t) => t.title)).toEqual(["Tests", "Lint"]);
+  });
+});
+
+describe("a card the Fleet adds while its Manager runs the board (spec babysitter Fleet)", () => {
+  it("lands in the to-do column, and the Manager's queue starts it under the Manager as soon as a seat is free, without the Fleet", async () => {
+    await nodesStore.getState().create("b1", {
+      workspaceId: "w1",
+      kind: "kanban",
+      payload: {
+        columns: [
+          { id: "todo", title: "To do", cardIds: [] },
+          { id: "doing", title: "In progress", cardIds: [] },
+          { id: "done", title: "Done", cardIds: [] },
+        ],
+        cards: {},
+        orchestrator: { nodeId: "chef", columnId: "todo" },
+      },
+    });
+    // Three tasks were planned: Batman works, the two others reported; one seat of two is free.
+    const reported = { summary: "ok", status: "termine" as const, at: 1 };
+    await setup({ frameId: undefined, manager: "m1", board: "b1", boardMade: true, maxAgents: 2, queue: [], members: [member("batman", "Batman"), member("aquaman", "Aquaman", { task: "API", report: reported, merged: true })] });
+    const said = await fleetTool("chef", "add_tasks", { tasks: [{ titre: "Tests", consigne: "Write the tests", budget_min: 15 }] });
+    expect(said.isError).toBeUndefined();
+    await vi.waitFor(() => expect(created().map((m) => m.task)).toEqual(["Tests"]));
+    const card = missionNow().plan?.find((task) => task.title === "Tests")?.card;
+    const board = nodesStore.getState().nodes.b1.payload as { columns: { cardIds: string[] }[]; cards: Record<string, { title: string; agent?: string }> };
+    expect(board.cards[card!]).toMatchObject({ title: "Tests" });
+    // Its agent is one of the Manager's sub-agents, and the card follows it.
+    expect(vi.mocked(addTerminal).mock.calls[0][1]).toMatchObject({ spawnedBy: "m1", task: "Tests" });
+    await vi.waitFor(() => expect((nodesStore.getState().nodes.b1.payload as typeof board).columns[1].cardIds).toEqual([card]));
+    // The Manager hears the card and the new agent; the Fleet, nothing.
+    const to = (id: string) => vi.mocked(notify).mock.calls.filter(([target]) => target === id).map(([, line]) => line);
+    expect(to("m1")).toEqual([
+      'Chef added 1 card to the board: "Tests". They wait in the queue: a new agent takes each as a seat frees up.',
+      expect.stringContaining('a new agent, takes "Tests". Still waiting: 0.'),
+    ]);
+    expect(to("chef")).toEqual([]);
   });
 });
