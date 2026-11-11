@@ -22,7 +22,8 @@ import { setAgentsFilter, setAgentsPanel, useAgentsPanel } from "./agentsPanelSt
 import { pauseAll, resumeAll, workspaceTerminalIds } from "./broadcast";
 import { AGENTS } from "./catalog";
 import { ComposeGroup } from "./ComposeGroup";
-import { PANEL_FILTERS, filterCounts, panelSections, panelStateOf, type PanelAgent, type PanelFilter } from "./agentsView";
+import { isAgentNode } from "./agentState";
+import { PANEL_FILTERS, filterCounts, inFilter, panelSections, panelStateOf, type PanelAgent, type PanelFilter } from "./agentsView";
 import { GroupMenu } from "./GroupMenu";
 import { countsText } from "./groupSummary";
 import { agentsMessages } from "./messages";
@@ -55,7 +56,8 @@ export function AgentsPanel() {
     const payload = terminalOf(nodes[id]);
     if (!payload) return [];
     const status = statuses[id] ?? { state: "stopped" as const };
-    const state = panelStateOf(status, activities[id], payload.lastReport?.status);
+    // The reading the title bar's counters share (agentState): a plain shell is never at work nor waiting.
+    const state = panelStateOf(status, activities[id], payload.lastReport?.status, isAgentNode(nodes[id]));
     return [
       {
         id,
@@ -66,10 +68,15 @@ export function AgentsPanel() {
       },
     ];
   });
-  const fleets = nodeIds.flatMap((id) =>
-    nodes[id]?.kind === "fleet" ? [{ id, name: readFleetPayload(nodes[id]?.payload).name }] : [],
-  );
-  const counts = filterCounts(agents);
+  // The Fleets are agents too: the filters count them, as the title bar's counters do, and their section filters.
+  const allFleets = nodeIds.flatMap((id) => {
+    const record = nodes[id];
+    if (record?.kind !== "fleet") return [];
+    const state = panelStateOf(statuses[id] ?? { state: "stopped" as const }, activities[id], record.payload.session?.lastReport?.status);
+    return [{ id, name: readFleetPayload(record.payload).name, state }];
+  });
+  const fleets = allFleets.filter((f) => inFilter(f.state, filter));
+  const counts = filterCounts([...agents, ...allFleets]);
   const sections = panelSections(agents, frames, filter);
   const keyOf = (id: string | null) => id ?? OUTSIDE;
   const fold = (key: string) =>
@@ -162,7 +169,7 @@ export function AgentsPanel() {
       <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
         {sections.length === 0 && fleets.length === 0 && (
           <p className="py-4 text-center text-xs text-dp-text-2">
-            {agents.length > 0 ? t.noneInFilter : t.none}
+            {agents.length + allFleets.length > 0 ? t.noneInFilter : t.none}
           </p>
         )}
         {sections.map((section) => {
@@ -184,7 +191,7 @@ export function AgentsPanel() {
                   <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: section.color ?? "var(--dp-text-3)" }} />
                   <span className="truncate font-medium text-dp-text">{section.name}</span>
                   <span className="ml-auto shrink-0 font-mono text-xs text-dp-text-2 tabular-nums">
-                    {countsText(section.agents.length, section.agents.filter((a) => a.state === "working").length)}
+                    {countsText(section.members, section.working)}
                   </span>
                 </Button>
                 {section.id === null && <OutsideNamesMenu />}
@@ -231,7 +238,7 @@ export function AgentsPanel() {
             >
               <ChevronDown className={cn(CHEVRON, folded.has("fleets") && "-rotate-90")} />
               <span className="font-medium text-dp-text">{t.fleets}</span>
-              <span className="ml-auto font-mono text-xs text-dp-text-2 tabular-nums">{fleets.length}</span>
+              <span className="ml-auto font-mono text-xs text-dp-text-2 tabular-nums">{allFleets.length}</span>
             </Button>
             {!folded.has("fleets") &&
               fleets.map((o) => (

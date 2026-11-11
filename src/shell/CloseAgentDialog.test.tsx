@@ -79,11 +79,17 @@ it("tells what closing a fleet in mission leaves behind (spec première version 
 });
 
 it("says whether the agent is at work or ready, as the spec asks (§7.5)", async () => {
+  terminalStatusStore.getState().set("batman", { state: "running" });
   agentActivityStore.getState().apply({ nodeId: "batman", activity: "working", since: 1 });
   await act(async () => uiStore.getState().setClosing({ agents: ["batman"], remove: ["batman"] }));
   expect(document.querySelector('[role="dialog"]')!.textContent).toContain("Batman is working.");
   await act(async () => agentActivityStore.getState().apply({ nodeId: "batman", activity: "idle", since: 2 }));
   expect(document.querySelector('[role="dialog"]')!.textContent).toContain("Batman is ready.");
+  // Its Claude exited and its shell is busy: its pill says Agent exited, so the dialog never says it works.
+  await act(async () => agentActivityStore.getState().apply({ nodeId: "batman", activity: "working", since: 3, left: true }));
+  expect(document.querySelector('[role="dialog"]')!.textContent).not.toContain("Batman is working.");
+  terminalStatusStore.getState().remove("batman");
+  agentActivityStore.getState().remove("batman");
 });
 
 describe("an agent that opened sub-agents (spawn_agent)", () => {

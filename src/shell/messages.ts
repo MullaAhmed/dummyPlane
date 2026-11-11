@@ -12,12 +12,12 @@ export const shellMessages = defineMessages(
     agentCounts: {
       working: "Agents working",
       waiting: "Agents waiting for your answer",
-      active: "Active agents in the project",
+      active: "Active agents in this workspace",
       activeCount: (count: number) => plural(count, "active", "active"),
       // A counter's name says its number first, as the counter shows it (WCAG 2.5.3 label in name).
       workingName: (count: number) => `${plural(count, "agent", "agents")} working`,
       waitingName: (count: number) => `${plural(count, "agent", "agents")} waiting for your answer`,
-      activeName: (count: number) => `${plural(count, "active agent", "active agents")} in the project`,
+      activeName: (count: number) => `${plural(count, "active agent", "active agents")} in this workspace`,
     },
     waitingNotice: {
       question: (name: string) => `${name} has a question`,

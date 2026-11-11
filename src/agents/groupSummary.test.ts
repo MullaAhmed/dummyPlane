@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { AgentState } from "./agentState";
 import { agentsText, countsText, groupsText, livingAgents, membersIn, waitingText } from "./groupSummary";
 
 describe("countsText", () => {
@@ -37,10 +38,10 @@ describe("agentsText / groupsText", () => {
 });
 
 describe("membersIn", () => {
-  it("counts only members whose process runs", () => {
-    const activities: Record<string, string> = { a: "working", b: "working", c: "waiting" };
-    const running = (id: string) => id !== "b";
-    expect(membersIn(["a", "b", "c"], "working", (id) => activities[id], running)).toBe(1);
-    expect(membersIn(["a", "b", "c"], "waiting", (id) => activities[id], running)).toBe(1);
+  it("counts the members in the state, read as every count reads them", () => {
+    // b stopped, d's agent exited, e is a plain shell (null): none of them is at work.
+    const states: Record<string, AgentState | null> = { a: "working", b: "stopped", c: "waiting", d: "left", e: null };
+    expect(membersIn(["a", "b", "c", "d", "e"], "working", (id) => states[id])).toBe(1);
+    expect(membersIn(["a", "b", "c", "d", "e"], "waiting", (id) => states[id])).toBe(1);
   });
 });

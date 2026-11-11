@@ -38,6 +38,17 @@ describe("panelStateOf", () => {
     expect(panelStateOf({ state: "error", message: "x" })).toBe("stopped");
     expect(panelStateOf({ state: "stopped" }, undefined, "done")).toBe("stopped");
   });
+
+  it("stops an agent that exited (its shell runs on, busy or not), as its pill says Agent exited", () => {
+    expect(panelStateOf({ state: "running" }, { activity: "working", since: 1, left: true })).toBe("stopped");
+    expect(panelStateOf({ state: "running" }, { activity: "idle", since: 1, left: true })).toBe("stopped");
+  });
+
+  it("never puts a plain shell at work nor waiting: it is active while it runs", () => {
+    expect(panelStateOf({ state: "running" }, { activity: "working", since: 1 }, undefined, false)).toBe("active");
+    expect(panelStateOf({ state: "running" }, { activity: "idle", since: 1 }, undefined, false)).toBe("idle");
+    expect(panelStateOf({ state: "stopped" }, undefined, undefined, false)).toBe("stopped");
+  });
 });
 
 it("has exactly four filters: All, Waiting, Working, Done", () => {
@@ -48,6 +59,13 @@ it("has exactly four filters: All, Waiting, Working, Done", () => {
 describe("panelSections", () => {
   const agents = [agent("a", "working"), agent("b", "idle"), agent("c", "waiting"), agent("d", "stopped")];
   const frames = [frame("g1", ["a", "b"]), frame("plain", ["c"], null), frame("g2", ["d"], "docs")];
+
+  it("heads each section with its members and those at work, whatever the filter (as the group's canvas label)", () => {
+    const team = [agent("a", "working"), agent("b", "working"), agent("c", "waiting"), agent("d", "idle")];
+    const [section] = panelSections(team, [frame("g1", ["a", "b", "c", "d"])], "waiting");
+    expect(section.agents.map((a) => a.id)).toEqual(["c"]);
+    expect([section.members, section.working]).toEqual([4, 2]);
+  });
 
   it("lists each group in scene order, then the agents outside groups", () => {
     const sections = panelSections(agents, frames, "all");
