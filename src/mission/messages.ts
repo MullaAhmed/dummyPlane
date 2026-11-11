@@ -52,6 +52,8 @@ export const missionMessages = defineMessages({
       hours: "hours",
       agents: "Agents at once",
       agentsLabel: "Number of agents working at once",
+      awayInvalid: (max: number) => `More than 0 and up to ${max} hours`,
+      agentsInvalid: (max: number) => `A whole number from 1 to ${max}`,
       ends: (clock: string, windDown: number) => `Ends around ${clock} · the last ${windDown} min are kept to merge and wrap up`,
       source: "Tickets",
       sources: { github: "GitHub issues", backlog: "BACKLOG.md", linear: "Linear" },
@@ -90,6 +92,9 @@ export const missionMessages = defineMessages({
         auto: "Leave now: nobody needs to answer",
       },
       checks: "Before you go",
+      checking: "Checking the project…",
+      checkFailed: (error: string) => `The project could not be checked: ${error}`,
+      checkAgain: "Try again",
       check: {
         git: "The folder is a git repository",
         gh: "GitHub CLI answers",

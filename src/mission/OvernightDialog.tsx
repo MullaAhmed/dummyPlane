@@ -77,14 +77,27 @@ function OvernightForm({ nodeId, onOpenChange }: { nodeId: string; onOpenChange:
   const permissionHelp = codex ? t.permissionHelpCodex : t.permissionHelp;
   const project = useMissionFolder(nodeId);
   const [checks, setChecks] = useState<ProjectChecks | null>(null);
+  // A check that failed is a blocker of its own, with a retry: it never reads as "nothing in the way".
+  const [checkError, setCheckError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     if (!project) return;
     let current = true;
-    void missionChecks(project).then((found) => current && setChecks(found), () => undefined);
+    void missionChecks(project).then(
+      (found) => current && setChecks(found),
+      (error: unknown) => current && setCheckError(errorText(error)),
+    );
     return () => {
       current = false;
     };
-  }, [project]);
+  }, [project, attempt]);
+  const checkAgain = () => {
+    setChecks(null);
+    setCheckError(null);
+    setAttempt((n) => n + 1);
+  };
+  // Until the checks answer, the night cannot start: `gh auth status` can take seconds, longer offline.
+  const checking = Boolean(project) && checks === null && checkError === null;
   const limits = useUsage((s) => s.limits);
   const now = Date.now();
   const usage = usageWarning(limits, now);
@@ -92,8 +105,9 @@ function OvernightForm({ nodeId, onOpenChange }: { nodeId: string; onOpenChange:
   const away = Number(hours);
   const count = Number(agents);
   const awayValid = away > 0 && away <= MAX_AWAY_HOURS;
+  const countValid = Number.isInteger(count) && count >= 1 && count <= MAX_AGENTS;
   const filled = kind === "backlog" || (label.trim() !== "" && (kind !== "linear" || team.trim() !== ""));
-  const valid = awayValid && Number.isInteger(count) && count >= 1 && count <= MAX_AGENTS && filled && blocked.length === 0;
+  const valid = awayValid && countValid && filled && blocked.length === 0 && !checking && checkError === null;
   const awayMin = Math.round(away * 60);
 
   const source = (): TicketSource =>
@@ -133,8 +147,8 @@ function OvernightForm({ nodeId, onOpenChange }: { nodeId: string; onOpenChange:
         <div data-night-body className="-mx-4 flex min-h-0 flex-col gap-5 overflow-y-auto px-4 text-sm text-dp-text">
           <Section title={t.time}>
             <div className="grid grid-cols-[auto_1fr] items-center gap-x-4 gap-y-2">
-              <NumberRow label={t.away} aria={t.awayLabel} unit={t.hours} value={hours} onChange={setHours} min={0.5} max={MAX_AWAY_HOURS} step={0.5} invalid={!awayValid} />
-              <NumberRow label={t.agents} aria={t.agentsLabel} value={agents} onChange={setAgents} min={1} max={MAX_AGENTS} />
+              <NumberRow label={t.away} aria={t.awayLabel} unit={t.hours} value={hours} onChange={setHours} min={0.5} max={MAX_AWAY_HOURS} step={0.5} error={awayValid ? undefined : t.awayInvalid(MAX_AWAY_HOURS)} />
+              <NumberRow label={t.agents} aria={t.agentsLabel} value={agents} onChange={setAgents} min={1} max={MAX_AGENTS} error={countValid ? undefined : t.agentsInvalid(MAX_AGENTS)} />
             </div>
             {awayValid && (
               <p data-ends className="text-xs text-dp-text-2 tabular-nums">
@@ -185,6 +199,14 @@ function OvernightForm({ nodeId, onOpenChange }: { nodeId: string; onOpenChange:
 
           <Section title={t.checks}>
             <ul data-checks className="flex flex-col gap-1.5 text-xs">
+              {checking && <CheckRow state="pending" text={t.checking} />}
+              {checkError !== null && (
+                <CheckRow state="blocked" text={t.checkFailed(checkError)}>
+                  <Button type="button" variant="ghost" size="xs" onClick={checkAgain} className="-my-1 ml-auto shrink-0 font-normal text-dp-text-2 hover:text-dp-text">
+                    {t.checkAgain}
+                  </Button>
+                </CheckRow>
+              )}
               {checksFor(kind).map((id) => (
                 <CheckRow key={id} state={checks === null ? "pending" : blocked.includes(id) ? "blocked" : "ok"} text={blocked.includes(id) ? t.blocked[id] : t.check[id]}>
                   {id === "linear" && (
@@ -219,8 +241,10 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-function NumberRow(props: { label: string; aria: string; unit?: string; value: string; onChange: (value: string) => void; min: number; max: number; step?: number; invalid?: boolean }) {
+/** A number and its unit; out of range, the field says so and the reason sits under it. */
+function NumberRow(props: { label: string; aria: string; unit?: string; value: string; onChange: (value: string) => void; min: number; max: number; step?: number; error?: string }) {
   const id = useId();
+  const errorId = `${id}-error`;
   return (
     <>
       <label htmlFor={id} className="text-dp-text-2">
@@ -234,13 +258,19 @@ function NumberRow(props: { label: string; aria: string; unit?: string; value: s
           max={props.max}
           step={props.step}
           aria-label={props.aria}
-          aria-invalid={props.invalid || undefined}
+          aria-invalid={props.error ? true : undefined}
+          aria-describedby={props.error ? errorId : undefined}
           value={props.value}
           onChange={(e) => props.onChange(e.target.value)}
           className={NUMBER}
         />
         {props.unit}
       </span>
+      {props.error && (
+        <p id={errorId} className="col-start-2 text-xs text-dp-danger">
+          {props.error}
+        </p>
+      )}
     </>
   );
 }
