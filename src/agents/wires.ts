@@ -10,6 +10,7 @@ import { groupAt, groupInfoOf, type SceneFrame } from "@/canvas/groups";
 import { findTerminalAt } from "@/canvas/hitTest";
 import { nodeKindOf } from "@/canvas/nodeElement";
 import { sceneColorFor } from "@/theme/sceneColors";
+import { COLUMN_GAP, GROUP_GAP } from "./groupLayout";
 import type { Point } from "./terminals";
 
 /**
@@ -87,6 +88,58 @@ export function isSpawnWire(element: ExcalidrawElement): boolean {
   return data?.kind === "wire" && data.spawn === true;
 }
 
+/**
+ * A wire drawn because a message passed between its two ends, which no wire
+ * joined (./talkWires.ts): dashed, so it reads apart from the others by its
+ * stroke, not its colour alone. Never a fleet's link to its team
+ * (`fleetTargets`); between two terminals it is an agent link like any wire.
+ */
+export function isTalkWire(element: ExcalidrawElement): boolean {
+  const data = element.customData?.dummyplane as { kind?: unknown; talk?: unknown } | undefined;
+  return data?.kind === "wire" && data.talk === true;
+}
+
+/** What a wire's mark says besides that it is one: why it was drawn, and how it is routed. */
+export interface WireFlags {
+  /** From an agent, or a Fleet, to the sub-agent it opened (`isSpawnWire`). */
+  spawn?: boolean;
+  /** Drawn because a message passed (`isTalkWire`). */
+  talk?: boolean;
+  /** A vertical tree's wire from a parent to a child it laid out under it: out of the parent's bottom, into the child's top (./treeLayout.ts). */
+  down?: boolean;
+  /** A `down` wire to a child in a later row: round the riser left of the parent's children. */
+  riser?: boolean;
+}
+
+const FLAG_NAMES = ["spawn", "talk", "down", "riser"] as const;
+
+/** The flags `element`'s wire mark carries. */
+export function wireFlagsOf(element: ExcalidrawElement): WireFlags {
+  const data = element.customData?.dummyplane as Record<string, unknown> | undefined;
+  const flags: WireFlags = {};
+  for (const name of FLAG_NAMES) if (data?.[name] === true) flags[name] = true;
+  return flags;
+}
+
+/** A wire's mark with `flags`, only those set: `{ kind: "wire" }` for a plain wire. */
+export function wireMark(flags: WireFlags): Record<string, unknown> {
+  const mark: Record<string, unknown> = { kind: "wire" };
+  for (const name of FLAG_NAMES) if (flags[name]) mark[name] = true;
+  return mark;
+}
+
+/** Whether two sets of flags say the same. */
+export function sameFlags(a: WireFlags, b: WireFlags): boolean {
+  return FLAG_NAMES.every((name) => Boolean(a[name]) === Boolean(b[name]));
+}
+
+/** `element`'s customData with its wire mark carrying `flags` instead, whatever else its mark and its data hold kept. */
+export function withWireFlags(element: ExcalidrawElement, flags: WireFlags): Record<string, unknown> {
+  const data = (element.customData?.dummyplane as Record<string, unknown> | undefined) ?? {};
+  const rest = Object.fromEntries(Object.entries(data).filter(([key]) => !(FLAG_NAMES as readonly string[]).includes(key)));
+  return { ...element.customData, dummyplane: { ...rest, ...wireMark(flags) } };
+}
+
 /** What a fleet can be wired to: a group's frame or a terminal (not a plain frame). */
 function isWireTarget(element: ExcalidrawElement | undefined): element is ExcalidrawElement {
   return element !== undefined && !element.isDeleted && (groupInfoOf(element) !== null || nodeKindOf(element) === "terminal");
@@ -105,13 +158,14 @@ function otherEnd(arrow: ExcalidrawElement, fleetId: string): string | null {
 /**
  * The groups and terminals wired to a fleet, from the arrows of the
  * scene: deleting an arrow or its target cuts the link (spec §13). Not its
- * spawn wires: a sub-agent it opened with spawn_agent is not on its team.
+ * spawn wires: a sub-agent it opened with spawn_agent is not on its team; nor
+ * its talk wires: a message that passed puts nobody on it.
  */
 export function fleetTargets(elements: readonly ExcalidrawElement[], fleetId: string): Links {
   const byId = new Map(elements.map((e) => [e.id, e]));
   const links: Links = { groupIds: [], nodeIds: [] };
   for (const element of elements) {
-    if (element.isDeleted || isSpawnWire(element)) continue;
+    if (element.isDeleted || isSpawnWire(element) || isTalkWire(element)) continue;
     const otherId = otherEnd(element, fleetId);
     const other = otherId ? byId.get(otherId) : undefined;
     if (!isWireTarget(other)) continue;
@@ -200,6 +254,37 @@ function route(start: Point, [startSide, endSide]: [Side, Side], end: Point): [n
   return [[0, 0], [dx / 2, 0], [dx / 2, dy], [dx, dy]];
 }
 
+/** How a vertical tree's wire is routed: its `down` and `riser` flags. */
+export type TreeRoute = Pick<WireFlags, "down" | "riser">;
+
+/**
+ * A vertical tree's route from `from` (the parent) to `to` (a child laid out
+ * under it, ./treeLayout.ts), relative to `start`, out of the parent's bottom
+ * and into the child's top, through the channels the layout leaves free. A child
+ * of the first row: down to the middle of the gap under the parent, across,
+ * down. A child of a later row (`riser`): down to the middle of the gap under
+ * the parent, across to the riser COLUMN_GAP / 2 left of the parent (the
+ * children's rows start at its left edge), down to the middle of the gap above
+ * the child's row, across, down: the rows above are crossed in the channels
+ * between them, never through a node. Read from the two boxes and the flags
+ * alone, so every reroute draws the same route. Null when the boxes do not fit
+ * the flags (the child is no longer below its parent): the wire takes the
+ * plain route.
+ */
+function treeRoute(from: Box, to: Box, flags: TreeRoute, start: Point, end: Point): [number, number][] | null {
+  if (!flags.down || to.y < from.y + from.height + 2 * GAP) return null;
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const under = from.y + from.height + GROUP_GAP / 2 - start.y;
+  const above = to.y - GROUP_GAP / 2 - start.y;
+  const riser = from.x - COLUMN_GAP / 2 - start.x;
+  // A riser needs the channel above the child's row below the one under the parent; else the first row's route.
+  if (flags.riser && above - under >= STRAIGHT && under > 0 && dy - above >= STRAIGHT) {
+    return [[0, 0], [0, under], [riser, under], [riser, above], [dx, above], [dx, dy]];
+  }
+  return route(start, ["bottom", "top"], end);
+}
+
 export type ElbowForm = Pick<
   ExcalidrawElbowArrowElement,
   | "x"
@@ -222,15 +307,21 @@ export type ElbowForm = Pick<
 /**
  * An elbow arrow from `from` to `to` as they stand: bound by fixed points at
  * the middle of the sides that face each other, routed through them. Excalidraw
- * routes it again from those fixed points whenever one of the two moves. Arrange
- * gives it to a drawn elbow arrow whose ends it moved apart (./arrangeDrawings.ts).
+ * routes it again from those fixed points whenever the user moves one of the
+ * two (not when the app does). Arrange gives it to a drawn elbow arrow whose
+ * ends it moved apart (./arrangeDrawings.ts). A vertical tree's wire (`route`
+ * down) leaves the bottom of `from` and enters the top of `to` whichever sides
+ * face each other (`treeRoute`), as long as `to` is below `from`.
  */
-export function elbowForm(from: ExcalidrawElement, to: ExcalidrawElement): ElbowForm {
-  const sides = wireSides(from, to);
+export function elbowForm(from: ExcalidrawElement, to: ExcalidrawElement, tree: TreeRoute = {}): ElbowForm {
+  const below: [Side, Side] = ["bottom", "top"];
+  const down = tree.down === true && to.y >= from.y + from.height + 2 * GAP;
+  const sides = down ? below : wireSides(from, to);
   const startPoint = fixedPointOf(from, sides[0]);
   const endPoint = fixedPointOf(to, sides[1]);
   const start = scenePoint(from, startPoint);
-  const points = route(start, sides, scenePoint(to, endPoint));
+  const end = scenePoint(to, endPoint);
+  const points = (down ? treeRoute(from, to, tree, start, end) : null) ?? route(start, sides, end);
   const xs = points.map(([x]) => x);
   const ys = points.map(([, y]) => y);
   // Focus and gap as Excalidraw's bindLinearElement writes them for an elbow arrow: the fixed point says it all.
@@ -259,15 +350,17 @@ export function elbowForm(from: ExcalidrawElement, to: ExcalidrawElement): Elbow
  * A complete elbow arrow from the side of `fleet` facing `target` to the
  * side of `target` facing it, without heads, in the color of `palette` (spec §13). Every base field is set
  * here, as for the nodes (Excalidraw's skeletons cannot bind to existing
- * elements). With `spawn`, `fleet` is an agent and `target` the
- * sub-agent it spawned (`isSpawnWire`).
+ * elements). With `spawn` (true, or flags with it), `fleet` is an agent and
+ * `target` the sub-agent it spawned (`isSpawnWire`); a talk wire is dashed;
+ * `down` and `riser` route it as a vertical tree's (`elbowForm`).
  */
 export function createWire(
   fleet: ExcalidrawElement,
   target: ExcalidrawElement,
   palette: ThemeChoice = currentPalette(),
-  spawn = false,
+  spawn: boolean | WireFlags = false,
 ): ExcalidrawElbowArrowElement {
+  const flags: WireFlags = typeof spawn === "boolean" ? (spawn ? { spawn: true } : {}) : spawn;
   return {
     id: crypto.randomUUID(),
     type: "arrow",
@@ -275,7 +368,8 @@ export function createWire(
     backgroundColor: "transparent",
     fillStyle: "solid",
     strokeWidth: 2,
-    strokeStyle: "solid",
+    // Told apart by its stroke, in the wire's colour.
+    strokeStyle: flags.talk ? "dashed" : "solid",
     opacity: 100,
     seed: random(),
     version: 1,
@@ -290,8 +384,8 @@ export function createWire(
     locked: false,
     startArrowhead: null,
     endArrowhead: null,
-    customData: { dummyplane: spawn ? { kind: "wire", spawn: true } : { kind: "wire" } },
-    ...elbowForm(fleet, target),
+    customData: { dummyplane: wireMark(flags) },
+    ...elbowForm(fleet, target, flags),
   };
 }
 
@@ -316,7 +410,7 @@ export function elbowWires(elements: readonly ExcalidrawElement[], palette: Them
     const strokeColor = wire.strokeColor.toLowerCase() === FORMER_WIRE_COLOR ? wireColor(palette) : wire.strokeColor;
     const elbow: ExcalidrawElbowArrowElement = {
       ...wire,
-      ...elbowForm(from, to),
+      ...elbowForm(from, to, wireFlagsOf(wire)),
       strokeColor,
       version: wire.version + 1,
       versionNonce: random(),
@@ -330,8 +424,9 @@ export function elbowWires(elements: readonly ExcalidrawElement[], palette: Them
 /**
  * The wires bound to one of `nodeIds` routed again between their ends as they
  * stand: Excalidraw only reroutes an elbow when the user moves or resizes an
- * end, not when the app changes its size. A spawn wire keeps its mark and its
- * color. The scene itself when no wire moves.
+ * end, not when the app changes its size. A wire keeps its mark (a vertical
+ * tree's routed by its flags, as its layout routed it), its color and its
+ * stroke. The scene itself when no wire moves.
  */
 export function rerouteWires(elements: readonly ExcalidrawElement[], nodeIds: ReadonlySet<string>): readonly ExcalidrawElement[] {
   const byId = new Map(elements.map((e) => [e.id, e]));
@@ -346,15 +441,15 @@ export function rerouteWires(elements: readonly ExcalidrawElement[], nodeIds: Re
     const to = byId.get(end);
     if (!from || !to || from.isDeleted || to.isDeleted) return element;
     changed = true;
-    const elbow: ExcalidrawElbowArrowElement = { ...wire, ...elbowForm(from, to), version: wire.version + 1, versionNonce: random(), updated: Date.now() };
+    const elbow: ExcalidrawElbowArrowElement = { ...wire, ...elbowForm(from, to, wireFlagsOf(wire)), version: wire.version + 1, versionNonce: random(), updated: Date.now() };
     return elbow;
   });
   return changed ? next : elements;
 }
 
 /** `elements` with a new wire from `from` to `to`, recorded on both ends. */
-function addWire(elements: readonly ExcalidrawElement[], from: ExcalidrawElement, to: ExcalidrawElement, palette: ThemeChoice, spawn: boolean): ExcalidrawElement[] {
-  const wire = createWire(from, to, palette, spawn);
+function addWire(elements: readonly ExcalidrawElement[], from: ExcalidrawElement, to: ExcalidrawElement, palette: ThemeChoice, flags: boolean | WireFlags): ExcalidrawElement[] {
+  const wire = createWire(from, to, palette, flags);
   const bind = (e: ExcalidrawElement): ExcalidrawElement => ({
     ...e,
     boundElements: [...(e.boundElements ?? []), { id: wire.id, type: "arrow" }],
@@ -365,7 +460,12 @@ function addWire(elements: readonly ExcalidrawElement[], from: ExcalidrawElement
   return [...elements.map((e) => (e.id === from.id || e.id === to.id ? bind(e) : e)), wire];
 }
 
-/** `elements` with a new wire, recorded on both ends, unless one already joins them (spec §13); `spawn` as for `createWire`. */
+/**
+ * `elements` with a new wire, recorded on both ends, unless one already joins
+ * them (spec §13); `spawn` as for `createWire`. A talk wire already joining
+ * them becomes the link asked for (solid, no longer a talk wire), not a second
+ * arrow over it.
+ */
 export function withWire(
   elements: readonly ExcalidrawElement[],
   fleetId: string,
@@ -380,7 +480,96 @@ export function withWire(
   if (links.groupIds.includes(targetId) || links.nodeIds.includes(targetId)) return [...elements];
   // `fleetTargets` leaves spawn wires out: one is not drawn twice.
   if (spawn && elements.some((e) => !e.isDeleted && isSpawnWire(e) && otherEnd(e, fleetId) === targetId)) return [...elements];
+  const talking = spawn ? undefined : elements.find((e) => !e.isDeleted && isTalkWire(e) && otherEnd(e, fleetId) === targetId);
+  if (talking) {
+    const link = { ...talking, strokeStyle: "solid", customData: withWireFlags(talking, { ...wireFlagsOf(talking), talk: false }), version: talking.version + 1, versionNonce: random(), updated: Date.now() } as ExcalidrawElement;
+    return elements.map((e) => (e === talking ? link : e));
+  }
   return addWire(elements, fleet, target, palette, spawn);
+}
+
+/** The live arrows of a wire with both ends bound: start, end. */
+function boundEnds(element: ExcalidrawElement): [string, string] | null {
+  if (element.isDeleted || element.type !== "arrow" || !isWire(element)) return null;
+  const { startBinding, endBinding } = element as ExcalidrawArrowElement;
+  return startBinding && endBinding ? [startBinding.elementId, endBinding.elementId] : null;
+}
+
+/** The group `nodeId` is a member of, read from its frame (a stored scene has no canvas frames); null for none. */
+function groupFrameOf(nodeId: string, byId: ReadonlyMap<string, ExcalidrawElement>): string | null {
+  const node = byId.get(nodeId);
+  const frame = node?.frameId ? byId.get(node.frameId) : undefined;
+  return frame && !frame.isDeleted && groupInfoOf(frame) ? frame.id : null;
+}
+
+/**
+ * The live wire that joins `aId` and `bId`, either way round, whatever its
+ * kind; else a Fleet's wire to the group the other one is a member of (it joins
+ * the Fleet with each of them). Null when none does.
+ */
+export function joiningWire(elements: readonly ExcalidrawElement[], aId: string, bId: string): ExcalidrawArrowElement | null {
+  const byId = new Map(elements.map((e) => [e.id, e]));
+  const wires = elements.flatMap((e) => {
+    const ends = boundEnds(e);
+    return ends ? [{ wire: e as ExcalidrawArrowElement, ends }] : [];
+  });
+  const joins = (x: string | null, y: string | null) => wires.find(({ ends: [s, e] }) => (s === x && e === y) || (s === y && e === x))?.wire;
+  const direct = joins(aId, bId);
+  if (direct) return direct;
+  const isFleet = (id: string) => {
+    const e = byId.get(id);
+    return e !== undefined && !e.isDeleted && nodeKindOf(e) === "fleet";
+  };
+  if (isFleet(aId)) return joins(aId, groupFrameOf(bId, byId)) ?? null;
+  if (isFleet(bId)) return joins(bId, groupFrameOf(aId, byId)) ?? null;
+  return null;
+}
+
+/** What talks over a wire: a terminal, a Fleet or a Kanban board, alive. */
+export function isTalker(element: ExcalidrawElement | undefined): element is ExcalidrawElement {
+  if (element === undefined || element.isDeleted) return false;
+  const kind = nodeKindOf(element);
+  return kind === "terminal" || kind === "fleet" || kind === "kanban";
+}
+
+/**
+ * `elements` with a plain wire from `fromId` to `toId` (no flags), recorded on
+ * both ends, unless a live wire already joins them (`joiningWire`), one of them
+ * is not a live node a wire joins, or they are one. For a mission's own wires:
+ * its Fleet to its board, its board to its Manager.
+ */
+export function withWireBetween(elements: readonly ExcalidrawElement[], fromId: string, toId: string, palette: ThemeChoice = currentPalette()): ExcalidrawElement[] {
+  return withJoin(elements, fromId, toId, palette, {});
+}
+
+/**
+ * `elements` with a talk wire from `fromId` to `toId` (dashed), unless a live
+ * wire already joins them (`joiningWire`), one of them is not a terminal, a
+ * Fleet or a Kanban board alive, or they are one. The scene itself when none is drawn.
+ */
+export function withTalkWire(elements: readonly ExcalidrawElement[], fromId: string, toId: string, palette: ThemeChoice = currentPalette()): readonly ExcalidrawElement[] {
+  const from = elements.find((e) => e.id === fromId);
+  const to = elements.find((e) => e.id === toId);
+  if (!isTalker(from) || !isTalker(to)) return elements;
+  const next = withJoin(elements, fromId, toId, palette, { talk: true });
+  return next.length === elements.length ? elements : next;
+}
+
+function withJoin(elements: readonly ExcalidrawElement[], fromId: string, toId: string, palette: ThemeChoice, flags: WireFlags): ExcalidrawElement[] {
+  const from = elements.find((e) => e.id === fromId);
+  const to = elements.find((e) => e.id === toId);
+  if (fromId === toId || !from || !to || !isWireEnd(from) || !isWireEnd(to) || joiningWire(elements, fromId, toId)) return [...elements];
+  return addWire(elements, from, to, palette, flags);
+}
+
+/**
+ * A wire read the way its light runs (`@/canvas/overlay/wirePaths`): from a
+ * Fleet at either end, else from where it starts. `from` and `to` are its ends'
+ * ids, `reversed` whether that is against the arrow.
+ */
+export function wireReading(start: string, end: string, isFleet: (id: string) => boolean): { from: string; to: string; reversed: boolean } {
+  if (!isFleet(start) && isFleet(end)) return { from: end, to: start, reversed: true };
+  return { from: start, to: end, reversed: false };
 }
 
 const isLiveTerminal = (element: ExcalidrawElement | undefined): element is ExcalidrawElement =>
@@ -572,11 +761,11 @@ export function fleetsOf(agentId: string, links: Readonly<Record<string, Links>>
     .map(([fleetId]) => fleetId);
 }
 
-/** What a wire can still join: a fleet, a terminal, a group's frame or an agent's output (show_output), alive. */
-function isWireEnd(element: ExcalidrawElement | undefined): boolean {
+/** What a wire can still join: a fleet, a terminal, a group's frame, an agent's output (show_output) or a Kanban board (a mission's), alive. */
+export function isWireEnd(element: ExcalidrawElement | undefined): boolean {
   if (element === undefined) return false;
   const kind = nodeKindOf(element);
-  return kind === "fleet" || kind === "output" ? !element.isDeleted : isWireTarget(element);
+  return kind === "fleet" || kind === "output" || kind === "kanban" ? !element.isDeleted : isWireTarget(element);
 }
 
 /**
@@ -595,11 +784,12 @@ export function orphanWires(elements: readonly ExcalidrawElement[]): string[] {
     .map((arrow) => arrow.id);
 }
 
-/** What a wire joins: an agent to the sub-agent it spawned, a fleet to what it commands, or two agents linked by hand. */
-export type WireKind = "spawn" | "fleet" | "link";
+/** What a wire joins: an agent to the sub-agent it spawned, two ends a message passed between, a fleet to what it commands, or two agents linked by hand. */
+export type WireKind = "spawn" | "talk" | "fleet" | "link";
 
 export function wireKindOf(wire: ExcalidrawElement, byId: ReadonlyMap<string, ExcalidrawElement>): WireKind {
   if (isSpawnWire(wire)) return "spawn";
+  if (isTalkWire(wire)) return "talk";
   const { startBinding, endBinding } = wire as ExcalidrawArrowElement;
   const atFleet = [startBinding, endBinding].some((b) => {
     const end = b ? byId.get(b.elementId) : undefined;

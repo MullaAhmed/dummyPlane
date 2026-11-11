@@ -4,7 +4,6 @@ import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { currentPalette } from "@/app/theme";
 import { nodesStore, terminalOf } from "@/store/nodes";
 import {
-  isSpawnWire,
   isWire,
   missingSpawnWires,
   orphanReason,
@@ -14,12 +13,14 @@ import {
   staleWireBindings,
   unmarkedWires,
   wireColor,
+  wireFlagsOf,
+  wireMark as markWith,
   withSpawnWires,
   type SpawnerOf,
 } from "./wires";
 
-/** A wire's mark without the orphan flag: a spawn wire keeps `spawn`. */
-const wireMark = (e: ExcalidrawElement) => (isSpawnWire(e) ? { kind: "wire", spawn: true } : { kind: "wire" });
+/** A wire's mark without the orphan flag: a spawn wire keeps `spawn`, a talk wire `talk`, a vertical tree's its route (`down`, `riser`). */
+const wireMark = (e: ExcalidrawElement) => markWith(wireFlagsOf(e));
 
 /** The agent that spawned a terminal, as its node keeps it. */
 const spawnedBy: SpawnerOf = (nodeId) => terminalOf(nodesStore.getState().nodes[nodeId])?.spawnedBy;
