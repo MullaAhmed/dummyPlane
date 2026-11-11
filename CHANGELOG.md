@@ -78,6 +78,10 @@ All notable changes to dummyPlane are documented here. The format follows [Keep 
 - **Agents stacked under a Fleet or in a group are spaced further apart,** to leave room for their step frieze.
 
 ### Fixed
+- **Agent counts agree everywhere:**
+  - **What used to disagree:** the title bar could read "16 active" beside "1 working". "Active" counted every running process in every tab, plain shells and exited agents included, while "working" and "waiting" counted the tab on screen without its Fleets.
+  - **What they count now:** the title bar's three counters, the side rail's waiting pip, the agents panel's filters and section headers, the group labels on the canvas, the workspace tab badges and *Go to*'s "N active" all count the same agents, Fleets included and plain shells never, from the state their status pill shows. "Active" is the tab on screen, like the panel; an agent waiting in another tab still brings the waiting notice.
+  - **Exited agents:** they're no longer counted as working, and the close dialog no longer says one is working.
 - **The UI audit's second tier (P2), all 59 findings:** 49 fixed in this release, 10 already fixed before it.
   - **Keyboard and screen readers:**
     - focus follows menus and panels that swap views, and returns to what opened them;
