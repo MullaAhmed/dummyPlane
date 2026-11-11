@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { mockIPC } from "@tauri-apps/api/mocks";
 import { endMission, launchMission } from "@/mission/launch";
 import { NEW_MISSION, type Mission } from "@/mission/mission";
@@ -17,6 +17,11 @@ vi.mock("@/agents/broadcast", () => ({ pauseAgents: vi.fn() }));
 vi.mock("@/agents/remoteControl", () => ({ setRemoteControl: vi.fn() }));
 vi.mock("@/nodes/terminal/registry", () => ({ terminalText: vi.fn(), quietFor: vi.fn(() => 0), typedAgo: vi.fn(() => Infinity), freshText: vi.fn(() => "") }));
 
+
+// OpenUI loads on demand; its first load (zod, the parser) is slow under the full suite's load: warmed here, not in a test.
+beforeAll(async () => {
+  await Promise.all([import("@/openui/plainText"), import("@/openui/OpenUIView")]);
+}, 60_000);
 const session = { title: "Chef", name: "Chef", agent: "claude" as const, cwd: "C:/projet", shell: "default" as const, command: "", role: "orchestrator" as const };
 const plan = { nom: "Nuit", tache: "T", sous_taches: [{ titre: "A", consigne: "B", agent: "nouveau", budget_min: 5 }] };
 const textOf = (result: { content: { text: string }[] }) => result.content[0].text;

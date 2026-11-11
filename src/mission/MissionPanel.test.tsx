@@ -27,6 +27,11 @@ afterEach(async () => {
   host.remove();
 });
 
+
+// OpenUI loads on demand; its first load (zod, the parser) is slow under the full suite's load: warmed here, not in a test.
+beforeAll(async () => {
+  await Promise.all([import("@/openui/plainText"), import("@/openui/OpenUIView")]);
+}, 60_000);
 async function show(mission?: Partial<Mission>) {
   await nodesStore.getState().create("chef", {
     workspaceId: "w1",

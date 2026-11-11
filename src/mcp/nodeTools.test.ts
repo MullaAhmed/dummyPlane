@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { mockIPC } from "@tauri-apps/api/mocks";
 import type { ExcalidrawArrowElement, ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { createNodeElement, nodeKindOf } from "@/canvas/nodeElement";
@@ -18,6 +18,11 @@ vi.mock("@/mission/events", () => ({ notify: vi.fn() }));
 
 /** The workspace's scene, as `sceneAccess` reads and writes it. */
 let scene: ExcalidrawElement[] = [];
+
+// OpenUI loads on demand; its first load (zod, the parser) is slow under the full suite's load: warmed here, not in a test.
+beforeAll(async () => {
+  await Promise.all([import("@/openui/plainText"), import("@/openui/OpenUIView")]);
+}, 60_000);
 const write = vi.fn((elements: readonly ExcalidrawElement[]) => (scene = [...elements]));
 vi.mock("@/agents/sceneAccess", () => ({ sceneAccess: vi.fn(() => ({ shown: true, elements: () => scene, write })) }));
 

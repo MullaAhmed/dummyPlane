@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { act } from "react";
 import { createRoot } from "react-dom/client";
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import { mockIPC } from "@tauri-apps/api/mocks";
 import { removeNode } from "@/agents/terminals";
@@ -17,6 +17,11 @@ vi.mock("@/mission/events", () => ({ notify: vi.fn() }));
 vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { error: vi.fn() }) }));
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
+
+// OpenUI loads on demand; its first load (zod, the parser) is slow under the full suite's load: warmed here, not in a test.
+beforeAll(async () => {
+  await Promise.all([import("@/openui/plainText"), import("@/openui/OpenUIView")]);
+}, 60_000);
 const writeText = vi.fn(() => Promise.resolve());
 Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
 
