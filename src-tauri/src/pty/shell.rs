@@ -54,8 +54,9 @@ pub enum ClaudeMode {
     Continue,
 }
 
-/// What a Claude session is for (spec orchestrateur §4.2): an agent, or the
-/// fleet that manages a team without coding.
+/// What a Claude session is for (spec orchestrateur §4.2): an agent, the
+/// fleet that plans a mission with the user, or the Manager that runs its board
+/// with the team. Neither of the last two codes.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Role {
@@ -65,6 +66,24 @@ pub enum Role {
     /// saved data and older builds.
     #[serde(rename = "orchestrator")]
     Fleet,
+    /// A mission's Manager (wire value "manager"): it runs the board's cards
+    /// with the team, on the fleet's rails.
+    Manager,
+}
+
+impl Role {
+    /// The fleet's rails, the Manager's too: it reads the repository and edits
+    /// nothing, runs no command but read-only ones (Codex's sandbox), reads only
+    /// the MCP servers it is given, and at night refuses what would ask.
+    pub fn reads_only(self) -> bool {
+        matches!(self, Role::Fleet | Role::Manager)
+    }
+
+    /// Whether a session may read the night's tickets in Linear: the fleet's
+    /// alone, which plans them, never the Manager's nor an agent's.
+    pub fn reads_linear(self) -> bool {
+        self == Role::Fleet
+    }
 }
 
 /// What a mission lets its agents do unasked (spec mission de nuit §5.3).
@@ -256,7 +275,7 @@ pub struct AgentHooks {
     pub codex_args: Vec<String>,
 }
 
-/// What keeps a fleet a manager (spec première version §4.1): its
+/// What keeps a fleet, or a Manager, from coding (spec première version §4.1): its
 /// settings (`deny`), dummyPlane's tools and its role; for Codex, its profile
 /// (role, tools, the user's servers off) and its token, the read-only sandbox
 /// being on its command line. Without one of them it would start as a plain
@@ -534,10 +553,10 @@ fn claude_node_flags(
     for (flag, path) in files {
         if let Some(path) = path {
             push(flag, Some(quote(syntax, &path.to_string_lossy())));
-            // The fleet reads its `--mcp-config` file only: dummyPlane's tools
+            // The fleet, and a Manager, read their `--mcp-config` file only: dummyPlane's tools
             // and the servers its MCP tab leaves on (`extensions::servers_on`),
             // never one the panel doesn't list, such as a claude.ai connector.
-            if flag == "--mcp-config" && launch.role == Role::Fleet {
+            if flag == "--mcp-config" && launch.role.reads_only() {
                 push("--strict-mcp-config", None);
             }
         }
@@ -551,9 +570,9 @@ fn claude_node_flags(
     // `--permission-mode`, not `defaultMode` in the settings: Claude's docs confirm the flag for one session.
     // Never `bypassPermissions`: its first use asks, and accepting writes to the user's settings.
     let mode = match (launch.role, launch.permission) {
-        // A fleet at night has nobody to ask: what would prompt is refused instead, and its
+        // A fleet or a Manager at night has nobody to ask: what would prompt is refused instead, and its
         // deny list keeps it from editing and running commands whatever the team may do.
-        (Role::Fleet, Some(_)) => Some("dontAsk"),
+        (role, Some(_)) if role.reads_only() => Some("dontAsk"),
         (_, Some(Permission::Edits)) => Some("acceptEdits"),
         (_, Some(Permission::Work)) => Some("dontAsk"),
         (_, Some(Permission::Ask) | None) => None,
@@ -681,11 +700,16 @@ fn codex_command(
                 "the fleet's Codex profile is missing".to_string(),
             ));
         }
+        None if role == Role::Manager => {
+            return Err(AppError::InvalidInput(
+                "the Manager's Codex profile is missing".to_string(),
+            ));
+        }
         None => {}
     }
     codex.push_str(match (role, launch.and_then(|l| l.permission)) {
-        // Day and night, nothing it runs can write, and it never waits for a yes.
-        (Role::Fleet, _) => " -s read-only -a never",
+        // Day and night, nothing a fleet or a Manager runs can write, and it never waits for a yes.
+        (role, _) if role.reads_only() => " -s read-only -a never",
         (_, Some(Permission::Work)) => " -s danger-full-access -a never",
         // Edits in its folder and sandboxed commands go ahead; a commit, or anything else out of the sandbox, asks or fails.
         (_, Some(Permission::Edits)) => " -s workspace-write -a on-request",
@@ -943,13 +967,13 @@ pub fn build_plan(
         .into_iter()
         .chain(refreshed_path())
         .chain(
-            // A Codex fleet runs commands, read-only ones: the push block holds for it day and night.
+            // A Codex fleet or Manager runs commands, read-only ones: the push block holds for it day and night.
             (spec.permission().is_some()
-                || (spec.agent == Agent::Codex && spec.role() == Role::Fleet))
-                .then_some(NO_PUSH_ENV)
-                .into_iter()
-                .flatten()
-                .map(|(key, value)| (key.to_string(), value.to_string())),
+                || (spec.agent == Agent::Codex && spec.role().reads_only()))
+            .then_some(NO_PUSH_ENV)
+            .into_iter()
+            .flatten()
+            .map(|(key, value)| (key.to_string(), value.to_string())),
         )
         .chain(hooks.mcp_token.iter().map(|token| {
             (
@@ -1923,6 +1947,108 @@ mod tests {
         assert_eq!(fleet.claude.unwrap().role, Role::Fleet);
         let older = spec(serde_json::json!({ "mode": "new", "sessionId": SESSION, "title": "t" }));
         assert_eq!(older.claude.unwrap().role, Role::Agent);
+        // A mission's Manager goes by "manager", for Claude and Codex alike.
+        let manager = spec(
+            serde_json::json!({ "mode": "new", "sessionId": SESSION, "title": "t", "role": "manager" }),
+        );
+        assert_eq!(manager.claude.unwrap().role, Role::Manager);
+        let codex: SpawnSpec = serde_json::from_value(serde_json::json!({
+            "cwd": "C:/code", "shell": "cmd", "agent": "codex", "command": "",
+            "codex": { "role": "manager" }
+        }))
+        .unwrap();
+        assert_eq!(codex.role(), Role::Manager);
+        // Its name only: "Manager" or "fleet" read as nothing known.
+        for unknown in ["Manager", "fleet"] {
+            assert!(
+                serde_json::from_value::<Role>(serde_json::json!(unknown)).is_err(),
+                "{unknown}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_manager_rides_the_fleet_s_rails_but_never_reads_linear() {
+        assert!(!Role::Agent.reads_only());
+        assert!(Role::Fleet.reads_only());
+        assert!(Role::Manager.reads_only());
+        // Linear's tickets are planned by the fleet: its server is the fleet's alone.
+        assert!(Role::Fleet.reads_linear());
+        assert!(!Role::Manager.reads_linear());
+        assert!(!Role::Agent.reads_linear());
+    }
+
+    #[test]
+    fn a_manager_reads_only_its_own_mcp_config_and_never_waits_at_night() {
+        let manager = |permission| {
+            with_permission(permission).map(|launch| ClaudeLaunch {
+                role: Role::Manager,
+                ..launch
+            })
+        };
+        let line = agent_command(
+            &spec(Agent::Claude, manager(None)),
+            ShellSyntax::Cmd,
+            &tooled(),
+        )
+        .unwrap()
+        .unwrap();
+        assert!(
+            line.contains(r#"--mcp-config "C:\data\mcp\n1.json" --strict-mcp-config"#),
+            "{line}"
+        );
+        assert!(!line.contains("--permission-mode"), "{line}");
+        for permission in [Permission::Ask, Permission::Edits, Permission::Work] {
+            let command = claude_command(
+                manager(Some(permission)).as_ref(),
+                ShellSyntax::PowerShell,
+                &AgentHooks::default(),
+            )
+            .unwrap();
+            assert!(
+                command.contains(" --permission-mode dontAsk"),
+                "{permission:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_codex_manager_launches_read_only_with_its_profile_and_the_push_block() {
+        let manager = |permission| CodexLaunch {
+            role: Role::Manager,
+            permission,
+            ..Default::default()
+        };
+        for permission in [
+            None,
+            Some(Permission::Ask),
+            Some(Permission::Edits),
+            Some(Permission::Work),
+        ] {
+            assert_eq!(
+                codex_line(manager(permission), &codex_tooled()),
+                "codex -p dummyplane-n1 -s read-only -a never"
+            );
+        }
+        // Without its profile it would be a plain Codex in the user's folder: refused, by its name.
+        let missing = agent_command(
+            &codex_spec(manager(None)),
+            ShellSyntax::PowerShell,
+            &AgentHooks::default(),
+        )
+        .unwrap_err();
+        assert!(
+            missing.to_string().contains("Manager's Codex profile"),
+            "{missing}"
+        );
+        let day = build_plan(
+            "n1",
+            &codex_spec(manager(None)),
+            &nothing_on_path,
+            &codex_tooled(),
+        )
+        .unwrap();
+        assert!(day.env.iter().any(|(key, _)| key == "GIT_CONFIG_KEY_0"));
     }
 
     #[test]

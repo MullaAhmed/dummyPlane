@@ -18,7 +18,7 @@ use crate::agents::subagents::{Emit, Job, SubagentHook, SubagentSnapshot, Subage
 use crate::agents::{claude_settings, claude_theme, codex_profile, mcp_files, prompts};
 use crate::error::{AppError, AppResult};
 use crate::pty::shell::{
-    Agent, AgentHooks, ClaudeLaunch, CodexLaunch, Role, find_git_bash, which_locate,
+    Agent, AgentHooks, ClaudeLaunch, CodexLaunch, find_git_bash, which_locate,
 };
 use crate::sync::lock;
 
@@ -380,8 +380,8 @@ pub fn hooks_for(
 ) -> AgentHooks {
     let role = claude.map(|c| c.role).unwrap_or_default();
     let permission = claude.and_then(|c| c.permission);
-    // Only a fleet reads the night's tickets: an agent never gets Linear's server.
-    let linear = role == Role::Fleet && claude.is_some_and(|c| c.linear);
+    // Only a fleet reads the night's tickets: an agent or a Manager never gets Linear's server.
+    let linear = role.reads_linear() && claude.is_some_and(|c| c.linear);
     let state = app.state::<AgentState>();
     let Some(server) = &state.hooks else {
         return AgentHooks::default();
@@ -412,10 +412,10 @@ pub fn hooks_for(
             let extensions = choice
                 .zip(places.as_ref())
                 .and_then(|(choice, places)| extensions::settings_patch(choice, places));
-            // A fleet reads no MCP configuration but its own file (`--strict-mcp-config`):
+            // A fleet or a Manager reads no MCP configuration but its own file (`--strict-mcp-config`):
             // the servers its MCP tab leaves on go into that file.
-            let servers = match (role, places.as_ref()) {
-                (Role::Fleet, Some(places)) => extensions::servers_on(places, choice),
+            let servers = match places.as_ref() {
+                Some(places) if role.reads_only() => extensions::servers_on(places, choice),
                 _ => serde_json::Map::new(),
             };
             // Claude's own colours in the palette's, unless the user chose a theme of their own.
@@ -477,7 +477,7 @@ pub fn hooks_for(
                 mcp_url: &server.mcp_url(),
                 prompt: &prompt,
                 role,
-                linear: role == Role::Fleet && launch.linear,
+                linear: role.reads_linear() && launch.linear,
             };
             let args = codex_profile::cli_args(role, &server.mcp_url());
             let codex_bin = which_locate("codex");

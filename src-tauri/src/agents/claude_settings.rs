@@ -1,14 +1,14 @@
 //! The settings file given to Claude with `--settings` (spec habillage §8.2,
 //! §10.3): http hooks that report its state, and one that asks dummyPlane
 //! before Claude starts a built-in sub-agent (the hook server decides), for an
-//! agent and a fleet alike.
+//! agent, a fleet and a Manager alike.
 
 use std::io;
 use std::path::{Path, PathBuf};
 
 use serde_json::{Value, json};
 
-use super::hooks_server::valid_node_id;
+use super::hooks_server::{manager_hook_url, valid_node_id};
 use crate::pty::shell::{Permission, Role};
 
 const NOTIFICATIONS: &str =
@@ -22,10 +22,16 @@ pub fn settings_json(url: &str, role: Role) -> Value {
     let every = json!([{ "hooks": [hook] }]);
     // dummyPlane's own tools never ask (spec orchestrateur §4.2).
     let mut permissions = json!({ "allow": ["mcp__dummyplane"] });
-    if role == Role::Fleet {
-        // A manager does not code itself, nor run commands in the user's folder.
+    if role.reads_only() {
+        // A fleet or a Manager does not code itself, nor run commands in the user's folder.
         permissions["deny"] = json!(["Edit", "Write", "NotebookEdit", "Bash"]);
     }
+    // A Manager has no spawn_agent: its question says so, and is answered with the queue instead.
+    let pre_tool = if role == Role::Manager {
+        json!({ "type": "http", "url": manager_hook_url(url), "timeout": 2 })
+    } else {
+        hook.clone()
+    };
     json!({
         "hooks": {
             "UserPromptSubmit": every,
@@ -38,8 +44,9 @@ pub fn settings_json(url: &str, role: Role) -> Value {
             "Notification": [{ "matcher": NOTIFICATIONS, "hooks": [hook] }],
             // Always asked, decided at each call: the user's "Sub-agents open as
             // terminals" reaches the sessions already running. A fleet's go to
-            // spawn_agent too, as regular agents in terminals of their own.
-            "PreToolUse": [{ "matcher": BUILTIN_SUBAGENTS, "hooks": [hook] }],
+            // spawn_agent too, as regular agents in terminals of their own; a
+            // Manager's team starts from the queue.
+            "PreToolUse": [{ "matcher": BUILTIN_SUBAGENTS, "hooks": [pre_tool] }],
         },
         "permissions": permissions,
     })
@@ -351,7 +358,8 @@ mod tests {
             json!([{ "matcher": "Task|Agent", "hooks": [hook] }])
         );
         // A fleet has spawn_agent too: its built-in sub-agents are asked about the same way,
-        // and the hook server's decision (`hooks_server::pre_tool_use`) does not depend on the role.
+        // and the hook server answers it as an agent (`hooks_server::pre_tool_use`); only a
+        // Manager's question is tagged, for the wording.
         let manager = settings_json(URL, Role::Fleet);
         assert_eq!(manager["hooks"], agent["hooks"]);
         // Only its rails differ: it neither edits nor runs commands itself.
@@ -722,6 +730,39 @@ until [ -e release ] || [ ! -e statusline.sh ]; do sleep 0.05; done\n\
             settings_json(URL, Role::Agent)["permissions"]
                 .get("deny")
                 .is_none()
+        );
+    }
+
+    #[test]
+    fn a_manager_has_the_fleet_s_rails_and_is_answered_for_its_queue() {
+        let manager = settings_json(URL, Role::Manager);
+        let fleet = settings_json(URL, Role::Fleet);
+        assert_eq!(manager["permissions"], fleet["permissions"]);
+        assert_eq!(
+            manager["permissions"]["deny"],
+            json!(["Edit", "Write", "NotebookEdit", "Bash"])
+        );
+        // At night too, it is opened nothing its team gets, and pushes nothing.
+        let mut night = manager.clone();
+        apply_permission(&mut night, Some(Permission::Work), Role::Manager);
+        assert_eq!(night["permissions"]["allow"], json!(["mcp__dummyplane"]));
+        let deny = night["permissions"]["deny"].as_array().unwrap();
+        for rule in ["Bash", "Edit", "Bash(git push *)"] {
+            assert!(deny.contains(&json!(rule)), "{rule}");
+        }
+        // Its hooks are everyone's, but for its sub-agent question, tagged so the refusal names its queue.
+        let agent = settings_json(URL, Role::Agent);
+        for (event, hooks) in manager["hooks"].as_object().unwrap() {
+            if event != "PreToolUse" {
+                assert_eq!(hooks, &agent["hooks"][event], "{event}");
+            }
+        }
+        assert_eq!(
+            manager["hooks"]["PreToolUse"],
+            json!([{
+                "matcher": "Task|Agent",
+                "hooks": [{ "type": "http", "url": format!("{URL}&role=manager"), "timeout": 2 }]
+            }])
         );
     }
 

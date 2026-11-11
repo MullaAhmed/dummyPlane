@@ -7,7 +7,7 @@ use crate::commands::agents;
 use crate::db::{Db, scrollback};
 use crate::error::{AppError, AppResult};
 use crate::pty::session::OutputSink;
-use crate::pty::shell::{Agent, Role, ShellKind, SpawnSpec, build_plan, fleet_tools, which_locate};
+use crate::pty::shell::{Agent, ShellKind, SpawnSpec, build_plan, fleet_tools, which_locate};
 use crate::pty::{PtyManager, pty_size};
 
 /// Forwards PTY output to the webview as raw bytes (an `ArrayBuffer` in JS).
@@ -87,11 +87,11 @@ pub async fn pty_spawn(
         profile_dir.as_deref(),
     );
     if matches!(spec.agent, Agent::Claude | Agent::Codex)
-        && role == Role::Fleet
+        && role.reads_only()
         && let Err(cause) = fleet_tools(spec.agent, &hooks, agents::server_running(&app))
     {
         agents::ended(&app, &node_id);
-        log::warn!("Fleet {node_id} not started: {cause}");
+        log::warn!("{role:?} {node_id} not started: {cause}");
         return Err(AppError::ToolsUnavailable(format!(
             "dummyPlane's tools are unavailable: {cause}."
         )));
