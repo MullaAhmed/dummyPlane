@@ -12,10 +12,7 @@ import { agentState, missionOf } from "./store";
  * Apart from `./queue`, which reads it.
  */
 
-/** An agent that just got its task is not "idle" yet: Claude's first activity takes a moment to show. */
-const JUST_SENT_MS = 30_000;
-
-/** An agent's state from its terminal and its activity: idle and stopped ones hold no task. */
+/** An agent's state from its terminal and its activity: a stopped one holds no task; an idle one, its turn ended with no report, still does. */
 function stateOf(nodeId: string, launching: boolean): WorkState {
   const status = statusOf(nodeId).state;
   if (launching || status === "starting") return "starting";
@@ -24,12 +21,10 @@ function stateOf(nodeId: string, launching: boolean): WorkState {
   return state === "travaille" ? "working" : state === "attend" ? "waiting" : state === "arrêté" ? "stopped" : "idle";
 }
 
-function memberState(member: Member, now: number): WorkState {
+/** A team agent whose task is not typed yet is starting on it. */
+function memberState(member: Member): WorkState {
   const state = stateOf(member.nodeId, false);
-  if (state !== "idle" && state !== "working" && state !== "waiting") return state;
-  // Its task not typed yet, or just typed: it is starting on it.
-  if (member.sentAt === undefined || (state === "idle" && now - member.sentAt < JUST_SENT_MS)) return "starting";
-  return state;
+  return state !== "stopped" && member.sentAt === undefined ? "starting" : state;
 }
 
 /**
@@ -53,7 +48,7 @@ export function activeWork(workspaceId: string | undefined, exclude: readonly (s
       found.push({
         agentId: member.nodeId,
         name: member.name,
-        state: memberState(member, now),
+        state: memberState(member),
         title: member.task,
         ...(sub?.brief ? { brief: sub.brief } : {}),
         ...(sub?.card ? { card: sub.card } : {}),

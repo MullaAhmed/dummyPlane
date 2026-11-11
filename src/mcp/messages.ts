@@ -2,7 +2,7 @@ import { defineMessages, plural } from "@/i18n";
 
 /** Who is already on a task (`@/mission/duplicateTask`): `Thor is already working on "Banners" (working, 3 of 40 min).` */
 const holder = (who: { name: string; title?: string; state: string; spentMin?: number; budgetMin?: number }) =>
-  `${who.name} is already working on "${who.title || "that task"}" (${who.state}${who.spentMin !== undefined && who.budgetMin !== undefined ? `, ${who.spentMin} of ${who.budgetMin} min` : ""}).`;
+  `${who.name} is already working on "${who.title || "that task"}" (${who.state === "idle" ? "between two turns" : who.state}${who.spentMin !== undefined && who.budgetMin !== undefined ? `, ${who.spentMin} of ${who.budgetMin} min` : ""}).`;
 type Holder = Parameters<typeof holder>[0];
 /** Tasks `add_tasks` or `propose_plan` refused, each with who is on it already. */
 const taken = (found: readonly { n: number; title: string; who: Holder }[]) => found.map(({ n, title, who }) => `Task ${n} ("${title}"): ${holder(who)}`).join(" ");

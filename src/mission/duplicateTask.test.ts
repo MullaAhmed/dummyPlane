@@ -30,15 +30,27 @@ describe("the same task", () => {
     expect(normalisedTitle("Hello,   World — v2!")).toBe("hello world v2");
   });
 
-  it("is not a title too short to say anything", () => {
+  it("is not a one-word title: a label, not a task", () => {
     expect(dup({ title: "Fix" }, work({ title: "fix" }))).toBeNull();
+    expect(dup({ title: "Research" }, work({ title: "research" }))).toBeNull();
+    expect(dup({ title: "Fix build" }, work({ title: "fix build" }))).toBe("Thor");
   });
 
-  it("is a brief with most of its words shared", () => {
+  it("is the same title over briefs that do not tell two jobs apart", () => {
+    const thor = work({ title: "Router tests", brief: "Write the unit tests for the router: cover the errors and the edge cases." });
+    // A shorter brief, or a longer one, says what the other says.
+    expect(dup({ title: "Router tests", brief: "Write the unit tests for the router" }, thor)).toBe("Thor");
+    expect(dup({ title: "router TESTS", brief: "Write the unit tests for the router: cover the errors and the edge cases, and the mocks." }, thor)).toBe("Thor");
+    // One label over two briefs that share nothing is two tasks.
+    expect(dup({ title: "Router tests", brief: "Measure how fast the routing table answers under load" }, thor)).toBeNull();
+  });
+
+  it("is a brief with most of its words shared, all of one's in the other's", () => {
     const thor = work({ brief: "Recolour the README banners and badges in the Dark and Expressive palette, then commit the images on your branch." });
-    expect(dup({ brief: "Please recolour banners and badges for the Expressive palette in dark mode; update the images." }, thor)).toBe("Thor");
-    // Plurals and word order do not matter.
+    // The same words in another order, plurals folded.
     expect(dup({ brief: "Badges and banners, recolour the images: README, Dark palette, Expressive palette." }, thor)).toBe("Thor");
+    // The same brief and one more word.
+    expect(dup({ brief: "Recolour the README banners and badges in the Dark and Expressive palettes, and update the images." }, thor)).toBe("Thor");
   });
 
   it("is a brief given twice under two titles", () => {
@@ -79,6 +91,23 @@ describe("two different tasks on one repo", () => {
     expect(dup({ brief: tests("src/mcp/agentTools.ts") }, work({ brief: tests("src/mcp/agentTools.ts") }))).toBe("Thor");
   });
 
+  it("are not flagged when one plain word tells them apart", () => {
+    const review = (module: string) => `Review the ${module} module for security issues and report the findings.`;
+    expect(dup({ brief: review("billing") }, work({ brief: review("authentication") }))).toBeNull();
+    expect(dup({ title: "Review the module", brief: review("billing") }, work({ title: "Review the module", brief: review("authentication") }))).toBeNull();
+    // Said twice, it is the same job.
+    expect(dup({ brief: review("billing") }, work({ brief: review("billing") }))).toBe("Thor");
+  });
+
+  it("are not flagged when numbers or ids tell them apart", () => {
+    const context = "The checkout flow was rewritten last month and its tests were not updated, so the suite is red on the main branch.";
+    expect(dup({ brief: `${context} Do part 2.` }, work({ brief: `${context} Do part 1.` }))).toBeNull();
+    const issue = (id: string) => `Fix issue ${id} in the tracker and add a regression test for the parser.`;
+    expect(dup({ brief: issue("#42") }, work({ brief: issue("#41") }))).toBeNull();
+    expect(dup({ brief: issue("ENG-102") }, work({ brief: issue("ENG-101") }))).toBeNull();
+    expect(dup({ brief: issue("#41") }, work({ brief: issue("#41") }))).toBe("Thor");
+  });
+
   it("are not flagged for a short brief: too little to tell", () => {
     expect(dup({ brief: "Fix the build" }, work({ brief: "Fix the build" }))).toBeNull();
     expect(dup({ brief: "Fix the failing build today" }, work({ brief: "Fix the failing build today" }))).toBeNull();
@@ -93,16 +122,16 @@ describe("two different tasks on one repo", () => {
 describe("who counts", () => {
   const brief = "Recolour the README banners and badges in the Dark and Expressive palettes, then commit the images.";
 
-  it("is an agent working, waiting or starting", () => {
-    for (const state of ["working", "waiting", "starting"] as const) expect(dup({ brief }, work({ brief, state }))).toBe("Thor");
+  it("is an agent working, waiting or starting, or between two turns without a report", () => {
+    for (const state of ["working", "waiting", "starting", "idle"] as const) expect(dup({ brief }, work({ brief, state }))).toBe("Thor");
   });
 
-  it("is not an agent idle, stopped or done", () => {
-    for (const state of ["idle", "stopped", "done"] as const) expect(dup({ brief, card: "c1", title: "Banners" }, work({ brief, card: "c1", title: "Banners", state }))).toBeNull();
+  it("is not an agent stopped or done", () => {
+    for (const state of ["stopped", "done"] as const) expect(dup({ brief, card: "c1", title: "Banners" }, work({ brief, card: "c1", title: "Banners", state }))).toBeNull();
   });
 
   it("is the first of those at work, however many are not", () => {
-    const found = findDuplicateWork({ card: "c1" }, [work({ card: "c1", state: "idle" }), work({ agentId: "loki", name: "Loki", card: "c1" }), work({ agentId: "odin", name: "Odin", card: "c1" })]);
+    const found = findDuplicateWork({ card: "c1" }, [work({ card: "c1", state: "stopped" }), work({ agentId: "loki", name: "Loki", card: "c1" }), work({ agentId: "odin", name: "Odin", card: "c1" })]);
     expect(found?.agentId).toBe("loki");
   });
 

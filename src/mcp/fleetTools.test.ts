@@ -98,7 +98,7 @@ describe("an agent is already on the task (add_tasks, propose_plan)", () => {
   it("add_tasks refuses a task a mission's agent is at work on, naming it, and queues none of the call", async () => {
     await thorWorks();
     const task = (titre: string, consigne: string) => ({ titre, consigne, budget_min: 15 });
-    const said = await fleetTool("chef", "add_tasks", { tasks: [task("Link agents to the Kanban board", "Link every agent to its card on the Kanban board"), task(`${THOR.toUpperCase()}!`, "Something else, in other words")] });
+    const said = await fleetTool("chef", "add_tasks", { tasks: [task("Link agents to the Kanban board", "Link every agent to its card on the Kanban board"), task(`${THOR.toUpperCase()}!`, "Recolour the banners and badges in the Dark palette")] });
     expect(said).toEqual({
       content: [{ type: "text", text: `Nothing was added: Task 2 ("${THOR.toUpperCase()}!"): Thor is already working on "${THOR}" (working, 3 of 40 min). Message or read that agent instead of queueing another, then add the other tasks.` }],
       isError: true,
@@ -121,13 +121,16 @@ describe("an agent is already on the task (add_tasks, propose_plan)", () => {
     expect((await fleetTool("chef", "add_tasks", { tasks: [{ titre: `${THOR} again`, consigne: BANNERS, budget_min: 15 }] })).isError).toBeUndefined();
   });
 
-  it("add_tasks does not count an agent idle or stopped", async () => {
+  it("add_tasks counts an agent between two turns, not one that stopped", async () => {
     await thorWorks();
+    const again = (titre: string) => ({ tasks: [{ titre, consigne: "Recolour the banners and badges in the Dark palette", budget_min: 15 }] });
+    // Its turn ended, no report: it is still on the task.
     agentActivityStore.getState().apply({ nodeId: "thor", activity: "idle", since: Date.now() + 1 });
-    expect((await fleetTool("chef", "add_tasks", { tasks: [{ titre: `${THOR}!`, consigne: "x", budget_min: 15 }] })).isError).toBeUndefined();
-    working("thor");
+    const idle = await fleetTool("chef", "add_tasks", again(`${THOR}!`));
+    expect(idle.isError).toBe(true);
+    expect(idle.content[0].text).toContain('(between two turns, 3 of 40 min)');
     terminalStatusStore.getState().set("thor", { state: "exited", code: 0 });
-    expect((await fleetTool("chef", "add_tasks", { tasks: [{ titre: `${THOR}?`, consigne: "x", budget_min: 15 }] })).isError).toBeUndefined();
+    expect((await fleetTool("chef", "add_tasks", again(`${THOR}?`))).isError).toBeUndefined();
   });
 
   it("propose_plan refuses a sub-task a sub-agent is at work on, and proposes the rest of a plan without it", async () => {

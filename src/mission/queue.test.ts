@@ -878,13 +878,17 @@ describe("a waiting task another agent is already at work on", () => {
     expect(told()).toEqual([]);
   });
 
-  it("does not look at an agent whose turn ended with nothing under way", async () => {
-    await billing({ queue: [{ ...next, title: "Invoices", card: "c9" }] });
-    // Idle: nothing under way, no task held.
+  it("counts an agent between two turns, its report not given, and not one that stopped", async () => {
+    await billing({ queue: [{ ...next, title: "Refunds", card: "c9" }] });
+    // Idle: its turn ended, it still holds the task.
     agentActivityStore.setState({ activities: { aquaman: { activity: "idle", since: 1 } } as never });
     await pumpQueue("chef");
-    await vi.waitFor(() => expect(created().map((m) => m.task)).toEqual(["Invoices"]));
-    expect(told()).toEqual([]);
+    expect(created()).toEqual([]);
+    expect(told()).toEqual([expect.stringContaining('Aquaman is already working on "Billing" (between two turns, 5 of 20 min)')]);
+    // Stopped: nobody is on it.
+    terminalStatusStore.getState().set("aquaman", { state: "exited", code: 0 });
+    await pumpQueue("chef");
+    await vi.waitFor(() => expect(created().map((m) => m.task)).toEqual(["Refunds"]));
   });
 
   it("starts one agent for two tasks on one card in a single turn, the second skipped", async () => {

@@ -10,7 +10,10 @@ import { MAX_STORED_TASK } from "@/nodes/types";
  * a round trip, and two agents on different parts of one repo are normal.
  */
 
-/** What an agent is doing, as the guard reads it. Only the first three are "at work". */
+/**
+ * What an agent is doing, as the guard reads it. "idle" is a turn ended with no report: the task is not given up,
+ * as for the seat it takes (`./active`). "stopped" and "done" (it reported) hold nothing.
+ */
 export type WorkState = "working" | "waiting" | "starting" | "idle" | "stopped" | "done";
 
 /** An agent, and the task it holds if one was given. */
@@ -36,9 +39,9 @@ export interface Candidate {
   card?: string;
 }
 
-const AT_WORK: ReadonlySet<WorkState> = new Set<WorkState>(["working", "waiting", "starting"]);
+const AT_WORK: ReadonlySet<WorkState> = new Set<WorkState>(["working", "waiting", "starting", "idle"]);
 
-/** Idle (its turn ended, nothing under way), stopped, exited and done agents hold no task any more. */
+/** Working, waiting, starting, or between two turns without a report; a stopped, exited or done agent holds no task any more. */
 export const isAtWork = (state: WorkState) => AT_WORK.has(state);
 
 /** Briefs are compared as far as an agent's payload keeps them (`MAX_STORED_TASK`): a long brief is its own copy. */
@@ -49,8 +52,10 @@ export const SIMILAR = 0.7;
 const SHARED_SENTENCE = 0.8;
 /** A brief with fewer different words says too little to be told from another. */
 const MIN_WORDS = 5;
-/** A title this short ("Fix", "Tests") is a label, not a task. */
-const MIN_TITLE = 4;
+/** A one-word title ("Tests", "Research") is a label, not a task. */
+const MIN_TITLE_WORDS = 2;
+/** Briefs with at least this many words say enough to be told apart. */
+const MIN_COMPARE = 3;
 
 /** What is left of a title once case, accents, punctuation and spacing are folded. */
 export function normalisedTitle(title: string): string {
@@ -115,21 +120,26 @@ const wordsOfAll = (sentences: readonly (readonly string[])[]) => [...new Set(se
 const unshared = (sentences: readonly string[][], others: readonly string[][]) =>
   wordsOfAll(sentences.filter((sentence) => !others.some((other) => jaccard(sentence, other) >= SHARED_SENTENCE)));
 
-/** Paths, file names and code names: what a brief aims at. `src/a.ts` and `src/b.ts` are two tasks, whatever else is repeated. */
+/**
+ * What a brief aims at: paths, file names, code names, ticket ids and numbers. `src/a.ts` and `src/b.ts`, `#41` and `#42`,
+ * part 1 and part 2 are two jobs, whatever else is repeated.
+ */
 const TARGETS = [
   /[\w@~.-]*[\\/][\w@~./\\-]*/g,
   /\b[\w-]+\.[a-z]{1,5}\b/gi,
   /\b[a-z]+(?:[A-Z][a-z0-9]*)+\b/g,
   /\b(?:[A-Z][a-z0-9]+){2,}\b/g,
   /\b[a-z0-9]+(?:_[a-z0-9]+)+\b/g,
+  /#\d+|\b[a-z]{2,8}-\d+\b/gi,
+  /\b\d+(?:\.\d+)*\b/g,
 ];
 
 function targetsOf(text: string): Set<string> {
   const found = new Set<string>();
   for (const pattern of TARGETS) {
     for (const match of text.slice(0, WINDOW).match(pattern) ?? []) {
-      // "and/or", "i.e.": a word, not a place; a path is at least `src/mcp` long.
-      if (match.length >= (/[\\/]/.test(match) ? 7 : 4)) found.add(match.toLowerCase());
+      // "and/or", "i.e.": a word, not a place; a path is at least `src/mcp` long. A number is one at any length.
+      if (/\d/.test(match) || match.length >= (/[\\/]/.test(match) ? 7 : 4)) found.add(match.toLowerCase());
     }
   }
   return found;
@@ -142,30 +152,40 @@ function differentTargets(a: string, b: string): boolean {
   return [...ours].some((target) => !theirs.has(target)) && [...theirs].some((target) => !ours.has(target));
 }
 
+/** Every word of the shorter list is in the longer one: one brief says all the other says, and perhaps more. One word apart each way is two tasks. */
+function contained(a: readonly string[], b: readonly string[]): boolean {
+  const [small, big] = a.length <= b.length ? [a, b] : [b, a];
+  const words = new Set(big);
+  return small.every((word) => words.has(word));
+}
+
 /**
- * Whether `candidate` is the task `work` already holds. The same card always is, a different one never;
- * else the same title once folded, or the same brief: most of its words shared (Jaccard {@link SIMILAR}), and most of
- * the words the two do not repeat from each other's sentences too (the rules they share leave the tasks to compare),
- * with enough words to say something — and not two jobs aimed at different files or names.
+ * Whether `candidate` is the task `work` already holds. The same card always is, a different one never.
+ * Else, unless the two briefs aim at different files, names or numbers: the same title once folded (two words at least,
+ * and briefs that do not tell two jobs apart), or the same brief: most of its words shared (Jaccard {@link SIMILAR}),
+ * all of one's in the other's, and the same of the words the two do not repeat from each other's sentences (the rules
+ * they share leave the tasks to compare); with enough words to say something.
  */
 function sameTask(candidate: Candidate, work: ActiveWork): boolean {
   if (candidate.card && work.card) return candidate.card === work.card;
   if (candidate.brief && work.brief && differentTargets(candidate.brief, work.brief)) return false;
+  const ours = candidate.brief ? significantWords(candidate.brief) : [];
+  const theirs = work.brief ? significantWords(work.brief) : [];
   const title = candidate.title ? normalisedTitle(candidate.title) : "";
-  if (title.length >= MIN_TITLE && work.title && normalisedTitle(work.title) === title) return true;
-  if (!candidate.brief || !work.brief) return false;
-  const ours = significantWords(candidate.brief);
-  const theirs = significantWords(work.brief);
-  if (ours.length < MIN_WORDS || theirs.length < MIN_WORDS || jaccard(ours, theirs) < SIMILAR) return false;
-  const [ourSentences, theirSentences] = [sentencesOf(candidate.brief), sentencesOf(work.brief)];
+  if (title.split(" ").length >= MIN_TITLE_WORDS && work.title && normalisedTitle(work.title) === title) {
+    // One label over two briefs that share nothing is two tasks ("Research", "Tests").
+    return ours.length < MIN_COMPARE || theirs.length < MIN_COMPARE || contained(ours, theirs);
+  }
+  if (ours.length < MIN_WORDS || theirs.length < MIN_WORDS || jaccard(ours, theirs) < SIMILAR || !contained(ours, theirs)) return false;
+  const [ourSentences, theirSentences] = [sentencesOf(candidate.brief!), sentencesOf(work.brief!)];
   const [ourOwn, theirOwn] = [unshared(ourSentences, theirSentences), unshared(theirSentences, ourSentences)];
   // Every sentence repeated: the same brief. Else what each has of its own must be the same task.
-  return (ourOwn.length === 0 && theirOwn.length === 0) || (ourOwn.length > 0 && theirOwn.length > 0 && jaccard(ourOwn, theirOwn) >= SIMILAR);
+  return (ourOwn.length === 0 && theirOwn.length === 0) || (ourOwn.length > 0 && theirOwn.length > 0 && jaccard(ourOwn, theirOwn) >= SIMILAR && contained(ourOwn, theirOwn));
 }
 
 /**
- * The agent already on `candidate`'s task, or null. Only agents at work count: working, waiting or
- * starting. The caller itself is never in `active` (`./activeWork` leaves it out).
+ * The agent already on `candidate`'s task, or null. Only agents at work count (`isAtWork`); a stopped
+ * or done one does not. The caller itself is never in `active` (`./activeWork` leaves it out).
  */
 export function findDuplicateWork(candidate: Candidate, active: readonly ActiveWork[]): ActiveWork | null {
   return active.find((work) => isAtWork(work.state) && sameTask(candidate, work)) ?? null;

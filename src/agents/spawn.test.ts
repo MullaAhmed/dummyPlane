@@ -333,14 +333,20 @@ describe("spawn_agent: another agent is already on the task", () => {
   it("refuses a task a sub-agent is at work on, naming it, and opens nothing", async () => {
     expect((await spawnAgent("batman", { task: ROUTER, title: "Router tests" })).error).toBeUndefined();
     working(kid(1));
-    // The same title said another way, then the same brief under another title.
-    const byTitle = await spawnAgent("batman", { task: "Something else entirely, with other words", title: "  ROUTER tests! " });
+    // The same title said another way over a shorter brief, then the same brief under another title.
+    const byTitle = await spawnAgent("batman", { task: "Write the unit tests for the router", title: "  ROUTER tests! " });
     const byBrief = await spawnAgent("batman", { task: ROUTER.replace("Write", "Please write"), title: "Cover the router" });
     for (const refused of [byTitle, byBrief]) {
       expect(refused.error).toBe(true);
       expect(refused.text).toBe('Robin is already working on "Router tests" (working). Message or read that agent instead of starting another.');
     }
     expect(addTerminal).toHaveBeenCalledTimes(1);
+  });
+
+  it("lets one title over two briefs that share nothing through", async () => {
+    await spawnAgent("batman", { task: ROUTER, title: "Router tests" });
+    working(kid(1));
+    expect((await spawnAgent("batman", { task: "Measure how fast the routing table answers under load", title: "Router tests" })).error).toBeUndefined();
   });
 
   it("lets a different task of the same repo through", async () => {
@@ -367,20 +373,16 @@ describe("spawn_agent: another agent is already on the task", () => {
     vi.mocked(whenReady).mockResolvedValue(true);
   });
 
-  it("lets the task go again once its agent reported, stopped, or went idle", async () => {
+  it("holds the task until its agent reported or stopped, idle between two turns or not", async () => {
     await spawnAgent("batman", { task: ROUTER, title: "Router tests" });
     await vi.waitFor(() => expect(isLaunching(kid(1))).toBe(false));
-    // Its turn ended with nothing under way: it holds no task.
-    expect((await spawnAgent("batman", { task: ROUTER, title: "Router tests" })).error).toBeUndefined();
-    working(kid(1));
-    working(kid(2));
-    await vi.waitFor(() => expect(isLaunching(kid(2))).toBe(false));
-    expect((await spawnAgent("batman", { task: ROUTER, title: "Router tests" })).error).toBe(true);
+    // Its turn ended without a report: the task is not given up, as its seat is not.
+    const idle = await spawnAgent("batman", { task: ROUTER, title: "Router tests" });
+    expect(idle).toEqual({ text: expect.stringContaining('(between two turns). Message or read'), error: true });
     markReported(kid(1));
-    markReported(kid(2));
     expect((await spawnAgent("batman", { task: ROUTER, title: "Router tests" })).error).toBeUndefined();
-    working(kid(3));
-    terminalStatusStore.getState().set(kid(3), { state: "exited", code: 0 });
+    working(kid(2));
+    terminalStatusStore.getState().set(kid(2), { state: "exited", code: 0 });
     expect((await spawnAgent("batman", { task: ROUTER, title: "Router tests" })).error).toBeUndefined();
   });
 
@@ -418,7 +420,7 @@ describe("spawn_agent: another agent is already on the task", () => {
     });
     scene.push({ ...createNodeElement("fleet", { x: 0, y: 600 }), id: "fleet" } as unknown as ExcalidrawElement);
     running("fleet");
-    const refused = await spawnAgent("batman", { task: "Same job, other words: banners and badges recoloured, Expressive palettes, Dark images", title: "Banners on the new palettes" });
+    const refused = await spawnAgent("batman", { task: "Banners and badges in the Dark and Expressive palettes, with the images", title: "Banners on the new palettes" });
     expect(refused).toEqual({ text: 'Thor is already working on "Banners on the new palettes" (working, 3 of 40 min). Message or read that agent instead of starting another.', error: true });
     // The Fleet itself is no agent of its mission's team: it is not the one at work, Thor is.
     expect((await spawnAgent("fleet", { task: brief })).error).toBe(true);
