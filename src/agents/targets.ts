@@ -189,6 +189,26 @@ export function activeTarget(
   return activeId !== null && terminalIds.includes(activeId) && isAlive(activeId) ? activeId : null;
 }
 
+/**
+ * The selection as the command bar's chips, as if typed with `@`: each selected
+ * group, then each selected terminal that no selected group already holds,
+ * in the canvas's order (frames, then terminals) whatever the order they were
+ * selected in. A selected node that is no terminal (a Fleet, a drawing) gives none.
+ */
+export function selectionChips(
+  selectedIds: readonly string[],
+  frames: readonly SceneFrame[],
+  terminalIds: readonly string[],
+): Target[] {
+  const selected = new Set(selectedIds);
+  const groups = frames.filter((f) => f.group !== null && selected.has(f.id));
+  const held = new Set(groups.flatMap((g) => g.memberIds));
+  return [
+    ...groups.map((g): Target => ({ kind: "group", id: g.id })),
+    ...terminalIds.filter((id) => selected.has(id) && !held.has(id)).map((id): Target => ({ kind: "agent", id })),
+  ];
+}
+
 /** Without `@`: the selected terminals and the members of the selected groups (spec §12). */
 export function selectionTargets(
   selectedIds: readonly string[],

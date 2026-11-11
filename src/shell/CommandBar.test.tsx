@@ -175,11 +175,88 @@ it("keeps the generic placeholder and a grey Send when no terminal is active", a
 it("prefers the selection to the active terminal", async () => {
   await activate("t1");
   await select(["t2"]);
+  expect(chipLabels()).toEqual(["@deadpool"]);
   expect(field().placeholder).not.toContain("Cyborg");
   await type("run tests");
   expect(host.textContent).not.toContain("To Cyborg");
   await act(async () => sendButton().click());
   expect(sendCommand).toHaveBeenCalledWith(["t2"], "run tests");
+});
+
+it("shows each selected terminal as its @ chip, in the canvas's order, and sends to them", async () => {
+  await select(["t2", "t1"]);
+  expect(chipLabels()).toEqual(["@cyborg", "@deadpool"]);
+  expect(accessibleDescription(field())).toBe("To @cyborg, @deadpool");
+  await type("run tests");
+  await act(async () => sendButton().click());
+  expect(sendCommand).toHaveBeenCalledWith(["t1", "t2"], "run tests");
+  // The chips stay for the next one, while the selection does.
+  expect(chipLabels()).toEqual(["@cyborg", "@deadpool"]);
+});
+
+it("shows a selected group as its one @ chip, its members not again", async () => {
+  const group = { id: "g1", name: "Back", x: 0, y: 0, width: 10, height: 10, group: { role: "general", pantheon: "egypt" }, memberIds: ["t1", "t2"] } as SceneFrame;
+  await act(async () => canvasStore.setState({ frames: [group] }));
+  await select(["g1", "t1"]);
+  expect(chipLabels()).toEqual(["@back"]);
+});
+
+it("moves the chips with the selection, and gives the active terminal its chip back once nothing is selected", async () => {
+  await activate("t1");
+  await select(["t2"]);
+  expect(chipLabels()).toEqual(["@deadpool"]);
+  await select(["t1", "t2"]);
+  expect(chipLabels()).toEqual(["@cyborg", "@deadpool"]);
+  await select([]);
+  expect(chipLabels()).toEqual(["@cyborg"]);
+});
+
+it("sends to nobody it no longer shows: a removed selection chip is not reached through the selection", async () => {
+  await select(["t1", "t2"]);
+  await removeChip("@cyborg");
+  expect(chipLabels()).toEqual(["@deadpool"]);
+  await type("run tests");
+  await act(async () => sendButton().click());
+  expect(sendCommand).toHaveBeenLastCalledWith(["t2"], "run tests");
+  await removeChip("@deadpool");
+  await type("run tests");
+  expect(sendButton().disabled).toBe(true);
+  // Another selection brings chips again.
+  await select(["t1"]);
+  expect(chipLabels()).toEqual(["@cyborg"]);
+  expect(sendButton().disabled).toBe(false);
+});
+
+it("replaces the chip a send left with a new selection: selecting says who", async () => {
+  await type("@deadpool run tests");
+  await act(async () => sendButton().click());
+  expect(chipLabels()).toEqual(["@deadpool"]);
+  await select(["t1"]);
+  expect(chipLabels()).toEqual(["@cyborg"]);
+  await type("run tests");
+  await act(async () => sendButton().click());
+  expect(sendCommand).toHaveBeenLastCalledWith(["t1"], "run tests");
+});
+
+it("keeps the chips of a draft being written when the selection changes", async () => {
+  await type("@deadpool run tests");
+  await act(async () => sendButton().click());
+  await type("fix the build");
+  await select(["t1"]);
+  expect(chipLabels()).toEqual(["@deadpool"]);
+  await act(async () => sendButton().click());
+  expect(sendCommand).toHaveBeenLastCalledWith(["t2"], "fix the build");
+});
+
+it("shows the selection again once the user removes their own last chip, never sending to it unseen", async () => {
+  await type("@deadpool run tests");
+  await act(async () => sendButton().click());
+  await select(["t1"]);
+  await type("@deadpool run tests");
+  await act(async () => sendButton().click());
+  expect(chipLabels()).toEqual(["@deadpool"]);
+  await removeChip("@deadpool");
+  expect(chipLabels()).toEqual(["@cyborg"]);
 });
 
 it("prefers an @ target to the active terminal", async () => {

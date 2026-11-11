@@ -1,5 +1,6 @@
 pub mod activity;
 pub mod claude_settings;
+pub mod claude_theme;
 pub mod codex_profile;
 pub mod extensions;
 pub mod hooks_server;

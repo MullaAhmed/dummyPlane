@@ -1,0 +1,15 @@
+{
+  "name": "dummyPlane",
+  "base": "dark-ansi",
+  "overrides": {
+    "userMessageBackground": "ansi:black",
+    "composerSidebarBackground": "ansi:black",
+    "memoryBackgroundColor": "ansi:black",
+    "diffAdded": "ansi256(22)",
+    "diffAddedDimmed": "ansi256(22)",
+    "diffRemoved": "ansi256(52)",
+    "diffRemovedDimmed": "ansi256(52)",
+    "diffAddedWord": "ansi256(28)",
+    "diffRemovedWord": "ansi256(196)"
+  }
+}

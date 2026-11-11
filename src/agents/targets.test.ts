@@ -9,6 +9,7 @@ import {
   mentionParts,
   partTargets,
   resolveTargets,
+  selectionChips,
   selectionTargets,
   slug,
   targetAgents,
@@ -196,6 +197,27 @@ describe("resolveTargets", () => {
 describe("selectionTargets", () => {
   it("takes the selected terminals and the members of the selected groups", () => {
     expect(selectionTargets(["c", "g1", "f", "x"], [backend, plain], ["a", "b", "c"])).toEqual(["c", "a", "b"]);
+  });
+});
+
+describe("selectionChips", () => {
+  it("gives a selected group its chip, and each selected terminal its own, in the canvas's order", () => {
+    expect(selectionChips(["c", "g1", "f", "x"], [backend, plain], ["a", "b", "c"])).toEqual([
+      { kind: "group", id: "g1" },
+      { kind: "agent", id: "c" },
+    ]);
+    expect(selectionChips(["c", "a"], [], ["a", "b", "c"])).toEqual([
+      { kind: "agent", id: "a" },
+      { kind: "agent", id: "c" },
+    ]);
+  });
+
+  it("names no terminal twice: one its selected group holds rides on the group's chip", () => {
+    expect(selectionChips(["a", "g1"], [backend], ["a", "b", "c"])).toEqual([{ kind: "group", id: "g1" }]);
+  });
+
+  it("gives none for what is not a terminal nor a group: a Fleet, a frame of notes, a drawing", () => {
+    expect(selectionChips(["f", "fleet", "x"], [plain], ["a"])).toEqual([]);
   });
 });
 

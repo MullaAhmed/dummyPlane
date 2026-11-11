@@ -232,7 +232,7 @@ pub fn write(
         permission,
         linear: false,
     };
-    write_with(dir, node_id, url, role, status, grants, None)
+    write_with(dir, node_id, url, role, status, grants, None, None)
 }
 
 /// What a session is given beyond its role: a mission's permission, and Linear's read tools for a
@@ -246,7 +246,8 @@ pub struct Grants {
 /// `<dir>/<nodeId>.json`, rewritten at each launch (port and token change
 /// with each run of the app), with the terminal's own choice of skills,
 /// plugins, MCP servers and subagents (`extensions::settings_patch`) added
-/// after dummyPlane's rules.
+/// after dummyPlane's rules, and Claude's colour theme (`claude_theme`).
+#[allow(clippy::too_many_arguments)]
 pub fn write_with(
     dir: &Path,
     node_id: &str,
@@ -255,6 +256,7 @@ pub fn write_with(
     status: Option<&StatusLine>,
     grants: Grants,
     extensions: Option<&Value>,
+    theme: Option<&str>,
 ) -> io::Result<PathBuf> {
     if !valid_node_id(node_id) {
         return Err(io::Error::new(
@@ -271,6 +273,9 @@ pub fn write_with(
     }
     if let Some(patch) = extensions {
         super::extensions::apply(&mut settings, patch);
+    }
+    if let Some(theme) = theme {
+        settings["theme"] = json!(theme);
     }
     if let Some(status) = status {
         // Without its script, Claude goes without the status line, never without its hooks.
@@ -354,6 +359,29 @@ mod tests {
         let mut reporting = agent["hooks"].clone();
         reporting.as_object_mut().unwrap().remove("PreToolUse");
         assert_eq!(manager["hooks"], reporting);
+    }
+
+    #[test]
+    fn names_claude_s_colour_theme_only_when_given_one() {
+        let dir = tempfile::tempdir().unwrap();
+        let grants = Grants::default();
+        let read = |path: PathBuf| -> Value {
+            serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap()
+        };
+        let theme = Some("custom:dummyplane");
+        let themed = write_with(
+            dir.path(),
+            "n1",
+            URL,
+            Role::Agent,
+            None,
+            grants,
+            None,
+            theme,
+        );
+        assert_eq!(read(themed.unwrap())["theme"], "custom:dummyplane");
+        let plain = write_with(dir.path(), "n2", URL, Role::Agent, None, grants, None, None);
+        assert!(read(plain.unwrap()).get("theme").is_none());
     }
 
     #[test]

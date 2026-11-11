@@ -34,6 +34,8 @@ import {
 
 const MENU_SIZE = 8;
 
+const NO_TARGETS: readonly Target[] = [];
+
 /** A line of the list above the field: a target, or a command of the agents' CLI. */
 interface Suggestion {
   key: string;
@@ -69,11 +71,17 @@ interface CommandInputProps {
   /** Who `fallback` is, when it is one agent the user did not select (the active terminal): named so Send never surprises. */
   sendsTo?: string;
   /**
-   * The target of the moment, the active terminal: shown as a chip of its own, as if typed with `@`, and
-   * replaced when another terminal becomes active, as long as the user has not changed the chips. Removed
-   * (its ✕, Backspace), it is not sent to, until another one comes.
+   * The targets of the moment, the selection or else the active terminal: shown as chips of their own, as if
+   * typed with `@`, and replaced when the selection or the active terminal changes, as long as the user has not
+   * chosen the chips. One removed (its ✕, Backspace) is not sent to, nor reached through `fallback`, until
+   * the targets of the moment change.
    */
-  autoTarget?: Target | null;
+  autoTargets?: readonly Target[];
+  /**
+   * The targets of the moment are the user's selection, not a guess: a new one replaces the chips the last send
+   * left too (never a draft's), since selecting is saying who.
+   */
+  fromSelection?: boolean;
   /** A node's foot: one line, the field and its Send, at the foot's density. */
   compact?: boolean;
   /** Escape with no list open: where the keyboard goes back (a node's terminal). */
@@ -98,7 +106,7 @@ export function CommandInput(props: CommandInputProps) {
 }
 
 function CommandField(props: CommandInputProps & { deliver: RefObject<(text: string) => void> }) {
-  const { agents, groups, placeholder, label = placeholder, emptyHint, sendsTo, autoTarget = null, compact = false, onEscape, deliver } = props;
+  const { agents, groups, placeholder, label = placeholder, emptyHint, sendsTo, autoTargets = NO_TARGETS, fromSelection = false, compact = false, onEscape, deliver } = props;
   const t = useMessages(agentsMessages).command;
   const aui = useAui();
   // The composer owns the text: typing, completing, recalling and sending all go through it.
@@ -112,20 +120,21 @@ function CommandField(props: CommandInputProps & { deliver: RefObject<(text: str
   // The field has the keyboard: how to target shows before the first word, not after it.
   const [focused, setFocused] = useState(false);
   const field = useRef<HTMLTextAreaElement>(null);
-  // The chip the field put there itself (autoTarget), and the one the user took away.
-  const placed = useRef<string | null>(null);
-  const [refused, setRefused] = useState<string | null>(null);
-  const autoKey = autoTarget ? targetKey(autoTarget) : null;
-  // A refused target of the moment is not reached without `@` either.
-  const fallback = refused !== null && autoTarget?.kind === "agent" && refused === autoKey ? props.fallback.filter((id) => id !== autoTarget.id) : props.fallback;
+  // The chips the field put there itself (autoTargets), and those of them the user took away.
+  const placed = useRef<ReadonlySet<string>>(new Set());
+  const [refused, setRefused] = useState<readonly Target[]>(NO_TARGETS);
+  const autoKeys = autoTargets.map(targetKey).join(" ");
+  // A refused target of the moment is not reached without `@` either: neither the agent, nor a group's members.
+  const refusedIds = new Set(refused.flatMap((r) => (r.kind === "agent" ? [r.id] : r.kind === "group" ? (groups.find((g) => g.id === r.id)?.memberIds ?? []) : [])));
+  const fallback = refusedIds.size > 0 ? props.fallback.filter((id) => !refusedIds.has(id)) : props.fallback;
   const listId = useId();
   const history = useStore(historyStore, (s) => s.entries);
 
   const options = useMemo(() => targetOptions(agents, groups), [agents, groups]);
   const labels = new Map(options.map((o) => [targetKey(o.target), o.label]));
   const kept = targets.filter((t) => labels.has(targetKey(t)));
-  // The chip of the moment gives way to a name typed after `@`: the user said who, it was only a guess.
-  const onlyPlaced = kept.length === 1 && targetKey(kept[0]) === placed.current;
+  // The chips of the moment give way to a name typed after `@`: the user said who, they were only a guess.
+  const onlyPlaced = kept.length > 0 && kept.every((c) => placed.current.has(targetKey(c)));
   const chips = onlyPlaced && extractMentions(text, options).targets.length > 0 ? [] : kept;
   const mention = mentionAt(text, caret);
   const parts = mention ? mentionParts(mention.query, options) : null;
@@ -166,24 +175,38 @@ function CommandField(props: CommandInputProps & { deliver: RefObject<(text: str
   // Nothing was typed after `@`: the command goes to who `fallback` names.
   const namedFallback = allTargets.length === 0 ? sendsTo : undefined;
 
-  // Another target of the moment: its chip takes the place of the last one, unless the user chose the chips.
-  useEffect(() => {
-    setRefused(null);
-    const untouched = targets.length === 0 || (targets.length === 1 && targetKey(targets[0]) === placed.current);
-    if (!untouched) return;
-    placed.current = autoKey;
-    setTargets(autoTarget ? [autoTarget] : []);
-    // Only a new target of the moment moves the chips: `targets` is read as it stands then.
-  }, [autoKey]);
+  /** The targets of the moment become the chips, as if typed. */
+  const place = (moment: readonly Target[]) => {
+    placed.current = new Set(moment.map(targetKey));
+    setTargets([...moment]);
+  };
 
-  /** A chip taken away; the one of the moment is then refused until another comes. */
+  // Other targets of the moment: their chips take the place of the last ones, unless the user chose the chips.
+  // A new selection takes the place of the chips a send left as well, though not of those of a draft being written.
+  useEffect(() => {
+    setRefused(NO_TARGETS);
+    const untouched = targets.every((c) => placed.current.has(targetKey(c)));
+    const selected = fromSelection && autoTargets.length > 0 && text.trim() === "";
+    if (untouched || selected) place(autoTargets);
+    // Only new targets of the moment move the chips: `targets` and the text are read as they stand then.
+  }, [autoKeys]);
+
+  /**
+   * A chip taken away; one of the moment is then refused until the targets of the moment change. The user's own
+   * last chip gone, the targets of the moment show again: who Enter reaches is never left without its chips.
+   */
   const removeChip = (target: Target) => {
     const key = targetKey(target);
-    if (key === placed.current) {
-      placed.current = null;
-      setRefused(key);
+    const rest = chips.filter((c) => targetKey(c) !== key);
+    if (placed.current.has(key)) {
+      placed.current = new Set([...placed.current].filter((k) => k !== key));
+      setRefused((current) => [...current, target]);
+      setTargets(rest);
+      return;
     }
-    setTargets(chips.filter((c) => targetKey(c) !== key));
+    const again = autoTargets.filter((t) => !refused.some((r) => targetKey(r) === targetKey(t)));
+    if (rest.length === 0 && again.length > 0) place(again);
+    else setTargets(rest);
   };
 
   /** A change the field makes itself; what the user types reaches the composer through its Input. */
@@ -203,8 +226,8 @@ function CommandField(props: CommandInputProps & { deliver: RefObject<(text: str
 
   const insertTargets = (picked: readonly Target[]) => {
     if (!mention) return;
-    // A name picked from the list replaces the chip of the moment rather than joining it.
-    if (onlyPlaced) placed.current = null;
+    // A name picked from the list replaces the chips of the moment rather than joining them.
+    if (onlyPlaced) placed.current = new Set();
     setTargets(uniqueTargets([...(onlyPlaced ? [] : chips), ...picked]));
     const next = withoutMention(text, mention.start, caret);
     edit(next.text, next.caret);

@@ -75,6 +75,7 @@ Terminals stay dark in every palette. What xterm draws inside them is `src/nodes
 - The six hues are tuned per palette in OKLCH (calm earthy and low in chroma, electric vivid, expressive matched to its status colours). Red, green and yellow sit within 10° of the hue of the palette's `danger`, `ok` and `wait`.
 - Every ANSI colour but `black` reads at 4.5:1 at least on the body, `brightBlack` included, and the selected text at 4.5:1 on the selection. `terminalTheme.test.ts` checks it, with the hue bands and the gaps that keep the six apart.
 - A palette switch recolours every open terminal at once. A subagent's transcript (`SubagentNode`) uses the same theme.
+- Claude Code's own colours (its prompt, accents, panels, diffs) follow too: a Claude terminal's `--settings` names `custom:dummyplane`, Claude's ANSI-only dark theme (`src-tauri/src/agents/claude_theme.json`, written to `<Claude folder>/themes/`), so it draws in the 16 colours above. Its panels move from `brightBlack` to `black` and its diff lines to dark 256-colour greens and reds, keeping the text at 4.5:1 on them; `claudeTheme.test.ts` checks it. A theme the user set in their own settings wins.
 
 Code editor:
 
