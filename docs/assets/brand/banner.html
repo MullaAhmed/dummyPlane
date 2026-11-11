@@ -10,6 +10,7 @@
 :root {
   --canvas: #101014; --dot: rgba(244,244,241,.07); --text: #F4F4F1; --text2: #C2C2C0; --text3: #949494;
   --accent: #F4F4F1; --on-accent: #101014; --accent-soft: rgba(244,244,241,.12);
+  --mark-tile: #17171B; --mark-ink: #F4F4F1; --mark-edge: rgba(244,244,241,.14);
   --wait: #DDAA62; --ok: #7CC492; --role: #C18E57;
   --glass: #17171B; --glass-strong: #17171B; --glass-line: rgba(244,244,241,.08);
   --glass-hi: 0 0 #0000; --glass-edge: 0 0 #0000;
@@ -21,6 +22,7 @@
 :root.light {
   --canvas: #EDE3CC; --dot: rgba(23,63,50,.12); --text: #173F32; --text2: #315344; --text3: #4D6859;
   --accent: #173F32; --on-accent: #EDE3CC; --accent-soft: rgba(23,63,50,.12);
+  --mark-tile: #173F32; --mark-ink: #EDE3CC; --mark-edge: transparent;
   --wait: #7A5418; --ok: #356A44;
   --glass: #F7F2E8; --glass-strong: #F7F2E8; --glass-line: rgba(23,63,50,.10);
   --glass-hi: 0 0 #0000; --glass-edge: 0 0 #0000;
@@ -100,7 +102,7 @@ body {
 <body>
 <div class="id">
   <div class="lockup">
-    <svg viewBox="0 0 64 64"><rect width="64" height="64" rx="14" style="fill:var(--accent)"/><path d="M10 36 C 18 14, 26 14, 32 32 S 46 50, 54 26" style="stroke:var(--on-accent)" stroke-width="7" fill="none" stroke-linecap="round"/></svg>
+    <svg viewBox="0 0 1024 1024"><rect x="7" y="7" width="1010" height="1010" rx="217" style="fill:var(--mark-tile);stroke:var(--mark-edge)" stroke-width="14"/><path transform="translate(292.714 205) scale(21.928571) translate(0 -25)" style="fill:var(--mark-ink)" d="M16 25h4v4h-4zM16 29h4v4h-4zM4 33h4v4h-4zM8 33h4v4h-4zM12 33h4v4h-4zM16 33h4v4h-4zM0 37h4v4h-4zM16 37h4v4h-4zM0 41h4v4h-4zM16 41h4v4h-4zM0 45h4v4h-4zM16 45h4v4h-4zM4 49h4v4h-4zM8 49h4v4h-4zM12 49h4v4h-4zM16 49h4v4h-4z"/></svg>
     <span>dummyPlane</span>
   </div>
   <div class="tag">An infinite canvas of <em>real terminals</em> for your AI coding agents: brief a whole team, let a fleet split the work.</div>

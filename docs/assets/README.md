@@ -16,8 +16,8 @@ The mark is a pixel symbol built from a grid of 4 × 4 squares.
 |---|---|
 | [`brand/logo-icon-cream.svg`](brand/logo-icon-cream.svg), [`brand/logo-icon-white.svg`](brand/logo-icon-white.svg), [`brand/logo-icon-black.svg`](brand/logo-icon-black.svg) | The mark alone, transparent background: app icon, avatar, favicon. Cream and white for dark backgrounds, black for light ones |
 | [`brand/logo-wordmark-*.svg`](brand/) and [`brand/logo-horizontal-*.svg`](brand/) | Lettering only, and mark with lettering. **Not in use yet:** the lettering in this pack reads "dummyIndex", not dummyPlane |
-| [`brand/banner-dark.png`](brand/banner-dark.png), [`brand/banner-light.png`](brand/banner-light.png) | README header, 2560 × 800, in the Dark and Expressive and Calm and Playful palettes (still the previous logo) |
-| [`brand/social-preview.png`](brand/social-preview.png) | GitHub social preview, 1280 × 640, in Dark and Expressive (still the previous logo) |
+| [`brand/banner-dark.png`](brand/banner-dark.png), [`brand/banner-light.png`](brand/banner-light.png) | README header, 2560 × 800, in the Dark and Expressive and Calm and Playful palettes |
+| [`brand/social-preview.png`](brand/social-preview.png) | GitHub social preview, 1280 × 640, in Dark and Expressive |
 
 Please keep the mark's proportions and colors, and leave some room around it.
 
