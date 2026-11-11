@@ -26,6 +26,11 @@ export const missionAddAgent = (project: string, mission: string, agent: string)
 /** `mission`, `agent`: their worktrees' paths. */
 export const missionMerge = (mission: string, agent: string, branch: string) => call<MergeReport>("mission_merge", { mission, agent, branch });
 export const missionCleanup = (project: string, mission: string, agents: string[]) => call<Cleanup>("mission_cleanup", { project, mission, agents });
+/**
+ * What `missionCleanup` would leave in place, found without touching anything: the worktrees whose branch is not
+ * merged into the mission's or that hold uncommitted changes, each as "name (reason)". Empty: nothing is unsaved.
+ */
+export const missionCleanupUnsaved = (project: string, mission: string, agents: string[]) => call<string[]>("mission_cleanup_unsaved", { project, mission, agents });
 /** What a night needs of the project (spec mission de nuit §5.2). */
 export interface ProjectChecks {
   git: boolean;

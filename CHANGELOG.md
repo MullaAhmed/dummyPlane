@@ -5,6 +5,7 @@ All notable changes to dummyPlane are documented here. The format follows [Keep 
 ## [Unreleased]
 
 ### Added
+- **The Fleet cleans up for you:** a finished mission no longer waits for your click on *Clean up the mission*. `propose_plan` cleans it up first, with the panel's own cleanup, and the new `clean_up_mission` tool does it on its own, with a quiet *Mission … cleaned up* toast. It refuses while a mission runs, after an overnight run, and while anything is unsaved (a branch not merged, uncommitted work in a worktree, a card not done, a task still waiting): the Fleet then says what, and you decide from the panel.
 - **Ungroup everywhere:**
   - **The selection's ring:** its Group button turns into *Ungroup* when the selection is one group, or drawings grouped in Excalidraw.
   - **Ctrl+Shift+G:** it ungroups the selection on the canvas, never inside a terminal.

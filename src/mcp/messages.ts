@@ -83,7 +83,7 @@ export const agentMessages = defineMessages({
       handOffFleet: "Only when several Fleets are linked to you: the Fleet's name (or its id), as linked_agents gives it.",
       finishCheck: "What the user will have to check by hand: it tops the morning report.",
       mission: "Fleet and Manager. The mission: state, name, task, who runs it (runs: \"manager\" once the go-ahead put a board and its Manager beside the Fleet, \"fleet\" for a mission launched before Managers existed), the Manager's name and the board's id, maximum number of agents working at once (max_agents) and how many are (active_agents), model router, branch, plan, the linked Claude agents available and the linked groups, with each one's group and speciality; overnight, the time the user is away (away_min) and what is left of it (left_min).",
-      proposePlan: "Fleet. Propose your plan: it replaces the pending plan and waits for the user's go-ahead (\"Launch the mission\" in the fleet's panel). One sub-task per agent; beyond Max active agents, sub-tasks (agent \"new\") wait in the queue and start as seats free up.",
+      proposePlan: "Fleet. Propose your plan: it replaces the pending plan and waits for the user's go-ahead (\"Launch the mission\" in the fleet's panel). One sub-task per agent; beyond Max active agents, sub-tasks (agent \"new\") wait in the queue and start as seats free up. On a finished mission it cleans the mission up first, as clean_up_mission does, unless something is unsaved.",
       planName: "The mission's short name; it names its branch.",
       planTask: "The user's task, summed up.",
       planAgent: "The first name of a linked Claude agent, or \"new\".",
@@ -96,6 +96,9 @@ export const agentMessages = defineMessages({
       prioritizePriority: "Its card's priority.",
       stopMission: "Fleet. Stop the running mission now, as finish would: the agents created for it close, what was merged stays on the mission's branch, the Manager is told. For when the user wants it stopped.",
       stopReason: "Why it stops, in the user's words: it becomes the mission's summary.",
+      cleanUpMission:
+        "Fleet. Clean up the finished mission, as \"Clean up the mission\" in the fleet's panel does: the worktrees of its team whose branch is merged are removed (the branches stay), its Manager closes, and the mission starts again blank, its summary gone from the panel with it: pass the summary on to the user first. " +
+        "Refused while a mission is running or was an overnight run, and while something is unsaved (an agent's branch not merged, uncommitted work in its worktree, a card of the board not done, a task still waiting): it says what, and the user decides in the panel. propose_plan cleans a finished mission up the same way before it drafts.",
       moveCard: "Manager. Move a card of the mission's board to a column (by its id or title). dummyPlane already moves a card to In progress when an agent takes it, to Done on \"done\" and to Blocked on \"blocked\" or \"failed\": move_card is for the rest.",
       moveCardCard: "The card's id, as board gives it.",
       moveCardColumn: "The column's id or title.",
@@ -298,6 +301,22 @@ export const agentMessages = defineMessages({
       hiddenAgents: "unknown: the fleet's workspace is not on screen",
       running: "A mission is already under way: finish it before proposing another.",
       finished: "The mission is finished: the user cleans it up from the panel, then you can propose a new plan.",
+      finishedAddTasks: "The mission is finished: call clean_up_mission (propose_plan cleans it up too, before it drafts), then plan again.",
+      finishedForManager: "The mission is finished: its Fleet cleans it up before it plans again.",
+      cleanRunning: "A mission is under way: it can be cleaned up once it is finished.",
+      cleanNothing: "No finished mission to clean up.",
+      cleanOvernight: "Not cleaned up: it was an overnight run, and its report is for the user, who cleans the mission up from the panel.",
+      cleanAtWork: (names: string) => `Not cleaned up: still at work: ${names}. Try again in a moment.`,
+      cleanUnsaved: (items: string) => `Not cleaned up: something is unsaved (${items}). The user decides what to do with it, then cleans the mission up from the panel.`,
+      cleanOpenTasks: (titles: readonly string[]) => `${plural(titles.length, "task", "tasks")} not done or never started: ${titles.map((title) => `"${title}"`).join(", ")}`,
+      cleanCheckFailed: (error: string) => `Not cleaned up: dummyPlane could not check what the cleanup would leave behind (${error}). The user cleans the mission up from the panel.`,
+      cleanedUp: (name: string, branch: string | undefined, kept: readonly string[], failure: string | undefined) =>
+        `Mission ${name ? `"${name}" ` : ""}cleaned up: the worktrees of its team that were merged are removed (the branches stay), its Manager (if it had one) is closed, and the mission starts again blank.` +
+        (branch ? ` Its branch ${branch} stays too: the user merges it into their own, and the next mission starts from the project's current commit.` : "") +
+        (kept.length > 0 ? ` Left in place: ${kept.join(", ")}.` : "") +
+        (failure ? ` Git said: ${failure} Some worktrees may be left in place.` : ""),
+      cleanedSummary: (summary: string, checks: readonly string[]) =>
+        `Its summary is no longer in the panel: tell the user what it said, if you have not.${summary ? ` Summary: ${summary}` : ""}${checks.length > 0 ? ` To check by hand: ${checks.join("; ")}.` : ""}`,
       hiddenWorkspace: "The fleet's workspace is not on screen: I cannot see its linked agents. Propose \"new\" agents, or try again when the user is back there.",
       launchingNight: "Plan taken: the overnight mission is starting. A board and its Manager run it from here: you hear when the board is finished, or when the Manager needs the user.",
       noTickets: 'No ticket source: the user chooses it in "Overnight run".',
@@ -340,7 +359,7 @@ export const agentMessages = defineMessages({
       priorityUnknown: (priority: string) => `Unknown priority: ${priority} (none, low, medium or high).`,
       prioritySet: (title: string, priority: string) => `"${title}": priority ${priority}.`,
       stopReasonMissing: "Say why the mission stops (reason).",
-      missionStopped: "Mission stopped. Its summary is in your panel; the user merges the mission's branch into their own, then cleans up the mission.",
+      missionStopped: "Mission stopped. Its summary is in your panel; the user merges the mission's branch into their own, then the mission is cleaned up (clean_up_mission, or the user from the panel).",
       noMissionBoard: "This mission has no board.",
       cardUnknown: (card: string) => `No card "${card}" on the mission's board (read the ids with board).`,
       columnUnknown: (column: string, columns: string) => `No column "${column}" on the board. Columns: ${columns}.`,

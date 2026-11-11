@@ -68,6 +68,17 @@ pub fn set_keep_awake(awake: tauri::State<'_, KeepAwake>, on: bool) {
     awake.set(on);
 }
 
+/// What the cleanup would leave in place (read-only): a Fleet cleans a finished mission up itself only when
+/// nothing here is unsaved.
+#[tauri::command]
+pub async fn mission_cleanup_unsaved(
+    project: String,
+    mission: String,
+    agents: Vec<String>,
+) -> AppResult<Vec<String>> {
+    blocking(move || mission::cleanup_unsaved(Path::new(&project), &mission, &agents)).await
+}
+
 /// A launch that failed: what it created goes (final review H2).
 #[tauri::command]
 pub async fn mission_discard(project: String, trees: Vec<Worktree>) -> AppResult<Cleanup> {

@@ -260,19 +260,24 @@ pub fn discard(project: &Path, trees: &[Worktree]) -> Result<Cleanup, String> {
     Ok(done)
 }
 
-/// Removes the worktrees whose branch is merged into the mission's, then the
-/// mission's own when none is left; the branches stay for the user.
-pub fn cleanup(project: &Path, mission: &str, agents: &[String]) -> Result<Cleanup, String> {
-    let (root, dir) = locate(project)?;
-    let merged = git(
-        &root,
+/// The branches merged into the mission's, one per line: what `cleanup` removes the worktrees of.
+fn merged_branches(root: &Path, mission: &str) -> Result<String, String> {
+    git(
+        root,
         &[
             "branch",
             "--format=%(refname:short)",
             "--merged",
             &format!("dummyplane/{mission}"),
         ],
-    )?;
+    )
+}
+
+/// Removes the worktrees whose branch is merged into the mission's, then the
+/// mission's own when none is left; the branches stay for the user.
+pub fn cleanup(project: &Path, mission: &str, agents: &[String]) -> Result<Cleanup, String> {
+    let (root, dir) = locate(project)?;
+    let merged = merged_branches(&root, mission)?;
     let merged: Vec<&str> = merged.lines().map(str::trim).collect();
     let mut done = Cleanup::default();
     for agent in agents {
@@ -292,6 +297,42 @@ pub fn cleanup(project: &Path, mission: &str, agents: &[String]) -> Result<Clean
         remove_worktree(&root, mission.to_string(), &path, &mut done);
     }
     Ok(done)
+}
+
+/// What `cleanup` would leave where it is, found without touching anything (read-only): an agent's worktree
+/// whose branch is not merged into the mission's, or that holds uncommitted changes, and the mission's own
+/// worktree if it holds changes while nothing else is left. It asks git what `cleanup` asks, so the two agree.
+pub fn cleanup_unsaved(
+    project: &Path,
+    mission: &str,
+    agents: &[String],
+) -> Result<Vec<String>, String> {
+    let (root, dir) = locate(project)?;
+    let merged = merged_branches(&root, mission)?;
+    let merged: Vec<&str> = merged.lines().map(str::trim).collect();
+    let mut unsaved = Vec::new();
+    for agent in agents {
+        let name = format!("{mission}-{}", slug(agent));
+        let path = dir.join(&name);
+        if !path.exists() {
+            continue;
+        }
+        let mut reasons = Vec::new();
+        if !merged.contains(&format!("dummyplane/{name}").as_str()) {
+            reasons.push("branch not merged");
+        }
+        if !git(&path, &["status", "--porcelain"])?.is_empty() {
+            reasons.push("uncommitted changes");
+        }
+        if !reasons.is_empty() {
+            unsaved.push(format!("{name} ({})", reasons.join(", ")));
+        }
+    }
+    let path = dir.join(mission);
+    if unsaved.is_empty() && path.exists() && !git(&path, &["status", "--porcelain"])?.is_empty() {
+        unsaved.push(format!("{mission} (uncommitted changes)"));
+    }
+    Ok(unsaved)
 }
 
 #[cfg(test)]
@@ -588,5 +629,52 @@ mod tests {
         assert!(!parent.path().join("proj.worktrees").join("auth").exists());
         let branches = run(&proj, &["branch", "--list", "dummyplane/*"]);
         assert!(branches.contains("dummyplane/auth-wolverine") && branches.contains("dummyplane/auth"));
+    }
+
+    #[test]
+    fn cleanup_unsaved_names_what_cleanup_would_keep_and_touches_nothing() {
+        let Some((_parent, proj)) = project() else {
+            return;
+        };
+        let mission = prepare(&proj, "auth").unwrap();
+        let hulk = add_agent(&proj, &mission.slug, "Hulk").unwrap();
+        let wolverine = add_agent(&proj, &mission.slug, "Wolverine").unwrap();
+        let thor = add_agent(&proj, &mission.slug, "Thor").unwrap();
+        commit(Path::new(&hulk.path), "login.txt", "login\n", "login");
+        commit(Path::new(&wolverine.path), "api.txt", "api\n", "api");
+        let m = Path::new(&mission.path);
+        merge_agent(m, Path::new(&hulk.path), &hulk.branch).unwrap();
+        // Thor never committed but left a file; Hulk is merged and clean; Wolverine's branch is not merged.
+        std::fs::write(Path::new(&thor.path).join("draft.txt"), "draft\n").unwrap();
+        let names = vec![
+            "Hulk".to_string(),
+            "Wolverine".to_string(),
+            "Thor".to_string(),
+        ];
+        let unsaved = cleanup_unsaved(&proj, &mission.slug, &names).unwrap();
+        assert_eq!(
+            unsaved,
+            vec![
+                "auth-wolverine (branch not merged)".to_string(),
+                "auth-thor (uncommitted changes)".to_string()
+            ]
+        );
+        // Read-only, and the same answer as the real cleanup's `kept`.
+        assert!(Path::new(&hulk.path).exists() && Path::new(&thor.path).exists());
+        let done = cleanup(&proj, &mission.slug, &names).unwrap();
+        assert_eq!(done.kept, unsaved);
+        // Everything saved: nothing unsaved.
+        merge_agent(m, Path::new(&wolverine.path), &wolverine.branch).unwrap();
+        std::fs::remove_file(Path::new(&thor.path).join("draft.txt")).unwrap();
+        assert_eq!(
+            cleanup_unsaved(&proj, &mission.slug, &names).unwrap(),
+            Vec::<String>::new()
+        );
+        // A change left in the mission's own worktree counts too, once the agents are in.
+        std::fs::write(m.join("scratch.txt"), "x\n").unwrap();
+        assert_eq!(
+            cleanup_unsaved(&proj, &mission.slug, &names).unwrap(),
+            vec!["auth (uncommitted changes)".to_string()]
+        );
     }
 }
