@@ -4,6 +4,7 @@ use std::path::Path;
 use serde::Serialize;
 use tauri::State;
 
+use crate::commands::agents::AgentState;
 use crate::db::Db;
 use crate::db::projects::{self, Project};
 use crate::error::{AppError, AppResult};
@@ -17,12 +18,18 @@ pub struct ProjectView {
     pub project: Project,
     /// Its folder no longer exists (moved or deleted while the app was closed).
     pub missing: bool,
-    /// Terminals of its workspaces whose process runs.
+    /// Its live agents, counted as the interface's tab badges count them: Fleets and agent terminals whose
+    /// process runs, never a plain shell nor a terminal whose agent exited (`left`).
     pub live_agents: usize,
 }
 
-pub fn project_views(db: &Db, pty: &PtyManager) -> AppResult<Vec<ProjectView>> {
-    project_views_with(db, pty, |path| path.is_dir())
+/// `left`: the terminals whose agent exited back to their shell (`AgentState::left_nodes`).
+pub fn project_views(
+    db: &Db,
+    pty: &PtyManager,
+    left: &HashSet<String>,
+) -> AppResult<Vec<ProjectView>> {
+    project_views_with(db, pty, left, |path| path.is_dir())
 }
 
 /// `is_dir` runs after the database lock is released: an offline network
@@ -30,6 +37,7 @@ pub fn project_views(db: &Db, pty: &PtyManager) -> AppResult<Vec<ProjectView>> {
 fn project_views_with(
     db: &Db,
     pty: &PtyManager,
+    left: &HashSet<String>,
     is_dir: impl Fn(&Path) -> bool,
 ) -> AppResult<Vec<ProjectView>> {
     let live: HashSet<String> = pty.list().into_iter().collect();
@@ -37,9 +45,9 @@ fn project_views_with(
         projects::list(conn)?
             .into_iter()
             .map(|project| {
-                let live_agents = projects::node_ids(conn, &project.id)?
+                let live_agents = projects::agent_node_ids(conn, &project.id)?
                     .iter()
-                    .filter(|id| live.contains(*id))
+                    .filter(|id| live.contains(*id) && !left.contains(*id))
                     .count();
                 Ok((project, live_agents))
             })
@@ -68,7 +76,7 @@ mod lock_tests {
         db.with(|conn| projects::create(conn, "C:/somewhere"))
             .unwrap();
         let pty = PtyManager::default();
-        let views = project_views_with(&db, &pty, |_| {
+        let views = project_views_with(&db, &pty, &HashSet::new(), |_| {
             // Another command, meanwhile, must get the database.
             let (tx, rx) = mpsc::channel();
             std::thread::scope(|scope| {
@@ -101,8 +109,9 @@ fn existing_folder(path: &str) -> AppResult<()> {
 pub async fn list_projects(
     db: State<'_, Db>,
     pty: State<'_, PtyManager>,
+    agents: State<'_, AgentState>,
 ) -> AppResult<Vec<ProjectView>> {
-    project_views(&db, &pty)
+    project_views(&db, &pty, &agents.left_nodes())
 }
 
 #[tauri::command]
@@ -197,15 +206,24 @@ mod tests {
             .with(|conn| workspaces::list(conn, &project.id))
             .unwrap()
             .remove(0);
-        db.with(|conn| nodes::save(conn, "t", &first.id, nodes::NodeKind::Terminal, "{}"))
+        let terminal = nodes::NodeKind::Terminal;
+        db.with(|conn| nodes::save(conn, "t", &first.id, terminal, r#"{"agent":"claude"}"#))
+            .unwrap();
+        db.with(|conn| nodes::save(conn, "console", &first.id, terminal, r#"{"agent":"shell"}"#))
             .unwrap();
         let pty = PtyManager::default();
         let _exited = run_terminal(&pty, "t");
-        let views = project_views(&db, &pty).unwrap();
+        let _console = run_terminal(&pty, "console");
+        let nobody_left = HashSet::new();
+        // The console runs, but holds no agent: only Claude's terminal counts, as the tab badges count.
+        let views = project_views(&db, &pty, &nobody_left).unwrap();
         assert_eq!((views[0].live_agents, views[0].missing), (1, false));
+        // Its Claude exited back to the shell ("Agent exited"): no agent is there.
+        let left = HashSet::from(["t".to_string()]);
+        assert_eq!(project_views(&db, &pty, &left).unwrap()[0].live_agents, 0);
         pty.kill_all();
         drop(dir);
-        let views = project_views(&db, &pty).unwrap();
+        let views = project_views(&db, &pty, &nobody_left).unwrap();
         assert!(views[0].missing);
     }
 }

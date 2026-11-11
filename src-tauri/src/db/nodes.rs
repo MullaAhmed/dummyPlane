@@ -26,7 +26,7 @@ pub enum NodeKind {
 }
 
 impl NodeKind {
-    fn as_str(self) -> &'static str {
+    pub(crate) fn as_str(self) -> &'static str {
         match self {
             NodeKind::Terminal => "terminal",
             NodeKind::Fleet => STORED_FLEET_KIND,

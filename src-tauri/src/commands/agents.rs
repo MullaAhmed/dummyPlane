@@ -1,6 +1,7 @@
 //! Agent activity as the frontend sees it (spec habillage §10.2, §15.3): the
 //! hook server, the tracker, the `agent-activity` event and the snapshot.
 
+use std::collections::HashSet;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::PathBuf;
 use std::sync::Mutex;
@@ -42,6 +43,19 @@ pub struct AgentState {
     mcp_tokens: Tokens,
     mcp_calls: Pending,
     subagents: Mutex<Subagents>,
+}
+
+impl AgentState {
+    /// The terminals whose agent exited back to their shell ("Agent exited"): no agent is there, so the
+    /// home screen does not count them among the live agents, like the interface's counters.
+    pub fn left_nodes(&self) -> HashSet<String> {
+        lock(&self.tracker)
+            .snapshot()
+            .into_iter()
+            .filter(|change| change.left)
+            .map(|change| change.node_id)
+            .collect()
+    }
 }
 
 #[derive(Clone, Serialize)]
