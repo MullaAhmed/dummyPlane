@@ -171,6 +171,7 @@ pub fn run() {
             commands::mission::mission_add_agent,
             commands::mission::mission_merge,
             commands::mission::mission_cleanup,
+            commands::mission::mission_cleanup_unsaved,
             commands::mission::mission_discard,
             commands::mission::mission_backlog,
             commands::mission::mission_issues,

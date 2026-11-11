@@ -151,5 +151,7 @@ export const missionMessages = defineMessages({
     cleaned: (removed: string[], kept: string[]) =>
       `Worktrees removed: ${removed.join(", ") || "none"}${kept.length ? ` · kept: ${kept.join(", ")}` : ""}`,
     clean: "Clean up the mission",
+    // The quiet toast when the Fleet cleaned a finished mission up itself (`./cleanup.ts`).
+    cleanedByFleet: (name: string) => (name ? `Mission ${name} cleaned up` : "Mission cleaned up"),
     overBudgetTwice: (name: string, budget: number) => `${name} has gone over twice its budget (${budget} min) without reporting`,
   });

@@ -121,8 +121,10 @@ describe("the fleet's tools (spec orchestrateur §7.2)", () => {
   it("lists them for the fleet only, and each side refuses the other's", async () => {
     const list = (await answer({ callId: 1, nodeId: "chef", method: "tools/list", params: {} })) as { tools: { name: string }[] };
     // The babysitter's: it plans, then adds and orders the board's cards, looks, and may stop the mission (spec babysitter Fleet).
-    expect(list.tools.map((t) => t.name)).toEqual(["mission", "propose_plan", "add_tasks", "queue", "prioritize", "tickets", "board", "team", "stop_mission", "remote_control", "spawn_agent", "output_guide", "read_node", "notes"]);
+    expect(list.tools.map((t) => t.name)).toEqual(["mission", "propose_plan", "add_tasks", "queue", "prioritize", "tickets", "board", "team", "stop_mission", "clean_up_mission", "remote_control", "spawn_agent", "output_guide", "read_node", "notes"]);
     expect(textOf(await call("batman", "propose_plan", plan))).toBe("This tool is for the fleet.");
+    // The cleanup is the Fleet's too: no agent calls it.
+    expect(textOf(await call("batman", "clean_up_mission", {}))).toBe("This tool is for the fleet.");
     expect(textOf(await call("chef", "report", { summary: "x", status: "done" }))).toBe("This tool is for agents.");
     expect(textOf(await call("batman", "board", {}))).toBe("This tool is for the fleet.");
   });
@@ -337,7 +339,7 @@ describe("the fleet's tools (spec orchestrateur §7.2)", () => {
       const list = (await answer({ callId: 1, nodeId: "chef", method: "tools/list", params: {} })) as { tools: { name: string }[] };
       expect(list.tools.map((t) => t.name)).toEqual([
         "mission", "propose_plan", "add_tasks", "queue", "prioritize", "next_task", "tickets", "board", "team",
-        "read_output", "write", "extend", "interrupt", "reassign", "merge", "finish", "stop_mission", "remote_control",
+        "read_output", "write", "extend", "interrupt", "reassign", "merge", "finish", "stop_mission", "clean_up_mission", "remote_control",
         "spawn_agent", "output_guide", "read_node", "notes",
       ]);
       expect(JSON.parse(textOf(await call("chef", "mission", {})))).toMatchObject({ runs: "fleet", manager: null, board: null });
@@ -517,6 +519,7 @@ describe("a mission its Manager runs (spec babysitter Fleet)", () => {
     expect(textOf(await call("boss", "report", { summary: "x", status: "done" }))).toContain("not the Manager's");
     expect(textOf(await call("boss", "spawn_agent", { task: "x" }))).toContain("not the Manager's");
     expect(textOf(await call("boss", "propose_plan", {}))).toBe("This tool is for the fleet.");
+    expect(textOf(await call("boss", "clean_up_mission", {}))).toBe("This tool is for the fleet.");
     expect(textOf(await call("robin", "move_card", { card: "c1", column: "Done" }))).toBe("This tool is for a mission's Manager.");
     expect(textOf(await call("babysitter", "need_user", { reason: "x" }))).toBe("This tool is for a mission's Manager.");
   });
@@ -597,7 +600,7 @@ describe("a mission its Manager runs (spec babysitter Fleet)", () => {
     });
     await nodesStore.getState().create("codexBoss", { workspaceId: "w1", kind: "terminal", payload: terminal("Manager", { agent: "codex", role: "manager", fleet: "codexSitter" }) });
     const names = async (id: string) => ((await answer({ callId: 1, nodeId: id, method: "tools/list", params: {} })) as { tools: { name: string }[] }).tools.map((t) => t.name);
-    expect(await names("codexSitter")).toEqual(["mission", "propose_plan", "add_tasks", "queue", "prioritize", "tickets", "board", "team", "stop_mission", "spawn_agent", "output_guide", "read_node", "notes"]);
+    expect(await names("codexSitter")).toEqual(["mission", "propose_plan", "add_tasks", "queue", "prioritize", "tickets", "board", "team", "stop_mission", "clean_up_mission", "spawn_agent", "output_guide", "read_node", "notes"]);
     expect(await names("codexBoss")).toEqual(await names("boss"));
   });
 

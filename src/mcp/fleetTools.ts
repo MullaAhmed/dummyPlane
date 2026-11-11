@@ -7,6 +7,7 @@ import { missionFolder } from "@/mission/folder";
 import { endMission, launchMission, mergeMission, reassignTask } from "@/mission/launch";
 import { budgetOf, memberTime, NEW_AGENT, nightMin, oneLine, proposedPlan, proposedTasks, remainingGlobal, sameName, spentMin, type Member, type Mission } from "@/mission/mission";
 import { activeCount } from "@/mission/active";
+import { cleanUpFinished } from "@/mission/cleanup";
 import { giveNext, pumpQueue } from "@/mission/queue";
 import { boardView, todoColumnOf } from "@/kanban/missionLink";
 import { moveCard as movedCard } from "@/kanban/board";
@@ -145,6 +146,7 @@ function missionToolSpecs(manager: boolean) {
     },
     { name: "need_user", description: d.needUser, inputSchema: { type: "object", properties: { reason: { type: "string", description: d.needUserReason } }, required: ["reason"] } },
     { name: "stop_mission", description: d.stopMission, inputSchema: { type: "object", properties: { reason: { type: "string", description: d.stopReason } }, required: ["reason"] } },
+    { name: "clean_up_mission", description: d.cleanUpMission, inputSchema: NO_ARGS },
     {
       name: "remote_control",
       description: d.remoteControl,
@@ -158,7 +160,7 @@ function missionToolSpecs(manager: boolean) {
 }
 
 /** The Fleet's tools while it plans and babysits its board (spec babysitter Fleet), by English name. */
-export const FLEET_TOOLS: readonly string[] = ["mission", "propose_plan", "add_tasks", "queue", "prioritize", "tickets", "board", "team", "stop_mission", "remote_control"];
+export const FLEET_TOOLS: readonly string[] = ["mission", "propose_plan", "add_tasks", "queue", "prioritize", "tickets", "board", "team", "stop_mission", "clean_up_mission", "remote_control"];
 /** The team's tools, the Fleet's only for a mission launched before Managers existed: it runs it to its end the old way. */
 export const LEGACY_TOOLS: readonly string[] = ["next_task", "read_output", "write", "extend", "interrupt", "reassign", "merge", "finish"];
 /** A mission's Manager's tools: it runs the board's cards with the team. */
@@ -203,6 +205,7 @@ export const FLEET_ONLY = new Set([
   "remote_control",
   "prioritize",
   "stop_mission",
+  "clean_up_mission",
   "move_card",
   "need_user",
 ]);
@@ -271,22 +274,40 @@ function describeMission(fleetId: string, mission: Mission): ToolResult {
   });
 }
 
-function proposePlan(fleetId: string, mission: Mission, args: Record<string, unknown>): ToolResult {
-  if (mission.state === "lancement" || mission.state === "en_cours") return refused(t().fleet.running);
-  if (mission.state === "terminee") return refused(t().fleet.finished);
+async function proposePlan(fleetId: string, asked: Mission, args: Record<string, unknown>): Promise<ToolResult> {
+  if (asked.state === "lancement" || asked.state === "en_cours") return refused(t().fleet.running);
+  let mission = asked;
+  // What the Fleet's cleanup told it, to say with whatever follows: the mission it drafts on is a new one.
+  let cleaned = "";
+  if (asked.state === "terminee") {
+    // The panel's "Clean up the mission", done here unless something is unsaved: then the old refusal stands, and the user decides.
+    const cleanup = await cleanUpFinished(fleetId);
+    if (!cleanup.cleaned) return refused(`${t().fleet.finished} ${cleanup.reason}`);
+    cleaned = cleanup.text;
+    // Read again: the mission was reset, its settings (Max agents, the router) kept.
+    mission = missionOf(nodesStore.getState().nodes[fleetId]) ?? mission;
+  }
+  const failed = (text: string) => refused(cleaned ? `${cleaned} ${text}` : text);
   const onCanvas = (s: Record<string, unknown> | null) => !sameName(String(s?.agent ?? ""), NEW_AGENT) || Boolean(s?.groupe);
   const named = Array.isArray(args.sous_taches) && args.sous_taches.some((s) => onCanvas(s as Record<string, unknown> | null));
-  if (named && !canvasKnown(fleetId)) return refused(t().fleet.hiddenWorkspace);
+  if (named && !canvasKnown(fleetId)) return failed(t().fleet.hiddenWorkspace);
   const cards = linkedBoards(fleetId).flatMap(({ board }) => Object.keys(board.cards));
   const result = proposedPlan(args, mission, linkedTeamAgents(fleetId).map((a) => a.name), linkedGroups(fleetId), cards);
-  if (typeof result === "string") return refused(result);
+  if (typeof result === "string") return failed(result);
   setMission(fleetId, { state: "plan", ...result, error: undefined });
   // The dialog was the go-ahead: the user has left (spec overnight mission §5.1).
   if (mission.overnight && mission.autoLaunch) {
     void launchMission(fleetId);
     return said(t().fleet.launchingNight);
   }
-  return said(t().fleet.proposed(result.plan.length, mission.maxAgents));
+  const proposed = t().fleet.proposed(result.plan.length, mission.maxAgents);
+  return said(cleaned ? `${cleaned} ${proposed}` : proposed);
+}
+
+/** `clean_up_mission` (the Fleet): the panel's cleanup of a finished mission, unless something is unsaved. */
+async function cleanUpMission(fleetId: string): Promise<ToolResult> {
+  const result = await cleanUpFinished(fleetId);
+  return result.cleaned ? said(result.text) : refused(result.reason);
 }
 
 /**
@@ -311,8 +332,8 @@ async function tickets(fleetId: string, mission: Mission): Promise<ToolResult> {
  * The Fleet's cards travel to the board, then to the Manager, who is told.
  */
 function addTasks(fleetId: string, mission: Mission, args: Record<string, unknown>, caller: string = fleetId): ToolResult {
-  if (mission.state === "terminee") return refused(t().fleet.finished);
-  const grouped = Array.isArray(args.tasks) && args.tasks.some((s) => Boolean((s as Record<string, unknown> | null)?.groupe));
+  if (mission.state === "terminee") return refused(caller === fleetId ? t().fleet.finishedAddTasks : t().fleet.finishedForManager);
+  const grouped =Array.isArray(args.tasks) && args.tasks.some((s) => Boolean((s as Record<string, unknown> | null)?.groupe));
   if (grouped && !canvasKnown(fleetId)) return refused(t().fleet.hiddenWorkspace);
   const cards = linkedBoards(fleetId).flatMap(({ board }) => Object.keys(board.cards));
   const proposed = proposedTasks(args, mission, linkedGroups(fleetId), cards);
@@ -663,6 +684,8 @@ export async function fleetTool(fleetId: string, name: string, args: Record<stri
       return prioritize(fleetId, mission, args);
     case "stop_mission":
       return stopMission(fleetId, mission, args);
+    case "clean_up_mission":
+      return cleanUpMission(fleetId);
     default:
       return refused(t().router.unknown(name));
   }

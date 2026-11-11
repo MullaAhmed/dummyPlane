@@ -41,6 +41,7 @@ const TOOLS: Record<string, string> = {
   read_node: "read_node",
   prioritize: "prioritize",
   stop_mission: "stop_mission",
+  clean_up_mission: "clean_up_mission",
   move_card: "move_card",
   need_user: "need_user",
 };
