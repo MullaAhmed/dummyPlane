@@ -1,5 +1,6 @@
 import { Channel } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import type { EffortLevel } from "@/mission/router";
 import type { ExtensionChoice } from "./claudeExtensions";
 import { call } from "./invoke";
 
@@ -24,8 +25,10 @@ export interface ClaudeLaunch {
   role: "agent" | typeof STORED_FLEET_ROLE;
   /** Started with Remote Control, under this name (spec maj §2). */
   remoteControl?: string;
-  /** `--model`, chosen by a mission's router (spec maj §3). */
+  /** `--model`, chosen by a mission's router (spec maj §3) or in the edit panel. */
   model?: string;
+  /** `--effort`, chosen in the edit panel. */
+  effort?: EffortLevel;
   /** A mission's choice; on a fleet, its night: it waits for nobody, what would ask is refused. */
   permission?: Permission;
   /** A fleet whose night reads its tickets in Linear: Linear's read-only MCP server joins its tools. */

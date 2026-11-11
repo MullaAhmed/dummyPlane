@@ -583,6 +583,26 @@ pub async fn claude_extensions(
     .map_err(|err| AppError::Io(std::io::Error::other(err.to_string())))?
 }
 
+/// What a Claude terminal in `cwd`, with this profile folder, starts on when
+/// its launch names no model: the edit panel's "Claude picks" choice.
+#[tauri::command]
+pub async fn claude_launch_defaults(
+    cwd: String,
+    config_dir: Option<String>,
+) -> AppResult<extensions::LaunchDefaults> {
+    let profile = match config_dir.as_deref() {
+        Some(dir) => Some(crate::accounts::checked_dir(dir)?),
+        None => None,
+    };
+    tauri::async_runtime::spawn_blocking(move || {
+        let places = Places::of(std::path::Path::new(&cwd), profile.as_deref())
+            .ok_or_else(|| AppError::NotFound("Claude config folder".into()))?;
+        Ok(extensions::launch_defaults(&places))
+    })
+    .await
+    .map_err(|err| AppError::Io(std::io::Error::other(err.to_string())))?
+}
+
 #[cfg(test)]
 mod tests {
     use std::time::{Duration, Instant};

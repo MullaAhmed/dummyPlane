@@ -18,7 +18,6 @@ import { freshScreen, textSince } from "./freshScreen";
 import { pasteImage, pastedImage, takeOverPaste } from "./imagePaste";
 import { keyAction, NEWLINE_SEQUENCE } from "./keys";
 import { newConversation, relaunchMode, type LaunchMode } from "./launch";
-import { forgetLiveTitle, setLiveTitle } from "./liveTitle";
 import { onNewWork } from "./minimize";
 import { isTypingKey, startsNewConversation, startsOnKeystroke } from "./pill";
 import { acceptsInput, reattachSession, relaunchSession, restoreSession, startSession, type SessionState } from "./session";
@@ -130,9 +129,6 @@ function create(nodeId: string): Entry {
   term.onResize(({ cols, rows }) => {
     if (isRunning(nodeId)) void ptyResize(nodeId, cols, rows).catch(() => undefined);
   });
-  // What the program running in it calls it now (the edit panel shows it). A re-attach replays the live
-  // process's own output, whose titles are its own; a stopped terminal's restored screen is ignored (setLiveTitle).
-  term.onTitleChange((title) => setLiveTitle(nodeId, title));
   entries.set(nodeId, entry);
   return entry;
 }
@@ -353,5 +349,4 @@ export function disposeTerminal(nodeId: string) {
   entries.delete(nodeId);
   autostart.cancel(nodeId);
   terminalStatusStore.getState().remove(nodeId);
-  forgetLiveTitle(nodeId);
 }

@@ -116,6 +116,14 @@ describe("buildSpawnSpec", () => {
     expect(buildSpawnSpec({ ...payload, model: undefined }, "new").claude).not.toHaveProperty("model");
   });
 
+  it("starts Claude at the effort the edit panel chose, and gives no level when none is chosen", () => {
+    const payload = { ...newTerminalPayload({ ...base, agent: "claude", title: "Agent" }), effort: "max" as const };
+    expect(buildSpawnSpec(payload, "resume").claude?.effort).toBe("max");
+    expect(buildSpawnSpec({ ...payload, effort: undefined }, "new").claude).not.toHaveProperty("effort");
+    // Claude's levels mean nothing to Codex.
+    expect(buildSpawnSpec({ ...payload, agent: "codex" }, "new").codex).not.toHaveProperty("effort");
+  });
+
   it("passes Ollama options", () => {
     const payload = newTerminalPayload({ ...base, agent: "ollama", ollama: { model: "llama3", mode: "code" } });
     expect(buildSpawnSpec(payload, "new").ollama).toEqual({ model: "llama3", mode: "code" });

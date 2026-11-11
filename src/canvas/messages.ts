@@ -40,11 +40,6 @@ export const canvasMessages = defineMessages(
       lastReport: "Last report",
       tokens: (count: string) => `${count} tokens`,
       context: (percent: number) => `${percent} % context`,
-      // The title the program running in the terminal sets now (Claude Code its own, a shell its path).
-      liveTitle: "Title",
-      // The stored title: Claude gets it with `-n` only when a new conversation starts; a resumed one keeps its name.
-      sessionName: "Session name",
-      sessionNameHint: "Claude's name for a new conversation",
       // Over the settings read when the terminal next starts: said once, here.
       nextLaunch: "Next launch",
       folder: "Folder",
@@ -65,11 +60,23 @@ export const canvasMessages = defineMessages(
       command: "Command",
       shell: "Shell",
       model: "Model",
-      // No `--model`: Claude picks, from the profile's settings or its own default. Never a bare "Default".
-      claudeDefault: "Claude's default",
+      // No `--model`: the model Claude picks itself, named, never a bare "Default". While it runs on that pick, the
+      // model its status line reports; else the `model` its settings give (an alias as written), else the plan's.
+      ownModel: {
+        settings: (model: string) => `${model} · your settings`,
+        plan: (model: string) => `${model} · plan default`,
+        planOnly: "Your plan's default model",
+      },
       // Under the model chosen, while the session runs: what its status line says it uses now, maybe after /model.
       runningModel: (model: string) => `Running ${model}`,
-      runningModelEffort: (model: string, effort: string) => `Running ${model}, ${effort} effort`,
+      // `--effort`, Claude Code's levels on a slider; Auto gives no flag.
+      effort: "Effort",
+      effortAuto: "Auto",
+      efforts: { low: "Low", medium: "Medium", high: "High", xhigh: "Extra high", max: "Max" },
+      // Under Auto, before the status line reports a level: where Claude's own level comes from.
+      effortAutoHint: "Your settings, else the model's default",
+      // Under the effort, while the session runs: the level its status line reports, maybe after /effort.
+      runningEffort: (effort: string) => `Running at ${effort}`,
       permission: "Permissions",
       // No `--permission-mode`: Claude asks as the user's own settings say.
       claudeSettings: "Claude's settings",

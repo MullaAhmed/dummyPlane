@@ -36,14 +36,14 @@ afterEach(async () => {
 });
 
 it("reads the command only for a Custom terminal, which is the only one that runs it", () => {
-  expect(launchSettingsOf(terminal())).toEqual({ cwd: "D:/work/api", shell: "default", command: "", model: "", permission: "", accountId: "" });
+  expect(launchSettingsOf(terminal())).toEqual({ cwd: "D:/work/api", shell: "default", command: "", model: "", effort: "", permission: "", accountId: "" });
   expect(launchSettingsOf(terminal({ agent: "custom" })).command).toBe("npm run dev");
 });
 
-it("reads the model, the permission and the account only for Claude, the only one that gets them", () => {
-  const chosen = { model: "claude-opus-5-5", permission: "work" as const, accountId: "work" };
+it("reads the model, the effort, the permission and the account only for Claude, the only one that gets them", () => {
+  const chosen = { model: "claude-opus-5-5", effort: "max" as const, permission: "work" as const, accountId: "work" };
   expect(launchSettingsOf(terminal(chosen))).toMatchObject(chosen);
-  expect(launchSettingsOf(terminal({ ...chosen, agent: "codex" }))).toMatchObject({ model: "", permission: "", accountId: "" });
+  expect(launchSettingsOf(terminal({ ...chosen, agent: "codex" }))).toMatchObject({ model: "", effort: "", permission: "", accountId: "" });
 });
 
 it("has nothing to restart while a terminal is stopped, whatever changes", async () => {

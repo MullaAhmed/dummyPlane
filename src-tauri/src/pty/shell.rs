@@ -102,9 +102,12 @@ pub struct ClaudeLaunch {
     /// Remote Control from the start, under this name (`--remote-control`).
     #[serde(default)]
     pub remote_control: Option<String>,
-    /// The model the fleet's router chose (`--model`).
+    /// The model the fleet's router chose, or the edit panel (`--model`).
     #[serde(default)]
     pub model: Option<String>,
+    /// The effort level the edit panel chose (`--effort`); none: Claude's own.
+    #[serde(default)]
+    pub effort: Option<Effort>,
     /// A mission's choice; none outside a mission that made one. For a fleet, its night: it waits for nobody.
     #[serde(default)]
     pub permission: Option<Permission>,
@@ -117,6 +120,31 @@ pub struct ClaudeLaunch {
     /// The skills, plugins, MCP servers and subagents it turns off or on (`agents::extensions`).
     #[serde(default)]
     pub extensions: Option<crate::agents::extensions::ExtensionChoice>,
+}
+
+/// Claude Code's effort levels, as `claude --effort` takes them (Claude Code
+/// 2.1.322: low, medium, high, xhigh, max). The flag, not the settings'
+/// `effortLevel`, which has no `max`. A closed list: it is typed into a shell.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Effort {
+    Low,
+    Medium,
+    High,
+    Xhigh,
+    Max,
+}
+
+impl Effort {
+    fn flag_value(self) -> &'static str {
+        match self {
+            Effort::Low => "low",
+            Effort::Medium => "medium",
+            Effort::High => "high",
+            Effort::Xhigh => "xhigh",
+            Effort::Max => "max",
+        }
+    }
 }
 
 /// What a Codex terminal is for, as `ClaudeLaunch` says it for Claude: its role,
@@ -503,6 +531,9 @@ fn claude_command(
             quote(syntax, checked_model(model)?)
         ));
     }
+    if let Some(effort) = launch.effort {
+        claude.push_str(&format!(" --effort {}", effort.flag_value()));
+    }
     // `--permission-mode`, not `defaultMode` in the settings: Claude's docs confirm the flag for one session.
     // Never `bypassPermissions`: its first use asks, and accepting writes to the user's settings.
     match (launch.role, launch.permission) {
@@ -771,6 +802,7 @@ mod tests {
             role: Role::Agent,
             remote_control: None,
             model: None,
+            effort: None,
             permission: None,
             linear: false,
             config_dir: None,
@@ -919,6 +951,7 @@ mod tests {
             role: Role::Agent,
             remote_control: None,
             model: None,
+            effort: None,
             permission: None,
             linear: false,
             config_dir: None,
@@ -950,6 +983,7 @@ mod tests {
             role: Role::Agent,
             remote_control: None,
             model: None,
+            effort: None,
             permission: None,
             linear: false,
             config_dir: None,
@@ -1576,6 +1610,42 @@ mod tests {
                 "{bad}"
             );
         }
+    }
+
+    #[test]
+    fn starts_claude_at_the_effort_the_panel_chose_after_its_model() {
+        let with_effort = |mode, effort: serde_json::Value| {
+            let mut launch = claude(mode, "");
+            let launch_mut = launch.as_mut().unwrap();
+            launch_mut.model = Some("opus".into());
+            launch_mut.effort = serde_json::from_value(effort).unwrap();
+            agent_command(
+                &spec(Agent::Claude, launch),
+                ShellSyntax::PowerShell,
+                &AgentHooks::default(),
+            )
+            .unwrap()
+            .unwrap()
+        };
+        assert_eq!(
+            with_effort(ClaudeMode::New, serde_json::json!("xhigh")),
+            format!("claude --model 'opus' --effort xhigh --session-id {SESSION}")
+        );
+        // `max`, which the settings' `effortLevel` cannot hold, goes on the command line too.
+        assert_eq!(
+            with_effort(ClaudeMode::Resume, serde_json::json!("max")),
+            format!("claude --model 'opus' --effort max --resume {SESSION}")
+        );
+        // None given: Claude's own level, no flag.
+        assert_eq!(
+            with_effort(ClaudeMode::Continue, serde_json::json!(null)),
+            "claude --model 'opus' --continue"
+        );
+        // Anything but one of Claude's levels is refused before a shell sees it.
+        let parsed: Result<ClaudeLaunch, _> = serde_json::from_value(serde_json::json!({
+            "mode": "new", "sessionId": SESSION, "title": "", "effort": "max; rm -rf /"
+        }));
+        assert!(parsed.is_err());
     }
 
     #[test]

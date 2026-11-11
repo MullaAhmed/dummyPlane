@@ -5,7 +5,6 @@ import type { TerminalPayload } from "@/nodes/types";
 import { terminalStatusStore } from "@/store/terminalStatus";
 import { disposeTerminal, markForAutostart, mountTerminal, startUnseen, xtermOf } from "./registry";
 import { reattachSession, restoreSession, startSession } from "./session";
-import { liveTitleOf } from "./liveTitle";
 
 vi.mock("@xterm/xterm", () => ({
   Terminal: class {
@@ -25,10 +24,6 @@ vi.mock("@xterm/xterm", () => ({
     onData() {}
     onKey() {}
     onResize() {}
-    onTitleChange(listener: (title: string) => void) {
-      this.setTitle = listener;
-    }
-    setTitle: (title: string) => void = () => undefined;
     attachCustomKeyEventHandler() {}
   },
 }));
@@ -111,16 +106,6 @@ it("starts nothing for a node closed before its turn, and leaves no xterm behind
   startUnseen(node, payload);
   expect(startSession).not.toHaveBeenCalled();
   expect(xtermOf(node)).toBeUndefined();
-});
-
-it("hears the title the running program gives its terminal, and forgets it once the terminal closes", async () => {
-  markForAutostart(node);
-  startUnseen(node, payload);
-  await vi.waitFor(() => expect(startSession).toHaveBeenCalled());
-  (xtermOf(node) as unknown as { setTitle: (title: string) => void }).setTitle("✳ Fix the login");
-  expect(liveTitleOf(node)).toBe("✳ Fix the login");
-  disposeTerminal(node);
-  expect(liveTitleOf(node)).toBeUndefined();
 });
 
 it("tells the process the grid its xterm has once it runs: a resize during the spawn had nothing to resize", async () => {

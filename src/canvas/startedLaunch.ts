@@ -12,8 +12,10 @@ export interface LaunchSettings {
   shell: string;
   /** Only a Custom terminal runs its command; the others ignore it. */
   command: string;
-  /** Claude only, like the next two: its `--model`, "" for Claude's own default. */
+  /** Claude only, like the next three: its `--model`, "" for the model Claude picks itself. */
   model: string;
+  /** `--effort`, "" for Claude's own level. */
+  effort: string;
   /**
    * `--permission-mode`, "" for none. Not the same launch as "ask": any permission given also blocks
    * `git push` in the session's settings (`apply_permission`), none leaves Claude as the user set it up.
@@ -30,12 +32,13 @@ export const launchSettingsOf = (payload: TerminalPayload): LaunchSettings => {
     shell: payload.shell,
     command: payload.agent === "custom" ? payload.command : "",
     model: claude ? (payload.model ?? "") : "",
+    effort: claude ? (payload.effort ?? "") : "",
     permission: claude ? (payload.permission ?? "") : "",
     accountId: claude ? (payload.accountId ?? "") : "",
   };
 };
 
-const KEYS = ["cwd", "shell", "command", "model", "permission", "accountId"] as const satisfies readonly (keyof LaunchSettings)[];
+const KEYS = ["cwd", "shell", "command", "model", "effort", "permission", "accountId"] as const satisfies readonly (keyof LaunchSettings)[];
 
 /**
  * The launch settings a running terminal started with, noted when they first
@@ -55,7 +58,7 @@ function forgetStopped() {
   });
 }
 
-/** Before a launch setting of a terminal changes (its folder, shell, command, model, permission or account): a running one keeps what it started with. */
+/** Before a launch setting of a terminal changes (its folder, shell, command, model, effort, permission or account): a running one keeps what it started with. */
 export function noteLaunchChange(nodeId: string, before: TerminalPayload) {
   if (!isRunning(nodeId) || nodeId in startedStore.getState()) return;
   forgetStopped();
@@ -66,6 +69,12 @@ export function noteLaunchChange(nodeId: string, before: TerminalPayload) {
 export function forgetStartedLaunch(nodeId: string) {
   const started = startedStore.getState();
   if (nodeId in started) startedStore.setState(Object.fromEntries(Object.entries(started).filter(([id]) => id !== nodeId)), true);
+}
+
+/** The launch settings the running terminal's session started with: the noted ones once one changed, else `current`'s. */
+export function useStartedLaunch(nodeId: string, current: TerminalPayload | undefined): LaunchSettings | undefined {
+  const started = useStore(startedStore, (s) => s[nodeId]);
+  return started ?? (current && launchSettingsOf(current));
 }
 
 /** Whether the running terminal's session started with other launch settings than `current` has. */

@@ -15,7 +15,6 @@ import { terminalStatusStore } from "@/store/terminalStatus";
 import { agentActivityStore } from "@/store/agentActivity";
 import type { SessionUsage } from "@/usage/usage";
 import { markLaunch, usageStore } from "@/usage/usageStore";
-import { forgetLiveTitle, setLiveTitle } from "@/nodes/terminal/liveTitle";
 import { canvasStore, EMPTY_VIEW } from "./canvasStore";
 import { SelectionPanel } from "./SelectionPanel";
 
@@ -104,7 +103,6 @@ afterEach(async () => {
   terminalStatusStore.setState({ statuses: {} });
   agentActivityStore.setState({ activities: {} });
   usageStore.setState({ sessions: {}, launchedAt: {} });
-  forgetLiveTitle("t1");
 });
 
 function mount(api: Partial<ExcalidrawImperativeAPI>, elements: ExcalidrawElement[], mode: "reading" | null = null) {
@@ -467,30 +465,125 @@ it("edits the command of a custom agent only", async () => {
   expect(payloadOf().command).toBe("npm test");
 });
 
-it("picks the model of the next launch, Claude's default included, and keeps a model a mission chose on offer", async () => {
+it("picks the model of the next launch, Claude's own pick included, and keeps a model a mission chose on offer", async () => {
   await mountTerminal(terminal({ model: "claude-fable-5-1" }));
   expect(select("Model")!.textContent).toBe("Fable 5.1");
-  expect(await optionsOf("Model")).toEqual(["Claude's default", "Fable 5.1", "Haiku 5.5", "Sonnet 5.5", "Opus 5.5", "Fable 5.2"]);
+  expect(await optionsOf("Model")).toEqual(["Your plan's default model", "Fable 5.1", "Haiku 5.5", "Sonnet 5.5", "Opus 5.5", "Fable 5.2"]);
   await pick("Model", "Opus 5.5");
   expect(payloadOf().model).toBe("claude-opus-5-5");
-  await pick("Model", "Claude's default");
+  await pick("Model", "Your plan's default model");
   expect(payloadOf().model).toBeUndefined();
-  // Never a bare "Default": no model given, Claude picks.
-  expect(select("Model")!.textContent).toBe("Claude's default");
+  // Never a bare "Default": no model given, Claude picks, and the choice says which.
+  expect(select("Model")!.textContent).toBe("Your plan's default model");
 });
 
-it("says which model the running session really uses, from its status line, and offers to restart on another", async () => {
+/** Answers `claude_launch_defaults` with these settings (the other commands, a node's save, get nothing). */
+let defaultsCalls: unknown[] = [];
+function serveLaunchDefaults(answer: { model?: string }) {
+  defaultsCalls = [];
+  mockIPC((cmd, args) => {
+    if (cmd !== "claude_launch_defaults") return undefined;
+    defaultsCalls.push(args);
+    return answer;
+  });
+}
+/** Lets an answer of a command arrive. */
+const answered = () => act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
+
+it("names the model Claude picks itself from the terminal's settings, an alias as written, and reads them for its folder", async () => {
+  serveLaunchDefaults({ model: "opus" });
+  await mountTerminal(terminal());
+  await answered();
+  expect(defaultsCalls).toEqual([{ cwd: "D:/work/api", configDir: null }]);
+  expect(select("Model")!.textContent).toBe("Opus · your settings");
+  // Distinct from choosing Opus 5.5 outright, which the same list offers.
+  expect(await optionsOf("Model")).toContain("Opus 5.5");
+  // A full name its settings give reads as dummyPlane names it.
+  serveLaunchDefaults({ model: "claude-haiku-5-5" });
+  await mountTerminal(terminal({ cwd: "D:/work/web" }));
+  await answered();
+  expect(select("Model")!.textContent).toBe("Haiku 5.5 · your settings");
+});
+
+it("names the model a session running on Claude's own pick reports, not the one it was started with otherwise", async () => {
+  serveLaunchDefaults({});
+  terminalStatusStore.getState().set("t1", { state: "running" });
+  usageStore.setState({ sessions: { s1: reported({ model: { id: "claude-opus-5-5", name: "Opus 5.5" }, effort: "xhigh" }) } });
+  await mountTerminal(terminal());
+  await answered();
+  expect(select("Model")!.textContent).toBe("Opus 5.5 · plan default");
+  serveLaunchDefaults({ model: "opus" });
+  await mountTerminal(terminal({ cwd: "D:/work/web" }));
+  await answered();
+  expect(select("Model")!.textContent).toBe("Opus 5.5 · your settings");
+  // Started with `--model`: what it reports is that model's, not what Claude would pick.
+  await mountTerminal(terminal({ cwd: "D:/work/web", model: "claude-haiku-5-5" }));
+  await answered();
+  expect(select("Model")!.textContent).toBe("Haiku 5.5");
+  expect(await optionsOf("Model")).toContain("Opus · your settings");
+});
+
+it("says which model and effort the running session really uses, from its status line, and offers to restart on another", async () => {
   terminalStatusStore.getState().set("t1", { state: "running" });
   await mountTerminal(terminal());
   expect(host.querySelector("[data-running-model]")).toBeNull();
+  expect(host.querySelector("[data-running-effort]")).toBeNull();
   await act(async () => usageStore.setState({ sessions: { s1: reported({ model: { id: "claude-opus-5-5", name: "Opus 5.5" }, effort: "high" }) } }));
-  expect(host.querySelector("[data-running-model]")?.textContent).toBe("Running Opus 5.5, high effort");
+  expect(host.querySelector("[data-running-model]")?.textContent).toBe("Running Opus 5.5");
+  expect(host.querySelector("[data-running-effort]")?.textContent).toBe("Running at High");
   expect(restartNow()).toBeUndefined();
   await pick("Model", "Haiku 5.5");
   expect(host.textContent).toContain("Running with the old launch settings");
   // Not running: what it last reported is no longer what it uses.
   await act(async () => terminalStatusStore.getState().set("t1", { state: "stopped" }));
   expect(host.querySelector("[data-running-model]")).toBeNull();
+  expect(host.querySelector("[data-running-effort]")).toBeNull();
+});
+
+const effortThumb = () => host.querySelector<HTMLElement>("[role='slider'][aria-label='Effort']");
+/** Presses a key on the effort slider's thumb, as a user does once it has the focus. */
+async function pressOnEffort(key: string) {
+  await act(async () => {
+    effortThumb()!.focus();
+    effortThumb()!.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }));
+  });
+}
+
+it("sets the effort of the next launch on a slider of Claude's levels, Auto giving none", async () => {
+  await mountTerminal(terminal());
+  expect(effortThumb()!.getAttribute("aria-valuetext")).toBe("Auto");
+  expect(host.querySelector("[data-effort]")?.textContent).toBe("Auto");
+  expect(host.textContent).toContain("Your settings, else the model's default");
+  await pressOnEffort("ArrowRight");
+  expect(payloadOf().effort).toBe("low");
+  expect(effortThumb()!.getAttribute("aria-valuetext")).toBe("Low");
+  expect(host.textContent).not.toContain("Your settings, else the model's default");
+  await pressOnEffort("End");
+  expect(payloadOf().effort).toBe("max");
+  expect(host.querySelector("[data-effort]")?.textContent).toBe("Max");
+  await pressOnEffort("ArrowLeft");
+  expect(payloadOf().effort).toBe("xhigh");
+  expect(host.querySelector("[data-effort]")?.textContent).toBe("Extra high");
+  await pressOnEffort("Home");
+  expect(payloadOf().effort).toBeUndefined();
+  expect(effortThumb()!.getAttribute("aria-valuetext")).toBe("Auto");
+});
+
+it("offers a running terminal a restart once its effort changes, and gives a fleet's session its own", async () => {
+  terminalStatusStore.getState().set("t1", { state: "running" });
+  await mountTerminal(terminal({ effort: "high" }));
+  expect(effortThumb()!.getAttribute("aria-valuetext")).toBe("High");
+  expect(restartNow()).toBeUndefined();
+  await pressOnEffort("ArrowRight");
+  expect(payloadOf().effort).toBe("xhigh");
+  expect(restartNow()).not.toBeUndefined();
+  // No effort slider for an agent Claude's levels mean nothing to.
+  await mountTerminal(terminal({ agent: "codex" }));
+  expect(effortThumb()).toBeNull();
+  await mountFleet();
+  await pressOnEffort("ArrowRight");
+  expect(fleetOf().session?.effort).toBe("low");
+  expect("effort" in fleetOf()).toBe(false);
 });
 
 it("starts on a small Edit tab beside the terminal, in the panel's place, and opens the panel there on a click", async () => {
@@ -895,15 +988,14 @@ it("gives a selected Fleet the Edit tab, named after it, and opens its panel fro
   await act(async () => editTab()!.click());
   expect(host.textContent).toContain("Edit Fleet");
   expect(field("Name")!.value).toBe("Fleet");
-  // Its session's folder and model, shown; no copy of a fleet, no session name of its own (it is its name),
+  // Its session's folder and model, shown; no copy of a fleet,
   // and neither permissions nor an account: a fleet is the manager, its own rules come with its role.
   expect(host.querySelector("[data-folder]")?.textContent).toBe("D:/work/api");
-  expect(select("Model")!.textContent).toBe("Claude's default");
+  expect(select("Model")!.textContent).toBe("Your plan's default model");
   expect(select("Shell")).not.toBeNull();
   expect(select("Permissions")).toBeNull();
   expect(button("Delete the fleet")).not.toBeNull();
   expect(button("Copy the terminal")).toBeNull();
-  expect(field("Session name")).toBeNull();
   expect(host.textContent).toContain("Next launch");
   // Said in the fleet's words, never the code's.
   expect(host.textContent?.toLowerCase()).not.toContain("orchestrator");
@@ -936,7 +1028,7 @@ it("keeps a fleet in its project: its folder has no Change button, and says why"
 it("sends a fleet's model back to the default on its session, not on the node", async () => {
   await mountFleet({ name: "Fleet", session: fleetSession({ model: "claude-haiku-5-5" }) });
   expect(select("Model")!.textContent).toBe("Haiku 5.5");
-  await pick("Model", "Claude's default");
+  await pick("Model", "Your plan's default model");
   expect(fleetOf().session?.model).toBeUndefined();
   expect("model" in fleetOf()).toBe(false);
   expect(fleetOf().name).toBe("Fleet");
@@ -1095,29 +1187,15 @@ it("keeps the folder of an agent whose mission is running in its worktree, and f
   expect(changeButton()).not.toBeNull();
 });
 
-it("sets the name a new Claude conversation gets, a blank one keeping the stored name, and says what it is", async () => {
-  await mountTerminal(terminal());
-  expect(field("Session name")!.value).toBe("Batman · api");
-  expect(host.textContent).toContain("Claude's name for a new conversation");
-  await typeInto(field("Session name")!, "  Review of api ");
-  expect(payloadOf().title).toBe("Review of api");
-  await typeInto(field("Session name")!, "   ");
-  expect(payloadOf().title).toBe("Review of api");
-  expect(field("Session name")!.value).toBe("Review of api");
-  // Another agent is never given it: no field pretends it is.
-  await mountTerminal(terminal({ agent: "codex" }));
-  expect(field("Session name")).toBeNull();
-  expect(field("Title")).toBeNull();
-});
-
-it("shows the title the running program gives its terminal, not the stored one, and nothing while none is set", async () => {
+it("edits the agent's name only: no session name or title field, and the stored title is kept", async () => {
   terminalStatusStore.getState().set("t1", { state: "running" });
   await mountTerminal(terminal());
-  expect(host.querySelector("[data-live-title]")).toBeNull();
-  await act(async () => setLiveTitle("t1", "✳ Fix the login"));
-  expect(host.querySelector("[data-live-title]")?.textContent).toBe("✳ Fix the login");
-  await act(async () => terminalStatusStore.getState().set("t1", { state: "stopped" }));
-  expect(host.querySelector("[data-live-title]")).toBeNull();
+  expect(field("Name")!.value).toBe("Batman");
+  expect(host.querySelectorAll("input")).toHaveLength(1);
+  expect(host.textContent).not.toContain("Session name");
+  expect(host.textContent).not.toContain("Title");
+  // Claude still gets the stored title when a new conversation starts (`-n`).
+  expect(payloadOf().title).toBe("Batman · api");
 });
 
 it("shows the shell a terminal will start with, among the ones the machine has", async () => {
@@ -1148,15 +1226,6 @@ it("picks the shell of the next launch, on a terminal and on a fleet's session",
     Element.prototype.scrollIntoView = scrollIntoView;
     agentsStore.setState({ shells: [] });
   }
-});
-
-it("offers no restart for a session name: a restart resumes the conversation, which keeps its own", async () => {
-  terminalStatusStore.getState().set("t1", { state: "running" });
-  await mountTerminal(terminal());
-  await typeInto(field("Session name")!, "Review of api");
-  expect(payloadOf().title).toBe("Review of api");
-  expect(restartNow()).toBeUndefined();
-  expect(host.textContent).not.toContain("Running with the old launch settings");
 });
 
 const statusGroup = () => host.querySelector<HTMLElement>("[role='group'][aria-label='Status']")!;

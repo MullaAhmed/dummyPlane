@@ -58,6 +58,19 @@ export const isOwnMcpServer = (name: string): boolean => name.trim().toLowerCase
 export const claudeExtensions = (cwd: string, configDir?: string) =>
   call<ClaudeExtensions>("claude_extensions", { cwd, configDir: configDir ?? null }).then(withoutOwnServer);
 
+/** What a Claude terminal starts on when its launch names no model. Mirrors Rust's `LaunchDefaults`. */
+export interface ClaudeLaunchDefaults {
+  /** The `model` its settings give (local, then project, then user), as written: an alias or a full name. */
+  model?: string;
+}
+
+/** The launch defaults of a Claude terminal in `cwd`, with this profile folder; an answer of another shape names nothing. */
+export const claudeLaunchDefaults = (cwd: string, configDir?: string): Promise<ClaudeLaunchDefaults> =>
+  call<unknown>("claude_launch_defaults", { cwd, configDir: configDir ?? null }).then((raw) => {
+    const model = (raw as { model?: unknown } | null | undefined)?.model;
+    return typeof model === "string" && model.trim() ? { model: model.trim() } : {};
+  });
+
 /** The lists without dummyPlane's own MCP server. */
 export const withoutOwnServer = (lists: ClaudeExtensions): ClaudeExtensions => ({
   ...lists,

@@ -126,6 +126,28 @@ impl Places {
     }
 }
 
+/// What a Claude terminal starts on when its launch names none: the `model`
+/// its settings give, the project's local file winning over the project's,
+/// the project's over the user's. None: Claude's default for the account.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LaunchDefaults {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+}
+
+pub fn launch_defaults(places: &Places) -> LaunchDefaults {
+    let model = places
+        .scoped_settings()
+        .into_iter()
+        .rev()
+        .find_map(|(_, file)| {
+            let model = file.get("model")?.as_str()?.trim();
+            (!model.is_empty()).then(|| model.to_string())
+        });
+    LaunchDefaults { model }
+}
+
 fn read_json(file: &Path) -> Option<Value> {
     let text = std::fs::read_to_string(file).ok()?;
     serde_json::from_str(text.trim_start_matches('\u{feff}')).ok()
@@ -1244,6 +1266,23 @@ mod tests {
         assert_eq!(choice.skills_off, vec!["a".to_string()]);
         assert!(choice.mcp_off.is_empty());
         assert_eq!(choice.plugins.get("p@m"), Some(&true));
+    }
+
+    #[test]
+    fn reads_the_model_claude_starts_on_local_settings_first() {
+        let f = fixture();
+        let p = &f.places;
+        assert_eq!(launch_defaults(p), LaunchDefaults { model: None });
+        put_json(&p.config.join("settings.json"), json!({ "model": "opus" }));
+        assert_eq!(launch_defaults(p).model.as_deref(), Some("opus"));
+        put_json(&p.cwd.join(".claude/settings.json"), json!({ "model": "sonnet" }));
+        assert_eq!(launch_defaults(p).model.as_deref(), Some("sonnet"));
+        put_json(&p.cwd.join(".claude/settings.local.json"), json!({ "model": "claude-haiku-5-5" }));
+        assert_eq!(launch_defaults(p).model.as_deref(), Some("claude-haiku-5-5"));
+        // A blank or non-text value names nothing: the next file down speaks.
+        put_json(&p.cwd.join(".claude/settings.local.json"), json!({ "model": "  " }));
+        put_json(&p.cwd.join(".claude/settings.json"), json!({ "model": 4 }));
+        assert_eq!(launch_defaults(p).model.as_deref(), Some("opus"));
     }
 
     #[test]

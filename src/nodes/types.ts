@@ -3,6 +3,7 @@ import { readExtensionChoice, type ExtensionChoice } from "@/ipc/claudeExtension
 import type { IssueState } from "@/ipc/github";
 import { AGENT_IDS, STORED_FLEET_ROLE, type AgentId, type OllamaLaunch, type Permission, type ShellKind } from "@/ipc/pty";
 import { readMission, type Mission } from "@/mission/mission";
+import { readEffort, type EffortLevel } from "@/mission/router";
 import { readSteps, settledSteps, type Step } from "./steps";
 
 /** Content of a terminal node (spec habillage §15.2). */
@@ -27,8 +28,10 @@ export interface TerminalPayload {
   role?: typeof STORED_FLEET_ROLE;
   /** Claude starts with Remote Control (spec maj §2). */
   remoteControl?: boolean;
-  /** Claude's model, chosen by a mission's router (spec maj §3). */
+  /** Claude's model, chosen by a mission's router (spec maj §3) or in the edit panel. */
   model?: string;
+  /** Claude's effort level (`--effort`), chosen in the edit panel; absent: Claude's own (its settings, the model's default). */
+  effort?: EffortLevel;
   /** What its mission lets it do unasked (spec mission de nuit §5.3); on a fleet's session, its night. */
   permission?: Permission;
   /** A fleet's session that reads its night's tickets in Linear, through Linear's own server. */
@@ -218,6 +221,8 @@ export function readTerminalPayload(raw: unknown): TerminalPayload | null {
   if (r.role === STORED_FLEET_ROLE) payload.role = STORED_FLEET_ROLE;
   if (r.remoteControl === true) payload.remoteControl = true;
   if (typeof r.model === "string" && r.model) payload.model = r.model;
+  const effort = readEffort(r.effort);
+  if (effort) payload.effort = effort;
   if (r.permission === "ask" || r.permission === "edits" || r.permission === "work") payload.permission = r.permission;
   if (r.linear === true) payload.linear = true;
   if (r.oneShot === true) payload.oneShot = true;

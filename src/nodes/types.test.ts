@@ -87,6 +87,16 @@ describe("a fleet's session (spec orchestrateur §6)", () => {
     expect(readTerminalPayload({ ...session, model: 4 })?.model).toBeUndefined();
   });
 
+  it("keeps an effort level Claude Code knows, and drops any other", () => {
+    expect(readTerminalPayload({ ...session, effort: "xhigh" })?.effort).toBe("xhigh");
+    expect(readTerminalPayload({ ...session, effort: "ultra; rm -rf /" })?.effort).toBeUndefined();
+    expect(readTerminalPayload({ ...session, effort: 3 })?.effort).toBeUndefined();
+  });
+
+  it("still reads the stored title a saved canvas holds, though the edit panel no longer edits it", () => {
+    expect(readTerminalPayload({ ...session, title: "Review of api" })?.title).toBe("Review of api");
+  });
+
   it("keeps Remote Control on (spec maj §2)", () => {
     expect(readTerminalPayload({ ...session, remoteControl: true })?.remoteControl).toBe(true);
     expect(readTerminalPayload({ ...session, remoteControl: "oui" })?.remoteControl).toBeUndefined();

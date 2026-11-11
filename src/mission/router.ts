@@ -34,3 +34,19 @@ export const MODEL_CHOICES: readonly { model: string; modelLabel: string }[] = [
 export function modelLabel(model: string): string {
   return [...MODEL_CHOICES, ...Object.values(LEVELS)].find((known) => known.model === model)?.modelLabel ?? model;
 }
+
+/**
+ * A model as a settings file names it: "Opus 5.5" for a model dummyPlane knows, an alias as written with its
+ * first letter up ("opus" → "Opus", "sonnet[1m]" → "Sonnet[1m]"). Never a version an alias doesn't name.
+ */
+export function settingsModelLabel(model: string): string {
+  const known = modelLabel(model);
+  return known !== model ? known : model.charAt(0).toUpperCase() + model.slice(1);
+}
+
+/** Claude Code's effort levels, lightest first: what `claude --effort` takes (checked against Claude Code 2.1.322). */
+export const EFFORT_LEVELS = ["low", "medium", "high", "xhigh", "max"] as const;
+export type EffortLevel = (typeof EFFORT_LEVELS)[number];
+
+/** A stored effort level, checked: anything else (a level of another version, a typo) is no level. */
+export const readEffort = (raw: unknown): EffortLevel | undefined => ((EFFORT_LEVELS as readonly unknown[]).includes(raw) ? (raw as EffortLevel) : undefined);

@@ -7,22 +7,23 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Slider } from "@/components/ui/slider";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useMessages } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { accountsMessages } from "@/accounts/messages";
-import { useAccounts } from "@/accounts/store";
+import { loadAccounts, useAccounts } from "@/accounts/store";
 import { useAgents } from "@/agents/agentsStore";
 import { AGENTS, INDIGO } from "@/agents/catalog";
 import { remoteErrorText, useRemoteLink, type RemoteLink } from "@/agents/remoteControl";
 import { switchRemote } from "@/agents/RemoteButton";
 import { requestCloseFleet, renameFleet } from "@/fleet/fleets";
 import { duplicateTerminal, requestClose } from "@/agents/terminals";
+import { claudeLaunchDefaults, type ClaudeLaunchDefaults } from "@/ipc/claudeExtensions";
 import type { Permission, ShellKind } from "@/ipc/pty";
-import { MODEL_CHOICES, modelLabel } from "@/mission/router";
+import { EFFORT_LEVELS, MODEL_CHOICES, modelLabel, readEffort, settingsModelLabel, type EffortLevel } from "@/mission/router";
 import { folderChange, folderLockOf, type FolderLock } from "@/nodes/terminal/folder";
 import { newConversation, SHELL_LABELS } from "@/nodes/terminal/launch";
-import { useLiveTitle } from "@/nodes/terminal/liveTitle";
 import { resumeTerminal } from "@/nodes/terminal/registry";
 import { StatusPill } from "@/nodes/terminal/StatusPill";
 import type { TerminalPayload } from "@/nodes/types";
@@ -36,7 +37,7 @@ import { ExtensionList, QUIET_BOX, useClaudeExtensions, type ExtensionKind } fro
 import { canvasMessages } from "./messages";
 import { keepCanvasFocus } from "./PanelAction";
 import { forgetStartedChoice } from "./startedChoice";
-import { forgetStartedLaunch, noteLaunchChange, useLaunchRestartPending } from "./startedLaunch";
+import { forgetStartedLaunch, noteLaunchChange, useLaunchRestartPending, useStartedLaunch } from "./startedLaunch";
 
 /** The node alone on the selection, if the selection is exactly one terminal or one Fleet: the nodes that have an edit panel. */
 export function selectedEditId(selectedIds: readonly string[], nodes: Record<string, NodeRecord>): string | null {
@@ -64,7 +65,7 @@ const endEdit = (stored: string) => (event: React.KeyboardEvent<HTMLInputElement
 
 /**
  * A field that cannot be empty, left: the trimmed text when it is a new value; null when there is nothing to
- * save, an empty field getting the stored text back (a blank name or title keeps the stored one).
+ * save, an empty field getting the stored text back (a blank name keeps the stored one).
  */
 function keepStored(input: HTMLInputElement, stored: string): string | null {
   const value = input.value.trim();
@@ -80,14 +81,13 @@ const latestSession = (nodeId: string) => sessionOf(nodesStore.getState().nodes[
  * menu. General, from what is true now to what its next launch reads: where it
  * stands (its status, step, last report and spending), its name, with a copy
  * (a duplicate beside it; not a Fleet) and a delete (its header's X, with the
- * same confirmation), the title its program shows, Remote Control (applied at
- * once), then under "Next launch" its model, permissions, account, folder,
- * shell, and for Claude the name a new conversation gets, or for a custom
- * command the command, with an offer to restart a running one. A Claude
+ * same confirmation), Remote Control (applied at once), then under "Next
+ * launch" its model and effort, permissions, account, folder, shell, or for a
+ * custom command the command, with an offer to restart a running one. A Claude
  * terminal, and a Fleet, also gets its skills, plugins, MCP servers and
  * subagents, each on or off for it alone. A Fleet is edited through its Claude
- * session (`session`, nested in its node): its model and shell only. The panel
- * folds back to its Edit tab (SelectionPanel).
+ * session (`session`, nested in its node): its model, effort and shell only.
+ * The panel folds back to its Edit tab (SelectionPanel).
  */
 export function TerminalEdit({ nodeId, onFold }: { nodeId: string; onFold: () => void }) {
   const t = useMessages(canvasMessages).selection;
@@ -162,8 +162,8 @@ const SCROLLS = "-m-1 min-h-0 overflow-y-auto p-1";
 
 /**
  * The General page, in three groups: where the agent stands now, who it is
- * (its name, the title its program shows, Remote Control), and what its next
- * launch reads. Each setting is one row, its label beside it.
+ * (its name, Remote Control), and what its next launch reads. Each setting is
+ * one row, its label beside it.
  */
 function General({ nodeId, record, session }: { nodeId: string; record: NodeRecord; session: TerminalPayload | undefined }) {
   const t = useMessages(canvasMessages).selection;
@@ -175,7 +175,8 @@ function General({ nodeId, record, session }: { nodeId: string; record: NodeReco
   const fleet = record.kind === "fleet";
   const name = nodeNameOf(record);
   const claude = session?.agent === "claude";
-  const ids = { name: useId(), title: useId(), model: useId(), permission: useId(), account: useId(), shell: useId(), command: useId(), session: useId() };
+  const ids = { name: useId(), model: useId(), permission: useId(), account: useId(), shell: useId(), command: useId() };
+  const ownModel = useOwnModelLabel(nodeId, session, running);
 
   const commitName = (input: HTMLInputElement) => {
     const next = keepStored(input, name);
@@ -193,10 +194,6 @@ function General({ nodeId, record, session }: { nodeId: string; record: NodeReco
   const commitCommand = (value: string) => {
     const command = value.trim();
     if (command !== session?.command) setLaunch({ command });
-  };
-  const commitTitle = (input: HTMLInputElement) => {
-    const title = keepStored(input, session?.title ?? "");
-    if (title !== null) setLaunch({ title });
   };
   /** Claude keeps each conversation in its profile's folder: another account starts a new one, as another folder does. */
   const setAccount = (accountId: string | undefined) => {
@@ -247,7 +244,6 @@ function General({ nodeId, record, session }: { nodeId: string; record: NodeReco
             </IconButton>
           </div>
         </Row>
-        {session && <LiveTitleRow nodeId={nodeId} id={ids.title} />}
         {claude && <RemoteRow nodeId={nodeId} wanted={session.remoteControl === true} running={running} />}
       </Rows>
       {session && (
@@ -258,7 +254,12 @@ function General({ nodeId, record, session }: { nodeId: string; record: NodeReco
           <Rows>
             {claude && (
               <Row label={t.model} htmlFor={ids.model} note={<RunningModel nodeId={nodeId} running={running} />}>
-                <ModelSelect id={ids.model} value={session.model} onChange={(model) => setLaunch({ model })} />
+                <ModelSelect id={ids.model} value={session.model} own={ownModel} onChange={(model) => setLaunch({ model })} />
+              </Row>
+            )}
+            {claude && (
+              <Row label={t.effort} note={<EffortNote nodeId={nodeId} running={running} chosen={session.effort} />}>
+                <EffortSlider value={session.effort} onChange={(effort) => setLaunch({ effort })} />
               </Row>
             )}
             {claude && !fleet && (
@@ -296,19 +297,6 @@ function General({ nodeId, record, session }: { nodeId: string; record: NodeReco
                   onBlur={(e) => commitCommand(e.currentTarget.value)}
                   onKeyDown={endEdit(session.command)}
                   className={cn(FIELD, "font-mono")}
-                />
-              </Row>
-            )}
-            {claude && !fleet && (
-              <Row label={t.sessionName} htmlFor={ids.session} note={t.sessionNameHint}>
-                <Input
-                  id={ids.session}
-                  key={`title:${session.title}`}
-                  aria-label={t.sessionName}
-                  defaultValue={session.title}
-                  onBlur={(e) => commitTitle(e.currentTarget)}
-                  onKeyDown={endEdit(session.title)}
-                  className={FIELD}
                 />
               </Row>
             )}
@@ -389,18 +377,48 @@ function LiveStatus({ nodeId, session }: { nodeId: string; session: TerminalPayl
   );
 }
 
-/** The title the program running in the terminal shows now; nothing while it shows none. */
-function LiveTitleRow({ nodeId, id }: { nodeId: string; id: string }) {
+/**
+ * What a Claude terminal in `cwd`, with its profile, starts on when its launch names no model, read when the
+ * panel opens, again when its folder or profile changes and at each start. Undefined until it is known.
+ */
+function useLaunchDefaults(cwd: string | undefined, accountId: string | undefined, running: boolean): ClaudeLaunchDefaults | undefined {
+  const accountsLoaded = useAccounts((s) => s.loaded);
+  const configDir = useAccounts((s) => (accountId ? s.profiles.find((p) => p.id === accountId)?.configDir : undefined));
+  const ready = Boolean(cwd) && (!accountId || accountsLoaded);
+  const token = `${cwd}\n${configDir ?? ""}\n${running}`;
+  const [result, setResult] = useState<{ token: string; defaults: ClaudeLaunchDefaults } | null>(null);
+  useEffect(() => {
+    if (cwd && !ready) void loadAccounts();
+  }, [cwd, ready]);
+  useEffect(() => {
+    if (!ready || !cwd) return;
+    let live = true;
+    // Nothing read (no Claude folder, a refused profile): Claude's default is all that can be said.
+    const settle = (defaults: ClaudeLaunchDefaults) => live && setResult({ token, defaults });
+    claudeLaunchDefaults(cwd, configDir).then(settle, () => settle({}));
+    return () => {
+      live = false;
+    };
+  }, [ready, token, cwd, configDir]);
+  return result?.token === token ? result.defaults : undefined;
+}
+
+/**
+ * The model the next launch gets with no `--model`, named rather than called a default: while the session
+ * runs on Claude's own pick, the model its status line reports; otherwise the `model` its settings give,
+ * else the plan's default.
+ */
+function useOwnModelLabel(nodeId: string, session: TerminalPayload | undefined, running: boolean): string {
   const t = useMessages(canvasMessages).selection;
-  const title = useLiveTitle(nodeId);
-  if (!title) return null;
-  return (
-    <Row label={t.liveTitle} htmlFor={id}>
-      <output id={id} data-live-title title={title} className="block truncate text-xs leading-7 text-dp-text">
-        {title}
-      </output>
-    </Row>
-  );
+  const claude = session?.agent === "claude";
+  const defaults = useLaunchDefaults(claude ? session?.cwd : undefined, session?.accountId, running);
+  const usage = useNodeSession(nodeId);
+  const started = useStartedLaunch(nodeId, session);
+  const fromSettings = defaults?.model;
+  // Only a session started without `--model` runs Claude's own pick.
+  const reported = running && started?.model === "" ? usage?.model?.name : undefined;
+  if (reported) return fromSettings ? t.ownModel.settings(reported) : t.ownModel.plan(reported);
+  return fromSettings ? t.ownModel.settings(settingsModelLabel(fromSettings)) : t.ownModel.planOnly;
 }
 
 /** While Claude runs: the model its status line says it uses now (it may be another than the one chosen, after /model). */
@@ -408,7 +426,63 @@ function RunningModel({ nodeId, running }: { nodeId: string; running: boolean })
   const t = useMessages(canvasMessages).selection;
   const usage = useNodeSession(nodeId);
   if (!running || !usage?.model) return null;
-  return <span data-running-model>{usage.effort ? t.runningModelEffort(usage.model.name, usage.effort) : t.runningModel(usage.model.name)}</span>;
+  return <span data-running-model>{t.runningModel(usage.model.name)}</span>;
+}
+
+/** An effort level as the panel names it; a level of another Claude version as Claude sent it. */
+const effortName = (efforts: Record<EffortLevel, string>, level: string) => {
+  const known = readEffort(level);
+  return known ? efforts[known] : level;
+};
+
+/**
+ * Under the effort: while Claude runs, the level its status line reports (after /effort, maybe another than
+ * the one chosen); otherwise, on Claude's own level, where that level comes from.
+ */
+function EffortNote({ nodeId, running, chosen }: { nodeId: string; running: boolean; chosen: EffortLevel | undefined }) {
+  const t = useMessages(canvasMessages).selection;
+  const usage = useNodeSession(nodeId);
+  if (running && usage?.effort) return <span data-running-effort>{t.runningEffort(effortName(t.efforts, usage.effort))}</span>;
+  return chosen ? null : <span>{t.effortAutoHint}</span>;
+}
+
+/**
+ * The `--effort` of the next launch, on a slider of Claude Code's levels: Auto (no flag: Claude's settings or
+ * the model's default), then low to max. The thumb follows a drag at once; the level is stored when the drag
+ * or the key ends, once.
+ */
+function EffortSlider({ value, onChange }: { value: EffortLevel | undefined; onChange: (effort: EffortLevel | undefined) => void }) {
+  const t = useMessages(canvasMessages).selection;
+  const stored = value ? EFFORT_LEVELS.indexOf(value) + 1 : 0;
+  const [moving, setMoving] = useState<number | null>(null);
+  const shown = moving ?? stored;
+  const levelAt = (stop: number): EffortLevel | undefined => (stop > 0 ? EFFORT_LEVELS[stop - 1] : undefined);
+  const nameAt = (stop: number) => {
+    const level = levelAt(stop);
+    return level ? t.efforts[level] : t.effortAuto;
+  };
+  return (
+    <div className="flex h-7 min-w-0 items-center gap-3">
+      <Slider
+        min={0}
+        max={EFFORT_LEVELS.length}
+        step={1}
+        value={[shown]}
+        thumbLabel={t.effort}
+        valueText={nameAt(shown)}
+        onValueChange={([stop]) => setMoving(stop)}
+        onValueCommit={([stop]) => {
+          setMoving(null);
+          const next = levelAt(stop);
+          if (next !== value) onChange(next);
+        }}
+        className="min-w-0 flex-1"
+      />
+      <span data-effort aria-hidden className="w-16 shrink-0 truncate text-xs text-dp-text">
+        {nameAt(shown)}
+      </span>
+    </div>
+  );
 }
 
 /** One of the panel's selects: its options by value and label. */
@@ -430,12 +504,15 @@ function Choice(props: { id: string; label: string; value: string; options: read
   );
 }
 
-/** The `--model` of the next launch: Claude's own default, or one of the current family; a stored one off the list stays offered. */
-function ModelSelect({ id, value, onChange }: { id: string; value: string | undefined; onChange: (model: string | undefined) => void }) {
+/**
+ * The `--model` of the next launch: none, the model Claude picks itself (`own` names it), or one of the
+ * current family; a stored one off the list stays offered.
+ */
+function ModelSelect({ id, value, own, onChange }: { id: string; value: string | undefined; own: string; onChange: (model: string | undefined) => void }) {
   const t = useMessages(canvasMessages).selection;
   const known = !value || MODEL_CHOICES.some((choice) => choice.model === value);
   const models = known ? MODEL_CHOICES : [{ model: value, modelLabel: modelLabel(value) }, ...MODEL_CHOICES];
-  const options = [{ value: NONE, label: t.claudeDefault }, ...models.map((m) => ({ value: m.model, label: m.modelLabel }))];
+  const options = [{ value: NONE, label: own }, ...models.map((m) => ({ value: m.model, label: m.modelLabel }))];
   return <Choice id={id} label={t.model} value={value ?? NONE} options={options} onChange={(next) => onChange(next === NONE ? undefined : next)} />;
 }
 
