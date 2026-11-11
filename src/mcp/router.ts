@@ -4,12 +4,12 @@ import { notesTool, notesToolSpec } from "@/notes/agentTool";
 import { missionOf } from "@/mission/store";
 import { isManagerRecord, nodesStore, sessionOf, terminalOf } from "@/store/nodes";
 import { AGENT_ONLY, agentTools, declareSteps, markStep, refused, reportTool, spawnAgentSpec, spawnAgentTool } from "./agentTools";
-import { handOffTool, handOffTools } from "./handOff";
 import { linkTool, linkTools } from "./linkTools";
 import { outputGuideSpec, outputGuideTool, outputTools, readNodeSpec, readNodeTool, showOutputTool } from "./nodeTools";
 import { agentMessages } from "./messages";
 import { FLEET_ONLY, fleetTool, fleetTools, MANAGER_ONLY, managerTool, managerTools, runsTheOldWay } from "./fleetTools";
 import { internalCall, RENAMED } from "./protocol";
+import { handOffTool, handOffTools } from "./handOff";
 
 const t = () => messages(agentMessages).router;
 
