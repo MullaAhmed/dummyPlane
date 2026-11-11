@@ -12,6 +12,7 @@ import { readMission } from "./mission";
 import type { KanbanPayload, TerminalPayload } from "@/nodes/types";
 import { readTerminalPayload } from "@/nodes/types";
 import { isManagerNode, nodesStore, terminalOf } from "@/store/nodes";
+import { isAgentNode } from "@/agents/agentState";
 import { workspacesStore } from "@/store/workspaces";
 import { addTeamMember, boardSpot, managerCenter, managerPayload, setUpBoard, undoSetup } from "./manager";
 import { missionOf, missionRunner } from "./store";
@@ -101,6 +102,8 @@ describe("setUpBoard at the go-ahead", () => {
     expect(manager.x + manager.width / 2).toBe(element(setup.boardId).x + NODE_SIZE.kanban.width / 2);
     expect(manager.y).toBe(NODE_SIZE.kanban.height + GROUP_GAP);
     expect(isManagerNode(setup.managerId)).toBe(true);
+    // An agent like any other for every count (title bar, tabs, home card).
+    expect(isAgentNode(nodesStore.getState().nodes[setup.managerId])).toBe(true);
     expect(joined("chef", setup.boardId)).toBe(true);
     expect(joined(setup.boardId, setup.managerId)).toBe(true);
     // Recorded at once: a launch tried again finds them; the team's lines go to the Manager from now on.

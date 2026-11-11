@@ -589,6 +589,18 @@ describe("a mission its Manager runs (spec babysitter Fleet)", () => {
     expect(lines("boss")).toEqual(["Chef stopped the mission: The user changed their mind"]);
   });
 
+  it("gives a Codex Fleet and its Codex Manager the same tools, Remote Control aside (Claude's)", async () => {
+    await nodesStore.getState().create("codexSitter", {
+      workspaceId: "w1",
+      kind: "fleet",
+      payload: { name: "C", session: fleetSession("C", { cwd: "C:/p", shell: "default" }, "codex"), mission: { state: "en_cours", maxAgents: 2, manager: "codexBoss", members: [] } },
+    });
+    await nodesStore.getState().create("codexBoss", { workspaceId: "w1", kind: "terminal", payload: terminal("Manager", { agent: "codex", role: "manager", fleet: "codexSitter" }) });
+    const names = async (id: string) => ((await answer({ callId: 1, nodeId: id, method: "tools/list", params: {} })) as { tools: { name: string }[] }).tools.map((t) => t.name);
+    expect(await names("codexSitter")).toEqual(["mission", "propose_plan", "add_tasks", "queue", "prioritize", "tickets", "board", "team", "stop_mission", "spawn_agent", "output_guide", "read_node", "notes"]);
+    expect(await names("codexBoss")).toEqual(await names("boss"));
+  });
+
   it("gives Remote Control the Manager too, by its name", async () => {
     vi.mocked(setRemoteControl).mockResolvedValue({ on: true, url: "https://claude.ai/x" } as never);
     expect(textOf(await call("babysitter", "remote_control", { on: true, agents: ["manager"] }))).toContain("Manager: on");
