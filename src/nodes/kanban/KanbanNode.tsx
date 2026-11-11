@@ -47,6 +47,7 @@ import { createIssueForCard, detectRepo, linkBoard, moveCardWithGithub, parsePro
 import { useNativeKeyDown } from "@/lib/useNativeKeyDown";
 import { AccentButton, Hint, IconButton, QuietButton } from "@/shell/buttons";
 import { nodesStore, terminalOf, useNodes } from "@/store/nodes";
+import { uiStore } from "@/store/ui";
 import { KANBAN_PRIORITIES, type KanbanBoardLink, type KanbanCard, type KanbanColumn, type KanbanPayload, type KanbanPriority } from "@/nodes/types";
 import { KANBAN_CARD_MIME } from "./drag";
 import { kanbanNodeMessages } from "./messages";
@@ -179,6 +180,8 @@ export function KanbanNode({ nodeId }: { nodeId: string }) {
   const [announcement, setAnnouncement] = useState("");
   const rootRef = useRef<HTMLDivElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
+  // "Link an agent…" was picked: the link mode starts as the menu closes.
+  const linkAfterMenu = useRef(false);
 
   const landedColumn = record?.kind === "kanban" && landing ? record.payload.columns.find((c) => c.id === landing.columnId) : undefined;
   const landed = landing !== null && landedColumn?.cardIds[landing.index] === landing.cardId;
@@ -318,11 +321,26 @@ export function KanbanNode({ nodeId }: { nodeId: string }) {
         )}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <IconButton label={t.github.boardMenu}>
+            {/* Where the keyboard goes back when the link mode, started from this menu, ends (agents/LinkMode.tsx). */}
+            <IconButton label={t.github.boardMenu} data-board-menu={nodeId}>
               <MoreHorizontal />
             </IconButton>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
+          <DropdownMenuContent
+            align="end"
+            className="w-56"
+            // The mode starts once the menu has closed: while it is open it holds the keyboard, and the mode's list could
+            // not take it. The menu then hands nothing back to its button: the list has the keyboard.
+            onCloseAutoFocus={(e) => {
+              if (!linkAfterMenu.current) return;
+              linkAfterMenu.current = false;
+              e.preventDefault();
+              uiStore.getState().setLinking(nodeId);
+            }}
+          >
+            {/* The link mode (agents/LinkMode.tsx), started from the board: a click on an agent or a Fleet wires it here. */}
+            <DropdownMenuItem onSelect={() => (linkAfterMenu.current = true)}>{t.linkAgent}</DropdownMenuItem>
+            <DropdownMenuSeparator />
             <DropdownMenuItem onSelect={() => setLinking(true)}>{board.github ? t.github.editLink : t.github.link}</DropdownMenuItem>
             {board.github && (
               <>

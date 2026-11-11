@@ -218,9 +218,11 @@ export const agentsMessages = defineMessages({
       commandHint: "A Custom terminal runs it in its shell when it starts.",
     },
     link: {
-      hint: "Click a group or an agent to link, or pick one below · Esc to finish",
-      agentHint: "Click another agent or a fleet to link this agent, or pick one below · Esc to cancel",
-      kinds: { agent: "Agent", group: "Group", fleet: "Fleet" },
+      hint: "Click a group, an agent or a board to link, or pick one below · Esc to finish",
+      agentHint: "Click another agent, a fleet or a board to link this agent, or pick one below · Esc to cancel",
+      boardHint: "Click an agent or a fleet to link it to this board, or pick one below · Esc to cancel",
+      kinds: { agent: "Agent", group: "Group", fleet: "Fleet", board: "Board" },
+      boardName: (cards: number, repo?: string) => `Kanban board · ${repo ?? `${cards} ${cards === 1 ? "card" : "cards"}`}`,
       linked: "Linked",
     },
     ollama: {

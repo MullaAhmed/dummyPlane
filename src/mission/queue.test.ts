@@ -827,3 +827,88 @@ describe("a card the Fleet adds while its Manager runs the board (spec babysitte
     expect(to("chef")).toEqual([]);
   });
 });
+
+describe("a waiting task another agent is already at work on", () => {
+  const reported = { summary: "ok", status: "termine" as const, at: 1 };
+  /** Aquaman works on "Billing", its Kanban card c9, five minutes in; Batman is through. */
+  const billing = (extra: Partial<Mission> = {}) =>
+    setup({
+      maxAgents: 2,
+      plan: [
+        { title: "Login", brief: "Fais le login", agent: "Batman", budgetMin: 20 },
+        { title: "Billing", brief: "Add the billing page with its invoices table and its export", agent: "Aquaman", budgetMin: 20, card: "c9" },
+      ],
+      members: [member("batman", "Batman", { report: reported, merged: true }), member("aquaman", "Aquaman", { task: "Billing", sentAt: Date.now() - 5 * 60_000 })],
+      queue: [],
+      ...extra,
+    });
+  const aquamanWorks = () => agentActivityStore.setState({ activities: { aquaman: { activity: "working", since: 1 } } as never });
+  const told = () => lines().filter((line) => line.includes("is already working on"));
+
+  it("skips it, its card untouched, and tells the fleet once; the tasks behind it take the seat", async () => {
+    await billing({ queue: [{ ...next, title: "Invoices", card: "c9" }, { title: "Search", brief: "Index the catalogue so that the search box answers in under fifty milliseconds", budgetMin: 30, card: "c10" }] });
+    aquamanWorks();
+    await pumpQueue("chef");
+    await pumpQueue("chef");
+    await afterReport("chef", "batman");
+    // One seat of two was free: Search took it, Invoices stays in the queue, whole.
+    expect(created().map((m) => m.task)).toEqual(["Search"]);
+    expect(missionNow().queue).toEqual([{ ...next, title: "Invoices", card: "c9" }]);
+    expect(missionNow().plan?.some((task) => task.title === "Invoices")).toBe(false);
+    expect(told()).toEqual(['No new agent starts on "Invoices": Aquaman is already working on "Billing" (working, 5 of 20 min). It stays in the queue, its card untouched, and starts only once that agent is no longer on it. Message or read that agent instead.']);
+  });
+
+  it("starts it once that agent is no longer on it", async () => {
+    await billing({ queue: [{ ...next, title: "Invoices", card: "c9" }] });
+    aquamanWorks();
+    await pumpQueue("chef");
+    expect(created()).toEqual([]);
+    // Aquaman reports: its seat is free and the card is no longer one an agent is on.
+    nodesStore.getState().update("chef", { mission: { ...missionNow(), members: missionNow().members.map((m) => (m.nodeId === "aquaman" ? { ...m, report: reported, merged: true } : m)) } });
+    await pumpQueue("chef");
+    await vi.waitFor(() => expect(created().map((m) => m.task)).toEqual(["Invoices"]));
+    expect(missionNow().queue).toEqual([]);
+  });
+
+  it("does not look at a different task of the same mission", async () => {
+    await billing({ queue: [{ title: "Login page", brief: "Add the login page with its form and its error messages", budgetMin: 20, card: "c11" }] });
+    aquamanWorks();
+    await pumpQueue("chef");
+    await vi.waitFor(() => expect(created().map((m) => m.task)).toEqual(["Login page"]));
+    expect(told()).toEqual([]);
+  });
+
+  it("counts an agent between two turns, its report not given, and not one that stopped", async () => {
+    await billing({ queue: [{ ...next, title: "Refunds", card: "c9" }] });
+    // Idle: its turn ended, it still holds the task.
+    agentActivityStore.setState({ activities: { aquaman: { activity: "idle", since: 1 } } as never });
+    await pumpQueue("chef");
+    expect(created()).toEqual([]);
+    expect(told()).toEqual([expect.stringContaining('Aquaman is already working on "Billing" (between two turns, 5 of 20 min)')]);
+    // Stopped: nobody is on it.
+    terminalStatusStore.getState().set("aquaman", { state: "exited", code: 0 });
+    await pumpQueue("chef");
+    await vi.waitFor(() => expect(created().map((m) => m.task)).toEqual(["Refunds"]));
+  });
+
+  it("starts one agent for two tasks on one card in a single turn, the second skipped", async () => {
+    await setup({ queue: [{ ...next, title: "Tests A", card: "c5" }, { ...next, title: "Tests B", card: "c5" }], members: [member("batman", "Batman", { report: done, merged: true })] });
+    await pumpQueue("chef");
+    await vi.waitFor(() => expect(created().map((m) => m.task)).toEqual(["Tests A"]));
+    expect(missionNow().queue?.map((task) => task.title)).toEqual(["Tests B"]);
+    expect(told()).toHaveLength(1);
+    expect(told()[0]).toContain('"Tests A"');
+  });
+
+  it("next_task names who is on the waiting task, instead of saying nothing waits", async () => {
+    await billing({ queue: [{ ...next, title: "Invoices", card: "c9" }] });
+    aquamanWorks();
+    const batman = missionNow().members[0];
+    expect(await giveNext("chef", batman)).toEqual({
+      refused: 'The next task, "Invoices", cannot start: Aquaman is already working on "Billing" (working, 5 of 20 min). It starts once that agent is no longer on it.',
+    });
+    expect(created()).toEqual([]);
+    // The caller read it in the answer: the fleet is not told on top.
+    expect(told()).toEqual([]);
+  });
+});

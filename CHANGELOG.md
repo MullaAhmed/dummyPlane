@@ -24,6 +24,9 @@ All notable changes to dummyPlane are documented here. The format follows [Keep 
   - **Older missions:** a mission saved before runs the old way. Overnight runs, Codex Fleets and Remote Control work with the Manager.
 - **Agents hand tasks to their Fleet:** an agent you linked to a Fleet has a `hand_off` tool, listed when its session starts. While the mission runs, the task joins the queue as a card in the board's to-do column, noted *Handed off by* that agent, and a new agent takes it as a seat frees up; with no mission running, the task is typed to the Fleet, which plans it. The Fleet is told once, and a mission's own team never reaches it. `linked_agents` now lists the Fleet, and `message_agent` reaches it, which also serves an agent linked after its session started.
 - **Wires form when agents talk:** the first time one agent messages another (a message, a report, the Manager's instructions, a question passed up, a card handed on), a dashed talk wire joins them and pulses with every message. Inside a mission, the Manager and its agents reach each other without *+ Link*. A talk wire never makes an agent part of the Fleet's team.
+- **Link an agent to a Kanban board:** *+ Link* under a terminal, a Fleet's *+ Link*, or *Link an agent…* in the board's ⋯ menu wires an agent or a Fleet to a board, the way agents are linked to each other. Deleting the wire or the board unlinks them.
+  - **The agent's side:** three tools, `linked_boards`, `add_board_card` and `move_board_card`, read the wired boards and add or move their cards, on the very board you see. A card linked to a GitHub issue moves its issue too, and a card's text is always data, never instructions.
+  - **A mission's board stays the Manager's:** a Fleet or an agent wired to it can read it, never change it while the mission runs. The Manager's tools, the Fleet's `board` and the mission's own wires are as they were. A plain shell and a Manager have no board to link.
 - **An output node:** an agent shows a result with the `show_output` tool instead of a wall of text: a report, a summary, a comparison, a table, figures or a chart. It appears beside the agent's terminal, wired to it, under the same header as terminals.
   - **How it's drawn:** [OpenUI](https://www.openui.com/) Lang, with dummyPlane's own components (cards, tables, stats, callouts, code, bar and line charts, links, buttons…) in the palette's colours.
   - **Buttons:** a button types its message into the agent that made the output, only when you click it.
@@ -81,6 +84,7 @@ All notable changes to dummyPlane are documented here. The format follows [Keep 
   - **What it doesn't do:** a task you type by hand has no level, so the switch does nothing there. A sub-task without a level leaves a terminal whose switch is on on the model it has. Switching it never offers *Restart now*: no launch setting changes until a mission gives the terminal a sub-task.
   - **Narrow nodes:** the header's switch needs 28rem of node, like the model chip; *Model router* is also in the terminal's ⋯ menu and in its *Edit* tab at any width.
   - **The Fleet knows:** its `mission` answer marks the linked agents whose router is on (`router`), so it gives their sub-tasks a level.
+- **No two agents on one task:** an agent's `spawn_agent`, the Fleet's `add_tasks` and `propose_plan`, a linked agent's `hand_off`, and the queue starting a waiting task no longer open an agent on a task another is already working on (the same Kanban card, the same title, or nearly the same brief); they say who is on it, and a queued duplicate stays in the queue, its card untouched, until that agent is done. Terminals you open and messages you type are never held back.
 
 ### Changed
 - **"Agent exited":** when Claude quits and its terminal is back at the shell, the node says so, in its header, the agents panel and its card, with *Resume* and *Restart*, instead of still reading *Ready*.
@@ -98,7 +102,7 @@ All notable changes to dummyPlane are documented here. The format follows [Keep 
 - **The database is upgraded once more on first start:** migration 5 gives each workspace an optional folder, and migration 6 lets a project have its Notes tab. dummyPlane keeps a copy of the database first (`dummyplane.v4-backup.db`, or `v5` if you ran a development build).
 - **One header for terminals and the Fleet:** the same name field, status, buttons and overflow menu (⋯) on both, and the same rules when a node is narrow.
 - **Interface consistency:** panels, dialogs, menus and hints follow the design system: the same controls, dialog footers, one hint at a time and one set of motions, with a press that eases on scale.
-- **Double-click selects:** a double-click on a terminal or the Fleet selects it with any tool.
+- **Click or double-click selects:** a click or a double-click on a terminal or the Fleet selects it with any tool.
 - **Agents stacked under a Fleet or in a group are spaced further apart,** to leave room for their step frieze.
 
 ### Fixed
@@ -107,6 +111,7 @@ All notable changes to dummyPlane are documented here. The format follows [Keep 
   - **In its header:** a sticky switch with the clock, from 28rem of node on, and an entry in its ⋯ menu at any width.
   - **In its *Edit* tab:** the same switch, in any state of the mission (the panel's row goes at the go-ahead), so the tasks it queues are routed too.
   - **Not offered:** a Fleet on Codex, whose levels would name models Codex does not have.
+- **One click selects a terminal or the Fleet with any tool:** with the Hand, a shape, an arrow, the pen, the text or the Eraser, a click on one selects it and brings back the selection tool, without a double-click. A drag still draws or pans, the Eraser still never erases a terminal, the Laser still only points, and a click that adds a point to an arrow under way stays that arrow's.
 - **Alerts and notifications on brand:**
   - **Toast types:** each has its own icon shape in its status colour, so an error reads as one.
   - **Toast text and buttons:** the text and description use the app's type and inks, the buttons are the app's buttons with their focus ring and press, and the font and motion are the app's. All are checked in every palette.

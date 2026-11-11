@@ -625,6 +625,58 @@ export function withAgentLink(elements: readonly ExcalidrawElement[], fromId: st
   return addWire(elements, from, to, palette, false);
 }
 
+const isLiveBoard = (element: ExcalidrawElement | undefined): element is ExcalidrawElement =>
+  element !== undefined && !element.isDeleted && nodeKindOf(element) === "kanban";
+
+const isLiveFleet = (element: ExcalidrawElement | undefined): element is ExcalidrawElement =>
+  element !== undefined && !element.isDeleted && nodeKindOf(element) === "fleet";
+
+/**
+ * The Kanban boards wired to `nodeId`, an agent (a terminal) or a Fleet, either way round: the link the user draws
+ * with "+ Link" gives the agent that board's cards (`@/mcp/boardTools`), and deleting the wire or the board cuts
+ * it. A talk wire (drawn because a message passed) and a spawn wire link nobody: only a wire the user drew counts.
+ * A mission's own wires (its Fleet to its board, its board to its Manager) are plain wires too: the tools that
+ * write refuse a mission's board (`@/agents/boardLinks`).
+ */
+export function boardLinksOf(elements: readonly ExcalidrawElement[], nodeId: string): string[] {
+  const byId = new Map(elements.map((e) => [e.id, e]));
+  const boards: string[] = [];
+  for (const element of elements) {
+    if (element.isDeleted || element.type !== "arrow" || !isWire(element) || isSpawnWire(element) || isTalkWire(element)) continue;
+    const { startBinding, endBinding } = element as ExcalidrawArrowElement;
+    if (!startBinding || !endBinding) continue;
+    const start = byId.get(startBinding.elementId);
+    const end = byId.get(endBinding.elementId);
+    const [node, board] = isLiveBoard(end) ? [start, end] : [end, start];
+    if (!isLiveBoard(board) || node?.id !== nodeId || (!isLiveTerminal(node) && !isLiveFleet(node))) continue;
+    if (!boards.includes(board.id)) boards.push(board.id);
+  }
+  return boards;
+}
+
+/**
+ * `elements` with a wire from agent (or Fleet) `agentId` to the Kanban board `boardId`, unless they are not what a
+ * link joins or one already links them. A talk wire already joining them becomes the link (solid), as `withWire` does
+ * for a Fleet's.
+ */
+export function withBoardLink(elements: readonly ExcalidrawElement[], agentId: string, boardId: string, palette: ThemeChoice = currentPalette()): ExcalidrawElement[] {
+  const agent = elements.find((e) => e.id === agentId);
+  const board = elements.find((e) => e.id === boardId);
+  if (!isLiveBoard(board) || (!isLiveTerminal(agent) && !isLiveFleet(agent))) return [...elements];
+  if (boardLinksOf(elements, agentId).includes(boardId)) return [...elements];
+  return withWire(elements, agentId, boardId, palette);
+}
+
+/** What a click of "Link" designates on a Kanban board: the topmost board under the pointer. */
+export function boardAt(elements: readonly ExcalidrawElement[], point: Point): string | null {
+  for (let i = elements.length - 1; i >= 0; i--) {
+    const e = elements[i];
+    if (!isLiveBoard(e)) continue;
+    if (point.x >= e.x && point.x <= e.x + e.width && point.y >= e.y && point.y <= e.y + e.height) return e.id;
+  }
+  return null;
+}
+
 /** Who spawned a terminal (its payload's `spawnedBy`); null or undefined for none. */
 export type SpawnerOf = (nodeId: string) => string | null | undefined;
 
