@@ -1,4 +1,4 @@
-import { toast } from "sonner";
+import { toastError } from "@/lib/errorToast";
 import { messages } from "@/i18n";
 import { call } from "@/ipc/invoke";
 import type { AgentId } from "@/ipc/pty";
@@ -28,7 +28,7 @@ export async function openDataDir() {
   try {
     await call<void>("open_data_dir");
   } catch (error) {
-    toast.error(messages(appMessages).dataFailed, { description: error instanceof Error ? error.message : String(error) });
+    toastError(messages(appMessages).dataFailed, { error });
   }
 }
 

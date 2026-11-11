@@ -1,5 +1,5 @@
 import { open } from "@tauri-apps/plugin-dialog";
-import { toast } from "sonner";
+import { toastError } from "@/lib/errorToast";
 import { messages } from "@/i18n";
 import { projectsStore } from "@/store/projects";
 import { homeMessages } from "./messages";
@@ -11,5 +11,5 @@ export async function addProject() {
   await projectsStore
     .getState()
     .add(picked)
-    .catch((error: unknown) => toast.error(messages(homeMessages).addFailed(String(error))));
+    .catch((error: unknown) => toastError(messages(homeMessages).addFailed, { error }));
 }

@@ -24,7 +24,9 @@ it("says the start failed instead of loading forever", async () => {
   document.body.append(host);
   const root = createRoot(host);
   await act(async () => root.render(<App />));
-  expect(host.textContent).toContain("dummyPlane could not start: local server refused");
+  // What failed in the app's words, then the error's own text as a detail, never in the title (Alerts).
+  expect(host.querySelector('[role="alert"] p')!.textContent).toBe("dummyPlane could not start");
+  expect(host.textContent).toContain("local server refused");
   // No dead end: the screen offers to try again, the logs and the troubleshooting dialog.
   for (const action of ["Try again", "Open the logs folder", "Troubleshooting…"]) {
     expect([...host.querySelectorAll("button")].some((b) => b.textContent === action)).toBe(true);

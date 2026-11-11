@@ -3,7 +3,7 @@ import { CaptureUpdateAction, Excalidraw, getSceneVersion, newElementWith } from
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { AppState, BinaryFiles, ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import "@excalidraw/excalidraw/index.css";
-import { toast } from "sonner";
+import { toastError } from "@/lib/errorToast";
 import { usePalette, useTheme } from "@/app/theme";
 import { Button } from "@/components/ui/button";
 import { completeArrival } from "@/commands/pendingArrival";
@@ -53,7 +53,7 @@ import { createSceneSync, liveNodeIds, liveNodeRects } from "./sceneSync";
 import { messages, useMessages } from "@/i18n";
 import { canvasMessages } from "./messages";
 
-const reportSaveError = (error: unknown) => toast.error(messages(canvasMessages).saveFailed(String(error)));
+const reportSaveError = (error: unknown) => toastError(messages(canvasMessages).saveFailed, { error });
 
 /**
  * One Excalidraw instance per workspace; remounted (via `key`) when switching. A scene that

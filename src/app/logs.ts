@@ -1,4 +1,4 @@
-import { toast } from "sonner";
+import { toastError } from "@/lib/errorToast";
 import { messages } from "@/i18n";
 import { call } from "@/ipc/invoke";
 import { appMessages } from "./messages";
@@ -8,6 +8,6 @@ export async function openLogDir() {
   try {
     await call<void>("open_log_dir");
   } catch (error) {
-    toast.error(messages(appMessages).logsFailed, { description: error instanceof Error ? error.message : String(error) });
+    toastError(messages(appMessages).logsFailed, { error });
   }
 }

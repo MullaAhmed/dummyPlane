@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { getSetting, setSetting } from "@/ipc/db";
 import { readSource } from "@/theme/cssBlocks";
 import { finishAlertsStore, loadFinishAlerts, setFinishAlerts } from "./finishAlertsSetting";
+import { errorToasts } from "@/lib/errorToast.testkit";
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 vi.mock("@/ipc/db", () => ({ getSetting: vi.fn(), setSetting: vi.fn(() => Promise.resolve()) }));
@@ -45,7 +46,8 @@ describe("the \"Alert when an agent finishes\" setting", () => {
     vi.mocked(setSetting).mockRejectedValue(new Error("disk full"));
     await setFinishAlerts(false);
     expect(enabled()).toBe(false);
-    expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("disk full"));
+    expect(errorToasts(vi.mocked(toast.error))).toEqual([{ title: "Could not save the setting", description: expect.stringContaining("disk full") }]);
+    expect(errorToasts(vi.mocked(toast.error))[0].description).toContain("It applies for now");
   });
 
   it("is in the settings menu, read at boot, and finishes are heard once the activity snapshot is known", () => {

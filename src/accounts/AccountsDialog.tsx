@@ -1,5 +1,6 @@
 import { useId, useState } from "react";
 import { toast } from "sonner";
+import { toastError } from "@/lib/errorToast";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -26,7 +27,7 @@ export function AccountsDialog() {
   const id = useId();
 
   const guarded = (run: () => Promise<unknown>) => () =>
-    run().catch((error: unknown) => toast.error(t.failed(error instanceof Error ? error.message : String(error))));
+    run().catch((error: unknown) => toastError(t.failed, { error }));
   const add = guarded(async () => {
     await addProfile(name, folder);
     setName("");

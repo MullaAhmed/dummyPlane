@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type ReactElement } from "react";
 import { Check, Kanban, Network, SquareTerminal } from "lucide-react";
-import { toast } from "sonner";
+import { toastError } from "@/lib/errorToast";
 import { useUiRequest } from "@/commands/uiRequests";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -143,7 +143,7 @@ export function AgentMenu({
     // Only a Custom terminal runs its command: another agent would just carry it.
     const kept = agent === "custom" ? launch : { ...launch, command: "" };
     // "Other agent…" of the radial menu: launched where the right click was (spec menu radial §4.1).
-    if (placeAt) void launchAgent(agent, kept, placeAt).catch((error: unknown) => toast.error(messages(agentsMessages).launchFailed(String(error))));
+    if (placeAt) void launchAgent(agent, kept, placeAt).catch((error: unknown) => toastError(messages(agentsMessages).launchFailed, { error, next: messages(agentsMessages).launchNext }));
     else uiStore.getState().setPlacing({ agent, options: kept });
   };
 

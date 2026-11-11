@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { BookOpen, Code2, Folder, Plus, X } from "lucide-react";
-import { toast } from "sonner";
+import { toastError } from "@/lib/errorToast";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,7 +14,6 @@ import { useUiRequest } from "@/commands/uiRequests";
 import { useWorkspaceActiveAgents } from "@/agents/agentCounts";
 import { folderName, launchFolderStore, pickFolder } from "@/agents/launchFolder";
 import { messages, useMessages } from "@/i18n";
-import { errorText } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useProjects } from "@/store/projects";
 import { useRunningCount } from "@/store/running";
@@ -29,7 +28,7 @@ type Failure = "renameFailed" | "deleteFailed" | "createFailed" | "folderFailed"
 
 const fail = (what: Failure) => (error: unknown) => {
   const t = messages(shellMessages);
-  toast.error(t.failed(t.tabs[what], errorText(error)));
+  toastError(t.tabs[what], { error });
 };
 
 /** The tab being dragged (a drag stays inside this row). */

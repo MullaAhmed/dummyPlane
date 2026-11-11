@@ -4,6 +4,7 @@ import { messages } from "@/i18n";
 import { canvasMessages } from "./messages";
 
 it("speaks English for the canvas texts", () => {
-  expect(messages(canvasMessages).saveFailed("disk full")).toBe("Could not save: disk full");
+  // What failed, in the app's words: the error itself goes under it, never into the title (Alerts).
+  expect(messages(canvasMessages).saveFailed).toBe("Could not save the canvas");
   expect(messages(canvasMessages).loading).toBe("Loading…");
 });

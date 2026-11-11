@@ -1,5 +1,5 @@
 import { Ellipsis } from "lucide-react";
-import { toast } from "sonner";
+import { toastError } from "@/lib/errorToast";
 import { groupPantheons } from "@/canvas/groups";
 import { useCanvas } from "@/canvas/canvasStore";
 import {
@@ -78,7 +78,7 @@ export function OutsideNamesMenu() {
             void workspacesStore
               .getState()
               .setPantheon(workspace.id, id)
-              .catch((error: unknown) => toast.error(t.settingNotSaved(String(error))))
+              .catch((error: unknown) => toastError(t.settingNotSaved, { error }))
           }
         />
         <p className={HINT}>{t.groupMenu.namesHint}</p>

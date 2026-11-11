@@ -1,5 +1,5 @@
 import { CaptureUpdateAction } from "@excalidraw/excalidraw";
-import { toast } from "sonner";
+import { toastError } from "@/lib/errorToast";
 import { canvasStore } from "@/canvas/canvasStore";
 import { createNodeElement } from "@/canvas/nodeElement";
 import { viewportCenter } from "@/agents/placement";
@@ -28,6 +28,6 @@ export function placeKanban(at?: Point) {
   const workspaceId = workspacesStore.getState().activeId;
   if (!workspaceId) return;
   void addKanban(workspaceId, at ?? viewportCenter(canvasStore.getState().view)).catch((error: unknown) =>
-    toast.error(messages(kanbanMessages).placeFailed(String(error))),
+    toastError(messages(kanbanMessages).placeFailed, { error }),
   );
 }

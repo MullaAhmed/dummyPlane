@@ -1,7 +1,7 @@
 import { createStore, useStore } from "zustand";
 import { fromStoredKind } from "@/canvas/nodeElement";
 import { saveNode, type StoredNode } from "@/ipc/db";
-import { toast } from "sonner";
+import { toastError } from "@/lib/errorToast";
 import { messages } from "@/i18n";
 import { storeMessages } from "./messages";
 import { debounce, type Debounced } from "@/lib/debounce";
@@ -66,7 +66,7 @@ export function createNodesStore() {
         // The timer drops the result: a refused save must reach the user, not the console as an unhandled rejection.
         save = debounce(() => {
           const written = write(id);
-          written?.catch((error: unknown) => toast.error(messages(storeMessages).saveFailed(String(error))));
+          written?.catch((error: unknown) => toastError(messages(storeMessages).saveFailed, { error }));
           return written;
         }, SAVE_DELAY_MS);
         pendingSaves.set(id, save);

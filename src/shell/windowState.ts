@@ -1,5 +1,5 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { toast } from "sonner";
+import { toastError } from "@/lib/errorToast";
 import { createStore } from "zustand";
 import { messages } from "@/i18n";
 import { shellMessages } from "./messages";
@@ -12,7 +12,7 @@ type Failure = "minimizeFailed" | "restoreFailed" | "maximizeFailed" | "closeFai
 function perform(action: () => Promise<void>, failure: Failure) {
   void action().catch((error: unknown) => {
     const t = messages(shellMessages);
-    toast.error(t.failed(t.window[failure], String(error)));
+    toastError(t.window[failure], { error });
   });
 }
 

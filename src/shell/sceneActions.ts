@@ -1,4 +1,4 @@
-import { toast } from "sonner";
+import { toastError } from "@/lib/errorToast";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { currentPalette } from "@/app/theme";
 import { messages } from "@/i18n";
@@ -10,7 +10,7 @@ import { exportPng, exportScene, importScene } from "./sceneFiles";
 function run(action: (api: ExcalidrawImperativeAPI) => Promise<boolean>, failure: "exportFailed" | "importFailed") {
   const api = canvasStore.getState().api;
   if (!api) return;
-  action(api).catch((error: unknown) => toast.error(messages(shellMessages).failed(messages(shellMessages).scene[failure], String(error))));
+  action(api).catch((error: unknown) => toastError(messages(shellMessages).scene[failure], { error }));
 }
 
 /** The file name of the scene on screen: its workspace's. */

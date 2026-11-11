@@ -83,7 +83,7 @@ export const nodesMessages = defineMessages(
       notFound: "Terminal not found",
       duplicate: "Duplicate",
       close: "Close",
-      duplicateFailed: (error: string) => `Could not duplicate: ${error}`,
+      duplicateFailed: "Could not duplicate the terminal",
       imagePasteFailed: "Could not paste the image",
       nothingToPaste: "Nothing to paste",
       nothingToPasteDetail: "The clipboard holds no text and no PNG, JPEG, GIF or WebP image",

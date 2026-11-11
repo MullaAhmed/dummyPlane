@@ -1,6 +1,7 @@
 import { useEffect, useId, useState, type ReactNode } from "react";
 import { Check, Circle, TriangleAlert, X } from "lucide-react";
 import { toast } from "sonner";
+import { toastError } from "@/lib/errorToast";
 import { OptionItem, OptionList } from "@/components/OptionList";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -127,7 +128,7 @@ function OvernightForm({ nodeId, onOpenChange }: { nodeId: string; onOpenChange:
       toast.info(o.linearStepsCodex, { duration: 12_000 });
       codexLinearLogin().then(
         () => toast.success(o.linearSigned),
-        (error: unknown) => toast.error(o.linearFailed(errorText(error))),
+        (error: unknown) => toastError(o.linearFailed, { error }),
       );
       return;
     }

@@ -7,7 +7,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { toast } from "sonner";
+import { toastError } from "@/lib/errorToast";
 import { useMessages } from "@/i18n";
 import { projectsStore, useProjects } from "@/store/projects";
 import { shellMessages } from "./messages";
@@ -35,7 +35,7 @@ export function ProjectPicker() {
             disabled={project.missing}
             onSelect={() => {
               if (project.id === activeId) return;
-              void projectsStore.getState().open(project.id).catch((error: unknown) => toast.error(t.openFailed(String(error))));
+              void projectsStore.getState().open(project.id).catch((error: unknown) => toastError(t.openFailed, { error }));
             }}
           >
             <Folder />

@@ -7,7 +7,6 @@ export const shellMessages = defineMessages(
     /** The name of an agent that has none, in a list of names. */
     fallbackAgent: "Agent",
     percent: (n: number) => `${n}%`,
-    failed: (what: string, error: string) => `${what}: ${error}`,
     activityRail: { agents: "Agents", agentsWaiting: (count: number) => `Agents, ${count} waiting`, notes: "Notes", settings: "Settings" },
     agentCounts: {
       working: "Agents working",
@@ -23,9 +22,18 @@ export const shellMessages = defineMessages(
       question: (name: string) => `${name} has a question`,
       others: (count: number) => `+ ${plural(count, "more", "more")}`,
     },
+    /**
+     * Every Windows notification (`./waitingAlert`, `./finishAlert`): the agent and its state in the title, one line in
+     * the body. Windows already names dummyPlane, with its icon, above them; the in-window finish toast reads the same.
+     */
+    notification: {
+      title: (name: string, state: string) => `${name} · ${state}`,
+      waiting: "Waiting",
+      /** A fixed line, never the question: a notification can show on the lock screen (spec notification §7). */
+      question: "Has a question for you",
+    },
     /** A main agent finished (`@/shell/finishAlert`): a report, a mission's end, or a turn after real work. */
     finishAlert: {
-      title: (name: string, state: string) => `${name} · ${state}`,
       states: { done: "Done", blocked: "Blocked", failed: "Failed", finished: "Finished" },
       /** A turn that ended without a report: nothing it said to show. */
       turnOver: "Ready for your next message",
@@ -78,7 +86,7 @@ export const shellMessages = defineMessages(
     /** The start-up error screen: what failed, then the ways out. */
     statusScreen: { tryAgain: "Try again", openLogs: "Open the logs folder", troubleshooting: "Troubleshooting…" },
     modeExit: { zen: "Leave zen mode", reading: "Leave reading mode" },
-    projectPicker: { project: "Project", allProjects: "All projects…", closeProject: "Close the project", openFailed: (error: string) => `Could not open: ${error}` },
+    projectPicker: { project: "Project", allProjects: "All projects…", closeProject: "Close the project", openFailed: "Could not open the project" },
     searchField: { project: "Search for a project", inProject: (name: string) => `Search in ${name}`, shortcut: "Ctrl+P" },
     settings: {
       theme: "Theme",
@@ -128,8 +136,8 @@ export const shellMessages = defineMessages(
       report: "Report a problem",
     },
     scene: {
-      exportFailed: "Export failed",
-      importFailed: "Import failed",
+      exportFailed: "Could not export the scene",
+      importFailed: "Could not import the scene",
       excalidrawScene: "Excalidraw scene",
       pngImage: "PNG image",
     },
@@ -178,10 +186,10 @@ export const shellMessages = defineMessages(
       maximize: "Maximize",
       restore: "Restore",
       close: "Close dummyPlane",
-      minimizeFailed: "Could not minimize",
-      restoreFailed: "Could not restore",
-      maximizeFailed: "Could not maximize",
-      closeFailed: "Could not close",
+      minimizeFailed: "Could not minimize the window",
+      restoreFailed: "Could not restore the window",
+      maximizeFailed: "Could not maximize the window",
+      closeFailed: "Could not close the window",
     },
     zoom: { out: "Zoom out", in: "Zoom in", reset: "Back to 100%" },
     tabs: {
@@ -203,10 +211,10 @@ export const shellMessages = defineMessages(
       /** A tab's name: what it shows, in words ("Backend, in api, 2 active agents"); a bare badge digit says nothing. */
       tabName: (name: string, folder: string | null, running: number) =>
         [name, folder === null ? null : `in ${folder}`, running > 0 ? plural(running, "active agent", "active agents") : null].filter((part) => part !== null).join(", "),
-      renameFailed: "Could not rename",
-      deleteFailed: "Could not delete",
-      createFailed: "Could not create",
-      folderFailed: "Could not change the folder",
+      renameFailed: "Could not rename the workspace",
+      deleteFailed: "Could not delete the workspace",
+      createFailed: "Could not create the workspace",
+      folderFailed: "Could not change the workspace's folder",
     },
     removeWorkspace: {
       title: (name: string) => `Delete “${name}”?`,
@@ -219,7 +227,7 @@ export const shellMessages = defineMessages(
       ok: "Delete",
       cancel: "Cancel",
     },
-    projectView: { loadFailed: (error: string) => `Could not load the workspaces: ${error}` },
+    projectView: { loadFailed: "Could not load the workspaces" },
     usage: {
       title: "Usage",
       titleWithLimits: "Usage of your Claude plan · click for details",

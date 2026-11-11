@@ -1,4 +1,5 @@
 import { toast } from "sonner";
+import { toastError } from "@/lib/errorToast";
 import { arrive } from "@/canvas/arrive";
 import { canvasStore } from "@/canvas/canvasStore";
 import { messages } from "@/i18n";
@@ -38,12 +39,12 @@ async function openCommandTerminal(title: string, command: string, shell: ShellK
   try {
     const center = at ?? viewportCenter(canvasStore.getState().view);
     const nodeId = await launchAgent("custom", { ...defaultLaunchOptions(), title, command, shell, oneShot: true }, center);
-    if (!nodeId) toast.error(t.install.noCanvas);
+    if (!nodeId) toastError(t.install.noCanvas);
     // The installer may ask something: the terminal comes into view with the keyboard.
     else arrive(nodeId);
     return nodeId;
   } catch (error) {
-    toast.error(t.launchFailed(String(error)));
+    toastError(t.launchFailed, { error, next: t.launchNext });
     return null;
   }
 }

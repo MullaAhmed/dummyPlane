@@ -6,6 +6,7 @@ import { blend, contrast } from "./colorMath";
 import { cssBlock, readSource, sourceFiles } from "./cssBlocks";
 import { BAR_TOKEN, GROUND_TOKENS, PROGRESS_TOKEN, SERIES_HUES, TEXT_TOKENS, TONES, TONE_BORDER, TONE_RULE, TONE_TEXT, TONE_TOKEN } from "@/openui/tones";
 import { SYNTAX_HUES } from "@/studio/syntaxHues";
+import { TOAST_CLASSES, TOAST_TONES } from "@/components/ui/sonner";
 
 const tokens = readSource("theme/tokens.css");
 
@@ -241,5 +242,54 @@ describe("an agent's generated output (src/openui) reads in every palette", () =
     const sources = sourceFiles();
     expect(sources["openui/charts.tsx"]).toContain(`fill-${BAR_TOKEN.slice(2)}`);
     expect(sources["openui/parts.tsx"]).toContain(`bg-${PROGRESS_TOKEN.slice(2)}`);
+  });
+});
+
+describe("toasts: every type, the description, the detail and the buttons read in every palette (Alerts)", () => {
+  /** The token a class names: `text-dp-ok` → `--dp-ok`, `hover:bg-dp-hover` → `--dp-hover`. */
+  const token = (classes: string, prefix: string) => {
+    const match = new RegExp(`(?:^|\\s)${prefix}dp-([\\w-]+)(?=\\s|$)`).exec(classes);
+    expect(match, `${prefix}dp-… in "${classes}"`).not.toBeNull();
+    return `--dp-${match![1]}`;
+  };
+  /** The detail line of an error toast (lib/errorToast.tsx): its class string. */
+  const detail = /className="([^"]*font-mono[^"]*)"/.exec(readSource("lib/errorToast.tsx"))![1];
+
+  it("writes the title, the description and an error's detail at 4.5:1 on the toast's surface", () => {
+    for (const [palette, selector] of Object.entries(PALETTES)) {
+      const t = cssBlock(tokens, selector);
+      for (const [part, classes] of [["title", TOAST_CLASSES.title], ["description", TOAST_CLASSES.description], ["detail", detail]]) {
+        expect(contrast(t[token(classes, "text-")], t["--dp-surface"]), `${palette} toast ${part}`).toBeGreaterThanOrEqual(4.5);
+      }
+    }
+  });
+
+  it("draws each type's icon in a status colour that reads at 4.5:1 on the surface, a tone of its own", () => {
+    for (const [palette, selector] of Object.entries(PALETTES)) {
+      const t = cssBlock(tokens, selector);
+      const tones = Object.entries(TOAST_TONES).map(([type, classes]) => [type, token(classes, "text-")] as const);
+      for (const [type, tone] of tones) {
+        expect(contrast(t[tone], t["--dp-surface"]), `${palette} ${type} icon`).toBeGreaterThanOrEqual(4.5);
+      }
+      // The four types that tell something have four tones (the loader is the quiet text).
+      expect(new Set(tones.filter(([type]) => type !== "loading").map(([, tone]) => t[tone])).size, palette).toBe(4);
+    }
+  });
+
+  it("writes the action and the cancel at 4.5:1 on their fill, at rest and under the pointer", () => {
+    for (const [palette, selector] of Object.entries(PALETTES)) {
+      const t = cssBlock(tokens, selector);
+      const surface = t["--dp-surface"];
+      const hover = over(surface, t[token(TOAST_CLASSES.actionButton, "hover:bg-")]);
+      // The action: the outline button, its own surface fill.
+      const action = TOAST_CLASSES.actionButton;
+      const fill = t[token(action, "bg-")];
+      expect(contrast(t[token(action, "text-")], fill), `${palette} action`).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(t[token(action, "hover:text-")], hover), `${palette} action, pointed at`).toBeGreaterThanOrEqual(4.5);
+      // The cancel: the ghost, a step quieter, on the toast's surface.
+      const cancel = TOAST_CLASSES.cancelButton;
+      expect(contrast(t[token(cancel, "text-")], surface), `${palette} cancel`).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(t[token(cancel, "hover:text-")], over(surface, t[token(cancel, "hover:bg-")])), `${palette} cancel, pointed at`).toBeGreaterThanOrEqual(4.5);
+    }
   });
 });

@@ -59,7 +59,8 @@ function ResumeAllToast({ workspaceId }: { workspaceId: string }) {
     <div className="dp-glass-strong flex w-90 items-start gap-3 rounded-lg p-4 text-dp-text">
       <History className="mt-0.5 size-4 shrink-0 text-dp-text-2" />
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium">{t.title}</p>
+        {/* The toasts' type (components/ui/sonner.tsx, TOAST_CLASSES): the UI step for the title, 12 px a step quieter under it. */}
+        <p className="text-(length:--text-ui) font-medium">{t.title}</p>
         <p className="text-xs text-dp-text-2">{t.body(ids.length)}</p>
         <div className="mt-3 flex gap-2">
           <AccentButton size="sm" onClick={resumeAll}>

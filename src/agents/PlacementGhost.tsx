@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { toastError } from "@/lib/errorToast";
 import { canvasStore, useCanvas, type CanvasView } from "@/canvas/canvasStore";
 import { groupAt } from "@/canvas/groups";
 import { messages, useMessages } from "@/i18n";
@@ -30,7 +30,7 @@ function placeAt(placing: Placement, client: Point) {
   const workspaceId = workspacesStore.getState().activeId;
   const placed =
     "fleet" in placing ? (workspaceId ? addFleet(workspaceId, center) : Promise.resolve()) : launchAgent(placing.agent, placing.options, center);
-  void placed.catch((error: unknown) => toast.error(messages(agentsMessages).launchFailed(String(error))));
+  void placed.catch((error: unknown) => toastError(messages(agentsMessages).launchFailed, { error, next: messages(agentsMessages).launchNext }));
 }
 
 /**

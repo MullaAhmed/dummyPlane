@@ -1,4 +1,4 @@
-import { toast } from "sonner";
+import { toastError } from "@/lib/errorToast";
 import { createStore, useStore } from "zustand";
 import { messages } from "@/i18n";
 import { setSubagentTerminals } from "@/ipc/app";
@@ -50,7 +50,7 @@ export async function loadSubagentSettings() {
 }
 
 const saved = (key: string, value: unknown) =>
-  setSetting(key, value).catch((error: unknown) => toast.error(messages(appMessages).settingNotSaved(message(error))));
+  setSetting(key, value).catch((error: unknown) => toastError(messages(appMessages).settingNotSaved, { error, next: messages(appMessages).settingForNow }));
 
 export async function setSubagentTerminalsSetting(terminals: boolean) {
   subagentSettingsStore.setState({ terminals });

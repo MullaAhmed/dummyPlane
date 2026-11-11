@@ -14,7 +14,9 @@ export const fleetMessages = defineMessages({
     cancel: "Cancel",
     use: (agent: string) => `Use ${agent}`,
     menu: (agent: string) => `Fleet agent: ${agent}…`,
-    notSaved: (error: string) => `The Fleet's agent was not saved: ${error}`,
+    notSaved: "Could not save the Fleet's agent",
+    /** Chosen on screen, not on disk. */
+    forNow: "It applies for now; dummyPlane will not remember it after a restart",
     notInstalled: (agent: string) => `${agent} is not installed, and the Fleet runs on it. Install it, or choose another CLI in Settings, Fleet agent.`,
   },
 });

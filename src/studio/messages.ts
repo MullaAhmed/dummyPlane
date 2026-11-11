@@ -20,7 +20,9 @@ export const studioMessages = defineMessages({
   closeTab: (name: string) => `Close ${name}`,
   save: "Save (Ctrl+S)",
   saving: "Saving…",
-  saveFailed: (path: string, error: string) => `${path} was not saved: ${error}`,
+  saveFailed: (path: string) => `Could not save ${path}`,
+  /** The tab keeps its changes when a save fails. */
+  saveNext: "Your changes stay in the tab: save again",
   saveConflict: (path: string) => `${path} changed on disk: choose which version to keep first`,
   failed: (error: string) => `Failed: ${error}`,
   changedOnDisk: "This file changed on disk, most likely because of an agent",

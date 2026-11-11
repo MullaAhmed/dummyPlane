@@ -68,7 +68,7 @@ Règles :
 - **Texte non fiable** : son origine n'est pas documentée, il peut reprendre des noms d'outils ou de serveurs MCP. Rust le nettoie à la réception : séquences d'échappement retirées avec leur contenu, caractères de contrôle retirés, caractères de direction et invisibles retirés (ils peuvent déguiser un texte ou laisser une ligne vide), espaces regroupés. Le nettoyage est itératif : un corps de hook rempli de séquences imbriquées ne peut pas épuiser la pile. L'interface l'affiche en texte brut, jamais en HTML ni en Markdown.
 - **Longueur** : 140 caractères au plus, coupés avec « … ». L'affichage tronque sur une ligne ; l'infobulle montre le texte plafonné.
 - **Durée de vie** : l'aperçu ne vit que le temps de l'attente. Un nouveau hook d'attente le remplace, ou l'efface s'il n'a pas de message, sans changer l'ordre d'attente. Une date à plus de 50 ms de la date gardée désigne une autre attente, pour que les événements arrivés dans le désordre restent écartés.
-- **Dans la fenêtre seulement** : la notification Windows garde « <nom> a une question ». Elle peut s'afficher sur l'écran verrouillé, où un chemin ou un nom de commande n'a rien à faire.
+- **Dans la fenêtre seulement** : la notification Windows garde sa ligne fixe (§8), jamais la question. Elle peut s'afficher sur l'écran verrouillé, où un chemin ou un nom de commande n'a rien à faire.
 
 Le texte d'exemple de la documentation est générique (« Claude needs your permission ») et en anglais quelle que soit la langue de l'interface : l'aperçu peut donc dire peu de chose.
 
@@ -77,7 +77,7 @@ Le texte d'exemple de la documentation est générique (« Claude needs your per
 Ajoutée avec le plugin officiel `tauri-plugin-notification` : un agent bloqué se voit mal quand la fenêtre est derrière une autre.
 
 - **Quand** : un agent se met à attendre et la fenêtre n'a pas le focus. Une seule notification par attente ; un rechargement de l'interface ne répète pas les attentes déjà connues.
-- **Texte** : titre « dummyPlane », corps « <nom> a une question », dans la langue de l'interface.
+- **Texte** : titre « <nom> · Waiting », corps « Has a question for you », dans la langue de l'interface. C'est le format de la notification de fin (« <nom> · Done », sa ligne en corps) : l'agent et son état en titre, une ligne en corps. Windows nomme déjà dummyPlane, avec son icône, au-dessus (design system, Alerts).
 - **Clic** : la fenêtre revient au premier plan et, si l'agent attend encore et qu'un projet est ouvert, on arrive sur lui comme au §5. Sinon, seule la fenêtre revient.
 - **Permission** : rien à demander, le plugin l'accorde toujours sur ordinateur.
 - **Échec** : journalisé. La notification dans la fenêtre (§4) reste la référence.

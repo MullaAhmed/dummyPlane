@@ -1,4 +1,4 @@
-import { toast } from "sonner";
+import { toastError } from "@/lib/errorToast";
 import { messages } from "@/i18n";
 import type { Point } from "@/agents/terminals";
 import { commandsMessages } from "./messages";
@@ -65,7 +65,7 @@ export function runCommand(command: Command, ctx: CommandContext) {
   const fail = (error: unknown) => {
     const text = messages(commandsMessages);
     const like = text.failedLike[command.id];
-    toast.error(like ? like(String(error)) : text.failed(labelOf(command, ctx), String(error)));
+    toastError(like ?? text.failed(labelOf(command, ctx)), { error });
   };
   try {
     void Promise.resolve(command.run(ctx)).catch(fail);

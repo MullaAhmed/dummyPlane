@@ -3,6 +3,7 @@ import { BookOpen, Bug, CircleCheck, CircleAlert, Copy, FileText, FolderOpen, Re
 import { getVersion } from "@tauri-apps/api/app";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { toast } from "sonner";
+import { toastError } from "@/lib/errorToast";
 import { diagnosticText, guideUrl, issueUrl, openDataDir } from "@/app/diagnostics";
 import { openLogDir } from "@/app/logs";
 import { Button } from "@/components/ui/button";
@@ -48,7 +49,7 @@ export function TroubleshootingDialog() {
     if (d)
       void navigator.clipboard.writeText(diagnosticText(d)).then(
         () => toast(t.copied),
-        () => toast.error(t.copyFailed),
+        () => toastError(t.copyFailed),
       );
   };
   const report = async () => void openUrl(issueUrl(d?.version ?? (await getVersion())));

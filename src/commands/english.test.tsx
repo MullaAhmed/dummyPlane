@@ -13,6 +13,7 @@ import { openPalette, paletteStore, setPaletteQuery } from "./paletteState";
 import { Palette } from "./Palette";
 import { recentStore } from "./recent";
 import { COMMANDS } from "./registry";
+import { errorToasts } from "@/lib/errorToast.testkit";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
 vi.mock("@/nodes/terminal/registry", () => ({ focusTerminal: vi.fn(), terminalSelection: vi.fn(() => "") }));
@@ -72,7 +73,7 @@ describe("the palette's catalogs in English", () => {
     const error = vi.spyOn(toast, "error").mockReturnValue("");
     const failing = { ...find("project.close"), run: () => Promise.reject(new Error("boom")) };
     runCommand(failing, busy);
-    await vi.waitFor(() => expect(error).toHaveBeenCalledWith("Close the project failed: Error: boom"));
+    await vi.waitFor(() => expect(errorToasts(error)).toEqual([{ title: "Close the project failed", description: "boom" }]));
   });
 
   it("groups the go-to items under their English section names", () => {

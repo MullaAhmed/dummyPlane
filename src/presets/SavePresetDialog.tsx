@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { toast } from "sonner";
+import { toastError } from "@/lib/errorToast";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useUiRequest } from "@/commands/uiRequests";
@@ -31,14 +32,14 @@ export function SavePresetDialog() {
     const preset = captureCurrentTeam(kept);
     setOpen(false);
     if (preset === "noCanvas" || !preset) {
-      toast.error(preset === "noCanvas" ? text.noCanvas : text.nothing);
+      toastError(preset === "noCanvas" ? text.noCanvas : text.nothing);
       return;
     }
     try {
       if (await presetsStore.getState().save(preset)) toast(text.saved(kept));
-      else toast.error(text.full);
+      else toastError(text.full);
     } catch (error) {
-      toast.error(text.failed(String(error)));
+      toastError(text.failed, { error });
     }
   };
 

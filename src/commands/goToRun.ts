@@ -1,4 +1,4 @@
-import { toast } from "sonner";
+import { toastError } from "@/lib/errorToast";
 import { currentWaitingAgents, nextWaiting, type OpenAgent } from "@/agents/waitingAgents";
 import { messages } from "@/i18n";
 import { projectsStore } from "@/store/projects";
@@ -17,7 +17,7 @@ function reachTarget(target: PendingArrival) {
     workspaces.select(target.workspaceId);
     return;
   }
-  if (!reach(target.kind, target.id)) toast.error(messages(commandsMessages).goTo.gone(target.label));
+  if (!reach(target.kind, target.id)) toastError(messages(commandsMessages).goTo.gone(target.label));
 }
 
 /** Enter on a line of "Go to" (spec window §7.2). */
@@ -31,7 +31,7 @@ export function goTo(item: GoToItem) {
         void projectsStore
           .getState()
           .open(item.projectId)
-          .catch((error: unknown) => toast.error(messages(commandsMessages).goTo.openFailed(String(error))));
+          .catch((error: unknown) => toastError(messages(commandsMessages).goTo.openFailed, { error }));
       }
       return;
     default:

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Copy, Download, ExternalLink, RefreshCw } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { toast } from "sonner";
+import { toastError } from "@/lib/errorToast";
 import { Button } from "@/components/ui/button";
 import { agentsStore } from "@/agents/agentsStore";
 import { AGENTS, agentInk } from "@/agents/catalog";
@@ -32,7 +33,7 @@ export function NoAgent() {
   const copy = () =>
     void navigator.clipboard.writeText(CLAUDE.command).then(
       () => toast(t.copied),
-      () => toast.error(t.copyFailed),
+      () => toastError(t.copyFailed),
     );
   const install = (agent: AgentId) => {
     setAsked(null);
@@ -43,7 +44,7 @@ export function NoAgent() {
     try {
       await agentsStore.getState().recheck();
     } catch (error) {
-      toast.error(t.recheckFailed(String(error)));
+      toastError(t.recheckFailed, { error });
     } finally {
       setChecking(false);
     }

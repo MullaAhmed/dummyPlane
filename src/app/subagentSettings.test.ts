@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { toast } from "sonner";
+import { errorToasts } from "@/lib/errorToast.testkit";
 import {
   DEFAULT_MAX_SPAWNED,
   loadSubagentSettings,
@@ -114,7 +115,7 @@ describe("changing them", () => {
     await setSubagentTerminalsSetting(false);
     expect(subagentSettingsStore.getState().terminals).toBe(false);
     expect(pushed()).toEqual([{ on: false }]);
-    expect(error).toHaveBeenCalledWith(expect.stringMatching(/^Setting not saved: .*set_setting failed/));
+    expect(errorToasts(error)).toEqual([{ title: "Could not save the setting", description: expect.stringContaining("set_setting failed") }]);
   });
 
   it("sets and saves the cap of sub-agents at once", async () => {

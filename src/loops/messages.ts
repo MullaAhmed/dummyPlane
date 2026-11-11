@@ -74,6 +74,6 @@ export const loopsMessages = defineMessages({
         stop: "Set an end: a number of runs or a duration",
       } as Record<LoopError, string>,
       full: "Too many loops (30 at most): delete one first",
-      failed: (error: string) => `Loops: operation failed: ${error}`,
+      failed: "Could not change the loops",
     },
   });

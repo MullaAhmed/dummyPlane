@@ -1,4 +1,4 @@
-import { toast } from "sonner";
+import { toastError } from "@/lib/errorToast";
 import { createStore, useStore } from "zustand";
 import { messages } from "@/i18n";
 import { getSetting, setSetting } from "@/ipc/db";
@@ -96,7 +96,7 @@ export async function loadThemeSettings() {
 
 async function save(key: string, value: string) {
   await setSetting(key, value).catch((error: unknown) => {
-    toast.error(messages(appMessages).settingNotSaved(String(error)));
+    toastError(messages(appMessages).settingNotSaved, { error, next: messages(appMessages).settingForNow });
   });
 }
 

@@ -1,6 +1,7 @@
 import { useId, useRef, useState } from "react";
 import { Check, ChevronDown, Plus } from "lucide-react";
 import { toast } from "sonner";
+import { toastError } from "@/lib/errorToast";
 import { cn } from "@/lib/utils";
 import { GeneratedText } from "@/openui/GeneratedText";
 import { useStore } from "zustand";
@@ -452,7 +453,7 @@ function SummaryActions({ nodeId }: { nodeId: string }) {
   const t = useMessages(missionMessages);
   const clean = async () => {
     const result = await cleanMission(nodeId);
-    if (typeof result === "string") toast.error(messages(missionMessages).cleanFailed(result));
+    if (typeof result === "string") toastError(messages(missionMessages).cleanFailed, { error: result });
     else toast.success(messages(missionMessages).cleaned(result.removed, result.kept));
   };
   return (

@@ -4,6 +4,8 @@ import { createRoot } from "react-dom/client";
 import { toast } from "sonner";
 import { expect, it } from "vitest";
 import { themeStore } from "@/app/theme";
+import { buttonVariants } from "@/components/ui/button";
+import { TOAST_CLASSES } from "@/components/ui/sonner";
 import { AppToaster, TOAST_BOTTOM } from "./AppToaster";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -39,6 +41,59 @@ it("follows the app's theme, live", async () => {
   expect(toaster().dataset.sonnerTheme).toBe("light");
   await act(async () => themeStore.setState({ choice: "expressive" }));
   expect(toaster().dataset.sonnerTheme).toBe("dark");
+  await act(async () => root.unmount());
+  host.remove();
+});
+
+it("draws each type in its tone and its own icon, the text in the app's text roles (Alerts)", async () => {
+  themeStore.setState({ choice: "expressive" });
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = createRoot(host);
+  await act(async () => root.render(<AppToaster />));
+  await act(async () => {
+    toast.success("Synced with owner/repo");
+    toast.info("Codex signs in to Linear in its terminal");
+    toast.warning("Update on hold");
+    toast.error("Could not save the canvas", { description: "Access is denied." });
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+  });
+  const ofType = (type: string) => host.querySelector<HTMLElement>(`[data-sonner-toast][data-type="${type}"]`)!;
+  const icons = new Set<string>();
+  for (const [type, tone] of Object.entries({ success: "text-dp-ok", info: "text-dp-accent-ink", warning: "text-dp-wait", error: "text-dp-danger" })) {
+    const icon = ofType(type).querySelector("[data-icon] svg")!;
+    expect(icon.getAttribute("class"), type).toContain(tone);
+    // Never the colour alone: each type has its own shape.
+    icons.add(icon.getAttribute("class")!.split(/\s+/).find((c) => c.startsWith("lucide-") && c !== "lucide-icon")!);
+    // The title stays the text role, whatever the tone.
+    expect(ofType(type).querySelector("[data-title]")!.className, type).toContain("text-dp-text");
+    expect(ofType(type).querySelector("[data-title]")!.className, type).not.toMatch(/text-dp-(ok|wait|danger|accent)/);
+  }
+  expect(icons.size).toBe(4);
+  expect(ofType("error").querySelector("[data-description]")!.className).toContain("text-dp-text-2");
+  await act(async () => root.unmount());
+  host.remove();
+});
+
+it("draws a toast's action and cancel as the app's buttons: the outline and the quiet ghost, with the ring and the press", async () => {
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = createRoot(host);
+  await act(async () => root.render(<AppToaster />));
+  await act(async () => {
+    toast("Card deleted", { action: { label: "Undo", onClick: () => undefined }, cancel: { label: "Keep it", onClick: () => undefined } });
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+  });
+  const action = host.querySelector<HTMLButtonElement>("[data-button][data-action]")!;
+  const cancel = host.querySelector<HTMLButtonElement>("[data-button][data-cancel]")!;
+  expect(action.className).toBe(buttonVariants({ variant: "outline", size: "sm" }));
+  expect(cancel.className).toBe(TOAST_CLASSES.cancelButton);
+  expect(cancel.className.split(/\s+/)).toEqual(expect.arrayContaining(["text-dp-text-2", "hover:text-dp-text", "hover:bg-dp-hover"]));
+  for (const button of [action, cancel]) {
+    for (const part of ["h-7", "rounded-md", "focus-visible:ring-2", "focus-visible:ring-dp-accent/70", "active:scale-[0.97]", "motion-reduce:active:scale-100"]) {
+      expect(button.className.split(/\s+/), `${button.textContent}: ${part}`).toContain(part);
+    }
+  }
   await act(async () => root.unmount());
   host.remove();
 });

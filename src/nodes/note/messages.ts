@@ -16,5 +16,5 @@ export const noteMessages = defineMessages({
   deleted: (count: number) => (count === 1 ? "Note deleted" : `${count} notes deleted`),
   undo: "Undo",
   notFound: "Note not found",
-  addFailed: (error: string) => `The note could not be added: ${error}`,
+  addFailed: "Could not add the note",
 });

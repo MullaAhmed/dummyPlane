@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
-import { toast } from "sonner";
+import { toastError } from "@/lib/errorToast";
 import { messages } from "@/i18n";
 import { useStore } from "zustand";
 import { canvasStore } from "@/canvas/canvasStore";
@@ -46,7 +46,7 @@ export function useGoToData(): { items: GoToItem[]; loading: boolean } {
         (scene) => keep(workspace.id, scene.initialData.elements ?? []),
         () => {
           if (!alive) return;
-          toast.error(messages(commandsMessages).goTo.unreadable(workspace.name));
+          toastError(messages(commandsMessages).goTo.unreadable(workspace.name));
           keep(workspace.id, []);
         },
       );

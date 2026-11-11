@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import { savePastedImage } from "@/ipc/pastedImages";
 import { clipboardImage, pasteImage, pastedImage, pastedPath, takeOverImage, takeOverPaste } from "./imagePaste";
+import { errorToasts } from "@/lib/errorToast.testkit";
 
 vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { error: vi.fn() }) }));
 vi.mock("@/ipc/pastedImages", () => ({ savePastedImage: vi.fn() }));
@@ -87,7 +88,7 @@ describe("pasting an image", () => {
     const paste = vi.fn();
     await pasteImage({ file: image(), extension: "png" }, paste);
     expect(paste).not.toHaveBeenCalled();
-    expect(toast.error).toHaveBeenCalledWith(expect.any(String), { description: "disk full" });
+    expect(errorToasts(vi.mocked(toast.error))).toEqual([{ title: "Could not paste the image", description: "disk full" }]);
   });
 });
 

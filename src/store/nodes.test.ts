@@ -4,6 +4,7 @@ import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import type { TerminalPayload } from "@/nodes/types";
 import { toast } from "sonner";
 import { createNodesStore, nodesStore, rebaseTerminalFolders, sessionOf, terminalOf, updateSession } from "./nodes";
+import { errorToasts } from "@/lib/errorToast.testkit";
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 
@@ -155,7 +156,7 @@ it("tells the user when a deferred save is refused", async () => {
   vi.useFakeTimers();
   store.getState().update("n1", { title: "B" });
   await vi.advanceTimersByTimeAsync(500);
-  expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("disk full"));
+  expect(errorToasts(vi.mocked(toast.error))).toEqual([{ title: "Could not save your last change", description: "disk full" }]);
 });
 
 it("saves an agent's output under its own kind, and reads it back after a reload", async () => {

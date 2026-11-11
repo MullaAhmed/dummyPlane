@@ -30,6 +30,7 @@ import { WaitingNotice } from "./WaitingNotice";
 import { WorkspaceTabs } from "./WorkspaceTabs";
 import { shellMessages } from "./messages";
 import { ZoomControl } from "./ZoomControl";
+import { errorDetail } from "@/lib/errorToast";
 
 // CodeMirror and its languages load with the first opening, not with the application.
 const CodeWorkspace = lazy(() => import("@/studio/CodeWorkspace").then((m) => ({ default: m.CodeWorkspace })));
@@ -148,8 +149,16 @@ export function ProjectView() {
           </ErrorBoundary>
         </>
       ) : (
-        <div className="grid h-full place-items-center text-sm text-dp-text-2">
-          {status === "error" ? t.projectView.loadFailed(String(error)) : t.loading}
+        <div className="grid h-full place-items-center px-6 text-sm text-dp-text-2">
+          {status === "error" ? (
+            // What failed in the app's words, the error's own text under it, as on the start-up error screen.
+            <div role="alert" className="flex max-w-md flex-col items-center gap-3 text-center">
+              <p className="text-base font-medium text-dp-text">{t.projectView.loadFailed}</p>
+              {errorDetail(error) && <p className="font-mono text-xs break-words">{errorDetail(error)}</p>}
+            </div>
+          ) : (
+            t.loading
+          )}
         </div>
       )}
       <div className="absolute inset-x-0 top-0 z-30">

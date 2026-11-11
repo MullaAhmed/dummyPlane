@@ -1,4 +1,5 @@
 import { toast } from "sonner";
+import { toastError } from "@/lib/errorToast";
 import { messages } from "@/i18n";
 import {
   githubCreateIssue,
@@ -10,7 +11,6 @@ import {
   githubSetIssueState,
   type IssueState,
 } from "@/ipc/github";
-import { AppError } from "@/ipc/invoke";
 import type { KanbanBoardLink, KanbanPayload } from "@/nodes/types";
 import { nodesStore } from "@/store/nodes";
 import { projectsStore } from "@/store/projects";
@@ -43,8 +43,7 @@ export function projectPath(): string | null {
 
 /** A failure told to the user: `gh` errors already say what to do (install, `gh auth login`, project scope). */
 export function reportGithubError(error: unknown) {
-  const detail = error instanceof AppError || error instanceof Error ? error.message : String(error);
-  toast.error(messages(kanbanMessages).github.failed(detail));
+  toastError(messages(kanbanMessages).github.failed, { error });
 }
 
 /** "owner/number" or a Project URL (…/users|orgs/owner/projects/number); null when it is neither. */

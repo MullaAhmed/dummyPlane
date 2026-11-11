@@ -84,12 +84,13 @@ pub fn run() {
                 Ok(db) => db,
                 Err(err) => {
                     log::error!("base not opened: {err}");
-                    // Spec §10: a blocking dialog with the file path, then stop.
-                    let shown = path.display();
+                    // Spec §10: a blocking dialog with the file path, then stop. The one native
+                    // alert left: without its database the interface cannot run to show its own.
+                    let (title, message) = database_failure(&path, &err);
                     app.dialog()
-                        .message(format!("Cannot open the database {shown}:\n{err}"))
+                        .message(message)
                         .kind(MessageDialogKind::Error)
-                        .title("dummyPlane")
+                        .title(title)
                         .blocking_show();
                     return Err(err.into());
                 }
@@ -202,6 +203,18 @@ pub fn run() {
     });
 }
 
+/// The dialog of a database that does not open, in the app's voice (docs/design-system.md,
+/// Alerts): what failed and what to do, then the file, the error's own text last.
+fn database_failure(path: &std::path::Path, err: &dyn std::fmt::Display) -> (String, String) {
+    let shown = path.display();
+    (
+        "dummyPlane could not start".to_string(),
+        format!(
+            "dummyPlane could not open its database, so it will close.\n\nCheck that this file can be read and written, then start dummyPlane again:\n{shown}\n\nDetails: {err}"
+        ),
+    )
+}
+
 fn spawn_scrollback_flusher(app: AppHandle) {
     std::thread::spawn(move || {
         loop {
@@ -213,6 +226,23 @@ fn spawn_scrollback_flusher(app: AppHandle) {
 
 #[cfg(test)]
 mod tests {
+    use super::database_failure;
+
+    /// The database's dialog says what failed and what to do first, the raw error last.
+    #[test]
+    fn a_database_that_does_not_open_says_what_to_do_before_the_error() {
+        let path = std::path::Path::new("C:/data/dummyplane.db");
+        let (title, message) = database_failure(path, &"disk I/O error");
+        assert_eq!(title, "dummyPlane could not start");
+        assert!(message.starts_with("dummyPlane could not open its database"));
+        let next = message.find("start dummyPlane again").unwrap();
+        let file = message.find("C:/data/dummyplane.db").unwrap();
+        let detail = message.find("Details: disk I/O error").unwrap();
+        assert!(next < file && file < detail);
+        assert!(message.ends_with("Details: disk I/O error"));
+        assert!(!message.contains('!'));
+    }
+
     /// `run` builds the window from the config by its label, not its position.
     #[test]
     fn the_config_declares_a_window_labelled_main() {

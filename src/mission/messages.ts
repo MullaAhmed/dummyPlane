@@ -111,7 +111,7 @@ export const missionMessages = defineMessages({
       linearSteps: "In the Fleet's terminal: type /mcp, pick linear, then Authenticate. Then open Overnight run again.",
       linearStepsCodex: "Your browser opens Linear's sign-in for Codex: approve it, then open Overnight run again.",
       linearSigned: "Linear is signed in for the Fleet.",
-      linearFailed: (error: string) => `Linear's sign-in did not finish: ${error}`,
+      linearFailed: "Linear's sign-in did not finish",
       usage: (percent: number) => `Plan usage at ${percent} %: the night could stop on the limit`,
       cancel: "Cancel",
       prepare: "Prepare the night",
@@ -147,7 +147,7 @@ export const missionMessages = defineMessages({
     merged: " · merged",
     finishedBefore: (tasks: string) => `Already finished: ${tasks}`,
     spent: (spent: number, budget: number) => `${spent} / ${budget} min`,
-    cleanFailed: (error: string) => `Cleanup failed: ${error}`,
+    cleanFailed: "Could not clean up the mission",
     cleaned: (removed: string[], kept: string[]) =>
       `Worktrees removed: ${removed.join(", ") || "none"}${kept.length ? ` · kept: ${kept.join(", ")}` : ""}`,
     clean: "Clean up the mission",

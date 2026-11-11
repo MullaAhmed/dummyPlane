@@ -1,4 +1,4 @@
-import { toast } from "sonner";
+import { toastError } from "@/lib/errorToast";
 import { messages } from "@/i18n";
 import { commandsMessages } from "./messages";
 import { reach, type ReachKind } from "./reach";
@@ -33,5 +33,5 @@ export function completeArrival(workspaceId: string) {
   }
   const target = pending;
   pending = null;
-  if (!reach(target.kind, target.id)) toast.error(messages(commandsMessages).goTo.gone(target.label));
+  if (!reach(target.kind, target.id)) toastError(messages(commandsMessages).goTo.gone(target.label));
 }

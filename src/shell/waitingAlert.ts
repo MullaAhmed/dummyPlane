@@ -14,7 +14,8 @@ async function alertFor(nodeId: string) {
   if (!nativeNotificationsStore.getState().enabled) return;
   const agent = currentWaitingAgents().find((a) => a.id === nodeId);
   if (!agent || (await getCurrentWindow().isFocused())) return;
-  sendNotification({ title: "dummyPlane", body: messages(shellMessages).waitingNotice.question(agent.name), extra: { nodeId } });
+  const t = messages(shellMessages).notification;
+  sendNotification({ title: t.title(agent.name, t.waiting), body: t.question, extra: { nodeId } });
 }
 
 /**

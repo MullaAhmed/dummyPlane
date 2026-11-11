@@ -1,4 +1,4 @@
-import { toast } from "sonner";
+import { toastError } from "@/lib/errorToast";
 import { createStore, useStore } from "zustand";
 import { messages } from "@/i18n";
 import { studioRead, studioVersion, studioWrite } from "@/ipc/studio";
@@ -99,7 +99,7 @@ export function editFile(path: string, content: string) {
 async function saveTab({ path, session }: StudioTab): Promise<boolean> {
   const saved = await session.getState().save();
   const { error } = session.getState();
-  if (!saved && error) toast.error(messages(studioMessages).saveFailed(path, error));
+  if (!saved && error) toastError(messages(studioMessages).saveFailed(path), { error, next: messages(studioMessages).saveNext });
   return saved;
 }
 
@@ -144,7 +144,7 @@ export function unsavedTabs(): StudioTab[] {
 export async function saveUnsavedTabs(): Promise<boolean> {
   for (const tab of unsavedTabs()) {
     if (await saveTab(tab)) continue;
-    if (tab.session.getState().disk) toast.error(messages(studioMessages).saveConflict(tab.path));
+    if (tab.session.getState().disk) toastError(messages(studioMessages).saveConflict(tab.path));
     return false;
   }
   return true;
