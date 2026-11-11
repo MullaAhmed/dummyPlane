@@ -6,6 +6,7 @@ import { ToggleGroupItem } from "@/components/ui/toggle-group";
 /**
  * The view switcher of a panel's bar (git window, review panel, notes): shadcn's Tabs in the
  * house skin, small soft tabs with the chosen one in the accent's tint, the same in every palette.
+ * The chosen soft tab is bordered in the accent as well: the tint alone reads 1.2-1.4:1 on the surface.
  * A panel whose tabs head its whole body (a terminal's edit panel) takes the line look instead:
  * the labels on a hairline, the chosen one underlined in ink.
  * Both follow the design system: hover tints with --dp-hover (the line look, which has no padding
@@ -22,7 +23,7 @@ type Look = "soft" | "line";
 const LookOf = createContext<Look>("soft");
 
 const SOFT =
-  "h-7 flex-none rounded-md border-transparent px-2.5 py-0 text-xs font-normal text-dp-text-2 transition-[background-color,color,scale] duration-(--dp-dur-fast) ease-(--dp-ease-out) motion-reduce:transition-none hover:bg-dp-hover hover:text-dp-text active:scale-[0.97] focus-visible:border-transparent focus-visible:ring-2 focus-visible:ring-dp-accent/70 focus-visible:outline-none";
+  "h-7 flex-none rounded-md border-transparent px-2.5 py-0 text-xs font-normal text-dp-text-2 transition-[background-color,border-color,color,scale] duration-(--dp-dur-fast) ease-(--dp-ease-out) motion-reduce:transition-none hover:bg-dp-hover hover:text-dp-text active:scale-[0.97] focus-visible:border-transparent focus-visible:ring-2 focus-visible:ring-dp-accent/70 focus-visible:outline-none";
 
 /**
  * As wide as its label, no side padding: the first label starts on the panel's edge, under its
@@ -70,7 +71,7 @@ export function PanelTabsTrigger({ value, onClick, className, ...props }: Compon
       className={cn(
         look === "line" ? LINE : SOFT,
         look === "soft" &&
-          "dark:text-dp-text-2 dark:hover:text-dp-text data-active:bg-dp-accent-soft data-active:hover:bg-dp-accent-soft data-active:text-dp-text dark:data-active:border-transparent dark:data-active:bg-dp-accent-soft dark:data-active:text-dp-text group-data-[variant=default]/tabs-list:data-active:shadow-none",
+          "dark:text-dp-text-2 dark:hover:text-dp-text data-active:border-dp-accent data-active:bg-dp-accent-soft data-active:hover:bg-dp-accent-soft data-active:text-dp-text dark:data-active:border-dp-accent dark:data-active:bg-dp-accent-soft dark:data-active:text-dp-text group-data-[variant=default]/tabs-list:data-active:shadow-none",
         className,
       )}
       {...props}
@@ -83,7 +84,7 @@ export function PanelTabsContent({ className, ...props }: ComponentProps<typeof 
   return <TabsContent className={cn("flex min-h-0 flex-col focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-dp-accent/70", className)} {...props} />;
 }
 
-/** A choice in a panel's bar beside the tabs (a single-choice ToggleGroup), drawn like them. */
-export function PanelToggleItem({ className, ...props }: ComponentProps<typeof ToggleGroupItem>) {
-  return <ToggleGroupItem className={cn(SOFT, "min-w-0 hover:bg-dp-hover data-[state=on]:bg-dp-accent-soft data-[state=on]:text-dp-text", className)} {...props} />;
+/** A choice in a panel's bar beside the tabs (a single-choice ToggleGroup): the Toggle's choice look, which the soft tabs match. */
+export function PanelToggleItem(props: ComponentProps<typeof ToggleGroupItem>) {
+  return <ToggleGroupItem variant="choice" size="sm" {...props} />;
 }
