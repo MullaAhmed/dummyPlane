@@ -4,6 +4,7 @@ import { createNodeElement } from "@/canvas/nodeElement";
 import { nodesStore } from "@/store/nodes";
 import { arrangedElements } from "./arrange";
 import { anchorsOf, missionAnchor } from "./attachments";
+import { COLUMN_GAP, GROUP_GAP } from "./groupLayout";
 import { layoutSpawnTree } from "./spawnLayout";
 import { rerouteWires, wireFlagsOf, withWire, withWireBetween } from "./wires";
 
@@ -54,6 +55,27 @@ describe("a mission's anchors (missionAnchor)", () => {
     expect(missionAnchor(element("fleet"), live)).toBeNull();
     live.delete("board");
     expect(missionAnchor(element("mgr"), live)).toBe("fleet");
+  });
+});
+
+describe("a mission as the go-ahead lays it out", () => {
+  it("puts the team in rows under the Manager, clear of the Fleet and the board, no wire through a node", () => {
+    const scene = missionScene();
+    const at = (id: string) => scene.find((e) => e.id === id)!;
+    const manager = at("mgr");
+    const row0 = manager.y + manager.height + GROUP_GAP;
+    for (let i = 0; i < 4; i++) expect({ x: at(`m${i}`).x, y: at(`m${i}`).y }, `m${i}`).toEqual({ x: manager.x + i * (manager.width + COLUMN_GAP), y: row0 });
+    const nodes = scene.filter((e) => e.type === "embeddable");
+    for (const wire of scene.filter((e) => e.type === "arrow") as ExcalidrawArrowElement[]) {
+      const points = wire.points.map(([x, y]) => ({ x: wire.x + x, y: wire.y + y }));
+      for (let i = 1; i < points.length; i++) {
+        const [a, b] = [points[i - 1], points[i]];
+        for (const n of nodes) {
+          const through = Math.min(a.x, b.x) < n.x + n.width && Math.max(a.x, b.x) > n.x && Math.min(a.y, b.y) < n.y + n.height && Math.max(a.y, b.y) > n.y;
+          expect(through, `${wire.endBinding?.elementId} through ${n.id}`).toBe(false);
+        }
+      }
+    }
   });
 });
 
