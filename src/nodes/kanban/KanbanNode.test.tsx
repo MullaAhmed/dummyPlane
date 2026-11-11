@@ -8,6 +8,8 @@ import { canvasStore } from "@/canvas/canvasStore";
 import { createNodeElement } from "@/canvas/nodeElement";
 import { sendCardToTerminal } from "@/kanban/dropOnTerminal";
 import { nodesStore } from "@/store/nodes";
+import { blend, contrast } from "@/theme/colorMath";
+import { cssBlock, readSource } from "@/theme/cssBlocks";
 import { KanbanNode } from "./KanbanNode";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
@@ -16,6 +18,8 @@ const opened = vi.hoisted(() => vi.fn(() => Promise.resolve()));
 vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: opened }));
 const github = vi.hoisted(() => ({ syncBoard: vi.fn(() => Promise.resolve(true)) }));
 vi.mock("@/kanban/github", async (importOriginal) => ({ ...(await importOriginal<object>()), syncBoard: github.syncBoard }));
+const toast = vi.hoisted(() => Object.assign(vi.fn(), { error: vi.fn(), success: vi.fn(), info: vi.fn() }));
+vi.mock("sonner", () => ({ toast }));
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -88,7 +92,7 @@ it("renders nothing for a node that is not a board", async () => {
   await act(async () => root.unmount());
 });
 
-it("opens a linked card's issue from its chip, and syncs a linked board (issue #29)", async () => {
+it("opens a linked card's issue from the card's menu, its chip a plain tag, and syncs a linked board (issue #29, audit P2 #14)", async () => {
   mockIPC(() => undefined);
   const url = "https://github.com/o/r/issues/7";
   await nodesStore.getState().create("linked", {
@@ -105,13 +109,18 @@ it("opens a linked card's issue from its chip, and syncs a linked board (issue #
   const root = createRoot(host);
   await act(async () => root.render(<KanbanNode nodeId="linked" />));
 
-  const chip = [...host.querySelectorAll("button")].find((b) => b.textContent === "#7")!;
-  // A control: its name is its label and its hint, never a native title.
-  expect(chip.getAttribute("aria-label")).toBe("Issue o/r#7");
+  // No 20 px button inside the card's own click target: the chip is a tag, with its hint, never a native title.
+  const chip = host.querySelector<HTMLElement>('[data-card-id="c1"] [data-issue="7"]')!;
+  expect(chip.textContent).toBe("#7");
+  expect(chip.closest("button")).toBeNull();
   expect(chip.hasAttribute("title")).toBe(false);
-  await act(async () => chip.click());
+  expect([...host.querySelectorAll('[data-card-id="c1"] button')].map((b) => b.getAttribute("aria-label") ?? b.textContent)).toEqual(["Bug", "Card actions"]);
+  const trigger = host.querySelector<HTMLButtonElement>('[data-card-id="c1"] button[aria-label="Card actions"]')!;
+  await act(async () => press(trigger, "Enter"));
+  const open = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((i) => i.textContent === "Open the issue on GitHub")!;
+  await act(async () => open.click());
   expect(opened).toHaveBeenCalledWith(url);
-  // The chip opens the issue, not the card's dialog.
+  // The menu opens the issue, not the card's dialog.
   expect(document.querySelector('[role="dialog"]')).toBeNull();
 
   await act(async () => button("Sync").click());
@@ -313,4 +322,159 @@ it("moves a card and sends it to a terminal from its menu, without a drag and wi
   expect(subItems()[0].hasAttribute("data-disabled")).toBe(true);
   canvasStore.setState({ api: null });
   await view.unmount();
+});
+
+it("takes back a deleted column, with its cards, from the toast, where it was (audit P2 #42)", async () => {
+  toast.mockClear();
+  const view = await mountBoard("undo-column", [
+    { id: "todo", title: "To do", cardIds: ["c1"] },
+    { id: "doing", title: "Doing", cardIds: ["c2"] },
+    { id: "done", title: "Done", cardIds: [] },
+  ]);
+  const before = nodesStore.getState().nodes["undo-column"];
+  const menu = view.host.querySelector<HTMLButtonElement>('button[aria-label="Doing column menu"]')!;
+  await act(async () => press(menu, "Enter"));
+  const remove = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((i) => i.textContent === "Delete the column")!;
+  await act(async () => remove.click());
+  const board = () => {
+    const record = nodesStore.getState().nodes["undo-column"];
+    return record?.kind === "kanban" ? record.payload : undefined;
+  };
+  expect(board()?.columns.map((c) => c.id)).toEqual(["todo", "done"]);
+  expect(board()?.cards.c2).toBeUndefined();
+  expect(toast).toHaveBeenCalledTimes(1);
+  const [message, options] = toast.mock.calls[0] as unknown as [string, { action: { label: string; onClick: () => void } }];
+  expect(message).toBe("Column “Doing” deleted, with its 1 card");
+  expect(options.action.label).toBe("Undo");
+  await act(async () => options.action.onClick());
+  expect(board()).toEqual(before?.kind === "kanban" ? before.payload : undefined);
+  // A second click on Undo changes nothing.
+  await act(async () => options.action.onClick());
+  expect(board()?.columns.map((c) => c.id)).toEqual(["todo", "doing", "done"]);
+  await view.unmount();
+});
+
+it("takes back a deleted card from the toast, at its place in its column (audit P2 #42)", async () => {
+  toast.mockClear();
+  const view = await mountBoard("undo-card", [{ id: "todo", title: "To do", cardIds: ["c1", "c2"] }]);
+  await act(async () => press(view.cardButton("c1"), "Enter"));
+  await act(async () => button("Delete").click());
+  expect(view.columnOf("c2")?.cardIds).toEqual(["c2"]);
+  const [message, options] = toast.mock.calls[0] as unknown as [string, { action: { label: string; onClick: () => void } }];
+  expect(message).toBe("Card “Write the test” deleted");
+  await act(async () => options.action.onClick());
+  expect(view.columnOf("c1")?.cardIds).toEqual(["c1", "c2"]);
+  expect(view.host.querySelector('[data-card-id="c1"]')?.textContent).toContain("Write the test");
+  await view.unmount();
+});
+
+it("marks a priority with bars in the chip's ink, not a status-coloured dot, on the card and in the dialog (audit P2 #56)", async () => {
+  mockIPC(() => undefined);
+  await nodesStore.getState().create("prio", {
+    workspaceId: "w1",
+    kind: "kanban",
+    payload: { columns: [{ id: "todo", title: "To do", cardIds: ["c1"] }], cards: { c1: { id: "c1", title: "Ship", notes: "", priority: "medium" } } },
+  });
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = createRoot(host);
+  await act(async () => root.render(<KanbanNode nodeId="prio" />));
+  const chip = host.querySelector<HTMLElement>('[data-priority="medium"]')!;
+  expect(chip.textContent).toBe("Medium");
+  expect(chip.querySelector("svg[data-priority-mark]")).not.toBeNull();
+  expect(chip.querySelector(".rounded-full")).toBeNull();
+  expect(chip.innerHTML).not.toMatch(/--dp-(ok|wait|danger)/);
+  await act(async () => press(host.querySelector('[data-card-open]')!, "Enter"));
+  const pills = [...document.querySelectorAll<HTMLElement>('[role="dialog"] [data-slot="toggle-group-item"]')].filter((p) => ["Low", "Medium", "High"].includes(p.textContent ?? ""));
+  expect(pills).toHaveLength(3);
+  for (const pill of pills) {
+    expect(pill.querySelector("svg[data-priority-mark]")).not.toBeNull();
+    expect(pill.innerHTML).not.toMatch(/rounded-full|--dp-(ok|wait|danger)/);
+  }
+  await act(async () => button("Cancel").click());
+  await act(async () => root.unmount());
+  document.body.replaceChildren();
+});
+
+it("writes the overdue and agent-alert chips in the text ink, the danger on their icons, at 4.5:1 in every palette (audit P2 #22)", async () => {
+  mockIPC(() => undefined);
+  await nodesStore.getState().create("alerts", {
+    workspaceId: "w1",
+    kind: "kanban",
+    payload: {
+      columns: [{ id: "todo", title: "To do", cardIds: ["c1"] }],
+      cards: { c1: { id: "c1", title: "Late", notes: "", priority: "none", due: "2020-01-01", agent: "Batman", agentStatus: "blocked" } },
+    },
+  });
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = createRoot(host);
+  await act(async () => root.render(<KanbanNode nodeId="alerts" />));
+  const chips = [host.querySelector<HTMLElement>("[data-overdue]")!, host.querySelector<HTMLElement>('[data-agent-status="blocked"]')!];
+  for (const chip of chips) {
+    expect(chip.className).toContain("bg-dp-danger/15");
+    expect(chip.className).toContain("text-dp-text");
+    expect(chip.className).not.toContain("text-dp-danger");
+    expect(chip.querySelector("svg")!.getAttribute("class")).toContain("text-dp-danger");
+  }
+  await act(async () => root.unmount());
+  document.body.replaceChildren();
+
+  const tokens = readSource("theme/tokens.css");
+  const palettes = { calm: ':root[data-palette="calm"]', electric: ':root[data-palette="electric"]', expressive: ':root, :root[data-palette="expressive"]' };
+  for (const [palette, selector] of Object.entries(palettes)) {
+    const t = cssBlock(tokens, selector);
+    // The chip's tint over the card it sits on.
+    const tint = blend(t["--dp-card"], t["--dp-danger"], 0.15);
+    expect(contrast(t["--dp-text"], tint), `${palette} text on the danger tint`).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(t["--dp-danger"], tint), `${palette} danger icon on its tint`).toBeGreaterThanOrEqual(3);
+  }
+});
+
+it("checks the GitHub link when a field is left or on Link, not at the first keystroke, and ties each error to its field (audit P2 #13)", async () => {
+  mockIPC(() => undefined);
+  await nodesStore.getState().create("link-board", {
+    workspaceId: "w1",
+    kind: "kanban",
+    payload: { columns: [{ id: "todo", title: "To do", cardIds: [] }], cards: {}, github: { repo: "o/r" } },
+  });
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = createRoot(host);
+  await act(async () => root.render(<KanbanNode nodeId="link-board" />));
+  await act(async () => press(host.querySelector('button[aria-label="Board menu"]')!, "Enter"));
+  const edit = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((i) => i.textContent === "Edit the GitHub link…")!;
+  await act(async () => edit.click());
+  const repo = document.querySelector<HTMLInputElement>("#kanban-github-repo")!;
+  const project = document.querySelector<HTMLInputElement>("#kanban-github-project")!;
+  const dialogText = () => document.querySelector('[role="dialog"]')!.textContent;
+  // The menu hands the focus back as it closes, and the dialog takes it: let both settle before typing.
+  await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
+  repo.focus();
+
+  await act(async () => type(repo, "x"));
+  // Typing is not an error yet.
+  expect(dialogText()).not.toContain("Expected: owner/name");
+  expect(repo.hasAttribute("aria-invalid")).toBe(false);
+  await act(async () => repo.dispatchEvent(new FocusEvent("focusout", { bubbles: true })));
+  expect(repo.getAttribute("aria-invalid")).toBe("true");
+  expect(document.getElementById(repo.getAttribute("aria-describedby")!)?.textContent).toBe("Expected: owner/name");
+  await act(async () => type(repo, "o/r"));
+  expect(repo.hasAttribute("aria-invalid")).toBe(false);
+
+  await act(async () => type(project, "nope"));
+  expect(project.hasAttribute("aria-invalid")).toBe(false);
+  // Link stays enabled: it says what is wrong and takes the keyboard there.
+  const link = button("Link and sync");
+  expect(link.disabled).toBe(false);
+  await act(async () => link.click());
+  expect(project.getAttribute("aria-invalid")).toBe("true");
+  expect(document.getElementById(project.getAttribute("aria-describedby")!)?.textContent).toContain("Expected: owner/number");
+  expect(document.activeElement).toBe(project);
+  expect(document.querySelector('[role="dialog"]')).not.toBeNull();
+  expect(github.syncBoard).not.toHaveBeenCalledWith("link-board");
+
+  await act(async () => button("Cancel").click());
+  await act(async () => root.unmount());
+  document.body.replaceChildren();
 });
