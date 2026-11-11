@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { ArrowLeft, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,12 +26,19 @@ export function OllamaPicker(props: { aiderAvailable: boolean; onBack: () => voi
   const [mode, setMode] = useState<OllamaMode>(aiderAvailable ? "code" : "chat");
   const [name, setName] = useState("");
   const [invalid, setInvalid] = useState(false);
+  const invalidId = useId();
+  const hintId = useId();
 
-  const read = () =>
-    listOllamaModels().then(
-      (list) => setModels({ models: list }),
-      (error: unknown) => setModels({ error: String(error) }),
+  // "Try again" shows the reading line again, and an older answer arriving late never overwrites a newer one.
+  const reads = useRef(0);
+  const read = () => {
+    const turn = ++reads.current;
+    setModels(null);
+    return listOllamaModels().then(
+      (list) => turn === reads.current && setModels({ models: list }),
+      (error: unknown) => turn === reads.current && setModels({ error: String(error) }),
     );
+  };
 
   useEffect(() => {
     void read();
@@ -96,9 +103,13 @@ export function OllamaPicker(props: { aiderAvailable: boolean; onBack: () => voi
           {models === null && <p className="px-2 py-1 text-xs text-dp-text-2">{t.reading}</p>}
           {models && "error" in models && (
             <div className="grid justify-items-start gap-1 px-2 py-1">
-              <p title={models.error} className="text-xs text-dp-danger">
-                {t.serverDown}
-              </p>
+              {/* What went wrong, then the server's own words: on screen for everyone, not in a hover-only title. */}
+              <div role="alert" className="grid gap-0.5">
+                <p className="text-xs text-dp-danger">{t.serverDown}</p>
+                <p data-ollama-error className="font-mono text-xs break-all text-dp-text-2">
+                  {models.error}
+                </p>
+              </div>
               <Button type="button" variant="link" onClick={() => void read()} className={LINK}>
                 {t.retry}
               </Button>
@@ -119,6 +130,8 @@ export function OllamaPicker(props: { aiderAvailable: boolean; onBack: () => voi
           <Input
             value={name}
             aria-label={t.pullLabel}
+            aria-invalid={invalid}
+            aria-describedby={invalid ? `${invalidId} ${hintId}` : hintId}
             placeholder={t.pullPlaceholder}
             onChange={(e) => {
               setName(e.target.value);
@@ -130,8 +143,14 @@ export function OllamaPicker(props: { aiderAvailable: boolean; onBack: () => voi
             {t.pull}
           </AccentButton>
         </div>
-        {invalid && <p className="text-xs text-dp-danger">{t.pullInvalid}</p>}
-        <p className="text-xs text-dp-text-2">{t.pullHint}</p>
+        {invalid && (
+          <p id={invalidId} role="alert" className="text-xs text-dp-danger">
+            {t.pullInvalid}
+          </p>
+        )}
+        <p id={hintId} className="text-xs text-dp-text-2">
+          {t.pullHint}
+        </p>
       </form>
       {suggestions.length > 0 && (
         <div className="grid gap-0.5">
