@@ -91,6 +91,9 @@ pub struct ActivityEvent {
     since: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
     message: Option<String>,
+    /// Claude exited and the terminal is back at its shell (`SessionEnd`).
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    left: bool,
 }
 
 #[derive(Serialize)]
@@ -121,6 +124,7 @@ fn event(change: &Change) -> ActivityEvent {
         activity: change.activity,
         since: epoch_ms(change.since, Instant::now(), wall_ms()),
         message: change.message.clone(),
+        left: change.left,
     }
 }
 
@@ -258,6 +262,13 @@ impl HookSink for AppSink {
     }
 
     fn status(&self, node_id: &str, status: Value) {
+        // A Claude started by hand in a shell its agent had left: the node has its agent again.
+        if let Some(state) = self.0.try_state::<AgentState>() {
+            let back = lock(&state.tracker).status(node_id, Instant::now());
+            if let Some(change) = back {
+                emit(&self.0, &change);
+            }
+        }
         let _ = self.0.emit(
             "claude-status",
             StatusEvent {

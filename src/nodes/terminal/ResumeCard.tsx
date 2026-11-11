@@ -9,16 +9,20 @@ import { relaunchTerminal } from "./registry";
 import { useMessages } from "@/i18n";
 import { nodesMessages } from "@/nodes/messages";
 
-/** Floating card over a stopped terminal (spec habillage §7.3). */
-export function ResumeCard(props: { nodeId: string; payload: TerminalPayload; status: TerminalStatus }) {
-  const { nodeId, payload, status } = props;
+/**
+ * Floating card over a stopped terminal (spec habillage §7.3), or over a shell
+ * whose Claude exited (`left`): the click brings the agent back in a fresh process.
+ */
+export function ResumeCard(props: { nodeId: string; payload: TerminalPayload; status: TerminalStatus; left?: boolean }) {
+  const { nodeId, payload, status, left = false } = props;
   const t = useMessages(nodesMessages).resumeCard;
   const [dismissed, setDismissed] = useState(false);
-  const offer = resumeOfferOf(status, canResume(payload));
+  const offer = resumeOfferOf(status, canResume(payload), left);
 
+  // Hidden for this stop only: the next one shows the card again.
   useEffect(() => {
-    if (status.state === "running") setDismissed(false);
-  }, [status.state]);
+    if (!offer) setDismissed(false);
+  }, [offer]);
 
   if (!offer || dismissed) return null;
   const resume = offer === "resume";
@@ -37,7 +41,7 @@ export function ResumeCard(props: { nodeId: string; payload: TerminalPayload; st
             {resume ? t.resumeTitle : t.relaunchTitle}
           </span>
           <span className="block truncate text-dp-text-2">
-            {resume ? t.resumeHint : payload.oneShot ? t.oneShotHint : t.relaunchHint}
+            {left ? t.leftHint : resume ? t.resumeHint : payload.oneShot ? t.oneShotHint : t.relaunchHint}
           </span>
         </span>
       </Button>

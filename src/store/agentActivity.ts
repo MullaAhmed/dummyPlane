@@ -5,6 +5,8 @@ export interface AgentActivity {
   activity: Activity;
   since: number;
   message?: string;
+  /** Claude exited and the terminal is back at its shell (Rust's `SessionEnd`). */
+  left?: boolean;
 }
 
 interface AgentActivityState {

@@ -3,7 +3,7 @@ import { useNow } from "@/lib/useNow";
 import type { TerminalReportStatus } from "@/nodes/types";
 import type { AgentActivity } from "@/store/agentActivity";
 import type { TerminalStatus } from "@/store/terminalStatus";
-import { pillOf } from "./pill";
+import { pillActivity, pillOf } from "./pill";
 import { DOT_OF_TONE, StatusDot } from "./StatusDot";
 import { useMessages } from "@/i18n";
 import { nodesMessages } from "@/nodes/messages";
@@ -29,7 +29,7 @@ export function StatusPill(props: {
   const now = useNow(15_000);
   const t = useMessages(nodesMessages).pill;
   const running = status.state === "running";
-  const pill = pillOf(status, running ? activity?.activity : undefined, indigo, report);
+  const pill = pillOf(status, pillActivity(status, activity), indigo, report);
   const title =
     status.state === "error"
       ? status.message

@@ -87,7 +87,7 @@ export function TerminalNode({ nodeId }: { nodeId: string }) {
       {/* The padding sits on a wrapper (TERMINAL_BODY says why). */}
       <div ref={bodyRef} className={cn(TERMINAL_BODY, minimized && "hidden")}>
         <div ref={hostRef} className="relative h-full w-full overflow-hidden" />
-        <ResumeCard nodeId={nodeId} payload={payload} status={status} />
+        <ResumeCard nodeId={nodeId} payload={payload} status={status} left={activity?.left} />
       </div>
       {/* Under the body, which gives up its height to it: the host's ResizeObserver fits the grid again. */}
       {foot && !minimized && <AgentFoot nodeId={nodeId} payload={payload} status={status} activity={activity} />}

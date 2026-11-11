@@ -38,7 +38,13 @@ pub struct Change {
     pub since: Instant,
     /// What it waits for, while it waits.
     pub message: Option<String>,
+    /// Claude ended its session and the terminal is back at its shell: no agent is there.
+    pub left: bool,
 }
+
+/// A status line this soon after `SessionEnd` is the leaving session's last
+/// render, not a Claude started again in the same shell.
+pub const STATUS_AFTER_END: Duration = Duration::from_secs(3);
 
 struct Node {
     activity: Activity,
@@ -46,6 +52,9 @@ struct Node {
     message: Option<String>,
     last_output: Option<Instant>,
     hooked: bool,
+    /// When Claude ended its session (`SessionEnd`), its shell living on; until
+    /// a Claude reports again in that shell.
+    left: Option<Instant>,
     /// When the user typed while a hooked agent worked or waited. No hook
     /// reports the answer to a permission prompt (a refusal fires neither
     /// `Stop` nor `PermissionDenied`), so the output decides until the next hook.
@@ -74,6 +83,7 @@ impl Tracker {
                 message: None,
                 last_output: None,
                 hooked: false,
+                left: None,
                 answered: None,
                 last_key: None,
             },
@@ -129,11 +139,26 @@ impl Tracker {
     }
 
     /// Claude ended its session; its shell lives on, and the output decides again.
+    /// The terminal has left its agent: a change even when it already rested.
     pub fn session_end(&mut self, node_id: &str, now: Instant) -> Option<Change> {
         let node = self.nodes.get_mut(node_id)?;
         node.hooked = false;
         node.answered = None;
-        set(node_id, node, Activity::Idle, now)
+        let leaves = node.left.is_none();
+        node.left.get_or_insert(now);
+        set(node_id, node, Activity::Idle, now).or_else(|| leaves.then(|| change_of(node_id, node)))
+    }
+
+    /// Claude's status line spoke (it does as Claude starts): a Claude runs in
+    /// the shell again, started by hand. Only a change for a terminal that had left its agent.
+    pub fn status(&mut self, node_id: &str, now: Instant) -> Option<Change> {
+        let node = self.nodes.get_mut(node_id)?;
+        let left = node.left?;
+        if now.saturating_duration_since(left) < STATUS_AFTER_END {
+            return None;
+        }
+        node.left = None;
+        Some(change_of(node_id, node))
     }
 
     pub fn hook(
@@ -148,6 +173,8 @@ impl Tracker {
         if matches!(source, HookSource::Claude | HookSource::Gemini) {
             node.hooked = true;
         }
+        // An agent reports from this shell: it is back.
+        let back = node.left.take().is_some();
         node.answered = None;
         let message = message.filter(|_| activity == Activity::Waiting);
         let still_waiting = activity == Activity::Waiting && node.activity == Activity::Waiting;
@@ -157,7 +184,7 @@ impl Tracker {
             return Some(change_of(node_id, node));
         }
         node.message = message;
-        set(node_id, node, activity, now)
+        set(node_id, node, activity, now).or_else(|| back.then(|| change_of(node_id, node)))
     }
 
     /// Working terminals that went quiet become idle: after 1.5 s without
@@ -181,7 +208,7 @@ impl Tracker {
                 node.activity = Activity::Idle;
                 node.since = now;
                 node.answered = None;
-                changes.push(change(node_id, Activity::Idle, now));
+                changes.push(change_of(node_id, node));
             }
         }
         changes
@@ -205,12 +232,14 @@ fn change(node_id: &str, activity: Activity, since: Instant) -> Change {
         activity,
         since,
         message: None,
+        left: false,
     }
 }
 
 fn change_of(node_id: &str, node: &Node) -> Change {
     Change {
         message: node.message.clone(),
+        left: node.left.is_some(),
         ..change(node_id, node.activity, node.since)
     }
 }
@@ -902,6 +931,60 @@ mod tests {
             Activity::Working
         );
         assert_eq!(tracker.session_end("zzz", t0), None);
+    }
+
+    #[test]
+    fn a_terminal_whose_claude_exited_says_so_even_when_it_already_rested() {
+        let t0 = Instant::now();
+        let mut tracker = started(t0);
+        tracker.hook("a", HookSource::Claude, Activity::Idle, t0, None);
+        // Idle before and after: the change is that no agent is there any more.
+        let left = tracker.session_end("a", t0 + ms(100)).unwrap();
+        assert_eq!(left.activity, Activity::Idle);
+        assert!(left.left);
+        assert!(tracker.snapshot()[0].left);
+        assert_eq!(tracker.session_end("a", t0 + ms(200)), None);
+        // The shell's own work keeps saying so.
+        let shell = tracker.output("a", t0 + ms(300)).unwrap();
+        assert_eq!((shell.activity, shell.left), (Activity::Working, true));
+        let quiet = tracker.tick(t0 + ms(2000));
+        assert_eq!((quiet[0].activity, quiet[0].left), (Activity::Idle, true));
+    }
+
+    #[test]
+    fn a_claude_started_again_in_the_shell_brings_the_agent_back() {
+        let t0 = Instant::now();
+        let mut tracker = started(t0);
+        tracker.session_end("a", t0);
+        // Its first hook, even one that changes no activity.
+        let back = tracker
+            .hook("a", HookSource::Claude, Activity::Idle, t0 + ms(5000), None)
+            .unwrap();
+        assert_eq!((back.activity, back.left), (Activity::Idle, false));
+        assert!(!tracker.snapshot()[0].left);
+        assert_eq!(
+            tracker.hook("a", HookSource::Claude, Activity::Idle, t0 + ms(6000), None),
+            None
+        );
+    }
+
+    #[test]
+    fn the_status_line_of_a_new_claude_brings_the_agent_back_not_the_leaving_one_s() {
+        let t0 = Instant::now();
+        let mut tracker = started(t0);
+        // Nothing left: the status line changes nothing.
+        assert_eq!(tracker.status("a", t0), None);
+        tracker.session_end("a", t0);
+        // The leaving session's last render.
+        assert_eq!(tracker.status("a", t0 + ms(500)), None);
+        assert!(tracker.snapshot()[0].left);
+        let back = tracker.status("a", t0 + STATUS_AFTER_END).unwrap();
+        assert!(!back.left);
+        assert_eq!(tracker.status("a", t0 + ms(9000)), None);
+        assert_eq!(tracker.status("zzz", t0), None);
+        // A restarted process starts with its agent.
+        tracker.session_end("a", t0 + ms(9000));
+        assert!(!tracker.start("a", t0 + ms(9500)).left);
     }
 
     #[test]

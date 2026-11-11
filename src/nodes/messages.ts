@@ -21,6 +21,8 @@ export const nodesMessages = defineMessages(
       stopped: "Stopped",
       exited: "Exited",
       exitedWith: (code: number) => `Exited · ${code}`,
+      // Claude exited and its terminal is back at the shell, which still runs.
+      left: "Agent exited",
       error: "Error",
       toolsUnavailable: "Tools unavailable",
       since: (label: string, duration: string) => `${label} for ${duration}`,
@@ -31,6 +33,8 @@ export const nodesMessages = defineMessages(
       resumeHint: "Click to resume · typing starts fresh",
       relaunchHint: "Click to restart · typing starts fresh",
       oneShotHint: "Click to run the command again",
+      // Over a shell whose Claude exited: typing goes to the shell, where `claude` starts it again with its tools.
+      leftHint: "Claude exited · click, or type claude in the shell",
       hide: "Hide",
     },
     options: {
