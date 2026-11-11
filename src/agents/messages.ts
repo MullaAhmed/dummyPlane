@@ -198,6 +198,8 @@ export const agentsMessages = defineMessages({
       unfold: "Unfold the group",
       ungroup: "Ungroup",
       close: "Close the group",
+      /** In a terminal's or a Fleet's "⋯", when it stands in a group. */
+      leave: "Remove from group",
     },
     options: {
       title: "Launch options",

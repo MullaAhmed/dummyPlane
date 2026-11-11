@@ -1,5 +1,16 @@
 /** The application's shortcuts (spec window §6.1), as the interface writes them. */
-export type Shortcut = "Ctrl+Tab" | "Ctrl+Shift+Tab" | "Ctrl+P" | "Ctrl+Shift+P" | "Shift+Escape" | "Ctrl+Shift+A" | "Ctrl+G";
+export type Shortcut = "Ctrl+Tab" | "Ctrl+Shift+Tab" | "Ctrl+P" | "Ctrl+Shift+P" | "Shift+Escape" | "Ctrl+Shift+A" | "Ctrl+G" | "Ctrl+Shift+G";
+
+/**
+ * Shortcuts of the canvas's selection: typed into a text field or a terminal (xterm's input is a
+ * textarea), they are the field's or the agent's, never the canvas's.
+ */
+export const SELECTION_SHORTCUTS: ReadonlySet<Shortcut> = new Set<Shortcut>(["Ctrl+Shift+G"]);
+
+/** A text field or a terminal's input: what is typed there is theirs. */
+export function isTypedInto(target: EventTarget | null): boolean {
+  return target instanceof Element && target.matches("input, textarea, select, [contenteditable]:not([contenteditable='false'])");
+}
 
 /** The part of a keydown event the shortcuts read. */
 export type KeyLike = Pick<KeyboardEvent, "key" | "ctrlKey" | "shiftKey" | "altKey" | "metaKey" | "repeat" | "isComposing">;
@@ -11,7 +22,7 @@ function match(key: string, ctrl: boolean, shift: boolean): Shortcut | null {
   if (ctrl && key === "Tab") return shift ? "Ctrl+Shift+Tab" : "Ctrl+Tab";
   if (ctrl && key === "p") return shift ? "Ctrl+Shift+P" : "Ctrl+P";
   if (ctrl && shift && key === "a") return "Ctrl+Shift+A";
-  if (ctrl && !shift && key === "g") return "Ctrl+G";
+  if (ctrl && key === "g") return shift ? "Ctrl+Shift+G" : "Ctrl+G";
   if (!ctrl && shift && key === "Escape") return "Shift+Escape";
   return null;
 }

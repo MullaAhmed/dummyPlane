@@ -2,7 +2,8 @@ import { commandFor, runCommand, type Command, type CommandContext } from "./com
 import { closeOpenMenus } from "./openMenus";
 import { closePalette, paletteStore } from "./paletteState";
 import { COMMANDS, commandContext } from "./registry";
-import { heldShortcutOf, isEyeDropperKey, isModalOpen, shortcutOf } from "./shortcuts";
+import { isCanvasKeyPress } from "@/radial/bridges";
+import { heldShortcutOf, isEyeDropperKey, isModalOpen, isTypedInto, SELECTION_SHORTCUTS, shortcutOf } from "./shortcuts";
 
 /** Where Excalidraw reads a key as its own: inside its container, but not typed into a field or a terminal's xterm. */
 function onCanvas(target: EventTarget | null): boolean {
@@ -22,6 +23,8 @@ export function installShortcuts(
   context: () => CommandContext = commandContext,
 ): () => void {
   const listener = (event: KeyboardEvent) => {
+    // A key the app presses for Excalidraw (its Ungroup, Ctrl+Shift+G) is Excalidraw's.
+    if (isCanvasKeyPress(event)) return;
     // Never Excalidraw's eyedropper (shortcuts.ts): stopped before its container hears it. Nothing else on the canvas reads these keys.
     if (isEyeDropperKey(event) && onCanvas(event.target)) {
       event.stopImmediatePropagation();
@@ -38,6 +41,8 @@ export function installShortcuts(
       }
       return;
     }
+    // Ctrl+Shift+G in a terminal or a field is theirs: it never ungroups a group from there.
+    if (SELECTION_SHORTCUTS.has(shortcut) && isTypedInto(event.target)) return;
     const ctx = context();
     const command = commandFor(commands, shortcut, ctx);
     if (!command) return;

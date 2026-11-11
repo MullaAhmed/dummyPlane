@@ -6,7 +6,7 @@ import { focusGroup } from "@/canvas/canvasFocus";
 import { canvasStore } from "@/canvas/canvasStore";
 import { agentsPanelStore } from "@/agents/agentsPanelState";
 import { pauseAgents, pauseAll, resumeAgent } from "@/agents/broadcast";
-import { requestCloseGroup, setGroupFolded, ungroup } from "@/agents/groups";
+import { leaveGroup, requestCloseGroup, setGroupFolded, ungroup } from "@/agents/groups";
 import { addFleetToGroup } from "@/fleet/fleets";
 import { duplicateTerminal, requestClose } from "@/agents/terminals";
 import { expandTerminal, minimizeTerminal } from "@/nodes/terminal/minimize";
@@ -29,7 +29,7 @@ vi.mock("@/agents/broadcast", async (importOriginal) => ({
   pauseAll: vi.fn(() => Promise.resolve()),
   resumeAll: vi.fn(() => Promise.resolve()),
 }));
-vi.mock("@/agents/groups", () => ({ requestCloseGroup: vi.fn(), ungroup: vi.fn(), setGroupFolded: vi.fn(), groupMembers: vi.fn(() => ["batman"]) }));
+vi.mock("@/agents/groups", () => ({ requestCloseGroup: vi.fn(), ungroup: vi.fn(), setGroupFolded: vi.fn(), groupMembers: vi.fn(() => ["batman"]), leaveGroup: vi.fn() }));
 vi.mock("@/fleet/fleets", () => ({ addFleetToGroup: vi.fn(() => Promise.resolve()) }));
 vi.mock("@/agents/terminals", () => ({ duplicateTerminal: vi.fn(() => Promise.resolve()), requestClose: vi.fn() }));
 vi.mock("@/nodes/terminal/registry", () => ({
@@ -93,6 +93,7 @@ describe("Terminal · <prénom> and Groupe · <nom> (spec fenêtre §7.3)", () =
       "Expand terminal",
       "Quick note on this terminal",
       "Close",
+      "Remove from group",
       "Copy",
       "Paste",
       "Rename the group",
@@ -120,6 +121,7 @@ describe("Terminal · <prénom> and Groupe · <nom> (spec fenêtre §7.3)", () =
       "terminal.minimize",
       "terminal.note",
       "terminal.close",
+      "terminal.leaveGroup",
       "terminal.copy",
       "terminal.paste",
       "group.rename",
@@ -153,6 +155,13 @@ describe("Terminal · <prénom> and Groupe · <nom> (spec fenêtre §7.3)", () =
     expect(resumeAgent).toHaveBeenCalledWith("batman");
     await find("terminal.close").run(ctx("cyborg"));
     expect(requestClose).toHaveBeenCalledWith("cyborg");
+  });
+
+  it("takes the terminal of the moment out of its group, offered only to one that stands in a group", async () => {
+    expect(find("terminal.leaveGroup").available(ctx("batman"))).toBe(true);
+    expect(find("terminal.leaveGroup").available(ctx("cyborg"))).toBe(false);
+    await find("terminal.leaveGroup").run(ctx("batman"));
+    expect(leaveGroup).toHaveBeenCalledWith("batman");
   });
 
   it("shows the terminal without taking the keyboard, then opens its name editor", async () => {

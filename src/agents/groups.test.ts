@@ -10,7 +10,8 @@ import { workspacesStore } from "@/store/workspaces";
 import { toast } from "sonner";
 import { cachedElements, forgetScene, rememberScene } from "@/canvas/sceneCache";
 import { startUnseen } from "@/nodes/terminal/registry";
-import { addAgentToGroup, closeGroup, closeStoredGroup, launchGroup, setGroupFolded, setGroupPantheon, setGroupSpeciality, showGroups } from "./groups";
+import { addAgentToGroup, closeGroup, closeStoredGroup, launchGroup, leaveGroup, leftGroup, setGroupFolded, setGroupPantheon, setGroupSpeciality, showGroups, ungroup } from "./groups";
+import { PADDING, PADDING_BOTTOM, PADDING_TOP } from "./groupLayout";
 import { announceArrival, quietly } from "./arrivals";
 import { launchFolderStore } from "./launchFolder";
 import { addTerminal, removeFromStoredScene } from "./terminals";
@@ -339,5 +340,84 @@ describe("the folder agents of a group start in", () => {
     await openProject();
     const made = await launchGroup(plan, { cwd: "D:\\work\\lib", shell: "default", title: "", command: "" }, { x: 0, y: 0 });
     expect(folderOf(made!.nodeIds[0])).toBe("D:\\work\\lib");
+  });
+});
+
+describe("Remove from group, and Ungroup", () => {
+  const data = { kind: "group", role: "general", pantheon: "egyptian" };
+  const terminalAt = (id: string, x: number, y: number, fields: Record<string, unknown> = {}) => ({
+    id,
+    type: "embeddable",
+    isDeleted: false,
+    frameId: "f1",
+    groupIds: [],
+    x,
+    y,
+    width: 720,
+    height: 440,
+    customData: { kind: "terminal" },
+    ...fields,
+  });
+  const frame = (fields: Record<string, unknown> = {}) => ({ id: "f1", type: "frame", isDeleted: false, frameId: null, groupIds: [], x: 0, y: 0, width: 2000, height: 1000, customData: { dummyplane: data }, ...fields });
+  // Two terminals side by side in the grid, a quick note written for the second one beside it.
+  const left = () => terminalAt("t1", PADDING, PADDING_TOP);
+  const right = () => terminalAt("t2", PADDING + 720 + 32, PADDING_TOP);
+  const note = () => ({ ...terminalAt("n2", 1600, PADDING_TOP), width: 200, height: 160, customData: { kind: "note", note: { of: "t2", x: "right", dx: 16, y: "top", dy: 0 } } });
+  const byId = (elements: readonly object[], id: string) => (elements as Element[]).find((e) => e.id === id) as Element & Record<string, unknown>;
+
+  it("lets a terminal leave without moving, its note with it, and fits the frame to the one left", () => {
+    const before = [frame(), left(), right(), note()];
+    const after = leftGroup(before as never, "t2")!;
+    expect(byId(after, "t2")).toMatchObject({ frameId: null, x: PADDING + 752, y: PADDING_TOP });
+    expect(byId(after, "n2")).toMatchObject({ frameId: null, x: 1600 });
+    expect(byId(after, "t1")).toBe(before[1]);
+    expect(byId(after, "f1")).toMatchObject({ isDeleted: false, x: 0, y: 0, width: 720 + 2 * PADDING, height: 440 + PADDING_TOP + PADDING_BOTTOM });
+  });
+
+  it("takes the group away with its last terminal, the frame's other children set free", () => {
+    const drawing = { id: "d1", type: "rectangle", isDeleted: false, frameId: "f1", groupIds: [], x: 900, y: 100, width: 50, height: 50 };
+    const after = leftGroup([frame(), left(), drawing] as never, "t1")!;
+    expect(byId(after, "f1").isDeleted).toBe(true);
+    expect(byId(after, "t1").frameId).toBeNull();
+    expect(byId(after, "d1").frameId).toBeNull();
+  });
+
+  it("lets a Fleet dragged into the frame leave it the same way", () => {
+    const fleet = { ...terminalAt("chef", 1700, 600), customData: { kind: "fleet" } };
+    const after = leftGroup([frame(), left(), fleet] as never, "chef")!;
+    expect(byId(after, "chef").frameId).toBeNull();
+    expect(byId(after, "f1")).toMatchObject({ isDeleted: false, width: 720 + 2 * PADDING });
+  });
+
+  it("unlocks a terminal that leaves a folded group: folding had locked it", () => {
+    const folded = frame({ customData: { dummyplane: { ...data, folded: true } } });
+    const after = leftGroup([folded, { ...left(), locked: true }, { ...right(), locked: true }] as never, "t2")!;
+    expect(byId(after, "t2")).toMatchObject({ frameId: null, locked: false });
+    expect(byId(after, "t1").locked).toBe(true);
+  });
+
+  it("does nothing for a node in no group", () => {
+    expect(leftGroup([frame(), { ...left(), frameId: null }] as never, "t1")).toBeNull();
+    expect(leftGroup([{ ...frame(), customData: undefined }, left()] as never, "t1")).toBeNull();
+  });
+
+  it("is one undoable step, the keyboard back on the canvas", () => {
+    scene = [frame(), left(), right()] as never;
+    const api = canvasStore.getState().api!;
+    const update = vi.fn(api.updateScene);
+    canvasStore.setState({ api: { ...api, updateScene: update } as never });
+    leaveGroup("t2");
+    expect(update).toHaveBeenCalledTimes(1);
+    expect(update.mock.calls[0][0]).toMatchObject({ captureUpdate: "i" });
+    expect(byId(scene, "t2").frameId).toBeNull();
+    leaveGroup("t2");
+    expect(update).toHaveBeenCalledTimes(1);
+  });
+
+  it("unlocks the terminals of a folded group it ungroups", () => {
+    scene = [frame({ customData: { dummyplane: { ...data, folded: true } } }), { ...left(), locked: true }] as never;
+    ungroup("f1");
+    expect(byId(scene, "f1").isDeleted).toBe(true);
+    expect(byId(scene, "t1")).toMatchObject({ frameId: null, locked: false });
   });
 });

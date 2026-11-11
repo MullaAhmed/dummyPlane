@@ -6,12 +6,14 @@ import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { requestUi } from "@/commands/uiRequests";
 import { remoteStore } from "@/agents/remoteControl";
 import { canvasStore } from "@/canvas/canvasStore";
+import { leaveGroup } from "@/agents/groups";
 import { nodesStore } from "@/store/nodes";
 import { quickNote } from "@/nodes/note/quickNote";
 import { relaunchTerminal, stopTerminal } from "./registry";
 import { TerminalHeader } from "./TerminalHeader";
 
 vi.mock("./registry", () => ({ relaunchTerminal: vi.fn(), stopTerminal: vi.fn(), terminalText: vi.fn(() => "") }));
+vi.mock("@/agents/groups", () => ({ leaveGroup: vi.fn() }));
 // "Quick note": the note's text, given the keyboard once it mounts, after the menu has gone (addNote, focusNote).
 vi.mock("@/nodes/note/quickNote", () => ({
   quickNote: vi.fn(async () => {
@@ -164,6 +166,20 @@ it("keeps the essentials on its row and the rest behind « ⋯ »: Review, Resta
   await act(async () => view.host.querySelector<HTMLButtonElement>('button[aria-label="Close"]')!.click());
   expect(onClose).toHaveBeenCalledOnce();
   await view.unmount();
+});
+
+it("offers « Remove from group » in its menu when it stands in a group, and takes it out of the group", async () => {
+  canvasStore.setState({ frames: [{ id: "g1", name: "Serveurs", x: 0, y: 0, width: 10, height: 10, group: { role: "backend", pantheon: "egypt" }, memberIds: ["batman"] }] });
+  try {
+    const view = await mount(<TerminalHeader nodeId="batman" payload={{ ...claude, agent: "shell" }} status={{ state: "stopped" }} />);
+    const items = await openMore(view.host);
+    expect(textOf(items())).toEqual(["Review changes", "Minimize", "Quick note", "Remove from group", "Restart"]);
+    await act(async () => items()[3]!.click());
+    await vi.waitFor(() => expect(leaveGroup).toHaveBeenCalledWith("batman"));
+    await view.unmount();
+  } finally {
+    canvasStore.setState({ frames: [] });
+  }
 });
 
 it("restarts a Claude session three ways, and stops the process, from its menu", async () => {

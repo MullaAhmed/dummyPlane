@@ -75,10 +75,20 @@ function agentNameOf(id: string): string {
 const resumes = (ctx: CommandContext) => COMMANDS.find((c) => c.id === "terminal.resume")?.available(ctx) ?? false;
 /**
  * Two terminals or more are selected: "Group" takes the place of "Paste" in the selection ring,
- * which is full at 8. Paste is dead there anyway: it refuses to paste over a node (bridges.ts),
- * and Ctrl+V and the canvas ring still paste.
+ * which is full at 8; a group's frame or members, or Excalidraw's groups of drawings: "Ungroup".
+ * Paste is dead there anyway: it refuses to paste over a node (bridges.ts), and Ctrl+V and the
+ * canvas ring still paste.
  */
 const groups = (ctx: CommandContext) => COMMANDS.find((c) => c.id === "selection.group")?.available(ctx) ?? false;
+/** "Ungroup" comes first: a group's frame or members also make Group available, greyed ("a terminal is already in a group"). */
+const ungroups = (ctx: CommandContext) => COMMANDS.find((c) => c.id === "selection.ungroup")?.available(ctx) ?? false;
+type Grouping = "ungroup" | "group" | "paste";
+const groupingSlot = (ctx: CommandContext): Grouping => (ungroups(ctx) ? "ungroup" : groups(ctx) ? "group" : "paste");
+const GROUPING: Record<Grouping, { command: string; icon: Icon }> = {
+  ungroup: { command: "selection.ungroup", icon: Ungroup },
+  group: { command: "selection.group", icon: Group },
+  paste: { command: "drawing.paste", icon: ClipboardPaste },
+};
 const short = () => messages(radialMessages).short;
 
 /**
@@ -139,10 +149,10 @@ export const RINGS: Record<RingKind, readonly RingSlot[]> = {
   selection: [
     { command: "drawing.copy", short: "copy", icon: Copy },
     {
-      command: (ctx) => (groups(ctx) ? "selection.group" : "drawing.paste"),
-      short: (ctx) => (groups(ctx) ? short().group : short().paste),
+      command: (ctx) => GROUPING[groupingSlot(ctx)].command,
+      short: (ctx) => short()[groupingSlot(ctx)],
       icon: ClipboardPaste,
-      iconOf: (ctx) => (groups(ctx) ? Group : ClipboardPaste),
+      iconOf: (ctx) => GROUPING[groupingSlot(ctx)].icon,
     },
     { command: "drawing.duplicate", short: "duplicate", icon: CopyPlus },
     { command: "drawing.front", short: "toFront", icon: BringToFront },

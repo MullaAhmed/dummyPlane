@@ -4,6 +4,7 @@ import { readSource } from "@/theme/cssBlocks";
 import type { Command, CommandContext } from "./command";
 import { installShortcuts } from "./dispatch";
 import { openPalette, paletteStore } from "./paletteState";
+import { CANVAS_KEYS, pressCanvasKey } from "@/radial/bridges";
 
 vi.mock("./registry", () => ({ COMMANDS: [], commandContext: () => ({}) }));
 
@@ -129,5 +130,66 @@ describe("Excalidraw's eyedropper keys", () => {
     press({ key: "i" });
     expect(reachedCanvas).toHaveBeenCalledTimes(2);
     expect(reachedXterm).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("Ctrl+Shift+G, Ungroup of the canvas's selection", () => {
+  const reachedCanvas = vi.fn();
+  let canvas: HTMLElement;
+  let ungroupAvailable: boolean;
+  let greyed: string | null;
+  const ungroupRun = vi.fn(() => pressCanvasKey(CANVAS_KEYS.ungroup));
+  const ungroupCommand: Command = {
+    id: "selection.ungroup",
+    label: "Ungroup selection",
+    section: "Drawing",
+    keywords: [],
+    shortcut: "Ctrl+Shift+G",
+    available: () => ungroupAvailable,
+    disabled: () => greyed,
+    run: ungroupRun,
+  };
+  beforeEach(() => {
+    ungroupAvailable = true;
+    greyed = null;
+    reachedCanvas.mockClear();
+    ungroupRun.mockClear();
+    document.body.insertAdjacentHTML("beforeend", '<div class="excalidraw"><div class="excalidraw-container" tabindex="0"><input /></div></div>');
+    canvas = document.querySelector<HTMLElement>(".excalidraw-container")!;
+    canvas.addEventListener("keydown", reachedCanvas);
+    uninstall();
+    uninstall = installShortcuts(window, [ungroupCommand], () => ctx);
+  });
+  const chord = (target: HTMLElement) => {
+    const event = new KeyboardEvent("keydown", { key: "G", code: "KeyG", ctrlKey: true, shiftKey: true, bubbles: true, cancelable: true });
+    target.dispatchEvent(event);
+    return event;
+  };
+
+  it("ungroups from the canvas: the command runs once, and only its own press of Excalidraw's key reaches the canvas", () => {
+    const event = chord(canvas);
+    expect(event.defaultPrevented).toBe(true);
+    expect(ungroupRun).toHaveBeenCalledTimes(1);
+    // The user's key is consumed; the command's press goes through to Excalidraw, never caught again.
+    expect(reachedCanvas).toHaveBeenCalledTimes(1);
+    expect(reachedCanvas.mock.calls[0][0]).not.toBe(event);
+  });
+
+  it("is a terminal's or a field's when typed there: it never ungroups from inside a terminal", () => {
+    chord(xterm);
+    chord(canvas.querySelector("input")!);
+    expect(ungroupRun).not.toHaveBeenCalled();
+    expect(reachedXterm).toHaveBeenCalledTimes(1);
+    expect(reachedCanvas).toHaveBeenCalledTimes(1);
+  });
+
+  it("goes on to Excalidraw when Ungroup cannot act, unavailable or greyed: Excalidraw's own Ctrl+Shift+G answers", () => {
+    ungroupAvailable = false;
+    expect(chord(canvas).defaultPrevented).toBe(false);
+    ungroupAvailable = true;
+    greyed = "the selection spans several groups";
+    expect(chord(canvas).defaultPrevented).toBe(false);
+    expect(ungroupRun).not.toHaveBeenCalled();
+    expect(reachedCanvas).toHaveBeenCalledTimes(2);
   });
 });

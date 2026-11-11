@@ -18,7 +18,9 @@ import { uiStore } from "@/store/ui";
 import { workspacesStore } from "@/store/workspaces";
 import { announceArrival, IN_VIEW, type Arrival } from "./arrivals";
 import { readableTargets } from "./groupView";
-import { clearSpot, groupGrid } from "./groupLayout";
+import { anchorsOf } from "./attachments";
+import { clearSpot, frameAround, groupGrid } from "./groupLayout";
+import { fullRect } from "./selectionGroup";
 import { defaultLaunchOptions, type LaunchOptions } from "./launchAgent";
 import { nextName } from "./names";
 import { nameForNewAgent, namesInWorkspace, pantheonForNewGroup } from "./naming";
@@ -26,7 +28,7 @@ import { viewportCenter } from "./placement";
 import { ROLES, type RoleId } from "./roles";
 import { sceneAccess } from "./sceneAccess";
 import { addTerminal, removeFromStoredScene, startArrival, type Point } from "./terminals";
-import { isWire } from "./wires";
+import { isWire, rerouteWires } from "./wires";
 
 export interface GroupPlan {
   name: string;
@@ -219,18 +221,75 @@ export function showGroups(groupIds: readonly string[]) {
   if (frames.length > 0) api?.scrollToContent(frames, { fitToViewport: true, viewportZoomFactor: 0.9, animate: true, duration: 300, maxZoom: 1 });
 }
 
+/** A child of a group's frame, set free: a folded group's terminals were locked (setGroupFolded), and are no longer. */
+function released(element: ExcalidrawElement, folded: boolean): ExcalidrawElement {
+  const unlock = folded && element.locked && nodeKindOf(element) === "terminal";
+  return newElementWith(element, unlock ? { frameId: null, locked: false } : { frameId: null });
+}
+
 /** "Ungroup": the frame goes, its terminals stay where they are (spec §11.4). */
 export function ungroup(groupId: string) {
   const api = canvasStore.getState().api;
   if (!api) return;
+  const elements = api.getSceneElementsIncludingDeleted();
+  const frame = elements.find((e) => e.id === groupId);
+  const folded = frame ? groupInfoOf(frame)?.folded === true : false;
   api.updateScene({
-    elements: api.getSceneElementsIncludingDeleted().map((e) => {
+    elements: elements.map((e) => {
       if (e.id === groupId) return newElementWith(e, { isDeleted: true });
-      if (e.frameId === groupId) return newElementWith(e, { frameId: null });
+      if (e.frameId === groupId) return released(e, folded);
       return e;
     }),
     captureUpdate: CaptureUpdateAction.IMMEDIATELY,
   });
+  returnKeyboardToCanvas();
+}
+
+/**
+ * The scene once node `nodeId` (a terminal or a Fleet) has left its group: it stays where it
+ * stands, with what is attached to it in the frame (its quick note, an output it showed); the
+ * frame fits what is left (frameAround: the grid's padding around it), and goes when no
+ * terminal is left in it, its other children set free, as Ungroup does. The wires of a frame
+ * that moved are routed again; those of a frame that went are the wire upkeep's (orphans).
+ * Null when the node stands in no group.
+ */
+export function leftGroup(elements: readonly ExcalidrawElement[], nodeId: string, attachedTo = anchorsOf(elements)): readonly ExcalidrawElement[] | null {
+  const live = elements.filter((e) => !e.isDeleted);
+  const node = live.find((e) => e.id === nodeId);
+  const frame = node?.frameId ? live.find((e) => e.id === node.frameId && groupInfoOf(e) !== null) : undefined;
+  if (!node || !frame) return null;
+  const children = live.filter((e) => e.frameId === frame.id);
+  // What hangs on the node, step by step (a board on its Fleet, then its Manager's note…); another terminal stays a member.
+  const leaving = new Set([nodeId]);
+  for (let grew = true; grew; ) {
+    grew = false;
+    for (const child of children) {
+      if (leaving.has(child.id) || nodeKindOf(child) === "terminal") continue;
+      const anchor = attachedTo(child)?.anchor;
+      if (anchor && leaving.has(anchor)) {
+        leaving.add(child.id);
+        grew = true;
+      }
+    }
+  }
+  const staying = children.filter((e) => !leaving.has(e.id));
+  const folded = groupInfoOf(frame)?.folded === true;
+  const empty = !staying.some((e) => nodeKindOf(e) === "terminal");
+  const fit = empty ? null : frameAround(staying.map(fullRect));
+  const next = elements.map((e) => {
+    if (leaving.has(e.id) || (empty && !e.isDeleted && e.frameId === frame.id)) return released(e, folded);
+    if (e.id === frame.id) return newElementWith(e, fit ?? { isDeleted: true });
+    return e;
+  });
+  return fit ? rerouteWires(next, new Set([frame.id])) : next;
+}
+
+/** "Remove from group" of a terminal or a Fleet: see `leftGroup`. One undoable step. */
+export function leaveGroup(nodeId: string) {
+  const api = canvasStore.getState().api;
+  const next = api ? leftGroup(api.getSceneElementsIncludingDeleted(), nodeId) : null;
+  if (!api || !next) return;
+  api.updateScene({ elements: next, captureUpdate: CaptureUpdateAction.IMMEDIATELY });
   returnKeyboardToCanvas();
 }
 

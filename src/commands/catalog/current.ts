@@ -5,7 +5,8 @@ import { groupOf, isGroup, type SceneGroup } from "@/canvas/groups";
 import { setAgentsFilter, setAgentsPanel } from "@/agents/agentsPanelState";
 import { canPause, canResume, pauseAgents, pauseAll, resumeAgent, resumeAll, type AgentFacts } from "@/agents/broadcast";
 import { AGENTS } from "@/agents/catalog";
-import { groupMembers, requestCloseGroup, setGroupFolded, ungroup } from "@/agents/groups";
+import { groupHolding } from "@/agents/groupHolding";
+import { groupMembers, leaveGroup, requestCloseGroup, setGroupFolded, ungroup } from "@/agents/groups";
 import { addFleetToGroup } from "@/fleet/fleets";
 import { duplicateTerminal, requestClose } from "@/agents/terminals";
 import type { TerminalPayload } from "@/nodes/types";
@@ -148,6 +149,12 @@ export const CURRENT: readonly Command[] = [
     section: terminalSection,
     available: hasTerminal,
     run: (ctx) => requestClose(terminalId(ctx)),
+  }),
+  // It leaves its group's frame where it stands; the frame fits the others, or goes with the last one.
+  command("terminal.leaveGroup", {
+    section: terminalSection,
+    available: (ctx) => hasTerminal(ctx) && groupHolding(terminalId(ctx)) !== null,
+    run: (ctx) => leaveGroup(terminalId(ctx)),
   }),
   command("terminal.copy", {
     section: terminalSection,

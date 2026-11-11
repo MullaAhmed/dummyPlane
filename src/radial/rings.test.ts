@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { mockIPC } from "@tauri-apps/api/mocks";
-import { ClipboardPaste, Group } from "lucide-react";
+import { ClipboardPaste, Group, Ungroup as UngroupIcon } from "lucide-react";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { canvasStore } from "@/canvas/canvasStore";
 import type { CommandContext } from "@/commands/command";
@@ -151,6 +151,65 @@ describe("the selection ring with terminals selected", () => {
     selecting({ r1: true });
     expect(second({ ...ctx, selectionIds: ["a", "b"] }).label).toBe("Group selection");
     expect(second({ ...ctx, selectionIds: ["r1"] }).label).toBe("Paste");
+  });
+});
+
+describe("the selection ring's Ungroup", () => {
+  const info = { kind: "group", role: "general", pantheon: "egyptian" };
+  const node = (id: string, frameId: string | null, kind = "terminal") => ({ id, type: "embeddable", isDeleted: false, frameId, groupIds: [], x: 0, y: 0, width: 720, height: 440, customData: { kind } });
+  const frame = (id: string) => ({ id, type: "frame", isDeleted: false, frameId: null, groupIds: [], x: 0, y: 0, width: 2000, height: 900, customData: { dummyplane: info } });
+  const shape = (id: string, groupIds: string[]) => ({ id, type: "rectangle", isDeleted: false, frameId: null, groupIds, x: 0, y: 0, width: 10, height: 10 });
+  const scene = [frame("g1"), node("a", "g1"), node("b", "g1"), frame("g2"), node("c", "g2"), { ...node("loose", null), x: 10000 }, { ...node("free", null), x: 11000 }, shape("r1", ["s1"]), shape("r2", ["s1"]), shape("r3", [])];
+  const selecting = (...ids: string[]) =>
+    canvasStore.setState({
+      api: { getSceneElements: () => scene, getAppState: () => ({ selectedElementIds: Object.fromEntries(ids.map((id) => [id, true])) }) } as unknown as ExcalidrawImperativeAPI,
+    });
+  const second = () => lineOf(RINGS.selection[1]!, ctx)!;
+  const seen = () => [second().label, second().short, second().Icon, second().enabled, second().reason];
+  afterAll(() => canvasStore.setState({ api: null }));
+
+  it("offers Ungroup, with its own name and icon, for a group's frame or its members", () => {
+    for (const ids of [["a", "b"], ["g1"], ["g1", "a", "b"]]) {
+      selecting(...ids);
+      expect(seen(), ids.join()).toEqual(["Ungroup selection", "Ungroup", UngroupIcon, true, null]);
+    }
+  });
+
+  it("offers Ungroup for Excalidraw's groups of drawings, with no terminal selected", () => {
+    selecting("r1", "r2");
+    expect(seen()).toEqual(["Ungroup selection", "Ungroup", UngroupIcon, true, null]);
+  });
+
+  it("greys Ungroup, and says why, for a selection across two groups or past the group's frame", () => {
+    selecting("a", "c");
+    expect(seen()).toEqual(["Ungroup selection", "Ungroup", UngroupIcon, false, "the selection spans several groups"]);
+    selecting("a", "loose");
+    expect(seen()).toEqual(["Ungroup selection", "Ungroup", UngroupIcon, false, "something outside the group is selected"]);
+    selecting("g1", "r1", "r2");
+    expect(second().reason).toBe("something outside the group is selected");
+  });
+
+  it("keeps Group for loose terminals, drawings or not, and Paste for a drawing in no group or a lone terminal with drawings", () => {
+    selecting("loose", "free");
+    expect(seen()).toEqual(["Group selection", "Group", Group, true, null]);
+    selecting("loose", "free", "r1", "r2");
+    expect(second().label).toBe("Group selection");
+    selecting("r3");
+    expect([second().label, second().Icon]).toEqual(["Paste", ClipboardPaste]);
+    selecting("loose", "r1", "r2");
+    expect(second().label).toBe("Paste");
+  });
+
+  it("moves nothing else in the rings: only the second place of the selection ring changes", () => {
+    const around = () => RINGS.selection.map((slot) => lineOf(slot, ctx)!.label).filter((_, i) => i !== 1);
+    const others = () => (["canvas", "terminal", "group", "fleet"] as const).map((kind) => labels(kind));
+    selecting("r3");
+    const [before, othersBefore] = [around(), others()];
+    for (const ids of [["a", "b"], ["r1", "r2"], ["a", "c"], ["loose", "free"]]) {
+      selecting(...ids);
+      expect(around(), ids.join()).toEqual(before);
+      expect(others(), ids.join()).toEqual(othersBefore);
+    }
   });
 });
 

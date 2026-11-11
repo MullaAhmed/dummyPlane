@@ -2,9 +2,10 @@ import { releaseToCanvas } from "@/canvas/canvasFocus";
 import { canvasStore } from "@/canvas/canvasStore";
 import { clientOf } from "@/agents/placement";
 import { arrangeWorkspace } from "@/agents/arrangeCanvas";
-import { groupingOf, groupSelection } from "@/agents/selectionGroup";
+import { ungroup } from "@/agents/groups";
+import { groupingOf, groupSelection, ungroupingOf } from "@/agents/selectionGroup";
 import type { Point } from "@/agents/terminals";
-import { CANVAS_KEYS, copyCanvasSelection, openNativeMenuAt, pasteOnCanvasAt, pressCanvasKey, startTextAt } from "@/radial/bridges";
+import { CANVAS_KEYS, copyCanvasSelection, openNativeMenuAt, pasteOnCanvasAt, pressCanvasKey, startTextAt, ungroupDrawings } from "@/radial/bridges";
 import { exportCurrentPng, exportCurrentScene, importIntoScene } from "@/shell/sceneActions";
 import type { Command, CommandContext } from "../command";
 import { command, derived, sectionNamed } from "./define";
@@ -67,6 +68,10 @@ const withSelection = (ctx: CommandContext) => inProject(ctx) && selectedIds().l
 /** The elements to act on: the ring's (Excalidraw has not committed its press yet), else Excalidraw's own. */
 const selectionOf = (ctx: CommandContext): readonly string[] => ctx.selectionIds ?? selectedIds();
 const groupingFor = (ctx: CommandContext) => groupingOf(canvasStore.getState().api?.getSceneElements() ?? [], selectionOf(ctx));
+function ungroupingFor(ctx: CommandContext) {
+  const api = canvasStore.getState().api;
+  return ungroupingOf(api?.getSceneElements() ?? [], selectionOf(ctx), api?.getAppState().editingGroupId ?? null);
+}
 
 /** The window point of the radial menu's click, else the middle of the canvas. */
 function pointOf(ctx: CommandContext): Point {
@@ -104,6 +109,22 @@ export const DRAWING: readonly Command[] = [
     },
     run: (ctx) => {
       groupSelection(selectionOf(ctx));
+    },
+  }),
+  // A dummyPlane group's frame or members, or Excalidraw's groups of drawings (see `ungroupingOf`). Unavailable
+  // otherwise, and its key goes on to Excalidraw, whose own Ctrl+Shift+G then ungroups what it has.
+  command("selection.ungroup", {
+    section: drawing,
+    shortcut: "Ctrl+Shift+G",
+    available: (ctx) => inProject(ctx) && ungroupingFor(ctx) !== null,
+    disabled: (ctx) => {
+      const blocked = ungroupingFor(ctx)?.blocked;
+      return blocked ? catalog().reasons[blocked] : null;
+    },
+    run: (ctx) => {
+      const ungrouping = ungroupingFor(ctx);
+      if (ungrouping?.kind === "shapes") ungroupDrawings(ungrouping.groupIds);
+      else if (ungrouping?.groupId && !ungrouping.blocked) ungroup(ungrouping.groupId);
     },
   }),
   command("drawing.front", { section: drawing, keys: "Ctrl+Shift+]", available: withSelection, run: () => pressCanvasKey(CANVAS_KEYS.front) }),

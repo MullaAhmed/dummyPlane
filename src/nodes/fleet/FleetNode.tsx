@@ -5,6 +5,7 @@ import { useUiRequest } from "@/commands/uiRequests";
 import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { pauseAll, resumeAll } from "@/agents/broadcast";
 import { AGENTS, INDIGO } from "@/agents/catalog";
+import { LeaveGroupItem } from "@/agents/LeaveGroupItem";
 import { RemoteButton } from "@/agents/RemoteButton";
 import { setRemoteControlAll } from "@/agents/remoteControl";
 import { defaultLaunchOptions } from "@/agents/launchAgent";
@@ -159,6 +160,7 @@ function FleetHeader(props: {
           >
             {quickNoteLabel}
           </DropdownMenuItem>
+          <LeaveGroupItem nodeId={nodeId} />
         </HeaderMenu>
         <HeaderButton label={t.close} onClick={() => requestCloseFleet(nodeId)}>
           <X />

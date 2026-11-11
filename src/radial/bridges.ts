@@ -28,11 +28,42 @@ export const CANVAS_KEYS = {
   back: { key: "[", code: "BracketLeft", ctrl: true, shift: true },
   lock: { key: "L", code: "KeyL", ctrl: true, shift: true },
   delete: { key: "Delete", code: "Delete" },
+  // Its keyTest reads an upper-case G: Shift is held.
+  ungroup: { key: "G", code: "KeyG", ctrl: true, shift: true },
 } satisfies Record<string, CanvasKey>;
+
+const canvasKeyPresses = new WeakSet<Event>();
 
 export function pressCanvasKey({ key, code, ctrl = false, shift = false }: CanvasKey) {
   focusCanvas();
-  container()?.dispatchEvent(new KeyboardEvent("keydown", { key, code, ctrlKey: ctrl, shiftKey: shift, bubbles: true, cancelable: true }));
+  const event = new KeyboardEvent("keydown", { key, code, ctrlKey: ctrl, shiftKey: shift, bubbles: true, cancelable: true });
+  canvasKeyPresses.add(event);
+  container()?.dispatchEvent(event);
+}
+
+/**
+ * A key pressed for Excalidraw by `pressCanvasKey`: the app's shortcuts let it through.
+ * Ctrl+Shift+G is one of them, and presses Excalidraw's own: caught again, it would loop.
+ */
+export function isCanvasKeyPress(event: Event): boolean {
+  return canvasKeyPresses.has(event);
+}
+
+/**
+ * Excalidraw's own Ungroup (Ctrl+Shift+G), for its groups of drawings `groupIds`: it takes
+ * apart the groups Excalidraw has selected. A selection the app set (the radial menu's)
+ * may not have them yet: they are selected first, and the key pressed once Excalidraw has them.
+ */
+export function ungroupDrawings(groupIds: readonly string[]) {
+  const api = canvasStore.getState().api;
+  if (!api || groupIds.length === 0) return;
+  const selected = api.getAppState().selectedGroupIds ?? {};
+  if (groupIds.every((id) => selected[id])) {
+    pressCanvasKey(CANVAS_KEYS.ungroup);
+    return;
+  }
+  api.updateScene({ appState: { selectedGroupIds: Object.fromEntries(groupIds.map((id) => [id, true])) } });
+  requestAnimationFrame(() => pressCanvasKey(CANVAS_KEYS.ungroup));
 }
 
 /** Copy: Excalidraw's `copy` listener writes the selection to the system clipboard itself. */

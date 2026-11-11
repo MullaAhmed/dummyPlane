@@ -2,8 +2,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { canvasStore } from "@/canvas/canvasStore";
-import { CANVAS_KEYS, copyCanvasSelection, openNativeMenuAt, pasteOnCanvasAt, pressCanvasKey, startTextAt } from "@/radial/bridges";
+import { CANVAS_KEYS, copyCanvasSelection, openNativeMenuAt, pasteOnCanvasAt, pressCanvasKey, startTextAt, ungroupDrawings } from "@/radial/bridges";
 import { arrangeWorkspace } from "@/agents/arrangeCanvas";
+import { ungroup } from "@/agents/groups";
 import { groupSelection } from "@/agents/selectionGroup";
 import { exportCurrentPng, exportCurrentScene, importIntoScene } from "@/shell/sceneActions";
 import { labelOf, sectionOf, type CommandContext } from "../command";
@@ -20,7 +21,9 @@ vi.mock("@/radial/bridges", async (importOriginal) => ({
   pasteOnCanvasAt: vi.fn(() => Promise.resolve()),
   startTextAt: vi.fn(),
   openNativeMenuAt: vi.fn(),
+  ungroupDrawings: vi.fn(),
 }));
+vi.mock("@/agents/groups", () => ({ ungroup: vi.fn() }));
 
 const busy: CommandContext = { project: true, workspaceId: "w1", terminalCount: 0, terminalId: null };
 const setActiveTool = vi.fn();
@@ -59,6 +62,7 @@ describe("Dessin (spec fenêtre §7.3)", () => {
       ["Paste", "Ctrl+V"],
       ["Duplicate", "Ctrl+D"],
       ["Group selection", null],
+      ["Ungroup selection", null],
       ["Bring to front", "Ctrl+Shift+]"],
       ["Send to back", "Ctrl+Shift+["],
       ["Lock", "Ctrl+Shift+L"],
@@ -206,6 +210,106 @@ describe("Dessin, sur la sélection (spec menu radial §4.5)", () => {
       selecting({ a: true, b: true });
       await group.run(busy);
       expect(groupSelection).toHaveBeenLastCalledWith(["a", "b"]);
+    });
+  });
+
+  describe("Ungroup selection", () => {
+    const ungroupCommand = DRAWING.find((c) => c.id === "selection.ungroup")!;
+    const info = { kind: "group", role: "general", pantheon: "egyptian" };
+    const node = (id: string, frameId: string | null) => ({ id, type: "embeddable", isDeleted: false, frameId, groupIds: [], customData: { kind: "terminal" } });
+    const shape = (id: string, groupIds: string[], frameId: string | null = null) => ({ id, type: "rectangle", isDeleted: false, frameId, groupIds });
+    const elements = [
+      { id: "g1", type: "frame", isDeleted: false, frameId: null, groupIds: [], customData: { dummyplane: info } },
+      node("a", "g1"),
+      node("b", "g1"),
+      { id: "g2", type: "frame", isDeleted: false, frameId: null, groupIds: [], customData: { dummyplane: info } },
+      node("c", "g2"),
+      node("loose", null),
+      shape("r1", ["inner", "s1"]),
+      shape("r2", ["inner", "s1"]),
+      shape("r4", ["s1"]),
+      shape("r3", []),
+      shape("in-frame-1", ["s2"], "g1"),
+      shape("in-frame-2", ["s2"], "g1"),
+    ];
+    let editingGroupId: string | null = null;
+    const selecting = (...ids: string[]) =>
+      canvasStore.setState({
+        view,
+        api: {
+          getAppState: () => ({ selectedElementIds: Object.fromEntries(ids.map((id) => [id, true])), editingGroupId }),
+          getSceneElements: () => elements,
+        } as unknown as ExcalidrawImperativeAPI,
+      });
+    const state = () => [ungroupCommand.available(busy), ungroupCommand.disabled?.(busy) ?? null];
+
+    it("is named in the palette's Drawing section, with Ctrl+Shift+G", () => {
+      expect([sectionOf(ungroupCommand, busy), labelOf(ungroupCommand, busy), ungroupCommand.shortcut]).toEqual(["Drawing", "Ungroup selection", "Ctrl+Shift+G"]);
+    });
+
+    it("ungroups a dummyPlane group from its frame, its members, or a single member", async () => {
+      for (const ids of [["g1"], ["a", "b"], ["g1", "a", "b"], ["a"]]) {
+        selecting(...ids);
+        expect(state(), ids.join()).toEqual([true, null]);
+        vi.mocked(ungroup).mockClear();
+        await ungroupCommand.run(busy);
+        expect(ungroup, ids.join()).toHaveBeenCalledWith("g1");
+      }
+      expect(ungroupDrawings).not.toHaveBeenCalled();
+    });
+
+    it("is greyed, with its reason, over two groups or something outside the group, and then does nothing", async () => {
+      selecting("a", "c");
+      expect(state()).toEqual([true, "the selection spans several groups"]);
+      selecting("a", "loose");
+      expect(state()).toEqual([true, "something outside the group is selected"]);
+      selecting("g1", "r3");
+      expect(state()).toEqual([true, "something outside the group is selected"]);
+      vi.mocked(ungroup).mockClear();
+      await ungroupCommand.run(busy);
+      expect(ungroup).not.toHaveBeenCalled();
+    });
+
+    it("takes Excalidraw's groups of drawings apart, the outermost of each, with Excalidraw's own Ungroup", async () => {
+      selecting("r1", "r2");
+      expect(state()).toEqual([true, null]);
+      await ungroupCommand.run(busy);
+      expect(ungroupDrawings).toHaveBeenLastCalledWith(["s1"]);
+      // Inside the group entered by a double-click, the group under it.
+      editingGroupId = "s1";
+      try {
+        selecting("r1");
+        await ungroupCommand.run(busy);
+        expect(ungroupDrawings).toHaveBeenLastCalledWith(["inner"]);
+      } finally {
+        editingGroupId = null;
+      }
+      // Drawings in a group's frame are drawings, not its members.
+      selecting("in-frame-1", "in-frame-2");
+      await ungroupCommand.run(busy);
+      expect(ungroupDrawings).toHaveBeenLastCalledWith(["s2"]);
+    });
+
+    it("is not offered with nothing to ungroup, nor for drawings selected with a terminal: the key goes on to Excalidraw", () => {
+      selecting();
+      expect(ungroupCommand.available(busy)).toBe(false);
+      selecting("r3");
+      expect(ungroupCommand.available(busy)).toBe(false);
+      selecting("r1", "r2", "loose");
+      expect(ungroupCommand.available(busy)).toBe(false);
+      selecting("loose");
+      expect(ungroupCommand.available(busy)).toBe(false);
+      selecting("g1");
+      expect(ungroupCommand.available({ ...busy, project: false })).toBe(false);
+    });
+
+    it("reads the ring's selection rather than Excalidraw's", async () => {
+      selecting();
+      const ring = { ...busy, selectionIds: ["a", "b"] };
+      expect(ungroupCommand.available(ring)).toBe(true);
+      vi.mocked(ungroup).mockClear();
+      await ungroupCommand.run(ring);
+      expect(ungroup).toHaveBeenCalledWith("g1");
     });
   });
 

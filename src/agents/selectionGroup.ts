@@ -2,7 +2,7 @@ import { CaptureUpdateAction, newElementWith } from "@excalidraw/excalidraw";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { LABEL_ROOM, ZONE_OFFSETS } from "@/canvas/canvasFocus";
 import { canvasStore, type CanvasView } from "@/canvas/canvasStore";
-import { createGroupFrame, type Rect } from "@/canvas/groups";
+import { createGroupFrame, groupInfoOf, type Rect } from "@/canvas/groups";
 import { NODE_SIZE, nodeKindOf } from "@/canvas/nodeElement";
 import { nodesStore, terminalOf } from "@/store/nodes";
 import { uiStore } from "@/store/ui";
@@ -24,8 +24,9 @@ export interface Grouping {
 /**
  * The room a terminal takes once open: a minimized one is a card now, but
  * expands to its old height, and Excalidraw clips a child to its frame.
+ * Any other element: its own box.
  */
-function fullRect(terminal: ExcalidrawElement): Rect {
+export function fullRect(terminal: ExcalidrawElement): Rect {
   const payload = terminalOf(nodesStore.getState().nodes[terminal.id]);
   if (!payload?.minimized) return { x: terminal.x, y: terminal.y, width: terminal.width, height: terminal.height };
   const width = Math.max(terminal.width, payload.expandedWidth ?? NODE_SIZE.terminal.width);
@@ -60,6 +61,61 @@ export function groupingOf(elements: readonly ExcalidrawElement[], ids: readonly
     if (inTheWay) return { terminals, blocked: "inTheWay" };
   }
   return { terminals, blocked: null };
+}
+
+/** Why a selection's Ungroup is greyed: see `ungroupingOf`. */
+export type UngroupingBlock = "manyGroups" | "outsideGroup";
+
+/**
+ * What "Ungroup" does with a selection: a dummyPlane group's frame goes (`group`), or
+ * Excalidraw's groups of drawings come apart (`shapes`, their ids). Null when it has
+ * nothing to ungroup: the key and the ring's place are then Excalidraw's and Group's.
+ */
+export type Ungrouping =
+  | { kind: "group"; groupId: string | null; blocked: UngroupingBlock | null }
+  | { kind: "shapes"; groupIds: string[]; blocked: null };
+
+/**
+ * What "Ungroup" does with the selection `ids` (Ctrl+Shift+G, the selection ring, the palette):
+ * - A dummyPlane group, when the selection holds its frame or one of its nodes: the whole
+ *   group, as its menu's Ungroup does, a single member selected included (as Excalidraw
+ *   ungroups a group from any of its elements). Greyed when the selection spans several
+ *   groups (`manyGroups`) or holds something outside the frame (`outsideGroup`). A drawing
+ *   that sits in a group's frame is not one of its members: it ungroups as a drawing.
+ * - Else Excalidraw's groups of drawings, with no terminal in the selection: the outermost
+ *   group of each selected element, as Excalidraw's own Ungroup takes them (`editingGroupId`,
+ *   the group entered by a double-click, and those around it are kept), a group of one
+ *   element left aside.
+ */
+export function ungroupingOf(elements: readonly ExcalidrawElement[], ids: readonly string[], editingGroupId: string | null = null): Ungrouping | null {
+  const chosen = new Set(ids);
+  const live = elements.filter((e) => !e.isDeleted);
+  const selected = live.filter((e) => chosen.has(e.id));
+  if (selected.length === 0) return null;
+  const groupFrames = new Set(live.filter((e) => groupInfoOf(e) !== null).map((e) => e.id));
+  const homes = new Set(
+    selected.flatMap((e) => {
+      if (groupFrames.has(e.id)) return [e.id];
+      return e.frameId && groupFrames.has(e.frameId) && nodeKindOf(e) !== null ? [e.frameId] : [];
+    }),
+  );
+  if (homes.size > 1) return { kind: "group", groupId: null, blocked: "manyGroups" };
+  if (homes.size === 1) {
+    const [groupId] = homes;
+    const outside = selected.some((e) => e.id !== groupId && e.frameId !== groupId);
+    return outside ? { kind: "group", groupId, blocked: "outsideGroup" } : { kind: "group", groupId, blocked: null };
+  }
+  if (selected.some((e) => nodeKindOf(e) === "terminal")) return null;
+  const outermost = new Set(
+    selected.flatMap((e) => {
+      const own = e.groupIds ?? [];
+      const at = editingGroupId ? own.indexOf(editingGroupId) : -1;
+      const groupIds = at > -1 ? own.slice(0, at) : own;
+      return groupIds.length > 0 ? [groupIds[groupIds.length - 1]] : [];
+    }),
+  );
+  const groupIds = [...outermost].filter((id) => live.filter((e) => e.groupIds?.includes(id)).length >= 2);
+  return groupIds.length > 0 ? { kind: "shapes", groupIds, blocked: null } : null;
 }
 
 /** The label sits `LABEL_ROOM` above its frame (GroupLabels), under the glass bars that cover the canvas edges. */

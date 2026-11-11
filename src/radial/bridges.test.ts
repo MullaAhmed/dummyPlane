@@ -6,12 +6,14 @@ import { canvasStore } from "@/canvas/canvasStore";
 import {
   CANVAS_KEYS,
   copyCanvasSelection,
+  isCanvasKeyPress,
   isNativeMenu,
   openNativeMenuAt,
   pasteOnCanvasAt,
   pressCanvasKey,
   readClipboardText,
   startTextAt,
+  ungroupDrawings,
 } from "./bridges";
 
 vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { error: vi.fn() }) }));
@@ -112,6 +114,25 @@ describe("Excalidraw's own actions, driven from outside (spec menu radial §6.3)
     await new Promise((resolve) => requestAnimationFrame(resolve));
     const click = seen[0] as MouseEvent;
     expect([click.type, click.clientX, click.clientY]).toEqual(["dblclick", 12, 34]);
+  });
+
+  it("presses Excalidraw's own Ungroup, Ctrl+Shift+G with the upper-case G its keyTest reads, marked as its own", () => {
+    canvasStore.setState({ api: { getAppState: () => ({ selectedGroupIds: { s1: true } }), updateScene: vi.fn() } as unknown as ExcalidrawImperativeAPI });
+    ungroupDrawings(["s1"]);
+    const key = seen[0] as KeyboardEvent;
+    expect([key.type, key.key, key.code, key.ctrlKey, key.shiftKey]).toEqual(["keydown", "G", "KeyG", true, true]);
+    expect(isCanvasKeyPress(key)).toBe(true);
+    expect(isCanvasKeyPress(new KeyboardEvent("keydown", { key: "G", ctrlKey: true, shiftKey: true }))).toBe(false);
+  });
+
+  it("selects the groups to take apart first when Excalidraw has not, then presses its key a frame later", async () => {
+    const updateScene = vi.fn();
+    canvasStore.setState({ api: { getAppState: () => ({ selectedGroupIds: {} }), updateScene } as unknown as ExcalidrawImperativeAPI });
+    ungroupDrawings(["s1", "s2"]);
+    expect(updateScene).toHaveBeenCalledWith({ appState: { selectedGroupIds: { s1: true, s2: true } } });
+    expect(seen).toEqual([]);
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    expect((seen[0] as KeyboardEvent).key).toBe("G");
   });
 
   it("opens Excalidraw's menu at the point with a contextmenu it marks as its own", () => {

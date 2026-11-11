@@ -15,6 +15,7 @@ import { useUiRequest } from "@/commands/uiRequests";
 import { useCanvas } from "@/canvas/canvasStore";
 import { groupOf } from "@/canvas/groups";
 import { agentInk, AGENTS, AGENTS_WITHOUT_OPTIONS, INDIGO } from "@/agents/catalog";
+import { LeaveGroupItem } from "@/agents/LeaveGroupItem";
 import { RemoteButton } from "@/agents/RemoteButton";
 import { Hint, HintedButton } from "@/shell/buttons";
 import { modelLabel } from "@/mission/router";
@@ -75,6 +76,7 @@ function TerminalMenu(props: { nodeId: string; payload: TerminalPayload; running
       >
         {quickNoteLabel}
       </DropdownMenuItem>
+      <LeaveGroupItem nodeId={nodeId} />
       <DropdownMenuSeparator />
       {payload.agent === "claude" ? (
         <>

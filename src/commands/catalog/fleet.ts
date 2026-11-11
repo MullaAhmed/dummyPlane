@@ -1,3 +1,5 @@
+import { groupHolding } from "@/agents/groupHolding";
+import { leaveGroup } from "@/agents/groups";
 import { arrive, showNode } from "@/canvas/arrive";
 import { requestCloseFleet } from "@/fleet/fleets";
 import { quickNote } from "@/nodes/note/quickNote";
@@ -50,4 +52,6 @@ export const FLEET: readonly Command[] = [
   }),
   command("fleet.remove", { section, available: hasFleet, run: (ctx) => requestCloseFleet(id(ctx)) }),
   command("fleet.note", { section, available: hasFleet, run: async (ctx) => void (await quickNote(id(ctx))) }),
+  // A Fleet dragged into a group's frame leaves it as a terminal does (terminal.leaveGroup).
+  command("fleet.leaveGroup", { section, available: (ctx) => hasFleet(ctx) && groupHolding(id(ctx)) !== null, run: (ctx) => leaveGroup(id(ctx)) }),
 ];

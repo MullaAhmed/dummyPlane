@@ -55,9 +55,12 @@ export function sectionOf(command: Command, ctx: CommandContext): string {
   return typeof command.section === "function" ? command.section(ctx) : command.section;
 }
 
-/** The available command of a shortcut, if any. */
+/**
+ * The available command of a shortcut, if any. A greyed one does not take its key: it goes on
+ * where it was going (Excalidraw's own Ctrl+Shift+G, for a selection Ungroup cannot take).
+ */
 export function commandFor(commands: readonly Command[], shortcut: Shortcut, ctx: CommandContext): Command | null {
-  return commands.find((command) => command.shortcut === shortcut && command.available(ctx)) ?? null;
+  return commands.find((command) => command.shortcut === shortcut && command.available(ctx) && !command.disabled?.(ctx)) ?? null;
 }
 
 /** Runs a command; a failure says so, like the menus (spec window §9). */

@@ -233,6 +233,23 @@ describe("its header, the same chrome as a terminal's", () => {
     expect(items).toEqual(["Pause all", "Resume all", "Remote Control for the team", "Turn off Remote Control", "Quick note"]);
   });
 
+  it("offers « Remove from group » once it is dragged into a group's frame", async () => {
+    await act(async () =>
+      canvasStore.setState({
+        api: { getSceneElements: () => [{ id: "chef", frameId: "g1" }] } as never,
+        frames: [{ id: "g1", name: "Serveurs", x: 0, y: 0, width: 10, height: 10, group: { role: "backend", pantheon: "egypt" }, memberIds: [] }],
+      }),
+    );
+    try {
+      const menu = host.querySelector<HTMLButtonElement>('button[aria-label="Fleet menu"]')!;
+      await act(async () => menu.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true })));
+      const items = [...document.querySelectorAll('[role="menuitem"]')].map((item) => item.textContent);
+      expect(items[items.length - 1]).toBe("Remove from group");
+    } finally {
+      canvasStore.setState({ api: null });
+    }
+  });
+
   it("renames on Enter, as a terminal does; an empty name falls back to « Fleet »", async () => {
     const { seen, field } = await startRename();
     expect(document.activeElement).toBe(field);

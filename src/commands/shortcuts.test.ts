@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it } from "vitest";
-import { isEyeDropperKey, isModalOpen, shortcutOf, type KeyLike } from "./shortcuts";
+import { isEyeDropperKey, isModalOpen, isTypedInto, SELECTION_SHORTCUTS, shortcutOf, type KeyLike } from "./shortcuts";
 
 const key = (fields: Partial<KeyLike>): KeyLike => ({
   key: "",
@@ -22,7 +22,25 @@ describe("shortcutOf (spec fenêtre §6.1, §6.2)", () => {
     expect(shortcutOf(key({ key: "Escape", shiftKey: true }))).toBe("Shift+Escape");
     expect(shortcutOf(key({ key: "A", ctrlKey: true, shiftKey: true }))).toBe("Ctrl+Shift+A");
     expect(shortcutOf(key({ key: "g", ctrlKey: true }))).toBe("Ctrl+G");
-    expect(shortcutOf(key({ key: "G", ctrlKey: true, shiftKey: true }))).toBeNull();
+    // Ungroup: taken only when the app's Ungroup can act (dispatch.test.ts); else it still reaches Excalidraw.
+    expect(shortcutOf(key({ key: "G", ctrlKey: true, shiftKey: true }))).toBe("Ctrl+Shift+G");
+    expect(shortcutOf(key({ key: "g", ctrlKey: true, shiftKey: true }))).toBe("Ctrl+Shift+G");
+  });
+
+  it("leaves Ctrl+Shift+G to a text field or a terminal, never to the canvas's selection", () => {
+    expect(SELECTION_SHORTCUTS.has("Ctrl+Shift+G")).toBe(true);
+    const terminal = document.createElement("div");
+    terminal.className = "xterm";
+    terminal.innerHTML = "<textarea></textarea>";
+    expect(isTypedInto(terminal.querySelector("textarea"))).toBe(true);
+    expect(isTypedInto(document.createElement("input"))).toBe(true);
+    const editable = document.createElement("div");
+    editable.setAttribute("contenteditable", "true");
+    expect(isTypedInto(editable)).toBe(true);
+    const canvas = document.createElement("div");
+    canvas.className = "excalidraw-container";
+    expect(isTypedInto(canvas)).toBe(false);
+    expect(isTypedInto(document.body)).toBe(false);
   });
 
   it("reads the letter as printed: P on an AZERTY keyboard, whatever the case", () => {
