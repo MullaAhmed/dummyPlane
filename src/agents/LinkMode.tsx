@@ -4,25 +4,26 @@ import { canvasStore, useCanvas } from "@/canvas/canvasStore";
 import type { SceneFrame } from "@/canvas/groups";
 import { findTerminalAt } from "@/canvas/hitTest";
 import { nodeKindOf } from "@/canvas/nodeElement";
-import { useMessages } from "@/i18n";
+import { messages, useMessages } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { TOP_ROW_HEIGHT } from "@/shell/layout";
 import { nodesStore, terminalOf, useNodes } from "@/store/nodes";
 import { uiStore, useUi } from "@/store/ui";
 import { linkAgents, linkableAgent } from "./agentLinks";
+import { boardLinkable, linkAgentToBoard } from "./boardLinks";
 import { AGENTS } from "./catalog";
 import { agentsMessages } from "./messages";
 import { finishButtonAt, forwardWheel } from "./linkOverlay";
 import { linkFleet } from "@/fleet/fleets";
 import { clientRectOf, sceneOf } from "./placement";
 import type { Point } from "./terminals";
-import { agentLinksOf, fleetsOf, linkTargetAt, fleetAt, NO_LINKS, type Links } from "./wires";
+import { agentLinksOf, boardAt, boardLinksOf, fleetsOf, linkTargetAt, fleetAt, NO_LINKS, type Links } from "./wires";
 
 /** What the link mode can wire, as the list under its hint names it. */
 interface Candidate {
   id: string;
   name: string;
-  kind: "agent" | "group" | "fleet";
+  kind: "agent" | "group" | "fleet" | "board";
   /** Already wired: picking it again would add nothing. */
   linked: boolean;
   /** Where it is on the scene, to order the list as the canvas reads and to outline the one picked. */
@@ -36,6 +37,16 @@ function agentName(id: string): string {
   return payload ? payload.name || AGENTS[payload.agent].label : id;
 }
 
+/** Where the link mode started: an agent's foot, a Fleet's "+ Link", or a Kanban board's menu. */
+type Origin = "agent" | "fleet" | "board";
+
+/** A board has no name of its own: its cards and, synced, its repository tell two apart. */
+function boardName(id: string): string {
+  const record = nodesStore.getState().nodes[id];
+  if (record?.kind !== "kanban") return id;
+  return messages(agentsMessages).link.boardName(Object.keys(record.payload.cards).length, record.payload.github?.repo);
+}
+
 function fleetName(id: string): string {
   const record = nodesStore.getState().nodes[id];
   return record?.kind === "fleet" ? record.payload.name : id;
@@ -43,12 +54,20 @@ function fleetName(id: string): string {
 
 /**
  * The targets a click could designate, the same rules as `targetAt`. From a fleet: every group,
- * and every terminal outside one (a grouped terminal designates its group). From an agent: the
- * fleets, and the other agents that take instructions (not itself, not a plain shell).
+ * and every terminal outside one (a grouped terminal designates its group), and the Kanban boards.
+ * From an agent: the fleets, the other agents that take instructions (not itself, not a plain shell)
+ * and the boards. From a board: the agents that take instructions, and the fleets (`boardLinkable`).
  */
-function candidatesFor(linking: string, fromAgent: boolean, elements: readonly ExcalidrawElement[], frames: readonly SceneFrame[], links: Readonly<Record<string, Links>>): Candidate[] {
+function candidatesFor(linking: string, origin: Origin, elements: readonly ExcalidrawElement[], frames: readonly SceneFrame[], links: Readonly<Record<string, Links>>): Candidate[] {
   const list: Candidate[] = [];
-  if (!fromAgent) {
+  const boards = origin === "board" ? [] : boardLinksOf(elements, linking);
+  if (origin === "board") {
+    for (const e of elements) {
+      if (!live(e) || !boardLinkable(e.id)) continue;
+      const kind = nodeKindOf(e) === "fleet" ? "fleet" : "agent";
+      list.push({ id: e.id, name: kind === "fleet" ? fleetName(e.id) : agentName(e.id), kind, linked: boardLinksOf(elements, e.id).includes(linking), rect: e });
+    }
+  } else if (origin === "fleet") {
     const wired = links[linking] ?? NO_LINKS;
     for (const frame of frames) {
       if (frame.group) list.push({ id: frame.id, name: frame.name, kind: "group", linked: wired.groupIds.includes(frame.id), rect: frame });
@@ -57,6 +76,7 @@ function candidatesFor(linking: string, fromAgent: boolean, elements: readonly E
       if (!live(e) || nodeKindOf(e) !== "terminal" || frames.some((f) => f.group && f.memberIds.includes(e.id))) continue;
       list.push({ id: e.id, name: agentName(e.id), kind: "agent", linked: wired.nodeIds.includes(e.id), rect: e });
     }
+    for (const e of elements) if (live(e) && nodeKindOf(e) === "kanban") list.push({ id: e.id, name: boardName(e.id), kind: "board", linked: boards.includes(e.id), rect: e });
   } else {
     const commanding = fleetsOf(linking, links, frames);
     const peers = agentLinksOf(elements, linking).map((l) => l.peerId);
@@ -65,15 +85,20 @@ function candidatesFor(linking: string, fromAgent: boolean, elements: readonly E
       const kind = nodeKindOf(e);
       if (kind === "fleet") list.push({ id: e.id, name: fleetName(e.id), kind: "fleet", linked: commanding.includes(e.id), rect: e });
       else if (kind === "terminal" && e.id !== linking && linkableAgent(e.id)) list.push({ id: e.id, name: agentName(e.id), kind: "agent", linked: peers.includes(e.id), rect: e });
+      else if (kind === "kanban" && boardLinkable(linking)) list.push({ id: e.id, name: boardName(e.id), kind: "board", linked: boards.includes(e.id), rect: e });
     }
   }
   // As the canvas reads: top to bottom, then left to right.
   return list.sort((a, b) => a.rect.y - b.rect.y || a.rect.x - b.rect.x);
 }
 
-/** The Link button of the node that is linking: where the keyboard goes back when the mode ends from the list. */
+/**
+ * The Link button of the node that is linking: where the keyboard goes back when the mode ends from the list. A board
+ * starts it from its menu, which has no "Link" of its own to go back to: the menu's button.
+ */
 function linkToggleOf(id: string): HTMLElement | null {
-  return [...document.querySelectorAll<HTMLElement>("[data-link-toggle]")].find((b) => b.dataset.linkToggle === id) ?? null;
+  const toggle = [...document.querySelectorAll<HTMLElement>("[data-link-toggle]")].find((b) => b.dataset.linkToggle === id);
+  return toggle ?? [...document.querySelectorAll<HTMLElement>("[data-board-menu]")].find((b) => b.dataset.boardMenu === id) ?? null;
 }
 
 /**
@@ -88,7 +113,10 @@ function linkToggleOf(id: string): HTMLElement | null {
 export function LinkMode() {
   const t = useMessages(agentsMessages);
   const linking = useUi((s) => s.linking);
-  const fromAgent = useNodes((s) => (linking ? s.nodes[linking]?.kind === "terminal" : false));
+  const origin = useNodes((s): Origin => {
+    const kind = linking ? s.nodes[linking]?.kind : undefined;
+    return kind === "terminal" ? "agent" : kind === "kanban" ? "board" : "fleet";
+  });
   const view = useCanvas((s) => s.view);
   const frames = useCanvas((s) => s.frames);
   const links = useCanvas((s) => s.links);
@@ -101,7 +129,7 @@ export function LinkMode() {
   const ids = useId();
 
   const elements = linking ? (canvasStore.getState().api?.getSceneElements() ?? []) : [];
-  const candidates = linking ? candidatesFor(linking, fromAgent, elements, frames, links) : [];
+  const candidates = linking ? candidatesFor(linking, origin, elements, frames, links) : [];
   const hasCandidates = candidates.length > 0;
 
   /** The keyboard goes back to the linker's own Link button, else to what had it, when the list had it. */
@@ -135,12 +163,18 @@ export function LinkMode() {
   if (!linking) return null;
   const targetAt = (client: Point) => {
     const point = sceneOf(client, view);
-    if (!fromAgent) return linkTargetAt(elements, frames, point);
-    // From an agent: a fleet, else another agent (itself and a plain shell designate nothing).
+    // From a fleet: a board, else a group or a terminal.
+    if (origin === "fleet") return boardAt(elements, point) ?? linkTargetAt(elements, frames, point);
+    // From an agent or a board: a fleet, else (an agent) a board, else another agent (itself and a plain shell designate nothing).
     const fleet = fleetAt(elements, point);
     if (fleet) return fleet;
+    if (origin === "agent" && boardLinkable(linking)) {
+      const board = boardAt(elements, point);
+      if (board) return board;
+    }
     const terminal = findTerminalAt(elements, point.x, point.y);
-    return terminal && terminal.id !== linking && linkableAgent(terminal.id) ? terminal.id : null;
+    if (!terminal || terminal.id === linking) return null;
+    return (origin === "board" ? boardLinkable(terminal.id) : linkableAgent(terminal.id)) ? terminal.id : null;
   };
   const hovered = pointer ? targetAt(pointer) : null;
   const picked = candidates[active];
@@ -149,19 +183,23 @@ export function LinkMode() {
   const rect = outlined ? (frames.find((f) => f.id === outlined) ?? elements.find((e) => e.id === outlined)) : undefined;
 
   const link = (target: string) => {
-    if (!fromAgent) return linkFleet(linking, target);
     const element = elements.find((e) => e.id === target);
-    const fleet = element !== undefined && nodeKindOf(element) === "fleet";
+    const kind = element ? nodeKindOf(element) : null;
+    // From a board, a click wires the agent or the Fleet clicked to it.
+    if (origin === "board") linkAgentToBoard(target, linking);
+    else if (kind === "kanban") linkAgentToBoard(linking, target);
+    else if (origin === "fleet") return linkFleet(linking, target);
     // A fleet that already commands the agent, through its group too, gets no second wire.
-    if (!fleet) linkAgents(linking, target);
+    else if (kind !== "fleet") linkAgents(linking, target);
     else if (!fleetsOf(linking, links, frames).includes(target)) linkFleet(target, linking);
-    uiStore.getState().setLinking(null);
+    // A fleet keeps linking, one click each; from an agent or a board the mode ends.
+    if (origin !== "fleet") uiStore.getState().setLinking(null);
   };
 
   /** A target picked in the list: wired; from an agent the mode ends, and the keyboard goes back to its Link. */
   const pick = (candidate: Candidate | undefined) => {
     if (!candidate || candidate.linked) return;
-    if (fromAgent) giveBackFocus();
+    if (origin !== "fleet") giveBackFocus();
     link(candidate.id);
   };
 
@@ -227,7 +265,7 @@ export function LinkMode() {
         style={{ top: TOP_ROW_HEIGHT + 14 }}
       >
         <p id={hintId} className="px-2 py-1">
-          {fromAgent ? t.link.agentHint : t.link.hint}
+          {origin === "agent" ? t.link.agentHint : origin === "board" ? t.link.boardHint : t.link.hint}
         </p>
         {hasCandidates && (
           <div

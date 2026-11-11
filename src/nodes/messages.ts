@@ -93,7 +93,7 @@ export const nodesMessages = defineMessages(
       from: (names: string) => `from ${names}`,
       link: "Link",
       done: "Done",
-      linkTitle: "Link this agent to another agent or to a fleet",
+      linkTitle: "Link this agent to another agent, a fleet or a Kanban board",
     },
     session: {
       restartMarker: "── restart ──",

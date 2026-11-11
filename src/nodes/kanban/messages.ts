@@ -7,6 +7,7 @@ export const kanbanNodeMessages = defineMessages<{
   title: string;
   empty: string;
   addColumn: string;
+  linkAgent: string;
   newColumn: string;
   columnMenu: (title: string) => string;
   rename: string;
@@ -77,6 +78,7 @@ export const kanbanNodeMessages = defineMessages<{
     title: "Kanban",
     empty: "No columns yet.",
     addColumn: "Add a column",
+    linkAgent: "Link an agent…",
     newColumn: "New column",
     columnMenu: (title) => `${title} column menu`,
     rename: "Rename",
