@@ -157,3 +157,18 @@ it("tells the user when a deferred save is refused", async () => {
   await vi.advanceTimersByTimeAsync(500);
   expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("disk full"));
 });
+
+it("saves an agent's output under its own kind, and reads it back after a reload", async () => {
+  const { store } = createNodesStore();
+  const output = { title: "Tests", source: "t1", ui: 'root = Stack([Text("ok")])', updatedAt: 5 };
+  await store.getState().create("o1", { workspaceId: "w1", kind: "output", payload: output });
+  expect(saves[saves.length - 1]).toMatchObject({ id: "o1", kind: "output" });
+  const reloaded = createNodesStore().store;
+  reloaded.getState().hydrate("w1", [
+    { id: "o1", kind: "output", payloadJson: saves[saves.length - 1].payloadJson },
+    { id: "o2", kind: "output", payloadJson: '{"title":"no content"}' },
+  ]);
+  expect(reloaded.getState().nodes.o1).toEqual({ workspaceId: "w1", kind: "output", payload: output });
+  // Without its content an output cannot be shown: it is skipped like any unreadable node.
+  expect(reloaded.getState().nodes.o2).toBeUndefined();
+});

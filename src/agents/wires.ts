@@ -567,9 +567,11 @@ export function fleetsOf(agentId: string, links: Readonly<Record<string, Links>>
     .map(([fleetId]) => fleetId);
 }
 
-/** What a wire can still join: a fleet, a terminal or a group's frame, alive. */
+/** What a wire can still join: a fleet, a terminal, a group's frame or an agent's output (show_output), alive. */
 function isWireEnd(element: ExcalidrawElement | undefined): boolean {
-  return element !== undefined && (nodeKindOf(element) === "fleet" ? !element.isDeleted : isWireTarget(element));
+  if (element === undefined) return false;
+  const kind = nodeKindOf(element);
+  return kind === "fleet" || kind === "output" ? !element.isDeleted : isWireTarget(element);
 }
 
 /**

@@ -898,7 +898,15 @@ mod tests {
             assert_eq!(pre_tool_use(&call(tool), false), None, "{tool}");
         }
         // Matched by its exact name: tools named alike are not Claude's sub-agent.
-        for tool in ["TaskStop", "TaskCreate", "TaskOutput", "agent", "Bash"] {
+        for tool in [
+            "TaskStop",
+            "TaskCreate",
+            "TaskOutput",
+            "agent",
+            "Bash",
+            "mcp__dummyplane__show_output",
+            "mcp__dummyplane__read_node",
+        ] {
             assert_eq!(pre_tool_use(&call(tool), true), None, "{tool}");
         }
         let nameless = json!({ "hook_event_name": "PreToolUse" });
@@ -951,7 +959,14 @@ mod tests {
             "{head}"
         );
         // Another tool's call goes on, without a decision.
-        for tool in ["TaskStop", "Bash", "mcp__dummyplane__spawn_agent"] {
+        for tool in [
+            "TaskStop",
+            "Bash",
+            "mcp__dummyplane__spawn_agent",
+            "mcp__dummyplane__show_output",
+            "mcp__dummyplane__output_guide",
+            "mcp__dummyplane__read_node",
+        ] {
             assert_eq!(pre(tool), (204, String::new()), "{tool}");
         }
 

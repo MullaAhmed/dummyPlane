@@ -111,6 +111,8 @@ export interface Mission {
   frameId?: string;
   members: Member[];
   summary?: string;
+  /** The summary as the fleet wrote it in OpenUI Lang (finish), when it did: what the panel draws. */
+  summaryUi?: string;
   error?: string;
   /** The go-ahead: the night's time runs from then (spec §8.1). */
   startedAt?: number;
@@ -244,7 +246,7 @@ export function readMission(raw: unknown): Mission | undefined {
   };
   // Only a night has a length: a regular mission saved with the old global budget drops it.
   if (typeof r.budgetMin === "number" && r.overnight === true) mission.budgetMin = r.budgetMin;
-  for (const key of ["name", "task", "project", "slug", "branch", "worktree", "frameId", "summary", "error"] as const) {
+  for (const key of ["name", "task", "project", "slug", "branch", "worktree", "frameId", "summary", "summaryUi", "error"] as const) {
     if (typeof r[key] === "string") mission[key] = r[key];
   }
   if (Array.isArray(r.plan)) mission.plan = r.plan.filter(isSubTask).map(readSubTask);

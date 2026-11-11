@@ -1,5 +1,6 @@
 import { useMessages } from "@/i18n";
 import { useNow } from "@/lib/useNow";
+import { GeneratedText } from "@/openui/GeneratedText";
 import type { Mission } from "./mission";
 import { missionMessages } from "./messages";
 import { morningReport, type MorningRow } from "./morning";
@@ -12,7 +13,7 @@ function Rows({ title, rows }: { title: string; rows: MorningRow[] }) {
       <span className="font-medium text-dp-text">{t.morning.count(title, rows.length)}</span>
       <ul className="flex flex-col gap-0.5">
         {rows.map((row, i) => (
-          <li key={`${row.agent}-${row.task}-${i}`} title={row.summary} className="rounded-md bg-dp-card px-2 py-1">
+          <li key={`${row.agent}-${row.task}-${i}`} className="rounded-md bg-dp-card px-2 py-1">
             <div className="flex items-center gap-2">
               <span className="min-w-0 truncate text-dp-text">{row.task}</span>
               {row.status && row.status !== "termine" && <span className="shrink-0 text-dp-danger">{t.report[row.status]}</span>}
@@ -21,7 +22,12 @@ function Rows({ title, rows }: { title: string; rows: MorningRow[] }) {
                 {row.agent} · {t.spent(row.minutes, row.budgetMin)}
               </span>
             </div>
-            {row.summary && <p className="line-clamp-2">{row.summary}</p>}
+            {/* The agent's own words, drawn (Markdown, or the text of its OpenUI Lang), whole in a bounded scroller. */}
+            {row.summary && (
+              <div data-morning-summary className="max-h-28 overflow-y-auto">
+                <GeneratedText text={row.summary} compact />
+              </div>
+            )}
             <p className="truncate font-mono text-dp-text-3">{row.branch}</p>
           </li>
         ))}

@@ -32,6 +32,45 @@ All notable changes to dummyPlane are documented here. The format follows [Keep 
 - **Agents stacked under a Fleet or in a group are spaced further apart,** to leave room for their step frieze.
 
 ### Fixed
+- **The UI audit's second tier (P2), all 59 findings:** 49 fixed in this release, 10 already fixed before it.
+  - **Keyboard and screen readers:**
+    - focus follows menus and panels that swap views, and returns to what opened them;
+    - placing an agent ends with Enter;
+    - hints, palette results, update progress and errors are announced, and the errors are tied to their fields;
+    - rename fields are named;
+    - the project card is one button;
+    - the git changes list is one tab stop;
+    - the file tree has a real tree keyboard model;
+    - native tooltips gave way to the app's hints.
+  - **Legibility:**
+    - fields have a visible boundary (`--dp-line-strong`);
+    - the chosen soft tab has an accent border;
+    - text selection follows the palette;
+    - agent tints and the overdue chips pass contrast in every palette;
+    - working and waiting no longer differ by colour alone;
+    - a role shows as a bar, and a priority as signal bars, not as status dots.
+  - **Layout at small sizes:**
+    - the window buttons stay in reach at 960 px;
+    - the bottom bars no longer overlap;
+    - the active workspace tab scrolls into view;
+    - dialogs scroll past the window's height, and their close button no longer covers the title;
+    - menus fit their content.
+  - **States and recovery:**
+    - *Undo* for a deleted Kanban column, card or loop;
+    - *Try again* after a failed start or workspace load;
+    - error boundaries recover;
+    - the overnight run waits for its checks;
+    - a mission stopped on an error says so;
+    - the Files tab refreshes;
+    - a remark stays on its line;
+    - Markdown preview keeps the editor's undo;
+    - Markdown links open in the browser;
+    - one primary button per first-run screen.
+  - **Speed:** panning no longer re-derives the scene on every frame, and typing a remark no longer re-renders the whole diff.
+  - **Not done in this pass:**
+    - virtualising very long diffs and trees;
+    - moving the canvas backdrops with transforms;
+    - the bottom band as one grid.
 - **The Fleet gets the MCP servers its *MCP* tab shows on.** It used to start with dummyPlane's server only, whatever the tab said, so a Linear or Supabase server checked there was missing from its session. They are now copied into the Fleet's own MCP configuration, a plugin's server too while its plugin is on. Your own servers keep the sign-in Claude already has for them; a plugin's server may ask for it once (`/mcp`). A Fleet still reads no other MCP configuration, and no claude.ai connector. During an overnight run that reads its tickets in Linear, Linear's read-only server takes the place of a `linear` server of yours.
 - **Every plugin Claude loads is in the *Plugins* tab:** one turned on in the project's settings but installed for another project (Claude loads it from its cache), and a plugin kept in a `skills` folder (`<name>@skills-dir`, on until turned off), with its subagents and MCP servers.
 - **Every skill and MCP server Claude loads is in the *Edit* tab:** your own and the project's commands, the skills synced from your claude.ai account, and each plugin's skills and commands. Commands and synced skills switch one by one; a plugin's skills follow their plugin's switch, since Claude's per-skill switch doesn't reach them. *MCP* now shows Claude in Chrome, which can be turned off, and dummyPlane's own server, always on. A `.md` file without front matter (a README) is no longer listed as a subagent. What nothing on disk names, Claude Code's bundled skills, built-in plugins and subagents, and claude.ai connectors, is said under each list.

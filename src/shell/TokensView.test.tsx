@@ -79,3 +79,23 @@ it("says nothing of it without profiles (review)", async () => {
   expect(host.querySelector("[data-tokens-scope]")).toBeNull();
   await done();
 });
+
+it("draws a day's total in a tone that reads, its output in the accent, and gives the days as a table", async () => {
+  const { host, done } = await show(() => report);
+  const total = host.querySelector('[data-day="2026-10-31"] [data-day-total]')!;
+  // Not the hairline (1.2:1 on the popover): the tertiary text tone.
+  expect(total.className).toContain("bg-dp-text-3");
+  expect(total.className).not.toContain("bg-dp-line");
+  expect(total.firstElementChild!.className).toContain("bg-dp-accent");
+  const table = host.querySelector("[data-tokens-table]")!;
+  expect(table.className).toContain("sr-only");
+  const rows = [...table.querySelectorAll("tbody tr")].map((row) => [...row.children].map((cell) => cell.textContent));
+  expect(rows).toEqual([
+    ["2026-10-30", "0", "0"],
+    ["2026-10-31", "1.0 k", "500"],
+  ]);
+  // The legend names both parts, never a colour in words.
+  expect(host.textContent).toContain("All tokens");
+  expect(host.textContent).not.toContain("(accent)");
+  await done();
+});

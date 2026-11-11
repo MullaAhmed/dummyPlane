@@ -94,6 +94,19 @@ it("opens the 30-day tokens from the detail, and comes back to it", async () => 
   await act(async () => link.click());
   expect(document.querySelector("[data-tokens]")).not.toBeNull();
   expect(document.querySelector("[data-usage-detail]")).toBeNull();
+  // The link is gone: the keyboard is on Back, not on the page behind the popover.
+  expect(document.activeElement).toBe(document.querySelector('[data-tokens] [aria-label="Usage"]'));
   await act(async () => document.querySelector<HTMLButtonElement>('[data-tokens] [aria-label="Usage"]')!.click());
   expect(document.querySelector("[data-usage-detail]")).not.toBeNull();
+  // Back gives it to the link that opened the tokens.
+  expect(document.activeElement).toBe(document.querySelector("[data-tokens-link]"));
+});
+
+it("says why the Fable week is missing and where CO₂ comes from in words, not in native titles", async () => {
+  await act(async () => usageStore.getState().apply({ nodeId: "batman", status: STATUS }, 1_000));
+  await act(async () => meter().click());
+  const detail = document.querySelector<HTMLElement>("[data-usage-detail]")!;
+  expect(detail.querySelector("[title]")).toBeNull();
+  expect(detail.querySelector("[data-not-sent-why]")!.textContent).toContain("/usage");
+  expect(detail.querySelector("[data-co2-source]")!.textContent).toContain("Estimate");
 });

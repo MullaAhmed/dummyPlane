@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { ArrowRight } from "lucide-react";
 import { useStore } from "zustand";
 import { loadDiagnostics } from "@/app/diagnostics";
@@ -154,13 +154,32 @@ function LimitRow({ label, limit, now }: { label: string; limit: Limit; now: num
   );
 }
 
-/** The usage detail, or the 30-day tokens it links to (spec Tokens §4). */
+/**
+ * The usage detail, or the 30-day tokens it links to (spec Tokens §4). The keyboard follows the swap: Tokens takes
+ * it on its Back, and Back hands it to the link that opened it, never to the page behind the popover.
+ */
 function UsageContent() {
   const [tokens, setTokens] = useState(false);
-  return tokens ? <TokensView onBack={() => setTokens(false)} /> : <UsageDetail onTokens={() => setTokens(true)} />;
+  const link = useRef<HTMLButtonElement>(null);
+  const returning = useRef(false);
+  useLayoutEffect(() => {
+    if (tokens || !returning.current) return;
+    returning.current = false;
+    link.current?.focus();
+  }, [tokens]);
+  return tokens ? (
+    <TokensView
+      onBack={() => {
+        returning.current = true;
+        setTokens(false);
+      }}
+    />
+  ) : (
+    <UsageDetail tokensLink={link} onTokens={() => setTokens(true)} />
+  );
 }
 
-function UsageDetail({ onTokens }: { onTokens: () => void }) {
+function UsageDetail({ onTokens, tokensLink }: { onTokens: () => void; tokensLink: RefObject<HTMLButtonElement | null> }) {
   const t = useMessages(shellMessages);
   const u = t.usage;
   const limits = useCurrentLimits();
@@ -183,11 +202,15 @@ function UsageDetail({ onTokens }: { onTokens: () => void }) {
         {fable ? (
           <LimitRow label={u.weekFable} limit={fable.limit} now={now} />
         ) : (
-          <Row label={u.weekFable}>
-            <span className="font-sans text-dp-text-3" title={u.notSentHint}>
-              {u.notSent}
-            </span>
-          </Row>
+          <div className="flex flex-col gap-0.5">
+            <Row label={u.weekFable}>
+              <span className="font-sans text-dp-text-3">{u.notSent}</span>
+            </Row>
+            {/* Why, in words anyone can reach, rather than a native title on plain text. */}
+            <p data-not-sent-why className="text-xs text-dp-text-3">
+              {u.notSentHint}
+            </p>
+          </div>
         )}
         {limits?.models
           .filter((m) => m.label !== "Fable")
@@ -202,9 +225,12 @@ function UsageDetail({ onTokens }: { onTokens: () => void }) {
         <Row label={u.code}>
           <span className="text-dp-ok">+{sum.linesAdded}</span> <span className="text-dp-danger">−{sum.linesRemoved}</span>
         </Row>
-        <Row label={<span title={u.co2Hint}>{u.co2}</span>}>
-          {sum.co2Grams < 10 ? formatDecimal(sum.co2Grams, 1) : Math.round(sum.co2Grams)} g
-        </Row>
+        <div className="flex flex-col gap-0.5">
+          <Row label={u.co2}>{sum.co2Grams < 10 ? formatDecimal(sum.co2Grams, 1) : Math.round(sum.co2Grams)} g</Row>
+          <p data-co2-source className="text-xs text-dp-text-3">
+            {u.co2Hint}
+          </p>
+        </div>
       </Section>
       {sum.byModel.length > 0 && (
         <Section title={u.byModel}>
@@ -228,8 +254,10 @@ function UsageDetail({ onTokens }: { onTokens: () => void }) {
         </Section>
       )}
       <Button
+        ref={tokensLink}
         variant="ghost"
         size="xs"
+        data-tokens-link
         onClick={onTokens}
         className="-ml-2 self-start rounded-md px-2 font-normal text-dp-accent-ink hover:text-dp-accent-ink"
       >

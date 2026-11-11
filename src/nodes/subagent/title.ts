@@ -1,5 +1,5 @@
 import { taskExcerpt, taskSummary } from "@/agents/taskSummary";
-import type { SubagentInfo } from "./ipc";
+import type { SubagentInfo, SubagentLine } from "./ipc";
 
 /** What it was asked, in a line: the Agent tool's description, else its prompt's first line said as a task. */
 export function subagentAbout(info: Pick<SubagentInfo, "description" | "prompt">): string {
@@ -29,4 +29,14 @@ export function subagentDetail(info: Pick<SubagentInfo, "description" | "prompt"
 export function parentLabel(parent: Pick<SubagentInfo, "agentType"> | undefined, terminalName: string, fallback: string): string {
   if (parent) return parent.agentType || fallback;
   return terminalName || fallback;
+}
+
+/**
+ * Its answer, the text it hands back: its handback (a report line), else its
+ * last words once it is done. A tool's output is never its answer, and while
+ * it runs its last words are only its latest.
+ */
+export function subagentAnswer(entry: { state: SubagentInfo["state"]; lines: readonly SubagentLine[] }): SubagentLine | undefined {
+  const last = (kind: SubagentLine["kind"]) => [...entry.lines].reverse().find((line) => line.kind === kind);
+  return last("report") ?? (entry.state === "done" ? last("text") : undefined);
 }

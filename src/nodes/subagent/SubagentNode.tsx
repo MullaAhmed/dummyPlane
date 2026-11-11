@@ -5,6 +5,7 @@ import { useCanvas } from "@/canvas/canvasStore";
 import { removeNode } from "@/agents/terminals";
 import { useMessages } from "@/i18n";
 import { cn } from "@/lib/utils";
+import { GeneratedText } from "@/openui/GeneratedText";
 import { nodeNameOf, useNodes } from "@/store/nodes";
 import { HeaderButton, NodeHeader, NodeHeaderEnd, NodeTitle } from "@/nodes/terminal/NodeHeader";
 import { frameStyle, NODE_FRAME } from "@/nodes/terminal/frame";
@@ -14,7 +15,7 @@ import { terminalThemeFor, type TerminalTheme } from "@/nodes/terminal/terminalT
 import type { SubagentLine } from "./ipc";
 import { subagentMessages } from "./messages";
 import { subagentNodesStore, useSubagentEntry, useSubagentNode } from "./store";
-import { parentLabel, subagentAbout, subagentDetail, subagentTitle, subagentType } from "./title";
+import { parentLabel, subagentAbout, subagentAnswer, subagentDetail, subagentTitle, subagentType } from "./title";
 
 /**
  * Terminal ink: the palette's terminal theme, the one its xterms draw with, so
@@ -74,6 +75,21 @@ function Line({ line }: { line: SubagentLine }) {
 }
 
 /**
+ * What it hands back, drawn (Markdown, or OpenUI Lang) on a surface of its own:
+ * the terminal's body is no ground for the app's inks (1.3:1 in calm), and the
+ * answer is what the user came to read, so it reads as the app does.
+ */
+function Answer({ line }: { line: SubagentLine }) {
+  const t = useMessages(subagentMessages);
+  return (
+    <div data-subagent-answer className="my-1 flex flex-col gap-1 rounded-md border border-dp-line bg-dp-surface p-2 font-sans text-dp-text select-text">
+      <span className="text-xs text-dp-text-2">{line.kind === "report" ? t.report : t.answer}</span>
+      <GeneratedText text={line.text} compact />
+    </div>
+  );
+}
+
+/**
  * A subagent of a Claude session (its Agent tool), shown as a read-only
  * terminal: it has no process of its own, it runs inside its parent's Claude.
  * Its lines come from its transcript; its text steps back to the dim ink when
@@ -104,6 +120,7 @@ export function SubagentNode({ nodeId }: { nodeId: string }) {
 
   if (hidden) return null;
   const done = entry?.state !== "running";
+  const answer = entry ? subagentAnswer(entry) : undefined;
   const close = () => {
     if (entry) subagentNodesStore.getState().dismiss(entry.agentId);
     removeNode(nodeId);
@@ -162,7 +179,7 @@ export function SubagentNode({ nodeId }: { nodeId: string }) {
       >
         {!entry && <div className="text-[color:var(--sa-dim)]">{t.ended}</div>}
         {entry && entry.lines.length === 0 && <div className="text-[color:var(--sa-dim)]">{t.waiting}</div>}
-        {entry?.lines.map((line, i) => <Line key={i} line={line} />)}
+        {entry?.lines.map((line, i) => (line === answer ? <Answer key={i} line={line} /> : <Line key={i} line={line} />))}
       </div>
     </div>
   );

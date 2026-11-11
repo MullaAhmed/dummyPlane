@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import type { SceneFrame } from "@/canvas/groups";
 import { Button } from "@/components/ui/button";
 import { useMessages } from "@/i18n";
+import { Hint } from "@/shell/buttons";
 import { useNativeKeyDown } from "@/lib/useNativeKeyDown";
 import { takeOverPaste, withPathAt } from "@/nodes/terminal/imagePaste";
 import { sendCommand } from "./broadcast";
@@ -174,6 +175,16 @@ function CommandField(props: CommandInputProps & { deliver: RefObject<(text: str
   const noAgents = allTargets.length > 0 && ids.length === 0;
   // Nothing was typed after `@`: the command goes to who `fallback` names.
   const namedFallback = allTargets.length === 0 ? sendsTo : undefined;
+  const written = text.trim() !== "";
+  // What the field says above itself: why Send is grey, or who it reaches. One live region, read with the field.
+  const hints = [
+    (written || focused) && nothingTargeted ? emptyHint : null,
+    written && noAgents && !unknown ? t.noAgents : null,
+    unknown ? t.unknownTarget(unknown) : null,
+    written && namedFallback && !unknown ? t.sendsTo(namedFallback) : null,
+  ].filter((hint) => hint !== null);
+  // Send's own hint: what it does, or why it is grey (a disabled button takes no pointer: its wrapper shows it).
+  const sendHint = canSend ? (namedFallback ? t.sendTo(namedFallback) : t.send) : nothingTargeted ? emptyHint : noAgents ? t.noAgents : t.writeInstruction;
 
   /** The targets of the moment become the chips, as if typed. */
   const place = (moment: readonly Target[]) => {
@@ -341,8 +352,10 @@ function CommandField(props: CommandInputProps & { deliver: RefObject<(text: str
   // An empty field shows its keys as keycaps, where the placeholder used to spell them out.
   const showKeys = !compact && text === "" && chips.length === 0;
   const chipLabels = chips.map((target) => labels.get(targetKey(target)) ?? "");
-  // The field's description: who the chips send to, then its keys.
-  const describedBy = [chips.length > 0 ? `${listId}-to` : null, showKeys ? `${listId}-keys` : null].filter((id) => id !== null).join(" ");
+  // The field's description: its hints, who the chips send to, then its keys.
+  const describedBy = [hints.length > 0 ? `${listId}-hints` : null, chips.length > 0 ? `${listId}-to` : null, showKeys ? `${listId}-keys` : null]
+    .filter((id) => id !== null)
+    .join(" ");
 
   return (
     <ComposerPrimitive.Root ref={root} className="relative flex min-w-0 flex-1 items-end gap-2">
@@ -358,28 +371,32 @@ function CommandField(props: CommandInputProps & { deliver: RefObject<(text: str
               id={`${listId}-${i}`}
               role="option"
               aria-selected={i === row}
-              title={suggestion.detail}
               onMouseDown={(e) => {
                 e.preventDefault();
                 suggestion.pick();
               }}
               onMouseMove={() => i !== row && setActive(i)}
-              // No transition: the highlight follows the arrow keys at once.
-              className={cn("flex h-8 cursor-pointer items-center gap-2 rounded-md px-2 text-xs", i === row ? "bg-dp-hover text-dp-text" : "text-dp-text-2")}
+              // No transition: the highlight follows the arrow keys at once. A long detail takes a second line, never a native title.
+              className={cn("flex min-h-8 cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-xs", i === row ? "bg-dp-hover text-dp-text" : "text-dp-text-2")}
             >
               {suggestion.target && <TargetIcon target={suggestion.target} />}
               <span className="shrink-0 font-mono text-dp-text">{suggestion.label}</span>
-              <span className="ml-auto truncate">{suggestion.detail}</span>
+              <span className="ml-auto line-clamp-2 min-w-0 text-right">{suggestion.detail}</span>
               {suggestion.target?.kind === "agent" && <AgentStatusDot id={suggestion.target.id} />}
             </li>
           ))}
         </ul>
       )}
-      <div className="flex min-w-0 flex-1 flex-col gap-1">
-        {(text.trim() || focused) && nothingTargeted && <p className="text-xs text-dp-text-2">{emptyHint}</p>}
-        {text.trim() && noAgents && !unknown && <p className="text-xs text-dp-text-2">{t.noAgents}</p>}
-        {unknown && <p className="text-xs text-dp-text-2">{t.unknownTarget(unknown)}</p>}
-        {text.trim() && namedFallback && !unknown && <p className="text-xs text-dp-text-2">{t.sendsTo(namedFallback)}</p>}
+      <div className="flex min-w-0 flex-1 flex-col">
+        {/*
+          The hints are a live region that stays mounted, empty, so its first words are announced: a refused Enter
+          is no longer silent. Spaced from the field only while it says something.
+        */}
+        <div id={`${listId}-hints`} role="status" data-field-hints className="flex flex-col gap-1 text-xs text-dp-text-2 [&:not(:empty)]:pb-1">
+          {hints.map((hint) => (
+            <p key={hint}>{hint}</p>
+          ))}
+        </div>
         <div
           className={cn(
             "flex min-w-0 flex-wrap items-center gap-1",
@@ -471,22 +488,26 @@ function CommandField(props: CommandInputProps & { deliver: RefObject<(text: str
           )}
         </div>
       </div>
-      <ComposerPrimitive.Send asChild disabled={!canSend}>
-        <Button
-          size={compact ? "icon-sm" : "default"}
-          aria-label={t.send}
-          title={canSend ? (namedFallback ? t.sendTo(namedFallback) : t.send) : nothingTargeted ? emptyHint : noAgents ? t.noAgents : t.writeInstruction}
-          onMouseDown={keepCaret}
-          className={cn(
-            // The one primary action, at the control radius the field shares. Grey but legible while there is nothing to send: the hint beside it says why.
-            "rounded-md font-medium disabled:bg-dp-field disabled:text-dp-text-3 disabled:opacity-100",
-            !compact && "px-3 text-(length:--text-ui)",
-          )}
-        >
-          <ArrowUp className="size-4" />
-          {!compact && t.send}
-        </Button>
-      </ComposerPrimitive.Send>
+      {/* The app's hint, not a native title: on a wrapper, since the grey Send takes no pointer. */}
+      <Hint label={sendHint}>
+        <span data-send-hint={sendHint} className={cn("flex shrink-0", !canSend && "cursor-not-allowed")}>
+          <ComposerPrimitive.Send asChild disabled={!canSend}>
+            <Button
+              size={compact ? "icon-sm" : "default"}
+              aria-label={t.send}
+              onMouseDown={keepCaret}
+              className={cn(
+                // The one primary action, at the control radius the field shares. Grey but legible while there is nothing to send: the hint beside it says why.
+                "rounded-md font-medium disabled:bg-dp-field disabled:text-dp-text-3 disabled:opacity-100",
+                !compact && "px-3 text-(length:--text-ui)",
+              )}
+            >
+              <ArrowUp className="size-4" />
+              {!compact && t.send}
+            </Button>
+          </ComposerPrimitive.Send>
+        </span>
+      </Hint>
     </ComposerPrimitive.Root>
   );
 }

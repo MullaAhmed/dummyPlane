@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useRef, useState } from "react";
 import { Ellipsis, Folder } from "lucide-react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { toast } from "sonner";
@@ -36,26 +36,20 @@ async function remove(project: Project) {
 export function ProjectCard({ project }: { project: Project }) {
   const t = useMessages(homeMessages).card;
   const [editing, setEditing] = useState(false);
+  const ids = useId();
+  const renaming = useRef(false);
   const openable = !project.missing && !editing;
   const openProject = () => {
     if (openable) void projectsStore.getState().open(project.id).catch(fail("openFailed"));
   };
 
   return (
-    // A card that opens, not a <button>: it holds the actions menu and the name field, and a button cannot.
+    // The card opens through its name, a real button stretched over it (its ::after): the actions menu and the
+    // name field sit above that layer as its siblings, never inside a button, which could not hold them.
     <div
-      role="button"
-      tabIndex={0}
-      onClick={openProject}
-      // The card's own keys only: those of its actions menu reach it through the portal, and Enter
-      // on "Project actions" or on a menu item must not open the project as well.
-      onKeyDown={(e) => {
-        if (e.target !== e.currentTarget || (e.key !== "Enter" && e.key !== " ")) return;
-        e.preventDefault();
-        openProject();
-      }}
+      data-project-card
       className={cn(
-        "dp-glass-strong group rounded-xl p-5 transition-[color,background-color,border-color] duration-(--dp-dur-fast) ease-(--dp-ease-out) motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/70",
+        "dp-glass-strong group relative rounded-xl p-5 transition-[color,background-color,border-color] duration-(--dp-dur-fast) ease-(--dp-ease-out) motion-reduce:transition-none",
         openable && "cursor-pointer hover:bg-dp-hover",
       )}
     >
@@ -66,27 +60,44 @@ export function ProjectCard({ project }: { project: Project }) {
         </div>
         <div className="min-w-0 flex-1">
           {editing ? (
-            <Input
-              autoFocus
-              defaultValue={project.name}
-              className="h-7"
-              onClick={(e) => e.stopPropagation()}
-              onBlur={(e) => {
-                void projectsStore.getState().rename(project.id, e.currentTarget.value).catch(fail("renameFailed"));
-                setEditing(false);
-              }}
-              onKeyDown={(e) => {
-                e.stopPropagation();
-                if (e.key === "Enter") e.currentTarget.blur();
-                if (e.key === "Escape") setEditing(false);
-              }}
-            />
+            <>
+              <Input
+                autoFocus
+                aria-label={t.nameField}
+                defaultValue={project.name}
+                className="relative z-10 h-7"
+                onBlur={(e) => {
+                  void projectsStore.getState().rename(project.id, e.currentTarget.value).catch(fail("renameFailed"));
+                  setEditing(false);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") e.currentTarget.blur();
+                  if (e.key === "Escape") setEditing(false);
+                }}
+              />
+              <p className="truncate font-mono text-xs text-dp-text-2">{project.path}</p>
+            </>
           ) : (
-            <p className="truncate font-medium text-dp-text">{project.name}</p>
+            <button
+              type="button"
+              data-open-project
+              onClick={openProject}
+              // A missing folder: the card stays in the list, says why it does not open, and does nothing.
+              aria-disabled={project.missing || undefined}
+              aria-describedby={project.missing ? `${ids}-path ${ids}-missing` : `${ids}-path`}
+              className={cn(
+                "block w-full min-w-0 text-left outline-none",
+                "after:absolute after:inset-0 after:rounded-xl after:content-[''] focus-visible:after:ring-2 focus-visible:after:ring-dp-accent/70",
+                project.missing ? "cursor-default" : "cursor-pointer",
+              )}
+            >
+              <span className="block truncate font-medium text-dp-text">{project.name}</span>
+              {/* Above the stretched layer, so its full text shows on hover; a click on it still opens the project. */}
+              <span id={`${ids}-path`} aria-hidden className="relative z-10 block truncate font-mono text-xs text-dp-text-2" title={project.path}>
+                {project.path}
+              </span>
+            </button>
           )}
-          <p className="truncate font-mono text-xs text-dp-text-2" title={project.path}>
-            {project.path}
-          </p>
         </div>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -94,14 +105,30 @@ export function ProjectCard({ project }: { project: Project }) {
               variant="ghost"
               size="icon-sm"
               aria-label={t.actions}
-              onClick={(e) => e.stopPropagation()}
-              className="-mr-1 -mt-1 text-dp-text-2 opacity-0 transition-[color,background-color,opacity,scale] hover:text-dp-text focus-visible:opacity-100 group-hover:opacity-100 data-[state=open]:opacity-100"
+              className="relative z-10 -mr-1 -mt-1 text-dp-text-2 opacity-0 transition-[color,background-color,opacity,scale] hover:text-dp-text focus-visible:opacity-100 group-hover:opacity-100 data-[state=open]:opacity-100"
             >
               <Ellipsis />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-            {!project.missing && <DropdownMenuItem onSelect={() => setEditing(true)}>{t.rename}</DropdownMenuItem>}
+          {/* Rename gives the keyboard to the name field: focus coming back to ⋯ would blur it and end the rename. */}
+          <DropdownMenuContent
+            align="end"
+            onCloseAutoFocus={(e) => {
+              if (renaming.current) e.preventDefault();
+              renaming.current = false;
+            }}
+          >
+            {!project.missing && (
+              <DropdownMenuItem
+                // After the menu has let the keyboard go: while its focus trap holds, the field would lose focus and close.
+                onSelect={() => {
+                  renaming.current = true;
+                  requestAnimationFrame(() => setEditing(true));
+                }}
+              >
+                {t.rename}
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem onSelect={() => void relocate(project).catch(fail("changeFailed"))}>
               {t.changeFolder}
             </DropdownMenuItem>
@@ -112,7 +139,9 @@ export function ProjectCard({ project }: { project: Project }) {
         </DropdownMenu>
       </div>
       {project.missing ? (
-        <p className="text-xs text-dp-danger">{t.missing}</p>
+        <p id={`${ids}-missing`} className="text-xs text-dp-danger">
+          {t.missing}
+        </p>
       ) : (
         <div className="flex items-center gap-3 font-mono text-xs tabular-nums text-dp-text-2">
           <span>{t.workspaces(project.workspaceCount)}</span>

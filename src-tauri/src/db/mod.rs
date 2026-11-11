@@ -31,6 +31,7 @@ const MIGRATIONS: &[Step] = &[
     Step::Sql(include_str!("migrations/004_workspace_kind.sql")),
     Step::Sql(include_str!("migrations/005_workspace_folder.sql")),
     Step::Sql(include_str!("migrations/006_notes_workspace.sql")),
+    Step::Sql(include_str!("migrations/007_output_nodes.sql")),
 ];
 
 /// The single SQLite connection shared by every command (spec V1 §8.1).
@@ -399,6 +400,45 @@ mod tests {
             .unwrap();
         assert_eq!(count("SELECT COUNT(*) FROM workspaces"), 0);
         assert_eq!(count("PRAGMA user_version"), 6);
+    }
+
+    #[test]
+    fn migration_7_keeps_every_node_and_its_scrollback_and_accepts_outputs() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch("PRAGMA foreign_keys = ON;").unwrap();
+        migrate_up_to(&mut conn, 6, "C:/home").unwrap();
+        let (_, workspace) = raw_workspace(&conn);
+        conn.execute_batch(&format!(
+            "INSERT INTO nodes VALUES ('t1', '{workspace}', 'terminal', '{{}}', 10),
+                                      ('f1', '{workspace}', 'file', '{{\"path\":\"a.md\"}}', 11);
+             INSERT INTO terminal_scrollback VALUES ('t1', x'41', 12);"
+        ))
+        .unwrap();
+        let output =
+            format!("INSERT INTO nodes VALUES ('o1', '{workspace}', 'output', '{{}}', 13)");
+        assert!(conn.execute_batch(&output).is_err());
+
+        migrate_up_to(&mut conn, 7, "C:/home").unwrap();
+
+        let count = |sql: &str| -> i64 { conn.query_row(sql, [], |row| row.get(0)).unwrap() };
+        assert_eq!(count("PRAGMA user_version"), 7);
+        assert_eq!(count("SELECT COUNT(*) FROM nodes"), 2);
+        assert_eq!(count("SELECT COUNT(*) FROM terminal_scrollback"), 1);
+        conn.execute_batch(&output).unwrap();
+        assert_eq!(count("SELECT COUNT(*) FROM nodes WHERE kind = 'output'"), 1);
+        assert!(
+            conn.execute_batch(&format!(
+                "INSERT INTO nodes VALUES ('x1', '{workspace}', 'nonsense', '{{}}', 14)"
+            ))
+            .is_err()
+        );
+        assert_eq!(count("SELECT COUNT(*) FROM pragma_foreign_key_check"), 0);
+        // The cascades still reach the rebuilt table: the scrollback goes with its node.
+        conn.execute("DELETE FROM nodes WHERE id = 't1'", [])
+            .unwrap();
+        assert_eq!(count("SELECT COUNT(*) FROM terminal_scrollback"), 0);
+        conn.execute("DELETE FROM workspaces", []).unwrap();
+        assert_eq!(count("SELECT COUNT(*) FROM nodes"), 0);
     }
 
     fn base_at_version(path: &Path, version: usize) {

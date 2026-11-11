@@ -76,3 +76,12 @@ it("names the branch alone when nothing changed", async () => {
   await act(async () => root.render(<GitChip />));
   expect(getByRole(host, "button", "Open the git window · main")).not.toBeNull();
 });
+
+it("cuts a long branch shorter on a window too narrow for it beside the command bar (under 1,150 px)", async () => {
+  status = { branch: "feature/a-very-long-branch-name", changed: 1 };
+  await act(async () => root.render(<GitChip />));
+  const branch = host.querySelector<HTMLElement>("[data-branch]")!;
+  expect(branch.className).toContain("max-w-20");
+  expect(branch.className).toContain("min-[1150px]:max-w-[150px]");
+  expect(branch.className).toContain("truncate");
+});

@@ -12,7 +12,7 @@ export const appMessages = defineMessages(
     upToDate: "dummyPlane is up to date",
     updateCheckFailed: "Could not check for updates",
     updateWaitsForSave: "Update on hold: save your changes first, then start it again",
-    startInterrupted: (message: string) => `start interrupted (${message})`,
-    projectsLoadFailed: (error: string) => `Could not load the projects: ${error}`,
+    /** Any failed start: the start itself, or the projects it reads last. */
+    startFailed: (message: string) => `dummyPlane could not start: ${message}`,
   },
 );

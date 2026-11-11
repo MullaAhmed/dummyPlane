@@ -2,7 +2,7 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { ErrorBoundary } from "./ErrorBoundary";
+import { ErrorBoundary, QuietBoundary } from "./ErrorBoundary";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -55,4 +55,72 @@ it("keeps a sibling alive when one child fails", async () => {
     ),
   );
   expect(host.textContent).toBe("a downb alive");
+});
+
+it("tries its children again when its reset key changes, and only then", async () => {
+  const explode = { current: true };
+  const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+  const render = (resetKey: unknown) =>
+    act(async () =>
+      root.render(
+        <ErrorBoundary scope="dialog" fallback={() => null} resetKey={resetKey}>
+          <Bomb explode={explode} />
+        </ErrorBoundary>,
+      ),
+    );
+  await render(false);
+  expect(host.textContent).toBe("");
+  explode.current = false;
+  // The same key: the fallback stays, nothing asked for the part again.
+  await render(false);
+  expect(host.textContent).toBe("");
+  // The dialog is asked for again: it renders.
+  await render(true);
+  expect(host.textContent).toBe("fine");
+  expect(logged).toHaveBeenCalled();
+});
+
+it("reads a quiet boundary's key from its hook: a failed dialog opens again on the next request", async () => {
+  vi.spyOn(console, "error").mockImplementation(() => undefined);
+  const { createStore, useStore } = await import("zustand");
+  const store = createStore<{ openings: number }>()(() => ({ openings: 0 }));
+  const useOpenings = () => useStore(store, (s) => s.openings);
+  const explode = { current: true };
+  await act(async () =>
+    root.render(
+      <QuietBoundary scope="palette" useResetKey={useOpenings}>
+        <Bomb explode={explode} />
+      </QuietBoundary>,
+    ),
+  );
+  expect(host.textContent).toBe("");
+  explode.current = false;
+  await act(async () => store.setState({ openings: 1 }));
+  expect(host.textContent).toBe("fine");
+});
+
+it("recovers a dialog that failed while open: its error closes it, so the next request opens it again", async () => {
+  vi.spyOn(console, "error").mockImplementation(() => undefined);
+  const { createStore, useStore } = await import("zustand");
+  const store = createStore<{ open: boolean }>()(() => ({ open: false }));
+  const useOpen = () => useStore(store, (s) => s.open);
+  const broken = { current: true };
+  function Dialog() {
+    const open = useOpen();
+    if (open && broken.current) throw new Error("render failed");
+    return <p>{open ? "dialog" : ""}</p>;
+  }
+  await act(async () =>
+    root.render(
+      <QuietBoundary scope="accounts dialog" useResetKey={useOpen} onError={() => store.setState({ open: false })}>
+        <Dialog />
+      </QuietBoundary>,
+    ),
+  );
+  await act(async () => store.setState({ open: true }));
+  // It failed open: its flag is cleared, so asking again is a change the boundary sees.
+  expect(store.getState().open).toBe(false);
+  broken.current = false;
+  await act(async () => store.setState({ open: true }));
+  expect(host.textContent).toBe("dialog");
 });

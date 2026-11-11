@@ -2,7 +2,7 @@ import { expect, it } from "vitest";
 import { sourceFiles } from "./cssBlocks";
 
 /** The feature panels and dialogs: what docs/design-system.md governs once the chrome (chrome.test.ts) is done. */
-const PANELS = /^(agents|fleet|mission|kanban|nodes\/kanban|nodes\/file|review|git|notes|studio|loops|accounts|presets|usage)\/|^commands\/(Palette|GoToRow)\.tsx$|^canvas\/overlay\//;
+const PANELS = /^(agents|fleet|mission|kanban|nodes\/kanban|nodes\/file|nodes\/output|openui|review|git|notes|studio|loops|accounts|presets|usage)\/|^commands\/(Palette|GoToRow)\.tsx$|^canvas\/overlay\//;
 
 /** Files other tasks own (launch menu, layout and placement code): checked by their owners, not here. */
 const OTHER_TASKS = new Set([

@@ -55,7 +55,7 @@ afterEach(() => {
 describe("linked agents' tools", () => {
   it("are listed for agents after their own tools, and refused to a fleet", async () => {
     const list = (await answer({ callId: 1, nodeId: "batman", method: "tools/list", params: {} })) as { tools: { name: string }[] };
-    expect(list.tools.map((t) => t.name)).toEqual(["declare_steps", "step", "report", "spawn_agent", "linked_agents", "message_agent", "read_agent", "notes"]);
+    expect(list.tools.map((t) => t.name)).toEqual(["declare_steps", "step", "report", "spawn_agent", "linked_agents", "message_agent", "read_agent", "show_output", "output_guide", "read_node", "notes"]);
     const manager = (await answer({ callId: 1, nodeId: "chef", method: "tools/list", params: {} })) as { tools: { name: string }[] };
     expect(manager.tools.map((t) => t.name)).not.toContain("message_agent");
     expect(textOf(await call("chef", "message_agent", { agent: "Batman", text: "hi" }))).toBe("This tool is for agents.");
