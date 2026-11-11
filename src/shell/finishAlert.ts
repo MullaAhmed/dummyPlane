@@ -11,6 +11,7 @@ import { activeTerminalStore } from "@/canvas/activeTerminal";
 import { nodeInSight } from "@/canvas/arrive";
 import { terminalWithKeyboard } from "@/canvas/keyboardFocus";
 import { goToAgent } from "@/commands/goToRun";
+import { memberOf } from "@/mission/store";
 import { messages } from "@/i18n";
 import { agentActivityStore, type AgentActivity } from "@/store/agentActivity";
 import { nodesStore } from "@/store/nodes";
@@ -91,7 +92,8 @@ function isMainAgent(nodeId: string): boolean {
   const record = nodesStore.getState().nodes[nodeId];
   if (record?.kind === "fleet") return true;
   if (record?.kind !== "terminal" || record.payload.agent === "shell") return false;
-  return !record.payload.spawnedBy;
+  // A running mission's team agent is the Fleet's to hear: the mission's end alerts once.
+  return !record.payload.spawnedBy && memberOf(nodeId) === null;
 }
 
 /**

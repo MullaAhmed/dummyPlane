@@ -252,12 +252,17 @@ describe("who alerts", () => {
     expect(sendNotification).not.toHaveBeenCalled();
   });
 
-  it("a mission's team agent, as its questions do", async () => {
+  it("never a running mission's team agent: the Fleet hears it, and the mission's end alerts once", async () => {
     const mission = { state: "en_cours", maxAgents: 2, members: [{ nodeId: "alfred", name: "Alfred", task: "Login", budgetMin: 20, linked: false, branch: "b", worktree: "w", sentAt: 1 }] } as Mission;
     nodesStore.setState((s) => ({
       nodes: { ...s.nodes, chef: { workspaceId: "w2", kind: "fleet", payload: { name: "Chef", mission } }, alfred: { workspaceId: "w2", kind: "terminal", payload: terminal("Alfred") } },
     }));
     signalFinish({ nodeId: "alfred", state: "done", summary: "Login fixed" });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(sendNotification).not.toHaveBeenCalled();
+    // Once the mission is over, the same terminal is a main agent again.
+    nodesStore.getState().update("chef", { mission: { ...mission, state: "terminee" } });
+    signalFinish({ nodeId: "alfred", state: "done", summary: "Docs fixed" });
     await vi.advanceTimersByTimeAsync(0);
     expect(notified().map((n) => n.title)).toEqual(["Alfred · Done"]);
   });
