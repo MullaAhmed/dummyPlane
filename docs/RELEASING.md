@@ -6,9 +6,9 @@ dummyPlane's home is [`MullaAhmed/dummyPlane`](https://github.com/MullaAhmed/dum
 
 ## Before the first release
 
-Two things are still OpenVibe's and block `0.1.0`:
+Two things to settle before `0.1.0`:
 
-- **The update key.** `plugins.updater.pubkey` in `src-tauri/tauri.conf.json` is still OpenVibe's public key, and dummyPlane has no key pair of its own yet. Generate one first (see [The update key](#the-update-key)): the key that signs a build must match the `pubkey` inside it, or installed copies reject the update.
+- **The update key's secrets.** dummyPlane has its own update key pair, and `plugins.updater.pubkey` in `src-tauri/tauri.conf.json` is its public half. The Release workflow signs with the private half, which it reads from two repository secrets: until they are set (see [The update key](#the-update-key)), it cannot build the signed updater files. The key that signs a build must match the `pubkey` inside it, or installed copies reject the update.
 - **The inherited version number.** `package.json` still carries a `1.x` beta number from OpenVibe. `node scripts/release.mjs 0.1.0` sets `0.1.0` in `package.json`, `src-tauri/Cargo.toml` and `src-tauri/Cargo.lock`; it does not compare it with the current one, so going down is fine. The updater only offers a version higher than the one installed, so a copy built before the release, still numbered `1.x`, is never offered `0.1.0`: it is reinstalled by hand.
 
 ## Publish a version
@@ -40,7 +40,7 @@ It is the `latest.json` of the latest published release of `MullaAhmed/dummyPlan
 
 Installed copies only accept updates signed with dummyPlane's update key; its public half is `plugins.updater.pubkey` in `src-tauri/tauri.conf.json`.
 
-> **Today that key is still OpenVibe's.** `pubkey` holds OpenVibe's public key, and dummyPlane has no `dummyplane.key` of its own yet. A release only verifies if it is signed with the matching private key, which dummyPlane does not hold, so until it is replaced the Release workflow cannot sign updates that installed copies would accept. Copies installed from OpenVibe's releases do not update to dummyPlane either. Replace it with dummyPlane's own before publishing `0.1.0`, as below; once a version is published with a key, every installed copy trusts that key for good.
+> **The key is dummyPlane's own, not OpenVibe's.** Copies installed from OpenVibe's releases trust OpenVibe's key, so they do not update to dummyPlane: they are reinstalled by hand. Once a version is published with this key, every installed copy trusts it for good.
 
 - The key pair lives in `%USERPROFILE%\.tauri\dummyplane.key` (private), `dummyplane.key.pub` and `dummyplane.key.password`.
 - **Keep a copy of the private key and its password off this machine** (a password manager). Without them, no installed copy can ever be updated again: every user would have to reinstall by hand.

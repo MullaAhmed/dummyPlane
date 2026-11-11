@@ -39,3 +39,5 @@ public/fonts/
 scripts/media
 docs/assets/demo/
 BACKLOG.md
+# Update-signing key backup: a secret, never commit
+signing-key-backup.txt
