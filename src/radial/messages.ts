@@ -9,6 +9,8 @@ export const radialMessages = defineMessages(
     pasteBlocked: "Cannot paste here: a node is under this point",
     /** The More wedge's full name, in the hub; its arc's name for assistive technology. */
     more: "More",
+    /** Why the selection ring's Arrange is greyed for drawings alone. */
+    drawingsStay: "drawings stay where they are",
     /** The name under a wedge's icon: a word or two, the room is small. The hub tells the full name. */
     short: {
       copy: "Copy",

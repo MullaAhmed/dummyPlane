@@ -44,14 +44,34 @@ export function scheduleArcIntent() {
 }
 
 export function cancelArcIntent() {
-  if (intent === null) return;
-  clearTimeout(intent);
+  if (intent !== null) clearTimeout(intent);
   intent = null;
+  cancelArcLeave();
+}
+
+let leave: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * The pointer is on another wedge of the ring: the arc closes once it rests there (ARC_INTENT_MS),
+ * not while it crosses the ring on its way to an arc turned away from More by the window's edge.
+ */
+function scheduleArcLeave() {
+  if (leave !== null) return;
+  leave = setTimeout(() => {
+    leave = null;
+    const { ring } = radialStore.getState();
+    if (ring?.arc && ring.hovered !== moreSlotOf(ring.kind) && ring.item == null) updateRadial({ arc: null, item: null });
+  }, ARC_INTENT_MS);
+}
+
+function cancelArcLeave() {
+  if (leave !== null) clearTimeout(leave);
+  leave = null;
 }
 
 /**
  * The pointer now points at `slot` of the ring and `item` of the arc: the ring's pointed wedge
- * and the arc's follow. Resting on More schedules its arc; another wedge of the ring closes it.
+ * and the arc's follow. Resting on More opens its arc; resting on another wedge of the ring closes it.
  */
 export function pointTo(slot: number | null, item: number | null) {
   const { ring } = radialStore.getState();
@@ -59,12 +79,13 @@ export function pointTo(slot: number | null, item: number | null) {
   const more = moreSlotOf(ring.kind);
   if (ring.arc) {
     if (slot !== null && slot !== more) {
-      cancelArcIntent();
-      updateRadial({ arc: null, item: null, hovered: slot });
+      scheduleArcLeave();
+      if (slot !== ring.hovered || ring.item != null) updateRadial({ hovered: slot, item: null });
       return;
     }
-    const hovered = item !== null ? more : slot;
-    if (item !== (ring.item ?? null) || hovered !== ring.hovered) updateRadial({ item, hovered: hovered ?? more });
+    // In the arc, on More, or past the rim on the way to the arc: the arc stays, More pointed as its parent.
+    cancelArcLeave();
+    if (item !== (ring.item ?? null) || ring.hovered !== more) updateRadial({ item, hovered: more });
     return;
   }
   if (slot === more) scheduleArcIntent();

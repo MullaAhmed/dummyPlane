@@ -4,6 +4,7 @@ import { mockIPC } from "@tauri-apps/api/mocks";
 import { ClipboardPaste, Group, Ungroup as UngroupIcon } from "lucide-react";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { canvasStore } from "@/canvas/canvasStore";
+import { toStoredKind } from "@/canvas/nodeElement";
 import type { CommandContext } from "@/commands/command";
 import { COMMANDS } from "@/commands/registry";
 import { agentsStore } from "@/agents/agentsStore";
@@ -218,7 +219,7 @@ describe("the selection ring's Ungroup", () => {
   const node = (id: string, frameId: string | null, kind = "terminal") => ({ id, type: "embeddable", isDeleted: false, frameId, groupIds: [], x: 0, y: 0, width: 720, height: 440, customData: { kind } });
   const frame = (id: string) => ({ id, type: "frame", isDeleted: false, frameId: null, groupIds: [], x: 0, y: 0, width: 2000, height: 900, customData: { dummyplane: info } });
   const shape = (id: string, groupIds: string[]) => ({ id, type: "rectangle", isDeleted: false, frameId: null, groupIds, x: 0, y: 0, width: 10, height: 10 });
-  const scene = [frame("g1"), node("a", "g1"), node("b", "g1"), frame("g2"), node("c", "g2"), { ...node("loose", null), x: 10000 }, { ...node("free", null), x: 11000 }, shape("r1", ["s1"]), shape("r2", ["s1"]), shape("r3", [])];
+  const scene = [frame("g1"), node("a", "g1"), node("b", "g1"), frame("g2"), node("c", "g2"), { ...node("loose", null), x: 10000 }, { ...node("free", null), x: 11000 }, shape("r1", ["s1"]), shape("r2", ["s1"]), shape("r3", []), node("note", "g1", "note"), node("chef", "g1", toStoredKind("fleet"))];
   const selecting = (...ids: string[]) =>
     canvasStore.setState({
       api: { getSceneElements: () => scene, getAppState: () => ({ selectedElementIds: Object.fromEntries(ids.map((id) => [id, true])) }) } as unknown as ExcalidrawImperativeAPI,
@@ -237,6 +238,25 @@ describe("the selection ring's Ungroup", () => {
   it("offers Ungroup for Excalidraw's groups of drawings, with no terminal selected", () => {
     selecting("r1", "r2");
     expect(seen()).toEqual(["Ungroup selection", "Ungroup", UngroupIcon, true, null]);
+  });
+
+  it("counts a group's terminals and a Fleet in its frame as members, never a quick note that sits there", () => {
+    // A note has no ring of its own: a right-click on it opens the selection's, which must not dissolve its group.
+    selecting("note");
+    expect([second().label, second().Icon]).toEqual(["Paste", ClipboardPaste]);
+    selecting("chef");
+    expect(seen()).toEqual(["Ungroup selection", "Ungroup", UngroupIcon, true, null]);
+    // With members, it is not outside the group either.
+    selecting("a", "note");
+    expect(seen()).toEqual(["Ungroup selection", "Ungroup", UngroupIcon, true, null]);
+  });
+
+  it("greys the selection's Arrange for drawings alone, which Arrange leaves where they are, and offers it with a node", () => {
+    const arrange = (...ids: string[]) => lineOf(RINGS.selection[6]!, { ...ctx, selectionIds: ids })!;
+    selecting();
+    expect([arrange("r1", "r2").label, arrange("r1", "r2").enabled, arrange("r1", "r2").reason]).toEqual(["Arrange", false, "drawings stay where they are"]);
+    expect([arrange("loose", "free").enabled, arrange("loose", "free").reason]).toEqual([true, null]);
+    expect(arrange("note", "a").enabled).toBe(true);
   });
 
   it("greys Ungroup, and says why, for a selection across two groups or past the group's frame", () => {

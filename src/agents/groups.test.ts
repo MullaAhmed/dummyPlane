@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { mockIPC } from "@tauri-apps/api/mocks";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { canvasStore } from "@/canvas/canvasStore";
+import { toStoredKind } from "@/canvas/nodeElement";
 import { nodesStore, terminalOf } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
 import { projectsStore, type Project } from "@/store/projects";
@@ -383,7 +384,7 @@ describe("Remove from group, and Ungroup", () => {
   });
 
   it("lets a Fleet dragged into the frame leave it the same way", () => {
-    const fleet = { ...terminalAt("chef", 1700, 600), customData: { kind: "fleet" } };
+    const fleet = { ...terminalAt("chef", 1700, 600), customData: { kind: toStoredKind("fleet") } };
     const after = leftGroup([frame(), left(), fleet] as never, "chef")!;
     expect(byId(after, "chef").frameId).toBeNull();
     expect(byId(after, "f1")).toMatchObject({ isDeleted: false, width: 720 + 2 * PADDING });

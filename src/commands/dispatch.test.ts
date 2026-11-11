@@ -193,3 +193,13 @@ describe("Ctrl+Shift+G, Ungroup of the canvas's selection", () => {
     expect(reachedCanvas).toHaveBeenCalledTimes(2);
   });
 });
+
+it("leaves the repeats of a Ctrl+Shift+G held in a terminal to the terminal, as its first press", () => {
+  const ungroupCommand: Command = { id: "selection.ungroup", label: "Ungroup selection", section: "Drawing", keywords: [], shortcut: "Ctrl+Shift+G", available: () => true, run };
+  uninstall();
+  uninstall = installShortcuts(window, [ungroupCommand], () => ctx);
+  expect(press({ key: "G", ctrlKey: true, shiftKey: true }).defaultPrevented).toBe(false);
+  expect(press({ key: "G", ctrlKey: true, shiftKey: true, repeat: true }).defaultPrevented).toBe(false);
+  expect(run).not.toHaveBeenCalled();
+  expect(reachedXterm).toHaveBeenCalledTimes(2);
+});

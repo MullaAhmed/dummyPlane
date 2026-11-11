@@ -231,6 +231,7 @@ describe("Dessin, sur la sélection (spec menu radial §4.5)", () => {
       shape("r3", []),
       shape("in-frame-1", ["s2"], "g1"),
       shape("in-frame-2", ["s2"], "g1"),
+      { ...node("note", "g1"), customData: { kind: "note" } },
     ];
     let editingGroupId: string | null = null;
     const selecting = (...ids: string[]) =>
@@ -292,6 +293,9 @@ describe("Dessin, sur la sélection (spec menu radial §4.5)", () => {
 
     it("is not offered with nothing to ungroup, nor for drawings selected with a terminal: the key goes on to Excalidraw", () => {
       selecting();
+      expect(ungroupCommand.available(busy)).toBe(false);
+      // A quick note in a group's frame is not a member: alone, it never dissolves the group.
+      selecting("note");
       expect(ungroupCommand.available(busy)).toBe(false);
       selecting("r3");
       expect(ungroupCommand.available(busy)).toBe(false);

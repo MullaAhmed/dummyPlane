@@ -44,6 +44,7 @@ import { agentsStore } from "@/agents/agentsStore";
 import { AGENTS, defaultAgent } from "@/agents/catalog";
 import { groupHolding } from "@/agents/groupHolding";
 import { canvasStore } from "@/canvas/canvasStore";
+import { nodeKindOf } from "@/canvas/nodeElement";
 import { messages } from "@/i18n";
 import { radialMessages } from "./messages";
 
@@ -63,6 +64,8 @@ export interface RingSlot {
   danger?: boolean;
   /** The context its command runs in, when not the ring's own (a node's Arrange: its group, or the whole canvas). */
   context?: (ctx: CommandContext) => CommandContext;
+  /** Why it is greyed here, when its command could run but would not do what this ring means (the selection's Arrange). */
+  reason?: (ctx: CommandContext) => string | null;
 }
 
 const defaultLaunch = () => `agent.launch.${defaultAgent(agentsStore.getState().agents)}`;
@@ -120,6 +123,16 @@ function arrangeAround(nodeOf: (ctx: CommandContext) => string | null | undefine
   };
 }
 const folded = (ctx: CommandContext) => canvasStore.getState().frames.find((f) => f.id === ctx.groupId)?.group?.folded === true;
+/**
+ * Arrange moves nodes and frames, and drawings stay where they are: for a selection of drawings
+ * alone it would arrange the whole canvas instead, which is not what the selection's ring means.
+ */
+function drawingsAlone(ctx: CommandContext): string | null {
+  const ids = new Set(ctx.selectionIds ?? []);
+  const selected = canvasStore.getState().api?.getSceneElements().filter((e) => ids.has(e.id)) ?? [];
+  const alone = selected.length > 0 && selected.every((e) => e.type !== "frame" && nodeKindOf(e) === null && !e.frameId);
+  return alone ? messages(radialMessages).drawingsStay : null;
+}
 
 /**
  * The five rings, positions clockwise from the top (spec menu radial §4). A
@@ -187,7 +200,7 @@ export const RINGS: Record<RingKind, readonly RingSlot[]> = {
     { command: "drawing.delete", short: "delete", icon: Trash2, danger: true },
     { command: "drawing.back", short: "toBack", icon: SendToBack },
     // The selection's blocks, or inside the one group selected (scene.arrange reads the ring's selection).
-    { command: "scene.arrange", short: "arrange", icon: LayoutGrid },
+    { command: "scene.arrange", short: "arrange", icon: LayoutGrid, reason: drawingsAlone },
   ],
 };
 
@@ -257,7 +270,7 @@ export function lineOf(slot: RingSlot, ring: CommandContext, commands: readonly 
   if (!command) return null;
   const ctx = slot.context?.(ring) ?? ring;
   const available = command.available(ctx);
-  const reason = available ? (command.disabled?.(ctx) ?? null) : null;
+  const reason = available ? (command.disabled?.(ctx) ?? slot.reason?.(ctx) ?? null) : null;
   return {
     command,
     context: ctx,

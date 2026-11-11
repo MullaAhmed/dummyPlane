@@ -3,7 +3,7 @@ import { closeOpenMenus } from "./openMenus";
 import { closePalette, paletteStore } from "./paletteState";
 import { COMMANDS, commandContext } from "./registry";
 import { isCanvasKeyPress } from "@/radial/bridges";
-import { heldShortcutOf, isEyeDropperKey, isModalOpen, isTypedInto, SELECTION_SHORTCUTS, shortcutOf } from "./shortcuts";
+import { heldShortcutOf, isEyeDropperKey, isModalOpen, isTypedInto, SELECTION_SHORTCUTS, shortcutOf, type Shortcut } from "./shortcuts";
 
 /** Where Excalidraw reads a key as its own: inside its container, but not typed into a field or a terminal's xterm. */
 function onCanvas(target: EventTarget | null): boolean {
@@ -32,17 +32,18 @@ export function installShortcuts(
     }
     const shortcut = shortcutOf(event);
     if (isModalOpen(target.document)) return;
+    // Ctrl+Shift+G in a terminal or a field is theirs, held or not: it never ungroups a group from there.
+    const fieldKeeps = (s: Shortcut) => SELECTION_SHORTCUTS.has(s) && isTypedInto(event.target);
     if (!shortcut) {
       // A held Ctrl+P must not reach the palette's list (cmdk reads the repeats).
       const held = heldShortcutOf(event);
-      if (held && commandFor(commands, held, context())) {
+      if (held && !fieldKeeps(held) && commandFor(commands, held, context())) {
         event.preventDefault();
         event.stopImmediatePropagation();
       }
       return;
     }
-    // Ctrl+Shift+G in a terminal or a field is theirs: it never ungroups a group from there.
-    if (SELECTION_SHORTCUTS.has(shortcut) && isTypedInto(event.target)) return;
+    if (fieldKeeps(shortcut)) return;
     const ctx = context();
     const command = commandFor(commands, shortcut, ctx);
     if (!command) return;

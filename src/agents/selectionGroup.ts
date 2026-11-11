@@ -77,11 +77,12 @@ export type Ungrouping =
 
 /**
  * What "Ungroup" does with the selection `ids` (Ctrl+Shift+G, the selection ring, the palette):
- * - A dummyPlane group, when the selection holds its frame or one of its nodes: the whole
- *   group, as its menu's Ungroup does, a single member selected included (as Excalidraw
- *   ungroups a group from any of its elements). Greyed when the selection spans several
- *   groups (`manyGroups`) or holds something outside the frame (`outsideGroup`). A drawing
- *   that sits in a group's frame is not one of its members: it ungroups as a drawing.
+ * - A dummyPlane group, when the selection holds its frame or one of its members (a terminal,
+ *   a Fleet): the whole group, as its menu's Ungroup does, a single member selected included
+ *   (as Excalidraw ungroups a group from any of its elements). Greyed when the selection spans
+ *   several groups (`manyGroups`) or holds something outside the frame (`outsideGroup`). What
+ *   else sits in the frame (a drawing, a quick note) is not a member: selected with members it
+ *   is not outside either; alone, it ungroups as a drawing.
  * - Else Excalidraw's groups of drawings, with no terminal in the selection: the outermost
  *   group of each selected element, as Excalidraw's own Ungroup takes them (`editingGroupId`,
  *   the group entered by a double-click, and those around it are kept), a group of one
@@ -93,10 +94,13 @@ export function ungroupingOf(elements: readonly ExcalidrawElement[], ids: readon
   const selected = live.filter((e) => chosen.has(e.id));
   if (selected.length === 0) return null;
   const groupFrames = new Set(live.filter((e) => groupInfoOf(e) !== null).map((e) => e.id));
+  // Its members are its terminals and a Fleet dragged in. A quick note, an output or a board in its frame is not one:
+  // alone, it never ungroups the group (it has no ring of its own, and opens the selection's).
+  const member = (e: ExcalidrawElement) => nodeKindOf(e) === "terminal" || nodeKindOf(e) === "fleet";
   const homes = new Set(
     selected.flatMap((e) => {
       if (groupFrames.has(e.id)) return [e.id];
-      return e.frameId && groupFrames.has(e.frameId) && nodeKindOf(e) !== null ? [e.frameId] : [];
+      return e.frameId && groupFrames.has(e.frameId) && member(e) ? [e.frameId] : [];
     }),
   );
   if (homes.size > 1) return { kind: "group", groupId: null, blocked: "manyGroups" };

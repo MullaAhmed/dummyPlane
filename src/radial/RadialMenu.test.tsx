@@ -274,7 +274,8 @@ describe("the More arc", () => {
     expect(ARC_INNER).toBeGreaterThan(OUTER_RADIUS + POP);
   });
 
-  it("points within the arc, keeps it open over the ring's slack, and closes it on another wedge of the ring", async () => {
+  it("points within the arc, keeps it open over the ring's slack, and closes it once the pointer rests on another wedge of the ring", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     await open();
     await pointer(hit(), "click", MORE.x, MORE.y);
     const arc = arcOf();
@@ -283,13 +284,44 @@ describe("the More arc", () => {
     expect([radialStore.getState().ring!.item, radialStore.getState().ring!.hovered]).toEqual([1, 7]);
     expect(hub().textContent).toBe("Duplicate");
     expect(items()[1].style.translate).not.toBe("");
-    // Past the rim beside « Pause »: the ring's slack, the arc's no longer, and nothing closes.
+    // Past the rim beside another wedge: the ring's slack, the arc's no longer, and nothing closes.
     const slack = toward(Math.PI * 0.6, 150);
     await pointer(hit(), "pointermove", slack.x, slack.y);
-    expect([radialStore.getState().ring!.item, radialStore.getState().ring!.arc]).toEqual([null, arc]);
-    // On « Pause », the ring's: back to the ring.
+    expect([radialStore.getState().ring!.item, radialStore.getState().ring!.arc, radialStore.getState().ring!.hovered]).toEqual([null, arc, 7]);
+    // On « Pause », the ring's: pointed at once, the arc gone once the pointer rests there.
     await pointer(hit(), "pointermove", 300 - 100, 300);
+    expect([radialStore.getState().ring!.arc, radialStore.getState().ring!.hovered]).toEqual([arc, 6]);
+    await act(async () => vi.advanceTimersByTime(ARC_INTENT_MS));
     expect([radialStore.getState().ring!.arc, radialStore.getState().ring!.hovered]).toEqual([null, 6]);
+  });
+
+  it("can be reached across the ring when the window's corner turned it away from More (flip)", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    await act(async () =>
+      openRadial({
+        kind: "terminal",
+        client: { x: 152, y: 152 },
+        center: { x: 152, y: 152 },
+        context: { project: true, workspaceId: "w1", terminalCount: 1, terminalId: "batman", at: { x: 152, y: 152 } },
+        pressed: false,
+        sliding: false,
+        hovered: null,
+      }),
+    );
+    const from = (angle: number, radius: number) => ({ x: 152 + radius * Math.cos(angle), y: 152 + radius * Math.sin(angle) });
+    const more = from((-135 * Math.PI) / 180, 100);
+    await pointer(hit(), "click", more.x, more.y);
+    const arc = arcOf();
+    // Turned round to the side with room, away from More.
+    expect(Math.abs(arcAngle(arc, 2) - (-135 * Math.PI) / 180)).toBeGreaterThan(Math.PI / 2);
+    // Straight across the ring: over the wedge opposite More, then into the arc's middle wedge.
+    const across = from(arcAngle(arc, 2), 100);
+    await pointer(hit(), "pointermove", across.x, across.y);
+    await act(async () => vi.advanceTimersByTime(ARC_INTENT_MS - 40));
+    const target = from(arcAngle(arc, 2), 190);
+    await pointer(arcHit(), "pointermove", target.x, target.y);
+    await act(async () => vi.advanceTimersByTime(1000));
+    expect([radialStore.getState().ring!.arc, radialStore.getState().ring!.item]).toEqual([arc, 2]);
   });
 
   it("stays open when the pointer leaves the wheel", async () => {
