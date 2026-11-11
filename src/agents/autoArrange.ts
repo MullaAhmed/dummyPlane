@@ -13,13 +13,14 @@ const busy = (appState: Gesture) =>
   appState.selectedElementsAreBeingDragged || appState.isResizing || appState.isRotating || appState.newElement !== null || appState.editingFrame !== null;
 
 /**
- * What Auto-arrange answers to: which nodes stand on the canvas, and which of
+ * What Auto-arrange answers to: which nodes (quick notes aside) stand on the canvas, and which of
  * them are minimized. A move, a resize or a drawing changes nothing here, so
  * the user can still place things by hand between two openings.
  */
 export function layoutSignature(elements: readonly ExcalidrawElement[], isMinimized: (nodeId: string) => boolean): string {
   return elements
-    .filter((e) => !e.isDeleted && nodeKindOf(e) !== null)
+    // A quick note opened or closed leaves the canvas as it is: it only joins its terminal.
+    .filter((e) => !e.isDeleted && nodeKindOf(e) !== null && nodeKindOf(e) !== "note")
     .map((e) => `${e.id}${isMinimized(e.id) ? ":m" : ""}`)
     .sort()
     .join(",");

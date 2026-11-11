@@ -6,6 +6,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { CrashNotice } from "@/shell/CrashNotice";
 import { FileNode } from "./file/FileNode";
 import { KanbanNode } from "./kanban/KanbanNode";
+import { NoteNode } from "./note/NoteNode";
 import { FleetNode } from "./fleet/FleetNode";
 import { OutputNode } from "./output/OutputNode";
 import { SubagentNode } from "./subagent/SubagentNode";
@@ -35,6 +36,8 @@ function NodeOfKind({ element }: { element: NonDeleted<ExcalidrawEmbeddableEleme
       return <TerminalNode nodeId={element.id} />;
     case "kanban":
       return <KanbanNode nodeId={element.id} />;
+    case "note":
+      return <NoteNode nodeId={element.id} />;
     case "fleet":
       return <FleetNode nodeId={element.id} />;
     case "file":

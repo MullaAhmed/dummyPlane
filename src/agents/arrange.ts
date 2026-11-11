@@ -1,6 +1,7 @@
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { groupInfoOf, type Rect } from "@/canvas/groups";
 import { nodeKindOf } from "@/canvas/nodeElement";
+import { notesAt, notesByHost, settleNotes } from "@/nodes/note/link";
 import { COLUMN_GAP, GROUP_GAP, MAX_ROWS, NODE_GAP, PADDING, PADDING_BOTTOM, PADDING_TOP, ROW_GAP } from "./groupLayout";
 import type { ParentOf } from "./spawnLayout";
 
@@ -15,7 +16,9 @@ import type { ParentOf } from "./spawnLayout";
  * them started. Minimized terminals are tabs: they gather in rows of their own
  * under the rest. Inside a group, the terminals take the group's grid again
  * (columns of MAX_ROWS, its tabs in a row under them) and the frame fits them.
- * Drawings outside a frame stay where they are. Pure: the caller writes the scene.
+ * Drawings outside a frame stay where they are. A terminal's quick notes move
+ * with it and its block makes room for them (src/nodes/note); a note whose
+ * terminal closed is a node of its own. Pure: the caller writes the scene.
  */
 
 export interface ArrangeInput {
@@ -262,7 +265,10 @@ export function arrangedElements(input: ArrangeInput): { elements: ExcalidrawEle
   const byId = new Map(live.map((e) => [e.id, e]));
   const frames = live.filter((e) => e.type === "frame");
   const frameIds = new Set(frames.map((f) => f.id));
-  const nodes = live.filter((e) => nodeKindOf(e) !== null);
+  // A host's quick notes are not blocks: they follow their host, and its block holds them.
+  const notesOf = notesByHost(live);
+  const noteHost = new Map([...notesOf].flatMap(([hostId, notes]) => notes.map((n) => [n.id, hostId] as const)));
+  const nodes = live.filter((e) => nodeKindOf(e) !== null && !noteHost.has(e.id));
   const nodeIds = new Set(nodes.map((n) => n.id));
   const inFrame = (e: ExcalidrawElement) => (e.frameId && frameIds.has(e.frameId) ? e.frameId : null);
 
@@ -283,7 +289,7 @@ export function arrangedElements(input: ArrangeInput): { elements: ExcalidrawEle
   }
 
   // What to arrange: the selection's units, else all of them.
-  const selected = (input.only ?? []).filter((id) => nodeIds.has(id) || frameIds.has(id));
+  const selected = [...new Set((input.only ?? []).map((id) => noteHost.get(id) ?? id))].filter((id) => nodeIds.has(id) || frameIds.has(id));
   const selectedFrames = new Set(selected.map((id) => (frameIds.has(id) ? id : inFrame(byId.get(id)!))));
   const insideOne = selected.length > 0 && selectedFrames.size === 1 && !selectedFrames.has(null) ? [...selectedFrames][0] : null;
   const selectedUnits = new Set(selected.map(unitOf));
@@ -296,7 +302,7 @@ export function arrangedElements(input: ArrangeInput): { elements: ExcalidrawEle
   for (const frame of tidyFrames) {
     const info = groupInfoOf(frame);
     if (!info || info.folded) continue;
-    const members = nodes.filter((n) => n.frameId === frame.id);
+    const members = nodes.filter((n) => n.frameId === frame.id && nodeKindOf(n) !== "note");
     const spawns = members.some((m) => liveParentOf(m.id, parentOf, nodeIds) !== null || nodes.some((n) => liveParentOf(n.id, parentOf, nodeIds) === m.id));
     if (spawns) continue;
     const tidy = tidyGroup(frame, members, isMinimized);
@@ -315,7 +321,9 @@ export function arrangedElements(input: ArrangeInput): { elements: ExcalidrawEle
         const held = members.filter((m) => frameIds.has(m.id)).map((m) => m.id);
         for (const e of live) if (e.frameId && held.includes(e.frameId)) ids.add(e.id);
         const lone = members.length === 1 && !frameIds.has(members[0].id);
-        return { ids, rect: boundsOf(members.map(now)), compound: !lone, tab: lone && isMinimized(members[0].id) };
+        // Its notes beside each host, where they will stand: the block keeps room for them.
+        const notes = members.flatMap((m) => notesAt(now(m), notesOf.get(m.id) ?? []));
+        return { ids, rect: boundsOf([...members.map(now), ...notes]), compound: !lone, tab: lone && isMinimized(members[0].id) };
       });
 
   if (blocks.length > 0) {
@@ -370,5 +378,7 @@ export function arrangedElements(input: ArrangeInput): { elements: ExcalidrawEle
     if (nodeIds.has(e.id) || frameIds.has(e.id)) movedNodeIds.add(e.id);
     return moved(e, target);
   });
-  return changed ? { elements: next, movedNodeIds } : null;
+  // The quick notes join their hosts where they now stand.
+  const settled = settleNotes(next);
+  return changed || settled !== next ? { elements: [...settled], movedNodeIds } : null;
 }

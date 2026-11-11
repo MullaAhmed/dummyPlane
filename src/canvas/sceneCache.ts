@@ -3,6 +3,7 @@ import type { BinaryFileData, BinaryFiles, ExcalidrawInitialDataState } from "@e
 import { elbowWires } from "@/agents/wires";
 import { loadWorkspace, saveScene } from "@/ipc/db";
 import { withoutSubagents } from "@/nodes/subagent/scene";
+import { settleNotes } from "@/nodes/note/link";
 import { nodesStore } from "@/store/nodes";
 import { liveNodeIds, type SavedAppState } from "./sceneSync";
 
@@ -74,9 +75,11 @@ export function cachedElements(workspaceId: string): readonly ExcalidrawElement[
  * the canvas would: the save purges the rows of nodes it does not list, so it
  * lists them all (spec mission de nuit §6.1).
  */
-export function editStoredScene(workspaceId: string, elements: readonly ExcalidrawElement[]) {
+export function editStoredScene(workspaceId: string, edited: readonly ExcalidrawElement[]) {
   const scene = cache.get(workspaceId);
   if (!scene) return;
+  // A terminal moved or resized off screen takes its quick notes along: no canvas watches this scene (src/nodes/note).
+  const elements = settleNotes(edited);
   cache.set(workspaceId, { ...scene, initialData: { ...scene.initialData, elements } });
   const live = elements.filter((e) => !e.isDeleted);
   // A node's row comes before its element: one on its way is not to purge.

@@ -30,7 +30,9 @@ import { newConversation, switchedAgent, type LaunchMode } from "./launch";
 import { minimizeTerminal } from "./minimize";
 import { NameField } from "./NameField";
 import { spawnedTask } from "@/agents/taskSummary";
-import { HeaderButton, HeaderMenu, NodeHeader, NodeHeaderEnd, NodeTitle, WIDE_ONLY } from "./NodeHeader";
+import { HeaderButton, HeaderMenu, keepFocusAfterMenu, NodeHeader, NodeHeaderEnd, NodeTitle, WIDE_ONLY } from "./NodeHeader";
+import { noteMessages } from "@/nodes/note/messages";
+import { quickNote } from "@/nodes/note/quickNote";
 import { relaunchTerminal, stopTerminal } from "./registry";
 import { StatusPill } from "./StatusPill";
 import { TerminalOptionsDialog } from "./TerminalOptionsDialog";
@@ -53,6 +55,7 @@ function TerminalMenu(props: { nodeId: string; payload: TerminalPayload; running
   const { nodeId, payload, running, onDuplicate } = props;
   const t = useMessages(nodesMessages).header;
   const duplicate = useMessages(nodesMessages).terminal.duplicate;
+  const quickNoteLabel = useMessages(noteMessages).add;
   const relaunch = (mode: LaunchMode) => relaunchTerminal(nodeId, payload, mode);
   const newSession = () => {
     const fresh = newConversation();
@@ -64,6 +67,14 @@ function TerminalMenu(props: { nodeId: string; payload: TerminalPayload; running
       <DropdownMenuItem onSelect={() => openReview(nodeId)}>{t.review}</DropdownMenuItem>
       <DropdownMenuItem onSelect={() => minimizeTerminal(nodeId)}>{t.minimize}</DropdownMenuItem>
       {onDuplicate && <DropdownMenuItem onSelect={onDuplicate}>{duplicate}</DropdownMenuItem>}
+      <DropdownMenuItem
+        onSelect={() => {
+          keepFocusAfterMenu();
+          void quickNote(nodeId);
+        }}
+      >
+        {quickNoteLabel}
+      </DropdownMenuItem>
       <DropdownMenuSeparator />
       {payload.agent === "claude" ? (
         <>

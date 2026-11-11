@@ -147,7 +147,7 @@ it("keeps the essentials on its row and the rest behind « ⋯ »: Review, Resta
   // The agent, Remote Control, the menu, Close: no more.
   expect(labels).toEqual(["Agent", expect.stringContaining("Remote Control"), "More actions", "Close"]);
   const items = await openMore(view.host);
-  expect(textOf(items())).toEqual(["Review changes", "Minimize", "Duplicate", "Resume the session", "New session", "Latest in the folder", "Stop the process"]);
+  expect(textOf(items())).toEqual(["Review changes", "Minimize", "Duplicate", "Quick note", "Resume the session", "New session", "Latest in the folder", "Stop the process"]);
   await act(async () => items()[2]!.click());
   expect(onDuplicate).toHaveBeenCalledOnce();
   await act(async () => view.host.querySelector<HTMLButtonElement>('button[aria-label="Close"]')!.click());
@@ -177,8 +177,8 @@ it("restarts a Claude session three ways, and stops the process, from its menu",
 it("restarts any other agent with one entry, and offers no Stop once nothing runs", async () => {
   const view = await mount(<TerminalHeader nodeId="batman" payload={{ ...claude, agent: "shell" }} status={{ state: "stopped" }} />);
   const items = await openMore(view.host);
-  expect(textOf(items())).toEqual(["Review changes", "Minimize", "Restart"]);
-  await act(async () => items()[2]!.click());
+  expect(textOf(items())).toEqual(["Review changes", "Minimize", "Quick note", "Restart"]);
+  await act(async () => items()[3]!.click());
   expect(relaunchTerminal).toHaveBeenCalledWith("batman", expect.objectContaining({ agent: "shell" }), "new");
   await view.unmount();
 });

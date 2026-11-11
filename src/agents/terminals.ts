@@ -7,6 +7,8 @@ import { allowRemoval } from "@/canvas/removalGuard";
 import { createNodeElement, nodeKindOf, nodeLink } from "@/canvas/nodeElement";
 import { expandedSize } from "@/nodes/terminal/minimize";
 import { disposeTerminal, markForAutostart, startUnseen } from "@/nodes/terminal/registry";
+import { emptyNotesOf, remapCopiedNotes } from "@/nodes/note/link";
+import { isEmptyNote } from "@/nodes/note/notes";
 import type { TerminalPayload } from "@/nodes/types";
 import { nodesStore, terminalOf } from "@/store/nodes";
 import { isRunning } from "@/store/terminalStatus";
@@ -142,6 +144,11 @@ export async function adoptCopies(workspaceId: string, copies: readonly { id: st
       await nodesStore.getState().create(id, { workspaceId, kind: "output", payload: { ...source.payload } });
       continue;
     }
+    if (source.kind === "note") {
+      // A copied note keeps its text, then lives on its own.
+      await nodesStore.getState().create(id, { workspaceId, kind: "note", payload: { ...source.payload } });
+      continue;
+    }
     if (source.kind === "kanban") {
       // A copied board starts with the same columns and cards, then lives on its own.
       await nodesStore.getState().create(id, { workspaceId, kind: "kanban", payload: structuredClone(source.payload) });
@@ -172,7 +179,10 @@ export async function adoptCopies(workspaceId: string, copies: readonly { id: st
       const size = fullSizes.get(e.id);
       return ids.has(e.id) ? newElementWith(e, { link: nodeLink(nodeKindOf(e) ?? "terminal", e.id), ...(size ?? {}) }) : e;
     });
-  api.updateScene({ elements: alignCopies(linked, ids), captureUpdate: CaptureUpdateAction.NEVER });
+  // A note copied with its terminal stands beside the terminal's copy.
+  const copyOf = new Map(copies.filter(({ id }) => ids.has(id)).map(({ id, sourceId }) => [sourceId, id]));
+  const notes = new Set(copies.filter(({ id, sourceId }) => ids.has(id) && nodesStore.getState().nodes[sourceId]?.kind === "note").map(({ id }) => id));
+  api.updateScene({ elements: [...remapCopiedNotes(alignCopies(linked, ids), copyOf, notes)], captureUpdate: CaptureUpdateAction.NEVER });
 }
 
 /** Copies made inside a group (Ctrl+D, copy-paste) take its first free cells too (spec §11.3). */
@@ -221,7 +231,9 @@ export function removeFromStoredScene(workspaceId: string, ids: ReadonlySet<stri
   if (!scene || scene.shown) return;
   const elements = scene.elements();
   const terminals = elements.filter((e) => ids.has(e.id) && nodeKindOf(e) === "terminal").map((e) => e.id);
-  scene.write(elements.map((e) => (ids.has(e.id) && !e.isDeleted ? newElementWith(e, { isDeleted: true }) : e)));
+  // Their empty notes go with them; a note with text stays, alone (src/nodes/note).
+  const gone = new Set([...ids, ...emptyNotesOf(elements, ids, isEmptyNote)]);
+  scene.write(elements.map((e) => (gone.has(e.id) && !e.isDeleted ? newElementWith(e, { isDeleted: true }) : e)));
   for (const id of terminals) disposeTerminal(id);
   reflowSpawnTreesOf(workspaceId, terminals);
 }

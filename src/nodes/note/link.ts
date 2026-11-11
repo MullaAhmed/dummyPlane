@@ -224,3 +224,26 @@ export function noteChanges(elements: readonly ExcalidrawElement[], seen: Map<st
   for (const e of elements) if (!e.isDeleted && (isNote(e) || hosts.has(e.id))) seen.set(e.id, rectOf(e));
   return relinks;
 }
+
+/**
+ * Notes copied with their host (Ctrl+D, copy-paste of both): each copy stands
+ * beside the host's copy, where it was put, not beside the original. `copyOf`
+ * maps an original node id to its copy's; a note copied alone keeps its host.
+ */
+export function remapCopiedNotes<T extends ExcalidrawElement>(elements: readonly T[], copyOf: ReadonlyMap<string, string>, noteIds: ReadonlySet<string>): readonly T[] {
+  const hosts = liveHosts(elements);
+  const links = new Map<string, NoteLink>();
+  for (const e of elements) {
+    if (!noteIds.has(e.id) || !isNote(e)) continue;
+    const copyId = copyOf.get(noteLinkOf(e)?.of ?? "");
+    const host = copyId ? hosts.get(copyId) : undefined;
+    if (host) links.set(e.id, linkFor(host.id, e, host));
+  }
+  return relinkNotes(elements, links);
+}
+
+/** The live notes of `hostIds` that `isEmpty` says hold no text: they leave with their host. */
+export function emptyNotesOf(elements: readonly ExcalidrawElement[], hostIds: Iterable<string>, isEmpty: (noteId: string) => boolean): string[] {
+  const hosts = new Set(hostIds);
+  return elements.filter((e) => isNote(e) && hosts.has(noteLinkOf(e)?.of ?? "") && isEmpty(e.id)).map((e) => e.id);
+}

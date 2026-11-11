@@ -10,7 +10,7 @@ import { createNodeElement, nodeKindOf } from "@/canvas/nodeElement";
 import { allowRemoval } from "@/canvas/removalGuard";
 import { messages } from "@/i18n";
 import { nodesStore } from "@/store/nodes";
-import { isNote, linkFor, NOTE_HOSTS, noteLinkOf, relinkNotes, settleNotes, withNoteLink, noteChanges, type NoteLink } from "./link";
+import { emptyNotesOf, linkFor, NOTE_HOSTS, noteChanges, relinkNotes, settleNotes, withNoteLink, type NoteLink } from "./link";
 import { noteMessages } from "./messages";
 import { newNoteRect } from "./placement";
 
@@ -62,11 +62,6 @@ export async function addNote(hostId: string): Promise<string | null> {
     focusNote(note.id);
   }
   return note.id;
-}
-
-/** "Quick note" of a menu or the palette: a note beside `hostId`; a failure says so. */
-export function placeNote(hostId: string) {
-  void addNote(hostId).catch((error: unknown) => toast.error(messages(noteMessages).addFailed(String(error))));
 }
 
 /** How many frames (about two seconds) a new note is offered the keyboard: it mounts once Excalidraw shows it. */
@@ -129,11 +124,8 @@ export function restoreNotes(workspaceId: string, ids: readonly string[]) {
   if (!scene.shown) back.forEach((id) => void nodesStore.getState().persist(id));
 }
 
-/** The live, empty notes of `hostIds`: they go with their host; a note with text stays. */
-export function emptyNotesOf(elements: readonly ExcalidrawElement[], hostIds: readonly string[]): string[] {
-  const hosts = new Set(hostIds);
-  return elements.filter((e) => isNote(e) && hosts.has(noteLinkOf(e)?.of ?? "") && !hasText(e.id)).map((e) => e.id);
-}
+/** Whether a note holds no text (a node without a record counts as empty): it leaves with its host. */
+export const isEmptyNote = (noteId: string) => !hasText(noteId);
 
 /**
  * Nodes that left the canvas on screen (deleted, closed, undone): a note with
@@ -157,7 +149,7 @@ export function onNodesGone(workspaceId: string, ids: readonly string[]) {
     const elements = api?.getSceneElementsIncludingDeleted() ?? [];
     // A host brought back meanwhile (an undo) keeps its notes.
     const gone = hosts.filter((id) => !elements.some((e) => e.id === id && !e.isDeleted));
-    const empty = new Set(emptyNotesOf(elements, gone));
+    const empty = new Set(emptyNotesOf(elements, gone, isEmptyNote));
     if (!api || empty.size === 0) return;
     allowRemoval(empty);
     api.updateScene({

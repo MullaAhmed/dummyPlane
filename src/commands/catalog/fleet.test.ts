@@ -28,7 +28,7 @@ beforeAll(async () => {
 describe("Fleet · <nom> (spec menu radial §4.4, §6.2)", () => {
   it("is the radial menu's only: the palette never points at a fleet", () => {
     expect(FLEET.filter((c) => c.available(palette))).toEqual([]);
-    expect(FLEET.map((c) => labelOf(c, ring))).toEqual(["Write an instruction", "Rename", "Link", "Paste", "Delete"]);
+    expect(FLEET.map((c) => labelOf(c, ring))).toEqual(["Write an instruction", "Rename", "Link", "Paste", "Delete", "Quick note on this Fleet"]);
     expect(sectionOf(find("fleet.rename"), ring)).toBe("Fleet · chef de backend");
   });
 

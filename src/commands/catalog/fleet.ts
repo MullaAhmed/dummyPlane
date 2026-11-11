@@ -1,5 +1,6 @@
 import { arrive, showNode } from "@/canvas/arrive";
 import { requestCloseFleet } from "@/fleet/fleets";
+import { quickNote } from "@/nodes/note/quickNote";
 import { pasteIntoTerminal } from "@/nodes/terminal/registry";
 import { readClipboardText } from "@/radial/bridges";
 import { nodesStore } from "@/store/nodes";
@@ -48,4 +49,5 @@ export const FLEET: readonly Command[] = [
     },
   }),
   command("fleet.remove", { section, available: hasFleet, run: (ctx) => requestCloseFleet(id(ctx)) }),
+  command("fleet.note", { section, available: hasFleet, run: async (ctx) => void (await quickNote(id(ctx))) }),
 ];
