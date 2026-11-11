@@ -80,8 +80,11 @@ beforeEach(() => {
 afterEach(() => wireActivityStore.setState({ pulses: {} }));
 
 describe("hand_off in the router's lists", () => {
-  it("is listed to an agent wired to a Fleet, beside the output tools", async () => {
-    expect(await toolNames("batgirl")).toEqual(["declare_steps", "step", "report", "spawn_agent", "linked_agents", "message_agent", "read_agent", "show_output", "output_guide", "hand_off", "read_node", "notes"]);
+  it("is listed to an agent wired to a Fleet, on top of the tools any agent has", async () => {
+    const wired = await toolNames("batgirl");
+    expect(wired.filter((name) => name !== "hand_off")).toEqual(await toolNames("cyborg"));
+    expect(wired).toContain("hand_off");
+    expect(wired.filter((name) => name === "hand_off")).toHaveLength(1);
   });
 
   it("is not listed to an agent no Fleet commands, to a Fleet, nor to a Manager", async () => {
