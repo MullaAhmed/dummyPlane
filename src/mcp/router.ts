@@ -30,8 +30,9 @@ export async function answer(call: McpCall): Promise<unknown> {
       ? [...fleetTools({ legacy: runsTheOldWay(missionOf(record)), claude }), spawnAgentSpec(true), outputGuideSpec()]
       : manager
         ? [...managerTools(), outputGuideSpec()]
-        : [...agentTools(), ...linkTools(), ...handOffTools(call.nodeId), ...outputTools()];
-    return { tools: [...own, readNodeSpec(), notesToolSpec()] };
+        : [...agentTools(), ...linkTools(), ...outputTools()];
+    // hand_off: only an agent wired to a Fleet (never a Fleet, a Manager or a mission's team) has it.
+    return { tools: [...own, ...handOffTools(call.nodeId), readNodeSpec(), notesToolSpec()] };
   }
   const asked = String(call.params.name ?? "");
   const { name, args } = internalCall(asked, (call.params.arguments ?? {}) as Record<string, unknown>);

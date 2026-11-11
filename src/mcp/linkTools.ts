@@ -130,7 +130,8 @@ function messageLinked(nodeId: string, args: Record<string, unknown>): ToolResul
 
 function readLinked(nodeId: string, args: Record<string, unknown>): ToolResult {
   const peer = linkedNamed(nodeId, args.agent);
-  if (typeof peer === "string") return refused(peer);
+  // The Fleet that commands the caller is listed, but its screen is the user's: message_agent and hand_off reach it.
+  if (typeof peer === "string") return refused(fleetNamed(nodeId, args.agent) ? t().handOff.fleetNotRead : peer);
   // As the fleet's read_output reads a mission agent.
   const lines = typeof args.lines === "number" ? Math.min(200, Math.max(1, Math.floor(args.lines))) : 50;
   return said(terminalText(peer.nodeId, lines) || t().links.emptyTerminal);

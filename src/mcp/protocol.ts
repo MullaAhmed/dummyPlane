@@ -36,7 +36,6 @@ const TOOLS: Record<string, string> = {
   linked_agents: "linked_agents",
   message_agent: "message_agent",
   read_agent: "read_agent",
-  hand_off: "hand_off",
   show_output: "show_output",
   output_guide: "output_guide",
   read_node: "read_node",
@@ -44,6 +43,7 @@ const TOOLS: Record<string, string> = {
   stop_mission: "stop_mission",
   move_card: "move_card",
   need_user: "need_user",
+  hand_off: "hand_off",
 };
 
 /** The former names, for the agent that still calls one: what it is called now. */

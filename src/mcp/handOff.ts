@@ -1,6 +1,7 @@
 import { talk } from "@/agents/talkWires";
 import { AGENTS } from "@/agents/catalog";
 import { sceneAccess } from "@/agents/sceneAccess";
+import { spawnedByOf } from "@/agents/spawnFamily";
 import { fleetLinks, fleetsOf } from "@/agents/wires";
 import { framesFromScene } from "@/canvas/groups";
 import { messages } from "@/i18n";
@@ -36,18 +37,29 @@ const nameOf = (nodeId: string) => {
   return payload ? payload.name || AGENTS[payload.agent].label : "An agent";
 };
 
-/** Whether `nodeId` works for a mission that is under way: its Manager, or an agent of its team. Such an agent is not the user's to hand tasks off. */
+/** `nodeId`, then the agent that spawned it, and so up: a sub-agent sits in its parent's group and works for its parent's mission. */
+function lineage(nodeId: string): string[] {
+  const line = [nodeId];
+  for (let up = spawnedByOf(nodeId); up && !line.includes(up); up = spawnedByOf(up)) line.push(up);
+  return line;
+}
+
+/**
+ * Whether `nodeId` works for a mission that is under way: its Manager, an agent of its team, or a sub-agent of theirs (it
+ * lands in their group, which the Fleet may be wired to). Such an agent is not the user's to hand tasks off.
+ */
 function onMissionTeam(nodeId: string): boolean {
-  if (isManagerNode(nodeId)) return true;
+  const line = lineage(nodeId);
+  if (line.some(isManagerNode)) return true;
   return Object.values(nodesStore.getState().nodes).some((record) => {
     const mission = missionOf(record);
-    return (mission?.state === "en_cours" || mission?.state === "lancement") && mission.members.some((m) => m.nodeId === nodeId);
+    return (mission?.state === "en_cours" || mission?.state === "lancement") && mission.members.some((m) => line.includes(m.nodeId));
   });
 }
 
 /**
  * The Fleets the user wired `nodeId` to, directly or through a group: read from its workspace's scene, on screen or
- * stored. Empty for a mission's team; null when that scene was never read.
+ * stored. Empty for a mission's team, and for a Fleet's own sub-agent (it reports to the Fleet); null when that scene was never read.
  */
 export function commandingFleets(nodeId: string): string[] | null {
   const nodes = nodesStore.getState().nodes;
@@ -55,8 +67,9 @@ export function commandingFleets(nodeId: string): string[] | null {
   const scene = record?.kind === "terminal" ? sceneAccess(record.workspaceId) : null;
   if (!scene) return null;
   if (onMissionTeam(nodeId)) return [];
+  const line = lineage(nodeId);
   const elements = scene.elements();
-  return fleetsOf(nodeId, fleetLinks(elements), framesFromScene(elements)).filter((id) => nodes[id]?.kind === "fleet");
+  return fleetsOf(nodeId, fleetLinks(elements), framesFromScene(elements)).filter((id) => nodes[id]?.kind === "fleet" && !line.includes(id));
 }
 
 /**

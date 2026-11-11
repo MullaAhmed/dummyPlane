@@ -3,6 +3,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { mockIPC } from "@tauri-apps/api/mocks";
 import { canvasStore } from "@/canvas/canvasStore";
+import { createGroupFrame } from "@/canvas/groups";
 import { createNodeElement } from "@/canvas/nodeElement";
 import { wireActivityStore } from "@/canvas/wireActivity";
 import { withAgentLink, withWire } from "@/agents/wires";
@@ -79,8 +80,8 @@ beforeEach(() => {
 afterEach(() => wireActivityStore.setState({ pulses: {} }));
 
 describe("hand_off in the router's lists", () => {
-  it("is listed, after the link tools, to an agent wired to a Fleet", async () => {
-    expect(await toolNames("batgirl")).toEqual(["declare_steps", "step", "report", "spawn_agent", "linked_agents", "message_agent", "read_agent", "hand_off", "show_output", "output_guide", "read_node", "notes"]);
+  it("is listed to an agent wired to a Fleet, beside the output tools", async () => {
+    expect(await toolNames("batgirl")).toEqual(["declare_steps", "step", "report", "spawn_agent", "linked_agents", "message_agent", "read_agent", "show_output", "output_guide", "hand_off", "read_node", "notes"]);
   });
 
   it("is not listed to an agent no Fleet commands, to a Fleet, nor to a Manager", async () => {
@@ -112,6 +113,51 @@ describe("hand_off in the router's lists", () => {
     expect(spec.inputSchema.required).toEqual(["title", "brief"]);
     expect(Object.keys(spec.inputSchema.properties)).toEqual(["title", "brief", "budget_min", "level", "fleet"]);
     expect(spec.description).toContain("typed to the Fleet");
+  });
+});
+
+describe("hand_off for the agents of a group the Fleet is wired to", () => {
+  const frame = createGroupFrame({ x: 0, y: 0, width: 100, height: 100 }, "Backend", { role: "backend", pantheon: "greek" }) as ExcalidrawElement;
+  const inFrame = (...ids: string[]) => nodes.map((e) => (ids.includes(e.id) ? ({ ...e, frameId: frame.id } as ExcalidrawElement) : e));
+  const wiredGroup = (...ids: string[]) => withWire([...inFrame(...ids), frame], "chef", frame.id);
+  const spawnedBy = (id: string, parent: string | undefined) => nodesStore.getState().update(id, { spawnedBy: parent });
+  afterEach(() => {
+    spawnedBy("cyborg", undefined);
+    spawnedBy("robin", undefined);
+  });
+
+  it("is listed to each agent of the group, which linked_agents names the Fleet to", async () => {
+    scene = wiredGroup("robin", "cyborg");
+    expect(await toolNames("robin")).toContain("hand_off");
+    expect(await toolNames("cyborg")).toContain("hand_off");
+    expect(JSON.parse(textOf(await call("robin", "linked_agents")))).toMatchObject([{ name: "Chef", relation: "fleet" }]);
+    expect(textOf(await call("robin", "hand_off", { title: "One", brief: "b" }))).toContain("Queued");
+  });
+
+  it("is refused to a team agent in that group, and to the sub-agent it spawned into it", async () => {
+    scene = wiredGroup("robin", "cyborg");
+    spawnedBy("cyborg", "robin");
+    setMission({ members: [member("robin", "Robin")] });
+    for (const id of ["robin", "cyborg"]) {
+      expect(await toolNames(id)).not.toContain("hand_off");
+      expect((await call(id, "hand_off", { title: "One", brief: "b" })).isError).toBe(true);
+      expect(textOf(await call(id, "linked_agents"))).not.toContain("Chef");
+      expect((await call(id, "message_agent", { agent: "Chef", text: "hi" })).isError).toBe(true);
+    }
+    expect(queueOf()).toEqual([]);
+    expect(notify).not.toHaveBeenCalled();
+    // Once the mission is over, they are the user's linked agents again.
+    setMission({ state: "terminee", members: [member("robin", "Robin")] });
+    expect(await toolNames("cyborg")).toContain("hand_off");
+  });
+
+  it("leaves the sub-agent of a plain linked agent the tool, but not the Fleet's own sub-agent: it reports to its Fleet", async () => {
+    scene = wiredGroup("robin", "cyborg");
+    spawnedBy("cyborg", "robin");
+    expect(await toolNames("cyborg")).toContain("hand_off");
+    spawnedBy("cyborg", "chef");
+    expect(await toolNames("cyborg")).not.toContain("hand_off");
+    expect(textOf(await call("cyborg", "hand_off", { title: "One", brief: "b" }))).toContain("No Fleet is linked to you");
   });
 });
 
@@ -229,7 +275,7 @@ describe("hand_off, refused", () => {
     expect(notify).not.toHaveBeenCalled();
   });
 
-  it("to a mission's team, and to a Manager, though its agents sit in a group the Fleet is wired to", async () => {
+  it("to a mission's team wired to the Fleet, and to a Manager", async () => {
     scene = withWire(nodes, "chef", "robin");
     setMission({ members: [member("robin", "Robin")] });
     const team = await call("robin", "hand_off", { title: "One", brief: "b" });
@@ -312,10 +358,12 @@ describe("linked_agents and message_agent with a Fleet", () => {
   it("reaches no Fleet but the one that commands the agent, and never reads its terminal", async () => {
     expect((await call("batgirl", "message_agent", { agent: "Ops", text: "hi" })).isError).toBe(true);
     expect((await call("cyborg", "message_agent", { agent: "Chef", text: "hi" })).isError).toBe(true);
+    const read = await call("batgirl", "read_agent", { agent: "Chef" });
+    expect(read.isError).toBe(true);
+    expect(textOf(read)).toContain("A Fleet's screen is the user's");
     scene = withWire(nodes, "chef", "robin");
     setMission({ members: [member("robin", "Robin")] });
     expect((await call("robin", "message_agent", { agent: "Chef", text: "hi" })).isError).toBe(true);
-    expect((await call("batgirl", "read_agent", { agent: "Chef" })).isError).toBe(true);
     expect(notify).not.toHaveBeenCalled();
     expect(terminalText).not.toHaveBeenCalled();
   });
