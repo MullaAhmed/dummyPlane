@@ -26,9 +26,9 @@ export function fileSummary(t: typeof reviewMessages, file: ChangedFile): string
   return [paths, t.status[file.status], file.added === null ? t.binaryOrBig : null].filter(Boolean).join(" · ");
 }
 
-/** A changed file's status for a screen reader: the letter is for the eye, the word is read (with a rename's source). */
+/** A changed file's status for a screen reader: the letter is for the eye, the word is read (a rename says from where). */
 export function statusWords(t: typeof reviewMessages, file: ChangedFile): string {
-  return file.oldPath ? `${t.status[file.status]}, ${t.renamedFrom(file.oldPath)}` : t.status[file.status];
+  return file.oldPath ? t.renamedFrom(file.oldPath) : t.status[file.status];
 }
 
 /** The tint of an added or deleted line, and the step it takes under the pointer when it takes a remark. */
