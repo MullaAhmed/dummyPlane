@@ -665,3 +665,12 @@ export function revivableWires(elements: readonly ExcalidrawElement[]): string[]
     })
     .map((arrow) => arrow.id);
 }
+
+/** Stub until the wires branch lands (CONTRACT.md): a plain wire unless a live wire joins the pair. */
+export function withWireBetween(elements: readonly ExcalidrawElement[], fromId: string, toId: string): ExcalidrawElement[] {
+  const from = elements.find((e) => e.id === fromId && !e.isDeleted);
+  const to = elements.find((e) => e.id === toId && !e.isDeleted);
+  if (!from || !to || fromId === toId) return [...elements];
+  const joined = elements.some((e) => !e.isDeleted && e.type === "arrow" && isWire(e) && otherEnd(e, fromId) === toId);
+  return joined ? [...elements] : addWire(elements, from, to, currentPalette(), false);
+}
