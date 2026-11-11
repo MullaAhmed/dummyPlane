@@ -11,10 +11,11 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { useMessages } from "@/i18n";
+import { agentStateOf } from "@/agents/agentState";
 import { removeNodes } from "@/agents/terminals";
 import { useActivity } from "@/store/agentActivity";
 import { nodeNameOf, useNodes } from "@/store/nodes";
-import { isRunning } from "@/store/terminalStatus";
+import { isRunning, useTerminalStatus } from "@/store/terminalStatus";
 import { uiStore, useUi, type ClosingAgents } from "@/store/ui";
 import { useExitSnapshot } from "@/lib/useExitSnapshot";
 import { QuietButton } from "./buttons";
@@ -47,7 +48,8 @@ function CloseAgentContent({ closing, open }: { closing: ClosingAgents | null; o
   const alsoId = useId();
   const [withChildren, setWithChildren] = useState(true);
   const nodes = useNodes((s) => s.nodes);
-  const activity = useActivity(closing?.agents[0] ?? "")?.activity;
+  const activity = useActivity(closing?.agents[0] ?? "");
+  const status = useTerminalStatus(closing?.agents[0] ?? "");
   const names = (closing?.agents ?? []).map((id) => nodeNameOf(nodes[id]) || all.fallbackAgent);
   const close = () => uiStore.getState().setClosing(null);
   const one = names.length <= 1;
@@ -55,8 +57,10 @@ function CloseAgentContent({ closing, open }: { closing: ClosingAgents | null; o
   const first = closing?.agents[0] ? nodes[closing.agents[0]] : undefined;
   const fleet = one && first?.kind === "fleet";
   const inMission = fleet && first.payload.mission?.state === "en_cours";
-  // Spec habillage §7.5: "is working" or "is ready", by what the agent is doing.
-  const state = activity === "working" ? "Working" : activity === "idle" ? "Ready" : null;
+  // Spec habillage §7.5: "is working" or "is ready", by what the agent is doing, read as its pill reads it
+  // (agentState): an agent that exited, or a process that stopped, is neither.
+  const agentState = agentStateOf(status, activity);
+  const state = agentState === "working" ? "Working" : agentState === "ready" ? "Ready" : null;
   const children = closing?.children ?? [];
   // Asked for its sub-agents only: the agent itself has stopped.
   const stopped = one && children.length > 0 && closing !== null && !isRunning(closing.agents[0]);

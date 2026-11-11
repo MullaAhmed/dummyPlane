@@ -4,10 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { renameGroup, setGroupFolded } from "@/agents/groups";
 import { GroupMenu } from "@/agents/GroupMenu";
+import { agentStateIn } from "@/agents/agentState";
 import { countsText, membersIn, waitingText } from "@/agents/groupSummary";
 import { screenRectOf } from "@/agents/placement";
 import { ROLES } from "@/agents/roles";
 import { useActivities } from "@/store/agentActivity";
+import { useNodes } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
 import { useStore } from "zustand";
 import { uiStore, useUi } from "@/store/ui";
@@ -35,9 +37,10 @@ export function GroupLabels() {
   const editingFrame = useCanvas((s) => s.view.editingFrame);
   const activities = useActivities();
   const statuses = useStore(terminalStatusStore, (s) => s.statuses);
-  // An activity ends with its process (`pty-exit`), but may outlive a stopped one for a moment: only running members count.
-  const members = (group: SceneGroup, activity: "working" | "waiting") =>
-    membersIn(group.memberIds, activity, (id) => activities[id]?.activity, (id) => statuses[id]?.state === "running");
+  const nodes = useNodes((s) => s.nodes);
+  // The reading every count shares (agentState): a stopped process, an agent that exited or a plain shell is never at work.
+  const members = (group: SceneGroup, state: "working" | "waiting") =>
+    membersIn(group.memberIds, state, (id) => agentStateIn(id, nodes, statuses, activities));
   const groups = frames.filter(isGroup);
   const renaming = useUi((s) => s.renamingGroup);
   const takeover = groupBeingRenamed(editingFrame, frames);

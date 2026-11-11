@@ -4,6 +4,7 @@ import type { AgentId } from "@/ipc/pty";
 import type { TerminalReportStatus } from "@/nodes/types";
 import type { AgentActivity } from "@/store/agentActivity";
 import type { TerminalStatus } from "@/store/terminalStatus";
+import { agentStateOf } from "./agentState";
 import { agentsMessages } from "./messages";
 import { ROLES } from "./roles";
 
@@ -27,8 +28,8 @@ export const PANEL_FILTERS: readonly { id: PanelFilter; label: string }[] = (["a
   },
 }));
 
-/** Whether an agent in `state` shows under `filter`. */
-const inFilter = (state: PanelState, filter: PanelFilter): boolean =>
+/** Whether an agent in `state` shows under `filter` (the Fleets' section filters with the agents). */
+export const inFilter =(state: PanelState, filter: PanelFilter): boolean =>
   filter === "all" || (filter === "done" ? state === "idle" || state === "stopped" : state === filter);
 
 export interface PanelAgent {
@@ -46,17 +47,33 @@ export interface PanelSection {
   name: string;
   color: string | null;
   agents: PanelAgent[];
+  /** The section's agents and those at work whatever the filter: its header says what the group's canvas label says. */
+  members: number;
+  working: number;
 }
 
 /**
- * A running agent takes its activity; while that is unknown it is active, unless
- * its last report stands (`report`, as its pill reads it): it then rests. A
- * starting agent is active; any other process state is stopped.
+ * The panel's word for an agent's state (`agentStateOf`, the reading every count shares): a running agent
+ * takes its activity, rests once its turn is over or its last report stands, and is active while its activity
+ * is unknown or its process starts. An agent that exited ("Agent exited") is stopped, like an ended process.
+ * A plain shell console (`agent` false) is never at work nor waiting: it is active while it runs.
  */
-export function panelStateOf(status: TerminalStatus, activity?: AgentActivity, report?: TerminalReportStatus): PanelState {
-  if (status.state === "running") return activity?.activity ?? (report ? "idle" : "active");
-  if (status.state === "starting") return "active";
-  return "stopped";
+export function panelStateOf(status: TerminalStatus, activity?: AgentActivity, report?: TerminalReportStatus, agent = true): PanelState {
+  const state = agentStateOf(status, activity, report);
+  switch (state) {
+    case "working":
+    case "waiting":
+      return agent ? state : "active";
+    case "ready":
+    case "done":
+      return "idle";
+    case "left":
+    case "stopped":
+      return "stopped";
+    case "starting":
+    case "active":
+      return "active";
+  }
 }
 
 /** Each group in scene order, then "Outside a group"; only the agents of `filter`, no empty section. */
@@ -65,23 +82,28 @@ export function panelSections(
   frames: readonly SceneFrame[],
   filter: PanelFilter,
 ): PanelSection[] {
-  const shown = agents.filter((a) => inFilter(a.state, filter));
+  const shown = (all: readonly PanelAgent[]) => all.filter((a) => inFilter(a.state, filter));
+  const totals = (all: readonly PanelAgent[]) => ({ members: all.length, working: all.filter((a) => a.state === "working").length });
   const inGroups = new Set<string>();
   const sections: PanelSection[] = [];
   for (const frame of frames) {
     if (!frame.group) continue;
     frame.memberIds.forEach((id) => inGroups.add(id));
-    const members = shown.filter((a) => frame.memberIds.includes(a.id));
-    if (members.length > 0) {
-      sections.push({ id: frame.id, name: frame.name, color: ROLES[frame.group.role].color, agents: members });
+    const members = agents.filter((a) => frame.memberIds.includes(a.id));
+    const listed = shown(members);
+    if (listed.length > 0) {
+      sections.push({ id: frame.id, name: frame.name, color: ROLES[frame.group.role].color, agents: listed, ...totals(members) });
     }
   }
-  const outside = shown.filter((a) => !inGroups.has(a.id));
-  if (outside.length > 0) sections.push({ id: null, name: messages(agentsMessages).outsideGroup, color: null, agents: outside });
+  const outside = agents.filter((a) => !inGroups.has(a.id));
+  const listed = shown(outside);
+  if (listed.length > 0) {
+    sections.push({ id: null, name: messages(agentsMessages).outsideGroup, color: null, agents: listed, ...totals(outside) });
+  }
   return sections;
 }
 
-export function filterCounts(agents: readonly PanelAgent[]): Record<PanelFilter, number> {
+export function filterCounts(agents: readonly Pick<PanelAgent, "state">[]): Record<PanelFilter, number> {
   const counts: Record<PanelFilter, number> = { all: agents.length, waiting: 0, working: 0, done: 0 };
   for (const a of agents) {
     for (const filter of ["waiting", "working", "done"] as const) if (inFilter(a.state, filter)) counts[filter]++;

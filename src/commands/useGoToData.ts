@@ -5,9 +5,10 @@ import { messages } from "@/i18n";
 import { useStore } from "zustand";
 import { canvasStore } from "@/canvas/canvasStore";
 import { loadScene } from "@/canvas/sceneCache";
+import { tallyAgents, workspaceNodeIds } from "@/agents/agentState";
+import { useActivities } from "@/store/agentActivity";
 import { useNodes } from "@/store/nodes";
 import { useProjects } from "@/store/projects";
-import { countRunning } from "@/store/running";
 import { terminalStatusStore } from "@/store/terminalStatus";
 import { useWorkspaces } from "@/store/workspaces";
 import { commandsMessages } from "./messages";
@@ -27,6 +28,7 @@ export function useGoToData(): { items: GoToItem[]; loading: boolean } {
   const activeWorkspaceId = useWorkspaces((s) => s.activeId);
   const nodes = useNodes((s) => s.nodes);
   const statuses = useStore(terminalStatusStore, (s) => s.statuses);
+  const activities = useActivities();
   const [scenes, setScenes] = useState<Record<string, readonly ExcalidrawElement[]>>({});
   const home = view !== "project";
 
@@ -54,7 +56,8 @@ export function useGoToData(): { items: GoToItem[]; loading: boolean } {
     };
   }, [home, workspaces, activeWorkspaceId]);
 
-  const live = Object.fromEntries(workspaces.map((w) => [w.id, countRunning(nodes, statuses, [w.id])]));
+  // A workspace's "N active": its live agents, as its tab's badge and the title bar count them.
+  const live = Object.fromEntries(workspaces.map((w) => [w.id, tallyAgents(workspaceNodeIds(nodes, w.id), nodes, statuses, activities).active]));
   // At home no project is open, even if "All projects…" kept the last one's id.
   const items = goToItems({ home, projects, activeProjectId: home ? null : activeProjectId, workspaces, activeWorkspaceId, scenes, nodes, live });
   return { items, loading: !home && workspaces.some((w) => !(w.id in scenes)) };

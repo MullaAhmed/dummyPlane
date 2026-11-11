@@ -3,32 +3,25 @@ import { useCanvas } from "@/canvas/canvasStore";
 import { useActivities } from "@/store/agentActivity";
 import { useNodes } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
+import { tallyAgents, workspaceNodeIds, type AgentTally } from "./agentState";
 
-/** Running agents at work and waiting for an answer, among `ids`. */
-export function agentCounts(
-  ids: readonly string[],
-  statuses: Record<string, { state: string } | undefined>,
-  activities: Record<string, { activity: string } | undefined>,
-): { working: number; waiting: number } {
-  let working = 0;
-  let waiting = 0;
-  for (const id of ids) {
-    if (statuses[id]?.state !== "running") continue;
-    if (activities[id]?.activity === "working") working += 1;
-    if (activities[id]?.activity === "waiting") waiting += 1;
-  }
-  return { working, waiting };
-}
-
-/** The counts of the workspace on screen: what the agents panel shows (plan D2, decision 1). */
-export function useWorkspaceAgentCounts(): { working: number; waiting: number } {
+/**
+ * The counts of the workspace on screen: the agents the agents panel lists, so each counter of the title bar
+ * matches the panel it opens. Working, waiting and active count the same agents (Fleets included, plain shells
+ * and agents that exited not), so working + waiting never exceeds active.
+ */
+export function useWorkspaceAgentCounts(): AgentTally {
   const nodeIds = useCanvas((s) => s.nodeIds);
   const nodes = useNodes((s) => s.nodes);
   const statuses = useStore(terminalStatusStore, (s) => s.statuses);
   const activities = useActivities();
-  return agentCounts(
-    nodeIds.filter((id) => nodes[id]?.kind === "terminal"),
-    statuses,
-    activities,
-  );
+  return tallyAgents(nodeIds, nodes, statuses, activities);
+}
+
+/** The live agents of a workspace, on screen or not: a tab's badge. */
+export function useWorkspaceActiveAgents(workspaceId: string): number {
+  const nodes = useNodes((s) => s.nodes);
+  const statuses = useStore(terminalStatusStore, (s) => s.statuses);
+  const activities = useActivities();
+  return tallyAgents(workspaceNodeIds(nodes, workspaceId), nodes, statuses, activities).active;
 }

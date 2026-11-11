@@ -1,4 +1,5 @@
 import { messages } from "@/i18n";
+import type { AgentState } from "./agentState";
 import { agentsMessages } from "./messages";
 
 /**
@@ -34,12 +35,10 @@ export function groupsText(count: number): string {
   return messages(agentsMessages).summary.groups(count);
 }
 
-/** Members in `activity` whose process runs: an activity can outlive a process that was stopped. */
-export function membersIn(
-  memberIds: readonly string[],
-  activity: "working" | "waiting",
-  activityOf: (id: string) => string | undefined,
-  running: (id: string) => boolean,
-): number {
-  return memberIds.filter((id) => running(id) && activityOf(id) === activity).length;
+/**
+ * Members in `state`, read as every count reads them (`agentStateIn`: null for a plain shell): an agent that
+ * exited or whose process stopped is never at work, whatever activity it left behind.
+ */
+export function membersIn(memberIds: readonly string[], state: "working" | "waiting", stateOf: (id: string) => AgentState | null): number {
+  return memberIds.filter((id) => stateOf(id) === state).length;
 }

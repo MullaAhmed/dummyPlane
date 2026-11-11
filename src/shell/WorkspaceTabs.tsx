@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { useUiRequest } from "@/commands/uiRequests";
+import { useWorkspaceActiveAgents } from "@/agents/agentCounts";
 import { folderName, launchFolderStore, pickFolder } from "@/agents/launchFolder";
 import { messages, useMessages } from "@/i18n";
 import { errorText } from "@/lib/format";
@@ -39,6 +40,8 @@ function WorkspaceTab(props: { workspace: Workspace; projectFolder: string; acti
   const t = useMessages(shellMessages).tabs;
   const [editing, setEditing] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  // The badge counts its live agents, as the title bar does for the tab on screen; closing it warns of every process.
+  const liveAgents = useWorkspaceActiveAgents(workspace.id);
   const running = useRunningCount([workspace.id]);
   // The folder it picked is shown after its name; the project's own is only in the hint.
   const own = ownFolder(workspace);
@@ -111,13 +114,13 @@ function WorkspaceTab(props: { workspace: Workspace; projectFolder: string; acti
       <HintedButton
         // The workspace on screen is the current page of the row (a navigation, not a tablist: see above).
         aria-current={active ? "page" : undefined}
-        aria-label={t.tabName(workspace.name, own ? folderName(own) : null, running)}
+        aria-label={t.tabName(workspace.name, own ? folderName(own) : null, liveAgents)}
         hint={
           <span className="flex flex-col">
             <span>{workspace.name}</span>
             {folder && <span className="break-all font-mono opacity-70">{folder}</span>}
             {/* The count's own hint, in the tab's: a native title on the badge would stack on it. */}
-            {running > 0 && <span className="opacity-70">{t.activeAgents(running)}</span>}
+            {liveAgents > 0 && <span className="opacity-70">{t.activeAgents(liveAgents)}</span>}
           </span>
         }
         variant="ghost"
@@ -141,13 +144,13 @@ function WorkspaceTab(props: { workspace: Workspace; projectFolder: string; acti
             <span className="truncate">{folderName(own)}</span>
           </span>
         )}
-        {(active || running > 0) && (
+        {(active || liveAgents > 0) && (
           // A count is quiet text, not a pill: mono, tabular, a step under the name.
           <span
             data-badge
             className={cn("ml-2 font-mono text-xs tabular-nums", active ? "text-dp-text-2" : "text-dp-text-3")}
           >
-            {running}
+            {liveAgents}
           </span>
         )}
       </HintedButton>
