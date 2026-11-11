@@ -20,10 +20,15 @@ export interface Pill {
 /** An agent's activity as its pill reads it; "left": Claude exited, its terminal is back at the shell. */
 export type PillActivity = Activity | "left";
 
-/** What the pill reads of a terminal's activity: nothing unless its process runs. */
-export function pillActivity(status: TerminalStatus, activity?: AgentActivity): PillActivity | undefined {
+/**
+ * What the pill reads of a terminal's activity: nothing unless its process runs. A plain shell (`shell`)
+ * runs no agent: its output is no work and it never waits, so it reads Active while it runs and Ready once
+ * quiet, never Working (the counts never count it either, src/agents/agentState.ts).
+ */
+export function pillActivity(status: TerminalStatus, activity?: AgentActivity, shell = false): PillActivity | undefined {
   if (status.state !== "running" || !activity) return undefined;
-  return activity.left ? "left" : activity.activity;
+  if (activity.left) return "left";
+  return shell && activity.activity !== "idle" ? undefined : activity.activity;
 }
 
 /**

@@ -120,6 +120,14 @@ describe("a shell whose Claude exited", () => {
     expect(pillActivity(running, undefined)).toBeUndefined();
   });
 
+  it("never says a plain console works or waits: it runs no agent, so its output reads Active, its quiet Ready", () => {
+    const busy = { activity: "working" as const, since: 1 };
+    expect(pillOf(running, pillActivity(running, busy, true))).toEqual({ label: "Active", tone: "live" });
+    expect(pillOf(running, pillActivity(running, { activity: "idle", since: 1 }, true))).toEqual({ label: "Ready", tone: "ready" });
+    // An agent's terminal still reads its work.
+    expect(pillOf(running, pillActivity(running, busy))).toEqual({ label: "Working", tone: "working" });
+  });
+
   it("offers the agent back while the shell runs on", () => {
     expect(resumeOfferOf(running, true, true)).toBe("resume");
     expect(resumeOfferOf(running, false, true)).toBe("relaunch");

@@ -65,7 +65,7 @@ function AgentStatus(props: { nodeId: string; payload: TerminalPayload; status: 
       .join(", "),
   );
   const running = status.state === "running";
-  const pill = pillOf(status, pillActivity(status, activity), AGENTS[payload.agent].tint === INDIGO, payload.lastReport?.status);
+  const pill = pillOf(status, pillActivity(status, activity, payload.agent === "shell"), AGENTS[payload.agent].tint === INDIGO, payload.lastReport?.status);
   // How long only when the activity store dates it: a process's start or stop is not dated.
   const since = running && activity ? formatDuration(now - activity.since) : null;
   return (

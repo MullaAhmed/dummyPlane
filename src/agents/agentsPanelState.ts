@@ -42,11 +42,11 @@ export function setAgentsPanel(open: boolean) {
 }
 
 /**
- * A filter as it is kept now: one that no longer exists (an older build's Active,
- * Ready or Stopped) becomes the one that took its place, any other unknown value All.
+ * A filter as it is kept now: one that no longer exists (an older build's Ready or
+ * Stopped) becomes the one that took its place, any other unknown value All.
  */
 export function readAgentsFilter(raw: unknown): PanelFilter {
-  if (raw === "all" || raw === "waiting" || raw === "working" || raw === "done") return raw;
+  if (raw === "all" || raw === "active" || raw === "waiting" || raw === "working" || raw === "done") return raw;
   return raw === "idle" || raw === "stopped" ? "done" : "all";
 }
 

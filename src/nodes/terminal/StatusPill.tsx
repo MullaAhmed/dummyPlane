@@ -16,7 +16,8 @@ export const STATUS_TEXT = "flex shrink-0 items-center gap-2 text-xs text-dp-tex
  * no pill around them. The tooltip tells how long it has been so (§10.4).
  * `labelClassName` lets a narrow header take the word back to the screen
  * readers and the tooltip, the dot alone staying. `report` is the agent's last
- * report: once it rests it reads Done, Blocked or Failed (pillOf).
+ * report: once it rests it reads Done, Blocked or Failed (pillOf). `shell`: a plain console, never
+ * Working nor Waiting (pillActivity).
  */
 export function StatusPill(props: {
   status: TerminalStatus;
@@ -24,12 +25,13 @@ export function StatusPill(props: {
   indigo?: boolean;
   report?: TerminalReportStatus;
   labelClassName?: string;
+  shell?: boolean;
 }) {
-  const { status, activity, indigo, report, labelClassName } = props;
+  const { status, activity, indigo, report, labelClassName, shell } = props;
   const now = useNow(15_000);
   const t = useMessages(nodesMessages).pill;
   const running = status.state === "running";
-  const pill = pillOf(status, pillActivity(status, activity), indigo, report);
+  const pill = pillOf(status, pillActivity(status, activity, shell), indigo, report);
   const title =
     status.state === "error"
       ? status.message

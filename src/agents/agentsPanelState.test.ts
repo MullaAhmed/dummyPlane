@@ -70,14 +70,13 @@ it("forgets a counter's filter when the panel is reopened from the rail", () => 
 });
 
 describe("the panel's filter, as it is kept now", () => {
-  it("keeps the four filters that exist", () => {
-    for (const filter of ["all", "waiting", "working", "done"] as const) expect(readAgentsFilter(filter)).toBe(filter);
+  it("keeps the five filters that exist, Active (the title bar's N active) included", () => {
+    for (const filter of ["all", "active", "waiting", "working", "done"] as const) expect(readAgentsFilter(filter)).toBe(filter);
   });
 
-  it("moves a filter that no longer exists to the one that took its place: Ready and Stopped to Done, Active to All", () => {
+  it("moves a filter that no longer exists to the one that took its place: Ready and Stopped to Done", () => {
     expect(readAgentsFilter("idle")).toBe("done");
     expect(readAgentsFilter("stopped")).toBe("done");
-    expect(readAgentsFilter("active")).toBe("all");
   });
 
   it("falls back to All on anything else", () => {
@@ -88,7 +87,10 @@ describe("the panel's filter, as it is kept now", () => {
     mockIPC(() => undefined);
     setAgentsFilter("stopped" as never);
     expect(agentsPanelStore.getState().filter).toBe("done");
-    showAgents("active" as never);
-    expect(agentsPanelStore.getState()).toEqual({ open: true, filter: "all" });
+    showAgents("idle" as never);
+    expect(agentsPanelStore.getState()).toEqual({ open: true, filter: "done" });
+    // The title bar's "N active" opens the Active filter.
+    showAgents("active");
+    expect(agentsPanelStore.getState()).toEqual({ open: true, filter: "active" });
   });
 });

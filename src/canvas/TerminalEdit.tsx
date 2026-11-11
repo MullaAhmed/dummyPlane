@@ -363,7 +363,7 @@ function LiveStatus({ nodeId, session }: { nodeId: string; session: TerminalPayl
   return (
     <div role="group" aria-label={t.status} className="grid grid-cols-1 gap-1">
       <div className="flex h-7 items-center justify-between gap-3">
-        <StatusPill status={status} activity={activity} indigo={AGENTS[session.agent].tint === INDIGO} report={report?.status} />
+        <StatusPill status={status} activity={activity} indigo={AGENTS[session.agent].tint === INDIGO} report={report?.status} shell={session.agent === "shell"} />
         {facts && <span className="min-w-0 truncate text-xs text-dp-text-3 tabular-nums">{facts}</span>}
       </div>
       {stepLine && (
