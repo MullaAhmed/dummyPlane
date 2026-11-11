@@ -186,22 +186,28 @@ it("names the indicator by what it shows first", async () => {
   expect(indicator.textContent).toBe("1 loop · 2 runs");
 });
 
-it("deletes a loop at once and takes it back, turned off and at its place, from the toast (audit P2 #42)", async () => {
+it("deletes a loop at once and takes it back, turned off and at its place, from an Undo in its row (audit P2 #42)", async () => {
   toast.mockClear();
   const loop = (id: string, name: string) => ({ id, name, instruction: "go", targets: ["batman"], trigger: { kind: "interval" as const, minutes: 30 }, maxRuns: 3 });
   loopsStore.setState({ loops: [loop("a", "Point"), loop("b", "Tests")], loaded: true, runtime: {} });
   await open();
-  loopsStore.getState().start("a");
+  await act(async () => loopsStore.getState().start("a"));
+  expect(loopsStore.getState().runningCount()).toBe(1);
+  const rows = () => [...document.querySelectorAll<HTMLElement>("[data-loop-row]")].map((r) => r.dataset.loopRow);
   const remove = [...document.querySelectorAll<HTMLButtonElement>("button")].filter((b) => b.textContent === "Delete")[0];
   await act(async () => remove.click());
   await vi.waitFor(() => expect(loopsStore.getState().loops.map((l) => l.id)).toEqual(["b"]));
   expect(loopsStore.getState().runningCount()).toBe(0);
-  expect(toast).toHaveBeenCalledTimes(1);
-  const [message, options] = toast.mock.calls[0] as unknown as [string, { action: { label: string; onClick: () => void } }];
-  expect(message).toBe("Loop “Point” deleted");
-  expect(options.action.label).toBe("Undo");
-  await act(async () => options.action.onClick());
+  // Not a toast, which the modal dialog keeps out of reach: the Undo stands where the loop was, and has the keyboard.
+  expect(toast).not.toHaveBeenCalled();
+  expect(rows()).toEqual(["deleted", "b"]);
+  const undo = button("Undo");
+  expect(document.activeElement).toBe(undo);
+  expect(accessibleDescription(undo)).toBe("Loop “Point” deleted");
+  await act(async () => undo.click());
   await vi.waitFor(() => expect(loopsStore.getState().loops.map((l) => l.id)).toEqual(["a", "b"]));
+  expect(rows()).toEqual(["a", "b"]);
   expect(loopsStore.getState().runningCount()).toBe(0);
-  expect(document.body.textContent).toContain("Point");
+  // The keyboard lands on the loop taken back, not on the page.
+  expect(document.activeElement?.closest("[data-loop-row]")?.getAttribute("data-loop-row")).toBe("a");
 });
