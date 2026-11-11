@@ -1,11 +1,12 @@
-import type { ExcalidrawArrowElement, ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
+import type { ExcalidrawArrowElement, ExcalidrawElement, FixedPointBinding } from "@excalidraw/excalidraw/element/types";
 import type { Rect } from "@/canvas/groups";
 import { nodeKindOf } from "@/canvas/nodeElement";
 import { footprint, notesByHost, settleNotes } from "@/nodes/note/link";
 import { flowLayout, type Size } from "./flowLayout";
 import { COLUMN_GAP, PADDING, PADDING_BOTTOM, ROW_GAP } from "./groupLayout";
 import type { Point } from "./terminals";
-import { createWire } from "./wires";
+import { downLayout } from "./treeLayout";
+import { elbowForm, isWire, sameFlags, withWireFlags, wireFlagsOf, type ElbowForm, type TreeRoute, type WireFlags } from "./wires";
 
 /** Who spawned a node (its `spawnedBy`), deleted nodes included; null or undefined for none. */
 export type ParentOf = (nodeId: string) => string | null | undefined;
@@ -112,33 +113,57 @@ export function spawnTreeOf(elements: readonly ExcalidrawElement[], parentOf: Pa
   return { rootId, children, ids };
 }
 
+/** Whether a node lays out its spawn tree downward from itself, as a Manager does (./treeLayout.ts). */
+export type IsDownRoot = (nodeId: string) => boolean;
+
 /**
- * The scene with a spawn tree laid out as a flowchart (see `flowLayout`): the
- * root stays, its descendants take their columns, moved down or right as one
- * block when they would cover a node or a frame outside the tree; a pinned
- * node stays too and lays out its own subtree. A group frame holding the root
- * grows to hold its descendants in it, and the wires of whatever moved are
- * routed again. A node's quick notes stand beside it in its column: the
- * layout makes room for them, and they follow (src/nodes/note). Null when
- * nothing moves.
+ * The scene with a spawn tree laid out: the root stays, its descendants take
+ * their places, moved down or right as one block when they would cover a node
+ * or a frame outside the tree; a pinned node stays too and lays out its own
+ * subtree. A group frame holding the root grows to hold its descendants in it,
+ * and the wires of whatever moved are routed again. A node's quick notes stand
+ * beside it: the layout makes room for them, and they follow (src/nodes/note).
+ *
+ * A tree is a flowchart read left to right (`flowLayout`), unless `isDownRoot`
+ * names one of its nodes (a Manager): from there down it is laid out downward
+ * (`downLayout`), that node staying where it is like a pinned one. Each wire
+ * from a parent to a child laid out under it takes the vertical tree's route
+ * (`down`, and `riser` past the first row: ./wires.ts `elbowForm`), rewritten
+ * whenever its route or its flags differ from the layout's, nodes moved or not;
+ * any other wire between a node and its parent loses those flags. So a second
+ * layout changes nothing. Null when nothing changes.
  */
-export function layoutSpawnTree(elements: readonly ExcalidrawElement[], parentOf: ParentOf, nodeId: string): ExcalidrawElement[] | null {
+export function layoutSpawnTree(elements: readonly ExcalidrawElement[], parentOf: ParentOf, nodeId: string, isDownRoot?: IsDownRoot): ExcalidrawElement[] | null {
   const tree = spawnTreeOf(elements, parentOf, nodeId);
   if (!tree || !tree.children[tree.rootId]) return null;
   const live = liveNodes(elements);
   const node = (id: string) => live.get(id)!;
   const rectOf = (e: Rect): Rect => ({ x: e.x, y: e.y, width: e.width, height: e.height });
 
-  // A pinned node starts a layout of its own; its siblings close up without it.
-  const subRoots = [tree.rootId, ...[...tree.ids].filter((id) => id !== tree.rootId && isPinned(node(id)))];
+  const parentIn = new Map<string, string>();
+  for (const [id, kids] of Object.entries(tree.children)) for (const kid of kids) parentIn.set(kid, id);
+  const downRoots = new Set(isDownRoot ? [...tree.ids].filter(isDownRoot) : []);
+  /** Laid out downward: a down root, and every node under one. */
+  const isDown = (id: string): boolean => {
+    const seen = new Set<string>();
+    for (let up: string | undefined = id; up !== undefined && !seen.has(up); up = parentIn.get(up)) {
+      if (downRoots.has(up)) return true;
+      seen.add(up);
+    }
+    return false;
+  };
+
+  // A pinned node, or a down root inside the tree, starts a layout of its own; its siblings close up without it.
+  const subRoots = [tree.rootId, ...[...tree.ids].filter((id) => id !== tree.rootId && (isPinned(node(id)) || downRoots.has(id)))];
   const isSubRoot = new Set(subRoots);
   const unpinned = Object.fromEntries(Object.entries(tree.children).map(([id, kids]) => [id, kids.filter((kid) => !isSubRoot.has(kid))]));
-  // Each node with its notes: the box the flowchart places, and where the node sits in it. A node in a
+  // Each node with its notes: the box the layout places, and where the node sits in it. A node in a
   // group lays out bare: its notes stand outside the frame, which grows around its members, not them.
   const notes = notesByHost(elements);
   const prints = new Map([...tree.ids].map((id) => [id, footprint(node(id), node(id).frameId ? [] : (notes.get(id) ?? []))]));
   const printOf = (id: string) => prints.get(id)!;
   const sizes: Record<string, Size> = Object.fromEntries([...tree.ids].map((id) => [id, { width: printOf(id).rect.width, height: printOf(id).rect.height }]));
+  const insets: Record<string, number> = Object.fromEntries([...tree.ids].map((id) => [id, printOf(id).offset.x]));
 
   const root = node(tree.rootId);
   // A group's frame, or a plain one: Excalidraw clips its members to it either way.
@@ -152,8 +177,15 @@ export function layoutSpawnTree(elements: readonly ExcalidrawElement[], parentOf
   const placed: Rect[] = subRoots.map((id) => printOf(id).rect);
 
   const targets = new Map<string, Point>();
+  /** The row each node laid out downward sits in under its parent. */
+  const rows = new Map<string, number>();
   for (const subRoot of subRoots) {
-    const positions = flowLayout({ rootId: subRoot, root: printOf(subRoot).rect, children: unpinned, sizes });
+    let positions: Map<string, Point>;
+    if (isDown(subRoot)) {
+      const down = downLayout({ rootId: subRoot, root: printOf(subRoot).rect, children: unpinned, sizes, insets });
+      positions = down.positions;
+      for (const [id, row] of down.rows) rows.set(id, row);
+    } else positions = flowLayout({ rootId: subRoot, root: printOf(subRoot).rect, children: unpinned, sizes });
     positions.delete(subRoot);
     if (positions.size === 0) continue;
     const rects = [...positions].map(([id, p]) => ({ x: p.x, y: p.y, width: sizes[id].width, height: sizes[id].height }));
@@ -178,28 +210,66 @@ export function layoutSpawnTree(elements: readonly ExcalidrawElement[], parentOf
     const height = Math.max(rootFrame.height, ...members.map((m) => m.y + m.height + PADDING_BOTTOM - rootFrame.y));
     if (width > rootFrame.width || height > rootFrame.height) moved.set(rootFrame.id, changed(rootFrame, { width, height }));
   }
-  if (moved.size === 0) return null;
 
+  /** How a wire from `start` to `end` is routed when it joins a node of the tree to its parent; null for any other arrow. */
+  const treeRouteOf = (start: string, end: string): TreeRoute | null => {
+    if (parentIn.get(end) === start) return rows.has(end) && !isSubRoot.has(end) ? { down: true, riser: rows.get(end)! > 0 } : {};
+    return parentIn.get(start) === end ? {} : null;
+  };
   const current = (e: ExcalidrawElement) => moved.get(e.id) ?? e;
   const byId = new Map(elements.map((e) => [e.id, current(e)]));
+  let rewired = false;
   const laidOut = elements.map((e) => {
     if (moved.has(e.id)) return moved.get(e.id)!;
     if (e.isDeleted || e.type !== "arrow" || !(e as ExcalidrawArrowElement).elbowed) return e;
-    const { startBinding, endBinding } = e as ExcalidrawArrowElement;
-    if (!startBinding || !endBinding || !(moved.has(startBinding.elementId) || moved.has(endBinding.elementId))) return e;
+    const arrow = e as ExcalidrawArrowElement;
+    const { startBinding, endBinding } = arrow;
+    if (!startBinding || !endBinding) return e;
     const from = byId.get(startBinding.elementId);
     const to = byId.get(endBinding.elementId);
     if (!from || !to || from.isDeleted || to.isDeleted) return e;
-    return rerouted(e as ExcalidrawArrowElement, from, to);
+    const endMoved = moved.has(from.id) || moved.has(to.id);
+    const route = isWire(e) ? treeRouteOf(from.id, to.id) : null;
+    if (!route) return endMoved ? rerouted(arrow, from, to, isWire(e) ? wireFlagsOf(e) : {}) : e;
+    const before = wireFlagsOf(e);
+    const flags: WireFlags = { ...before, down: route.down, riser: route.riser };
+    const reflagged = !sameFlags(flags, before);
+    if (!reflagged && !endMoved && !(flags.down && !sameRoute(arrow, elbowForm(from, to, flags)))) return e;
+    rewired = true;
+    return rerouted(arrow, from, to, flags, reflagged);
   });
+  if (moved.size === 0 && !rewired) return null;
   // The quick notes join their nodes where they now stand.
   return [...settleNotes(laidOut)];
 }
 
-/** An elbow wire routed again between its two ends as they now stand: same id, color and marks. */
-function rerouted(wire: ExcalidrawArrowElement, from: ExcalidrawElement, to: ExcalidrawElement): ExcalidrawElement {
-  // The palette only colors a new wire: this one keeps its stroke.
-  const route = createWire(from, to, "calm");
+const near = (a: number, b: number) => Math.abs(a - b) <= 0.5;
+
+/** Whether an arrow's binding is `b`: the same element, the same fixed point on it. */
+function sameBinding(a: ExcalidrawArrowElement["startBinding"], b: FixedPointBinding): boolean {
+  const point = (a as FixedPointBinding | null)?.fixedPoint;
+  return a?.elementId === b.elementId && point != null && Math.abs(point[0] - b.fixedPoint[0]) < 1e-6 && Math.abs(point[1] - b.fixedPoint[1]) < 1e-6;
+}
+
+/** Whether `wire` already takes the route `form` gives it. */
+function sameRoute(wire: ExcalidrawArrowElement, form: ElbowForm): boolean {
+  return (
+    near(wire.x, form.x) &&
+    near(wire.y, form.y) &&
+    wire.points.length === form.points.length &&
+    wire.points.every(([x, y], i) => near(x, form.points[i][0]) && near(y, form.points[i][1])) &&
+    sameBinding(wire.startBinding, form.startBinding!) &&
+    sameBinding(wire.endBinding, form.endBinding!)
+  );
+}
+
+/**
+ * An elbow wire routed again between its two ends as they now stand, as its
+ * `flags` say: same id, color, stroke and marks; `reflag` writes the flags in
+ * its mark.
+ */
+function rerouted(wire: ExcalidrawArrowElement, from: ExcalidrawElement, to: ExcalidrawElement, flags: WireFlags, reflag = false): ExcalidrawElement {
+  const route = elbowForm(from, to, flags);
   return changed(wire, {
     x: route.x,
     y: route.y,
@@ -212,5 +282,6 @@ function rerouted(wire: ExcalidrawArrowElement, from: ExcalidrawElement, to: Exc
     fixedSegments: route.fixedSegments,
     startIsSpecial: route.startIsSpecial,
     endIsSpecial: route.endIsSpecial,
+    ...(reflag ? { customData: withWireFlags(wire, flags) } : {}),
   } as Partial<ExcalidrawArrowElement>);
 }

@@ -2,7 +2,7 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { mockIPC } from "@tauri-apps/api/mocks";
 import { notify } from "@/mission/events";
-import type { Member, SubTask } from "@/mission/mission";
+import type { Member, QueuedTask, SubTask } from "@/mission/mission";
 import type { KanbanPayload } from "@/nodes/types";
 import { nodesStore } from "@/store/nodes";
 import { moveCardWithGithub } from "./github";
@@ -124,7 +124,7 @@ describe("the cards of a mission its Manager runs (spec babysitter Fleet)", () =
   const column = (title: string) => board().columns.find((c) => c.title === title);
 
   it("adds the tasks as cards in the to-do column, then follows them: In progress, Blocked, In progress again, Done", async () => {
-    const [task] = addTaskCards("sitter", [{ title: "Tests", brief: "Write the tests", budgetMin: 5 }]);
+    const [task] = addTaskCards<QueuedTask>("sitter", [{ title: "Tests", brief: "Write the tests", budgetMin: 5 }]);
     expect(column("To do")?.cardIds).toEqual([task.card]);
     expect(board().cards[task.card!]).toMatchObject({ title: "Tests", notes: "Write the tests" });
     const plan: SubTask[] = [{ ...task, agent: "Robin" }];
@@ -143,7 +143,7 @@ describe("the cards of a mission its Manager runs (spec babysitter Fleet)", () =
   });
 
   it("moves a card for the Manager, its GitHub issue following like any move", async () => {
-    const [task] = addTaskCards("sitter", [{ title: "Lint", brief: "Run the lint", budgetMin: 5 }]);
+    const [task] = addTaskCards<QueuedTask>("sitter", [{ title: "Lint", brief: "Run the lint", budgetMin: 5 }]);
     await moveMissionCard("sitter", task.card!, "backlog");
     expect(column("Backlog")?.cardIds).toContain(task.card);
     expect(moveCardWithGithub).toHaveBeenLastCalledWith("k2", task.card, "backlog", undefined, undefined);

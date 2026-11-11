@@ -3,7 +3,7 @@ import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { AppState } from "@excalidraw/excalidraw/types";
 import { canvasStore } from "@/canvas/canvasStore";
 import { editStoredScene } from "@/canvas/sceneCache";
-import { nodesStore } from "@/store/nodes";
+import { isManagerNode, nodesStore } from "@/store/nodes";
 import { sceneAccess } from "./sceneAccess";
 import { isPinned, layoutSpawnTree } from "./spawnLayout";
 import type { Point } from "./terminals";
@@ -42,18 +42,20 @@ function withPins(elements: readonly ExcalidrawElement[], ids: ReadonlySet<strin
 }
 
 /**
- * Lays out the spawn tree `nodeId` belongs to as a flowchart (`layoutSpawnTree`),
- * from any of its nodes, closed ones included: the root stays, its
- * descendants move, out of the undo history. `pin` first marks those nodes
- * as moved by hand. For spawn_agent, after it opens or closes a child. False
- * when nothing changed.
+ * Lays out the spawn tree `nodeId` belongs to (`layoutSpawnTree`): a
+ * flowchart, or downward from a Manager (the vertical tree of a mission's
+ * team), from any of its nodes, closed ones included: the root stays, its
+ * descendants move and their wires take their routes, out of the undo
+ * history. `pin` first marks those nodes as moved by hand. For spawn_agent,
+ * after it opens or closes a child, and for a mission's Manager once its team
+ * is wired to it. False when nothing changed.
  */
 export function reflowSpawnTree(workspaceId: string, nodeId: string, pin: readonly string[] = []): boolean {
   const scene = sceneAccess(workspaceId);
   if (!scene) return false;
   const before = scene.elements();
   const pinned = withPins(before, new Set(pin));
-  const next = layoutSpawnTree(pinned, spawnedBy, nodeId) ?? (pinned === before ? null : pinned);
+  const next = layoutSpawnTree(pinned, spawnedBy, nodeId, isManagerNode) ?? (pinned === before ? null : pinned);
   if (!next) return false;
   if (!scene.shown) {
     editStoredScene(workspaceId, next);

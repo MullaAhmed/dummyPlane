@@ -3,7 +3,7 @@ import type { ExcalidrawArrowElement, ExcalidrawElement } from "@excalidraw/exca
 import { createNodeElement, NODE_SIZE } from "@/canvas/nodeElement";
 import type { TerminalPayload } from "@/nodes/types";
 import { nodesStore } from "@/store/nodes";
-import { GROUP_GAP } from "./groupLayout";
+import { COLUMN_GAP, GROUP_GAP } from "./groupLayout";
 import { isSpawnWire, orphanWires, withWire } from "./wires";
 
 vi.mock("@/ipc/db", () => ({ getSetting: vi.fn(), setSetting: vi.fn().mockResolvedValue(undefined), saveNode: vi.fn().mockResolvedValue(undefined) }));
@@ -66,6 +66,26 @@ describe("reflowSpawnTree", () => {
   it("writes nothing when the tree is laid out already", () => {
     scene.elements = [terminal("root", 0, 0), terminal("a", W + GROUP_GAP, 0)];
     expect(reflowSpawnTree("w", "a")).toBe(false);
+    expect(updateScene).not.toHaveBeenCalled();
+  });
+
+  it("lays a mission's Manager's team out downward, its wires out of the Manager's bottom", () => {
+    const manager = { ...record(), payload: { ...record().payload, role: "manager" as const, fleet: "f" } };
+    nodesStore.setState({ nodes: { mgr: manager, m0: record("mgr"), m1: record("mgr") } });
+    scene.elements = withWire(withWire([terminal("mgr", 0, 0), terminal("m0"), terminal("m1")], "mgr", "m0", "calm", true), "mgr", "m1", "calm", true);
+    expect(reflowSpawnTree("w", "mgr")).toBe(true);
+    const { elements } = written();
+    expect({ x: at(elements, "m0").x, y: at(elements, "m0").y }).toEqual({ x: 0, y: NODE_SIZE.terminal.height + GROUP_GAP });
+    expect({ x: at(elements, "m1").x, y: at(elements, "m1").y }).toEqual({ x: W + COLUMN_GAP, y: NODE_SIZE.terminal.height + GROUP_GAP });
+    const wires = elements.filter((e) => e.type === "arrow");
+    expect(wires.map((e) => e.customData?.dummyplane)).toEqual([
+      { kind: "wire", spawn: true, down: true },
+      { kind: "wire", spawn: true, down: true },
+    ]);
+    // Laid out: a second reflow writes nothing.
+    scene.elements = elements;
+    updateScene.mockClear();
+    expect(reflowSpawnTree("w", "m1")).toBe(false);
     expect(updateScene).not.toHaveBeenCalled();
   });
 });

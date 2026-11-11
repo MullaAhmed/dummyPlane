@@ -139,3 +139,27 @@ it("draws the path the way the message goes, its corners rounded as Excalidraw r
   expect(pathData([{ x: 0.123, y: 4.56 }], "toAgent")).toBe("M0.1 4.6");
   expect(pathData([], "toAgent")).toBe("");
 });
+
+const TALK = { customData: { dummyplane: { kind: "wire", talk: true } } };
+const board = { id: "board", type: "embeddable", isDeleted: false, customData: { kind: "kanban" } } as unknown as ExcalidrawElement;
+
+it("reads a talk wire from where it starts, marked, and lights it only for a message between its two ends", () => {
+  const [talk] = wirePaths([terminal("batman"), terminal("cyborg"), arrow("t1", "batman", "cyborg", TALK)]);
+  expect(talk).toMatchObject({ id: "t1", fleetId: "batman", targetId: "cyborg", talk: true });
+  expect(activeWires([talk], [], { cyborg: { direction: "toFleet", at: 3, fleetId: "batman" } }).map((a) => a.direction)).toEqual(["toFleet"]);
+  // A message to cyborg from nobody named (the user's broadcast) is not one between them.
+  expect(activeWires([talk], [], { cyborg: { direction: "toAgent", at: 3 } })).toEqual([]);
+  // Even when an end is unknown, as a spawn wire.
+  expect(wirePaths([arrow("t2", "x", "y", TALK)])).toEqual([expect.objectContaining({ id: "t2", talk: true })]);
+  expect(sameWirePaths([talk], [{ ...talk, talk: undefined }])).toBe(false);
+});
+
+it("reads a wire between a mission's board and its Manager, and a Fleet's wire to its board", () => {
+  const paths = wirePaths([fleet, board, terminal("mgr"), arrow("b1", "board", "mgr"), arrow("f1", "chef", "board")]);
+  expect(paths.map((p) => [p.id, p.fleetId, p.targetId])).toEqual([
+    ["b1", "board", "mgr"],
+    ["f1", "chef", "board"],
+  ]);
+  // A plain wire never carries a talk mark.
+  expect(paths.every((p) => p.talk === undefined)).toBe(true);
+});
