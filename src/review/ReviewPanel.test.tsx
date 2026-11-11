@@ -122,8 +122,8 @@ it("reaches every line of the diff from the keyboard: one tab stop, moved by the
     "Added, new line 2: const y = 3;",
   ]);
   expect(cells().map((c) => c.tabIndex)).toEqual([0, -1, -1]);
-  // The title no longer speaks of a click.
-  expect(cells()[0].title).toBe("Add a remark on this line");
+  // No native title on the lines (P2-20): their name and the keys hint say it, on focus too.
+  expect(cells().some((c) => c.hasAttribute("title"))).toBe(false);
 
   cells()[0].focus();
   const down = await act(async () => press(cells()[0], "ArrowDown"));
@@ -235,7 +235,9 @@ it("shows the review's labels", async () => {
   expect(text()).toContain("Review · Batman");
   expect(text()).toContain("Since main");
   expect(text()).toContain("Uncommitted");
-  expect(host.querySelector('[title*="modified"]')).not.toBeNull();
+  // The status is read as a word, not hidden in a hover-only title (P2-20).
+  expect(host.querySelector("li [title]")).toBeNull();
+  expect([...host.querySelectorAll(".sr-only")].map((e) => e.textContent)).toContain("modified");
   await vi.waitFor(() => expect(host.querySelectorAll("[data-diff-line]").length).toBe(4));
   await act(async () => reviewStore.getState().add({ file: "src/a.ts", line: 2, text: "Why 3?" }));
   expect(text()).toContain("1 remark");
@@ -267,4 +269,93 @@ it("tells the remarks wait when the agent is still starting, and keeps them (pla
   await act(async () => button("Send to Batman").click());
   expect(toast.warning).toHaveBeenCalledWith("Batman is still starting: try again in a moment to send it the review");
   expect(reviewStore.getState().remarks).toHaveLength(1);
+});
+
+it("keeps a leading dot where it is in a path cut from its start (P2-40)", async () => {
+  await vi.waitFor(() => expect(text()).toContain("src/a.ts"));
+  const tails = [...host.querySelectorAll<HTMLElement>("[data-path-tail]")];
+  expect(tails.length).toBeGreaterThan(0);
+  for (const tail of tails) {
+    expect(tail.style.direction).toBe("rtl");
+    // The path itself stays left-to-right inside the cutting box.
+    expect(tail.firstElementChild?.tagName).toBe("BDI");
+  }
+});
+
+it("refreshes the Files tab out of an error, and reads the open file again (P2-47)", async () => {
+  await vi.waitFor(() => expect(text()).toContain("src/a.ts"));
+  let failing = true;
+  let content = "first\n";
+  mockIPC((cmd) => {
+    if (cmd === "review_default_base") return "main";
+    if (cmd === "review_changes") return { compared: "abc123", truncated: false, files: [] };
+    if (cmd === "review_files") {
+      if (failing) throw new Error("index.lock held");
+      return { files: ["README.md"], truncated: false };
+    }
+    if (cmd === "review_read_file") return { text: content, size: content.length, truncated: false };
+    return undefined;
+  });
+  const filesTab = [...host.querySelectorAll('[role="tab"]')].find((tab) => tab.textContent === "Files")!;
+  await act(async () => void filesTab.dispatchEvent(new MouseEvent("mousedown", { bubbles: true })));
+  await vi.waitFor(() => expect(text()).toContain("index.lock held"));
+  failing = false;
+  await act(async () => button("Refresh").click());
+  await vi.waitFor(() => expect(text()).toContain("README.md"));
+  expect(text()).not.toContain("index.lock held");
+
+  await act(async () => [...host.querySelectorAll("button")].find((b) => b.textContent === "README.md")!.click());
+  await vi.waitFor(() => expect(text()).toContain("first"));
+  content = "rewritten by the agent\n";
+  await act(async () => button("Refresh").click());
+  await vi.waitFor(() => expect(text()).toContain("rewritten by the agent"));
+});
+
+const typeRemark = (value: string) =>
+  act(async () => {
+    const field = host.querySelector<HTMLInputElement>('[aria-label="Remark on this line"]')!;
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(field, value);
+    field.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+
+it("keeps an open remark on its line when a refresh moves it, and files it there (P2-48)", async () => {
+  await vi.waitFor(() => expect(host.querySelectorAll("[data-diff-line]").length).toBe(4));
+  await act(async () => (host.querySelector('[data-diff-line="add"]') as HTMLElement).click());
+  await typeRemark("Why 3?");
+  // The agent wrote three lines above meanwhile: the added line is now line 5, row 7.
+  diffText = "diff --git a/src/a.ts b/src/a.ts\n--- a/src/a.ts\n+++ b/src/a.ts\n@@ -1,2 +1,5 @@\n+// one\n+// two\n+// three\n const x = 1;\n-const y = 2;\n+const y = 3;\n";
+  await act(async () => button("Refresh").click());
+  await vi.waitFor(() => expect(host.querySelectorAll("[data-diff-line]").length).toBe(7));
+  const field = host.querySelector<HTMLInputElement>('[aria-label="Remark on this line"]')!;
+  // The field sits under the same line, its words with it.
+  expect(field.closest('[role="row"]')!.previousElementSibling!.textContent).toContain("const y = 3;");
+  expect(field.value).toBe("Why 3?");
+  await act(async () => field.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+  expect(reviewStore.getState().remarks).toEqual([{ file: "src/a.ts", line: 5, lineText: "const y = 3;", text: "Why 3?" }]);
+});
+
+it("closes an open remark whose line a refresh made ambiguous, rather than file it on another line (P2-48)", async () => {
+  await vi.waitFor(() => expect(host.querySelectorAll("[data-diff-line]").length).toBe(4));
+  await act(async () => (host.querySelector('[data-diff-line="add"]') as HTMLElement).click());
+  await typeRemark("kept for later");
+  // Now two added lines read the same, neither where the first one was.
+  diffText = "diff --git a/src/a.ts b/src/a.ts\n--- a/src/a.ts\n+++ b/src/a.ts\n@@ -1,2 +1,4 @@\n+const y = 3;\n const x = 1;\n-const y = 2;\n+// moved\n+const y = 3;\n";
+  await act(async () => button("Refresh").click());
+  await vi.waitFor(() => expect(host.querySelectorAll("[data-diff-line]").length).toBe(6));
+  expect(host.querySelector('[aria-label="Remark on this line"]')).toBeNull();
+  expect(reviewStore.getState().remarks).toEqual([]);
+  // The words typed are not lost: the next field opens with them.
+  await act(async () => (host.querySelector('[data-diff-line="ctx"]') as HTMLElement).click());
+  expect(host.querySelector<HTMLInputElement>('[aria-label="Remark on this line"]')!.value).toBe("kept for later");
+});
+
+it("does not draw the diff's lines again while a remark is typed (P2-59)", async () => {
+  const { DiffRow } = await import("./DiffRow");
+  // A memo component: the rows keep their props (the parsed line, one stable callback) while the field changes.
+  expect((DiffRow as unknown as { $$typeof: symbol }).$$typeof).toBe(Symbol.for("react.memo"));
+  await vi.waitFor(() => expect(host.querySelectorAll("[data-diff-line]").length).toBe(4));
+  const before = host.querySelector('[data-diff-line="ctx"]');
+  await act(async () => (host.querySelector('[data-diff-line="add"]') as HTMLElement).click());
+  await typeRemark("typing");
+  expect(host.querySelector('[data-diff-line="ctx"]')).toBe(before);
 });
