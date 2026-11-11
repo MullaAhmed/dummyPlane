@@ -834,6 +834,10 @@ it("keeps an item the user's own settings turn off, off and disabled, and says w
   expect(document.getElementById(review.getAttribute("aria-describedby")!)?.textContent).toBe("Off in your Claude settings");
   // Said in the row itself, not only on hover.
   expect(host.querySelector("[data-extension='review']")?.textContent).toContain("Off in your Claude settings");
+  // Whole: its disabled checkbox takes no focus that could unfold a cut line, so it is never cut (P2 #20).
+  const reason = document.getElementById(review.getAttribute("aria-describedby")!)!;
+  expect(reason.className).not.toContain("truncate");
+  expect(reason.hasAttribute("title")).toBe(false);
   await act(async () => review.click());
   expect(payloadOf().extensions).toBeUndefined();
 });

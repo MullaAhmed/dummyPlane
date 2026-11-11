@@ -305,9 +305,10 @@ function ExtensionRow(props: { item: ExtensionItem; on: boolean; locked: boolean
             {t.sources[item.source]}
           </span>
         </span>
-        {/* One line, its whole text on hover; the keyboard on the row's checkbox unfolds it, up to four lines (REVEAL). */}
+        {/* Why it is off or fixed, whole: its checkbox is disabled, so no focus could unfold it. A description is
+            cut to one line, its whole text on hover; the keyboard on the row's checkbox unfolds it, up to four lines (REVEAL). */}
         {locked ? (
-          <span id={reason} className={cn("block truncate text-xs text-dp-text-3", REVEAL)} title={whyOff}>
+          <span id={reason} className="block text-xs text-dp-text-3">
             {whyOff}
           </span>
         ) : (

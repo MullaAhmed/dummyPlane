@@ -1,4 +1,3 @@
-import { useMemo } from "react";
 import { screenRectOf } from "@/agents/placement";
 import { useNow } from "@/lib/useNow";
 import { cn } from "@/lib/utils";
@@ -22,9 +21,10 @@ export function StepTimelines() {
   const rects = useCanvas((s) => s.nodeRects);
   const view = useCanvasPlace();
   const nodes = useNodes((s) => s.nodes);
-  // The budget bars move with time, not only with the canvas (spec orchestrateur §8.3); a pan moves neither.
+  // The budget bars move with time, not only with the canvas (spec orchestrateur §8.3). Not memoised on its
+  // arguments: a fleet closed (mission store) takes its bars away without changing them.
   const now = useNow(15_000);
-  const budgets = useMemo(() => memberBudgets(nodes, now), [nodes, now]);
+  const budgets = memberBudgets(nodes, now);
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden">
       {Object.entries(rects).map(([id, rect]) => {
