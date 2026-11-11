@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BookOpen, Plus, RotateCw } from "lucide-react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { BookOpen, Plus, RotateCw, X } from "lucide-react";
 import { useStore } from "zustand";
 import { PanelTabs, PanelTabsContent, PanelTabsList, PanelTabsTrigger } from "@/components/PanelTabs";
 import { Button } from "@/components/ui/button";
@@ -35,6 +35,8 @@ export default function NotesWorkspace({ projectId }: { projectId: string }) {
   const session = useMemo(() => notesSession(projectId), [projectId]);
   const state = useStore(session);
   const nameField = useRef<HTMLInputElement>(null);
+  const plus = useRef<HTMLButtonElement>(null);
+  const badNameId = useId();
   const [list, setList] = useState<NoteList | null>(null);
   const [listError, setListError] = useState<string | null>(null);
   // Back on a note left modified: where it was being written.
@@ -88,6 +90,13 @@ export default function NotesWorkspace({ projectId }: { projectId: string }) {
     setCreating(name);
     setBadName(false);
     nameField.current?.focus();
+  };
+
+  /** Gives the name up: the field goes, the keyboard goes back to the + that opened it. */
+  const cancelName = () => {
+    plus.current?.focus();
+    setCreating(null);
+    setBadName(false);
   };
 
   const create = async () => {
@@ -147,29 +156,45 @@ export default function NotesWorkspace({ projectId }: { projectId: string }) {
                   onChange={(e) => setQuery(e.target.value)}
                   className={cn(BAR_FIELD, "flex-1")}
                 />
-                <IconButton label={t.newNote} onClick={() => askName("")}>
+                <IconButton ref={plus} label={t.newNote} onClick={() => askName("")}>
                   <Plus />
                 </IconButton>
               </div>
               {creating !== null && (
                 <div className="shrink-0 px-2 pb-2">
-                  <Input
-                    ref={nameField}
-                    autoFocus
-                    aria-label={t.nameLabel}
-                    aria-invalid={badName}
-                    placeholder={t.namePlaceholder}
-                    value={creating}
-                    onChange={(e) => {
-                      setCreating(e.target.value);
-                      setBadName(false);
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") void create();
-                    }}
-                    className={BAR_FIELD}
-                  />
-                  {badName && <p className="pt-1 text-xs text-dp-danger">{t.badName}</p>}
+                  <div className="flex items-center gap-1">
+                    <Input
+                      ref={nameField}
+                      autoFocus
+                      aria-label={t.nameLabel}
+                      aria-invalid={badName}
+                      aria-describedby={badName ? badNameId : undefined}
+                      placeholder={t.namePlaceholder}
+                      value={creating}
+                      onChange={(e) => {
+                        setCreating(e.target.value);
+                        setBadName(false);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") void create();
+                        // Escape gives the name up, here and nowhere else.
+                        if (e.key === "Escape") {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          cancelName();
+                        }
+                      }}
+                      className={cn(BAR_FIELD, "flex-1")}
+                    />
+                    <IconButton label={t.cancelNew} onClick={cancelName}>
+                      <X />
+                    </IconButton>
+                  </div>
+                  {badName && (
+                    <p id={badNameId} role="alert" className="pt-1 text-xs text-dp-danger">
+                      {t.badName}
+                    </p>
+                  )}
                 </div>
               )}
               <div className="min-h-0 flex-1 overflow-y-auto pb-1">

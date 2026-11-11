@@ -16,6 +16,7 @@ export const notesMessages = defineMessages({
   newNote: "New note",
   nameLabel: "Name of the note",
   namePlaceholder: "Name · Enter to create",
+  cancelNew: "Cancel the new note",
   badName: "This name won't do: no / \\ : * ? \" < > | [ ] # ^, and no dot first",
   reading: "Reading the notes…",
   empty: "No notes yet. Create the first one with the + button.",
