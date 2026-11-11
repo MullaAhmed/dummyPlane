@@ -1,6 +1,7 @@
 import type { ExcalidrawArrowElement, ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { Rect } from "@/canvas/groups";
 import { nodeKindOf } from "@/canvas/nodeElement";
+import { footprint, notesByHost, settleNotes } from "@/nodes/note/link";
 import { flowLayout, type Size } from "./flowLayout";
 import { COLUMN_GAP, PADDING, PADDING_BOTTOM, ROW_GAP } from "./groupLayout";
 import type { Point } from "./terminals";
@@ -117,7 +118,9 @@ export function spawnTreeOf(elements: readonly ExcalidrawElement[], parentOf: Pa
  * block when they would cover a node or a frame outside the tree; a pinned
  * node stays too and lays out its own subtree. A group frame holding the root
  * grows to hold its descendants in it, and the wires of whatever moved are
- * routed again. Null when nothing moves.
+ * routed again. A node's quick notes stand beside it in its column: the
+ * layout makes room for them, and they follow (src/nodes/note). Null when
+ * nothing moves.
  */
 export function layoutSpawnTree(elements: readonly ExcalidrawElement[], parentOf: ParentOf, nodeId: string): ExcalidrawElement[] | null {
   const tree = spawnTreeOf(elements, parentOf, nodeId);
@@ -130,21 +133,27 @@ export function layoutSpawnTree(elements: readonly ExcalidrawElement[], parentOf
   const subRoots = [tree.rootId, ...[...tree.ids].filter((id) => id !== tree.rootId && isPinned(node(id)))];
   const isSubRoot = new Set(subRoots);
   const unpinned = Object.fromEntries(Object.entries(tree.children).map(([id, kids]) => [id, kids.filter((kid) => !isSubRoot.has(kid))]));
-  const sizes: Record<string, Size> = Object.fromEntries([...tree.ids].map((id) => [id, { width: node(id).width, height: node(id).height }]));
+  // Each node with its notes: the box the flowchart places, and where the node sits in it. A node in a
+  // group lays out bare: its notes stand outside the frame, which grows around its members, not them.
+  const notes = notesByHost(elements);
+  const prints = new Map([...tree.ids].map((id) => [id, footprint(node(id), node(id).frameId ? [] : (notes.get(id) ?? []))]));
+  const printOf = (id: string) => prints.get(id)!;
+  const sizes: Record<string, Size> = Object.fromEntries([...tree.ids].map((id) => [id, { width: printOf(id).rect.width, height: printOf(id).rect.height }]));
 
   const root = node(tree.rootId);
   // A group's frame, or a plain one: Excalidraw clips its members to it either way.
   const rootFrame = root.frameId ? elements.find((e) => e.id === root.frameId && !e.isDeleted && e.type === "frame") : undefined;
-  // What the tree must not cover: nodes outside it, frames other than its group's.
+  // What the tree must not cover: nodes outside it (its own notes are in it), frames other than its group's.
+  const ownNotes = new Set([...tree.ids].flatMap((id) => (notes.get(id) ?? []).map((n) => n.id)));
   const outside: Rect[] = elements
-    .filter((e) => !e.isDeleted && !tree.ids.has(e.id) && e.id !== rootFrame?.id && (nodeKindOf(e) !== null || e.type === "frame"))
+    .filter((e) => !e.isDeleted && !tree.ids.has(e.id) && !ownNotes.has(e.id) && e.id !== rootFrame?.id && (nodeKindOf(e) !== null || e.type === "frame"))
     .map(rectOf);
   // Neither may one block cover the root, a pinned node or a block placed before it.
-  const placed: Rect[] = subRoots.map((id) => rectOf(node(id)));
+  const placed: Rect[] = subRoots.map((id) => printOf(id).rect);
 
   const targets = new Map<string, Point>();
   for (const subRoot of subRoots) {
-    const positions = flowLayout({ rootId: subRoot, root: rectOf(node(subRoot)), children: unpinned, sizes });
+    const positions = flowLayout({ rootId: subRoot, root: printOf(subRoot).rect, children: unpinned, sizes });
     positions.delete(subRoot);
     if (positions.size === 0) continue;
     const rects = [...positions].map(([id, p]) => ({ x: p.x, y: p.y, width: sizes[id].width, height: sizes[id].height }));
@@ -152,7 +161,8 @@ export function layoutSpawnTree(elements: readonly ExcalidrawElement[], parentOf
     const spot = clearRegion(block, [...outside, ...placed]);
     const dx = spot.x - block.x;
     const dy = spot.y - block.y;
-    for (const [id, p] of positions) targets.set(id, { x: p.x + dx, y: p.y + dy });
+    // The node at its place in its box.
+    for (const [id, p] of positions) targets.set(id, { x: p.x + dx + printOf(id).offset.x, y: p.y + dy + printOf(id).offset.y });
     placed.push({ ...block, x: spot.x, y: spot.y });
   }
 
@@ -172,7 +182,7 @@ export function layoutSpawnTree(elements: readonly ExcalidrawElement[], parentOf
 
   const current = (e: ExcalidrawElement) => moved.get(e.id) ?? e;
   const byId = new Map(elements.map((e) => [e.id, current(e)]));
-  return elements.map((e) => {
+  const laidOut = elements.map((e) => {
     if (moved.has(e.id)) return moved.get(e.id)!;
     if (e.isDeleted || e.type !== "arrow" || !(e as ExcalidrawArrowElement).elbowed) return e;
     const { startBinding, endBinding } = e as ExcalidrawArrowElement;
@@ -182,6 +192,8 @@ export function layoutSpawnTree(elements: readonly ExcalidrawElement[], parentOf
     if (!from || !to || from.isDeleted || to.isDeleted) return e;
     return rerouted(e as ExcalidrawArrowElement, from, to);
   });
+  // The quick notes join their nodes where they now stand.
+  return [...settleNotes(laidOut)];
 }
 
 /** An elbow wire routed again between its two ends as they now stand: same id, color and marks. */

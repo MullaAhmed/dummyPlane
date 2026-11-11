@@ -7,10 +7,21 @@ import { requestUi } from "@/commands/uiRequests";
 import { remoteStore } from "@/agents/remoteControl";
 import { canvasStore } from "@/canvas/canvasStore";
 import { nodesStore } from "@/store/nodes";
+import { quickNote } from "@/nodes/note/quickNote";
 import { relaunchTerminal, stopTerminal } from "./registry";
 import { TerminalHeader } from "./TerminalHeader";
 
 vi.mock("./registry", () => ({ relaunchTerminal: vi.fn(), stopTerminal: vi.fn(), terminalText: vi.fn(() => "") }));
+// "Quick note": the note's text, given the keyboard once it mounts, after the menu has gone (addNote, focusNote).
+vi.mock("@/nodes/note/quickNote", () => ({
+  quickNote: vi.fn(async () => {
+    const field = document.createElement("textarea");
+    field.dataset.newNote = "";
+    document.body.append(field);
+    setTimeout(() => field.focus(), 100);
+    return "n1";
+  }),
+}));
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -147,7 +158,7 @@ it("keeps the essentials on its row and the rest behind « ⋯ »: Review, Resta
   // The agent, Remote Control, the menu, Close: no more.
   expect(labels).toEqual(["Agent", expect.stringContaining("Remote Control"), "More actions", "Close"]);
   const items = await openMore(view.host);
-  expect(textOf(items())).toEqual(["Review changes", "Minimize", "Duplicate", "Resume the session", "New session", "Latest in the folder", "Stop the process"]);
+  expect(textOf(items())).toEqual(["Review changes", "Minimize", "Duplicate", "Quick note", "Resume the session", "New session", "Latest in the folder", "Stop the process"]);
   await act(async () => items()[2]!.click());
   expect(onDuplicate).toHaveBeenCalledOnce();
   await act(async () => view.host.querySelector<HTMLButtonElement>('button[aria-label="Close"]')!.click());
@@ -177,8 +188,8 @@ it("restarts a Claude session three ways, and stops the process, from its menu",
 it("restarts any other agent with one entry, and offers no Stop once nothing runs", async () => {
   const view = await mount(<TerminalHeader nodeId="batman" payload={{ ...claude, agent: "shell" }} status={{ state: "stopped" }} />);
   const items = await openMore(view.host);
-  expect(textOf(items())).toEqual(["Review changes", "Minimize", "Restart"]);
-  await act(async () => items()[2]!.click());
+  expect(textOf(items())).toEqual(["Review changes", "Minimize", "Quick note", "Restart"]);
+  await act(async () => items()[3]!.click());
   expect(relaunchTerminal).toHaveBeenCalledWith("batman", expect.objectContaining({ agent: "shell" }), "new");
   await view.unmount();
 });
@@ -312,4 +323,20 @@ it("keeps native titles off the header and its buttons: the terminal's title is 
   const plain = await mount(<TerminalHeader nodeId="batman" payload={claude} status={{ state: "running" }} />);
   expect(plain.host.querySelector("header span[title]")!.getAttribute("title")).toBe("Double-click to rename");
   await plain.unmount();
+});
+
+it("writes a quick note from « ⋯ », and the closing menu leaves the keyboard in the note", async () => {
+  const view = await mount(<TerminalHeader nodeId="batman" payload={claude} status={{ state: "stopped" }} />);
+  const items = await openMore(view.host);
+  const entry = items().find((item) => item.textContent === "Quick note")!;
+  const more = view.host.querySelector('button[aria-label="More actions"]');
+  await act(async () => entry.click());
+  expect(quickNote).toHaveBeenCalledWith("batman");
+  // The menu gone, Radix would hand the keyboard back to "⋯": the note's text is about to take it.
+  await act(async () => new Promise((resolve) => setTimeout(resolve, 20)));
+  expect(document.querySelector('[role="menu"]')).toBeNull();
+  expect(document.activeElement).not.toBe(more);
+  await act(async () => new Promise((resolve) => setTimeout(resolve, 200)));
+  expect(document.activeElement).toBe(document.querySelector("[data-new-note]"));
+  await view.unmount();
 });

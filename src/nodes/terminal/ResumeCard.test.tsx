@@ -43,6 +43,19 @@ it("does not promise it on a one-shot command, which only the click runs again (
   expect(relaunchTerminal).toHaveBeenCalledWith("n", { ...payload, oneShot: true }, "new");
 });
 
+it("over a shell whose Claude exited, offers the conversation back and says typing goes to the shell", async () => {
+  const claude: TerminalPayload = { ...payload, title: "Claude", agent: "claude", command: "", claudeSessionId: "0b9c4b5e-6f1a-4c39-9d2e-8f6c2d1a7e10" };
+  await act(async () => root.render(<ResumeCard nodeId="n" payload={claude} status={{ state: "running" }} left />));
+  expect(host.textContent).toContain("Claude exited");
+  expect(host.textContent).toContain("type claude in the shell");
+  expect(host.textContent).not.toContain("typing starts fresh");
+  await act(async () => host.querySelector("button")!.click());
+  expect(relaunchTerminal).toHaveBeenCalledWith("n", claude, "resume");
+  // Claude back in the shell: no card.
+  await act(async () => root.render(<ResumeCard nodeId="n" payload={claude} status={{ state: "running" }} />));
+  expect(host.textContent).toBe("");
+});
+
 it("speaks English", async () => {
   await render({ ...payload, oneShot: true });
   expect(host.textContent).toContain("Click to run the command again");

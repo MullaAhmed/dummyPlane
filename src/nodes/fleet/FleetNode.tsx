@@ -24,7 +24,9 @@ import { markForAutostart, xtermOf } from "../terminal/registry";
 import { keepTerminalWheel } from "../terminal/terminalWheel";
 import { MissingNode } from "../terminal/MissingNode";
 import { NameField } from "../terminal/NameField";
-import { HeaderButton, HeaderMenu, NodeHeader, NodeHeaderEnd, WIDE_ONLY } from "../terminal/NodeHeader";
+import { HeaderButton, HeaderMenu, keepFocusAfterMenu, NodeHeader, NodeHeaderEnd, WIDE_ONLY } from "../terminal/NodeHeader";
+import { noteMessages } from "../note/messages";
+import { quickNote } from "../note/quickNote";
 import { ResumeCard } from "../terminal/ResumeCard";
 import { StatusPill } from "../terminal/StatusPill";
 import { keepFieldWheel } from "./keepWheel";
@@ -95,7 +97,7 @@ export function FleetNode({ nodeId }: { nodeId: string }) {
       />
       <div ref={sessionAreaRef} className={cn(TERMINAL_BODY, "min-h-30 bg-dp-terminal")}>
         <div ref={hostRef} className="relative h-full w-full overflow-hidden" />
-        {session && <ResumeCard nodeId={nodeId} payload={session} status={status} />}
+        {session && <ResumeCard nodeId={nodeId} payload={session} status={status} left={activity?.left} />}
         {status.state === "error" && status.kind === "toolsUnavailable" && <ToolsUnavailable nodeId={nodeId} message={status.message} />}
       </div>
       <MissionPanel nodeId={nodeId} />
@@ -120,6 +122,7 @@ function FleetHeader(props: {
 }) {
   const { nodeId, name, session, status, activity, clock, agentIds } = props;
   const t = useMessages(nodesMessages).fleet;
+  const quickNoteLabel = useMessages(noteMessages).add;
   const [editing, setEditing] = useState(false);
   // "Rename" of the Fleet's radial menu.
   useUiRequest("renameFleet", (request) => {
@@ -147,6 +150,15 @@ function FleetHeader(props: {
           {/* Spec maj §2: the Fleet and its team, followed from the phone. */}
           <DropdownMenuItem onSelect={() => void setRemoteControlAll([nodeId, ...agentIds], true)}>{t.remoteTeam}</DropdownMenuItem>
           <DropdownMenuItem onSelect={() => void setRemoteControlAll([nodeId, ...agentIds], false)}>{t.remoteOff}</DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onSelect={() => {
+              keepFocusAfterMenu();
+              void quickNote(nodeId);
+            }}
+          >
+            {quickNoteLabel}
+          </DropdownMenuItem>
         </HeaderMenu>
         <HeaderButton label={t.close} onClick={() => requestCloseFleet(nodeId)}>
           <X />

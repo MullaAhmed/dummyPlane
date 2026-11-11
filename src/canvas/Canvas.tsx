@@ -20,6 +20,8 @@ import { fleetLinks } from "@/agents/wires";
 import { saveFiles, saveScene } from "@/ipc/db";
 import { onFlushAll } from "@/lib/flush";
 import { NodeHost } from "@/nodes/NodeHost";
+import { noteHostsOf } from "@/nodes/note/link";
+import { createNoteActivation, createNoteWatch, onNodesGone } from "@/nodes/note/notes";
 import { releaseTeamPermission, setFleetClosed } from "@/mission/store";
 import { disposeTerminal, focusTerminal } from "@/nodes/terminal/registry";
 import { nodesStore } from "@/store/nodes";
@@ -159,6 +161,7 @@ function LoadedCanvas({ workspaceId, scene }: { workspaceId: string; scene: Load
           store.setNodeRects(liveNodeRects(elements));
           store.setLinks(fleetLinks(elements));
           store.setWires(wirePaths(elements));
+          store.setNoteHosts(noteHostsOf(elements));
         },
       }),
     [],
@@ -173,6 +176,7 @@ function LoadedCanvas({ workspaceId, scene }: { workspaceId: string; scene: Load
       canvasStore.getState().setLinks({});
       canvasStore.getState().setWires([]);
       canvasStore.getState().setDrawnSelection([]);
+      canvasStore.getState().setNoteHosts({});
       // Emptied: the next change derives them again, even a pan's.
       derive.reset();
     },
@@ -232,6 +236,9 @@ function LoadedCanvas({ workspaceId, scene }: { workspaceId: string; scene: Load
 
   const trackActivation = useMemo(() => createActivationTracker(), []);
   const watchSpawnDrags = useMemo(() => createSpawnDragWatch(workspaceId), [workspaceId]);
+  // Quick notes stay beside their terminal or Fleet as it moves, and take the keyboard when clicked (src/nodes/note).
+  const watchNotes = useMemo(() => createNoteWatch(), []);
+  const activateNote = useMemo(() => createNoteActivation(), []);
   // Auto-arrange: a node opened or closed, a terminal minimized or expanded, and the canvas tidies itself.
   const watchLayout = useMemo(() => createAutoArrangeWatch({ isMinimized, arrange: () => arrangeWorkspace(workspaceId, { undoable: false }) }), [workspaceId]);
   useEffect(() => () => watchLayout.dispose(), [watchLayout]);
@@ -243,10 +250,14 @@ function LoadedCanvas({ workspaceId, scene }: { workspaceId: string; scene: Load
       const verdict = guardRemovals(elements, removedNow.current);
       removedNow.current = [];
       settleRemovals(verdict);
+      // A note with text that left is offered back; a closed terminal's empty notes go with it.
+      onNodesGone(workspaceId, verdict.dispose);
       // A closed spawned agent's tree closes up (flowchart layout).
       reflowSpawnTreesOf(workspaceId, verdict.dispose);
       watchSpawnDrags(elements, appState);
       watchLayout(elements, appState);
+      watchNotes(elements, appState, version);
+      activateNote(appState.activeEmbeddable);
       canvasStore.getState().setView(viewFrom(appState));
       derive(elements, version, appState.selectedElementIds);
       if (api) scheduleWireUpkeep(api, elements);
@@ -257,7 +268,7 @@ function LoadedCanvas({ workspaceId, scene }: { workspaceId: string; scene: Load
       // Deferred: changing the view from inside onChange would re-enter it.
       if (activated && api) requestAnimationFrame(() => showAtFullSize(api, activated));
     },
-    [sync, guardRemovals, trackActivation, watchSpawnDrags, watchLayout, derive, workspaceId, api],
+    [sync, guardRemovals, trackActivation, watchSpawnDrags, watchLayout, watchNotes, activateNote, derive, workspaceId, api],
   );
 
   return (

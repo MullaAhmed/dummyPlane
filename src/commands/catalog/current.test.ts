@@ -91,6 +91,7 @@ describe("Terminal · <prénom> and Groupe · <nom> (spec fenêtre §7.3)", () =
       "Resume",
       "Minimize terminal",
       "Expand terminal",
+      "Quick note on this terminal",
       "Close",
       "Copy",
       "Paste",
@@ -117,6 +118,7 @@ describe("Terminal · <prénom> and Groupe · <nom> (spec fenêtre §7.3)", () =
       "terminal.stop",
       "terminal.pause",
       "terminal.minimize",
+      "terminal.note",
       "terminal.close",
       "terminal.copy",
       "terminal.paste",
@@ -131,7 +133,7 @@ describe("Terminal · <prénom> and Groupe · <nom> (spec fenêtre §7.3)", () =
       "group.frame",
     ]);
     // Cyborg is stopped and outside any group.
-    expect(ids(ctx("cyborg"))).toEqual(["terminal.rename", "terminal.duplicate", "terminal.review", "terminal.relaunch", "terminal.minimize", "terminal.close", "terminal.copy", "terminal.paste"]);
+    expect(ids(ctx("cyborg"))).toEqual(["terminal.rename", "terminal.duplicate", "terminal.review", "terminal.relaunch", "terminal.minimize", "terminal.note", "terminal.close", "terminal.copy", "terminal.paste"]);
   });
 
   it("acts on the terminal of the moment, as its header and the panel's row do", async () => {

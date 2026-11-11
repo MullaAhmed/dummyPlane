@@ -1,5 +1,5 @@
 import { Group, SquareTerminal, Users } from "lucide-react";
-import { pillOf } from "@/nodes/terminal/pill";
+import { pillActivity, pillOf } from "@/nodes/terminal/pill";
 import { DOT_OF_TONE, StatusDot } from "@/nodes/terminal/StatusDot";
 import { useActivity } from "@/store/agentActivity";
 import { terminalOf, useNodes } from "@/store/nodes";
@@ -30,6 +30,6 @@ export function AgentStatusDot({ id }: { id: string }) {
   const status = useTerminalStatus(id);
   const activity = useActivity(id);
   const report = useNodes((s) => terminalOf(s.nodes[id])?.lastReport?.status);
-  const pill = pillOf(status, status.state === "running" ? activity?.activity : undefined, false, report);
+  const pill = pillOf(status, pillActivity(status, activity), false, report);
   return <StatusDot state={DOT_OF_TONE[pill.tone]} label={pill.label} data-status-dot={pill.tone} />;
 }

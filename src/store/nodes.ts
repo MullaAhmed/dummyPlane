@@ -12,10 +12,12 @@ import {
   readKanbanPayload,
   readOutputPayload,
   readFleetPayload,
+  readNotePayload,
   readTerminalPayload,
   type FilePayload,
   type KanbanPayload,
   type FleetPayload,
+  type NotePayload,
   type OutputPayload,
   type TerminalPayload,
 } from "@/nodes/types";
@@ -25,7 +27,8 @@ export type NodeRecord =
   | { workspaceId: string; kind: "fleet"; payload: FleetPayload }
   | { workspaceId: string; kind: "file"; payload: FilePayload }
   | { workspaceId: string; kind: "output"; payload: OutputPayload }
-  | { workspaceId: string; kind: "kanban"; payload: KanbanPayload };
+  | { workspaceId: string; kind: "kanban"; payload: KanbanPayload }
+  | { workspaceId: string; kind: "note"; payload: NotePayload };
 
 export interface NodesState {
   nodes: Record<string, NodeRecord>;
@@ -34,7 +37,10 @@ export interface NodesState {
   /** Adds a node and saves it at once (its row must exist before its scrollback). */
   create: (id: string, record: NodeRecord) => Promise<void>;
   /** Changes a node; the save waits 500 ms for further changes. */
-  update: (id: string, patch: Partial<TerminalPayload> | Partial<FleetPayload> | Partial<KanbanPayload> | Partial<FilePayload> | Partial<OutputPayload>) => void;
+  update: (
+    id: string,
+    patch: Partial<TerminalPayload> | Partial<FleetPayload> | Partial<KanbanPayload> | Partial<FilePayload> | Partial<OutputPayload> | Partial<NotePayload>,
+  ) => void;
   /** Saves a node now, e.g. when an undo brings back a node purged from SQLite. */
   persist: (id: string) => Promise<void>;
   /** Drops the nodes of a deleted workspace and returns their ids. */
@@ -135,12 +141,13 @@ function readRecord(workspaceId: string, node: StoredNode): NodeRecord | null {
     const output = readOutputPayload(raw);
     return output ? { workspaceId, kind: "output", payload: output } : null;
   }
+  if (kind === "note") return { workspaceId, kind: "note", payload: readNotePayload(raw) };
   if (kind !== "terminal") return null;
   const payload = readTerminalPayload(raw);
   return payload ? { workspaceId, kind: "terminal", payload } : null;
 }
 
-/** The name a node shows: an agent's or a fleet's, "" for a board, a file or an output. */
+/** The name a node shows: an agent's or a fleet's, "" for a board, a file, an output or a note. */
 export function nodeNameOf(record: NodeRecord | undefined): string {
   return record?.kind === "terminal" || record?.kind === "fleet" ? record.payload.name : "";
 }
@@ -177,7 +184,7 @@ export function rebaseTerminalFolders(from: string, to: string) {
       if (Object.keys(patch).length > 0) nodesStore.getState().update(id, patch);
       continue;
     }
-    // A Kanban, a file or an output node has no folder of its own.
+    // A Kanban, a file, an output node or a note has no folder of its own.
     if (node.kind !== "terminal") continue;
     const cwd = rebasePath(node.payload.cwd, from, to);
     if (cwd) nodesStore.getState().update(id, { cwd });

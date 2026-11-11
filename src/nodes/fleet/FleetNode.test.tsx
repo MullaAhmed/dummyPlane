@@ -230,7 +230,7 @@ describe("its header, the same chrome as a terminal's", () => {
     const menu = host.querySelector<HTMLButtonElement>('button[aria-label="Fleet menu"]')!;
     await act(async () => menu.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true })));
     const items = [...document.querySelectorAll('[role="menuitem"]')].map((item) => item.textContent);
-    expect(items).toEqual(["Pause all", "Resume all", "Remote Control for the team", "Turn off Remote Control"]);
+    expect(items).toEqual(["Pause all", "Resume all", "Remote Control for the team", "Turn off Remote Control", "Quick note"]);
   });
 
   it("renames on Enter, as a terminal does; an empty name falls back to « Fleet »", async () => {

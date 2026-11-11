@@ -18,7 +18,7 @@ import type { TerminalStatus } from "@/store/terminalStatus";
 import { uiStore, useUi } from "@/store/ui";
 import { StatusLine } from "../foot/StatusLine";
 import { nodesMessages } from "../messages";
-import { pillOf } from "./pill";
+import { pillActivity, pillOf } from "./pill";
 import { DOT_OF_TONE } from "./StatusDot";
 
 /** The terminals that get a foot: the AI agents, the ones that take instructions (not a plain shell, not a custom command). */
@@ -65,7 +65,7 @@ function AgentStatus(props: { nodeId: string; payload: TerminalPayload; status: 
       .join(", "),
   );
   const running = status.state === "running";
-  const pill = pillOf(status, running ? activity?.activity : undefined, AGENTS[payload.agent].tint === INDIGO, payload.lastReport?.status);
+  const pill = pillOf(status, pillActivity(status, activity), AGENTS[payload.agent].tint === INDIGO, payload.lastReport?.status);
   // How long only when the activity store dates it: a process's start or stop is not dated.
   const since = running && activity ? formatDuration(now - activity.since) : null;
   return (

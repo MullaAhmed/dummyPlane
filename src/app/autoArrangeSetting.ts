@@ -7,7 +7,7 @@ import { appMessages } from "./messages";
 const KEY = "canvas.autoArrange";
 
 /**
- * "Auto-arrange terminals": the canvas tidies itself (Arrange, src/agents/arrange.ts)
+ * "Auto-arrange": the canvas tidies itself (Arrange, src/agents/arrange.ts)
  * whenever a node opens or closes and a terminal is minimized or expanded. Off
  * until turned on: it moves what the user placed by hand.
  */
