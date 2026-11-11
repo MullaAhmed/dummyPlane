@@ -10,6 +10,7 @@ import type { AgentId } from "@/ipc/pty";
 import { formatDuration } from "@/lib/format";
 import { useNativeKeyDown } from "@/lib/useNativeKeyDown";
 import { useNow } from "@/lib/useNow";
+import { Hint } from "@/shell/buttons";
 import type { TerminalPayload } from "@/nodes/types";
 import type { AgentActivity } from "@/store/agentActivity";
 import { useNodes } from "@/store/nodes";
@@ -87,20 +88,23 @@ function AgentLink({ nodeId }: { nodeId: string }) {
   const t = useMessages(nodesMessages).foot;
   const linking = useUi((s) => s.linking === nodeId);
   return (
-    <Button
-      type="button"
-      variant="ghost"
-      size="xs"
-      // Whose Link it is: the link layer passes a click on to the linker's own "Done" only (agents/LinkMode.tsx).
-      data-link-toggle={nodeId}
-      aria-pressed={linking}
-      title={linking ? undefined : t.linkTitle}
-      onClick={() => uiStore.getState().setLinking(linking ? null : nodeId)}
-      // Its words end where the line's chevron does, 12px from the edge: the button's own padding sits in the line's.
-      className="-mr-2 font-normal text-dp-text-2 hover:text-dp-text"
-    >
-      {!linking && <Plus aria-hidden />}
-      {linking ? t.done : t.link}
-    </Button>
+    // The app's hint, not a native title: it says what Link does, and stays shut while linking ("Done" says it all).
+    // The same button either way, so the keyboard stays on it.
+    <Hint label={t.linkTitle} expanded={linking}>
+      <Button
+        type="button"
+        variant="ghost"
+        size="xs"
+        // Whose Link it is: the link layer passes a click on to the linker's own "Done" only (agents/LinkMode.tsx).
+        data-link-toggle={nodeId}
+        aria-pressed={linking}
+        onClick={() => uiStore.getState().setLinking(linking ? null : nodeId)}
+        // Its words end where the line's chevron does, 12px from the edge: the button's own padding sits in the line's.
+        className="-mr-2 font-normal text-dp-text-2 hover:text-dp-text"
+      >
+        {!linking && <Plus aria-hidden />}
+        {linking ? t.done : t.link}
+      </Button>
+    </Hint>
   );
 }

@@ -458,6 +458,27 @@ it("shows the folder as a path, whole on hover, its end in view, and copies it",
   writeText.mockRestore();
 });
 
+it("shows the whole folder path to the keyboard too, in the Copy button's hint (P2 #20)", async () => {
+  await mountTerminal(terminal({ cwd: "/home/ada/work/a-very-long-folder-name/api" }));
+  await act(async () => button("Copy the path")!.focus());
+  await act(async () => new Promise((resolve) => setTimeout(resolve, 450)));
+  const tip = document.querySelector('[role="tooltip"]');
+  expect(tip?.textContent).toContain("Copy the path");
+  expect(tip?.textContent).toContain("/home/ada/work/a-very-long-folder-name/api");
+});
+
+it("unfolds a row's cut description for the keyboard on its checkbox, to four lines at most (P2 #20)", async () => {
+  serveExtensions();
+  await mountTerminal(terminal());
+  await openTab("Skills");
+  const row = host.querySelector("[data-extension='commit']")!;
+  expect(row.className).toContain("group/row");
+  const description = [...row.querySelectorAll("span")].find((span) => span.textContent === "Write the commit message")!;
+  expect(description.className).toContain("truncate");
+  expect(description.className).toContain("group-has-[:focus-visible]/row:line-clamp-4");
+  expect(description.className).toContain("group-has-[:focus-visible]/row:whitespace-normal");
+});
+
 it("edits the command of a custom agent only", async () => {
   await mountTerminal(terminal({ agent: "custom", command: "npm run dev" }));
   expect(field("Command")!.value).toBe("npm run dev");

@@ -69,10 +69,13 @@ export function MinimizedCard(props: { nodeId: string; payload: TerminalPayload;
   }, [nodeId]);
 
   return (
-    <div ref={ref} data-minimized={nodeId} title={t.doubleClickExpand} className="flex h-full min-h-0 flex-col justify-center bg-dp-terminal-head px-3 text-xs">
+    <div ref={ref} data-minimized={nodeId} className="flex h-full min-h-0 flex-col justify-center bg-dp-terminal-head px-3 text-xs">
       <div className="flex h-8 shrink-0 items-center gap-2">
         <meta.Icon aria-hidden className="size-4 shrink-0" style={{ color: agentInk(meta.tint) }} />
-        <span className="min-w-0 truncate text-(length:--text-ui) font-medium text-dp-text">{payload.name || meta.label}</span>
+        {/* "Double-click to expand" on the name, not on the whole card: there it showed over the Expand button's hint. */}
+        <span className="min-w-0 truncate text-(length:--text-ui) font-medium text-dp-text" title={t.doubleClickExpand}>
+          {payload.name || meta.label}
+        </span>
         <div className="ml-auto flex shrink-0 items-center gap-1">
           {/* Its report while it rests; Working again as soon as it is. */}
           <StatusPill status={status} activity={activity} indigo={meta.tint === INDIGO} report={report?.status} />
