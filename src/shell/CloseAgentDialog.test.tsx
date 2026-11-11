@@ -92,6 +92,20 @@ it("says whether the agent is at work or ready, as the spec asks (§7.5)", async
   agentActivityStore.getState().remove("batman");
 });
 
+it("never says a plain console is working: it runs no agent", async () => {
+  await nodesStore.getState().create("console", {
+    workspaceId: "w1",
+    kind: "terminal",
+    payload: { title: "Console", name: "Console", agent: "shell", cwd: "C:/code", shell: "default", command: "" },
+  });
+  terminalStatusStore.getState().set("console", { state: "running" });
+  agentActivityStore.getState().apply({ nodeId: "console", activity: "working", since: 1 });
+  await act(async () => uiStore.getState().setClosing({ agents: ["console"], remove: ["console"] }));
+  expect(document.querySelector('[role="dialog"]')!.textContent).not.toContain("Console is working.");
+  terminalStatusStore.getState().remove("console");
+  agentActivityStore.getState().remove("console");
+});
+
 describe("an agent that opened sub-agents (spawn_agent)", () => {
   beforeAll(async () => {
     const terminal = (name: string, spawnedBy?: string) => ({

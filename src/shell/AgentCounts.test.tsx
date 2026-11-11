@@ -111,10 +111,11 @@ it("counts working, waiting and active over the same agents of the workspace on 
   const rows = [...panel.host.querySelectorAll("[data-row-actions]")].map((actions) => actions.closest(".group")!.textContent!);
   expect(rows.map((text) => text.split(" ")[0])).toEqual(["ada", "bob", "cy"]);
   expect(panel.host.textContent).toContain("Atlas");
-  // Under All, the busy console's row reads Active, never Working: it runs no agent.
+  // Under All, the busy console's row reads Running, neither Working nor Active: it runs no agent, and the
+  // Active filter and "N active" leave it out.
   await act(async () => agentsPanelStore.setState({ filter: "all" }));
   const pill = [...panel.host.querySelectorAll("[data-status]")].find((dot) => dot.closest(".group")?.textContent?.startsWith("console"));
-  expect(pill?.parentElement?.textContent).toBe("Active");
+  expect(pill?.parentElement?.textContent).toBe("Running");
   await bar.unmount();
   await panel.unmount();
 

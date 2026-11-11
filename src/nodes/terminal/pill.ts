@@ -17,18 +17,22 @@ export interface Pill {
   report?: TerminalReportStatus;
 }
 
-/** An agent's activity as its pill reads it; "left": Claude exited, its terminal is back at the shell. */
-export type PillActivity = Activity | "left";
+/**
+ * An agent's activity as its pill reads it; "left": Claude exited, its terminal is back at the shell;
+ * "console": a plain console that runs and is not quiet.
+ */
+export type PillActivity = Activity | "left" | "console";
 
 /**
  * What the pill reads of a terminal's activity: nothing unless its process runs. A plain shell (`shell`)
- * runs no agent: its output is no work and it never waits, so it reads Active while it runs and Ready once
- * quiet, never Working (the counts never count it either, src/agents/agentState.ts).
+ * runs no agent: its output is no work and it never waits, so it reads Running while it runs and Ready once
+ * quiet, never Working nor Active, the words of the counts that never count it (src/agents/agentState.ts).
  */
 export function pillActivity(status: TerminalStatus, activity?: AgentActivity, shell = false): PillActivity | undefined {
-  if (status.state !== "running" || !activity) return undefined;
-  if (activity.left) return "left";
-  return shell && activity.activity !== "idle" ? undefined : activity.activity;
+  if (status.state !== "running") return undefined;
+  if (activity?.left) return "left";
+  if (shell) return activity?.activity === "idle" ? "idle" : "console";
+  return activity?.activity;
 }
 
 /**
@@ -45,6 +49,7 @@ export function pillOf(status: TerminalStatus, activity?: PillActivity, indigo =
       return { label: t.starting, tone: "stopped" };
     case "running":
       if (activity === "left") return { label: t.left, tone: "stopped" };
+      if (activity === "console") return { label: t.running, tone: "live" };
       if (activity === "working") return { label: t.working, tone: indigo ? "workingIndigo" : "working" };
       if (activity === "waiting") return { label: t.waiting, tone: "waiting" };
       if (report) return { label: t[report], tone: REPORT_TONES[report], report };
