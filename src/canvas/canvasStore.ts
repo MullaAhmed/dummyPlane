@@ -113,6 +113,9 @@ interface CanvasState {
   /** The drawn (non-node) elements selected on screen: what the selection panel acts on. */
   drawnSelection: ExcalidrawElement[];
   setDrawnSelection: (elements: ExcalidrawElement[]) => void;
+  /** Each quick note's host, while that terminal or Fleet is on the canvas (src/nodes/note/link.ts). */
+  noteHosts: Record<string, string>;
+  setNoteHosts: (hosts: Record<string, string>) => void;
 }
 
 export const canvasStore = createStore<CanvasState>()((set, get) => ({
@@ -147,6 +150,12 @@ export const canvasStore = createStore<CanvasState>()((set, get) => ({
   drawnSelection: [],
   setDrawnSelection: (elements) => {
     if (!sameDrawn(get().drawnSelection, elements)) set({ drawnSelection: elements });
+  },
+  noteHosts: {},
+  setNoteHosts: (hosts) => {
+    const current = get().noteHosts;
+    const ids = Object.keys(hosts);
+    if (ids.length !== Object.keys(current).length || ids.some((id) => current[id] !== hosts[id])) set({ noteHosts: hosts });
   },
   links: {},
   setLinks: (links) => {

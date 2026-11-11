@@ -103,7 +103,24 @@ export interface FilePayload {
   path: string;
 }
 
-export type NodePayload = TerminalPayload | FleetPayload | KanbanPayload | FilePayload;
+export type NodePayload = TerminalPayload | FleetPayload | KanbanPayload | FilePayload | NotePayload;
+
+/**
+ * Content of a quick note (src/nodes/note): plain text kept beside a terminal or a Fleet. Which node it stands
+ * beside, and where, is scene data: its element's `customData.note` (`@/nodes/note/link`).
+ */
+export interface NotePayload {
+  text: string;
+}
+
+/** The most of a note's text kept: a note is a few lines, and its payload is saved on every pause in typing. */
+export const MAX_NOTE_TEXT = 20_000;
+
+/** Reads a stored note payload; never fails: what is not text reads as an empty note. */
+export function readNotePayload(raw: unknown): NotePayload {
+  const text = typeof raw === "object" && raw !== null ? (raw as Record<string, unknown>).text : undefined;
+  return { text: typeof text === "string" ? text.slice(0, MAX_NOTE_TEXT) : "" };
+}
 
 /** Reads a stored file payload; null without a usable path. */
 export function readFilePayload(raw: unknown): FilePayload | null {

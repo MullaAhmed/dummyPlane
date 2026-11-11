@@ -103,6 +103,7 @@ export const catalogMessages = defineMessages({
       "terminal.close": e("Close", "close", "terminal"),
       "terminal.copy": e("Copy", "copy", "selection", "clipboard"),
       "terminal.paste": e("Paste", "paste", "clipboard"),
+      "terminal.note": e("Quick note on this terminal", "note", "quick note", "sticky", "memo", "annotate", "comment"),
       "group.rename": e("Rename the group", "group", "name"),
       "group.addAgent": e("Add an agent…", "group", "agent", "add"),
       "group.linkFleet": e("Link a fleet", "fleet", "orchestrator", "link", "connect", "group"),
@@ -118,6 +119,7 @@ export const catalogMessages = defineMessages({
       "fleet.link": e("Link", "link", "connect", "fleet", "orchestrator"),
       "fleet.paste": e("Paste", "paste", "clipboard"),
       "fleet.remove": e("Delete", "delete", "remove", "fleet", "orchestrator"),
+      "fleet.note": e("Quick note on this Fleet", "note", "quick note", "sticky", "memo", "annotate", "comment", "orchestrator"),
 
       "edit.undo": e("Undo", "undo", "revert"),
       "edit.redo": e("Redo", "redo"),

@@ -36,7 +36,7 @@ export function nodeLink(kind: NodeKind, id: string): string {
 export const NODE_SIZE: Record<NodeKind, { width: number; height: number }> = {
   terminal: { width: 720, height: 440 },
   fleet: { width: 640, height: 760 },
-  note: { width: 320, height: 240 },
+  note: { width: 280, height: 200 },
   kanban: { width: 640, height: 400 },
   git: { width: 360, height: 320 },
   file: { width: 520, height: 420 },
