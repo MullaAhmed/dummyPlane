@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DOT_OF_TONE } from "./StatusDot";
-import { isTypingKey, pillOf, resumeOfferOf, startsNewConversation, startsOnKeystroke } from "./pill";
+import { isTypingKey, pillActivity, pillOf, resumeOfferOf, startsNewConversation, startsOnKeystroke } from "./pill";
 
 describe("pillOf", () => {
   it("labels each process state (spec habillage §7.2)", () => {
@@ -101,6 +101,32 @@ describe("a running agent's activity (spec habillage §7.2)", () => {
   it("reads Active while its activity is unknown, and ignores the activity of a stopped process", () => {
     expect(pillOf(running)).toEqual({ label: "Active", tone: "live" });
     expect(pillOf({ state: "stopped" }, "working")).toEqual({ label: "Stopped", tone: "stopped" });
+  });
+});
+
+describe("a shell whose Claude exited", () => {
+  const running = { state: "running" } as const;
+  const left = (activity: "idle" | "working") => ({ activity, since: 1, left: true });
+
+  it("says the agent exited rather than Ready, whatever the shell does, and before a standing report", () => {
+    expect(pillOf(running, pillActivity(running, left("idle")))).toEqual({ label: "Agent exited", tone: "stopped" });
+    expect(pillOf(running, pillActivity(running, left("working")), true, "done")).toEqual({ label: "Agent exited", tone: "stopped" });
+    // Back to its activity as soon as a Claude reports again in that shell.
+    expect(pillOf(running, pillActivity(running, { activity: "idle", since: 2 }))).toEqual({ label: "Ready", tone: "ready" });
+  });
+
+  it("reads nothing of the activity once the process stopped", () => {
+    expect(pillActivity({ state: "exited", code: 0 }, left("idle"))).toBeUndefined();
+    expect(pillActivity(running, undefined)).toBeUndefined();
+  });
+
+  it("offers the agent back while the shell runs on", () => {
+    expect(resumeOfferOf(running, true, true)).toBe("resume");
+    expect(resumeOfferOf(running, false, true)).toBe("relaunch");
+    expect(resumeOfferOf(running, true, false)).toBeNull();
+    expect(resumeOfferOf({ state: "starting" }, true, true)).toBeNull();
+    // Typing goes to the shell, where `claude` brings the agent back by hand: no fresh start on a key.
+    expect(startsOnKeystroke(running)).toBe(false);
   });
 });
 

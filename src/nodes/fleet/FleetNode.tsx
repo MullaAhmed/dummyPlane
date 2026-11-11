@@ -95,7 +95,7 @@ export function FleetNode({ nodeId }: { nodeId: string }) {
       />
       <div ref={sessionAreaRef} className={cn(TERMINAL_BODY, "min-h-30 bg-dp-terminal")}>
         <div ref={hostRef} className="relative h-full w-full overflow-hidden" />
-        {session && <ResumeCard nodeId={nodeId} payload={session} status={status} />}
+        {session && <ResumeCard nodeId={nodeId} payload={session} status={status} left={activity?.left} />}
         {status.state === "error" && status.kind === "toolsUnavailable" && <ToolsUnavailable nodeId={nodeId} message={status.message} />}
       </div>
       <MissionPanel nodeId={nodeId} />

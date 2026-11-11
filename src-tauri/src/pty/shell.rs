@@ -498,6 +498,72 @@ fn ollama_command(launch: Option<&OllamaLaunch>, syntax: ShellSyntax) -> AppResu
 /// The longest model name or alias accepted for `--model`.
 const MAX_MODEL_LEN: usize = 64;
 
+/// One of the flags a terminal's Claude takes from its node, its value quoted for the shell.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct NodeFlag {
+    flag: &'static str,
+    value: Option<String>,
+}
+
+impl NodeFlag {
+    fn text(&self) -> String {
+        match &self.value {
+            Some(value) => format!("{} {value}", self.flag),
+            None => self.flag.to_string(),
+        }
+    }
+}
+
+/// What a terminal's Claude starts with that belongs to its node, not to one
+/// conversation: its settings (hooks, theme, extensions), dummyPlane's tools,
+/// its role, its model and effort, and what its mission lets it do unasked.
+/// The conversation's own flags (`--session-id`, `-n`, `--resume`,
+/// `--continue`, `--remote-control`) are not among them.
+fn claude_node_flags(
+    launch: &ClaudeLaunch,
+    syntax: ShellSyntax,
+    hooks: &AgentHooks,
+) -> AppResult<Vec<NodeFlag>> {
+    let mut flags = Vec::new();
+    let mut push = |flag, value: Option<String>| flags.push(NodeFlag { flag, value });
+    let files = [
+        ("--settings", &hooks.claude_settings),
+        ("--mcp-config", &hooks.mcp_config),
+        ("--append-system-prompt-file", &hooks.system_prompt),
+    ];
+    for (flag, path) in files {
+        if let Some(path) = path {
+            push(flag, Some(quote(syntax, &path.to_string_lossy())));
+            // The fleet reads its `--mcp-config` file only: dummyPlane's tools
+            // and the servers its MCP tab leaves on (`extensions::servers_on`),
+            // never one the panel doesn't list, such as a claude.ai connector.
+            if flag == "--mcp-config" && launch.role == Role::Fleet {
+                push("--strict-mcp-config", None);
+            }
+        }
+    }
+    if let Some(model) = launch.model.as_deref() {
+        push("--model", Some(quote(syntax, checked_model(model)?)));
+    }
+    if let Some(effort) = launch.effort {
+        push("--effort", Some(effort.flag_value().to_string()));
+    }
+    // `--permission-mode`, not `defaultMode` in the settings: Claude's docs confirm the flag for one session.
+    // Never `bypassPermissions`: its first use asks, and accepting writes to the user's settings.
+    let mode = match (launch.role, launch.permission) {
+        // A fleet at night has nobody to ask: what would prompt is refused instead, and its
+        // deny list keeps it from editing and running commands whatever the team may do.
+        (Role::Fleet, Some(_)) => Some("dontAsk"),
+        (_, Some(Permission::Edits)) => Some("acceptEdits"),
+        (_, Some(Permission::Work)) => Some("dontAsk"),
+        (_, Some(Permission::Ask) | None) => None,
+    };
+    if let Some(mode) = mode {
+        push("--permission-mode", Some(mode.to_string()));
+    }
+    Ok(flags)
+}
+
 fn claude_command(
     launch: Option<&ClaudeLaunch>,
     syntax: ShellSyntax,
@@ -505,44 +571,20 @@ fn claude_command(
 ) -> AppResult<String> {
     let launch =
         launch.ok_or_else(|| AppError::InvalidInput("Claude options missing".to_string()))?;
-    let mut claude = "claude".to_string();
-    let flags = [
-        ("--settings", &hooks.claude_settings),
-        ("--mcp-config", &hooks.mcp_config),
-        ("--append-system-prompt-file", &hooks.system_prompt),
-    ];
-    for (flag, path) in flags {
-        if let Some(path) = path {
-            claude.push_str(&format!(
-                " {flag} {}",
-                quote(syntax, &path.to_string_lossy())
-            ));
-            // The fleet reads its `--mcp-config` file only: dummyPlane's tools
-            // and the servers its MCP tab leaves on (`extensions::servers_on`),
-            // never one the panel doesn't list, such as a claude.ai connector.
-            if flag == "--mcp-config" && launch.role == Role::Fleet {
-                claude.push_str(" --strict-mcp-config");
-            }
-        }
-    }
-    if let Some(model) = launch.model.as_deref() {
-        claude.push_str(&format!(
-            " --model {}",
-            quote(syntax, checked_model(model)?)
-        ));
-    }
-    if let Some(effort) = launch.effort {
-        claude.push_str(&format!(" --effort {}", effort.flag_value()));
-    }
-    // `--permission-mode`, not `defaultMode` in the settings: Claude's docs confirm the flag for one session.
-    // Never `bypassPermissions`: its first use asks, and accepting writes to the user's settings.
-    match (launch.role, launch.permission) {
-        // A fleet at night has nobody to ask: what would prompt is refused instead, and its
-        // deny list keeps it from editing and running commands whatever the team may do.
-        (Role::Fleet, Some(_)) => claude.push_str(" --permission-mode dontAsk"),
-        (_, Some(Permission::Edits)) => claude.push_str(" --permission-mode acceptEdits"),
-        (_, Some(Permission::Work)) => claude.push_str(" --permission-mode dontAsk"),
-        (_, Some(Permission::Ask) | None) => {}
+    claude_line("claude", launch, syntax, hooks)
+}
+
+/// The line that starts a terminal's Claude: `program`, the node's flags, then the conversation's.
+fn claude_line(
+    program: &str,
+    launch: &ClaudeLaunch,
+    syntax: ShellSyntax,
+    hooks: &AgentHooks,
+) -> AppResult<String> {
+    let mut claude = program.to_string();
+    for flag in claude_node_flags(launch, syntax, hooks)? {
+        claude.push(' ');
+        claude.push_str(&flag.text());
     }
     let remote = remote_flag(launch, syntax);
     if launch.mode == ClaudeMode::Continue {
@@ -707,6 +749,152 @@ fn clean_title(title: &str) -> String {
     kept.trim().trim_end_matches('\\').trim_end().to_string()
 }
 
+/// What a Claude terminal's shell gets so that `claude` typed in it by hand
+/// once the agent has exited (`claude`, `claude -c`, `claude --resume`…)
+/// starts the node's Claude again, with its hooks, tools, role and limits,
+/// not a plain one dummyPlane cannot see. Given to the shell at its start,
+/// never typed: the definition stays off the screen, out of the scrollback and
+/// out of the shell's history. dummyPlane's own launch line calls the real
+/// program by its full path, so it never goes through the wrapper.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ManualClaude {
+    /// After the shell's own arguments.
+    pub args: Vec<String>,
+    pub env: Vec<(String, String)>,
+    /// dummyPlane's launch line, typed into the shell as before.
+    pub launch: String,
+}
+
+/// Carries cmd's macro to its `/K` command, which removes it from the environment.
+pub const CMD_MACRO_ENV: &str = "DUMMYPLANE_CLAUDE";
+/// Bash defines a function exported under this name when it starts.
+pub const BASH_FUNCTION_ENV: &str = "BASH_FUNC_claude%%";
+
+fn manual_claude(
+    spec: &SpawnSpec,
+    shell: &ShellProgram,
+    hooks: &AgentHooks,
+    locate: Locate,
+) -> AppResult<Option<ManualClaude>> {
+    let (Agent::Claude, Some(launch)) = (spec.agent, spec.claude.as_ref()) else {
+        return Ok(None);
+    };
+    let syntax = shell.syntax;
+    // Another POSIX shell (zsh, fish) would not read the function, only pass it on to every bash it starts.
+    let bash = shell.program.file_stem().and_then(|stem| stem.to_str()) == Some("bash");
+    if syntax == ShellSyntax::Posix && !bash {
+        return Ok(None);
+    }
+    let Some(program) = real_program(locate, binary(Agent::Claude)) else {
+        return Ok(None);
+    };
+    let path = program.to_string_lossy();
+    // cmd drops these characters from what it is given (`quote`): it would call another program.
+    if syntax == ShellSyntax::Cmd && path.contains(['%', '!', '^', '"']) {
+        return Ok(None);
+    }
+    let mut flags = claude_node_flags(launch, syntax, hooks)?;
+    // `--mcp-config` takes every word up to the next flag: the user's first argument
+    // would become one of its files. `--settings`, which takes one value, closes the list.
+    flags.sort_by_key(|flag| flag.flag == "--settings");
+    // Nothing of the node's to keep, or never seen (its role file follows its tools): as before.
+    if flags.last().is_none_or(|flag| flag.flag == "--mcp-config") {
+        return Ok(None);
+    }
+    let call = match syntax {
+        ShellSyntax::PowerShell => format!("& {}", quote(syntax, &path)),
+        ShellSyntax::Cmd => quote(syntax, &path),
+        // bash reads Windows paths with forward slashes.
+        ShellSyntax::Posix => quote(syntax, &path.replace('\\', "/")),
+    };
+    let node: Vec<String> = flags.iter().map(NodeFlag::text).collect();
+    let node = format!("{call} {}", node.join(" "));
+    let (args, env) = match syntax {
+        ShellSyntax::PowerShell => (
+            vec![
+                "-NoExit".into(),
+                "-Command".into(),
+                powershell_wrapper(&node),
+            ],
+            Vec::new(),
+        ),
+        ShellSyntax::Cmd => (
+            vec![
+                "/K".into(),
+                format!("doskey claude=%{CMD_MACRO_ENV}% & set {CMD_MACRO_ENV}="),
+            ],
+            vec![(CMD_MACRO_ENV.into(), cmd_macro(&node))],
+        ),
+        ShellSyntax::Posix => (
+            Vec::new(),
+            vec![(BASH_FUNCTION_ENV.into(), bash_function(&node))],
+        ),
+    };
+    Ok(Some(ManualClaude {
+        args,
+        env,
+        launch: claude_line(&call, launch, syntax, hooks)?,
+    }))
+}
+
+/// The program `name` runs, by its full path, so the wrapper never calls itself.
+/// On Windows, a file a Windows shell starts: npm puts a shell script beside its `.cmd`.
+fn real_program(locate: Locate, name: &str) -> Option<PathBuf> {
+    let found = locate(name)?;
+    if !cfg!(windows) {
+        return Some(found);
+    }
+    let runnable = |path: &Path| {
+        path.extension()
+            .and_then(|ext| ext.to_str())
+            .is_some_and(|ext| {
+                ["exe", "cmd", "bat", "com"]
+                    .iter()
+                    .any(|r| ext.eq_ignore_ascii_case(r))
+            })
+    };
+    if runnable(&found) {
+        return Some(found);
+    }
+    ["exe", "cmd"]
+        .iter()
+        .map(|ext| found.with_extension(ext))
+        .find(|path| path.is_file())
+}
+
+/// `claude` as a function of the session, defined after the profile so that it
+/// wins over one of its aliases or functions. A pipeline's input goes on to
+/// Claude (`'text' | claude -p`); without one, Claude keeps the terminal. The
+/// command that defines it is the history's first entry: the first prompt
+/// removes it, then hands the prompt back to the profile's own.
+fn powershell_wrapper(node: &str) -> String {
+    let run = format!("{node} @args");
+    format!(
+        "Remove-Item -ErrorAction Ignore Alias:claude; \
+         function global:claude {{ if ($MyInvocation.ExpectingInput) {{ $input | {run} }} else {{ {run} }} }}; \
+         $global:__dummyPlanePrompt = $function:prompt; \
+         function global:prompt {{ $p = $global:__dummyPlanePrompt; Remove-Variable -Scope Global __dummyPlanePrompt; \
+         Set-Item function:global:prompt $p; Clear-History -Id 1 -ErrorAction Ignore; & $p }}"
+    )
+}
+
+/// A doskey macro: `$*` stands for what is typed after `claude`, a `$` of the line is doubled.
+/// Doskey reads only the start of a line: `x | claude` and ` claude` call the plain program.
+fn cmd_macro(node: &str) -> String {
+    format!("{} $*", node.replace('$', "$$"))
+}
+
+/// What bash reads from `BASH_FUNC_claude%%`. Exported, it reaches the bash
+/// processes the session starts: inside Claude's own tools (`CLAUDECODE`),
+/// `claude` stays the plain one, as before, so a Claude started there reports
+/// nothing under this node. It un-exports itself before it starts Claude.
+fn bash_function(node: &str) -> String {
+    format!(
+        "() {{ if [ -n \"${{CLAUDECODE:-}}\" ]; then command claude \"$@\"; return; fi; \
+         export -fn claude; {node} \"$@\"; }}"
+    )
+}
+
 /// The registry's PATH for a new terminal, once refreshed.
 fn refreshed_path() -> Option<(String, String)> {
     super::env_path::current().map(|path| ("PATH".into(), path.to_string_lossy().into_owned()))
@@ -724,8 +912,13 @@ pub fn build_plan(
         return Err(AppError::NotFound(format!("folder not found: {cwd}")));
     }
     let shell = resolve_shell(spec.shell, locate)?;
-    let initial_input =
-        agent_command(spec, shell.syntax, hooks)?.map(|command| format!("{command}\r"));
+    let manual = manual_claude(spec, &shell, hooks, locate)?;
+    let command = match &manual {
+        Some(manual) => Some(manual.launch.clone()),
+        None => agent_command(spec, shell.syntax, hooks)?,
+    };
+    let initial_input = command.map(|command| format!("{command}\r"));
+    let (manual_args, manual_env) = manual.map(|m| (m.args, m.env)).unwrap_or_default();
     // A profile's folder reaches this terminal only; an invalid one is refused,
     // never replaced by another account's (spec comptes §4).
     let profile_dir = match spec.claude.as_ref().and_then(|c| c.config_dir.as_deref()) {
@@ -739,7 +932,7 @@ pub fn build_plan(
     };
     Ok(SpawnPlan {
         program: shell.program,
-        args: shell.args,
+        args: shell.args.into_iter().chain(manual_args).collect(),
         cwd,
         env: vec![
             ("TERM".into(), "xterm-256color".into()),
@@ -765,6 +958,7 @@ pub fn build_plan(
             )
         }))
         .chain(profile_dir)
+        .chain(manual_env)
         .collect(),
         env_remove: removed_env(std::env::var_os("CLAUDECODE").is_some()),
         initial_input,
@@ -1991,5 +2185,444 @@ mod tests {
         assert!(has(&plan_of(Some(Permission::Ask))));
         assert!(has(&plan_of(Some(Permission::Work))));
         assert!(!has(&plan_of(None)));
+    }
+
+    // A program and data under a name with a space, an apostrophe and an ampersand.
+    const REAL: &str = r"C:\Users\Jean d'Arc & co\.local\bin\claude.exe";
+
+    fn real_on_path(name: &str) -> Option<PathBuf> {
+        (name == "claude").then(|| PathBuf::from(REAL))
+    }
+
+    fn data_hooks() -> AgentHooks {
+        AgentHooks {
+            claude_settings: Some(PathBuf::from(
+                r"C:\Users\Jean d'Arc & co\data\hooks\n1.json",
+            )),
+            mcp_config: Some(PathBuf::from(r"C:\Users\Jean d'Arc & co\data\mcp\n1.json")),
+            system_prompt: Some(PathBuf::from(r"C:\Users\Jean d'Arc & co\data\mcp\n1.md")),
+            ..Default::default()
+        }
+    }
+
+    fn shell_of(syntax: ShellSyntax) -> ShellProgram {
+        let (program, args) = match syntax {
+            ShellSyntax::PowerShell => ("powershell.exe", vec!["-NoLogo".to_string()]),
+            ShellSyntax::Cmd => ("cmd.exe", vec![]),
+            ShellSyntax::Posix => (
+                r"C:\Program Files\Git\bin\bash.exe",
+                vec!["--login".to_string(), "-i".to_string()],
+            ),
+        };
+        ShellProgram {
+            program: PathBuf::from(program),
+            args,
+            syntax,
+        }
+    }
+
+    fn manual(
+        syntax: ShellSyntax,
+        launch: Option<ClaudeLaunch>,
+        hooks: &AgentHooks,
+    ) -> ManualClaude {
+        manual_claude(
+            &spec(Agent::Claude, launch),
+            &shell_of(syntax),
+            hooks,
+            &real_on_path,
+        )
+        .unwrap()
+        .expect("a wrapper")
+    }
+
+    /// The text that defines the wrapper, whatever the shell carries it in.
+    fn wrapper_text(manual: &ManualClaude) -> String {
+        manual
+            .args
+            .iter()
+            .cloned()
+            .chain(manual.env.iter().map(|(_, value)| value.clone()))
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
+    #[test]
+    fn powershell_defines_claude_after_the_profile_and_cleans_its_history() {
+        let m = manual(
+            ShellSyntax::PowerShell,
+            claude(ClaudeMode::New, "Mon agent"),
+            &data_hooks(),
+        );
+        let node = r"& 'C:\Users\Jean d''Arc & co\.local\bin\claude.exe' --mcp-config 'C:\Users\Jean d''Arc & co\data\mcp\n1.json' --append-system-prompt-file 'C:\Users\Jean d''Arc & co\data\mcp\n1.md' --settings 'C:\Users\Jean d''Arc & co\data\hooks\n1.json'";
+        assert_eq!(
+            m.args,
+            vec![
+                "-NoExit".to_string(),
+                "-Command".to_string(),
+                format!(
+                    "Remove-Item -ErrorAction Ignore Alias:claude; function global:claude {{ if ($MyInvocation.ExpectingInput) {{ $input | {node} @args }} else {{ {node} @args }} }}; $global:__dummyPlanePrompt = $function:prompt; function global:prompt {{ $p = $global:__dummyPlanePrompt; Remove-Variable -Scope Global __dummyPlanePrompt; Set-Item function:global:prompt $p; Clear-History -Id 1 -ErrorAction Ignore; & $p }}"
+                ),
+            ]
+        );
+        assert!(m.env.is_empty());
+        // No double quote: the PTY's command line would escape it as `\"`.
+        assert!(!m.args.iter().any(|arg| arg.contains('"')), "{:?}", m.args);
+        // dummyPlane's own line calls the program itself, never the wrapper.
+        assert_eq!(
+            m.launch,
+            format!(
+                r"& 'C:\Users\Jean d''Arc & co\.local\bin\claude.exe' --settings 'C:\Users\Jean d''Arc & co\data\hooks\n1.json' --mcp-config 'C:\Users\Jean d''Arc & co\data\mcp\n1.json' --append-system-prompt-file 'C:\Users\Jean d''Arc & co\data\mcp\n1.md' --session-id {SESSION} -n 'Mon agent'"
+            )
+        );
+    }
+
+    #[test]
+    fn cmd_gets_a_doskey_macro_through_a_variable_its_command_removes() {
+        let hooks = AgentHooks {
+            claude_settings: Some(PathBuf::from(r"C:\data$\hooks\n1.json")),
+            ..data_hooks()
+        };
+        let m = manual(ShellSyntax::Cmd, claude(ClaudeMode::Resume, ""), &hooks);
+        assert_eq!(
+            m.args,
+            vec![
+                "/K".to_string(),
+                "doskey claude=%DUMMYPLANE_CLAUDE% & set DUMMYPLANE_CLAUDE=".to_string()
+            ]
+        );
+        assert_eq!(
+            m.env,
+            vec![(
+                "DUMMYPLANE_CLAUDE".to_string(),
+                r#""C:\Users\Jean d'Arc & co\.local\bin\claude.exe" --mcp-config "C:\Users\Jean d'Arc & co\data\mcp\n1.json" --append-system-prompt-file "C:\Users\Jean d'Arc & co\data\mcp\n1.md" --settings "C:\data$$\hooks\n1.json" $*"#
+                    .to_string()
+            )]
+        );
+        assert_eq!(
+            m.launch,
+            format!(
+                r#""C:\Users\Jean d'Arc & co\.local\bin\claude.exe" --settings "C:\data$\hooks\n1.json" --mcp-config "C:\Users\Jean d'Arc & co\data\mcp\n1.json" --append-system-prompt-file "C:\Users\Jean d'Arc & co\data\mcp\n1.md" --resume {SESSION}"#
+            )
+        );
+    }
+
+    #[test]
+    fn git_bash_imports_a_function_inert_inside_claude_s_own_tools() {
+        let m = manual(
+            ShellSyntax::Posix,
+            claude(ClaudeMode::New, "/fix login"),
+            &data_hooks(),
+        );
+        assert!(m.args.is_empty(), "{:?}", m.args);
+        assert_eq!(
+            m.env,
+            vec![(
+                "BASH_FUNC_claude%%".to_string(),
+                r#"() { if [ -n "${CLAUDECODE:-}" ]; then command claude "$@"; return; fi; export -fn claude; 'C:/Users/Jean d'\''Arc & co/.local/bin/claude.exe' --mcp-config 'C:\Users\Jean d'\''Arc & co\data\mcp\n1.json' --append-system-prompt-file 'C:\Users\Jean d'\''Arc & co\data\mcp\n1.md' --settings 'C:\Users\Jean d'\''Arc & co\data\hooks\n1.json' "$@"; }"#
+                    .to_string()
+            )]
+        );
+        assert_eq!(
+            m.launch,
+            format!(
+                r"MSYS_NO_PATHCONV=1 'C:/Users/Jean d'\''Arc & co/.local/bin/claude.exe' --settings 'C:\Users\Jean d'\''Arc & co\data\hooks\n1.json' --mcp-config 'C:\Users\Jean d'\''Arc & co\data\mcp\n1.json' --append-system-prompt-file 'C:\Users\Jean d'\''Arc & co\data\mcp\n1.md' --session-id {SESSION} -n '/fix login'"
+            )
+        );
+    }
+
+    #[test]
+    fn the_wrapper_leaves_the_conversation_s_flags_to_the_user() {
+        let syntaxes = [
+            ShellSyntax::PowerShell,
+            ShellSyntax::Cmd,
+            ShellSyntax::Posix,
+        ];
+        for syntax in syntaxes {
+            for mode in [ClaudeMode::New, ClaudeMode::Resume, ClaudeMode::Continue] {
+                let mut launch = claude(mode, "Mon agent");
+                launch.as_mut().unwrap().remote_control = Some("Batman".into());
+                let m = manual(syntax, launch, &data_hooks());
+                let wrapper = wrapper_text(&m);
+                for session in [
+                    SESSION,
+                    "--session-id",
+                    "--resume",
+                    "--continue",
+                    // `-n`'s title: bash's own `[ -n … ]` is no conversation flag.
+                    "Mon agent",
+                    "--remote-control",
+                    "Batman",
+                    "MSYS_NO_PATHCONV",
+                ] {
+                    assert!(
+                        !wrapper.contains(session),
+                        "{syntax:?} {mode:?}: {session} in {wrapper}"
+                    );
+                }
+                // The launch line keeps them.
+                assert!(m.launch.contains("--remote-control"), "{}", m.launch);
+            }
+        }
+    }
+
+    #[test]
+    fn a_fleet_keeps_its_tools_role_and_limits_through_the_wrapper() {
+        let fleet = claude(ClaudeMode::Resume, "").map(|launch| ClaudeLaunch {
+            role: Role::Fleet,
+            permission: Some(Permission::Work),
+            model: Some("opus".into()),
+            effort: Some(Effort::High),
+            ..launch
+        });
+        let tail = [
+            (ShellSyntax::PowerShell, " @args"),
+            (ShellSyntax::Cmd, " $*"),
+            (ShellSyntax::Posix, " \"$@\"; }"),
+        ];
+        for (syntax, args) in tail {
+            let m = manual(syntax, fleet.clone(), &tooled());
+            let wrapper = wrapper_text(&m);
+            let settings = quote(syntax, r"C:\data\hooks\n1.json").replace('$', "$$");
+            let expected = format!(
+                "--mcp-config {} --strict-mcp-config --append-system-prompt-file {} --model {} --effort high --permission-mode dontAsk --settings {settings}{args}",
+                quote(syntax, r"C:\data\mcp\n1.json"),
+                quote(syntax, r"C:\data\mcp\n1.md"),
+                quote(syntax, "opus"),
+            );
+            assert!(wrapper.contains(&expected), "{syntax:?}: {wrapper}");
+        }
+    }
+
+    #[test]
+    fn the_last_flag_before_the_user_s_arguments_takes_one_value() {
+        // `--mcp-config` would take `claude "fix this"`'s prompt for one of its files.
+        for syntax in [
+            ShellSyntax::PowerShell,
+            ShellSyntax::Cmd,
+            ShellSyntax::Posix,
+        ] {
+            let wrapper = wrapper_text(&manual(syntax, claude(ClaudeMode::New, ""), &tooled()));
+            let settings = format!("--settings {}", quote(syntax, r"C:\data\hooks\n1.json"));
+            for end in [" @args", " $*", " \"$@\""] {
+                // The last one: bash's first `"$@"` goes to the plain program, inside Claude's tools.
+                if let Some(at) = wrapper.rfind(end) {
+                    assert!(wrapper[..at].ends_with(&settings), "{syntax:?}: {wrapper}");
+                }
+            }
+        }
+        // Tools without the role file never happen; the wrapper would then end on them: none.
+        let tools_only = AgentHooks {
+            mcp_config: Some(PathBuf::from(r"C:\data\mcp\n1.json")),
+            ..Default::default()
+        };
+        let none = manual_claude(
+            &spec(Agent::Claude, claude(ClaudeMode::New, "")),
+            &shell_of(ShellSyntax::PowerShell),
+            &tools_only,
+            &real_on_path,
+        )
+        .unwrap();
+        assert_eq!(none, None);
+    }
+
+    #[test]
+    fn a_mission_agent_keeps_its_permission_mode_and_its_model_alone_without_a_server() {
+        let launch = with_permission(Some(Permission::Edits)).map(|launch| ClaudeLaunch {
+            model: Some("sonnet".into()),
+            ..launch
+        });
+        let m = manual(ShellSyntax::PowerShell, launch, &AgentHooks::default());
+        assert!(
+            wrapper_text(&m).contains(&format!(
+                "& '{}' --model 'sonnet' --permission-mode acceptEdits @args",
+                REAL.replace('\'', "''")
+            )),
+            "{}",
+            wrapper_text(&m)
+        );
+        // Nothing of the node's to keep: no wrapper, and the line of before.
+        let plain = manual_claude(
+            &spec(Agent::Claude, claude(ClaudeMode::New, "")),
+            &shell_of(ShellSyntax::PowerShell),
+            &AgentHooks::default(),
+            &real_on_path,
+        )
+        .unwrap();
+        assert_eq!(plain, None);
+    }
+
+    #[test]
+    fn the_plan_starts_the_shell_with_the_wrapper_and_types_the_real_program() {
+        let s = SpawnSpec {
+            shell: ShellKind::PowerShell,
+            ..spec(Agent::Claude, claude(ClaudeMode::Continue, ""))
+        };
+        let plan = build_plan("n1", &s, &real_on_path, &tooled()).unwrap();
+        assert_eq!(plan.program, PathBuf::from("powershell.exe"));
+        assert_eq!(&plan.args[..3], ["-NoLogo", "-NoExit", "-Command"]);
+        assert!(
+            plan.args[3].starts_with(
+                "Remove-Item -ErrorAction Ignore Alias:claude; function global:claude"
+            )
+        );
+        assert_eq!(
+            plan.initial_input.as_deref(),
+            Some(
+                r"& 'C:\Users\Jean d''Arc & co\.local\bin\claude.exe' --settings 'C:\data\hooks\n1.json' --mcp-config 'C:\data\mcp\n1.json' --append-system-prompt-file 'C:\data\mcp\n1.md' --continue"
+                    .to_string()
+                    + "\r"
+            )
+            .as_deref()
+        );
+        let cmd = build_plan(
+            "n1",
+            &SpawnSpec {
+                shell: ShellKind::Cmd,
+                ..s.clone()
+            },
+            &real_on_path,
+            &tooled(),
+        )
+        .unwrap();
+        assert_eq!(cmd.args[0], "/K");
+        assert!(cmd.env.iter().any(|(key, _)| key == CMD_MACRO_ENV));
+    }
+
+    #[test]
+    fn a_manual_claude_inherits_the_profile_s_folder_and_the_push_block_from_the_shell() {
+        let folder = tempfile::tempdir().unwrap();
+        let mut launch = with_permission(Some(Permission::Work));
+        launch.as_mut().unwrap().config_dir = Some(folder.path().to_string_lossy().into_owned());
+        let plan =
+            build_plan("n1", &spec(Agent::Claude, launch), &real_on_path, &tooled()).unwrap();
+        let keys: Vec<&str> = plan.env.iter().map(|(key, _)| key.as_str()).collect();
+        for key in [
+            "CLAUDE_CONFIG_DIR",
+            "GIT_CONFIG_KEY_0",
+            "DUMMYPLANE_NODE_ID",
+            CMD_MACRO_ENV,
+        ] {
+            assert!(keys.contains(&key), "{key}: {keys:?}");
+        }
+    }
+
+    #[test]
+    fn no_wrapper_where_it_could_not_call_the_right_program() {
+        let plan = |agent, shell, locate: Locate| {
+            let launch = (agent == Agent::Claude)
+                .then(|| claude(ClaudeMode::New, ""))
+                .flatten();
+            let s = SpawnSpec {
+                shell,
+                ..spec(agent, launch)
+            };
+            build_plan("n1", &s, locate, &tooled()).unwrap()
+        };
+        // No claude on the PATH: the shell and the line of before.
+        let lost = plan(Agent::Claude, ShellKind::PowerShell, &nothing_on_path);
+        assert_eq!(lost.args, vec!["-NoLogo".to_string()]);
+        assert!(lost.initial_input.unwrap().starts_with("claude --settings"));
+        // Not a Claude terminal.
+        for agent in [Agent::Codex, Agent::Shell, Agent::Aider] {
+            let other = plan(agent, ShellKind::Cmd, &real_on_path);
+            assert!(other.args.is_empty(), "{agent:?}");
+            assert!(other.env.iter().all(|(key, _)| key != CMD_MACRO_ENV));
+        }
+        // cmd would drop the `%` of the program's path and call another one.
+        let percent = |name: &str| (name == "claude").then(|| PathBuf::from(r"C:\100%\claude.exe"));
+        let dropped = plan(Agent::Claude, ShellKind::Cmd, &percent);
+        assert!(dropped.args.is_empty());
+        assert!(
+            dropped
+                .initial_input
+                .unwrap()
+                .starts_with("claude --settings")
+        );
+        // A POSIX shell that is not bash would only pass the function on.
+        let zsh = ShellProgram {
+            program: PathBuf::from("/bin/zsh"),
+            args: vec!["-l".into()],
+            syntax: ShellSyntax::Posix,
+        };
+        let none = manual_claude(
+            &spec(Agent::Claude, claude(ClaudeMode::New, "")),
+            &zsh,
+            &tooled(),
+            &real_on_path,
+        )
+        .unwrap();
+        assert_eq!(none, None);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn calls_npm_s_cmd_rather_than_the_shell_script_beside_it() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("claude"), "#!/bin/sh\n").unwrap();
+        std::fs::write(dir.path().join("claude.cmd"), "@echo off\n").unwrap();
+        let script = dir.path().join("claude");
+        let locate = |_: &str| Some(script.clone());
+        assert_eq!(
+            real_program(&locate, "claude"),
+            Some(dir.path().join("claude.cmd"))
+        );
+        let exe = |_: &str| Some(PathBuf::from(REAL));
+        assert_eq!(real_program(&exe, "claude"), Some(PathBuf::from(REAL)));
+        let nothing = |_: &str| Some(dir.path().join("gone"));
+        assert_eq!(real_program(&nothing, "claude"), None);
+    }
+
+    /// Writes the plans of a Claude terminal in each shell for the PTY probe in
+    /// `D:\temp\manual-claude` (`DUMMYPLANE_PROBE_PLANS`: the JSON file;
+    /// `DUMMYPLANE_PROBE_CLAUDE`: the stand-in program).
+    #[test]
+    #[ignore]
+    fn writes_plans_for_the_pty_probe() {
+        let out = std::env::var("DUMMYPLANE_PROBE_PLANS").unwrap();
+        let fake = PathBuf::from(std::env::var("DUMMYPLANE_PROBE_CLAUDE").unwrap());
+        let data = PathBuf::from(&out)
+            .parent()
+            .unwrap()
+            .join("data dir")
+            .join("it's & co");
+        let hooks = AgentHooks {
+            claude_settings: Some(data.join("hooks").join("n1.json")),
+            mcp_config: Some(data.join("mcp").join("n1.json")),
+            system_prompt: Some(data.join("mcp").join("n1.md")),
+            ..Default::default()
+        };
+        let locate = |name: &str| match name {
+            "claude" => Some(fake.clone()),
+            other => which_locate(other),
+        };
+        let fleet = claude(ClaudeMode::New, "Probe fleet").map(|launch| ClaudeLaunch {
+            role: Role::Fleet,
+            permission: Some(Permission::Work),
+            ..launch
+        });
+        let mut plans = serde_json::Map::new();
+        for (name, shell) in [
+            ("powershell", ShellKind::PowerShell),
+            ("cmd", ShellKind::Cmd),
+            ("gitbash", ShellKind::GitBash),
+        ] {
+            let s = SpawnSpec {
+                shell,
+                ..spec(Agent::Claude, fleet.clone())
+            };
+            let plan = build_plan("probe-node", &s, &locate, &hooks).unwrap();
+            plans.insert(
+                name.into(),
+                serde_json::json!({
+                    "program": plan.program,
+                    "args": plan.args,
+                    "env": plan.env,
+                    "envRemove": plan.env_remove,
+                    "initialInput": plan.initial_input,
+                }),
+            );
+        }
+        std::fs::write(&out, serde_json::to_vec_pretty(&plans).unwrap()).unwrap();
     }
 }
