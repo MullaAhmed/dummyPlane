@@ -28,8 +28,7 @@ export interface CommandContext {
 
 /**
  * One function of the application. Its shortcut, its palette line (J8) and
- * its radial menu entry run this same command: they never diverge (spec
- * window §3).
+ * its radial menu entry run this same command: they never diverge.
  */
 export interface Command {
   id: string;

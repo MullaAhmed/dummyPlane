@@ -83,13 +83,13 @@ it("sends a /command to every agent of @cyborg/deadpool/ironman", async () => {
   expect(sendCommand).toHaveBeenCalledWith(["b", "d", "h"], "/effort ultracode");
 });
 
-it("sends a command typed in full on Enter, instead of completing it (final review maj §1)", async () => {
+it("sends a command typed in full on Enter, instead of completing it", async () => {
   await type("@cyborg /clear");
   await press("Enter");
   expect(sendCommand).toHaveBeenCalledWith(["b"], "/clear");
 });
 
-it("goes on through the history past a command, its list closed (final review maj §1)", async () => {
+it("goes on through the history past a command, its list closed", async () => {
   await act(async () => historyStore.setState({ entries: ["@deadpool lance les tests", "@cyborg/deadpool /compact"] }));
   await press("ArrowUp");
   expect(field().value).toBe("@cyborg/deadpool /compact");
@@ -98,7 +98,7 @@ it("goes on through the history past a command, its list closed (final review ma
   expect(field().value).toBe("@deadpool lance les tests");
 });
 
-it("does not send a /command whose target is unknown to the selection instead (final review maj §1)", async () => {
+it("does not send a /command whose target is unknown to the selection instead", async () => {
   await act(async () => root.render(<CommandInput agents={agents} groups={[]} fallback={["d"]} placeholder="Consigne" emptyHint="Tape @" />));
   await type("/clear @cyborg/deadpoll");
   await press("Enter");

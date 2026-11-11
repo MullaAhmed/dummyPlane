@@ -13,7 +13,7 @@ export const STATUS_TEXT = "flex shrink-0 items-center gap-2 text-xs text-dp-tex
 
 /**
  * Where an agent stands: its status dot and a quiet word,
- * no pill around them. The tooltip tells how long it has been so (§10.4).
+ * no pill around them. The tooltip tells how long it has been so.
  * `labelClassName` lets a narrow header take the word back to the screen
  * readers and the tooltip, the dot alone staying. `report` is the agent's last
  * report: once it rests it reads Done, Blocked or Failed (pillOf). `shell`: a plain console, never

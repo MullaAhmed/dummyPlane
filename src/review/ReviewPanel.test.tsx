@@ -207,7 +207,7 @@ it("browses the repository's files, read-only", async () => {
   expect(calls.find((c) => c.cmd === "review_read_file")?.args).toEqual({ path: "C:/code/proj", file: "README.md" });
 });
 
-it("keeps its remarks when closed and opened again on the same agent (final review maj §5)", async () => {
+it("keeps its remarks when closed and opened again on the same agent", async () => {
   await act(async () => reviewStore.getState().add({ file: "src/a.ts", line: 2, text: "Why 3?" }));
   await act(async () => reviewStore.getState().close());
   await act(async () => reviewStore.getState().open("batman"));
@@ -216,7 +216,7 @@ it("keeps its remarks when closed and opened again on the same agent (final revi
   expect(reviewStore.getState().remarks).toEqual([]);
 });
 
-it("closes on Escape, unless another part of the window already used it (final review maj §5)", async () => {
+it("closes on Escape, unless another part of the window already used it", async () => {
   const menu = document.createElement("div");
   document.body.append(menu);
   menu.addEventListener("keydown", (e) => e.preventDefault());

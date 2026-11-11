@@ -78,7 +78,7 @@ it("tells what closing a fleet in mission leaves behind", async () => {
   expect(removeNodes).toHaveBeenLastCalledWith(["chef", "fil"]);
 });
 
-it("says whether the agent is at work or ready, as the spec asks (§7.5)", async () => {
+it("says whether the agent is at work or ready", async () => {
   terminalStatusStore.getState().set("batman", { state: "running" });
   agentActivityStore.getState().apply({ nodeId: "batman", activity: "working", since: 1 });
   await act(async () => uiStore.getState().setClosing({ agents: ["batman"], remove: ["batman"] }));

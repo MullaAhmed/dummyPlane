@@ -88,7 +88,7 @@ describe("goToItems", () => {
 });
 
 describe("goToSections", () => {
-  it("puts the items in their sections, in the spec's order, empty sections left out", () => {
+  it("puts the items in their sections, in their fixed order, empty sections left out", () => {
     const sections = goToSections(goToItems(input({ home: true, activeProjectId: null })), "");
     expect(sections.map((s) => s.label)).toEqual(["Projects"]);
     expect(goToSections(goToItems(input()), "").map((s) => s.label)).toEqual(["Terminals", "Groups", "Fleets", "Workspaces", "Projects"]);

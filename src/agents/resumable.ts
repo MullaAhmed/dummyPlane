@@ -2,8 +2,7 @@ import type { NodeRecord } from "@/store/nodes";
 import type { TerminalStatus } from "@/store/terminalStatus";
 
 /**
- * Terminals restored stopped that can pick their conversation back up (spec
- * theme §7.4). A terminal never shown yet has no status: it counts as stopped,
+ * Terminals restored stopped that can pick their conversation back up. A terminal never shown yet has no status: it counts as stopped,
  * unless its process still runs in Rust (webview reload). Only terminals on the
  * canvas count: a closed one keeps its record in memory for undo.
  */

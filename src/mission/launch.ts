@@ -269,7 +269,7 @@ export async function launchMission(fleetId: string): Promise<void> {
   const mission = missionOf(record);
   const session = sessionOf(record);
   if (!record || !mission || !session || mission.state !== "plan" || !mission.plan?.length) return;
-  // The router was turned on after the plan: without levels, every agent would get Claude's default model (final review maj §3).
+  // The router was turned on after the plan: without levels, every agent would get Claude's default model.
   if (mission.router && [...mission.plan, ...(mission.queue ?? [])].some((task) => !task.level)) {
     const error = t().lines.levelsMissing;
     setMission(fleetId, { error });

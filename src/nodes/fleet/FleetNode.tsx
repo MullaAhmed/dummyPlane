@@ -162,7 +162,7 @@ function FleetHeader(props: {
           <DropdownMenuItem onSelect={() => void pauseAll(agentIds)}>{t.pauseAll}</DropdownMenuItem>
           <DropdownMenuItem onSelect={() => void resumeAll(agentIds)}>{t.resumeAll}</DropdownMenuItem>
           <DropdownMenuSeparator />
-          {/* Spec maj §2: the Fleet and its team, followed from the phone. */}
+          {/* The Fleet and its team, followed from the phone. */}
           <DropdownMenuItem onSelect={() => void setRemoteControlAll([nodeId, ...agentIds], true)}>{t.remoteTeam}</DropdownMenuItem>
           <DropdownMenuItem onSelect={() => void setRemoteControlAll([nodeId, ...agentIds], false)}>{t.remoteOff}</DropdownMenuItem>
           {/* The router's switch is in the header from 28rem on; here it is, at any width. */}

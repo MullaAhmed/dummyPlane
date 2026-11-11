@@ -54,7 +54,7 @@ beforeEach(() => {
 afterAll(() => clearMocks());
 
 describe("Navigation", () => {
-  it("lists the spec's functions, in its order", () => {
+  it("lists the functions, in their fixed order", () => {
     agentsPanelStore.setState({ open: true });
     expect(NAVIGATION.filter((c) => c.id !== "palette.functions").map((c) => labelOf(c, busy))).toEqual([
       "Next terminal",

@@ -20,7 +20,7 @@ const BAND = OUTER_RADIUS - INNER_RADIUS;
 export const HOVER_SLACK = 20;
 /** The circle that catches the pointer: the wedges and the slack around them. */
 export const HIT_RADIUS = OUTER_RADIUS + HOVER_SLACK;
-/** On the hub, the pointer points at nothing (§5.2): a slide released there chooses nothing. */
+/** On the hub, the pointer points at nothing: a slide released there chooses nothing. */
 export const DEAD_ZONE = HUB_RADIUS;
 /** Closer to the press, a slide points at nothing either: the ring moved off an edge sits away from it. */
 export const PRESS_DEAD_ZONE = 24;

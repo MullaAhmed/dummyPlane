@@ -118,7 +118,7 @@ function create(nodeId: string): Entry {
     entry.lastInput = Date.now();
     if (acceptsInput(nodeId, entry.session)) void ptyWrite(nodeId, data).catch(() => undefined);
   });
-  // Spec habillage §7.3: typing in a terminal where nothing runs starts it again.
+  // Typing in a terminal where nothing runs starts it again.
   // onKey, not onData: xterm also answers the queries of a restored screen.
   term.onKey(({ domEvent }) => {
     // The user types in it: new work, its last report no longer stands (./minimize.ts).

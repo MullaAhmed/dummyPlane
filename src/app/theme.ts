@@ -4,7 +4,7 @@ import { messages } from "@/i18n";
 import { getSetting, setSetting } from "@/ipc/db";
 import { appMessages } from "./messages";
 
-/** Spec identité §4.2: three palettes of two colors each, a canvas and an ink that is also the accent. */
+/** Three palettes of two colors each, a canvas and an ink that is also the accent. */
 export type ThemeChoice = "calm" | "electric" | "expressive";
 /** The color scheme a palette declares: `data-theme` on <html>, read by Tailwind's `dark:` and Excalidraw. */
 export type Theme = "light" | "dark";

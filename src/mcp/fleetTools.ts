@@ -726,8 +726,7 @@ export async function fleetTool(fleetId: string, name: string, args: Record<stri
 }
 
 /**
- * One call of a mission's Manager, by internal name: it runs its Fleet's mission with the team (spec
- * babysitter Fleet). The same mission tools as the Fleet's of old, plus its board's.
+ * One call of a mission's Manager, by internal name: it runs its Fleet's mission with the team. The same mission tools as the Fleet's of old, plus its board's.
  */
 export async function managerTool(managerId: string, name: string, args: Record<string, unknown>): Promise<ToolResult> {
   const fleetId = managedFleet(managerId);

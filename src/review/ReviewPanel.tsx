@@ -66,7 +66,7 @@ function ReviewDrawer({ nodeId }: { nodeId: string }) {
   }, [nodeId, cwd]);
 
   useEffect(() => {
-    // An Escape a menu, a dialog or a field already used is theirs (final review maj §5).
+    // An Escape a menu, a dialog or a field already used is theirs.
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
       const typing = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target?.isContentEditable === true;

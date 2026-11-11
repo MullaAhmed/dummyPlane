@@ -75,7 +75,7 @@ function later(a: Limit | undefined, b: Limit | undefined): Limit | undefined {
 
 /**
  * Each session's status line carries the limits of its own last answer
- * (final review maj §6): an older session's must not take the meter back,
+ *: an older session's must not take the meter back,
  * and a window missing from a reading stays as it was.
  */
 export function mergeLimits(known: Limits | null, read: Limits): Limits {

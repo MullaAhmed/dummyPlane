@@ -13,7 +13,7 @@ import { command, derived, sectionNamed } from "./define";
 import { catalog } from "./messages";
 import { inProject } from "./navigation";
 
-/** The agents of "Launch …", in the spec's order. */
+/** The agents of "Launch …", in a fixed order. */
 const LAUNCHED: readonly AgentId[] = ["claude", "codex", "gemini", "qwen", "cursor", "opencode", "aider", "ollama", "shell"];
 
 const section = sectionNamed((s) => s.agents);

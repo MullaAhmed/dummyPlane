@@ -257,7 +257,7 @@ export function AgentMenu({
                 </span>
                 <span className="min-w-0 flex-1 text-(length:--text-ui) font-medium text-dp-text">{t.agentMenu.newConsole}</span>
               </Button>
-              {/* Spec theme §10.1: placed the same way as an agent. */}
+              {/* Placed the same way as an agent. */}
               <Button
                 type="button"
                 variant="ghost"

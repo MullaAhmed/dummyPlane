@@ -173,7 +173,7 @@ describe("the model router", () => {
     expect(relaunchTerminal).toHaveBeenLastCalledWith("batman", expect.objectContaining({ cwd: "C:/code/proj", model: undefined }), "new");
   });
 
-  it("does not launch with the router on and a sub-task without a level: it would run on the default model (final review maj §3)", async () => {
+  it("does not launch with the router on and a sub-task without a level: it would run on the default model", async () => {
     await setup({ router: true });
     await launchMission("chef");
     expect(missionPrepare).not.toHaveBeenCalled();

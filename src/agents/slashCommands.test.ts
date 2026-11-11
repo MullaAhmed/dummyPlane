@@ -7,7 +7,7 @@ describe("isSlashCommand", () => {
     expect(isSlashCommand("  /remote-control")).toBe(true);
     expect(isSlashCommand("lance les tests /vite")).toBe(false);
     expect(isSlashCommand("/")).toBe(false);
-    // A path stays a shell command (final review maj §1).
+    // A path stays a shell command.
     expect(isSlashCommand("/usr/bin/make test")).toBe(false);
     expect(isSlashCommand("/c/Users/x/run.sh")).toBe(false);
   });

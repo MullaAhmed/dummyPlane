@@ -295,7 +295,7 @@ function LoadedCanvas({ workspaceId, scene }: { workspaceId: string; scene: Load
 }
 
 /**
- * Spec §6.3: an activated terminal is shown at 100 %, where xterm text is sharp
+ * An activated terminal is shown at 100 %, where xterm text is sharp
  * and mouse selection lines up; the view is only moved when it was zoomed.
  */
 function showAtFullSize(api: ExcalidrawImperativeAPI, nodeId: string) {

@@ -1,6 +1,6 @@
 import { debounce } from "@/lib/debounce";
 
-/** Spec §6.4: the PTY is resized 50 ms after a node stops changing size, not on every frame. */
+/** The PTY is resized 50 ms after a node stops changing size, not on every frame. */
 export const FIT_DELAY_MS = 50;
 /**
  * A new font size rebuilds xterm's glyph atlas: terminals are redrawn sharp at the

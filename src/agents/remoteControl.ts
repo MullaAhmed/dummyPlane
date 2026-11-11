@@ -43,7 +43,7 @@ const DISCONNECTED = /^\s*(⎿\s*)?Remote Control disconnected\b/;
 const REFUSED = /^\s*(⎿\s*)?(Remote Control requires a claude\.ai subscription|Remote Control\b.*\b(not available|unavailable|disabled|failed)\b)/i;
 
 /**
- * Reads a Claude screen (final review maj §2): a menu only at its bottom,
+ * Reads a Claude screen: a menu only at its bottom,
  * an answer only on the lines right after the last echo of the command, or
  * in the banner of a session started with Remote Control. The same words
  * printed elsewhere (a file, a diff) count for nothing.
@@ -199,7 +199,7 @@ export const remoteDeps = { sleep: (ms: number) => new Promise<void>((resolve) =
 
 function ioOf(nodeId: string): RemoteIo {
   return {
-    // The current session's screen only: an earlier run's output says nothing of this one (final review maj §2).
+    // The current session's screen only: an earlier run's output says nothing of this one.
     screen: () => freshText(nodeId, 80),
     send: (text) => ptySendText(nodeId, text),
     press: (keys) => ptyWrite(nodeId, keys),
@@ -219,7 +219,7 @@ export function hasRemote(nodeId: string): boolean {
 
 const wanted = (nodeId: string) => sessionOf(nodesStore.getState().nodes[nodeId])?.remoteControl === true;
 
-/** One flow at a time per session: two would interleave their keys (final review maj §2). */
+/** One flow at a time per session: two would interleave their keys. */
 const flows = new Map<string, Promise<unknown>>();
 function locked<T>(nodeId: string, flow: () => Promise<T>): Promise<T> {
   const run = (flows.get(nodeId) ?? Promise.resolve()).then(flow, flow);
@@ -247,7 +247,7 @@ async function apply(nodeId: string): Promise<RemoteResult> {
     remoteStore.getState().set(nodeId, null);
     return on ? { on: true } : { on: false };
   }
-  // In a turn or a dialog, the Enter after the command would answer for the user (final review maj §2).
+  // In a turn or a dialog, the Enter after the command would answer for the user.
   if ((agentActivityStore.getState().activities[nodeId]?.activity ?? "idle") !== "idle") {
     pending.add(nodeId);
     remoteStore.getState().set(nodeId, { state: "pending", url: remoteStore.getState().links[nodeId]?.url });

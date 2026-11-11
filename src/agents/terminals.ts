@@ -243,8 +243,7 @@ export function removeNode(nodeId: string) {
 }
 
 /**
- * "Close" of the header: a running agent asks for confirmation first (spec
- * theme §7.5), and so does one whose sub-agents (spawn_agent) are still on the
+ * "Close" of the header: a running agent asks for confirmation first, and so does one whose sub-agents (spawn_agent) are still on the
  * canvas: they may close with it.
  */
 export function requestClose(nodeId: string) {

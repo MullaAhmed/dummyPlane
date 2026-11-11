@@ -10,7 +10,7 @@ export type RadialTarget =
   | { kind: "group"; id: string }
   | { kind: "selection"; ids: string[]; groupId?: string };
 
-/** A text field keeps its own right click (§5.2); xterm's hidden input is not one. */
+/** A text field keeps its own right click; xterm's hidden input is not one. */
 export function isTextField(element: Element): boolean {
   if (element.closest(".xterm")) return false;
   return element.closest("input, textarea, [contenteditable='true'], [contenteditable='']") !== null;
@@ -125,7 +125,7 @@ function drawingAt(element: ExcalidrawElement, elements: readonly ExcalidrawElem
   return { kind: "selection", ids: elements.filter((e) => e.groupIds.includes(groupId)).map((e) => e.id), groupId };
 }
 
-/** What the scene has under a press (§6.4, steps 3 to 6). */
+/** What the scene has under a press. */
 export function sceneTarget({ point, zoom, elements, selectedIds, groupIds }: ScenePick): RadialTarget {
   const tolerance = TOLERANCE / zoom;
   const selected = elements.filter((e) => selectedIds.includes(e.id));

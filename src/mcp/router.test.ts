@@ -300,7 +300,7 @@ describe("the fleet's tools", () => {
     expect(textOf(await call("chef", "remote_control", { on: false, agents: ["batman"] }))).toBe("Batman: off");
     vi.mocked(setRemoteControl).mockResolvedValueOnce({ error: "Remote Control requires a claude.ai subscription" });
     expect(textOf(await call("chef", "remote_control", { on: true, agents: ["Batman"] }))).toBe("Batman: failed — Remote Control requires a claude.ai subscription");
-    // In a turn, it is typed at the end of it: "me" is always in its own turn (final review maj §2).
+    // In a turn, it is typed at the end of it: "me" is always in its own turn.
     vi.mocked(setRemoteControl).mockResolvedValue({ later: true });
     expect(textOf(await call("chef", "remote_control", { on: true, agents: ["Batman", "moi"] }))).toBe(
       "Batman: at the end of its turn\nYou: at the end of your turn — the link will show in your header",

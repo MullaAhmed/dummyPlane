@@ -84,7 +84,7 @@ describe("setRemoteControl on a running session", () => {
     expect(terminalOf(nodesStore.getState().nodes.batman)?.remoteControl).toBe(true);
   });
 
-  it("waits for the end of the agent's turn: Enter would answer its dialog (final review maj §2)", async () => {
+  it("waits for the end of the agent's turn: Enter would answer its dialog", async () => {
     agentActivityStore.getState().apply({ nodeId: "batman", activity: "waiting", since: 1 });
     expect(await setRemoteControl("batman", true)).toEqual({ later: true });
     expect(typed).toEqual([]);
@@ -96,7 +96,7 @@ describe("setRemoteControl on a running session", () => {
     expect(typed).toEqual(["/remote-control"]);
   });
 
-  it("runs one flow at a time per session, the last wish winning (final review maj §2)", async () => {
+  it("runs one flow at a time per session, the last wish winning", async () => {
     const results = await Promise.all([setRemoteControl("batman", true), setRemoteControl("batman", false)]);
     expect(results).toEqual([{ on: true, url: URL }, { on: false }]);
     expect(typed).toEqual(["/remote-control", "/remote-control", "\x1b[A", "\x1b[A", "\r"]);

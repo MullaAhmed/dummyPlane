@@ -53,7 +53,7 @@ describe("remoteScreen", () => {
     });
   });
 
-  it("is not fooled by the same words printed elsewhere on the screen (final review maj §2)", () => {
+  it("is not fooled by the same words printed elsewhere on the screen", () => {
     const printed = [
       "❯ /remote-control",
       "  /remote-control is active · Continue here, on your phone, or at",
@@ -140,7 +140,7 @@ describe("a half-typed draft in Claude's prompt (backlog 27 oct)", () => {
   });
 });
 
-describe("the consent dialog (final review maj §2)", () => {
+describe("the consent dialog", () => {
   it("is never answered: enable and disable stop and say so", async () => {
     const consent = { error: "Claude asks for your consent for Remote Control: answer in its terminal." };
     const shown = fakeTerminal(CONSENT, () => CONSENT);

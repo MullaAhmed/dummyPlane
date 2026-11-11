@@ -133,7 +133,7 @@ it("shows Remote Control on a Claude session only, as dummyPlane knows it", asyn
   host.remove();
 });
 
-it("shows the model a mission's router gave the agent, which outlives the mission otherwise unseen (final review maj §3)", async () => {
+it("shows the model a mission's router gave the agent, which outlives the mission otherwise unseen", async () => {
   const view = await mount(<TerminalHeader nodeId="batman" payload={claude} status={{ state: "running" }} />);
   expect(view.host.querySelector("[data-model]")).toBeNull();
   await act(async () => view.root.render(<TerminalHeader nodeId="batman" payload={{ ...claude, model: "claude-haiku-5-5" }} status={{ state: "running" }} />));

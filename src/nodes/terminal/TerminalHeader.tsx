@@ -141,7 +141,7 @@ export function AccountChip({ accountId }: { accountId?: string }) {
   );
 }
 
-/** The model a mission's router chose; it stays after the mission until cleared (final review maj §3). */
+/** The model a mission's router chose; it stays after the mission until cleared. */
 function ModelChip({ nodeId, model }: { nodeId: string; model: string }) {
   const t = useMessages(nodesMessages).header;
   return (

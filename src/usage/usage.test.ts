@@ -96,7 +96,7 @@ describe("formatting", () => {
   });
 });
 
-describe("mergeLimits (final review maj §6)", () => {
+describe("mergeLimits", () => {
   const limits = (five: [number, number] | null, week: [number, number] | null, at = 0): Limits => ({
     ...(five ? { fiveHour: { usedPercent: five[0], resetsAt: five[1] } } : {}),
     ...(week ? { sevenDay: { usedPercent: week[0], resetsAt: week[1] } } : {}),

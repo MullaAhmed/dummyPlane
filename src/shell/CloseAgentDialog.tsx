@@ -24,8 +24,7 @@ import { shellMessages } from "./messages";
 /**
  * "Close Batman?" before closing a running agent, or
  * "Close 2 agents?" when an undo or Delete took several at once.
- * A fleet in mission says what its closing leaves behind (spec
- * première version §5.4). An agent that opened sub-agents (spawn_agent) offers
+ * A fleet in mission says what its closing leaves behind. An agent that opened sub-agents (spawn_agent) offers
  * to close them too, ticked by default.
  */
 export function CloseAgentDialog() {
@@ -57,7 +56,7 @@ function CloseAgentContent({ closing, open }: { closing: ClosingAgents | null; o
   const first = closing?.agents[0] ? nodes[closing.agents[0]] : undefined;
   const fleet = one && first?.kind === "fleet";
   const inMission = fleet && first.payload.mission?.state === "en_cours";
-  // Spec habillage §7.5: "is working" or "is ready", by what the agent is doing, read as its pill reads it
+  // "is working" or "is ready", by what the agent is doing, read as its pill reads it
   // (agentState): an agent that exited, a process that stopped or a plain console (no agent) is neither.
   const agentState = isAgentNode(first) ? agentStateOf(status, activity) : null;
   const state = agentState === "working" ? "Working" : agentState === "ready" ? "Ready" : null;

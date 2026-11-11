@@ -6,7 +6,7 @@ interface ReviewState {
   nodeId: string | null;
   /** The remarks written for it, sent together. */
   remarks: Remark[];
-  /** Whose the remarks are: they wait for it through a close (final review maj §5). */
+  /** Whose the remarks are: they wait for it through a close. */
   remarksFor: string | null;
   open: (nodeId: string) => void;
   close: () => void;

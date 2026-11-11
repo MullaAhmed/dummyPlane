@@ -1,7 +1,7 @@
 import type { AgentId } from "@/ipc/pty";
 
 export const DEFAULT_GROUP_SIZE = 4;
-/** Spec theme §20: at most 12 agents per group. */
+/** At most 12 agents per group. */
 export const MAX_GROUP_SIZE = 12;
 
 /** A slot of "Compose a group": an agent, or null for the default agent. */

@@ -20,7 +20,7 @@ const withTerminals = (ctx: CommandContext) => ctx.project && ctx.terminalCount 
 const withWaiting = (ctx: CommandContext) => ctx.project && currentWaitingAgents().length > 0;
 const always = () => true;
 
-/** Ctrl+Tab and Ctrl+Shift+Tab: the next terminal in reading order, then the arrival (§6.4). */
+/** Ctrl+Tab and Ctrl+Shift+Tab: the next terminal in reading order, then the arrival. */
 function step(direction: 1 | -1, ctx: CommandContext) {
   const api = canvasStore.getState().api;
   if (!api) return;

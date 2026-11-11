@@ -43,7 +43,7 @@ afterEach(async () => {
 
 const byLabel = (label: string) => host.querySelector<HTMLButtonElement>(`[aria-label="${label}"]`)!;
 
-it("offers the canvas tools in the spec's order, each setting its Excalidraw tool", async () => {
+it("offers the canvas tools in their fixed order, each setting its Excalidraw tool", async () => {
   const labels = [...host.querySelectorAll("button")].map((b) => b.getAttribute("aria-label"));
   expect(labels).toEqual(["Select (V)", "Hand (H)", "Shapes", "Text (T)", "Pen (P)", "Eraser (E)", "Image", "Launch an agent", "Fit the view"]);
   const tools: [string, string][] = [

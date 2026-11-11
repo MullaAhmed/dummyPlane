@@ -31,7 +31,7 @@ beforeEach(() => {
 afterAll(() => clearMocks());
 
 describe("Agents", () => {
-  it("lists the spec's functions, in its order", () => {
+  it("lists the functions, in their fixed order", () => {
     expect(AGENT_COMMANDS.map((c) => labelOf(c, busy))).toEqual([
       "Launch Claude",
       "Install Codex…",

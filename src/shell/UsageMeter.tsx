@@ -57,7 +57,7 @@ function useGitBashMissing(enabled: boolean): boolean {
  * The title bar's usage: the plan's session and week, from
  * Claude's status lines; the detail of this run's sessions on a click.
  */
-/** The limits as of now: a window past its reset shows as reset (final review maj §6). */
+/** The limits as of now: a window past its reset shows as reset. */
 function useCurrentLimits(): Limits | null {
   const limits = useUsage((s) => s.limits);
   const now = useNow(60_000);

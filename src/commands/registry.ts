@@ -12,7 +12,7 @@ import { FLEET } from "./catalog/fleet";
 import { WORKSPACES } from "./catalog/workspaces";
 import type { Command, CommandContext } from "./command";
 
-/** Every function of the application, by section in the spec's order. */
+/** Every function of the application, by section, in a fixed order. */
 export const COMMANDS: readonly Command[] = [...NAVIGATION, ...WORKSPACES, ...AGENT_COMMANDS, ...CURRENT, ...FLEET, ...DRAWING, ...SCENE, ...APP];
 
 /** The context of a command, read at this moment from the stores and the keyboard focus. */
