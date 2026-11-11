@@ -342,3 +342,14 @@ it("draws the fleet's summary: Markdown as Markdown, OpenUI Lang through the lib
   expect([...host.querySelectorAll("td")].map((td) => td.textContent)).toEqual(["Login", "done"]);
   expect(host.textContent).not.toContain("root =");
 });
+
+it("draws each agent's summary in the morning report, whole, in a bounded scroller", async () => {
+  await show({
+    state: "terminee", overnight: true, budgetMin: 480, startedAt: 0, endedAt: 60 * 60_000, summary: "Night done",
+    members: [{ nodeId: "a", name: "Batman", task: "Login", budgetMin: 20, linked: false, branch: "b", worktree: "w", sentAt: 0, merged: true, report: { summary: "Login **done**\n- tests green\n- docs", status: "termine", at: 10 * 60_000 } }],
+  });
+  const summary = host.querySelector<HTMLElement>("[data-morning-summary]")!;
+  expect(summary.className).toContain("overflow-y-auto");
+  expect(summary.querySelector("strong")?.textContent).toBe("done");
+  expect(summary.querySelectorAll("li")).toHaveLength(2);
+});

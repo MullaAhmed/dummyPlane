@@ -163,6 +163,8 @@ export function report(nodeId: string, args: Record<string, unknown>, ui?: strin
  */
 export async function reportTool(nodeId: string, args: Record<string, unknown>): Promise<ToolResult> {
   if (typeof args.resume !== "string") return report(nodeId, args);
-  const { text, ui } = await splitGenerated(args.resume.trim());
+  const { text, ui, errors } = await splitGenerated(args.resume.trim());
+  // Before anything is recorded: the agent fixes it and reports again.
+  if (errors) return refused(t().output.summaryInvalid(errors));
   return report(nodeId, { ...args, resume: text }, ui);
 }

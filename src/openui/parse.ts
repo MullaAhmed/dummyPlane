@@ -4,9 +4,10 @@ import { outputLibrary } from "./library";
 
 /**
  * Reading generated text: OpenUI Lang or not, and what is wrong with it.
- * The text is OpenUI Lang only when a line starts with `root =`, the entry
- * point every program defines, and it parses to a root: any other text (a
- * summary, Markdown, a paragraph that happens to hold `a = b`) is Markdown.
+ * The text is OpenUI Lang only when its first line is `root = …`, the entry
+ * point every program starts with (`./detect.ts`), and it parses to a root:
+ * any other text (a summary, Markdown, Markdown showing a program in a fence)
+ * is Markdown.
  */
 
 let parser: ReturnType<typeof createParser> | null = null;
@@ -42,7 +43,7 @@ export function checkOpenUI(text: string): OpenUICheck {
   const warnings: string[] = [];
   if (!text.trim()) return { errors: ["The ui is empty: write an OpenUI Lang program, starting with root = Stack([...])."], warnings };
   if (text.length > MAX_OUTPUT_CHARS) return { errors: [`The ui is ${text.length} characters long; the most is ${MAX_OUTPUT_CHARS}. Show less, or split it into several outputs.`], warnings };
-  if (!ROOT_LINE.test(text)) return { errors: ["No root statement: the first line must be root = Stack([...]) (or another component)."], warnings };
+  if (!ROOT_LINE.test(text)) return { errors: ["The first line must be the root statement: root = Stack([...]) (or another component), then the others."], warnings };
   let result: ParseResult;
   try {
     result = parse(text);

@@ -345,10 +345,11 @@ async function finish(fleetId: string, mission: Mission, args: Record<string, un
   if (mission.state !== "en_cours") return refused(t().fleet.noMission);
   const summary = typeof args.bilan === "string" ? args.bilan.trim() : "";
   if (!summary) return refused(t().fleet.summaryMissing);
+  // In OpenUI Lang, the panel draws it; its text is what the rest reads. A broken one is refused before anything changes.
+  const { text, ui, errors } = await splitGenerated(summary);
+  if (errors) return refused(t().output.summaryInvalid(errors));
   const handChecks = Array.isArray(args.check) ? args.check.filter((line): line is string => typeof line === "string" && line.trim() !== "").map(oneLine) : [];
   if (handChecks.length > 0) setMission(fleetId, { handChecks });
-  // In OpenUI Lang, the panel draws it; its text is what the rest reads.
-  const { text, ui } = await splitGenerated(summary);
   if (ui) endMission(fleetId, text, ui);
   else endMission(fleetId, text);
   return said(t().fleet.ended);

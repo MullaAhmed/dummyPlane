@@ -60,7 +60,7 @@ describe("show_output", () => {
     expect(text).toContain("Call output_guide");
     expect(write).not.toHaveBeenCalled();
     expect(Object.values(nodesStore.getState().nodes).some((n) => n.kind === "output")).toBe(false);
-    expect(textOf(await call("batman", "show_output", { title: "T", ui: "Just some text" }))).toContain("No root statement");
+    expect(textOf(await call("batman", "show_output", { title: "T", ui: "Just some text" }))).toContain("The first line must be the root statement");
   });
 
   it("shows a new output beside its agent, clear of its neighbours, wired to it, saved with its payload", async () => {
@@ -200,6 +200,16 @@ describe("a report written in OpenUI Lang", () => {
     expect(line).toContain("Robin reported (done): # Tests | Test | Result |");
     expect(line).not.toContain("root =");
     terminalStatusStore.getState().remove("batman");
+  });
+
+  it("refuses a summary that starts like OpenUI Lang but cannot be drawn, before anything is recorded", async () => {
+    nodesStore.getState().update("robin", { spawnedBy: "batman" });
+    const result = await call("robin", "report", { summary: 'root = Stack([Text("kept"), Foo("lost")])', status: "done" });
+    expect(result.isError).toBe(true);
+    expect(textOf(result)).toContain("Not taken: your summary starts like OpenUI Lang");
+    expect(textOf(result)).toContain('Unknown component "Foo"');
+    expect(terminalOf(nodesStore.getState().nodes.robin)?.lastReport).toBeUndefined();
+    expect(notify).not.toHaveBeenCalled();
   });
 
   it("leaves a Markdown summary as it is, with no program", async () => {

@@ -4,7 +4,7 @@ import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { GeneratedText } from "./GeneratedText";
-import { COMPONENT_NAMES } from "./detect";
+import { COMPONENT_NAMES, splitGenerated } from "./detect";
 import { LIBRARY_COMPONENT_NAMES, outputGuide } from "./library";
 import { checkOpenUI, readOpenUI } from "./parse";
 import { highlight } from "./highlight";
@@ -166,6 +166,26 @@ describe("OpenUI Lang or Markdown", () => {
     expect(host.querySelectorAll("li")).toHaveLength(2);
   });
 
+  it("keeps Markdown that shows a program further down as Markdown: its prose stays", async () => {
+    const text = 'Use show_output like this:\n\n```\nroot = Stack([Text("hi")])\n```\n\nThen **call it**.';
+    expect(readOpenUI(text)).toBeNull();
+    const host = await show(text);
+    expect(host.querySelector("[data-openui]")).toBeNull();
+    expect(host.textContent).toContain("Use show_output like this:");
+    expect(host.querySelector("strong")?.textContent).toBe("call it");
+    expect(await splitGenerated(text)).toEqual({ text });
+  });
+
+  it("splits a program into its text and itself, and refuses one with errors rather than keep what parsed", async () => {
+    expect(await splitGenerated('root = Stack([Heading("Done"), Text("All green")])')).toEqual({
+      text: "# Done\n\nAll green",
+      ui: 'root = Stack([Heading("Done"), Text("All green")])',
+    });
+    const broken = await splitGenerated('root = Stack([Text("kept"), Foo("lost"), missing])');
+    expect(broken.ui).toBeUndefined();
+    expect(broken.errors?.join(" ")).toMatch(/Unknown component "Foo".*never defined: missing/);
+  });
+
   it("treats a root line that parses to nothing as text, shown as written", async () => {
     const host = await show("root = Nonsense(");
     expect(host.querySelector("[data-openui]")).toBeNull();
@@ -213,7 +233,7 @@ describe("the guide and the checks an agent reads", () => {
 
   it("says in plain words what to fix", () => {
     expect(checkOpenUI("").errors[0]).toMatch(/empty/);
-    expect(checkOpenUI("# Just markdown").errors[0]).toMatch(/No root statement/);
+    expect(checkOpenUI("# Just markdown").errors[0]).toMatch(/The first line must be the root statement/);
     expect(checkOpenUI('root = Stack([Foo("x")])').errors.join(" ")).toMatch(/Unknown component "Foo"/);
     expect(checkOpenUI("root = Stack([Text()])").errors.join(" ")).toMatch(/missing required field "\/text"/);
     expect(checkOpenUI("root = Stack([a])").errors.join(" ")).toMatch(/never defined: a/);

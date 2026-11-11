@@ -101,6 +101,14 @@ describe("what is left to check by hand (spec mission de nuit §6.2)", () => {
     expect(endMission).toHaveBeenCalledWith("chef", "# Night\n\n| Task | State |\n| --- | --- |\n| Login | done |", ui);
   });
 
+  it("refuses a summary in OpenUI Lang that cannot be drawn, before anything changes", async () => {
+    await setup({ state: "en_cours" });
+    const result = await fleetTool("chef", "terminer", { bilan: "root = Stack([Nope()])", check: ["Relire"] });
+    expect(result.isError).toBe(true);
+    expect(endMission).not.toHaveBeenCalled();
+    expect(missionOf(nodesStore.getState().nodes.chef)).not.toHaveProperty("handChecks");
+  });
+
   it("asks nothing of a finish without any", async () => {
     await setup({ state: "en_cours" });
     await fleetTool("chef", "terminer", { bilan: "Fini" });
