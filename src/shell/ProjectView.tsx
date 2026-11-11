@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect } from "react";
 import { Canvas } from "@/canvas/Canvas";
-import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { ErrorBoundary, QuietBoundary } from "@/components/ErrorBoundary";
 import { AgentsPanel } from "@/agents/AgentsPanel";
 import { useAgentsPanel } from "@/agents/agentsPanelState";
 import { useMessages } from "@/i18n";
@@ -34,6 +34,8 @@ import { ZoomControl } from "./ZoomControl";
 // CodeMirror and its languages load with the first opening, not with the application.
 const CodeWorkspace = lazy(() => import("@/studio/CodeWorkspace").then((m) => ({ default: m.CodeWorkspace })));
 const NotesWorkspace = lazy(() => import("@/notes/NotesWorkspace"));
+
+const useActiveWorkspace = () => useWorkspaces((s) => s.activeId);
 
 const SCOPES = { canvas: "canvas", code: "code workspace", notes: "notes workspace" } as const;
 
@@ -139,9 +141,10 @@ export function ProjectView() {
           trailing={
             <>
               <UpdateChip />
-              <ErrorBoundary scope="usage" fallback={() => null}>
+              {/* Another workspace or project tries a failed meter again. */}
+              <QuietBoundary scope="usage" useResetKey={useActiveWorkspace}>
                 <UsageMeter />
-              </ErrorBoundary>
+              </QuietBoundary>
               <AgentCounts />
             </>
           }
