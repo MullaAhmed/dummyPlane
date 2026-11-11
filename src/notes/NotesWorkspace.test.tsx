@@ -5,10 +5,10 @@ import { EditorView } from "@codemirror/view";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import NotesDialog from "./NotesDialog";
-import { closeNotes, notesStore, openNotes } from "./notesStore";
+import { dropAllTabs, holdQuit, studioStore, unsavedTabs } from "@/studio/studioStore";
+import NotesWorkspace from "./NotesWorkspace";
+import { forgetNotesSessions } from "./notesSession";
 
-vi.mock("@/shell/windowState", () => ({ closeWindow: vi.fn() }));
 vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: vi.fn(() => Promise.resolve()) }));
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -40,18 +40,23 @@ beforeEach(async () => {
   disk = { Auth: "# Auth\n\nSee [[Deploy]] and [[Ghost]], at https://a.dev.\n\n<b>raw</b>", Deploy: "Back to [[auth]].", Plain: "Nothing." };
   writes = [];
   serve();
-  openNotes();
+  forgetNotesSessions();
+  await mount();
+});
+
+async function mount() {
   host = document.createElement("div");
   document.body.append(host);
   root = createRoot(host);
-  await act(async () => root.render(<NotesDialog projectId="p1" />));
+  await act(async () => root.render(<NotesWorkspace projectId="p1" />));
   await settle();
-});
+}
 
 afterEach(async () => {
   await act(async () => root.unmount());
   host.remove();
-  closeNotes();
+  dropAllTabs();
+  studioStore.setState({ quitting: false });
   clearMocks();
   vi.mocked(openUrl).mockClear();
 });
@@ -213,10 +218,30 @@ describe("the notes (spec notes §6)", () => {
     expect(footer[1].dataset.variant).toBe("destructive");
   });
 
-  it("closes through the same guard", async () => {
+  it("keeps a modified note when its tab is left, and comes back to it where it was written", async () => {
     await open("Plain");
-    await click(button("Close the notes"));
-    expect(notesStore.getState().open).toBe(false);
+    await click(tab("Edit"));
+    await typeInEditor("x");
+    await act(async () => root.unmount());
+    host.remove();
+    await mount();
+    expect(dialog().querySelector("[data-dirty]")).not.toBeNull();
+    expect(tab("Edit").getAttribute("aria-selected")).toBe("true");
+    expect(editor().state.doc.toString()).toBe("Nothing.x");
+  });
+
+  it("holds the window's close over a modified note, whichever tab is on screen", async () => {
+    await open("Plain");
+    await click(tab("Edit"));
+    await typeInEditor("x");
+    await act(async () => root.unmount());
+    host.remove();
+    expect(unsavedTabs().map((t) => t.path)).toEqual([".dummyplane/notes/Plain.md"]);
+    expect(holdQuit()).toBe(true);
+    // "Don't save" gives the changes up: the window then closes.
+    dropAllTabs();
+    expect(holdQuit()).toBe(false);
+    await mount();
   });
 
   it("shows a note an agent changed instead of overwriting it", async () => {

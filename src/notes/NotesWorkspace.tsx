@@ -1,57 +1,44 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BookOpen, Plus, RotateCw, X } from "lucide-react";
+import { BookOpen, Plus, RotateCw } from "lucide-react";
 import { useStore } from "zustand";
 import { PanelTabs, PanelTabsContent, PanelTabsList, PanelTabsTrigger } from "@/components/PanelTabs";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useMessages } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { AccentButton, IconButton } from "@/shell/buttons";
-import { closeWindow } from "@/shell/windowState";
-import { CodeEditor, type CodeEditorHandle } from "@/studio/CodeEditor";
-import { createFileSession, isDirty } from "@/studio/fileSession";
-import { BAR_FIELD, DiskBanner, errorText, FULL_WINDOW, ListMessage, Message } from "@/studio/parts";
-import { useFileSessionEffects } from "@/studio/sessionEffects";
+import { TOP_ROW_HEIGHT } from "@/shell/layout";
+import { CodeEditor } from "@/studio/CodeEditor";
+import { isDirty } from "@/studio/fileSession";
+import { BAR_FIELD, DiskBanner, errorText, ListMessage, Message } from "@/studio/parts";
+import { useDiskWatch, useSaveKey } from "@/studio/sessionEffects";
 import { UnsavedDialog } from "@/studio/UnsavedDialog";
-import { notesAll, notesRead, notesVersion, notesWrite, type NoteList } from "./ipc";
+import { notesAll, notesWrite, type NoteList } from "./ipc";
 import { backlinks, noteNamed } from "./links";
 import { notesMessages } from "./messages";
 import { isNoteName } from "./names";
 import { NoteGraph } from "./NoteGraph";
 import { NoteReader } from "./NoteReader";
-import { closeNotes } from "./notesStore";
+import { notesSession } from "./notesSession";
 import { searchNotes } from "./search";
 
 type Tab = "edit" | "read" | "graph";
 
-/** The project's notes (spec notes): one open at a time, under the code studio's guards. */
-export default function NotesDialog({ projectId }: { projectId: string }) {
+/**
+ * The project's notes (spec notes), in a workspace tab of their own, the way
+ * the code workspace is: one note open at a time, under the code studio's
+ * guards. The note and its draft are the project's session (notesSession):
+ * they stay when another tab is shown.
+ */
+export default function NotesWorkspace({ projectId }: { projectId: string }) {
   const t = useMessages(notesMessages);
-  const session = useMemo(
-    () =>
-      createFileSession(
-        {
-          read: (name) => notesRead(projectId, name),
-          version: (name) => notesVersion(projectId, name),
-          write: (name, text, expected) => notesWrite(projectId, name, text, expected),
-        },
-        {
-          onClose: closeNotes,
-          onQuit: () => {
-            closeNotes();
-            closeWindow();
-          },
-        },
-      ),
-    [projectId],
-  );
+  const session = useMemo(() => notesSession(projectId), [projectId]);
   const state = useStore(session);
-  const editor = useRef<CodeEditorHandle>(null);
   const nameField = useRef<HTMLInputElement>(null);
   const [list, setList] = useState<NoteList | null>(null);
   const [listError, setListError] = useState<string | null>(null);
-  const [tab, setTab] = useState<Tab>("read");
+  // Back on a note left modified: where it was being written.
+  const [tab, setTab] = useState<Tab>(() => (isDirty(session.getState()) ? "edit" : "read"));
   const [query, setQuery] = useState("");
   const [creating, setCreating] = useState<string | null>(null);
   const [badName, setBadName] = useState(false);
@@ -75,7 +62,8 @@ export default function NotesDialog({ projectId }: { projectId: string }) {
     return () => window.removeEventListener("focus", onFocus);
   }, [refresh]);
 
-  useFileSessionEffects(session);
+  useDiskWatch(session);
+  useSaveKey(() => void session.getState().save());
 
   const { file, version, draft, loading, refused, pending, saving, error, disk } = state;
   const dirty = isDirty(state);
@@ -121,25 +109,14 @@ export default function NotesDialog({ projectId }: { projectId: string }) {
   // What the reading and editing views show while no note is ready.
   const waiting = !file ? <Message>{t.pickNote}</Message> : loading ? <Message>{t.readingNote}</Message> : refused ? <Message>{refused}</Message> : null;
 
+  // The rail on the right (activities) keeps its column, as in the code workspace.
   return (
-    <Dialog open onOpenChange={(next) => !next && state.requestClose()}>
-      <DialogContent
-        data-notes
-        showCloseButton={false}
-        aria-describedby={undefined}
-        style={FULL_WINDOW}
-        // A click beside the window is not a request to close a work tool.
-        onInteractOutside={(event) => event.preventDefault()}
-        onEscapeKeyDown={(event) => {
-          // Radix takes Esc first and cancels it, so CodeMirror never sees it: its panels are closed from here.
-          event.preventDefault();
-          if (tab !== "edit" || !editor.current?.escape()) state.requestClose();
-        }}
-      >
+    <div data-notes aria-label={t.title} className="absolute inset-0 flex pr-18 pb-3 pl-3 text-dp-text" style={{ paddingTop: TOP_ROW_HEIGHT + 12 }}>
+      <section className="dp-glass-strong flex min-w-0 flex-1 flex-col overflow-hidden rounded-xl">
         <PanelTabs value={tab} onValueChange={(next) => setTab(next as Tab)} className="min-h-0 flex-1">
           <header className="flex h-10 shrink-0 items-center gap-2 border-b border-dp-line px-3">
-            <BookOpen className="size-4 shrink-0 text-dp-text-2" />
-            <DialogTitle className="shrink-0 text-sm font-medium">{t.title}</DialogTitle>
+            <BookOpen aria-hidden className="size-4 shrink-0 text-dp-text-2" />
+            <h2 className="shrink-0 text-sm font-medium">{t.title}</h2>
             {file && (
               <span className="min-w-0 truncate font-mono text-xs text-dp-text-3" title={file}>
                 {file}
@@ -157,9 +134,6 @@ export default function NotesDialog({ projectId }: { projectId: string }) {
               </AccentButton>
               <IconButton label={t.refresh} onClick={() => void refresh()}>
                 <RotateCw />
-              </IconButton>
-              <IconButton label={t.close} onClick={() => state.requestClose()}>
-                <X />
               </IconButton>
             </span>
           </header>
@@ -244,7 +218,7 @@ export default function NotesDialog({ projectId }: { projectId: string }) {
               {/* Mounted while hidden: the views come and go, the editor's undo history stays. */}
               <PanelTabsContent value="edit" forceMount className="data-[state=inactive]:hidden">
                 {waiting ?? (
-                  <CodeEditor ref={editor} path={`${file}.md`} text={draft} revision={state.revision} onChange={state.edit} onSave={() => void state.save()} />
+                  <CodeEditor path={`${file}.md`} text={draft} revision={state.revision} onChange={state.edit} onSave={() => void state.save()} />
                 )}
               </PanelTabsContent>
               {file && !loading && !refused && tab !== "graph" && (
@@ -272,8 +246,8 @@ export default function NotesDialog({ projectId }: { projectId: string }) {
             </div>
           </div>
         </PanelTabs>
-        <UnsavedDialog file={pending ? file : null} saving={saving} onAnswer={(answer) => void state.resolve(answer)} />
-      </DialogContent>
-    </Dialog>
+      </section>
+      <UnsavedDialog file={pending ? file : null} saving={saving} onAnswer={(answer) => void state.resolve(answer)} />
+    </div>
   );
 }

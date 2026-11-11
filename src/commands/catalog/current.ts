@@ -10,6 +10,7 @@ import { addFleetToGroup } from "@/fleet/fleets";
 import { duplicateTerminal, requestClose } from "@/agents/terminals";
 import type { TerminalPayload } from "@/nodes/types";
 import { expandTerminal, minimizeTerminal } from "@/nodes/terminal/minimize";
+import { relaunchMode } from "@/nodes/terminal/launch";
 import { pasteImageIntoTerminal, pasteIntoTerminal, relaunchTerminal, stopTerminal, terminalSelection } from "@/nodes/terminal/registry";
 import { clipboardTextOf, readClipboard } from "@/radial/bridges";
 import { openReview } from "@/review/reviewStore";
@@ -87,11 +88,11 @@ export const CURRENT: readonly Command[] = [
   command("terminal.relaunch", {
     section: terminalSection,
     available: hasTerminal,
-    // Claude resumes its session, other agents start anew (plan F2, decision 2).
+    // Claude and Codex resume their conversation, other agents start anew (plan F2, decision 2).
     run: (ctx) => {
       const payload = payloadOf(ctx);
       if (!payload) return;
-      relaunchTerminal(terminalId(ctx), payload, payload.agent === "claude" && payload.claudeSessionId ? "resume" : "new");
+      relaunchTerminal(terminalId(ctx), payload, relaunchMode(payload));
     },
   }),
   command("terminal.stop", {

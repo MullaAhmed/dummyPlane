@@ -136,7 +136,7 @@ describe("text on a selected row (the accent's tint) keeps 4.5:1 (P1-14)", () =>
     const rows: [string, string][] = [
       ["commands/Palette.tsx", "data-[selected=true]:bg-dp-accent-soft data-[selected=true]:dp-on-soft"], // palette and Go to rows
       ["agents/AgentsPanel.tsx", "data-[state=on]:bg-dp-accent-soft data-[state=on]:text-dp-text data-[state=on]:dp-on-soft"], // the filter's count
-      ["notes/NotesDialog.tsx", '"bg-dp-accent-soft hover:bg-dp-accent-soft dp-on-soft"'], // the note's excerpt
+      ["notes/NotesWorkspace.tsx", '"bg-dp-accent-soft hover:bg-dp-accent-soft dp-on-soft"'], // the note's excerpt
       ["git/GitWindow.tsx", 'current && "bg-dp-accent-soft text-dp-text hover:bg-dp-accent-soft dp-on-soft"'], // the file row
       ["git/GitWindow.tsx", 'const danger = current ? "text-dp-danger-on-soft" : "text-dp-danger";'],
       ["studio/CodeWorkspace.tsx", 'node.path === active && "bg-dp-accent-soft text-dp-text hover:bg-dp-accent-soft dp-on-soft"'], // the file tree

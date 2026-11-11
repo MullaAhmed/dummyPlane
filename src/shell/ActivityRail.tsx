@@ -6,7 +6,7 @@ import { setAgentsPanel, useAgentsPanel } from "@/agents/agentsPanelState";
 import { useMessages } from "@/i18n";
 import { openNotes } from "@/notes/notesStore";
 import { useProjects } from "@/store/projects";
-import { isCode, useWorkspaces } from "@/store/workspaces";
+import { isCode, isNotes, useWorkspaces } from "@/store/workspaces";
 import { studioMessages } from "@/studio/messages";
 import { openCodeWorkspace } from "@/studio/navigate";
 import { ToolButton } from "./buttons";
@@ -26,6 +26,7 @@ export function ActivityRail() {
   const studioLabel = useMessages(studioMessages).open;
   const inProject = useProjects((s) => s.activeId !== null);
   const codeOnScreen = useWorkspaces((s) => isCode(s.workspaces.find((w) => w.id === s.activeId)));
+  const notesOnScreen = useWorkspaces((s) => isNotes(s.workspaces.find((w) => w.id === s.activeId)));
   return (
     <nav className="dp-glass absolute right-3 top-1/2 z-30 flex -translate-y-1/2 flex-col items-center gap-0.5 rounded-lg p-1">
       {/* Its name carries the pip's number: "Agents, 2 waiting" (WCAG 2.5.3 label in name). */}
@@ -48,7 +49,7 @@ export function ActivityRail() {
       >
         <Code2 />
       </RailButton>
-      <RailButton label={t.notes} onClick={openNotes}>
+      <RailButton label={t.notes} active={notesOnScreen} disabled={!inProject} onClick={openNotes}>
         <BookOpen />
       </RailButton>
       <Separator className="my-1 bg-dp-line data-horizontal:w-6" />

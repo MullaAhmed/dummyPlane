@@ -6,6 +6,7 @@ import { canvasStore } from "@/canvas/canvasStore";
 import { forgetScene, rememberScene } from "@/canvas/sceneCache";
 import { nodesStore, terminalOf } from "@/store/nodes";
 import { answer, handleCall, replyable } from "./router";
+import { fleetSession } from "@/nodes/terminal/launch";
 import type { McpCall } from "@/ipc/mcp";
 import { pauseAgents } from "@/agents/broadcast";
 import { setRemoteControl } from "@/agents/remoteControl";
@@ -30,7 +31,7 @@ vi.mock("@/agents/broadcast", () => ({ pauseAgents: vi.fn(() => Promise.resolve(
 vi.mock("@/agents/remoteControl", () => ({ setRemoteControl: vi.fn() }));
 vi.mock("@/mission/store", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/mission/store")>()),
-  linkedClaudeAgents: vi.fn(() => [{ nodeId: "batman", name: "Batman" }]),
+  linkedTeamAgents: vi.fn(() => [{ nodeId: "batman", name: "Batman" }]),
 }));
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
@@ -123,6 +124,14 @@ describe("the fleet's tools (spec orchestrateur §7.2)", () => {
     expect(textOf(await call("batman", "propose_plan", plan))).toBe("This tool is for the fleet.");
     expect(textOf(await call("chef", "report", { summary: "x", status: "done" }))).toBe("This tool is for agents.");
     expect(textOf(await call("batman", "board", {}))).toBe("This tool is for the fleet.");
+  });
+
+  it("offers a Codex fleet no Remote Control, which is Claude's", async () => {
+    await nodesStore.getState().create("codexFleet", { workspaceId: "w1", kind: "fleet", payload: { name: "C", session: fleetSession("C", { cwd: "C:/p", shell: "default" }, "codex") } });
+    const list = (await answer({ callId: 1, nodeId: "codexFleet", method: "tools/list", params: {} })) as { tools: { name: string }[] };
+    const names = list.tools.map((t) => t.name);
+    expect(names).toContain("mission");
+    expect(names).not.toContain("remote_control");
   });
 
   it("reads the Kanban boards handed to it with board", async () => {
@@ -390,20 +399,20 @@ describe("the fleet's tools (spec orchestrateur §7.2)", () => {
       expect(missionOf(nodesStore.getState().nodes.chef)?.members[0]).toMatchObject({ merged: true, report: { summary: "Vérifié" } });
     });
 
-    it("extends an agent's target only within the real time left (spec mission de nuit §3)", async () => {
-      setMission("chef", { budgetMin: 30, startedAt: Date.now() });
+    it("extends an agent's target only within the real time left of the night (spec mission de nuit §3)", async () => {
+      setMission("chef", { overnight: true, budgetMin: 30, startedAt: Date.now() });
       // Batman reported earlier in this file: still at work here, its whole budget counts.
       updateMember("chef", "batman", { report: undefined });
-      expect(textOf(await call("chef", "extend", { agent: "Batman", minutes: 20 }))).toBe("30 min left in the overall budget.");
+      expect(textOf(await call("chef", "extend", { agent: "Batman", minutes: 20 }))).toBe("30 min left in the night.");
       updateMember("chef", "batman", { overdue: 1 });
       expect(textOf(await call("chef", "extend", { agent: "Batman", minutes: 10 }))).toBe("Batman: +10 min, budget 30 min.");
       expect(missionOf(nodesStore.getState().nodes.chef)?.members[0]).toMatchObject({ extraMin: 10 });
       expect(missionOf(nodesStore.getState().nodes.chef)?.members[0].overdue).toBeUndefined();
       // The fleet reads the time with its extensions, and what is left (final review H3).
       expect(JSON.parse(textOf(await call("chef", "team", {})))[0]).toMatchObject({ time: "0 / 30 min" });
-      expect(JSON.parse(textOf(await call("chef", "mission", {})))).toMatchObject({ left_min: 30, elapsed_min: 0 });
+      expect(JSON.parse(textOf(await call("chef", "mission", {})))).toMatchObject({ away_min: 30, left_min: 30, elapsed_min: 0 });
       expect(await call("chef", "extend", { agent: "Batman", minutes: 0 })).toMatchObject({ isError: true });
-      setMission("chef", { budgetMin: undefined, startedAt: undefined });
+      setMission("chef", { overnight: undefined, budgetMin: undefined, startedAt: undefined });
     });
 
     it("interrupts an agent's turn like « Pause » (spec §7.2)", async () => {

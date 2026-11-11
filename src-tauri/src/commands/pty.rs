@@ -67,18 +67,28 @@ pub async fn pty_spawn(
             claude.mode = mode;
         }
     }
-    let role = spec.claude.as_ref().map(|c| c.role).unwrap_or_default();
+    // A conversation Codex never saved (only its title was written) starts anew.
+    if let Some(codex) = spec.codex.as_mut()
+        && let Some(id) = codex.session_id.clone()
+        && !crate::agents::codex_profile::codex_home()
+            .is_some_and(|home| crate::agents::codex_profile::thread_saved_ever(&home, &id))
+    {
+        log::info!("terminal {node_id}: Codex saved no conversation {id}, a new one");
+        codex.session_id = None;
+    }
+    let role = spec.role();
     let hooks = agents::hooks_for(
         &app,
         &node_id,
         spec.agent,
         spec.claude.as_ref(),
+        spec.codex.as_ref(),
         std::path::Path::new(&spec.cwd),
         profile_dir.as_deref(),
     );
-    if spec.agent == Agent::Claude
+    if matches!(spec.agent, Agent::Claude | Agent::Codex)
         && role == Role::Fleet
-        && let Err(cause) = fleet_tools(&hooks, agents::server_running(&app))
+        && let Err(cause) = fleet_tools(spec.agent, &hooks, agents::server_running(&app))
     {
         agents::ended(&app, &node_id);
         log::warn!("Fleet {node_id} not started: {cause}");

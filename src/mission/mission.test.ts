@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { budgetBar, budgetOf, clockText, memberTime, NEW_MISSION, oneLine, overruns, proposedPlan, proposedTasks, readMission, remainingGlobal, sameName, spentMin, windingDown, type Member, type Mission } from "./mission";
+import { budgetBar, budgetOf, clockText, memberTime, NEW_MISSION, nightMin, noNewWork, oneLine, overruns, proposedPlan, proposedTasks, readMission, remainingGlobal, sameName, spentMin, windingDown, type Member, type Mission } from "./mission";
 
 const task = (agent: string, budget = 20) => ({ titre: "Login", consigne: "Fais le login", agent, budget_min: budget });
 const args = (...sous_taches: object[]) => ({ nom: "Auth", tache: "Ajoute l'authentification", sous_taches });
@@ -18,12 +18,12 @@ describe("proposedPlan (spec orchestrateur §7.2)", () => {
   });
 
   it("refuses what the team cannot do, with a reason the fleet can read", () => {
-    const budgeted: Mission = { ...NEW_MISSION, budgetMin: 30, maxAgents: 2 };
+    const budgeted: Mission = { ...NEW_MISSION, overnight: true, budgetMin: 30, maxAgents: 2 };
     expect(proposedPlan(args(task("Deadpool")), NEW_MISSION, ["Hulk"])).toContain("Deadpool");
     expect(proposedPlan(args(task("Hulk"), task("Hulk")), NEW_MISSION, ["Hulk"])).toContain("one sub-task per agent");
     // Real time: two agents in parallel share it, one sub-task alone must fit (spec mission de nuit §3).
     expect(proposedPlan(args({ ...task("nouveau", 30), titre: "A" }, { ...task("nouveau", 30), titre: "B" }), budgeted, [])).toMatchObject({ name: "Auth" });
-    expect(proposedPlan(args(task("nouveau", 31)), budgeted, [])).toBe("Sub-task 1: 31 min do not fit in the overall budget (30 min of real time).");
+    expect(proposedPlan(args(task("nouveau", 31)), budgeted, [])).toBe("Sub-task 1: 31 min do not fit in the night (30 min of real time).");
     // Past Max agents, sub-tasks wait in the queue at the go-ahead: only "new" ones, the queue names no agent.
     expect(proposedPlan(args({ ...task("nouveau"), titre: "A" }, { ...task("nouveau"), titre: "B" }, { ...task("nouveau"), titre: "C" }), budgeted, [])).toMatchObject({ name: "Auth" });
     expect(proposedPlan(args({ ...task("nouveau"), titre: "A" }, { ...task("nouveau"), titre: "B" }, task("Hulk")), budgeted, ["Hulk"])).toBe(
@@ -120,7 +120,9 @@ describe("tasks for the queue (spec mission de nuit §4.2)", () => {
     expect(proposedTasks(added(item("")), NEW_MISSION, [])).toContain("a short title");
     expect(proposedTasks(added(item("A", { consigne: "" })), NEW_MISSION, [])).toContain("brief");
     expect(proposedTasks(added(item("A", { budget_min: 0 })), NEW_MISSION, [])).toContain("budget");
-    expect(proposedTasks(added(item("A", { budget_min: 31 })), { ...NEW_MISSION, budgetMin: 30 }, [])).toContain("overall budget");
+    expect(proposedTasks(added(item("A", { budget_min: 31 })), { ...NEW_MISSION, overnight: true, budgetMin: 30 }, [])).toContain("do not fit in the night");
+    // A regular mission has no overall limit, even one held over from the old global budget.
+    expect(proposedTasks(added(item("A", { budget_min: 31 })), { ...NEW_MISSION, budgetMin: 30 }, [])).toEqual([{ title: "A", brief: "Fais-le", budgetMin: 31 }]);
     expect(proposedTasks(added(item("A", { niveau: "énorme" })), NEW_MISSION, [])).toContain("level");
     expect(proposedTasks(added(item("A")), { ...NEW_MISSION, router: true }, [])).toContain("Sub-task 1: a level (low, medium, high or extreme) — the router chooses the agent's model with it.");
     expect(proposedTasks(added(item("A", { groupe: "Deadpool" })), NEW_MISSION, [])).toContain("Deadpool");
@@ -240,26 +242,39 @@ describe("the time of a mission (spec orchestrateur §8)", () => {
     expect(readMission({ ...ended })?.endedAt).toBe(30 * min);
   });
 
-  it("finds each overrun once per step, 100 % then 200 %, and the end of the global budget", () => {
+  it("finds each overrun once per step, 100 % then 200 %, and the end of the night", () => {
     const report = { summary: "ok", status: "termine" as const, at: min };
     const mission = running(
       [member(), member({ nodeId: "n2", name: "Aquaman", overdue: 1 }), member({ nodeId: "n3", name: "Shazam", report }), member({ nodeId: "n4", name: "Cyborg", handedTo: "Aquaman" })],
-      { budgetMin: 30, startedAt: 0 },
+      { overnight: true, budgetMin: 30, startedAt: 0 },
     );
     expect(overruns(mission, 11 * min)).toEqual({ members: [{ nodeId: "n1", name: "Batman", task: "Login", level: 1, budget: 10 }], global: false });
     expect(overruns(mission, 21 * min).members.map((o) => [o.nodeId, o.level])).toEqual([["n1", 2], ["n2", 2]]);
     expect(overruns(mission, 31 * min).global).toBe(true);
     expect(overruns({ ...mission, globalOverdue: true }, 31 * min).global).toBe(false);
     expect(overruns({ ...mission, state: "terminee" }, 31 * min)).toEqual({ members: [], global: false });
+    // Without a night, no overall end comes.
+    expect(overruns({ ...mission, overnight: undefined }, 31 * min).global).toBe(false);
   });
 
-  it("counts the global budget in real time from the go-ahead, whatever the number of agents (spec mission de nuit §3)", () => {
+  it("counts the night in real time from the go-ahead, whatever the number of agents (spec mission de nuit §3)", () => {
     const team = [member(), member({ nodeId: "n2", extraMin: 5 }), member({ nodeId: "n3", handedTo: "Batman" })];
-    expect(remainingGlobal(running(team, { budgetMin: 30, startedAt: 0 }), 12 * min)).toBe(18);
+    const night = { overnight: true, budgetMin: 30 };
+    expect(remainingGlobal(running(team, { ...night, startedAt: 0 }), 12 * min)).toBe(18);
     expect(remainingGlobal(running(team), 12 * min)).toBeUndefined();
-    expect(remainingGlobal(running(team, { budgetMin: 30 }), 12 * min)).toBe(30);
-    expect(remainingGlobal(running(team, { budgetMin: 30, startedAt: 0 }), 40 * min)).toBe(0);
-    expect(remainingGlobal(running(team, { state: "terminee", budgetMin: 30, startedAt: 0, endedAt: 10 * min }), 25 * min)).toBe(20);
+    expect(remainingGlobal(running(team, night), 12 * min)).toBe(30);
+    expect(remainingGlobal(running(team, { ...night, startedAt: 0 }), 40 * min)).toBe(0);
+    expect(remainingGlobal(running(team, { ...night, state: "terminee", startedAt: 0, endedAt: 10 * min }), 25 * min)).toBe(20);
+  });
+
+  it("gives a regular mission no overall time: the old global budget, saved or not, counts for nothing", () => {
+    const old = running([member()], { budgetMin: 30, startedAt: 0 });
+    expect(nightMin(old)).toBeUndefined();
+    expect(remainingGlobal(old, 40 * min)).toBeUndefined();
+    expect(noNewWork(old, 40 * min)).toBe(false);
+    expect(clockText(old, 40 * min)).toBe("40 min");
+    expect(readMission({ state: "redaction", maxAgents: 4, budgetMin: 90 })).not.toHaveProperty("budgetMin");
+    expect(readMission({ state: "en_cours", maxAgents: 4, overnight: true, budgetMin: 480 })?.budgetMin).toBe(480);
   });
 
   it("winds an overnight mission down near its end, at 10 % or 10 min, and half of a short one", () => {
@@ -277,6 +292,8 @@ describe("the time of a mission (spec orchestrateur §8)", () => {
     expect(readMission({ state: "en_cours", overnight: true, windDownTold: true, autoLaunch: true, tickets: { kind: "github", label: "nuit" } })).toMatchObject({ overnight: true, windDownTold: true, autoLaunch: true, tickets: { kind: "github", label: "nuit" } });
     expect(readMission({ state: "plan", tickets: { kind: "backlog" } })?.tickets).toEqual({ kind: "backlog" });
     expect(readMission({ state: "plan", tickets: { kind: "kanban" } })).not.toHaveProperty("tickets");
+    expect(readMission({ state: "plan", tickets: { kind: "linear", team: "ENG", label: "nuit" } })?.tickets).toEqual({ kind: "linear", team: "ENG", label: "nuit" });
+    expect(readMission({ state: "plan", tickets: { kind: "linear", label: "nuit" } })).not.toHaveProperty("tickets");
     expect(readMission({ state: "en_cours" })).not.toHaveProperty("overnight");
   });
 
@@ -296,7 +313,7 @@ describe("the time of a mission (spec orchestrateur §8)", () => {
   });
 
   it("writes the mission's time for the fleet's header", () => {
-    expect(clockText(running([], { startedAt: 0, budgetMin: 60 }), 12.4 * min)).toBe("12 / 60 min");
+    expect(clockText(running([], { startedAt: 0, overnight: true, budgetMin: 60 }), 12.4 * min)).toBe("12 / 60 min");
     expect(clockText(running([], { startedAt: 0 }), 3 * min)).toBe("3 min");
     expect(clockText({ ...NEW_MISSION }, 3 * min)).toBeNull();
   });

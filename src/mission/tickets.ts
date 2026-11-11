@@ -1,7 +1,14 @@
 import { missionBacklog, missionIssues } from "@/ipc/mission";
 
-/** Where an overnight mission takes its tasks (spec overnight mission §5.1). A Kanban reaches a fleet through "Plan with the fleet". */
-export type TicketSource = { kind: "github"; label: string } | { kind: "backlog" };
+/**
+ * Where an overnight mission takes its tasks (spec overnight mission §5.1). A Kanban reaches a fleet through
+ * "Plan with the fleet". GitHub issues and the backlog are read by dummyPlane; Linear's by the fleet itself,
+ * through Linear's own read-only server, in the team and with the label the user gave.
+ */
+export type TicketSource = { kind: "github"; label: string } | { kind: "backlog" } | { kind: "linear"; team: string; label: string };
+
+/** The sources dummyPlane reads for the fleet. */
+export type ReadSource = Exclude<TicketSource, { kind: "linear" }>;
 
 export interface Ticket {
   id: string;
@@ -51,6 +58,6 @@ export function parseIssues(json: string): Ticket[] {
   });
 }
 
-export async function readTickets(project: string, source: TicketSource): Promise<Ticket[]> {
+export async function readTickets(project: string, source: ReadSource): Promise<Ticket[]> {
   return source.kind === "backlog" ? parseBacklog(await missionBacklog(project)) : parseIssues(await missionIssues(project, source.label));
 }

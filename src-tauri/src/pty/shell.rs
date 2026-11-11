@@ -105,15 +105,38 @@ pub struct ClaudeLaunch {
     /// The model the fleet's router chose (`--model`).
     #[serde(default)]
     pub model: Option<String>,
-    /// A mission's choice; none outside a mission that made one.
+    /// A mission's choice; none outside a mission that made one. For a fleet, its night: it waits for nobody.
     #[serde(default)]
     pub permission: Option<Permission>,
+    /// A fleet whose night reads its tickets in Linear: Linear's read-only MCP server joins its tools.
+    #[serde(default)]
+    pub linear: bool,
     /// The profile's folder, for this terminal's `CLAUDE_CONFIG_DIR` (spec comptes §4).
     #[serde(default)]
     pub config_dir: Option<String>,
     /// The skills, plugins, MCP servers and subagents it turns off or on (`agents::extensions`).
     #[serde(default)]
     pub extensions: Option<crate::agents::extensions::ExtensionChoice>,
+}
+
+/// What a Codex terminal is for, as `ClaudeLaunch` says it for Claude: its role,
+/// what a mission lets it do unasked, and the saved conversation it resumes.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CodexLaunch {
+    /// Codex's thread id: `codex resume <id>`. None starts a new conversation.
+    #[serde(default)]
+    pub session_id: Option<String>,
+    #[serde(default)]
+    pub role: Role,
+    #[serde(default)]
+    pub permission: Option<Permission>,
+    /// A fleet whose night reads its tickets in Linear: Linear's read-only MCP server joins its tools.
+    #[serde(default)]
+    pub linear: bool,
+    /// `-m`: a model a parent agent asked for its sub-agent.
+    #[serde(default)]
+    pub model: Option<String>,
 }
 
 /// What the frontend asks for when it starts a terminal (spec §9).
@@ -129,7 +152,29 @@ pub struct SpawnSpec {
     pub command: String,
     pub claude: Option<ClaudeLaunch>,
     #[serde(default)]
+    pub codex: Option<CodexLaunch>,
+    #[serde(default)]
     pub ollama: Option<OllamaLaunch>,
+}
+
+impl SpawnSpec {
+    /// The role its launch names, Claude's or Codex's; an agent without one.
+    pub fn role(&self) -> Role {
+        match self.agent {
+            Agent::Claude => self.claude.as_ref().map(|c| c.role).unwrap_or_default(),
+            Agent::Codex => self.codex.as_ref().map(|c| c.role).unwrap_or_default(),
+            _ => Role::Agent,
+        }
+    }
+
+    /// What its mission lets it do unasked.
+    pub fn permission(&self) -> Option<Permission> {
+        match self.agent {
+            Agent::Claude => self.claude.as_ref().and_then(|c| c.permission),
+            Agent::Codex => self.codex.as_ref().and_then(|c| c.permission),
+            _ => None,
+        }
+    }
 }
 
 /// Quoting rules differ per shell, so each resolved shell carries its syntax.
@@ -175,18 +220,31 @@ pub struct AgentHooks {
     pub mcp_config: Option<PathBuf>,
     /// Claude: `--append-system-prompt-file <file>`, its role.
     pub system_prompt: Option<PathBuf>,
+    /// Codex: `-p <name>`, the profile with its role and dummyPlane's tools (`agents::codex_profile`).
+    pub codex_profile: Option<String>,
+    /// Codex: the MCP token, in the terminal's environment (`codex_profile::TOKEN_ENV`), never on its command line.
+    pub mcp_token: Option<String>,
+    /// Codex: what goes on its command line after its profile, which a project's config cannot outrank (`codex_profile::cli_args`).
+    pub codex_args: Vec<String>,
 }
 
 /// What keeps a fleet a manager (spec première version §4.1): its
-/// settings (`deny`), dummyPlane's tools and its role. Without one of them it
-/// would start as a plain Claude in the user's folder, so it does not start.
-pub fn fleet_tools(hooks: &AgentHooks, server_running: bool) -> Result<(), String> {
+/// settings (`deny`), dummyPlane's tools and its role; for Codex, its profile
+/// (role, tools, the user's servers off) and its token, the read-only sandbox
+/// being on its command line. Without one of them it would start as a plain
+/// agent in the user's folder, so it does not start.
+pub fn fleet_tools(agent: Agent, hooks: &AgentHooks, server_running: bool) -> Result<(), String> {
     if !server_running {
         return Err("dummyPlane's local server did not start".to_string());
     }
-    let complete = hooks.claude_settings.is_some()
-        && hooks.mcp_config.is_some()
-        && hooks.system_prompt.is_some();
+    let complete = match agent {
+        Agent::Codex => hooks.codex_profile.is_some() && hooks.mcp_token.is_some(),
+        _ => {
+            hooks.claude_settings.is_some()
+                && hooks.mcp_config.is_some()
+                && hooks.system_prompt.is_some()
+        }
+    };
     if complete {
         Ok(())
     } else {
@@ -281,9 +339,7 @@ pub fn resolve_shell(kind: ShellKind, locate: Locate) -> AppResult<ShellProgram>
                 args: vec!["-NoLogo".into()],
                 syntax: ShellSyntax::PowerShell,
             })
-            .ok_or_else(|| {
-                AppError::NotFound("pwsh not found in the PATH".to_string())
-            }),
+            .ok_or_else(|| AppError::NotFound("pwsh not found in the PATH".to_string())),
         ShellKind::GitBash => locate("git")
             .and_then(|git| find_git_bash(&git))
             .map(|p| ShellProgram {
@@ -374,16 +430,14 @@ pub fn agent_command(
         Agent::Custom => {
             let command = spec.command.trim();
             if command.is_empty() {
-                return Err(AppError::InvalidInput("the custom command is empty".to_string()));
+                return Err(AppError::InvalidInput(
+                    "the custom command is empty".to_string(),
+                ));
             }
             Some(command.to_string())
         }
         Agent::Claude => Some(claude_command(spec.claude.as_ref(), syntax, hooks)?),
-        Agent::Codex => Some(codex_command(
-            syntax,
-            hooks.codex_notify.as_deref(),
-            hooks.curl_config.as_deref(),
-        )),
+        Agent::Codex => Some(codex_command(spec.codex.as_ref(), syntax, hooks)?),
         Agent::Ollama => Some(ollama_command(spec.ollama.as_ref(), syntax)?),
         other => Some(binary(other).into()),
     })
@@ -392,16 +446,17 @@ pub fn agent_command(
 /// Model names are typed into a shell: only the characters Ollama uses in them
 /// ("qwen2.5-coder:7b", "hf.co/user/model:tag") are accepted.
 fn ollama_command(launch: Option<&OllamaLaunch>, syntax: ShellSyntax) -> AppResult<String> {
-    let launch = launch.ok_or_else(|| {
-        AppError::InvalidInput("Ollama options missing".to_string())
-    })?;
+    let launch =
+        launch.ok_or_else(|| AppError::InvalidInput("Ollama options missing".to_string()))?;
     let model = launch.model.trim();
     let valid = !model.is_empty()
         && model
             .chars()
             .all(|c| c.is_ascii_alphanumeric() || "._:/-".contains(c));
     if !valid {
-        return Err(AppError::InvalidInput(format!("invalid Ollama model: {model}")));
+        return Err(AppError::InvalidInput(format!(
+            "invalid Ollama model: {model}"
+        )));
     }
     Ok(match launch.mode {
         OllamaMode::Chat => format!("ollama run {}", quote(syntax, model)),
@@ -420,9 +475,8 @@ fn claude_command(
     syntax: ShellSyntax,
     hooks: &AgentHooks,
 ) -> AppResult<String> {
-    let launch = launch.ok_or_else(|| {
-        AppError::InvalidInput("Claude options missing".to_string())
-    })?;
+    let launch =
+        launch.ok_or_else(|| AppError::InvalidInput("Claude options missing".to_string()))?;
     let mut claude = "claude".to_string();
     let flags = [
         ("--settings", &hooks.claude_settings),
@@ -444,24 +498,20 @@ fn claude_command(
         }
     }
     if let Some(model) = launch.model.as_deref() {
-        // Typed into a shell: a model's name, or an alias like `sonnet[1m]`, nothing else.
-        // The first character is alphanumeric so the name can never read as a flag.
-        let valid = model.len() <= MAX_MODEL_LEN
-            && model.starts_with(|c: char| c.is_ascii_alphanumeric())
-            && model
-                .chars()
-                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '.' | '_' | '[' | ']'));
-        if !valid {
-            return Err(AppError::InvalidInput(format!("invalid model: {model}")));
-        }
-        claude.push_str(&format!(" --model {}", quote(syntax, model)));
+        claude.push_str(&format!(
+            " --model {}",
+            quote(syntax, checked_model(model)?)
+        ));
     }
     // `--permission-mode`, not `defaultMode` in the settings: Claude's docs confirm the flag for one session.
     // Never `bypassPermissions`: its first use asks, and accepting writes to the user's settings.
-    match launch.permission {
-        Some(Permission::Edits) => claude.push_str(" --permission-mode acceptEdits"),
-        Some(Permission::Work) => claude.push_str(" --permission-mode dontAsk"),
-        Some(Permission::Ask) | None => {}
+    match (launch.role, launch.permission) {
+        // A fleet at night has nobody to ask: what would prompt is refused instead, and its
+        // deny list keeps it from editing and running commands whatever the team may do.
+        (Role::Fleet, Some(_)) => claude.push_str(" --permission-mode dontAsk"),
+        (_, Some(Permission::Edits)) => claude.push_str(" --permission-mode acceptEdits"),
+        (_, Some(Permission::Work)) => claude.push_str(" --permission-mode dontAsk"),
+        (_, Some(Permission::Ask) | None) => {}
     }
     let remote = remote_flag(launch, syntax);
     if launch.mode == ClaudeMode::Continue {
@@ -490,6 +540,21 @@ fn claude_command(
     })
 }
 
+/// Typed into a shell: a model's name, or an alias like `sonnet[1m]`, nothing else.
+/// The first character is alphanumeric so the name can never read as a flag.
+fn checked_model(model: &str) -> AppResult<&str> {
+    let valid = model.len() <= MAX_MODEL_LEN
+        && model.starts_with(|c: char| c.is_ascii_alphanumeric())
+        && model
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '.' | '_' | '[' | ']'));
+    if valid {
+        Ok(model)
+    } else {
+        Err(AppError::InvalidInput(format!("invalid model: {model}")))
+    }
+}
+
 /// `--remote-control [name]` comes last: its name is optional, and the flag
 /// must not take the next argument of the command for one.
 fn remote_flag(launch: &ClaudeLaunch, syntax: ShellSyntax) -> String {
@@ -500,12 +565,79 @@ fn remote_flag(launch: &ClaudeLaunch, syntax: ShellSyntax) -> String {
     }
 }
 
+/// A Codex terminal: `codex`, or `codex resume <thread>`, with its profile, the
+/// sandbox and approvals its role and mission give it, and its notify hook.
+/// Checked on Codex 0.167: the read-only sandbox refuses writes, commits and the
+/// network; no sandbox lets a commit through (Codex keeps `.git` read-only in
+/// `workspace-write`, whatever the profile grants), so a mission's Work goes without one.
+fn codex_command(
+    launch: Option<&CodexLaunch>,
+    syntax: ShellSyntax,
+    hooks: &AgentHooks,
+) -> AppResult<String> {
+    let role = launch.map(|l| l.role).unwrap_or_default();
+    let resume = match launch.and_then(|l| l.session_id.as_deref()) {
+        // Parsing guarantees a bare UUID, which never needs quoting.
+        Some(id) => Some(
+            uuid::Uuid::parse_str(id)
+                .map_err(|_| AppError::InvalidInput(format!("invalid session id: {id}")))?,
+        ),
+        None => None,
+    };
+    let mut codex = String::from(if resume.is_some() {
+        "codex resume"
+    } else {
+        "codex"
+    });
+    match &hooks.codex_profile {
+        // A profile name is letters, digits, `-` and `_` (`codex_profile::profile_name`).
+        Some(profile) => {
+            codex.push_str(&format!(" -p {profile}"));
+            for arg in &hooks.codex_args {
+                // Flags as they are; their values quoted for the shell.
+                let arg = if arg.starts_with('-') {
+                    arg.clone()
+                } else {
+                    quote(syntax, arg)
+                };
+                codex.push_str(&format!(" {arg}"));
+            }
+        }
+        None if role == Role::Fleet => {
+            return Err(AppError::InvalidInput(
+                "the fleet's Codex profile is missing".to_string(),
+            ));
+        }
+        None => {}
+    }
+    codex.push_str(match (role, launch.and_then(|l| l.permission)) {
+        // Day and night, nothing it runs can write, and it never waits for a yes.
+        (Role::Fleet, _) => " -s read-only -a never",
+        (_, Some(Permission::Work)) => " -s danger-full-access -a never",
+        // Edits in its folder and sandboxed commands go ahead; a commit, or anything else out of the sandbox, asks or fails.
+        (_, Some(Permission::Edits)) => " -s workspace-write -a on-request",
+        (_, Some(Permission::Ask) | None) => "",
+    });
+    if let Some(model) = launch.and_then(|l| l.model.as_deref()) {
+        codex.push_str(&format!(" -m {}", quote(syntax, checked_model(model)?)));
+    }
+    codex.push_str(&notify_flag(
+        syntax,
+        hooks.codex_notify.as_deref(),
+        hooks.curl_config.as_deref(),
+    ));
+    if let Some(id) = resume {
+        codex.push_str(&format!(" {id}"));
+    }
+    Ok(codex)
+}
+
 /// `notify` is given as TOML literal strings: PowerShell 5.1 drops the
 /// double quotes nested in an argument passed to a native program. The token
 /// comes from the curl config, never from the command line.
-fn codex_command(syntax: ShellSyntax, notify_url: Option<&str>, config: Option<&Path>) -> String {
+fn notify_flag(syntax: ShellSyntax, notify_url: Option<&str>, config: Option<&Path>) -> String {
     let (Some(url), Some(config)) = (notify_url, config) else {
-        return "codex".into();
+        return String::new();
     };
     // cmd drops `%`, `!`, `^` and `"` from what it is given (see `quote`): the
     // path would be another one and curl would send no token. Without the
@@ -515,12 +647,12 @@ fn codex_command(syntax: ShellSyntax, notify_url: Option<&str>, config: Option<&
             "codex notify not set: {} holds a character cmd cannot pass",
             config.display()
         );
-        return "codex".into();
+        return String::new();
     }
     let curl = if cfg!(windows) { "curl.exe" } else { "curl" };
     let config = toml_literal(&config.to_string_lossy());
     let notify = format!("notify=['{curl}','-s','-K',{config},'-X','POST','{url}','-d']");
-    format!("codex -c {}", quote(syntax, &notify))
+    format!(" -c {}", quote(syntax, &notify))
 }
 
 /// A TOML literal string; a path with an apostrophe (`O'Brien`) takes the
@@ -587,13 +719,20 @@ pub fn build_plan(
         .into_iter()
         .chain(refreshed_path())
         .chain(
-            spec.claude
-                .as_ref()
-                .and_then(|c| c.permission)
-                .iter()
-                .flat_map(|_| NO_PUSH_ENV)
+            // A Codex fleet runs commands, read-only ones: the push block holds for it day and night.
+            (spec.permission().is_some()
+                || (spec.agent == Agent::Codex && spec.role() == Role::Fleet))
+                .then_some(NO_PUSH_ENV)
+                .into_iter()
+                .flatten()
                 .map(|(key, value)| (key.to_string(), value.to_string())),
         )
+        .chain(hooks.mcp_token.iter().map(|token| {
+            (
+                crate::agents::codex_profile::TOKEN_ENV.to_string(),
+                token.clone(),
+            )
+        }))
         .chain(profile_dir)
         .collect(),
         env_remove: removed_env(std::env::var_os("CLAUDECODE").is_some()),
@@ -619,6 +758,7 @@ mod tests {
             agent,
             command: String::new(),
             claude,
+            codex: None,
             ollama: None,
         }
     }
@@ -632,6 +772,7 @@ mod tests {
             remote_control: None,
             model: None,
             permission: None,
+            linear: false,
             config_dir: None,
             extensions: None,
         })
@@ -779,6 +920,7 @@ mod tests {
             remote_control: None,
             model: None,
             permission: None,
+            linear: false,
             config_dir: None,
             extensions: None,
         });
@@ -809,6 +951,7 @@ mod tests {
             remote_control: None,
             model: None,
             permission: None,
+            linear: false,
             config_dir: None,
             extensions: None,
         })
@@ -912,9 +1055,9 @@ mod tests {
 
     #[test]
     fn a_fleet_needs_all_its_tools() {
-        assert_eq!(fleet_tools(&tooled(), true), Ok(()));
+        assert_eq!(fleet_tools(Agent::Claude, &tooled(), true), Ok(()));
         assert_eq!(
-            fleet_tools(&AgentHooks::default(), false),
+            fleet_tools(Agent::Claude, &AgentHooks::default(), false),
             Err("dummyPlane's local server did not start".to_string())
         );
         for partial in [
@@ -932,10 +1075,195 @@ mod tests {
             },
         ] {
             assert_eq!(
-                fleet_tools(&partial, true),
+                fleet_tools(Agent::Claude, &partial, true),
                 Err("its settings could not be written (see the log)".to_string())
             );
         }
+    }
+
+    fn codex_tooled() -> AgentHooks {
+        AgentHooks {
+            codex_profile: Some("dummyplane-n1".into()),
+            mcp_token: Some("tok".into()),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn a_codex_fleet_needs_its_profile_and_its_token() {
+        assert_eq!(fleet_tools(Agent::Codex, &codex_tooled(), true), Ok(()));
+        // Claude's files make no Codex fleet.
+        assert!(fleet_tools(Agent::Codex, &tooled(), true).is_err());
+        for partial in [
+            AgentHooks {
+                codex_profile: None,
+                ..codex_tooled()
+            },
+            AgentHooks {
+                mcp_token: None,
+                ..codex_tooled()
+            },
+        ] {
+            assert!(fleet_tools(Agent::Codex, &partial, true).is_err());
+        }
+        assert!(fleet_tools(Agent::Codex, &codex_tooled(), false).is_err());
+    }
+
+    fn codex_spec(launch: CodexLaunch) -> SpawnSpec {
+        SpawnSpec {
+            codex: Some(launch),
+            ..spec(Agent::Codex, None)
+        }
+    }
+
+    fn codex_line(launch: CodexLaunch, hooks: &AgentHooks) -> String {
+        agent_command(&codex_spec(launch), ShellSyntax::PowerShell, hooks)
+            .unwrap()
+            .unwrap()
+    }
+
+    #[test]
+    fn a_codex_fleet_runs_read_only_and_never_waits_day_or_night() {
+        let fleet = |permission| CodexLaunch {
+            role: Role::Fleet,
+            permission,
+            ..Default::default()
+        };
+        for permission in [
+            None,
+            Some(Permission::Ask),
+            Some(Permission::Edits),
+            Some(Permission::Work),
+        ] {
+            assert_eq!(
+                codex_line(fleet(permission), &codex_tooled()),
+                "codex -p dummyplane-n1 -s read-only -a never"
+            );
+        }
+        // Without its profile it would be a plain Codex in the user's folder: refused.
+        assert!(
+            agent_command(
+                &codex_spec(fleet(None)),
+                ShellSyntax::PowerShell,
+                &AgentHooks::default()
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn a_codex_session_s_own_arguments_follow_its_profile_quoted_for_the_shell() {
+        let hooks = AgentHooks {
+            codex_args: vec![
+                "-c".into(),
+                "mcp_servers.dummyplane.url='http://127.0.0.1:1/mcp'".into(),
+                "--disable".into(),
+                "plugins".into(),
+            ],
+            ..codex_tooled()
+        };
+        let line = agent_command(
+            &codex_spec(CodexLaunch {
+                role: Role::Fleet,
+                ..Default::default()
+            }),
+            ShellSyntax::PowerShell,
+            &hooks,
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(
+            line,
+            "codex -p dummyplane-n1 -c 'mcp_servers.dummyplane.url=''http://127.0.0.1:1/mcp''' --disable 'plugins' -s read-only -a never"
+        );
+    }
+
+    #[test]
+    fn a_codex_fleet_keeps_the_push_block_by_day() {
+        let spec = codex_spec(CodexLaunch {
+            role: Role::Fleet,
+            ..Default::default()
+        });
+        let plan = build_plan("n1", &spec, &nothing_on_path, &codex_tooled()).unwrap();
+        assert!(plan.env.iter().any(|(key, _)| key == "GIT_CONFIG_KEY_0"));
+    }
+
+    #[test]
+    fn a_codex_agent_takes_the_sandbox_its_mission_lets_it_have() {
+        let agent = |permission| CodexLaunch {
+            permission,
+            ..Default::default()
+        };
+        let hooks = codex_tooled();
+        assert_eq!(codex_line(agent(None), &hooks), "codex -p dummyplane-n1");
+        assert_eq!(
+            codex_line(agent(Some(Permission::Ask)), &hooks),
+            "codex -p dummyplane-n1"
+        );
+        assert_eq!(
+            codex_line(agent(Some(Permission::Edits)), &hooks),
+            "codex -p dummyplane-n1 -s workspace-write -a on-request"
+        );
+        assert_eq!(
+            codex_line(agent(Some(Permission::Work)), &hooks),
+            "codex -p dummyplane-n1 -s danger-full-access -a never"
+        );
+        // No profile (no local server): a plain Codex, as before.
+        assert_eq!(codex_line(agent(None), &AgentHooks::default()), "codex");
+    }
+
+    #[test]
+    fn a_codex_terminal_resumes_its_saved_thread_with_its_model() {
+        let launch = CodexLaunch {
+            session_id: Some("01a1c9a1-5e88-7920-b099-408693fc32af".into()),
+            model: Some("gpt-5.6-luna".into()),
+            ..Default::default()
+        };
+        assert_eq!(
+            codex_line(launch, &codex_tooled()),
+            "codex resume -p dummyplane-n1 -m 'gpt-5.6-luna' 01a1c9a1-5e88-7920-b099-408693fc32af"
+        );
+        for bad in [
+            CodexLaunch {
+                session_id: Some("--last".into()),
+                ..Default::default()
+            },
+            CodexLaunch {
+                model: Some("-x".into()),
+                ..Default::default()
+            },
+        ] {
+            assert!(
+                agent_command(&codex_spec(bad), ShellSyntax::PowerShell, &codex_tooled()).is_err()
+            );
+        }
+    }
+
+    #[test]
+    fn a_codex_terminal_gets_its_token_and_its_mission_s_push_block_by_environment() {
+        let hooks = AgentHooks {
+            mcp_token: Some("tok-secret".into()),
+            ..codex_tooled()
+        };
+        let spec = codex_spec(CodexLaunch {
+            permission: Some(Permission::Work),
+            ..Default::default()
+        });
+        let plan = build_plan("n1", &spec, &nothing_on_path, &hooks).unwrap();
+        assert!(
+            plan.env
+                .contains(&("DUMMYPLANE_MCP_TOKEN".to_string(), "tok-secret".to_string()))
+        );
+        assert!(plan.env.iter().any(|(key, _)| key == "GIT_CONFIG_KEY_0"));
+        assert!(!plan.initial_input.unwrap().contains("tok-secret"));
+        let day = build_plan(
+            "n1",
+            &codex_spec(CodexLaunch::default()),
+            &nothing_on_path,
+            &hooks,
+        )
+        .unwrap();
+        assert!(!day.env.iter().any(|(key, _)| key == "GIT_CONFIG_KEY_0"));
     }
 
     #[test]
@@ -1130,9 +1458,8 @@ mod tests {
                 .kind(),
             "notFound"
         );
-        let english = {
-            build_plan("n", &s, &nothing_on_path, &AgentHooks::default()).unwrap_err()
-        };
+        let english =
+            { build_plan("n", &s, &nothing_on_path, &AgentHooks::default()).unwrap_err() };
         assert_eq!(
             english.to_string(),
             "folder not found: Z:/definitely/not/here"
@@ -1460,6 +1787,37 @@ mod tests {
     }
 
     #[test]
+    fn a_fleet_at_night_never_waits_for_a_yes_whatever_its_team_may_do() {
+        for permission in [Permission::Ask, Permission::Edits, Permission::Work] {
+            let launch = with_permission(Some(permission)).map(|launch| ClaudeLaunch {
+                role: Role::Fleet,
+                ..launch
+            });
+            let command = claude_command(
+                launch.as_ref(),
+                ShellSyntax::PowerShell,
+                &AgentHooks::default(),
+            )
+            .unwrap();
+            assert!(
+                command.contains(" --permission-mode dontAsk"),
+                "{permission:?}"
+            );
+        }
+        let day = with_permission(None).map(|launch| ClaudeLaunch {
+            role: Role::Fleet,
+            ..launch
+        });
+        let command = claude_command(
+            day.as_ref(),
+            ShellSyntax::PowerShell,
+            &AgentHooks::default(),
+        )
+        .unwrap();
+        assert!(!command.contains("--permission-mode"));
+    }
+
+    #[test]
     fn no_choice_ever_bypasses_permissions() {
         for permission in [
             None,
@@ -1548,6 +1906,7 @@ mod tests {
                 agent: Agent::Claude,
                 command: String::new(),
                 claude: with_permission(permission),
+                codex: None,
                 ollama: None,
             };
             build_plan(

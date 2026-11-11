@@ -8,7 +8,7 @@ import { agentsPanelStore } from "@/agents/agentsPanelState";
 import { getByRole } from "@/lib/a11y";
 import { agentActivityStore } from "@/store/agentActivity";
 import { nodesStore } from "@/store/nodes";
-import { closeNotes, notesStore } from "@/notes/notesStore";
+import { workspacesStore } from "@/store/workspaces";
 import { openCodeWorkspace } from "@/studio/navigate";
 import { projectsStore } from "@/store/projects";
 import { terminalStatusStore } from "@/store/terminalStatus";
@@ -47,15 +47,20 @@ it("toggles the agents panel and shows how many agents wait (spec identité §5.
   host.remove();
 });
 
-it("opens the notes (spec notes §6)", async () => {
-  closeNotes();
+it("opens the notes in their workspace tab, and shows when they are on screen (spec notes §6)", async () => {
+  projectsStore.setState({ activeId: "p1" });
+  const openNotes = vi.fn(async () => "n1");
+  workspacesStore.setState({ openNotes, activeId: "w1", workspaces: [{ id: "n1", projectId: "p1", name: "Notes", position: 1, pantheon: null, kind: "notes", folder: null }] } as never);
   const host = document.createElement("div");
   document.body.append(host);
   const root = createRoot(host);
   await act(async () => root.render(<ActivityRail />));
-  await act(async () => host.querySelector<HTMLButtonElement>('[aria-label="Notes"]')!.click());
-  expect(notesStore.getState().open).toBe(true);
-  closeNotes();
+  const notes = host.querySelector<HTMLButtonElement>('[aria-label="Notes"]')!;
+  expect(notes.getAttribute("aria-pressed")).toBe("false");
+  await act(async () => notes.click());
+  expect(openNotes).toHaveBeenCalled();
+  await act(async () => workspacesStore.setState({ activeId: "n1" }));
+  expect(notes.getAttribute("aria-pressed")).toBe("true");
   await act(async () => root.unmount());
   host.remove();
 });

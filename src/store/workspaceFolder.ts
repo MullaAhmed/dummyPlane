@@ -1,11 +1,11 @@
 import { projectsStore, useProjects } from "./projects";
-import { isCode, useWorkspaces, workspacesStore, type Workspace } from "./workspaces";
+import { isCanvas, useWorkspaces, workspacesStore, type Workspace } from "./workspaces";
 
 /** The path of a project; empty when it is unknown. */
 const projectPath = (projectId: string | null | undefined) => projectsStore.getState().projects.find((p) => p.id === projectId)?.path ?? "";
 
 /** The folder a workspace picked for itself; null for the project's own. The code workspace stays on the project. */
-export const ownFolder = (workspace: Workspace | undefined): string | null => (workspace && !isCode(workspace) ? workspace.folder || null : null);
+export const ownFolder = (workspace: Workspace | undefined): string | null => (isCanvas(workspace) ? workspace.folder || null : null);
 
 /**
  * The folder everything started in a workspace uses: terminals, Fleet sessions, installs, sign-in,

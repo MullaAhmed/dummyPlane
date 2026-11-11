@@ -8,14 +8,15 @@ import { sendCommand } from "@/agents/broadcast";
 import type { Links } from "@/agents/wires";
 import type { TerminalPayload } from "@/nodes/types";
 import { agentActivityStore } from "@/store/agentActivity";
-import { nodesStore, terminalOf } from "@/store/nodes";
+import { nodesStore } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
 import { uiStore } from "@/store/ui";
+import { focusTerminal } from "./registry";
 import { TerminalNode } from "./TerminalNode";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
 vi.mock("./useTerminalHost", () => ({ useTerminalHost: () => undefined }));
-vi.mock("./registry", () => ({ relaunchTerminal: vi.fn(), stopTerminal: vi.fn(), layoutTerminal: vi.fn(), xtermOf: vi.fn(), terminalText: vi.fn(() => "") }));
+vi.mock("./registry", () => ({ relaunchTerminal: vi.fn(), stopTerminal: vi.fn(), layoutTerminal: vi.fn(), xtermOf: vi.fn(), terminalText: vi.fn(() => ""), focusTerminal: vi.fn() }));
 vi.mock("./minimize", () => ({ expandTerminal: vi.fn(() => true), minimizeTerminal: vi.fn(() => true), settleMinimizedSize: vi.fn() }));
 vi.mock("@/agents/broadcast", async (original) => ({
   ...(await original<typeof import("@/agents/broadcast")>()),
@@ -59,7 +60,7 @@ afterEach(async () => {
 
 const foot = () => host.querySelector<HTMLElement>("[data-agent-foot]");
 const statusLine = () => foot()!.querySelector<HTMLElement>("[data-status-line]")!;
-const toggle = () => foot()!.querySelector<HTMLButtonElement>("button[aria-expanded]")!;
+const sendButton = () => foot()!.querySelector<HTMLButtonElement>('button[aria-label="Send"]')!;
 const field = () => foot()!.querySelector<HTMLTextAreaElement>("textarea");
 const linkButton = () => foot()!.querySelector<HTMLButtonElement>("[data-link-toggle]");
 
@@ -149,36 +150,36 @@ describe("Link from the agent's end", () => {
   });
 });
 
-describe("the message bar under an agent's terminal", () => {
-  it("is folded by default: one line naming the agent, no field", async () => {
+describe("the message line under an agent's terminal", () => {
+  it("is the field itself, one line naming the agent: a click and you type, nothing to unfold first", async () => {
     await show();
-    expect(toggle().textContent).toBe("Message Batman");
-    expect(toggle().getAttribute("aria-expanded")).toBe("false");
-    expect(field()).toBeNull();
-  });
-
-  it("opens on a click, takes the keyboard, and keeps it open on the node", async () => {
-    await show();
-    await act(async () => toggle().click());
+    expect(foot()!.querySelector("button[aria-expanded]")).toBeNull();
     expect(field()).not.toBeNull();
-    expect(document.activeElement).toBe(field());
-    expect(terminalOf(nodesStore.getState().nodes.batman)?.inputOpen).toBe(true);
-    await act(async () => toggle().click());
-    expect(field()).toBeNull();
-    expect(terminalOf(nodesStore.getState().nodes.batman)?.inputOpen).toBe(false);
+    expect(field()!.placeholder).toBe("Message Batman");
+    expect(field()!.closest("[data-message-line]")).not.toBeNull();
+    // Nothing to send yet: Send is there, quiet, and says why it waits.
+    expect(sendButton().disabled).toBe(true);
   });
 
-  it("is open when the node was left open, without taking the keyboard", async () => {
+  it("never takes the keyboard by itself: a node shown, reloaded or panned into view leaves the user's field alone", async () => {
     const elsewhere = document.createElement("input");
     document.body.append(elsewhere);
     elsewhere.focus();
     await show({ ...batman, inputOpen: true });
     expect(field()).not.toBeNull();
     expect(document.activeElement).toBe(elsewhere);
+    elsewhere.remove();
+  });
+
+  it("gives the keyboard back to the agent's terminal on Escape", async () => {
+    await show();
+    field()!.focus();
+    await act(async () => void field()!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })));
+    expect(focusTerminal).toHaveBeenCalledWith("batman");
   });
 
   it("sends to this agent alone, the way the command bar sends to a target", async () => {
-    await show({ ...batman, inputOpen: true });
+    await show();
     expect(field()!.placeholder).toBe("Message Batman");
     await act(async () => {
       Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(field(), "run the tests");
@@ -191,10 +192,10 @@ describe("the message bar under an agent's terminal", () => {
   });
 
   it("keeps every key typed in the foot from the canvas: Backspace there would delete the node", async () => {
-    await show({ ...batman, inputOpen: true }, { atlas: { nodeIds: [], groupIds: [] } });
+    await show(batman, { atlas: { nodeIds: [], groupIds: [] } });
     const seen = vi.fn();
     canvas.addEventListener("keydown", seen);
-    for (const target of [toggle(), field()!, linkButton()!]) {
+    for (const target of [sendButton(), field()!, linkButton()!]) {
       for (const key of ["Backspace", "Delete", "Escape", "a"]) {
         await act(async () => void target.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true })));
       }
@@ -203,7 +204,7 @@ describe("the message bar under an agent's terminal", () => {
   });
 
   it("keeps the wheel over its field from the canvas, which would pan", async () => {
-    await show({ ...batman, inputOpen: true });
+    await show();
     const reached = vi.fn();
     canvas.addEventListener("wheel", reached);
     field()!.dispatchEvent(new Event("wheel", { bubbles: true, cancelable: true }));

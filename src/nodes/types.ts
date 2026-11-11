@@ -1,3 +1,4 @@
+import { FLEET_CAPABLE } from "@/fleet/capable";
 import { readExtensionChoice, type ExtensionChoice } from "@/ipc/claudeExtensions";
 import type { IssueState } from "@/ipc/github";
 import { AGENT_IDS, STORED_FLEET_ROLE, type AgentId, type OllamaLaunch, type Permission, type ShellKind } from "@/ipc/pty";
@@ -17,6 +18,8 @@ export interface TerminalPayload {
   command: string;
   /** The Claude Code conversation of this node, for `--session-id` / `--resume`. */
   claudeSessionId?: string;
+  /** The thread a Codex terminal is in, once Codex saved it: `codex resume <id>`. */
+  codexSessionId?: string;
   ollama?: OllamaLaunch;
   /** The steps its agent declared (spec orchestrateur §5). */
   steps?: Step[];
@@ -26,8 +29,10 @@ export interface TerminalPayload {
   remoteControl?: boolean;
   /** Claude's model, chosen by a mission's router (spec maj §3). */
   model?: string;
-  /** What its mission lets it do unasked (spec mission de nuit §5.3). */
+  /** What its mission lets it do unasked (spec mission de nuit §5.3); on a fleet's session, its night. */
   permission?: Permission;
+  /** A fleet's session that reads its night's tickets in Linear, through Linear's own server. */
+  linear?: true;
   /** The Claude profile this terminal started with (spec comptes §3); absent: the default account. */
   accountId?: string;
   /** A command to run once, an install: only an explicit gesture runs it again (spec installation §7). */
@@ -171,7 +176,7 @@ export function readFleetPayload(raw: unknown): FleetPayload {
   const payload: FleetPayload = { name: typeof r.name === "string" && r.name.trim() ? renamed(r.name) : FLEET_DEFAULT_NAME };
   const session = readTerminalPayload(r.session);
   // Its session carries the same default as its name and title (`fleetSession`): Claude shows the title.
-  if (session?.agent === "claude") payload.session = { ...session, name: renamed(session.name), title: renamed(session.title), role: STORED_FLEET_ROLE };
+  if (session && FLEET_CAPABLE.includes(session.agent)) payload.session = { ...session, name: renamed(session.name), title: renamed(session.title), role: STORED_FLEET_ROLE };
   const mission = readMission(r.mission);
   if (mission) payload.mission = mission;
   if (r.inputOpen === true) payload.inputOpen = true;
@@ -201,6 +206,7 @@ export function readTerminalPayload(raw: unknown): TerminalPayload | null {
     command: text(r.command),
   };
   if (typeof r.claudeSessionId === "string") payload.claudeSessionId = r.claudeSessionId;
+  if (typeof r.codexSessionId === "string") payload.codexSessionId = r.codexSessionId;
   const ollama = r.ollama as Record<string, unknown> | undefined;
   if (ollama && typeof ollama.model === "string" && (ollama.mode === "chat" || ollama.mode === "code")) {
     payload.ollama = { model: ollama.model, mode: ollama.mode };
@@ -213,6 +219,7 @@ export function readTerminalPayload(raw: unknown): TerminalPayload | null {
   if (r.remoteControl === true) payload.remoteControl = true;
   if (typeof r.model === "string" && r.model) payload.model = r.model;
   if (r.permission === "ask" || r.permission === "edits" || r.permission === "work") payload.permission = r.permission;
+  if (r.linear === true) payload.linear = true;
   if (r.oneShot === true) payload.oneShot = true;
   if (typeof r.accountId === "string" && r.accountId) payload.accountId = r.accountId;
   if (typeof r.spawnedBy === "string" && r.spawnedBy) payload.spawnedBy = r.spawnedBy;

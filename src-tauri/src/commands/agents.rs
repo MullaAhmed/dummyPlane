@@ -11,13 +11,15 @@ use serde_json::Value;
 use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::agents::activity::{Activity, Change, HookSource, Tracker};
+use crate::agents::extensions::{self, ClaudeExtensions, Places};
 use crate::agents::hooks_server::{self, HookHit, HookServer, HookSink};
 use crate::agents::mcp::{Pending, Tokens};
 use crate::agents::subagents::{Emit, Job, SubagentHook, SubagentSnapshot, Subagents};
-use crate::agents::extensions::{self, ClaudeExtensions, Places};
-use crate::agents::{claude_settings, mcp_files, prompts};
+use crate::agents::{claude_settings, codex_profile, mcp_files, prompts};
 use crate::error::{AppError, AppResult};
-use crate::pty::shell::{Agent, AgentHooks, ClaudeLaunch, Role, find_git_bash, which_locate};
+use crate::pty::shell::{
+    Agent, AgentHooks, ClaudeLaunch, CodexLaunch, Role, find_git_bash, which_locate,
+};
 use crate::sync::lock;
 
 /// Quiet terminals are checked this often (the 1.5 s rule).
@@ -63,6 +65,14 @@ struct SubagentsEvent {
 #[serde(rename_all = "camelCase")]
 struct SubagentSessionEvent {
     node_id: String,
+}
+
+/// The conversation a Codex terminal is in, once Codex has saved it: the next "Resume" names it.
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct CodexSessionEvent {
+    node_id: String,
+    session_id: String,
 }
 
 /// What a Claude session's status line was given (spec maj §6).
@@ -125,6 +135,9 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
     claude_settings::clear(&hooks_dir);
     let mcp_dir = app.path().app_data_dir()?.join("mcp");
     mcp_files::clear(&mcp_dir);
+    if let Some(home) = codex_profile::codex_home() {
+        codex_profile::clear(&home);
+    }
     let hooks = match hooks_server::start(AppSink(app.clone())) {
         Ok(server) => {
             log::info!("local server on port {}", server.port);
@@ -227,6 +240,21 @@ impl HookSink for AppSink {
 
     fn mcp_node(&self, token: &str) -> Option<String> {
         self.0.try_state::<AgentState>()?.mcp_tokens.node(token)
+    }
+
+    fn codex_thread(&self, node_id: &str, thread: &str) {
+        // The title Codex writes for a new conversation ends on a thread of its own, never saved: not one to resume.
+        let saved = codex_profile::codex_home()
+            .is_some_and(|home| codex_profile::thread_saved(&home, thread));
+        if saved {
+            let _ = self.0.emit(
+                "codex-session",
+                CodexSessionEvent {
+                    node_id: node_id.into(),
+                    session_id: thread.into(),
+                },
+            );
+        }
     }
 
     fn status(&self, node_id: &str, status: Value) {
@@ -335,11 +363,14 @@ pub fn hooks_for(
     node_id: &str,
     agent: Agent,
     claude: Option<&ClaudeLaunch>,
+    codex: Option<&CodexLaunch>,
     cwd: &std::path::Path,
     config_dir: Option<&std::path::Path>,
 ) -> AgentHooks {
     let role = claude.map(|c| c.role).unwrap_or_default();
     let permission = claude.and_then(|c| c.permission);
+    // Only a fleet reads the night's tickets: an agent never gets Linear's server.
+    let linear = role == Role::Fleet && claude.is_some_and(|c| c.linear);
     let state = app.state::<AgentState>();
     let Some(server) = &state.hooks else {
         return AgentHooks::default();
@@ -382,7 +413,7 @@ pub fn hooks_for(
                 &urls.settings,
                 role,
                 status.as_ref(),
-                permission,
+                claude_settings::Grants { permission, linear },
                 extensions.as_ref(),
             );
             let Ok(settings) =
@@ -398,6 +429,7 @@ pub fn hooks_for(
                 &token,
                 &servers,
                 prompts::for_role(role),
+                linear,
             )
             .inspect_err(|err| log::error!("tools of {node_id} not written: {err}"))
             .ok();
@@ -408,11 +440,44 @@ pub fn hooks_for(
                 ..Default::default()
             }
         }
-        Agent::Codex => AgentHooks {
-            codex_notify: Some(urls.codex),
-            curl_config: state.curl_config.clone(),
-            ..Default::default()
-        },
+        Agent::Codex => {
+            let mut hooks = AgentHooks {
+                codex_notify: Some(urls.codex),
+                curl_config: state.curl_config.clone(),
+                ..Default::default()
+            };
+            // A Codex the interface started without its launch (an older build): its notify only.
+            let Some(launch) = codex else {
+                return hooks;
+            };
+            let Some(home) = codex_profile::codex_home() else {
+                log::error!("tools of {node_id} not written: no Codex folder");
+                return hooks;
+            };
+            let role = launch.role;
+            let prompt = prompts::for_codex(role);
+            let profile = codex_profile::Profile {
+                mcp_url: &server.mcp_url(),
+                prompt: &prompt,
+                role,
+                linear: role == Role::Fleet && launch.linear,
+            };
+            let args = codex_profile::cli_args(role, &server.mcp_url());
+            let codex_bin = which_locate("codex");
+            let listed = |name: &str| match &codex_bin {
+                Some(bin) => codex_profile::list_servers(bin, name, &args, cwd),
+                None => Err(std::io::Error::other("codex not found in the PATH")),
+            };
+            match codex_profile::prepare(&home, node_id, &profile, listed) {
+                Ok(_) => {
+                    hooks.codex_profile = Some(codex_profile::profile_name(node_id));
+                    hooks.mcp_token = Some(state.mcp_tokens.issue(node_id));
+                    hooks.codex_args = args;
+                }
+                Err(err) => log::error!("tools of {node_id} not written: {err}"),
+            }
+            hooks
+        }
         _ => AgentHooks::default(),
     }
 }
@@ -446,6 +511,9 @@ pub fn ended(app: &AppHandle, node_id: &str) {
     claude_settings::remove(&state.hooks_dir, node_id);
     state.mcp_tokens.revoke(node_id);
     mcp_files::remove(&state.mcp_dir, node_id);
+    if let Some(home) = codex_profile::codex_home() {
+        codex_profile::remove(&home, node_id);
+    }
     clear_subagents(app, &state, node_id);
 }
 
@@ -484,10 +552,24 @@ pub fn set_subagent_terminals(on: bool) {
     hooks_server::set_subagent_terminals(on);
 }
 
+/// "Connect…" for a Codex fleet's Linear: Codex's own sign-in, in the browser.
+#[tauri::command]
+pub async fn codex_linear_login() -> AppResult<()> {
+    let codex = which_locate("codex")
+        .ok_or_else(|| AppError::NotFound("codex not found in the PATH".into()))?;
+    tauri::async_runtime::spawn_blocking(move || codex_profile::linear_login(&codex))
+        .await
+        .map_err(|err| AppError::Io(std::io::Error::other(err.to_string())))?
+        .map_err(|err| AppError::Io(std::io::Error::other(err)))
+}
+
 /// The skills, plugins, MCP servers and subagents a Claude terminal in `cwd`,
 /// with this profile folder (none: the default account), would get.
 #[tauri::command]
-pub async fn claude_extensions(cwd: String, config_dir: Option<String>) -> AppResult<ClaudeExtensions> {
+pub async fn claude_extensions(
+    cwd: String,
+    config_dir: Option<String>,
+) -> AppResult<ClaudeExtensions> {
     let profile = match config_dir.as_deref() {
         Some(dir) => Some(crate::accounts::checked_dir(dir)?),
         None => None,
@@ -548,6 +630,7 @@ mod tests {
             agent: Agent::Codex,
             command: String::new(),
             claude: None,
+            codex: None,
             ollama: None,
         };
         for syntax in [

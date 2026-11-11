@@ -17,7 +17,7 @@ import { bufferText } from "./bufferText";
 import { freshScreen, textSince } from "./freshScreen";
 import { pasteImage, pastedImage, takeOverPaste } from "./imagePaste";
 import { keyAction, NEWLINE_SEQUENCE } from "./keys";
-import { newConversation, type LaunchMode } from "./launch";
+import { newConversation, relaunchMode, type LaunchMode } from "./launch";
 import { forgetLiveTitle, setLiveTitle } from "./liveTitle";
 import { onNewWork } from "./minimize";
 import { isTypingKey, startsNewConversation, startsOnKeystroke } from "./pill";
@@ -245,7 +245,7 @@ async function freshen(entry: Entry) {
 async function startFresh(nodeId: string, entry: Entry) {
   let payload = sessionOf(nodesStore.getState().nodes[nodeId]);
   if (!payload) return;
-  if (payload.agent === "claude" && startsNewConversation(statusOf(nodeId))) {
+  if ((payload.agent === "claude" || payload.agent === "codex") && startsNewConversation(statusOf(nodeId))) {
     const fresh = newConversation();
     updateSession(nodeId, fresh);
     payload = { ...payload, ...fresh };
@@ -301,8 +301,7 @@ export function resumeTerminal(nodeId: string) {
   if (!payload) return;
   const entry = entries.get(nodeId) ?? create(nodeId);
   autostart.cancel(nodeId);
-  const mode = payload.agent === "claude" && payload.claudeSessionId ? "resume" : "new";
-  void relaunchSession(nodeId, entry.term, payload, mode, () => freshen(entry));
+  void relaunchSession(nodeId, entry.term, payload, relaunchMode(payload), () => freshen(entry));
 }
 
 /** Resolves once the new process is spawned. */

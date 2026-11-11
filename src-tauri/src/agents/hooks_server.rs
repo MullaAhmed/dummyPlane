@@ -42,6 +42,8 @@ pub trait HookSink: Send + Sync + 'static {
     fn mcp_node(&self, token: &str) -> Option<String>;
     /// `tools/list` or `tools/call` for a node, answered by the interface.
     fn mcp_call(&self, node_id: &str, method: &str, params: Value) -> Result<Value, String>;
+    /// A Codex turn ended in this thread (its notify's `thread-id`).
+    fn codex_thread(&self, _node_id: &str, _thread: &str) {}
     /// What a Claude session's status line was given: its usage (spec maj §6).
     fn status(&self, _node_id: &str, _status: Value) {}
 }
@@ -374,10 +376,18 @@ fn status_of(request: &mut Request, token: &str, sink: &dyn HookSink) -> (u16, O
                 )
             }
         }
-        HookSource::Codex => (
-            codex_activity(json["type"].as_str().unwrap_or_default()),
-            false,
-        ),
+        HookSource::Codex => {
+            if let Some(thread) = json["thread-id"]
+                .as_str()
+                .and_then(super::codex_profile::thread_id)
+            {
+                sink.codex_thread(&node_id, &thread);
+            }
+            (
+                codex_activity(json["type"].as_str().unwrap_or_default()),
+                false,
+            )
+        }
         HookSource::Gemini => {
             let event = json["hook_event_name"].as_str().unwrap_or_default();
             (

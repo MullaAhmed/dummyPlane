@@ -36,6 +36,8 @@ export interface WorkspacesState {
   create: () => Promise<void>;
   /** Selects the project's code workspace, creating it the first time; resolves with its id. */
   openCode: () => Promise<string | null>;
+  /** Selects the project's notes tab, creating it the first time; resolves with its id. */
+  openNotes: () => Promise<string | null>;
   rename: (id: string, name: string) => Promise<void>;
   /** Deletes a workspace (never the last one) and selects its neighbor if it was active. */
   remove: (id: string) => Promise<void>;
@@ -56,14 +58,20 @@ export interface WorkspacesState {
 }
 
 /** Older rows (and an unknown kind) read as a canvas; one without a folder, as the project's own. */
-const withKind = (w: Workspace): Workspace => ({ ...w, kind: w.kind === "code" ? "code" : "canvas", folder: w.folder ?? null });
+const withKind = (w: Workspace): Workspace => ({ ...w, kind: w.kind === "code" || w.kind === "notes" ? w.kind : "canvas", folder: w.folder ?? null });
 
 export const isCode = (w: Workspace | undefined) => w?.kind === "code";
+export const isNotes = (w: Workspace | undefined) => w?.kind === "notes";
+/** A free whiteboard: what holds terminals, Fleets and drawings, unlike the project's code and notes tabs. An unknown kind reads as a canvas, as the backend reads it. */
+export const isCanvas = (w: Workspace | undefined): w is Workspace & { kind: "canvas" } => w !== undefined && !isCode(w) && !isNotes(w);
 
-/** The last canvas workspace is never deleted; the code workspace always may be. */
+/** The last canvas workspace is never deleted; the code and notes tabs always may be. */
 export function canRemove(workspaces: readonly Workspace[], workspace: Workspace): boolean {
-  return isCode(workspace) || workspaces.filter((w) => !isCode(w)).length > 1;
+  return !isCanvas(workspace) || workspaces.filter(isCanvas).length > 1;
 }
+
+/** The names the project's single tabs are created with. */
+const SINGLE_NAMES: Record<Exclude<WorkspaceKind, "canvas">, string> = { code: "Code", notes: "Notes" };
 
 /** The workspaces in the order saved for the project; unknown ids are dropped, new ones go last. */
 export function inSavedOrder(workspaces: Workspace[], saved: unknown): Workspace[] {
@@ -91,6 +99,20 @@ export function createWorkspacesStore() {
       setSetting(activeKey(projectId), id).catch((error: unknown) => console.warn("active workspace not saved", error));
     };
 
+    /** The project's code or notes tab: one per project, the backend hands back the existing one too. */
+    const openSingle = async (kind: Exclude<WorkspaceKind, "canvas">): Promise<string | null> => {
+      const projectId = get().projectId;
+      if (!projectId) return null;
+      let single = get().workspaces.find((w) => w.kind === kind);
+      if (!single) {
+        single = withKind(await createWorkspace(projectId, SINGLE_NAMES[kind], kind));
+        const created = single;
+        set((s) => ({ workspaces: s.workspaces.some((w) => w.id === created.id) ? s.workspaces : [...s.workspaces, created] }));
+      }
+      get().select(single.id);
+      return single.id;
+    };
+
     return {
       projectId: null,
       workspaces: [],
@@ -102,7 +124,7 @@ export function createWorkspacesStore() {
         set({ projectId, workspaces: [], activeId: null, lastCanvasId: null, status: "loading", error: undefined });
         try {
           let workspaces = (await listWorkspaces(projectId)).map(withKind);
-          if (!workspaces.some((w) => !isCode(w)))
+          if (!workspaces.some(isCanvas))
             workspaces = [withKind(await createWorkspace(projectId, nextDefaultName(workspaces))), ...workspaces];
           workspaces = inSavedOrder(workspaces, await getSetting<unknown>(orderKey(projectId)).catch(() => null));
           const saved = (await getSetting<string>(activeKey(projectId))) ?? (await getSetting<string>(LEGACY_ACTIVE_KEY));
@@ -121,19 +143,8 @@ export function createWorkspacesStore() {
         rememberActive(workspace.id);
       },
 
-      openCode: async () => {
-        const projectId = get().projectId;
-        if (!projectId) return null;
-        // One per project: the backend hands back the existing one too.
-        let code = get().workspaces.find(isCode);
-        if (!code) {
-          code = withKind(await createWorkspace(projectId, "Code", "code"));
-          const created = code;
-          set((s) => ({ workspaces: s.workspaces.some((w) => w.id === created.id) ? s.workspaces : [...s.workspaces, created] }));
-        }
-        get().select(code.id);
-        return code.id;
-      },
+      openCode: () => openSingle("code"),
+      openNotes: () => openSingle("notes"),
 
       rename: async (id, name) => {
         const trimmed = name.trim();
@@ -203,7 +214,7 @@ export function createWorkspacesStore() {
   });
   store.subscribe((s) => {
     const active = s.workspaces.find((w) => w.id === s.activeId);
-    if (active && !isCode(active) && s.lastCanvasId !== active.id) store.setState({ lastCanvasId: active.id });
+    if (isCanvas(active) && s.lastCanvasId !== active.id) store.setState({ lastCanvasId: active.id });
   });
   return store;
 }

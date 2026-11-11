@@ -1,5 +1,5 @@
 import { createStore, useStore } from "zustand";
-import { listAgents, listShells, refreshPath, type AgentInfo, type ShellKind } from "@/ipc/pty";
+import { listAgents, listShells, refreshPath, type AgentId, type AgentInfo, type ShellKind } from "@/ipc/pty";
 
 interface AgentsState {
   agents: AgentInfo[];
@@ -36,8 +36,11 @@ export async function loadedAgents(): Promise<AgentInfo[]> {
   return agentsStore.getState().agents ?? [];
 }
 
-/** Whether Claude Code is installed, the agents looked for first if they never were. */
-export async function claudeInstalled(): Promise<boolean> {
+/** Whether this CLI is installed, the agents looked for first if they never were. */
+export async function agentInstalled(id: AgentId): Promise<boolean> {
   if (!agentsStore.getState().loaded) await agentsStore.getState().load();
-  return agentsStore.getState().agents.some((a) => a.id === "claude" && a.available);
+  return agentsStore.getState().agents.some((a) => a.id === id && a.available);
 }
+
+/** Whether Claude Code is installed. */
+export const claudeInstalled = () => agentInstalled("claude");

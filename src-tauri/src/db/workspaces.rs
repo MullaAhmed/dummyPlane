@@ -13,7 +13,7 @@ pub struct Workspace {
     pub position: i64,
     /// Pantheon of the agents outside any group (spec habillage §9.2).
     pub pantheon: Option<String>,
-    /// `canvas` (free whiteboard) or `code` (the project's single code workspace).
+    /// `canvas` (free whiteboard), `code` (the project's single code workspace) or `notes` (its single notes tab).
     pub kind: String,
     /// The folder its terminals start in; `None` is the project's own, so a moved project is followed.
     pub folder: Option<String>,
@@ -21,11 +21,13 @@ pub struct Workspace {
 
 pub const CANVAS: &str = "canvas";
 pub const CODE: &str = "code";
+pub const NOTES: &str = "notes";
 
 /// Unknown or missing kinds read as a canvas, the historical behaviour.
 fn read_kind(kind: Option<String>) -> String {
     match kind.as_deref() {
         Some(CODE) => CODE.to_string(),
+        Some(NOTES) => NOTES.to_string(),
         _ => CANVAS.to_string(),
     }
 }
@@ -51,19 +53,19 @@ pub fn list(conn: &Connection, project_id: &str) -> AppResult<Vec<Workspace>> {
     Ok(rows.collect::<rusqlite::Result<_>>()?)
 }
 
-/// Creates a workspace of the given kind (`canvas` or `code`). A project has at
-/// most one code workspace: asking for another returns the existing one.
+/// Creates a workspace of the given kind (`canvas`, `code` or `notes`). A project
+/// has at most one code and one notes workspace: asking for another returns the existing one.
 pub fn create(conn: &Connection, project_id: &str, name: &str, kind: &str) -> AppResult<Workspace> {
     let name = valid_name(name)?;
-    if kind != CANVAS && kind != CODE {
+    if ![CANVAS, CODE, NOTES].contains(&kind) {
         return Err(AppError::InvalidInput(format!("unknown workspace kind: {kind}")));
     }
-    if kind == CODE {
+    if kind != CANVAS {
         let existing = conn
             .query_row(
                 "SELECT id, project_id, name, position, pantheon, kind, folder FROM workspaces
-                 WHERE project_id = ?1 AND kind = 'code'",
-                [project_id],
+                 WHERE project_id = ?1 AND kind = ?2",
+                params![project_id, kind],
                 from_row,
             )
             .optional()?;
@@ -115,7 +117,7 @@ pub fn rename(conn: &Connection, id: &str, name: &str) -> AppResult<()> {
 
 /// Deletes a workspace and, by cascade, its scene, files, nodes and scrollback.
 /// The last canvas workspace of a project cannot be deleted: a project always shows
-/// one. A code workspace may always be deleted.
+/// one. A code or notes workspace may always be deleted.
 pub fn delete(conn: &Connection, id: &str) -> AppResult<()> {
     let (project_id, kind): (String, Option<String>) = conn
         .query_row(
@@ -126,7 +128,9 @@ pub fn delete(conn: &Connection, id: &str) -> AppResult<()> {
         .optional()?
         .ok_or_else(|| not_found(id))?;
     let canvases: i64 = conn.query_row(
-        "SELECT COUNT(*) FROM workspaces WHERE project_id = ?1 AND kind IS NOT 'code'",
+        // What `read_kind` reads as a canvas: an unknown kind included.
+        "SELECT COUNT(*) FROM workspaces
+         WHERE project_id = ?1 AND (kind IS NULL OR kind NOT IN ('code', 'notes'))",
         [project_id],
         |row| row.get(0),
     )?;
@@ -432,6 +436,27 @@ mod tests {
                 let lone = create(conn, &q, "Code", CODE)?;
                 delete(conn, &lone.id)?;
                 assert!(list(conn, &q)?.is_empty());
+                Ok(())
+            })
+            .unwrap();
+    }
+
+    #[test]
+    fn a_project_has_one_notes_workspace_which_never_counts_as_a_canvas() {
+        Db::open_in_memory()
+            .unwrap()
+            .with(|conn| {
+                let p = project(conn, "C:/p");
+                let canvas = create(conn, &p, "A", CANVAS)?;
+                let notes = create(conn, &p, "Notes", NOTES)?;
+                assert_eq!(notes.kind, "notes");
+                assert_eq!(create(conn, &p, "Other name", NOTES)?, notes);
+                let kinds: Vec<String> = list(conn, &p)?.into_iter().map(|w| w.kind).collect();
+                assert_eq!(kinds, vec!["canvas", "notes"]);
+                // A notes tab is not a canvas left behind: the last canvas stays.
+                assert_eq!(delete(conn, &canvas.id).unwrap_err().kind(), "invalidInput");
+                delete(conn, &notes.id)?;
+                assert_eq!(names(conn, &p), vec!["A"]);
                 Ok(())
             })
             .unwrap();

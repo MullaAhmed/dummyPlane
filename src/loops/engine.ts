@@ -1,6 +1,6 @@
 import type { Activity } from "@/ipc/activity";
 import type { AgentId } from "@/ipc/pty";
-import { claudeUp } from "@/mission/ready";
+import { promptUp } from "@/mission/ready";
 import type { LoopDef } from "./model";
 
 /** The least time between two runs of an idle or output loop (loops spec §3). */
@@ -44,9 +44,9 @@ interface State {
   busy: boolean;
 }
 
-/** A Claude that quit leaves its shell running, and the shell would run the text as a command (README mission). */
+/** A Claude or a Codex that quit leaves its shell running, and the shell would run the text as a command (README mission). */
 export function acceptsInstruction(agent: AgentId | undefined, screen: string): boolean {
-  return agent !== "claude" || claudeUp(screen);
+  return !agent || promptUp(agent, screen);
 }
 
 const shows = (screen: string, text: string) => screen.toLocaleLowerCase().includes(text.toLocaleLowerCase());

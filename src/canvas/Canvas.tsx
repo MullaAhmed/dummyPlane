@@ -19,7 +19,7 @@ import { fleetLinks } from "@/agents/wires";
 import { saveFiles, saveScene } from "@/ipc/db";
 import { onFlushAll } from "@/lib/flush";
 import { NodeHost } from "@/nodes/NodeHost";
-import { setFleetClosed } from "@/mission/store";
+import { releaseTeamPermission, setFleetClosed } from "@/mission/store";
 import { disposeTerminal, focusTerminal } from "@/nodes/terminal/registry";
 import { nodesStore } from "@/store/nodes";
 import { isRunning } from "@/store/terminalStatus";
@@ -257,7 +257,10 @@ function showAtFullSize(api: ExcalidrawImperativeAPI, nodeId: string) {
  */
 function settleRemovals({ dispose, restore, ask }: RemovalVerdict) {
   for (const id of dispose) {
-    if (nodesStore.getState().nodes[id]?.kind === "fleet") setFleetClosed(id, true);
+    if (nodesStore.getState().nodes[id]?.kind === "fleet") {
+      setFleetClosed(id, true);
+      releaseTeamPermission(id);
+    }
     disposeTerminal(id);
   }
   if (restore.length === 0) return;

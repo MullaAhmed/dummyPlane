@@ -5,7 +5,7 @@ import { messages } from "@/i18n";
 import { getSetting, setSetting } from "@/ipc/db";
 import { projectsStore, useProjects } from "@/store/projects";
 import { ownFolder, useActiveFolder } from "@/store/workspaceFolder";
-import { isCode, workspacesStore } from "@/store/workspaces";
+import { isCanvas, workspacesStore } from "@/store/workspaces";
 import { agentsMessages } from "./messages";
 
 /** The folders offered again under the current one. */
@@ -48,11 +48,11 @@ export function readSaved(raw: unknown): Saved & { folder: string | null } {
 
 const projectPathOf = (projectId: string | null) => projectsStore.getState().projects.find((p) => p.id === projectId)?.path ?? "";
 
-/** The workspace a folder change applies to: the one named, else the active one; never the code workspace (it stays on the project). */
+/** The workspace a folder change applies to: the one named, else the active one; never the code or notes tab (they stay on the project). */
 function targetWorkspace(workspaceId?: string) {
   const { workspaces, activeId } = workspacesStore.getState();
   const workspace = workspaces.find((w) => w.id === (workspaceId ?? activeId));
-  return workspace && !isCode(workspace) ? workspace : null;
+  return isCanvas(workspace) ? workspace : null;
 }
 
 interface LaunchFolderState extends Saved {
@@ -161,7 +161,7 @@ async function adoptLegacyFolder(projectId: string, folder: string): Promise<boo
   if (!(await workspacesReady(projectId))) return false;
   const { workspaces, activeId } = workspacesStore.getState();
   const active = workspaces.find((w) => w.id === activeId);
-  if (!active || isCode(active) || ownFolder(active) !== null || sameFolder(folder, projectPathOf(projectId))) return true;
+  if (!isCanvas(active) || ownFolder(active) !== null || sameFolder(folder, projectPathOf(projectId))) return true;
   try {
     await workspacesStore.getState().setFolder(active.id, folder);
     return true;

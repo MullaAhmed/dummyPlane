@@ -1,7 +1,5 @@
 import { CaptureUpdateAction, newElementWith } from "@excalidraw/excalidraw";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
-import { toast } from "sonner";
-import { messages } from "@/i18n";
 import { revealNode } from "@/canvas/arrive";
 import { canvasStore } from "@/canvas/canvasStore";
 import { groupInfoOf, groupOf, insertIntoFrame, withGroupFolded } from "@/canvas/groups";
@@ -14,11 +12,9 @@ import { nodesStore, terminalOf } from "@/store/nodes";
 import { isRunning } from "@/store/terminalStatus";
 import { uiStore } from "@/store/ui";
 import { workspacesStore } from "@/store/workspaces";
-import { claudeInstalled } from "./agentsStore";
 import { announceArrival, IN_VIEW, type Arrival } from "./arrivals";
 import { cloneTerminalPayload } from "./clone";
 import { arrangeInFrame, freeCell, freeSpot, NODE_GAP } from "./groupLayout";
-import { agentsMessages } from "./messages";
 import { nameForNewAgent, pantheonsForCopiedGroups } from "./naming";
 import { sceneAccess } from "./sceneAccess";
 import { withSpawnedChildren } from "./spawnFamily";
@@ -126,9 +122,10 @@ export async function adoptCopies(workspaceId: string, copies: readonly { id: st
     const source = nodesStore.getState().nodes[sourceId];
     if (!source) continue;
     if (source.kind === "fleet") {
-      // A fleet runs Claude Code: without it, the copy is taken back (spec first version §7.2).
-      if (!(await claudeInstalled())) {
-        toast.error(messages(agentsMessages).noClaude);
+      // A fleet runs on the Fleet's CLI: without it, the copy is taken back (spec first version §7.2).
+      // Imported late: the fleet module reaches this one through the canvas.
+      const { refusedWithoutItsCli } = await import("@/fleet/fleets");
+      if (await refusedWithoutItsCli()) {
         refused.add(id);
         continue;
       }

@@ -20,8 +20,8 @@ it("names one action with one word across the menus and the palette (final revie
 });
 
 it("counts in proper English", () => {
-  expect(messages(missionMessages).linked(1)).toBe("1 Claude agent linked");
-  expect(messages(missionMessages).linked(2)).toBe("2 Claude agents linked");
+  expect(messages(missionMessages).linked(1)).toBe("1 agent linked");
+  expect(messages(missionMessages).linked(2)).toBe("2 agents linked");
   expect(messages(reviewMessages).moreLines(1)).toBe("… 1 more line");
   expect(messages(reviewMessages).moreLines(3)).toBe("… 3 more lines");
 });

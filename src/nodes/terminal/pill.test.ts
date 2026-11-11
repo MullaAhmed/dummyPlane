@@ -14,11 +14,11 @@ describe("pillOf", () => {
 });
 
 describe("resumeOfferOf", () => {
-  it("offers to resume a Claude conversation, to relaunch anything else, never while running", () => {
-    expect(resumeOfferOf({ state: "stopped" }, "claude", true)).toBe("resume");
-    expect(resumeOfferOf({ state: "stopped" }, "claude", false)).toBe("relaunch");
-    expect(resumeOfferOf({ state: "exited", code: 0 }, "codex", false)).toBe("relaunch");
-    expect(resumeOfferOf({ state: "running" }, "claude", true)).toBeNull();
+  it("offers to resume a conversation, to relaunch anything else, never while running", () => {
+    expect(resumeOfferOf({ state: "stopped" }, true)).toBe("resume");
+    expect(resumeOfferOf({ state: "stopped" }, false)).toBe("relaunch");
+    expect(resumeOfferOf({ state: "exited", code: 0 }, false)).toBe("relaunch");
+    expect(resumeOfferOf({ state: "running" }, true)).toBeNull();
   });
 });
 
@@ -77,7 +77,7 @@ describe("a terminal waiting for its staggered start", () => {
   });
 
   it("offers neither to resume nor to relaunch", () => {
-    expect(resumeOfferOf(starting, "claude", true)).toBeNull();
+    expect(resumeOfferOf(starting, true)).toBeNull();
   });
 
   it("is not started a second time by a keystroke", () => {
@@ -135,6 +135,6 @@ describe("a running agent that reported", () => {
 });
 
 it("offers no resume to a fleet refused for lack of dummyPlane's tools: its node says why", () => {
-  expect(resumeOfferOf({ state: "error", message: "m", kind: "toolsUnavailable" }, "claude", true)).toBeNull();
-  expect(resumeOfferOf({ state: "error", message: "m" }, "claude", true)).toBe("resume");
+  expect(resumeOfferOf({ state: "error", message: "m", kind: "toolsUnavailable" }, true)).toBeNull();
+  expect(resumeOfferOf({ state: "error", message: "m" }, true)).toBe("resume");
 });

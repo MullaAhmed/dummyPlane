@@ -46,3 +46,11 @@ it("deletes the workspace once confirmed", async () => {
   expect(remove).toHaveBeenCalledWith("w1");
   remove.mockRestore();
 });
+
+it("closes the code and notes tabs without asking: their files stay on disk, nothing is erased", async () => {
+  const remove = vi.spyOn(workspacesStore.getState(), "remove").mockResolvedValue();
+  for (const kind of ["code", "notes"] as const) await removeWorkspace({ ...workspace, id: kind, kind }, 0);
+  expect(confirmAction).not.toHaveBeenCalled();
+  expect(remove.mock.calls).toEqual([["code"], ["notes"]]);
+  remove.mockRestore();
+});

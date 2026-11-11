@@ -1,7 +1,7 @@
 import { messages } from "@/i18n";
 import { mcpReply, onMcpCall, type McpCall } from "@/ipc/mcp";
 import { notesTool, notesToolSpec } from "@/notes/agentTool";
-import { nodesStore, terminalOf } from "@/store/nodes";
+import { nodesStore, sessionOf, terminalOf } from "@/store/nodes";
 import { AGENT_ONLY, agentTools, declareSteps, markStep, refused, report, spawnAgentTool } from "./agentTools";
 import { linkTool, linkTools } from "./linkTools";
 import { agentMessages } from "./messages";
@@ -14,7 +14,12 @@ const t = () => messages(agentMessages).router;
 export async function answer(call: McpCall): Promise<unknown> {
   const record = nodesStore.getState().nodes[call.nodeId];
   const fleet = record?.kind === "fleet";
-  if (call.method === "tools/list") return { tools: [...(fleet ? fleetTools() : [...agentTools(), ...linkTools()]), notesToolSpec()] };
+  if (call.method === "tools/list") {
+    // Remote Control is Claude's: a fleet on another CLI is not offered it.
+    const claude = sessionOf(record)?.agent !== "codex";
+    const own = fleet ? fleetTools().filter((tool) => claude || tool.name !== "remote_control") : [...agentTools(), ...linkTools()];
+    return { tools: [...own, notesToolSpec()] };
+  }
   const asked = String(call.params.name ?? "");
   const { name, args } = internalCall(asked, (call.params.arguments ?? {}) as Record<string, unknown>);
   // A conversation resumed from before the English names may still call a former one.

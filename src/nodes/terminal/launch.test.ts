@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readTerminalPayload } from "@/nodes/types";
-import { buildSpawnSpec, defaultTitle, newConversation, newTerminalPayload, fleetSession, switchedAgent } from "./launch";
+import { STORED_FLEET_ROLE } from "@/ipc/pty";
+import { buildSpawnSpec, canResume, defaultTitle, newConversation, newTerminalPayload, fleetSession, relaunchMode, switchedAgent } from "./launch";
 
 const base = { title: "", cwd: "C:\\code\\dummyplane", agent: "shell" as const, command: "", shell: "default" as const };
 
@@ -32,6 +33,42 @@ describe("newTerminalPayload", () => {
   it("keeps the Ollama model and mode", () => {
     const payload = newTerminalPayload({ ...base, agent: "ollama", ollama: { model: "llama3", mode: "chat" } });
     expect(payload.ollama).toEqual({ model: "llama3", mode: "chat" });
+  });
+});
+
+describe("a Codex terminal", () => {
+  const codex = newTerminalPayload({ ...base, agent: "codex", title: "Codex" }, "Raven");
+  const THREAD = "01a1c9a1-5e88-7920-b099-408693fc32af";
+
+  it("starts as an agent of dummyPlane with no conversation yet: Codex names it once saved", () => {
+    expect(codex.claudeSessionId).toBeUndefined();
+    expect(buildSpawnSpec(codex, "new")).toMatchObject({ agent: "codex", codex: { role: "agent" } });
+    expect(buildSpawnSpec(codex, "new").claude).toBeUndefined();
+    expect(canResume(codex)).toBe(false);
+    expect(relaunchMode(codex)).toBe("new");
+  });
+
+  it("resumes the thread Codex saved, and a new conversation forgets it", () => {
+    const saved = { ...codex, codexSessionId: THREAD };
+    expect(canResume(saved)).toBe(true);
+    expect(relaunchMode(saved)).toBe("resume");
+    expect(buildSpawnSpec(saved, "resume").codex?.sessionId).toBe(THREAD);
+    expect(buildSpawnSpec(saved, "new").codex?.sessionId).toBeUndefined();
+    expect({ ...saved, ...newConversation() }.codexSessionId).toBeUndefined();
+    expect(switchedAgent(saved, "claude").codexSessionId).toBeUndefined();
+  });
+
+  it("carries a fleet's role, its night and Linear, never a model of Claude's", () => {
+    const fleet = { ...fleetSession("Fleet", { cwd: "C:/p", shell: "default" }, "codex"), permission: "work" as const, linear: true as const };
+    expect(fleet.role).toBe(STORED_FLEET_ROLE);
+    expect(buildSpawnSpec(fleet, "new").codex).toEqual({ role: STORED_FLEET_ROLE, permission: "work", linear: true });
+    expect(buildSpawnSpec({ ...codex, model: "sonnet" }, "new").codex?.model).toBeUndefined();
+    expect(buildSpawnSpec({ ...codex, model: "claude-opus-5-5" }, "new").codex?.model).toBeUndefined();
+    expect(buildSpawnSpec({ ...codex, model: "gpt-5.6-luna" }, "new").codex?.model).toBe("gpt-5.6-luna");
+  });
+
+  it("keeps its thread and a Codex fleet keeps its session when read back", () => {
+    expect(readTerminalPayload({ ...codex, codexSessionId: THREAD })?.codexSessionId).toBe(THREAD);
   });
 });
 

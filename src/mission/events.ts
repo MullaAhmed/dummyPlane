@@ -4,7 +4,7 @@ import { ptySendText } from "@/ipc/pty";
 import { agentMessages } from "@/mcp/messages";
 import { freshText, quietFor, typedAgo } from "@/nodes/terminal/registry";
 import { agentActivityStore } from "@/store/agentActivity";
-import { nodesStore } from "@/store/nodes";
+import { nodesStore, sessionOf } from "@/store/nodes";
 import { isRunning, terminalStatusStore } from "@/store/terminalStatus";
 import { remoteBusy } from "@/agents/remoteControl";
 import { whenReady } from "./ready";
@@ -12,7 +12,7 @@ import { memberOf } from "./store";
 
 /** Lines waiting for their fleet to be free. */
 const queues = new Map<string, { line: string; typed?: () => void }[]>();
-/** Fleets just (re)started whose Claude's prompt is not up yet (final review H2). */
+/** Fleets just (re)started whose CLI's prompt is not up yet (final review H2). */
 const starting = new Set<string>();
 
 /** A line waits this long after the user's last keystroke: it would be typed into their half-written text. */
@@ -63,6 +63,7 @@ function awaitPrompt(fleetId: string) {
     quietMs: () => quietFor(fleetId),
     screen: () => freshText(fleetId, 50),
     press: () => Promise.resolve(),
+    agent: sessionOf(nodesStore.getState().nodes[fleetId])?.agent,
   };
   void (async () => {
     while (isRunning(fleetId) && !(await whenReady(probe, undefined, false)));

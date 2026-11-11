@@ -15,7 +15,7 @@ import { useNativeKeyDown } from "@/lib/useNativeKeyDown";
 import { useNow } from "@/lib/useNow";
 import type { TerminalPayload } from "@/nodes/types";
 import type { AgentActivity } from "@/store/agentActivity";
-import { nodesStore, useNodes } from "@/store/nodes";
+import { useNodes } from "@/store/nodes";
 import type { TerminalStatus } from "@/store/terminalStatus";
 import { uiStore, useUi } from "@/store/ui";
 import { MessageBar } from "../foot/MessageBar";
@@ -23,6 +23,7 @@ import { StatusLine } from "../foot/StatusLine";
 import { nodesMessages } from "../messages";
 import { keepFieldWheel } from "../fleet/keepWheel";
 import { pillOf } from "./pill";
+import { focusTerminal } from "./registry";
 import { DOT_OF_TONE } from "./StatusDot";
 
 /** The terminals that get a foot: the AI agents, the ones that take instructions (not a plain shell, not a custom command). */
@@ -35,13 +36,12 @@ const NO_GROUPS: SceneFrame[] = [];
 /**
  * Under an agent's terminal, the same foot as a Fleet's: a status line (its
  * dot, where it stands and for how long, the Fleets that command it, Link),
- * then "Message <name>", folded until opened. The status lives
+ * then the field to message it, "Message <name>". The status lives
  * here rather than in the header: one dot per agent, beside the question it
  * may be asking at the bottom of its terminal.
  */
 export function AgentFoot(props: { nodeId: string; payload: TerminalPayload; status: TerminalStatus; activity?: AgentActivity }) {
   const { nodeId, payload, status, activity } = props;
-  const t = useMessages(nodesMessages).foot;
   const foot = useRef<HTMLElement>(null);
   const name = payload.name || AGENTS[payload.agent].label;
   // No key typed in the foot reaches the canvas: Backspace there would delete the node.
@@ -51,12 +51,9 @@ export function AgentFoot(props: { nodeId: string; payload: TerminalPayload; sta
   return (
     <footer ref={foot} data-agent-foot={nodeId} className="shrink-0 border-t border-dp-line bg-dp-terminal-head">
       <AgentStatus nodeId={nodeId} payload={payload} status={status} activity={activity} />
-      <MessageBar
-        label={t.message(name)}
-        open={payload.inputOpen === true}
-        onOpenChange={(open) => nodesStore.getState().update(nodeId, { inputOpen: open })}
-        field={(autoFocus) => <AgentField nodeId={nodeId} name={name} autoFocus={autoFocus} />}
-      />
+      <MessageBar>
+        <AgentField nodeId={nodeId} name={name} />
+      </MessageBar>
     </footer>
   );
 }
@@ -121,11 +118,11 @@ function AgentLink({ nodeId }: { nodeId: string }) {
   );
 }
 
-/** Mounted while open: sends to this agent alone, the way the command bar sends to a target. */
-function AgentField({ nodeId, name, autoFocus }: { nodeId: string; name: string; autoFocus: boolean }) {
+/** Sends to this agent alone, the way the command bar sends to a target; Escape gives the keyboard back to its terminal. */
+function AgentField({ nodeId, name }: { nodeId: string; name: string }) {
   const t = useMessages(nodesMessages).foot;
   const groupName = useCanvas((s) => s.frames.find((f) => f.group !== null && f.memberIds.includes(nodeId))?.name ?? null);
   const agents = useMemo<TargetAgent[]>(() => [{ id: nodeId, name, groupName }], [nodeId, name, groupName]);
   const fallback = useMemo(() => [nodeId], [nodeId]);
-  return <CommandInput compact autoFocus={autoFocus} agents={agents} groups={NO_GROUPS} fallback={fallback} placeholder={t.message(name)} emptyHint="" />;
+  return <CommandInput compact agents={agents} groups={NO_GROUPS} fallback={fallback} placeholder={t.message(name)} emptyHint="" onEscape={() => focusTerminal(nodeId)} />;
 }

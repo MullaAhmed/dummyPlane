@@ -142,7 +142,7 @@ describe("nothing the keyboard sets off, nor what the pointer sweeps, is animate
       ["review/ReviewPanel.tsx", /const ROW =\s*"[^"]*"/],
       ["review/DiffRow.tsx", /onClick && "cursor-pointer[^"]*"/],
       ["studio/CodeWorkspace.tsx", /"flex h-7 w-full items-center gap-1 pr-2[^"]*"/],
-      ["notes/NotesDialog.tsx", /"block w-full px-3 py-1\.5 text-left[^"]*"/],
+      ["notes/NotesWorkspace.tsx", /"block w-full px-3 py-1\.5 text-left[^"]*"/],
       ["canvas/ExtensionList.tsx", /"group\/row flex min-h-10[^"]*"/],
     ];
     for (const [file, row] of rows) {

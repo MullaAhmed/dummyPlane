@@ -224,7 +224,6 @@ Ce qui est reporté. La spec en cours est `docs/superpowers/specs/2026-10-24-dum
 ### Missions de nuit (suite du ticket #92)
 - Tâche abandonnée après `next_task`.
 - Une branche par agent.
-- Les permissions propres de la Fleet.
 - Les barrières de push ne sont pas une frontière de sécurité.
 - Une fin de mission pendant une relance.
 - Le lien Remote Control change.
@@ -236,7 +235,6 @@ Ce qui est reporté. La spec en cours est `docs/superpowers/specs/2026-10-24-dum
 - Les contrôles `gh` avant le premier démarrage.
 - Délai de `sceneAccess`.
 - Une issue étiquetée puis modifiée plus tard.
-- Une permission conservée après la fermeture d'une Fleet.
 - La fermeture d'un projet ne libère pas le PC.
 - Une sauvegarde stockée qui échoue n'est que journalisée.
 
@@ -255,3 +253,16 @@ Ce qui est reporté. La spec en cours est `docs/superpowers/specs/2026-10-24-dum
 - `releaseToCanvas` depuis la vue d'ensemble.
 - Une arrivée en attente qui prend le clavier.
 - Jeton de hook partagé.
+
+## Constats de la passe Fleet et nuit (11 novembre)
+- Codex comme agent de la Fleet, câblé et vérifié hors de l'application sur Codex 0.167 (harnais ConPTY, serveur MCP réel) : profil `-p`, outils sans question sous `-a never`, rail lecture seule, écran prêt, question de confiance, reprise d'un fil sauvé. Restent non vus dans l'application : une Fleet Codex de bout en bout (plan, équipe, fusion), et la connexion Linear par `codex mcp login`, jamais lancée (elle ouvre le navigateur du compte).
+- Équipe Codex : son bac à sable `workspace-write` garde `.git` en lecture seule, même avec `writable_roots` ou un profil de permissions qui l'ouvre (vérifié) ; *Modifier les fichiers* doit donc demander pour chaque commit, ou échoue (non vérifié), et *Modifier et lancer des commandes* tourne sans bac à sable. Pas de règle contre `gh` chez Codex : seul `NO_PUSH_ENV` bloque le push.
+- Une Fleet Codex démarre environ 4 s plus tard : deux `codex mcp list` vérifient qu'aucun serveur de l'utilisateur ne reste allumé.
+- Codex signale la fin du fil où il écrit le titre d'une nouvelle conversation, sans le sauver : seul un fil trouvé dans `sessions/` est gardé pour la reprise (les trois derniers jours à la fin d'un tour, tous avant une reprise).
+- La question de confiance de Codex, dans les worktrees d'une mission, est acceptée au clavier (`ready.ts`) : Codex enregistre alors le dossier dans le `config.toml` de l'utilisateur. Le profil peut le faire confiance sans rien écrire (vérifié), mais Rust ne sait pas quels dossiers sont des worktrees de dummyPlane. Le chemin du clavier n'est testé que sur un écran capturé.
+- Une ligne `[dummyPlane]` tapée pendant un tour de Codex n'a pas été essayée.
+- Le modèle par défaut de l'utilisateur peut être refusé par le CLI Codex (vu : « not supported when using Codex with a ChatGPT account ») : la Fleet démarre, mais chaque tour échoue ; dummyPlane ne le détecte pas.
+- Linear : la réutilisation du jeton OAuth par la session de la Fleet (`--mcp-config` et `--strict-mcp-config`) n'est pas vérifiée, et dummyPlane ne voit pas si l'utilisateur s'est connecté avec `/mcp`.
+- `cargo clippy -- -D warnings` échoue déjà sur la base (`src-tauri/src/commands/paste.rs:88`, `collapsible_if`), et `cargo fmt --check` y signale environ 90 écarts.
+- Le dialogue de nuit, le résumé de nuit dans le panneau de la Fleet et l'onglet Notes n'ont pas été vus dans l'application.
+- `inputOpen` n'est plus lu par le pied des nœuds : donnée stockée morte.

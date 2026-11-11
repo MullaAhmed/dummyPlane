@@ -1,4 +1,5 @@
 import { subagentSettingsStore } from "@/app/subagentSettings";
+import { FLEET_CAPABLE } from "@/fleet/capable";
 import { groupOf } from "@/canvas/groups";
 import { signalWire } from "@/canvas/wireActivity";
 import { messages } from "@/i18n";
@@ -73,7 +74,9 @@ function titleOf(title: unknown, task: string): string {
 
 /** The sub-agent's terminal: its parent's folder, shell, account and mission permissions, its own conversation. */
 export function childPayload(parent: TerminalPayload, parentId: string, name: string, title: string, model?: string, task?: string): TerminalPayload {
-  const payload = newTerminalPayload({ title, cwd: parent.cwd, agent: "claude", command: "", shell: parent.shell, accountId: parent.accountId }, name);
+  // On its parent's CLI when that one has dummyPlane's tools (Claude, Codex), else on Claude.
+  const agent = FLEET_CAPABLE.includes(parent.agent) ? parent.agent : "claude";
+  const payload = newTerminalPayload({ title, cwd: parent.cwd, agent, command: "", shell: parent.shell, accountId: parent.accountId }, name);
   if (model) payload.model = model;
   // An unattended mission agent's rules (no git push…) bind what it delegates too.
   if (parent.permission) payload.permission = parent.permission;
@@ -119,7 +122,8 @@ async function spawnNow(parentId: string, args: SpawnArgs): Promise<SpawnResult>
 /** Types the task into the sub-agent once its Claude is up, as a mission's `assign` does; its parent hears of a failure. */
 async function deliver(parentId: string, childId: string, name: string, text: string) {
   try {
-    const ready = await whenReady({ running: () => isRunning(childId), quietMs: () => quietFor(childId), screen: () => freshText(childId, 50), press: (keys) => ptyWrite(childId, keys) });
+    const agent = terminalOf(nodesStore.getState().nodes[childId])?.agent;
+    const ready = await whenReady({ running: () => isRunning(childId), quietMs: () => quietFor(childId), screen: () => freshText(childId, 50), press: (keys) => ptyWrite(childId, keys), agent });
     if (!isRunning(childId)) {
       notify(parentId, t().notStarted(name));
       return;

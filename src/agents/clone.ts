@@ -4,12 +4,14 @@ import type { TerminalPayload } from "@/nodes/types";
 export function cloneTerminalPayload(source: TerminalPayload, name: string): TerminalPayload {
   const copy: TerminalPayload = { ...source, name };
   delete copy.claudeSessionId;
+  delete copy.codexSessionId;
   // Its steps belong to the source's conversation (spec orchestrateur §5).
   delete copy.steps;
   // A mission's model and Remote Control were asked for the source only (final review maj §3).
   delete copy.model;
   delete copy.remoteControl;
   delete copy.permission;
+  delete copy.linear;
   // A copy reports to nobody and counts toward no sub-agent tree.
   delete copy.spawnedBy;
   delete copy.task;

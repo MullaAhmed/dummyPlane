@@ -10,7 +10,6 @@ import { focusCommandBar } from "@/shell/commandBarFocus";
 import { closeWindow, minimizeWindow, toggleMaximizeWindow, windowStore } from "@/shell/windowState";
 import { removeWorkspace } from "@/shell/workspaceActions";
 import { projectsStore } from "@/store/projects";
-import { closeNotes, notesStore } from "@/notes/notesStore";
 import { workspacesStore } from "@/store/workspaces";
 import { labelOf, type Command, type CommandContext } from "../command";
 import { goToNextWaiting } from "../goToRun";
@@ -119,10 +118,11 @@ describe("Notes (spec notes §6)", () => {
     expect(notes.keywords).toContain("memory");
     expect(notes.available(home)).toBe(false);
     expect(notes.available(busy)).toBe(true);
-    closeNotes();
+    // In a workspace tab of their own, as the code is.
+    const openNotes = vi.fn(async () => "n1");
+    workspacesStore.setState({ openNotes } as never);
     void notes.run(busy);
-    expect(notesStore.getState().open).toBe(true);
-    closeNotes();
+    expect(openNotes).toHaveBeenCalled();
   });
 });
 

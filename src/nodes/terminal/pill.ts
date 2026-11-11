@@ -1,5 +1,4 @@
 import type { Activity } from "@/ipc/activity";
-import type { AgentId } from "@/ipc/pty";
 import type { TerminalStatus } from "@/store/terminalStatus";
 import { messages } from "@/i18n";
 import { nodesMessages } from "@/nodes/messages";
@@ -46,12 +45,12 @@ export function pillOf(status: TerminalStatus, activity?: Activity, indigo = fal
   }
 }
 
-/** What the card over a stopped terminal offers (spec habillage §7.3). */
-export function resumeOfferOf(status: TerminalStatus, agent: AgentId, hasSession: boolean): "resume" | "relaunch" | null {
+/** What the card over a stopped terminal offers (spec habillage §7.3); `resumable`: it has a conversation to take up (`canResume`). */
+export function resumeOfferOf(status: TerminalStatus, resumable: boolean): "resume" | "relaunch" | null {
   if (status.state === "running" || status.state === "starting") return null;
   // A refused fleet's node says why and offers its own retry.
   if (status.state === "error" && status.kind === "toolsUnavailable") return null;
-  return agent === "claude" && hasSession ? "resume" : "relaunch";
+  return resumable ? "resume" : "relaunch";
 }
 
 /**

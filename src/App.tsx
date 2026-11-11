@@ -8,6 +8,7 @@ import { LoopsIndicator } from "@/loops/LoopsIndicator";
 import { SavePresetDialog } from "@/presets/SavePresetDialog";
 import { appMessages } from "@/app/messages";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { FleetAgentDialog } from "@/fleet/FleetAgentDialog";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { HINT_DELAY_MS, TooltipProvider } from "@/components/ui/tooltip";
 import { HomeScreen } from "@/home/HomeScreen";
@@ -66,6 +67,9 @@ export default function App() {
       </ErrorBoundary>
       <ErrorBoundary scope="confirmation dialog" fallback={() => null}>
         <ConfirmDialog />
+      </ErrorBoundary>
+      <ErrorBoundary scope="fleet agent dialog" fallback={() => null}>
+        <FleetAgentDialog />
       </ErrorBoundary>
       <AppToaster />
     </TooltipProvider>

@@ -5,7 +5,7 @@ import { nodesStore, type NodeRecord } from "@/store/nodes";
 import { NEW_MISSION } from "./mission";
 import { rememberScene, forgetScene } from "@/canvas/sceneCache";
 import { workspacesStore } from "@/store/workspaces";
-import { agentGroup, canvasKnown, linkedClaudeAgents, linkedGroups, memberBudgets, memberOf, fleetShown, setFleetClosed, workspaceCanvas } from "./store";
+import { agentGroup, canvasKnown, linkedTeamAgents, linkedGroups, memberBudgets, memberOf, fleetShown, setFleetClosed, workspaceCanvas } from "./store";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
 
@@ -124,23 +124,30 @@ describe("a workspace not on screen (spec mission de nuit §6.1)", () => {
   });
 
   it("reads wires and groups from its stored scene, not from the canvas on screen", () => {
-    expect(linkedClaudeAgents("chef")).toEqual([{ nodeId: "batman", name: "Batman" }]);
+    expect(linkedTeamAgents("chef")).toEqual([{ nodeId: "batman", name: "Batman" }]);
     expect(linkedGroups("chef")).toEqual([{ id: "g1", name: "Interface", speciality: "Frontend" }]);
     expect(agentGroup("batman")).toEqual({ group: "Interface", speciality: "Frontend" });
     expect(workspaceCanvas("w1").frames.map((f) => f.id)).toEqual(["g1"]);
     expect(canvasKnown("chef")).toBe(true);
   });
 
+  it("counts a Codex agent in, which has dummyPlane's tools too, and leaves a plain shell out", () => {
+    nodesStore.getState().update("batman", { agent: "codex" });
+    expect(linkedTeamAgents("chef")).toEqual([{ nodeId: "batman", name: "Batman" }]);
+    nodesStore.getState().update("batman", { agent: "shell" });
+    expect(linkedTeamAgents("chef")).toEqual([]);
+  });
+
   it("is unknown only when its scene was never read", () => {
     forgetScene("w1");
     expect(canvasKnown("chef")).toBe(false);
-    expect(linkedClaudeAgents("chef")).toEqual([]);
+    expect(linkedTeamAgents("chef")).toEqual([]);
   });
 
   it("reads the live canvas when it is the one on screen", () => {
     workspacesStore.setState({ activeId: "w1" });
     canvasStore.setState({ api: {} as never });
-    expect(linkedClaudeAgents("chef")).toEqual([]);
+    expect(linkedTeamAgents("chef")).toEqual([]);
     expect(canvasKnown("chef")).toBe(true);
     canvasStore.setState({ api: null });
     forgetScene("w1");
@@ -149,7 +156,7 @@ describe("a workspace not on screen (spec mission de nuit §6.1)", () => {
   it("reads its stored scene from the home screen: the workspace is still the active one, no canvas is mounted (review)", () => {
     workspacesStore.setState({ activeId: "w1" });
     expect(fleetShown("chef")).toBe(false);
-    expect(linkedClaudeAgents("chef")).toEqual([{ nodeId: "batman", name: "Batman" }]);
+    expect(linkedTeamAgents("chef")).toEqual([{ nodeId: "batman", name: "Batman" }]);
     forgetScene("w1");
   });
 });
@@ -165,6 +172,6 @@ it("does not offer an agent already in another running mission (backlog H2)", ()
     },
   });
   canvasStore.setState({ api: {} as never, links: { busy: { nodeIds: ["batman"], groupIds: [] }, free: { nodeIds: ["batman"], groupIds: [] } }, frames: [] });
-  expect(linkedClaudeAgents("free")).toEqual([]);
-  expect(linkedClaudeAgents("busy").map((a) => a.nodeId)).toEqual(["batman"]);
+  expect(linkedTeamAgents("free")).toEqual([]);
+  expect(linkedTeamAgents("busy").map((a) => a.nodeId)).toEqual(["batman"]);
 });

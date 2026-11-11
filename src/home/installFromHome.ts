@@ -4,7 +4,7 @@ import { installAgent } from "@/agents/installAgent";
 import { messages } from "@/i18n";
 import type { AgentId } from "@/ipc/pty";
 import { projectsStore, recentProject } from "@/store/projects";
-import { isCode, workspacesStore } from "@/store/workspaces";
+import { isCanvas, workspacesStore } from "@/store/workspaces";
 import { addProject } from "./addProject";
 import { homeMessages } from "./messages";
 
@@ -23,10 +23,11 @@ export async function installFromHome(agent: AgentId) {
     return;
   }
   const { workspaces, activeId, select } = workspacesStore.getState();
-  // A project left on its code workspace reopens there, and that one has no scene to wait for.
-  const onCode = isCode(workspaces.find((w) => w.id === activeId));
-  const workspaceId = onCode ? workspaces.find((w) => !isCode(w))?.id : activeId;
+  // A project left on its code or notes tab reopens there, and those have no scene to wait for.
+  const active = workspaces.find((w) => w.id === activeId);
+  const offCanvas = active !== undefined && !isCanvas(active);
+  const workspaceId = offCanvas ? workspaces.find(isCanvas)?.id : activeId;
   if (projectsStore.getState().view !== "project" || !workspaceId) return;
-  if (onCode) select(workspaceId);
+  if (offCanvas) select(workspaceId);
   whenSceneReady(workspaceId, () => void installAgent(agent));
 }

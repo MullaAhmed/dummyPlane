@@ -120,10 +120,24 @@ export function closeTab(path: string) {
   });
 }
 
-/** Every tab with unsaved changes, those of the projects left included. */
+/** Files edited beside the code workspace's tabs (the projects' notes), which the quit counts too. */
+export interface UnsavedSource {
+  tabs: () => StudioTab[];
+  /** Their changes are given up: the window closes without them. */
+  drop: () => void;
+}
+
+const sources: UnsavedSource[] = [];
+
+/** Whichever tab is on screen, closing the window asks about these files as about the code tabs (QuitPrompt). */
+export function countUnsaved(source: UnsavedSource) {
+  if (!sources.includes(source)) sources.push(source);
+}
+
+/** Every tab with unsaved changes, those of the projects left and the other sources included. */
 export function unsavedTabs(): StudioTab[] {
   const { tabs, parked } = studioStore.getState();
-  return [...tabs, ...Object.values(parked).flatMap((set) => set.tabs)].filter(isDirty);
+  return [...tabs, ...Object.values(parked).flatMap((set) => set.tabs), ...sources.flatMap((source) => source.tabs())].filter(isDirty);
 }
 
 /** Saves them all, one by one; false at the first that could not be, its changes kept. */
@@ -136,7 +150,10 @@ export async function saveUnsavedTabs(): Promise<boolean> {
   return true;
 }
 
-export const dropAllTabs = () => studioStore.setState({ tabs: [], active: null, parked: {}, pendingLine: null });
+export function dropAllTabs() {
+  studioStore.setState({ tabs: [], active: null, parked: {}, pendingLine: null });
+  for (const source of sources) source.drop();
+}
 
 let guard: { check: () => boolean; unsaved: () => boolean } | null = null;
 

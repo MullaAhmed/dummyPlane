@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Limits } from "@/usage/usage";
-import { blockers, usageWarning } from "./overnightChecks";
+import { blockers, checksFor, usageWarning } from "./overnightChecks";
 
 const limits = (fiveHour: number, sevenDay: number): Limits => ({ fiveHour: { usedPercent: fiveHour }, sevenDay: { usedPercent: sevenDay }, models: [] }) as unknown as Limits;
 
@@ -13,6 +13,14 @@ describe("what stops a night before it starts (spec mission de nuit §5.2)", () 
   it("needs gh only to read GitHub", () => {
     expect(blockers({ git: true, gh: false }, "github")).toEqual(["gh"]);
     expect(blockers({ git: true, gh: false }, "backlog")).toEqual([]);
+  });
+
+  it("needs Linear connected to the Fleet only to read Linear", () => {
+    expect(blockers({ git: true, gh: false }, "linear")).toEqual(["linear"]);
+    expect(blockers({ git: true, gh: false }, "linear", true)).toEqual([]);
+    expect(blockers({ git: true, gh: true }, "github", false)).toEqual([]);
+    expect(checksFor("linear")).toEqual(["git", "linear"]);
+    expect(checksFor("backlog")).toEqual(["git"]);
   });
 });
 

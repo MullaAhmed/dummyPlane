@@ -594,9 +594,9 @@ it("speaks English when the interface does", async () => {
   );
 });
 
-describe("the global budget (review)", () => {
+describe("the night's time (review)", () => {
   it("starts no new task once it is spent: nobody asked for more usage", async () => {
-    await setup({ budgetMin: 30 });
+    await setup({ overnight: true, budgetMin: 30 });
     const clock = vi.spyOn(Date, "now").mockReturnValue(31 * 60_000);
     await afterReport("chef", "batman");
     clock.mockRestore();
@@ -607,8 +607,9 @@ describe("the global budget (review)", () => {
   });
 
   it("still starts a new agent while some of it is left", async () => {
-    await setup({ budgetMin: 30 });
-    const clock = vi.spyOn(Date, "now").mockReturnValue(29 * 60_000);
+    await setup({ overnight: true, budgetMin: 30 });
+    // Before the night's last 10 min, kept to wind down.
+    const clock = vi.spyOn(Date, "now").mockReturnValue(15 * 60_000);
     await afterReport("chef", "batman");
     clock.mockRestore();
     expect(created().map((m) => m.task)).toEqual(["API"]);
@@ -616,13 +617,21 @@ describe("the global budget (review)", () => {
   });
 
   it("does not let next_task spend past it either", async () => {
-    await setup({ budgetMin: 30 });
+    await setup({ overnight: true, budgetMin: 30 });
     const clock = vi.spyOn(Date, "now").mockReturnValue(31 * 60_000);
     const result = await giveNext("chef", missionNow().members[0]);
     clock.mockRestore();
     expect(result).toHaveProperty("refused");
     expect(relaunchTerminal).not.toHaveBeenCalled();
     expect(missionAddAgent).not.toHaveBeenCalled();
+  });
+
+  it("keeps a regular mission going past the old global budget it was saved with", async () => {
+    await setup({ budgetMin: 30 });
+    const clock = vi.spyOn(Date, "now").mockReturnValue(31 * 60_000);
+    await afterReport("chef", "batman");
+    clock.mockRestore();
+    expect(created().map((m) => m.task)).toEqual(["API"]);
   });
 });
 
@@ -711,10 +720,10 @@ describe("Max agents caps the agents at work, not the team", () => {
     expect(created().map((m) => m.task)).toEqual(["A"]);
   });
 
-  it("starts no new agent once the night winds down or the overall budget is spent", async () => {
+  it("starts no new agent once the night winds down or is over", async () => {
     await setup({ frameId: "f1", overnight: true, budgetMin: 100, startedAt: Date.now() - 95 * 60_000, members: [member("batman", "Batman", { report: stuck })] });
     await afterReport("chef", "batman");
-    nodesStore.getState().update("chef", { mission: { ...missionNow(), overnight: undefined, budgetMin: 30, startedAt: Date.now() - 31 * 60_000 } });
+    nodesStore.getState().update("chef", { mission: { ...missionNow(), budgetMin: 30, startedAt: Date.now() - 31 * 60_000 } });
     await pumpQueue("chef");
     expect(missionAddAgent).not.toHaveBeenCalled();
     expect(missionNow().queue).toEqual([next]);

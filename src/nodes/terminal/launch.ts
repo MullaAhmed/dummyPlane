@@ -56,14 +56,22 @@ export function newTerminalPayload(input: LaunchInput, name = ""): TerminalPaylo
   return payload;
 }
 
-/** A fresh Claude conversation: its own id, none of the previous one's steps nor report (spec orchestrateur §5). */
+/** A fresh conversation: Claude's own id, Codex's to come, none of the previous one's steps nor report (spec orchestrateur §5). */
 export function newConversation(): Partial<TerminalPayload> {
-  return { claudeSessionId: crypto.randomUUID(), steps: undefined, lastReport: undefined };
+  return { claudeSessionId: crypto.randomUUID(), codexSessionId: undefined, steps: undefined, lastReport: undefined };
 }
+
+/** A conversation it can take up again: Claude's own id, or the thread Codex saved. */
+export function canResume(payload: TerminalPayload): boolean {
+  return (payload.agent === "claude" && Boolean(payload.claudeSessionId)) || (payload.agent === "codex" && Boolean(payload.codexSessionId));
+}
+
+/** How "Relaunch" starts it: on its conversation when it has one, anew otherwise. */
+export const relaunchMode = (payload: TerminalPayload): LaunchMode => (canResume(payload) ? "resume" : "new");
 
 /** Another agent in the same terminal: the steps, the report and a one-shot mark go with the old one; Claude gets a conversation if it has none. */
 export function switchedAgent(payload: TerminalPayload, agent: AgentId): Partial<TerminalPayload> {
-  const left = { agent, steps: undefined, lastReport: undefined, oneShot: undefined };
+  const left = { agent, steps: undefined, lastReport: undefined, oneShot: undefined, codexSessionId: undefined };
   return agent === "claude" && !payload.claudeSessionId ? { ...left, claudeSessionId: crypto.randomUUID() } : left;
 }
 
@@ -74,17 +82,29 @@ export function buildSpawnSpec(payload: TerminalPayload, mode: LaunchMode): Spaw
     if (payload.remoteControl) spec.claude.remoteControl = payload.name || payload.title;
     if (payload.model) spec.claude.model = payload.model;
     if (payload.permission) spec.claude.permission = payload.permission;
+    if (payload.linear) spec.claude.linear = true;
     const extensions = readExtensionChoice(payload.extensions);
     if (extensions) spec.claude.extensions = extensions;
     // The profile's folder if it still exists, else the default account (spec comptes §3).
     const profile = profileNamed(payload.accountId);
     if (profile) spec.claude.configDir = profile.configDir;
   }
+  if (payload.agent === "codex") {
+    // Its role, its mission's permission and its night's Linear, as for Claude; Claude's model names mean nothing to it.
+    spec.codex = { role: payload.role ?? "agent" };
+    if (mode !== "new" && payload.codexSessionId) spec.codex.sessionId = payload.codexSessionId;
+    if (payload.permission) spec.codex.permission = payload.permission;
+    if (payload.linear) spec.codex.linear = true;
+    if (payload.model && !CLAUDE_MODEL.test(payload.model)) spec.codex.model = payload.model;
+  }
   if (payload.agent === "ollama" && payload.ollama) spec.ollama = payload.ollama;
   return spec;
 }
 
-/** A fleet's brain: Claude in the project folder, with the manager's role (spec orchestrateur §6). */
-export function fleetSession(name: string, options: { cwd: string; shell: ShellKind }): TerminalPayload {
-  return { ...newTerminalPayload({ title: name, cwd: options.cwd, agent: "claude", command: "", shell: options.shell }, name), role: STORED_FLEET_ROLE };
+/** A Claude model or alias (a mission's router gives these): never passed to another CLI. */
+const CLAUDE_MODEL = /^(claude|haiku|sonnet|opus|fable)/i;
+
+/** A fleet's brain: its CLI (Claude or Codex: fleet/fleetAgent.ts) in the project folder, with the manager's role (spec orchestrateur §6). */
+export function fleetSession(name: string, options: { cwd: string; shell: ShellKind }, agent: AgentId = "claude"): TerminalPayload {
+  return { ...newTerminalPayload({ title: name, cwd: options.cwd, agent, command: "", shell: options.shell }, name), role: STORED_FLEET_ROLE };
 }

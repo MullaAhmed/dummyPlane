@@ -16,20 +16,22 @@ import { StatusLine } from "@/nodes/foot/StatusLine";
 import { AccentButton, Hint, HintedButton } from "@/shell/buttons";
 import type { DotState } from "@/nodes/terminal/StatusDot";
 import { useActivities } from "@/store/agentActivity";
-import { terminalOf, useNodes } from "@/store/nodes";
+import { FLEET_CAPABLE } from "@/fleet/capable";
+import { sessionOf, terminalOf, useNodes } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
 import { openReview } from "@/review/reviewStore";
 import { uiStore, useUi } from "@/store/ui";
 import { cleanMission, launchMission } from "./launch";
-import { budgetBar, budgetOf, MAX_AGENTS, memberTime, type Mission, type MissionState } from "./mission";
+import { budgetBar, budgetOf, MAX_AGENTS, memberTime, nightMin, remainingGlobal, type Mission, type MissionState } from "./mission";
 import { missionMessages } from "./messages";
 import { morningShown } from "./morning";
+import { NightSummary } from "./NightSummary";
 import { MorningReportView } from "./MorningReportView";
 import { OvernightDialog } from "./OvernightDialog";
 import { LEVELS, modelLabel } from "./router";
 import { agentState, missionOf, setMission } from "./store";
 
-/** A number field of the panel: shadcn's Input at the panel's density, its figures aligned; the two share one width. */
+/** A number field of the panel: shadcn's Input at the panel's density, its figures aligned. */
 const NUMBER = "h-7 w-16 px-1.5 text-xs tabular-nums md:text-xs";
 
 /** A quiet action at the end of a line: its words end on the line's 12px edge, its padding in the line's. */
@@ -80,7 +82,7 @@ function MissionView({ nodeId, mission }: { nodeId: string; mission: Mission }) 
           facts={[mission.name, mission.state === "redaction" && t.writeTask]}
           end={
             <>
-              {mission.overnight && <span className="font-mono text-dp-text-3">{t.nightBadge}</span>}
+              {mission.overnight && <NightBadge mission={mission} now={now} />}
               {mission.branch && <span className="max-w-40 truncate font-mono text-dp-text-3">{mission.branch}</span>}
               {setup && !mission.overnight && <NightButton nodeId={nodeId} />}
             </>
@@ -88,6 +90,7 @@ function MissionView({ nodeId, mission }: { nodeId: string; mission: Mission }) 
         />
       </header>
       <div data-mission-body className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-3 pb-3 empty:hidden">
+        {mission.overnight && mission.state !== "terminee" && <NightSummary nodeId={nodeId} mission={mission} />}
         {setup && <Setup nodeId={nodeId} mission={mission} />}
         {mission.plan && (mission.state === "plan" || mission.state === "lancement") && <Plan mission={mission} />}
         {mission.error && (
@@ -128,13 +131,14 @@ function Setup({ nodeId, mission }: { nodeId: string; mission: Mission }) {
         className="-mx-2 h-7 justify-start gap-2 px-2 text-xs font-normal text-dp-text-2 hover:text-dp-text"
       >
         {t.settings}
-        <span className="min-w-0 truncate text-dp-text-3 tabular-nums">{t.settingsSummary(mission.budgetMin, mission.maxAgents, mission.router === true)}</span>
+        {/* A night sets its own team size: the settings keep the router. */}
+        <span className="min-w-0 truncate text-dp-text-3 tabular-nums">{t.settingsSummary(mission.overnight ? null : mission.maxAgents, mission.router === true)}</span>
         <ChevronDown
           aria-hidden
           className={cn("ml-auto size-4 text-dp-text-3 transition-transform duration-(--dp-dur-fast) ease-(--dp-ease-out) motion-reduce:transition-none", open && "rotate-180")}
         />
       </Button>
-      {open && <SettingsGrid id={grid} nodeId={nodeId} mission={mission} />}
+      {open && <SettingsGrid id={grid} nodeId={nodeId} mission={mission} night={mission.overnight === true} />}
     </div>
   );
 }
@@ -146,10 +150,10 @@ function TeamLink({ nodeId }: { nodeId: string }) {
   const links = useCanvas((s) => s.links[nodeId] ?? NO_LINKS);
   const frames = useCanvas((s) => s.frames);
   const agentIds = linkedAgents(links, frames).agentIds;
-  const claude = useNodes((s) => agentIds.filter((id) => terminalOf(s.nodes[id])?.agent === "claude").length);
+  const tooled = useNodes((s) => agentIds.filter((id) => FLEET_CAPABLE.includes(terminalOf(s.nodes[id])?.agent ?? "shell")).length);
   return (
     <div className="flex h-7 items-center gap-2">
-      <span className="min-w-0 truncate tabular-nums">{t.linked(claude)}</span>
+      <span className="min-w-0 truncate tabular-nums">{t.linked(tooled)}</span>
       <Button
         type="button"
         variant="ghost"
@@ -168,61 +172,61 @@ function TeamLink({ nodeId }: { nodeId: string }) {
 }
 
 /** The settings, a label per row and every control on one line, all 28px tall (as the lines above). */
-function SettingsGrid({ id, nodeId, mission }: { id: string; nodeId: string; mission: Mission }) {
+function SettingsGrid({ id, nodeId, mission, night }: { id: string; nodeId: string; mission: Mission; night: boolean }) {
   const t = useMessages(missionMessages);
-  const budget = useId();
+  const claudeTeam = useNodes((s) => (sessionOf(s.nodes[nodeId])?.agent ?? "claude") === "claude");
   const agents = useId();
   const router = useId();
   return (
     <div id={id} className="grid grid-cols-[auto_1fr] items-center gap-x-4 gap-y-1 pt-1">
-      <Hint label={t.globalBudgetTitle} side="bottom">
-        <label htmlFor={budget}>{t.globalBudget}</label>
-      </Hint>
-      <div className="flex h-7 items-center gap-2">
-        <Input
-          id={budget}
-          type="number"
-          min={1}
-          aria-label={t.globalBudgetLabel}
-          placeholder={t.none}
-          value={mission.budgetMin ?? ""}
-          onChange={(e) => setMission(nodeId, { budgetMin: e.target.value ? Math.max(1, Math.round(Number(e.target.value))) : undefined })}
-          className={NUMBER}
-        />
-        {t.min}
-      </div>
-      <label htmlFor={agents}>{t.maxAgents}</label>
-      <div className="flex h-7 items-center">
-        <Input
-          id={agents}
-          type="number"
-          min={1}
-          max={MAX_AGENTS}
-          aria-label={t.maxAgentsLabel}
-          value={mission.maxAgents}
-          onChange={(e) => {
-            const count = Math.round(Number(e.target.value));
-            if (count >= 1) setMission(nodeId, { maxAgents: Math.min(MAX_AGENTS, count) });
-          }}
-          className={NUMBER}
-        />
-      </div>
-      <Hint label={t.routerTitle} side="bottom">
-        <label htmlFor={router} className="cursor-pointer">
-          {t.routerLabel}
-        </label>
-      </Hint>
-      <div className="flex h-7 items-center">
-        <Checkbox
-          id={router}
-          aria-label={t.routerLabel}
-          checked={mission.router === true}
-          onCheckedChange={(checked) => setMission(nodeId, { router: checked === true || undefined })}
-          className="after:-inset-1"
-        />
-      </div>
+      {!night && (
+        <>
+          <label htmlFor={agents}>{t.maxAgents}</label>
+          <div className="flex h-7 items-center">
+            <Input
+              id={agents}
+              type="number"
+              min={1}
+              max={MAX_AGENTS}
+              aria-label={t.maxAgentsLabel}
+              value={mission.maxAgents}
+              onChange={(e) => {
+                const count = Math.round(Number(e.target.value));
+                if (count >= 1) setMission(nodeId, { maxAgents: Math.min(MAX_AGENTS, count) });
+              }}
+              className={NUMBER}
+            />
+          </div>
+        </>
+      )}
+      {/* Its levels name Claude's models: a team on another CLI keeps its own. */}
+      {claudeTeam && (
+        <>
+          <Hint label={t.routerTitle} side="bottom">
+            <label htmlFor={router} className="cursor-pointer">
+              {t.routerLabel}
+            </label>
+          </Hint>
+          <div className="flex h-7 items-center">
+            <Checkbox
+              id={router}
+              aria-label={t.routerLabel}
+              checked={mission.router === true}
+              onCheckedChange={(checked) => setMission(nodeId, { router: checked === true || undefined })}
+              className="after:-inset-1"
+            />
+          </div>
+        </>
+      )}
     </div>
   );
+}
+
+/** "overnight", and once the team is at work, how long the night still runs. */
+function NightBadge({ mission, now }: { mission: Mission; now: number }) {
+  const t = useMessages(missionMessages);
+  const left = mission.state === "en_cours" ? remainingGlobal(mission, now) : undefined;
+  return <span className="font-mono text-dp-text-3 tabular-nums">{left === undefined ? t.nightBadge : t.nightLeft(left)}</span>;
 }
 
 /** "Overnight run…": the other way to start a mission, at the end of its status line until it starts. */
@@ -297,7 +301,7 @@ function PlanActions({ nodeId, mission }: { nodeId: string; mission: Mission }) 
   const launching = mission.state === "lancement";
   return (
     <footer data-mission-actions className="flex shrink-0 items-center gap-2 border-t border-dp-line px-3 py-2">
-      <span className="font-mono tabular-nums">{t.total(total, mission.budgetMin)}</span>
+      <span className="font-mono tabular-nums">{t.total(total, nightMin(mission))}</span>
       <AccentButton size="sm" disabled={launching} onClick={() => void launchMission(nodeId)} className="ml-auto">
         {launching ? t.launching : t.launch}
       </AccentButton>

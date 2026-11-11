@@ -33,7 +33,7 @@ beforeAll(async () => {
   });
 });
 
-it("tells the fleet once when a budget runs out, warns the user at 200 % and at the end of the global budget (spec §8.2)", () => {
+it("tells the fleet once when a budget runs out, warns the user at 200 %, and never ends a regular mission on an overall time (spec §8.2)", () => {
   checkBudgets(5 * min);
   expect(notify).not.toHaveBeenCalled();
   checkBudgets(11 * min);
@@ -46,12 +46,12 @@ it("tells the fleet once when a budget runs out, warns the user at 200 % and at 
   checkBudgets(22 * min);
   expect(toast.warning).toHaveBeenCalledTimes(1);
   expect(toast.warning).toHaveBeenCalledWith("Batman has gone over twice its budget (10 min) without reporting");
+  // Saved with the old global budget of 30 min: a regular mission no longer ends on it.
   checkBudgets(31 * min);
   checkBudgets(40 * min);
-  expect(vi.mocked(notify).mock.calls.map(([to, line]) => [to, line])[1]).toEqual(["chef", "Overall budget used up (30 min): finish with what is done."]);
-  expect(notify).toHaveBeenCalledTimes(2);
-  expect(toast.warning).toHaveBeenLastCalledWith("Mission Auth: overall budget used up (30 min)");
-  expect(missionOf(nodesStore.getState().nodes.chef)?.globalOverdue).toBe(true);
+  expect(notify).toHaveBeenCalledTimes(1);
+  expect(toast.warning).toHaveBeenCalledTimes(1);
+  expect(missionOf(nodesStore.getState().nodes.chef)?.globalOverdue).toBeUndefined();
 });
 
 describe("an overnight mission (spec mission de nuit §3)", () => {
@@ -83,6 +83,8 @@ describe("an overnight mission (spec mission de nuit §3)", () => {
     expect(missionOf(nodesStore.getState().nodes.chef)?.windDownTold).toBe(true);
     checkBudgets(100 * min);
     expect(notify).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(notify).mock.calls[1][1]).toBe("The night is over (100 min): finish with what is done.");
+    expect(missionOf(nodesStore.getState().nodes.chef)?.globalOverdue).toBe(true);
     expect(toast.warning).not.toHaveBeenCalled();
   });
 
@@ -130,12 +132,8 @@ it("tells the fleet and the user in English when the interface is (spec premièr
     checkBudgets(100 * min);
     expect(vi.mocked(notify).mock.calls.map(([to, line]) => [to, line])).toEqual([
       ["chef", "Budget used up: Batman (Login) went past its 10 min without reporting. Decide: write, extend, interrupt or reassign."],
-      ["chef", "Overall budget used up (30 min): finish with what is done."],
     ]);
-    expect(vi.mocked(toast.warning).mock.calls).toEqual([
-      ["Batman has gone over twice its budget (10 min) without reporting"],
-      ["Mission Auth: overall budget used up (30 min)"],
-    ]);
+    expect(vi.mocked(toast.warning).mock.calls).toEqual([["Batman has gone over twice its budget (10 min) without reporting"]]);
   } finally {
   }
 });

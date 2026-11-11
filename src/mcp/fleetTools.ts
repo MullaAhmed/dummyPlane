@@ -5,14 +5,14 @@ import { messages } from "@/i18n";
 import { ptySendText } from "@/ipc/pty";
 import { missionFolder } from "@/mission/folder";
 import { endMission, launchMission, mergeMission, reassignTask } from "@/mission/launch";
-import { budgetOf, memberTime, NEW_AGENT, oneLine, proposedPlan, proposedTasks, remainingGlobal, sameName, spentMin, type Member, type Mission } from "@/mission/mission";
+import { budgetOf, memberTime, NEW_AGENT, nightMin, oneLine, proposedPlan, proposedTasks, remainingGlobal, sameName, spentMin, type Member, type Mission } from "@/mission/mission";
 import { activeCount } from "@/mission/active";
 import { giveNext, pumpQueue } from "@/mission/queue";
 import { boardView } from "@/kanban/missionLink";
 import { LEVELS, modelLabel } from "@/mission/router";
 import { readTickets } from "@/mission/tickets";
 import { linkedBoards } from "@/kanban/fleetBoards";
-import { agentGroup, agentState, linkedClaudeAgents, linkedGroups, missionOf, canvasKnown, setMission, updateMember } from "@/mission/store";
+import { agentGroup, agentState, linkedTeamAgents, linkedGroups, missionOf, canvasKnown, setMission, updateMember } from "@/mission/store";
 import { terminalText } from "@/nodes/terminal/registry";
 import { agentActivityStore } from "@/store/agentActivity";
 import { nodesStore, terminalOf } from "@/store/nodes";
@@ -152,7 +152,7 @@ function describeMission(fleetId: string, mission: Mission): ToolResult {
     state: outMission(mission.state),
     name: mission.name ?? null,
     task: mission.task ?? null,
-    global_budget_min: mission.budgetMin ?? null,
+    away_min: nightMin(mission) ?? null,
     max_agents: mission.maxAgents,
     active_agents: mission.state === "en_cours" ? activeCount(fleetId, mission) : null,
     router: mission.router === true,
@@ -170,7 +170,7 @@ function describeMission(fleetId: string, mission: Mission): ToolResult {
         card: s.card ?? null,
       })) ?? null,
     linked_agents: canvasKnown(fleetId)
-      ? linkedClaudeAgents(fleetId)
+      ? linkedTeamAgents(fleetId)
           .filter((a) => !team.has(a.nodeId))
           .map((a) => ({ name: a.name, state: outAgentState(agentState(a.nodeId)), ...agentGroup(a.nodeId) }))
       : null,
@@ -192,7 +192,7 @@ function proposePlan(fleetId: string, mission: Mission, args: Record<string, unk
   const named = Array.isArray(args.sous_taches) && args.sous_taches.some((s) => onCanvas(s as Record<string, unknown> | null));
   if (named && !canvasKnown(fleetId)) return refused(t().fleet.hiddenWorkspace);
   const cards = linkedBoards(fleetId).flatMap(({ board }) => Object.keys(board.cards));
-  const result = proposedPlan(args, mission, linkedClaudeAgents(fleetId).map((a) => a.name), linkedGroups(fleetId), cards);
+  const result = proposedPlan(args, mission, linkedTeamAgents(fleetId).map((a) => a.name), linkedGroups(fleetId), cards);
   if (typeof result === "string") return refused(result);
   setMission(fleetId, { state: "plan", ...result, error: undefined });
   // The dialog was the go-ahead: the user has left (spec overnight mission §5.1).
@@ -210,6 +210,8 @@ function proposePlan(fleetId: string, mission: Mission, args: Record<string, unk
 async function tickets(fleetId: string, mission: Mission): Promise<ToolResult> {
   const project = mission.project || missionFolder(fleetId);
   if (!mission.tickets || !project) return refused(t().fleet.noTickets);
+  // Linear's tickets are the fleet's to read, with Linear's own read-only tools.
+  if (mission.tickets.kind === "linear") return json({ note: t().fleet.ticketsNote, linear: t().fleet.linearTickets(mission.tickets.team, mission.tickets.label) });
   try {
     return json({ note: t().fleet.ticketsNote, tickets: await readTickets(project, mission.tickets) });
   } catch (error) {
@@ -312,7 +314,7 @@ function prolong(fleetId: string, mission: Mission, args: Record<string, unknown
   const extraMin = (member.extraMin ?? 0) + minutes;
   const budget = member.budgetMin + extraMin;
   const spent = spentMin(member, Date.now());
-  // Real time: its new target must end before the global budget does (spec overnight mission §3).
+  // Real time: overnight, its new target must end before the night does (spec overnight mission §3).
   const left = remainingGlobal(mission, Date.now());
   if (left !== undefined && budget - spent > left) return refused(t().fleet.globalLeft(left));
   // Below its new budget it may be told again later; still past it, it is not told twice (spec §8.2).
@@ -350,7 +352,7 @@ function finish(fleetId: string, mission: Mission, args: Record<string, unknown>
 
 /** Its team as `remote_control` names it: the linked Claude agents and the mission's members. */
 function teamOf(fleetId: string, mission: Mission): { nodeId: string; name: string }[] {
-  const team = canvasKnown(fleetId) ? linkedClaudeAgents(fleetId) : [];
+  const team = canvasKnown(fleetId) ? linkedTeamAgents(fleetId) : [];
   for (const member of mission.members) {
     if (!member.handedTo && !team.some((t) => t.nodeId === member.nodeId)) team.push({ nodeId: member.nodeId, name: member.name });
   }

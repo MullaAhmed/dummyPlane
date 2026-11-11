@@ -73,12 +73,14 @@ const MISSION_DENIES: [&str; 7] = [
 ];
 
 /// A mission's choice, in this session's settings only: the user's files stay as they are (spec mission de nuit §5.3).
-pub fn apply_permission(settings: &mut Value, permission: Option<Permission>) {
+/// A fleet takes the push block only: at night it refuses what would ask (`--permission-mode dontAsk`), and a
+/// manager is never opened the tools its deny list closes.
+pub fn apply_permission(settings: &mut Value, permission: Option<Permission>, role: Role) {
     let Some(permission) = permission else {
         return;
     };
     let rules = &mut settings["permissions"];
-    if permission == Permission::Work {
+    if permission == Permission::Work && role == Role::Agent {
         let allow = rules["allow"].as_array_mut();
         allow
             .into_iter()
@@ -87,6 +89,14 @@ pub fn apply_permission(settings: &mut Value, permission: Option<Permission>) {
     let mut deny: Vec<Value> = rules["deny"].as_array().cloned().unwrap_or_default();
     deny.extend(MISSION_DENIES.map(Value::from));
     rules["deny"] = Value::Array(deny);
+}
+
+/// Linear's read-only server (`mcp_files::LINEAR`) exposes read tools only: they never ask, so a night that
+/// reads its tickets there does not stop on a prompt, and `dontAsk` does not refuse them.
+pub fn allow_linear(settings: &mut Value) {
+    if let Some(allow) = settings["permissions"]["allow"].as_array_mut() {
+        allow.push(Value::from(format!("mcp__{}__*", super::mcp_files::LINEAR)));
+    }
 }
 
 /// The status line dummyPlane gives Claude (spec maj §6): the session's usage
@@ -218,7 +228,19 @@ pub fn write(
     status: Option<&StatusLine>,
     permission: Option<Permission>,
 ) -> io::Result<PathBuf> {
-    write_with(dir, node_id, url, role, status, permission, None)
+    let grants = Grants {
+        permission,
+        linear: false,
+    };
+    write_with(dir, node_id, url, role, status, grants, None)
+}
+
+/// What a session is given beyond its role: a mission's permission, and Linear's read tools for a
+/// fleet whose night reads its tickets there.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Grants {
+    pub permission: Option<Permission>,
+    pub linear: bool,
 }
 
 /// `<dir>/<nodeId>.json`, rewritten at each launch (port and token change
@@ -231,7 +253,7 @@ pub fn write_with(
     url: &str,
     role: Role,
     status: Option<&StatusLine>,
-    permission: Option<Permission>,
+    grants: Grants,
     extensions: Option<&Value>,
 ) -> io::Result<PathBuf> {
     if !valid_node_id(node_id) {
@@ -243,7 +265,10 @@ pub fn write_with(
     std::fs::create_dir_all(dir)?;
     let path = dir.join(format!("{node_id}.json"));
     let mut settings = settings_json(url, role);
-    apply_permission(&mut settings, permission);
+    apply_permission(&mut settings, grants.permission, role);
+    if grants.linear {
+        allow_linear(&mut settings);
+    }
     if let Some(patch) = extensions {
         super::extensions::apply(&mut settings, patch);
     }
@@ -678,7 +703,7 @@ until [ -e release ] || [ ! -e statusline.sh ]; do sleep 0.05; done\n\
     fn a_mission_chooses_in_this_sessions_settings_only() {
         let work = |permission| {
             let mut settings = settings_json(URL, Role::Agent);
-            apply_permission(&mut settings, permission);
+            apply_permission(&mut settings, permission, Role::Agent);
             settings["permissions"].clone()
         };
         assert_eq!(work(None), settings_json(URL, Role::Agent)["permissions"]);
@@ -702,7 +727,7 @@ until [ -e release ] || [ ! -e statusline.sh ]; do sleep 0.05; done\n\
     fn git_push_is_denied_whatever_the_mission_chose() {
         for permission in [Permission::Ask, Permission::Edits, Permission::Work] {
             let mut settings = settings_json(URL, Role::Agent);
-            apply_permission(&mut settings, Some(permission));
+            apply_permission(&mut settings, Some(permission), Role::Agent);
             let deny = settings["permissions"]["deny"].as_array().unwrap().clone();
             assert!(deny.contains(&json!("Bash(git push *)")), "{permission:?}");
             assert!(deny.contains(&json!("Bash(git push)")), "{permission:?}");
@@ -712,10 +737,36 @@ until [ -e release ] || [ ! -e statusline.sh ]; do sleep 0.05; done\n\
     #[test]
     fn a_mission_keeps_a_managers_own_refusals() {
         let mut settings = settings_json(URL, Role::Fleet);
-        apply_permission(&mut settings, Some(Permission::Ask));
+        apply_permission(&mut settings, Some(Permission::Ask), Role::Fleet);
         let deny = settings["permissions"]["deny"].as_array().unwrap();
         assert!(deny.contains(&json!("Edit")));
         assert!(deny.contains(&json!("Bash(git push *)")));
+    }
+
+    #[test]
+    fn a_fleet_at_night_is_opened_no_tool_its_team_may_get() {
+        let mut settings = settings_json(URL, Role::Fleet);
+        apply_permission(&mut settings, Some(Permission::Work), Role::Fleet);
+        assert_eq!(settings["permissions"]["allow"], json!(["mcp__dummyplane"]));
+        let deny = settings["permissions"]["deny"].as_array().unwrap();
+        assert!(deny.contains(&json!("Bash")));
+        assert!(deny.contains(&json!("Edit")));
+    }
+
+    #[test]
+    fn linear_s_read_tools_never_ask_and_open_nothing_else() {
+        let mut settings = settings_json(URL, Role::Fleet);
+        allow_linear(&mut settings);
+        assert_eq!(
+            settings["permissions"]["allow"],
+            json!(["mcp__dummyplane", "mcp__linear__*"])
+        );
+        assert!(
+            settings["permissions"]["deny"]
+                .as_array()
+                .unwrap()
+                .contains(&json!("Edit"))
+        );
     }
 
     #[test]

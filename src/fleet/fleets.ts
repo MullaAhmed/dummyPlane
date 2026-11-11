@@ -13,26 +13,34 @@ import { isRunning } from "@/store/terminalStatus";
 import { uiStore } from "@/store/ui";
 import { workspacesStore } from "@/store/workspaces";
 import { sceneAccess } from "@/agents/sceneAccess";
-import { claudeInstalled } from "@/agents/agentsStore";
+import { agentInstalled } from "@/agents/agentsStore";
+import { AGENTS } from "@/agents/catalog";
 import { clearSpot, fleetSpot } from "@/agents/groupLayout";
 import { defaultLaunchOptions } from "@/agents/launchAgent";
 import { agentsMessages } from "@/agents/messages";
 import type { Point } from "@/agents/terminals";
 import { withWire } from "@/agents/wires";
+import { ensureFleetAgent, fleetAgent } from "./fleetAgent";
+import { fleetMessages } from "./messages";
 
-/** A new fleet with its Claude session, which starts when it is shown (spec orchestrateur §6). */
+/** A new fleet with its session on the Fleet's CLI, which starts when it is shown (spec orchestrateur §6). */
 async function createFleet(id: string, workspaceId: string) {
   // A new fleet is named in the interface's language (spec first version §7.1).
   const name = messages(nodesMessages).fleet.defaultName;
-  const session = fleetSession(name, defaultLaunchOptions(workspaceId));
+  const session = fleetSession(name, defaultLaunchOptions(workspaceId), fleetAgent());
   await nodesStore.getState().create(id, { workspaceId, kind: "fleet", payload: { name, session } });
   markForAutostart(id);
 }
 
-/** A fleet runs Claude Code: without it, nothing is created (spec first version §7.2). */
-async function refusedWithoutClaude(): Promise<boolean> {
-  if (await claudeInstalled()) return false;
-  toast.error(messages(agentsMessages).noClaude);
+/**
+ * A fleet runs on the CLI the user chose for it (asked before the first one, when there is a choice):
+ * without it installed, nothing is created (spec first version §7.2).
+ */
+export async function refusedWithoutItsCli(): Promise<boolean> {
+  const agent = await ensureFleetAgent();
+  if (agent === null) return true;
+  if (await agentInstalled(agent)) return false;
+  toast.error(agent === "claude" ? messages(agentsMessages).noClaude : messages(fleetMessages).agent.notInstalled(AGENTS[agent].label));
   return true;
 }
 
@@ -41,7 +49,7 @@ export async function addFleetToGroup(groupId: string): Promise<string | null> {
   const api = canvasStore.getState().api;
   const workspaceId = workspacesStore.getState().activeId;
   const group = canvasStore.getState().frames.find((f) => f.id === groupId);
-  if (!api || !workspaceId || !group || !isGroup(group) || (await refusedWithoutClaude())) return null;
+  if (!api || !workspaceId || !group || !isGroup(group) || (await refusedWithoutItsCli())) return null;
   // A second fleet of the same group must not land on the first: moved past what it would cover.
   const { width, height } = NODE_SIZE.fleet;
   const spot = fleetSpot(group);
@@ -62,7 +70,7 @@ export async function addFleetToGroup(groupId: string): Promise<string | null> {
 /** The menu's "Fleet", placed with a click like an agent (spec theme §10.1). Its id, null when none was made. */
 export async function addFleet(workspaceId: string, center: Point): Promise<string | null> {
   const api = canvasStore.getState().api;
-  if (!api || (await refusedWithoutClaude())) return null;
+  if (!api || (await refusedWithoutItsCli())) return null;
   const element = createNodeElement("fleet", center);
   await createFleet(element.id, workspaceId);
   api.updateScene({

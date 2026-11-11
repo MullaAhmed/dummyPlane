@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Code2, Folder, Plus, X } from "lucide-react";
+import { BookOpen, Code2, Folder, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import {
   DropdownMenu,
@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils";
 import { useProjects } from "@/store/projects";
 import { useRunningCount } from "@/store/running";
 import { ownFolder } from "@/store/workspaceFolder";
-import { canRemove as removable, isCode, useWorkspaces, workspacesStore, type Workspace } from "@/store/workspaces";
+import { canRemove as removable, isCanvas, isCode, isNotes, useWorkspaces, workspacesStore, type Workspace } from "@/store/workspaces";
 import { HintedButton, IconButton } from "./buttons";
 import { TABS_HEIGHT } from "./layout";
 import { shellMessages } from "./messages";
@@ -132,6 +132,7 @@ function WorkspaceTab(props: { workspace: Workspace; projectFolder: string; acti
         }}
       >
         {isCode(workspace) && <Code2 data-code-icon aria-hidden className="mr-2 size-4 shrink-0 text-dp-text-2" />}
+        {isNotes(workspace) && <BookOpen data-notes-icon aria-hidden className="mr-2 size-4 shrink-0 text-dp-text-2" />}
         <span className="max-w-40 truncate">{workspace.name}</span>
         {own && (
           <span data-tab-folder className="ml-2 flex max-w-24 items-center gap-1 text-xs text-dp-text-3">
@@ -165,8 +166,8 @@ function WorkspaceTab(props: { workspace: Workspace; projectFolder: string; acti
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start">
           <DropdownMenuItem onSelect={() => setEditing(true)}>{t.rename}</DropdownMenuItem>
-          {/* The code workspace stays on the project: no folder of its own. */}
-          {!isCode(workspace) && (
+          {/* The code and notes workspaces stay on the project: no folder of their own. */}
+          {isCanvas(workspace) && (
             <>
               <DropdownMenuSeparator />
               <DropdownMenuItem onSelect={() => void chooseFolder().catch(fail("folderFailed"))}>

@@ -98,6 +98,12 @@ describe("a fleet's session (spec orchestrateur §6)", () => {
   });
 });
 
+it("keeps a fleet's night through a restart: it still waits for nobody, and still reads Linear", () => {
+  const session = { title: "Fleet", name: "Fleet", agent: "claude", cwd: "C:/p", shell: "default", command: "", role: "orchestrator", permission: "edits", linear: true };
+  expect(readFleetPayload({ name: "Fleet", session }).session).toMatchObject({ permission: "edits", linear: true });
+  expect(readFleetPayload({ name: "Fleet", session: { ...session, linear: "yes" } }).session).not.toHaveProperty("linear");
+});
+
 it("reads a fleet's mission with it (spec orchestrateur §7)", () => {
   const mission = { state: "plan", maxAgents: 4, name: "Auth", members: [] };
   expect(readFleetPayload({ name: "Chef", mission })).toEqual({ name: "Chef", mission });

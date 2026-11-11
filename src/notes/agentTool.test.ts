@@ -1,11 +1,11 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
-import { linkedClaudeAgents } from "@/mission/store";
+import { linkedTeamAgents } from "@/mission/store";
 import { notesTool, notesToolSpec } from "./agentTool";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
-vi.mock("@/mission/store", () => ({ linkedClaudeAgents: vi.fn(() => [{ nodeId: "batman", name: "Batman" }, { nodeId: "cyborg", name: "Cyborg" }]) }));
+vi.mock("@/mission/store", () => ({ linkedTeamAgents: vi.fn(() => [{ nodeId: "batman", name: "Batman" }, { nodeId: "cyborg", name: "Cyborg" }]) }));
 
 const textOf = (result: { content: { text: string }[] }) => result.content[0].text;
 let asked: { command: string; args: unknown }[];
@@ -44,7 +44,7 @@ describe("the notes tool (spec notes §3)", () => {
 
   it("asks for the fleet's agents too", async () => {
     await notesTool("chef", true, {});
-    expect(linkedClaudeAgents).toHaveBeenCalledWith("chef");
+    expect(linkedTeamAgents).toHaveBeenCalledWith("chef");
     expect(asked[0]).toMatchObject({ args: { nodeIds: ["chef", "batman", "cyborg"] } });
   });
 

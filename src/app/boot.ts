@@ -18,12 +18,14 @@ import { agentActivityStore } from "@/store/agentActivity";
 import { subagentsStore } from "@/store/subagents";
 import { terminalStatusStore } from "@/store/terminalStatus";
 import { installUsage } from "@/usage/usageStore";
+import { installCodexSessions } from "@/nodes/terminal/codexSessions";
 import { projectsStore, setForgetWorkspaces } from "@/store/projects";
 import { saveBeforeClose } from "./close";
 import { forgetWorkspaces } from "./forget";
 import { loadThemeSettings } from "./theme";
 import { loadAutoArrange } from "./autoArrangeSetting";
 import { loadFollowWaiting } from "./followWaitingSetting";
+import { loadFleetAgent } from "@/fleet/fleetAgent";
 import { loadNativeNotifications } from "./nativeNotifications";
 import { loadSubagentSettings } from "./subagentSettings";
 import { loadUpdateSettings, startUpdateChecks } from "./updates";
@@ -43,6 +45,7 @@ export function boot(): Promise<void> {
     await loadNativeNotifications();
     await loadFollowWaiting();
     await loadAutoArrange();
+    await loadFleetAgent();
     await loadSubagentSettings();
     await loadAgentsPanel();
     await onPtyExit(({ nodeId, exitCode }) => {
@@ -61,6 +64,7 @@ export function boot(): Promise<void> {
     if (!activity.hooksAvailable) toast.warning(messages(appMessages).hooksDown);
     await installMcp();
     await installUsage();
+    await installCodexSessions();
     installMissionEvents();
     installMissionClock();
     installKeepAwake();

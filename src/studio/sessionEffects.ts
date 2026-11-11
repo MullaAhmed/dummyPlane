@@ -1,6 +1,5 @@
 import { useEffect, useRef } from "react";
-import { isDirty, type FileSession } from "./fileSession";
-import { guardQuit } from "./studioStore";
+import type { FileSession } from "./fileSession";
 
 /** Agents write by every means there is: the disk is compared this often (spec studio code §3). */
 const POLL_MS = 2000;
@@ -34,20 +33,4 @@ export function useSaveKey(save: () => void) {
     window.addEventListener("keydown", onKey, { capture: true });
     return () => window.removeEventListener("keydown", onKey, { capture: true });
   }, []);
-}
-
-/** What any dialog holding a file session needs while it is open: the disk watched, Ctrl+S, the window held. */
-export function useFileSessionEffects(session: FileSession) {
-  useDiskWatch(session);
-
-  useEffect(
-    () =>
-      guardQuit(
-        () => session.getState().holdQuit(),
-        () => isDirty(session.getState()),
-      ),
-    [session],
-  );
-
-  useSaveKey(() => void session.getState().save());
 }

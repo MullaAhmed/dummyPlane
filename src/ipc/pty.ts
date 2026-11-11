@@ -26,11 +26,25 @@ export interface ClaudeLaunch {
   remoteControl?: string;
   /** `--model`, chosen by a mission's router (spec maj §3). */
   model?: string;
+  /** A mission's choice; on a fleet, its night: it waits for nobody, what would ask is refused. */
   permission?: Permission;
+  /** A fleet whose night reads its tickets in Linear: Linear's read-only MCP server joins its tools. */
+  linear?: boolean;
   /** The profile's folder: this terminal's `CLAUDE_CONFIG_DIR` (spec comptes §4). */
   configDir?: string;
   /** The skills, plugins, MCP servers and subagents this terminal turns off or on. */
   extensions?: ExtensionChoice;
+}
+
+/** What a Codex terminal is for, as `ClaudeLaunch` says it for Claude. Mirrors Rust's `CodexLaunch`. */
+export interface CodexLaunch {
+  /** The thread Codex saved, to resume; none starts a new conversation. */
+  sessionId?: string;
+  role: "agent" | typeof STORED_FLEET_ROLE;
+  permission?: Permission;
+  linear?: boolean;
+  /** `-m`, a model a parent agent asked for. */
+  model?: string;
 }
 
 /** Agents of the launch menu (spec habillage §8), in menu order. */
@@ -51,8 +65,22 @@ export interface SpawnSpec {
   agent: AgentId;
   command: string;
   claude?: ClaudeLaunch;
+  codex?: CodexLaunch;
   ollama?: OllamaLaunch;
 }
+
+/** The conversation a Codex terminal is in, once Codex saved it. */
+export interface CodexSessionEvent {
+  nodeId: string;
+  sessionId: string;
+}
+
+export function onCodexSession(handler: (event: CodexSessionEvent) => void): Promise<UnlistenFn> {
+  return listen<CodexSessionEvent>("codex-session", (event) => handler(event.payload));
+}
+
+/** Codex's sign-in to Linear's read-only server, in the browser; resolves once the user has signed in. */
+export const codexLinearLogin = () => call<void>("codex_linear_login");
 
 export interface AgentInfo {
   id: AgentId;

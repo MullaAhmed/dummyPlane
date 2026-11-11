@@ -18,6 +18,7 @@ import { useActivity, type AgentActivity } from "@/store/agentActivity";
 import { nodesStore, useNodes } from "@/store/nodes";
 import { useTerminalStatus, type TerminalStatus } from "@/store/terminalStatus";
 import { frameStyle, NODE_FRAME, TERMINAL_BODY } from "../terminal/frame";
+import { fleetAgent } from "@/fleet/fleetAgent";
 import { fleetSession } from "../terminal/launch";
 import { markForAutostart, xtermOf } from "../terminal/registry";
 import { keepTerminalWheel } from "../terminal/terminalWheel";
@@ -52,7 +53,7 @@ export function FleetNode({ nodeId }: { nodeId: string }) {
     const current = nodesStore.getState().nodes[nodeId];
     // A Fleet of before gets its session when first shown (spec orchestrateur §6).
     if (current?.kind !== "fleet" || current.payload.session) return;
-    nodesStore.getState().update(nodeId, { session: fleetSession(current.payload.name, defaultLaunchOptions(current.workspaceId)) });
+    nodesStore.getState().update(nodeId, { session: fleetSession(current.payload.name, defaultLaunchOptions(current.workspaceId), fleetAgent()) });
     markForAutostart(nodeId);
   }, [nodeId]);
   useTerminalHost(nodeId, hostRef, session !== undefined);
@@ -98,7 +99,7 @@ export function FleetNode({ nodeId }: { nodeId: string }) {
         {status.state === "error" && status.kind === "toolsUnavailable" && <ToolsUnavailable nodeId={nodeId} message={status.message} />}
       </div>
       <MissionPanel nodeId={nodeId} />
-      <FleetInput nodeId={nodeId} open={record.payload.inputOpen === true} />
+      <FleetInput nodeId={nodeId} />
     </div>
   );
 }

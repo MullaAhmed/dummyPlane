@@ -394,8 +394,10 @@ describe("what a terminal can take", () => {
     expect(acceptsInstruction("claude", "")).toBe(false);
   });
 
-  it("leaves the other agents as they were", () => {
-    expect(acceptsInstruction("codex", "anything")).toBe(true);
+  it("needs Codex's prompt for a Codex terminal, and leaves the other agents as they were", () => {
+    expect(acceptsInstruction("codex", "› Ask Codex to do anything\n\n  gpt-5.6-luna medium · D:\\code\n  ← for agents · ? for shortcuts")).toBe(true);
+    expect(acceptsInstruction("codex", "PS C:\\code> ")).toBe(false);
+    expect(acceptsInstruction("gemini", "anything")).toBe(true);
     expect(acceptsInstruction(undefined, "")).toBe(true);
   });
 });

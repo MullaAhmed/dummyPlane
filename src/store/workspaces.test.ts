@@ -28,8 +28,8 @@ function fakeBackend(initial: string[] = [], activeSetting: string | null = null
       case "list_workspaces":
         return db.workspaces.filter((w) => w.projectId === args.projectId).map((w) => ({ ...w }));
       case "create_workspace": {
-        // One code workspace per project: the backend hands back the existing one.
-        const existing = args.kind === "code" && db.workspaces.find((w) => w.kind === "code");
+        // One code and one notes workspace per project: the backend hands back the existing one.
+        const existing = args.kind !== "canvas" && db.workspaces.find((w) => w.kind === args.kind);
         if (existing) return existing;
         const w = make(args.name, db.workspaces.length, (args.kind as Workspace["kind"]) ?? "canvas");
         db.workspaces.push(w);
@@ -268,6 +268,34 @@ describe("workspaces store", () => {
     await state().remove(code!);
     expect(names()).toEqual(["A"]);
     expect(state().activeId).toBe("w1");
+  });
+
+  it("opens the notes in a tab of their own, created once and selected", async () => {
+    const db = fakeBackend(["A"]);
+    await state().load("p1");
+    const notes = await state().openNotes();
+    expect(state().activeId).toBe(notes);
+    expect(state().workspaces.find((w) => w.id === notes)).toMatchObject({ kind: "notes", name: "Notes" });
+    state().select("w1");
+    expect(await state().openNotes()).toBe(notes);
+    expect(db.workspaces.filter((w) => w.kind === "notes")).toHaveLength(1);
+  });
+
+  it("never takes the notes tab for a canvas: the last canvas stays, the notes may go", async () => {
+    const db = fakeBackend(["A"]);
+    await state().load("p1");
+    state().select("w1");
+    const notes = await state().openNotes();
+    expect(state().lastCanvasId).toBe("w1");
+    const [canvas, notesTab] = state().workspaces;
+    expect(canRemove(state().workspaces, canvas)).toBe(false);
+    expect(canRemove(state().workspaces, notesTab)).toBe(true);
+    await state().remove(notes!);
+    expect(names()).toEqual(["A"]);
+    // A project left with its notes tab only gets a canvas back.
+    db.workspaces = [{ id: "n1", projectId: "p1", name: "Notes", position: 0, pantheon: null, kind: "notes", folder: null }];
+    await state().load("p1");
+    expect(state().workspaces.map((w) => w.kind)).toEqual(["canvas", "notes"]);
   });
 
   it("reports a backend failure", async () => {

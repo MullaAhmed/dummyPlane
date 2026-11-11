@@ -32,7 +32,7 @@ it("moves a Claude terminal with a conversation of its own, and nothing else", (
   expect(change?.claudeSessionId).toMatch(/^[0-9a-f-]{36}$/);
   expect(change?.claudeSessionId).not.toBe("old");
   // The model, the permission and the profile are not in the change: they stay.
-  expect(Object.keys(change ?? {}).sort()).toEqual(["claudeSessionId", "cwd", "lastReport", "steps"]);
+  expect(Object.keys(change ?? {}).sort()).toEqual(["claudeSessionId", "codexSessionId", "cwd", "lastReport", "steps"]);
 });
 
 it("moves any other agent by its folder alone", () => {

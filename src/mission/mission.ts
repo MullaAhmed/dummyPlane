@@ -93,7 +93,10 @@ export interface Member {
 
 export interface Mission {
   state: MissionState;
-  /** Settings of the panel (spec §7.1). */
+  /**
+   * An overnight run's length: the time the user is away, real time from the go-ahead (spec overnight
+   * mission §3). A regular mission has none: its old "global budget" setting is gone, and ignored if saved.
+   */
   budgetMin?: number;
   maxAgents: number;
   name?: string;
@@ -109,17 +112,17 @@ export interface Mission {
   members: Member[];
   summary?: string;
   error?: string;
-  /** The go-ahead: the global budget runs from then (spec §8.1). */
+  /** The go-ahead: the night's time runs from then (spec §8.1). */
   startedAt?: number;
   /** "finish": the members' times stop there (spec first version §5.3). */
   endedAt?: number;
-  /** The end of the global budget was told (spec §8.2). */
+  /** The end of the night was told (spec §8.2). */
   globalOverdue?: boolean;
   /** Each agent gets the model of its sub-task's level (spec update §3). */
   router?: boolean;
   /** Tasks beyond the team, in order; a new agent, in a new terminal, takes the next one (spec overnight mission §4). */
   queue?: QueuedTask[];
-  /** Launched for the user's absence: the global budget is the time away, agents' budgets are targets (spec overnight mission §3). */
+  /** Launched for the user's absence: `budgetMin` is the time away, agents' budgets are targets (spec overnight mission §3). */
   overnight?: boolean;
   /** The end of the night was told. */
   windDownTold?: boolean;
@@ -155,6 +158,7 @@ export const oneLine = (value: string) => value.replace(/\s*[\r\n]+\s*/g, " ").t
 function readTicketSource(raw: unknown): TicketSource | undefined {
   const r = (typeof raw === "object" && raw !== null ? raw : {}) as Record<string, unknown>;
   if (r.kind === "backlog") return { kind: "backlog" };
+  if (r.kind === "linear") return typeof r.team === "string" && typeof r.label === "string" ? { kind: "linear", team: r.team, label: r.label } : undefined;
   return r.kind === "github" && typeof r.label === "string" ? { kind: "github", label: r.label } : undefined;
 }
 
@@ -238,7 +242,8 @@ export function readMission(raw: unknown): Mission | undefined {
     maxAgents: typeof r.maxAgents === "number" ? r.maxAgents : DEFAULT_MAX_AGENTS,
     members: Array.isArray(r.members) ? r.members.map(readMember).filter((m): m is Member => m !== null) : [],
   };
-  if (typeof r.budgetMin === "number") mission.budgetMin = r.budgetMin;
+  // Only a night has a length: a regular mission saved with the old global budget drops it.
+  if (typeof r.budgetMin === "number" && r.overnight === true) mission.budgetMin = r.budgetMin;
   for (const key of ["name", "task", "project", "slug", "branch", "worktree", "frameId", "summary", "error"] as const) {
     if (typeof r[key] === "string") mission[key] = r[key];
   }
@@ -267,8 +272,9 @@ function readTaskFields(r: Record<string, unknown>, n: number, mission: Mission)
   if (!title || title.length > MAX_TITLE) return e.title(n, MAX_TITLE);
   if (!brief) return e.brief(n);
   if (typeof budget !== "number" || !Number.isInteger(budget) || budget < 1) return e.budget(n);
-  // The global budget is real time: agents in parallel share it, only one sub-task alone could not fit (spec overnight mission §3).
-  if (mission.budgetMin !== undefined && budget > mission.budgetMin) return e.overBudget(n, budget, mission.budgetMin);
+  // The night is real time: agents in parallel share it, only one sub-task alone could not fit (spec overnight mission §3).
+  const night = nightMin(mission);
+  if (night !== undefined && budget > night) return e.overBudget(n, budget, night);
   const given = r.niveau !== undefined && r.niveau !== null;
   const level = readLevel(r.niveau);
   if (given && !level) return e.level(n);
@@ -364,6 +370,11 @@ export function proposedPlan(
 
 const MINUTE = 60_000;
 
+/** How long a night runs: the user's time away. A regular mission has no overall limit, whatever it was saved with. */
+export function nightMin(mission: Mission): number | undefined {
+  return mission.overnight ? mission.budgetMin : undefined;
+}
+
 /** What is kept of a task when its agent takes another (spec overnight mission §6.2). */
 export function pastTask(member: Member, report: Report): PastTask {
   return {
@@ -407,7 +418,7 @@ export interface Overrun {
 
 /**
  * What the clock has to tell (spec §8.2): the members past 100 % or 200 % of
- * their budget without a report, each step once, and the end of the global budget.
+ * their budget without a report, each step once, and the end of the night.
  */
 export function overruns(mission: Mission, now: number): { members: Overrun[]; global: boolean } {
   if (mission.state !== "en_cours") return { members: [], global: false };
@@ -417,20 +428,21 @@ export function overruns(mission: Mission, now: number): { members: Overrun[]; g
     const level = ratio >= 2 ? 2 : ratio >= 1 ? 1 : 0;
     return level > (m.overdue ?? 0) ? [{ nodeId: m.nodeId, name: m.name, task: m.task, level: level as 1 | 2, budget: budgetOf(m) }] : [];
   });
-  const global =
-    mission.budgetMin !== undefined && mission.startedAt !== undefined && !mission.globalOverdue && (now - mission.startedAt) / MINUTE >= mission.budgetMin;
+  const night = nightMin(mission);
+  const global = night !== undefined && mission.startedAt !== undefined && !mission.globalOverdue && (now - mission.startedAt) / MINUTE >= night;
   return { members, global };
 }
 
-/** The whole minutes left of the global budget, real time from the go-ahead (spec overnight mission §3); undefined without one. */
+/** The whole minutes left of the night, real time from the go-ahead (spec overnight mission §3); undefined outside one. */
 export function remainingGlobal(mission: Mission, now: number): number | undefined {
-  if (mission.budgetMin === undefined) return undefined;
-  if (mission.startedAt === undefined) return mission.budgetMin;
-  return Math.max(0, Math.ceil(mission.budgetMin - ((mission.endedAt ?? now) - mission.startedAt) / MINUTE));
+  const night = nightMin(mission);
+  if (night === undefined) return undefined;
+  if (mission.startedAt === undefined) return night;
+  return Math.max(0, Math.ceil(night - ((mission.endedAt ?? now) - mission.startedAt) / MINUTE));
 }
 
 /** The last minutes of an overnight mission keep the time to merge and finish: 10 %, 10 min at least, half of a short one. */
-const windDownMin = (budget: number) => Math.min(budget / 2, Math.max(10, budget / 10));
+export const windDownMin = (budget: number) => Math.min(budget / 2, Math.max(10, budget / 10));
 
 /** An overnight mission near its end: no new work, the fleet wraps up (spec overnight mission §3). */
 export function windingDown(mission: Mission, now: number): boolean {
@@ -438,7 +450,7 @@ export function windingDown(mission: Mission, now: number): boolean {
   return (now - mission.startedAt) / MINUTE >= mission.budgetMin - windDownMin(mission.budgetMin);
 }
 
-/** No new work starts: the mission is winding down, or the global budget is spent, overnight or not. */
+/** No new work starts: the night is winding down or over. */
 export function noNewWork(mission: Mission, now: number): boolean {
   return windingDown(mission, now) || (mission.startedAt !== undefined && remainingGlobal(mission, now) === 0);
 }
@@ -458,9 +470,10 @@ export function budgetBar(spent: number, budget: number, report?: ReportStatus):
   return { ratio: Math.min(1, ratio), tone: ratio > 1 ? "over" : ratio > 0.8 ? "late" : "ok" };
 }
 
-/** The fleet's header during a mission (spec §8.3): time spent, over the global budget if any. */
+/** The fleet's header during a mission (spec §8.3): time spent, over the night's length if overnight. */
 export function clockText(mission: Mission, now: number): string | null {
   if (mission.state !== "en_cours" || mission.startedAt === undefined) return null;
   const spent = Math.floor((now - mission.startedAt) / MINUTE);
-  return mission.budgetMin === undefined ? `${spent} min` : `${spent} / ${mission.budgetMin} min`;
+  const night = nightMin(mission);
+  return night === undefined ? `${spent} min` : `${spent} / ${night} min`;
 }

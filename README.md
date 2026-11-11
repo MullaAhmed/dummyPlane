@@ -70,7 +70,7 @@ If you know Symvibe, dummyPlane covers the same ground (driving a fleet of CLI a
 
 ## The Fleet
 
-The fleet is a Claude Code session that acts as a team manager. Link one to a group from the group menu (*Link a fleet*) and describe the goal in its terminal. Then:
+The fleet is a Claude Code or Codex session that acts as a team manager (*Fleet agent…* in the settings menu: its team runs on the same CLI). Link one to a group from the group menu (*Link a fleet*) and describe the goal in its terminal. Then:
 
 1. **It proposes a plan.** It splits the goal into sub-tasks, each with an owner, a time budget and, optionally, a difficulty level. The plan appears in the mission panel under the fleet.
 2. **You launch the mission.** dummyPlane creates the mission branch `dummyplane/<mission>`, plus a branch and a worktree for each agent next to your repository. It then gives every agent its sub-task.
@@ -87,16 +87,18 @@ With the **model router**, each sub-task's level picks the model its agent runs 
 | `high` | Claude Opus 5.5 |
 | `extreme` | Claude Fable 5.1 |
 
-The fleet talks to dummyPlane through a local MCP server, with tools such as `propose_plan`, `team`, `read_output`, `extend`, `reassign`, `merge` and `remote_control`. It can read the repository, but it is denied `Edit`, `Write` and `NotebookEdit`: the agents write the code.
+The fleet talks to dummyPlane through a local MCP server, with tools such as `propose_plan`, `team`, `read_output`, `extend`, `reassign`, `merge` and `remote_control`. It can read the repository, but it is denied `Edit`, `Write` and `NotebookEdit`: the agents write the code. A Codex fleet runs in Codex's read-only sandbox with approvals off, and gets none of your own MCP servers, plugins or browser tools; `remote_control` is Claude's only.
 
 ### Overnight run
 
-Before you leave, open *Overnight run…* in the mission panel: how long you will be away, how many agents, and where the tickets come from (GitHub issues with a label, or `BACKLOG.md`). The fleet plans and the team works through a queue: when an agent reports done, its branch is merged into the mission branch and a new agent takes the next task in a new terminal, so each task starts with a fresh context. When you are back, a morning report in the panel gives what is done, what failed, what to check by hand and the time spent. Kanban is not a source yet. The PC stays awake during the mission, but closing the lid or asking for sleep still puts it to sleep.
+Before you leave, open *Overnight run…* in the mission panel: how long you will be away, how many agents, where the tickets come from (GitHub issues with a label, `BACKLOG.md`, or Linear issues of one team with a label), what agents may do unasked and whether the plan waits for you. Until the team is formed, the night's choices stay in the panel, where *Edit…* changes them and *Cancel the night* calls it off. The fleet plans and the team works through a queue: when an agent reports done, its branch is merged into the mission branch and a new agent takes the next task in a new terminal, so each task starts with a fresh context. When you are back, a morning report in the panel gives what is done, what failed, what to check by hand and the time spent. Kanban is not a source yet. The PC stays awake during the mission, but closing the lid or asking for sleep still puts it to sleep.
 
 Read this before you choose:
 
-- **By default the plan waits for your go-ahead and agents have *Files*.** They edit files unasked and stop at their first command until you are back. That is the safer choice, and it limits what a night can do.
-- ***Files and commands* is an explicit choice.** Agents run any command unasked: the network and the accounts logged in on this PC are open to them. Use a repository you can afford to lose.
+- **By default the plan waits for your go-ahead and agents may *Edit files*.** They edit files and run simple file commands (`mkdir`, `mv`, `cp`) unasked, and stop at their first other command until you are back. That is the safer choice, and it limits what a night can do.
+- ***Edit files and run commands* is an explicit choice.** Agents run any command unasked, and what would still ask is refused: the network and the accounts logged in on this PC are open to them. Use a repository you can afford to lose.
+- **The fleet itself never waits for a yes at night.** Its session restarts on the same conversation in a mode that refuses whatever would ask; it still cannot edit files or run commands. *Clean up the mission* puts it back as it was.
+- **Linear is read by the fleet, through Linear's own read-only server** (`https://mcp.linear.app/mcp/readonly`), with no key stored in dummyPlane. Choose *Linear*, then *Connect…*: the fleet restarts with Linear's server, and you sign in once in its terminal with `/mcp` (pick *linear*, then *Authenticate*); a Codex fleet opens Linear's sign-in in your browser instead (`codex mcp login`). dummyPlane cannot see that sign-in: if the fleet finds no Linear tool at night, it says so and plans nothing.
 - **The push block is not a security boundary.** `git push` and the `gh` commands that reach the remote are denied by rules on the command's text and by a git setting in the terminal. They stop accidents. An agent running commands can get past them: a review did with `-c remote.origin.pushurl` and `GIT_CONFIG_COUNT=0`.
 
 ## Supported agents
@@ -106,7 +108,7 @@ dummyPlane launches the agents you already have installed: an agent counts as av
 | Agent | Command | State detection |
 |---|---|---|
 | Claude Code | `claude` | Hooks (precise: running, waiting for you, done) |
-| Codex | `codex` | Output, plus its `notify` hook at the end of each turn |
+| Codex | `codex` | Output, plus its `notify` hook at the end of each turn; it gets dummyPlane's tools through a profile in `$CODEX_HOME`, removed when its terminal closes |
 | Gemini CLI | `gemini` | Output |
 | Qwen Code | `qwen` | Output |
 | Cursor | `cursor-agent` | Output |

@@ -15,7 +15,7 @@ import { missionAddAgent, missionCleanup, missionDiscard, missionMerge, missionP
 import { ptySendText } from "@/ipc/pty";
 import { relaunchTerminal, stopTerminal } from "@/nodes/terminal/registry";
 import type { TerminalPayload } from "@/nodes/types";
-import { nodesStore, terminalOf } from "@/store/nodes";
+import { nodesStore, sessionOf, terminalOf } from "@/store/nodes";
 import { projectsStore, type Project } from "@/store/projects";
 import { terminalStatusStore } from "@/store/terminalStatus";
 import { workspacesStore } from "@/store/workspaces";
@@ -23,7 +23,7 @@ import { notify } from "./events";
 import { whenReady } from "./ready";
 import { cleanMission, endMission, handoverText, launchMission, mergeMission, reassignTask, subTaskText, withTicketNote } from "./launch";
 import { NEW_MISSION, type Member, type Mission } from "./mission";
-import { missionOf, updateMember } from "./store";
+import { missionOf, releaseTeamPermission, updateMember } from "./store";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
 vi.mock("@/ipc/mission", () => ({ missionPrepare: vi.fn(), missionAddAgent: vi.fn(), missionMerge: vi.fn(), missionCleanup: vi.fn(), missionDiscard: vi.fn(() => Promise.resolve({ removed: [], kept: [] })) }));
@@ -43,7 +43,7 @@ vi.mock("./ready", () => ({ whenReady: vi.fn(() => Promise.resolve(true)) }));
 vi.mock("./events", () => ({ notify: vi.fn() }));
 vi.mock("./store", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./store")>()),
-  linkedClaudeAgents: vi.fn(() => [{ nodeId: "batman", name: "Batman" }]),
+  linkedTeamAgents: vi.fn(() => [{ nodeId: "batman", name: "Batman" }]),
 }));
 
 // How agents arrive: the go-ahead's team comes into view (the user just asked for it), a replacement's agent never does.
@@ -590,10 +590,36 @@ it("merges the branches of the agents done, and says what happened to each (spec
 
 it("cleans a finished mission and frees the fleet for the next, its settings kept", async () => {
   await setup({ state: "terminee", budgetMin: 90, maxAgents: 3, project: "C:/code/proj", slug: "auth", summary: "ok", members: [member("batman", "Batman", true)] });
+  // An old global budget is no setting any more: the next mission does without it.
   vi.mocked(missionCleanup).mockResolvedValue({ removed: ["auth-batman", "auth"], kept: [] });
   expect(await cleanMission("chef")).toEqual({ removed: ["auth-batman", "auth"], kept: [] });
   expect(missionCleanup).toHaveBeenCalledWith("C:/code/proj", "auth", ["Batman"]);
-  expect(missionNow()).toEqual({ state: "redaction", budgetMin: 90, maxAgents: 3, members: [] });
+  expect(missionNow()).toEqual({ state: "redaction", maxAgents: 3, members: [] });
+});
+
+it("takes the mission's permission back from its agents when its fleet closes: a later restart asks as usual (backlog)", async () => {
+  const terminal = (name: string, permission?: "work") => ({ title: name, name, agent: "claude" as const, cwd: "C:/w", shell: "default" as const, command: "", ...(permission ? { permission } : {}) });
+  const member = (nodeId: string, name: string) => ({ nodeId, name, task: "T", budgetMin: 10, linked: false, branch: "b", worktree: "w" });
+  await nodesStore.getState().create("night", { workspaceId: "w1", kind: "fleet", payload: { name: "Night", mission: { ...NEW_MISSION, state: "en_cours", overnight: true, permission: "work", members: [member("a1", "Ra"), member("a2", "Nut")] } } });
+  await nodesStore.getState().create("a1", { workspaceId: "w1", kind: "terminal", payload: terminal("Ra", "work") });
+  await nodesStore.getState().create("a2", { workspaceId: "w1", kind: "terminal", payload: terminal("Nut") });
+  await nodesStore.getState().create("other", { workspaceId: "w1", kind: "terminal", payload: terminal("Other", "work") });
+  releaseTeamPermission("night");
+  const permission = (id: string) => (nodesStore.getState().nodes[id]?.payload as { permission?: string }).permission;
+  expect(permission("a1")).toBeUndefined();
+  expect(permission("a2")).toBeUndefined();
+  // Only the mission's agents: another terminal keeps what it was given.
+  expect(permission("other")).toBe("work");
+});
+
+it("puts the fleet back on its day session once a night is cleaned up: it asks again, without Linear", async () => {
+  await setup({ state: "terminee", overnight: true, budgetMin: 480, project: "C:/code/proj", slug: "auth", members: [] });
+  nodesStore.getState().update("chef", { session: { ...session, permission: "edits", linear: true } });
+  vi.mocked(missionCleanup).mockResolvedValue({ removed: [], kept: [] });
+  await cleanMission("chef");
+  const fleet = sessionOf(nodesStore.getState().nodes.chef);
+  expect(fleet?.permission).toBeUndefined();
+  expect(fleet?.linear).toBeUndefined();
 });
 
 it("cleans the worktree of every agent of the mission, those the queue started in new terminals included", async () => {

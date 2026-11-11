@@ -1,3 +1,4 @@
+import { FLEET_CAPABLE } from "@/fleet/capable";
 import { canvasStore } from "@/canvas/canvasStore";
 import { framesFromScene, groupOf } from "@/canvas/groups";
 import { cachedElements } from "@/canvas/sceneCache";
@@ -41,6 +42,20 @@ export function isFleetClosed(fleetId: string): boolean {
 }
 
 /**
+ * Its fleet closed mid-mission: its agents go on as they run, but none starts
+ * again with what the mission let it do unasked (backlog: a permission kept
+ * after a fleet's closing). A later restart asks as usual.
+ */
+export function releaseTeamPermission(fleetId: string) {
+  const mission = missionOf(nodesStore.getState().nodes[fleetId]);
+  if (!mission?.permission || mission.state === "terminee") return;
+  for (const member of mission.members) {
+    const payload = terminalOf(nodesStore.getState().nodes[member.nodeId]);
+    if (payload?.permission === mission.permission) nodesStore.getState().update(member.nodeId, { permission: undefined });
+  }
+}
+
+/**
  * The running mission an agent works for, once its sub-task was sent (spec §7.5);
  * a closed fleet's only with `evenClosed`.
  */
@@ -77,8 +92,8 @@ export function canvasKnown(fleetId: string): boolean {
 
 const canvasOfNode = (nodeId: string) => workspaceCanvas(nodesStore.getState().nodes[nodeId]?.workspaceId);
 
-/** The Claude agents wired to a fleet: only they have dummyPlane's tools for a mission (spec §2). */
-export function linkedClaudeAgents(fleetId: string): { nodeId: string; name: string }[] {
+/** The agents wired to a fleet that have dummyPlane's tools for a mission, Claude's or Codex's (spec §2). */
+export function linkedTeamAgents(fleetId: string): { nodeId: string; name: string }[] {
   const { links, frames } = canvasOfNode(fleetId);
   const nodes = nodesStore.getState().nodes;
   return linkedAgents(links[fleetId] ?? NO_LINKS, frames).agentIds.flatMap((nodeId) => {
@@ -86,7 +101,7 @@ export function linkedClaudeAgents(fleetId: string): { nodeId: string; name: str
     const elsewhere = memberOf(nodeId);
     if (elsewhere && elsewhere.fleetId !== fleetId) return [];
     const payload = terminalOf(nodes[nodeId]);
-    return payload?.agent === "claude" ? [{ nodeId, name: payload.name || AGENTS.claude.label }] : [];
+    return payload && FLEET_CAPABLE.includes(payload.agent) ? [{ nodeId, name: payload.name || AGENTS[payload.agent].label }] : [];
   });
 }
 

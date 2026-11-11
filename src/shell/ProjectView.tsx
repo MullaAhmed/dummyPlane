@@ -11,7 +11,8 @@ import { RadialMenu } from "@/radial/RadialMenu";
 import { GitWindow } from "@/git/GitWindow";
 import { ReviewPanel } from "@/review/ReviewPanel";
 import { PlacementGhost } from "@/agents/PlacementGhost";
-import { isCode, useWorkspaces } from "@/store/workspaces";
+import { useProjects } from "@/store/projects";
+import { useWorkspaces } from "@/store/workspaces";
 import { ActivityRail } from "./ActivityRail";
 import { AgentCounts } from "./AgentCounts";
 import { CommandBar, CommandHint } from "./CommandBar";
@@ -32,6 +33,9 @@ import { ZoomControl } from "./ZoomControl";
 
 // CodeMirror and its languages load with the first opening, not with the application.
 const CodeWorkspace = lazy(() => import("@/studio/CodeWorkspace").then((m) => ({ default: m.CodeWorkspace })));
+const NotesWorkspace = lazy(() => import("@/notes/NotesWorkspace"));
+
+const SCOPES = { canvas: "canvas", code: "code workspace", notes: "notes workspace" } as const;
 
 /** A floating panel's error, where the panels open. */
 function panelCrash(error: Error, retry: () => void) {
@@ -51,7 +55,9 @@ export function ProjectView() {
   const status = useWorkspaces((s) => s.status);
   const error = useWorkspaces((s) => s.error);
   const activeId = useWorkspaces((s) => s.activeId);
-  const code = useWorkspaces((s) => isCode(s.workspaces.find((w) => w.id === s.activeId)));
+  const kind = useWorkspaces((s) => s.workspaces.find((w) => w.id === s.activeId)?.kind ?? "canvas");
+  const projectId = useProjects((s) => s.activeId);
+  const canvas = kind === "canvas";
   const panelOpen = useAgentsPanel((s) => s.open);
 
   useEffect(() => {
@@ -64,22 +70,28 @@ export function ProjectView() {
         <>
           <ErrorBoundary
             key={activeId}
-            scope={code ? "code workspace" : "canvas"}
+            scope={SCOPES[kind]}
             fallback={(error, retry) => (
               <div className="absolute inset-0 px-6 pb-6 pt-[104px]">
                 <CrashNotice error={error} retry={retry} />
               </div>
             )}
           >
-            {code ? (
+            {kind === "code" ? (
               <Suspense fallback={null}>
                 <CodeWorkspace />
               </Suspense>
+            ) : kind === "notes" ? (
+              projectId && (
+                <Suspense fallback={null}>
+                  <NotesWorkspace projectId={projectId} />
+                </Suspense>
+              )
             ) : (
               <Canvas workspaceId={activeId} />
             )}
           </ErrorBoundary>
-          {!code && <ToolRail />}
+          {canvas && <ToolRail />}
           <ActivityRail />
           {panelOpen && (
             <ErrorBoundary scope="agents panel" fallback={panelCrash}>
@@ -87,8 +99,8 @@ export function ProjectView() {
             </ErrorBoundary>
           )}
           <WaitingNotice />
-          {/* The canvas's floating bars: the code workspace has its own. */}
-          {!code && (
+          {/* The canvas's floating bars: the code and notes workspaces have their own. */}
+          {canvas && (
             <>
               {/* 12 px from the bottom, as from the sides: one gutter around the canvas. */}
               <div className="absolute bottom-3 left-3 z-30">

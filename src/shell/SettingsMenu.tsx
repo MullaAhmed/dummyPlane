@@ -1,9 +1,12 @@
 import { useId, type ReactElement, type ReactNode } from "react";
-import { Bell, CircleArrowDown, Download, FileText, Gauge, ImageDown, Info, LayoutGrid, LifeBuoy, LocateFixed, RefreshCw, SquareTerminal, Upload } from "lucide-react";
+import { Bell, Bot, CircleArrowDown, Download, FileText, Gauge, ImageDown, Info, LayoutGrid, LifeBuoy, LocateFixed, RefreshCw, SquareTerminal, Upload } from "lucide-react";
 import { arrangeWorkspace } from "@/agents/arrangeCanvas";
 import { showAbout } from "@/app/about";
 import { setAutoArrange, useAutoArrange } from "@/app/autoArrangeSetting";
 import { setFollowWaiting, useFollowWaiting } from "@/app/followWaitingSetting";
+import { AGENTS } from "@/agents/catalog";
+import { chooseFleetAgent, fleetAgent, useFleetAgent } from "@/fleet/fleetAgent";
+import { fleetMessages } from "@/fleet/messages";
 import { openLogDir } from "@/app/logs";
 import { setNativeNotifications, useNativeNotifications } from "@/app/nativeNotifications";
 import { MAX_SPAWNED_CHOICES, setMaxSpawned, setSubagentTerminalsSetting, useSubagentSettings } from "@/app/subagentSettings";
@@ -99,6 +102,9 @@ export function SettingsMenu({
   const nativeNotifications = useNativeNotifications();
   const followWaiting = useFollowWaiting();
   const autoArrange = useAutoArrange();
+  const fleetT = useMessages(fleetMessages).agent;
+  // The CLI the Fleet runs on: the choice, Claude until one can carry it.
+  const fleetCli = useFleetAgent(() => fleetAgent());
   const subagentTerminals = useSubagentSettings((s) => s.terminals);
   const maxSpawned = useSubagentSettings((s) => s.maxSpawned);
   return (
@@ -129,6 +135,9 @@ export function SettingsMenu({
         </Section>
         <DropdownMenuSeparator className={SEPARATOR} />
         <Section label={t.agents}>
+          <DropdownMenuItem className={ITEM} onSelect={() => void chooseFleetAgent()}>
+            <Bot className={ICON} /> {fleetT.menu(AGENTS[fleetCli].label)}
+          </DropdownMenuItem>
           <DropdownMenuCheckboxItem
             className={CHOICE}
             checked={subagentTerminals}

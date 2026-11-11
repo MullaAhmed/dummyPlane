@@ -243,4 +243,14 @@ describe("the folder of a workspace", () => {
     expect(item("Folder…")).toBeUndefined();
     expect(folderTag("x0")).toBeNull();
   });
+  it("is not offered on the notes tab either, which shows its own icon and closes without the erase question", async () => {
+    await withFolder(null, [{ kind: "notes", name: "Notes" }]);
+    const notes = tabs().find((t) => t.dataset.tab === "x0")!;
+    expect(notes.querySelector("[data-notes-icon]")).not.toBeNull();
+    await openMenu("x0");
+    expect(item("Folder…")).toBeUndefined();
+    await act(async () => void document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+    await act(async () => notes.querySelector<HTMLButtonElement>('[aria-label="Delete the workspace"]')!.click());
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+  });
 });

@@ -12,7 +12,7 @@ vi.mock("@excalidraw/excalidraw", () => ({ CaptureUpdateAction: { IMMEDIATELY: "
 vi.mock("@/canvas/canvasStore", () => ({ canvasStore: { getState: () => ({ api }) } }));
 vi.mock("@/store/nodes", () => ({ nodesStore: { getState: () => ({ create }) } }));
 vi.mock("@/store/workspaces", () => ({
-  isCode: (w?: { kind: string }) => w?.kind === "code",
+  isCanvas: (w?: { kind: string }) => w !== undefined && w.kind !== "code" && w.kind !== "notes",
   workspacesStore: { getState: () => ({ activeId: "w1", workspaces: [{ id: "w1", kind: "canvas" }] }) },
 }));
 

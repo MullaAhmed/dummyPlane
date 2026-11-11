@@ -16,8 +16,8 @@ export interface Project {
   liveAgents: number;
 }
 
-/** A workspace is a canvas, or the project's code workspace (an IDE). */
-export type WorkspaceKind = "canvas" | "code";
+/** A workspace is a canvas, the project's code workspace (an IDE), or its notes. */
+export type WorkspaceKind = "canvas" | "code" | "notes";
 
 export interface Workspace {
   id: string;

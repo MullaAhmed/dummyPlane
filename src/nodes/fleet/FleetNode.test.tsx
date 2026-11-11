@@ -18,7 +18,7 @@ vi.mock("@/agents/broadcast", async (original) => ({
   ...(await original<typeof import("@/agents/broadcast")>()),
   sendCommand: vi.fn(() => Promise.resolve()),
 }));
-vi.mock("../terminal/registry", () => ({ mountTerminal: vi.fn(), layoutTerminal: vi.fn(), markForAutostart: vi.fn(), relaunchTerminal: vi.fn() }));
+vi.mock("../terminal/registry", () => ({ mountTerminal: vi.fn(), layoutTerminal: vi.fn(), markForAutostart: vi.fn(), relaunchTerminal: vi.fn(), focusTerminal: vi.fn() }));
 // happy-dom may lack it; the node observes its terminal's host.
 globalThis.ResizeObserver ??= class {
   observe() {}
@@ -55,7 +55,8 @@ it("gives a fleet of before its Claude session, and shows its terminal (spec orc
   expect(session.claudeSessionId).toMatch(/^[0-9a-f-]{36}$/);
   expect(markForAutostart).toHaveBeenCalledWith("ancien");
   expect(mountTerminal).toHaveBeenCalledWith("ancien", expect.any(HTMLElement), session, 1);
-  expect(host.querySelector('[data-fleet="ancien"] textarea')).toBeNull();
+  // Its one field is the message line of its foot: the session area has none of its own.
+  expect([...host.querySelectorAll('[data-fleet="ancien"] textarea')].every((field) => field.closest("[data-message-line]"))).toBe(true);
   expect(host.querySelector('[data-mission="ancien"]')).not.toBeNull();
   await act(async () => root.unmount());
   host.remove();
@@ -101,7 +102,7 @@ describe("its message field", () => {
     canvasStore.setState({ nodeIds: [], frames: [], links: {} });
   });
 
-  const toggle = () => host.querySelector<HTMLButtonElement>("[data-fleet-input] button")!;
+  const sendButton = () => host.querySelector<HTMLButtonElement>('[data-fleet-input] button[aria-label="Send"]')!;
   const field = () => host.querySelector<HTMLTextAreaElement>("[data-fleet-input] textarea");
 
   async function type(value: string) {
@@ -113,22 +114,13 @@ describe("its message field", () => {
     });
   }
 
-  it("is folded by default: one line, no field", () => {
-    expect(toggle().textContent).toBe("Message agents");
-    expect(toggle().getAttribute("aria-expanded")).toBe("false");
-    expect(field()).toBeNull();
-  });
-
-  it("opens on a click, takes the keyboard, and remembers it is open", async () => {
-    await act(async () => toggle().click());
-    expect(toggle().getAttribute("aria-expanded")).toBe("true");
+  it("is the field itself, one line: a click and you type to the linked agents", () => {
+    expect(host.querySelector("[data-fleet-input] button[aria-expanded]")).toBeNull();
     expect(field()).not.toBeNull();
-    expect(document.activeElement).toBe(field());
-    const record = nodesStore.getState().nodes.chef;
-    expect(record.kind === "fleet" && record.payload.inputOpen).toBe(true);
+    expect(field()!.closest("[data-message-line]")).not.toBeNull();
   });
 
-  it("does not take the keyboard when it mounts already open", async () => {
+  it("never takes the keyboard by itself", async () => {
     const elsewhere = document.createElement("input");
     document.body.append(elsewhere);
     elsewhere.focus();
@@ -138,18 +130,7 @@ describe("its message field", () => {
     elsewhere.remove();
   });
 
-  it("is open when the node was left open, and folds again on a second click", async () => {
-    await act(async () => nodesStore.getState().update("chef", { inputOpen: true }));
-    expect(field()).not.toBeNull();
-    await act(async () => toggle().click());
-    expect(field()).toBeNull();
-    expect(toggle().getAttribute("aria-expanded")).toBe("false");
-    const record = nodesStore.getState().nodes.chef;
-    expect(record.kind === "fleet" && record.payload.inputOpen).toBe(false);
-  });
-
   it("names its agents in the placeholder and sends to them on Enter", async () => {
-    await act(async () => toggle().click());
     expect(field()!.placeholder).toContain("1 agent");
     await type("run tests");
     await act(async () => void field()!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true })));
@@ -158,25 +139,22 @@ describe("its message field", () => {
   });
 
   it("targets with @ and sends with the button", async () => {
-    await act(async () => toggle().click());
     await type("@cyborg run tests");
     await act(async () => host.querySelector<HTMLButtonElement>('[data-fleet-input] button[aria-label="Send"]')!.click());
     expect(sendCommand).toHaveBeenCalledWith(["t1"], "run tests");
   });
 
   it("keeps its keys from the canvas", async () => {
-    await act(async () => toggle().click());
     const seen = vi.fn();
     host.addEventListener("keydown", seen);
     for (const key of ["a", "Enter", "ArrowUp", "Escape", "Backspace"]) {
       await act(async () => void field()!.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true })));
     }
-    await act(async () => void toggle().dispatchEvent(new KeyboardEvent("keydown", { key: "Backspace", bubbles: true, cancelable: true })));
+    await act(async () => void sendButton().dispatchEvent(new KeyboardEvent("keydown", { key: "Backspace", bubbles: true, cancelable: true })));
     expect(seen).not.toHaveBeenCalled();
   });
 
   it("keeps a Backspace on Send from the canvas: Tab can bring the keyboard there", async () => {
-    await act(async () => toggle().click());
     await type("run tests");
     const send = host.querySelector<HTMLButtonElement>('[data-fleet-input] button[aria-label="Send"]')!;
     send.focus();

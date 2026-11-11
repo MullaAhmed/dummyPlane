@@ -74,9 +74,10 @@ interface CommandInputProps {
    * (its ✕, Backspace), it is not sent to, until another one comes.
    */
   autoTarget?: Target | null;
+  /** A node's foot: one line, the field and its Send, at the foot's density. */
   compact?: boolean;
-  /** The field takes the keyboard when it mounts (a fleet's field opened by hand). */
-  autoFocus?: boolean;
+  /** Escape with no list open: where the keyboard goes back (a node's terminal). */
+  onEscape?: () => void;
 }
 
 /**
@@ -97,7 +98,7 @@ export function CommandInput(props: CommandInputProps) {
 }
 
 function CommandField(props: CommandInputProps & { deliver: RefObject<(text: string) => void> }) {
-  const { agents, groups, placeholder, label = placeholder, emptyHint, sendsTo, autoTarget = null, compact = false, autoFocus = false, deliver } = props;
+  const { agents, groups, placeholder, label = placeholder, emptyHint, sendsTo, autoTarget = null, compact = false, onEscape, deliver } = props;
   const t = useMessages(agentsMessages).command;
   const aui = useAui();
   // The composer owns the text: typing, completing, recalling and sending all go through it.
@@ -164,10 +165,6 @@ function CommandField(props: CommandInputProps & { deliver: RefObject<(text: str
   const noAgents = allTargets.length > 0 && ids.length === 0;
   // Nothing was typed after `@`: the command goes to who `fallback` names.
   const namedFallback = allTargets.length === 0 ? sendsTo : undefined;
-
-  useEffect(() => {
-    if (autoFocus) field.current?.focus();
-  }, [autoFocus]);
 
   // Another target of the moment: its chip takes the place of the last one, unless the user chose the chips.
   useEffect(() => {
@@ -291,7 +288,10 @@ function CommandField(props: CommandInputProps & { deliver: RefObject<(text: str
       }
     }
     const element = e.currentTarget as HTMLTextAreaElement;
-    if (e.key === "Enter" && !e.shiftKey) {
+    if (e.key === "Escape" && onEscape) {
+      e.preventDefault();
+      onEscape();
+    } else if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       send();
     } else if (e.key === "ArrowUp" && !element.value.slice(0, element.selectionStart).includes("\n")) {
@@ -360,9 +360,9 @@ function CommandField(props: CommandInputProps & { deliver: RefObject<(text: str
         <div
           className={cn(
             "flex min-w-0 flex-wrap items-center gap-1",
-            // In a fleet the field is a control of its own, beside Send and of its radius.
+            // In a node's foot the field is the line itself: 28px, a hairline at rest, the focus ring once written in.
             compact &&
-              "min-h-8 rounded-md bg-dp-field px-1 ring-1 ring-dp-line ring-inset focus-within:ring-2 focus-within:ring-dp-accent/70",
+              "min-h-7 rounded-md bg-dp-field px-1 ring-1 ring-dp-line ring-inset focus-within:ring-2 focus-within:ring-dp-accent/70",
           )}
         >
           {/*
@@ -424,10 +424,10 @@ function CommandField(props: CommandInputProps & { deliver: RefObject<(text: str
               if (at !== caret) setActive(0);
               setCaret(at);
             }}
-            // One line is 32px tall, as Send is; six lines at most, then it scrolls.
+            // One line is 32px tall, as Send is (28px in a foot); six lines at most, then it scrolls.
             className={cn(
-              "max-h-32 min-w-32 flex-1 resize-none bg-transparent py-1.5 leading-5 text-dp-text caret-dp-accent outline-none placeholder:text-dp-text-2 selection:bg-dp-accent-soft",
-              compact ? "px-1 text-xs" : "text-(length:--text-ui)",
+              "max-h-32 min-w-32 flex-1 resize-none bg-transparent leading-5 text-dp-text caret-dp-accent outline-none placeholder:text-dp-text-2 selection:bg-dp-accent-soft",
+              compact ? "px-1 py-1 text-xs" : "py-1.5 text-(length:--text-ui)",
             )}
           />
           {showKeys && (
@@ -450,7 +450,7 @@ function CommandField(props: CommandInputProps & { deliver: RefObject<(text: str
       </div>
       <ComposerPrimitive.Send asChild disabled={!canSend}>
         <Button
-          size={compact ? "icon" : "default"}
+          size={compact ? "icon-sm" : "default"}
           aria-label={t.send}
           title={canSend ? (namedFallback ? t.sendTo(namedFallback) : t.send) : nothingTargeted ? emptyHint : noAgents ? t.noAgents : t.writeInstruction}
           onMouseDown={keepCaret}

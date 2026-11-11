@@ -51,7 +51,6 @@ export function checkBudgets(now = Date.now()) {
     }
     if (found.global && !waiting.has(`${fleetId}:global`)) {
       waiting.add(`${fleetId}:global`);
-      if (!mission.overnight) toast.warning(said.globalOver(mission.name ?? "", mission.budgetMin ?? 0));
       notify(fleetId, lines.globalOver(mission.budgetMin ?? 0), () => {
         waiting.delete(`${fleetId}:global`);
         setMission(fleetId, { globalOverdue: true });

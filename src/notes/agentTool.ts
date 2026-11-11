@@ -1,6 +1,6 @@
 import { messages } from "@/i18n";
 import { refused, said, type ToolResult } from "@/mcp/agentTools";
-import { linkedClaudeAgents } from "@/mission/store";
+import { linkedTeamAgents } from "@/mission/store";
 import { errorText } from "@/studio/parts";
 import { notesAgentList, notesAgentRead } from "./ipc";
 import { notesMessages } from "./messages";
@@ -20,7 +20,7 @@ export function notesToolSpec() {
 }
 
 async function list(nodeId: string, fleet: boolean): Promise<ToolResult> {
-  const callers = fleet ? [nodeId, ...linkedClaudeAgents(nodeId).map((agent) => agent.nodeId)] : [nodeId];
+  const callers = fleet ? [nodeId, ...linkedTeamAgents(nodeId).map((agent) => agent.nodeId)] : [nodeId];
   const notes = await notesAgentList(callers);
   if (notes.length === 0) return said(t().none);
   const lines = notes.map((note) => `- ${note.name}${note.attached ? ` (${t().attached})` : ""}`);

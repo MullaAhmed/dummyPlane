@@ -104,7 +104,6 @@ export const nodesMessages = defineMessages(
       remoteOff: "Turn off Remote Control",
       close: "Close the fleet",
       input: {
-        toggle: "Message agents",
         placeholder: (agents: string) => `Message ${agents}`,
         emptyHint: "Link agents to this fleet",
       },

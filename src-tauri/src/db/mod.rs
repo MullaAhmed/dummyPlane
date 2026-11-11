@@ -30,6 +30,7 @@ const MIGRATIONS: &[Step] = &[
     Step::Sql(include_str!("migrations/003_file_nodes.sql")),
     Step::Sql(include_str!("migrations/004_workspace_kind.sql")),
     Step::Sql(include_str!("migrations/005_workspace_folder.sql")),
+    Step::Sql(include_str!("migrations/006_notes_workspace.sql")),
 ];
 
 /// The single SQLite connection shared by every command (spec V1 §8.1).
@@ -349,6 +350,57 @@ mod tests {
         assert_eq!(version, 5);
     }
 
+    #[test]
+    fn migration_6_keeps_every_workspace_and_what_it_holds_and_allows_one_notes_workspace() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch("PRAGMA foreign_keys = ON;").unwrap();
+        migrate_up_to(&mut conn, 5, "C:/home").unwrap();
+        let (project, workspace) = raw_workspace(&conn);
+        conn.execute_batch(&format!(
+            "UPDATE workspaces SET folder = 'D:/api', pantheon = 'egypt' WHERE id = '{workspace}';
+             INSERT INTO workspaces (id, project_id, name, position, created_at, updated_at, kind)
+               VALUES ('code', '{project}', 'Code', 1, 0, 0, 'code');
+             INSERT INTO nodes VALUES ('t1', '{workspace}', 'terminal', '{{}}', 10);
+             INSERT INTO terminal_scrollback VALUES ('t1', x'41', 12);"
+        ))
+        .unwrap();
+        let notes = |conn: &Connection, id: &str| {
+            conn.execute(
+                "INSERT INTO workspaces (id, project_id, name, position, created_at, updated_at, kind)
+                 VALUES (?1, ?2, 'Notes', 2, 0, 0, 'notes')",
+                [id, project.as_str()],
+            )
+        };
+        assert!(notes(&conn, "n0").is_err());
+
+        migrate_up_to(&mut conn, 6, "C:/home").unwrap();
+
+        let listed = workspaces::list(&conn, &project).unwrap();
+        assert_eq!(listed.len(), 2);
+        assert_eq!(
+            (listed[0].folder.as_deref(), listed[0].pantheon.as_deref()),
+            (Some("D:/api"), Some("egypt"))
+        );
+        assert_eq!(listed[1].kind, "code");
+        notes(&conn, "n1").unwrap();
+        assert!(notes(&conn, "n2").is_err());
+        let count = |sql: &str| -> i64 { conn.query_row(sql, [], |row| row.get(0)).unwrap() };
+        assert_eq!(
+            count("SELECT COUNT(*) FROM nodes WHERE workspace_id = 'w1'"),
+            1
+        );
+        assert_eq!(count("SELECT COUNT(*) FROM pragma_foreign_key_check"), 0);
+        // The cascades still reach the rebuilt table.
+        conn.execute("DELETE FROM workspaces WHERE id = 'w1'", [])
+            .unwrap();
+        assert_eq!(count("SELECT COUNT(*) FROM nodes"), 0);
+        assert_eq!(count("SELECT COUNT(*) FROM terminal_scrollback"), 0);
+        conn.execute("DELETE FROM projects WHERE id = 'p1'", [])
+            .unwrap();
+        assert_eq!(count("SELECT COUNT(*) FROM workspaces"), 0);
+        assert_eq!(count("PRAGMA user_version"), 6);
+    }
+
     fn base_at_version(path: &Path, version: usize) {
         let mut conn = Connection::open(path).unwrap();
         migrate_up_to(&mut conn, version, "C:/home").unwrap();
@@ -466,9 +518,9 @@ mod tests {
         .unwrap();
     }
 
-    /// What the night added lives in payloads and settings: a v4 base only gains the workspace folder.
+    /// What the night added lives in payloads and settings: a v4 base only gains the workspace folder and the notes kind.
     #[test]
-    fn a_base_of_the_published_version_gains_only_the_workspace_folder() {
+    fn a_base_of_the_published_version_gains_only_the_workspace_folder_and_the_notes_kind() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("dummyplane.db");
         base_at_version(&path, 4);

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import type { TerminalPayload } from "@/nodes/types";
 import type { TerminalStatus } from "@/store/terminalStatus";
 import { resumeOfferOf } from "./pill";
+import { canResume } from "./launch";
 import { relaunchTerminal } from "./registry";
 import { useMessages } from "@/i18n";
 import { nodesMessages } from "@/nodes/messages";
@@ -13,7 +14,7 @@ export function ResumeCard(props: { nodeId: string; payload: TerminalPayload; st
   const { nodeId, payload, status } = props;
   const t = useMessages(nodesMessages).resumeCard;
   const [dismissed, setDismissed] = useState(false);
-  const offer = resumeOfferOf(status, payload.agent, Boolean(payload.claudeSessionId));
+  const offer = resumeOfferOf(status, canResume(payload));
 
   useEffect(() => {
     if (status.state === "running") setDismissed(false);
