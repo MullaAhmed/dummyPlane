@@ -569,6 +569,26 @@ it("sets the effort of the next launch on a slider of Claude's levels, Auto givi
   expect(effortThumb()!.getAttribute("aria-valuetext")).toBe("Auto");
 });
 
+it("keeps the effort thumb on the stored level after a key's step: an undo moves it back, another terminal shows its own", async () => {
+  await mountTerminal(terminal());
+  await pressOnEffort("ArrowRight");
+  await pressOnEffort("ArrowRight");
+  expect(payloadOf().effort).toBe("medium");
+  // An undo puts the stored level back to what the last step left.
+  await act(async () => nodesStore.getState().update("t1", { effort: "low" }));
+  expect(effortThumb()!.getAttribute("aria-valuetext")).toBe("Low");
+  expect(host.querySelector("[data-effort]")?.textContent).toBe("Low");
+  await act(async () => nodesStore.getState().update("t1", { effort: undefined }));
+  expect(effortThumb()!.getAttribute("aria-valuetext")).toBe("Auto");
+  // Another terminal selected: its own level, whatever the last one's thumb did.
+  await pressOnEffort("End");
+  await act(async () => nodesStore.getState().update("t2", { effort: "high" }));
+  await act(async () => canvasStore.setState({ view: { ...canvasStore.getState().view, selectedIds: ["t2"] } }));
+  const tab = editTab();
+  if (tab) await act(async () => tab.click());
+  expect(effortThumb()!.getAttribute("aria-valuetext")).toBe("High");
+});
+
 it("offers a running terminal a restart once its effort changes, and gives a fleet's session its own", async () => {
   terminalStatusStore.getState().set("t1", { state: "running" });
   await mountTerminal(terminal({ effort: "high" }));

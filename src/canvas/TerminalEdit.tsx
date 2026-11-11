@@ -259,7 +259,8 @@ function General({ nodeId, record, session }: { nodeId: string; record: NodeReco
             )}
             {claude && (
               <Row label={t.effort} note={<EffortNote nodeId={nodeId} running={running} chosen={session.effort} />}>
-                <EffortSlider value={session.effort} onChange={(effort) => setLaunch({ effort })} />
+                {/* One per node: a drag under way never carries over to the next terminal selected. */}
+                <EffortSlider key={nodeId} value={session.effort} onChange={(effort) => setLaunch({ effort })} />
               </Row>
             )}
             {claude && !fleet && (
@@ -454,7 +455,14 @@ function EffortNote({ nodeId, running, chosen }: { nodeId: string; running: bool
 function EffortSlider({ value, onChange }: { value: EffortLevel | undefined; onChange: (effort: EffortLevel | undefined) => void }) {
   const t = useMessages(canvasMessages).selection;
   const stored = value ? EFFORT_LEVELS.indexOf(value) + 1 : 0;
+  // Where a drag has the thumb. Radix reports a key's step after committing it, so a step leaves one behind:
+  // any change of the stored stop (that step stored, an undo) drops it, and the thumb shows the store again.
   const [moving, setMoving] = useState<number | null>(null);
+  const [seen, setSeen] = useState(stored);
+  if (seen !== stored) {
+    setSeen(stored);
+    setMoving(null);
+  }
   const shown = moving ?? stored;
   const levelAt = (stop: number): EffortLevel | undefined => (stop > 0 ? EFFORT_LEVELS[stop - 1] : undefined);
   const nameAt = (stop: number) => {
