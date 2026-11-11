@@ -435,8 +435,9 @@ fn claude_command(
                 " {flag} {}",
                 quote(syntax, &path.to_string_lossy())
             ));
-            // The fleet gets dummyPlane's tools only: the user's MCP
-            // servers could write files out of reach of its `deny` list.
+            // The fleet reads its `--mcp-config` file only: dummyPlane's tools
+            // and the servers its MCP tab leaves on (`extensions::servers_on`),
+            // never one the panel doesn't list, such as a claude.ai connector.
             if flag == "--mcp-config" && launch.role == Role::Fleet {
                 claude.push_str(" --strict-mcp-config");
             }
@@ -938,7 +939,7 @@ mod tests {
     }
 
     #[test]
-    fn a_fleet_gets_only_dummyplanes_tools() {
+    fn a_fleet_reads_only_its_own_mcp_config() {
         let mut launch = claude(ClaudeMode::New, "");
         launch.as_mut().unwrap().role = Role::Fleet;
         let manager = agent_command(&spec(Agent::Claude, launch), ShellSyntax::Cmd, &tooled())

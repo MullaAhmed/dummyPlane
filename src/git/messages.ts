@@ -1,9 +1,10 @@
-import { defineMessages } from "@/i18n";
+import { defineMessages, plural } from "@/i18n";
 
 /** The git window's texts (spec fenêtre git). */
 export const gitMessages = defineMessages(
   {
-    open: (branch: string) => `Open the git window · ${branch}`,
+    open: (branch: string, changed: number) =>
+      changed > 0 ? `Open the git window · ${branch} · ${plural(changed, "changed file", "changed files")}` : `Open the git window · ${branch}`,
     title: "Git",
     refresh: "Refresh",
     close: "Close",

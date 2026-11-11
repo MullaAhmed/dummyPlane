@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState, type ComponentProps } from "react";
 import { ChevronDown, ChevronRight, Code2, Eye, File, Folder, FolderTree, PanelTopOpen, RotateCw, Save, X } from "lucide-react";
 import { useStore } from "zustand";
-import { useTheme } from "@/app/theme";
 import { useMessages } from "@/i18n";
 import { studioTree, type TreeEntry } from "@/ipc/studio";
 import { cn } from "@/lib/utils";
@@ -147,7 +146,7 @@ function FileTree({ project, active, expanded, setExpanded, onOpen }: FileTreePr
               onClick={() => (node.kind === "dir" ? setExpanded(toggle(expanded, node.path)) : onOpen(node.path))}
               className={cn(
                 "flex h-7 w-full items-center gap-1 pr-2 text-left text-sm text-dp-text-2 hover:bg-dp-hover hover:text-dp-text focus-visible:ring-2 focus-visible:ring-dp-accent/70 focus-visible:outline-none focus-visible:ring-inset [&_svg]:size-4 [&_svg]:shrink-0",
-                node.path === active && "bg-dp-accent-soft text-dp-text hover:bg-dp-accent-soft",
+                node.path === active && "bg-dp-accent-soft text-dp-text hover:bg-dp-accent-soft dp-on-soft",
               )}
               style={{ paddingLeft: 8 + depth * 12 }}
             >
@@ -264,7 +263,6 @@ function TabItem({ tab, active, onClose }: { tab: StudioTab; active: boolean; on
 
 function FilePane({ tab }: { tab: StudioTab }) {
   const t = useMessages(studioMessages);
-  const theme = useTheme();
   const { draft, disk, error, file, loading, refused, revision, saving } = useStore(tab.session);
   const markdown = isMarkdown(tab.path);
   const [preview, setPreview] = useState(false);
@@ -314,7 +312,6 @@ function FilePane({ tab }: { tab: StudioTab }) {
             path={tab.path}
             text={draft}
             revision={revision}
-            theme={theme}
             onChange={(content) => editFile(tab.path, content)}
             onSave={() => void saveFile(tab.path)}
           />

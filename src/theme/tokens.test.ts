@@ -25,7 +25,7 @@ const SCHEME: Record<PaletteId, "light" | "dark"> = { calm: "light", electric: "
 /** Every token the components read, in each palette. */
 const REQUIRED = [
   "canvas", "dot", "surface", "card", "field", "line", "hover", "text", "text-2", "text-3", "secondary",
-  "accent", "accent-ink", "accent-soft", "on-accent", "on-role", "wait", "ok", "danger", "terminal", "terminal-head",
+  "accent", "accent-ink", "accent-soft", "on-accent", "on-role", "on-wait", "wait", "ok", "danger", "terminal", "terminal-head",
   "tray", "tab-on", "shadow", "float-shadow", "draw",
 ].map((name) => `--dp-${name}`);
 

@@ -16,12 +16,13 @@ export function LoopsIndicator() {
   const running = Object.values(runtime).filter((r) => r.running);
   if (running.length === 0) return null;
   const runs = running.reduce((sum, r) => sum + r.runs, 0);
+  const summary = t.label(running.length, runs);
   // A bar of two controls: 8px controls inside 4px of padding make a 12px bar.
   return (
     <div data-loops-indicator className="dp-glass-strong fixed bottom-19 left-4 z-30 flex items-center gap-1 rounded-lg p-1 pl-3 text-xs text-dp-text">
       <Repeat className="size-4 shrink-0 text-dp-text-2" />
-      <Button variant="ghost" size="xs" aria-label={t.open} onClick={() => requestUi({ kind: "loops" })} className="rounded-md font-mono font-normal tabular-nums">
-        {t.label(running.length, runs)}
+      <Button variant="ghost" size="xs" aria-label={t.open(summary)} onClick={() => requestUi({ kind: "loops" })} className="rounded-md font-mono font-normal tabular-nums">
+        {summary}
       </Button>
       <Button size="xs" variant="destructive" data-stop-all onClick={stopAll} className="rounded-md">
         {t.stopAll}

@@ -8,12 +8,16 @@ export const shellMessages = defineMessages(
     fallbackAgent: "Agent",
     percent: (n: number) => `${n}%`,
     failed: (what: string, error: string) => `${what}: ${error}`,
-    activityRail: { agents: "Agents", notes: "Notes", settings: "Settings" },
+    activityRail: { agents: "Agents", agentsWaiting: (count: number) => `Agents, ${count} waiting`, notes: "Notes", settings: "Settings" },
     agentCounts: {
       working: "Agents working",
       waiting: "Agents waiting for your answer",
       active: "Active agents in the project",
       activeCount: (count: number) => plural(count, "active", "active"),
+      // A counter's name says its number first, as the counter shows it (WCAG 2.5.3 label in name).
+      workingName: (count: number) => `${plural(count, "agent", "agents")} working`,
+      waitingName: (count: number) => `${plural(count, "agent", "agents")} waiting for your answer`,
+      activeName: (count: number) => `${plural(count, "active agent", "active agents")} in the project`,
     },
     waitingNotice: {
       question: (name: string) => `${name} has a question`,
@@ -175,6 +179,11 @@ export const shellMessages = defineMessages(
       delete: "Delete",
       newWorkspace: "New workspace",
       activeAgents: (count: number) => plural(count, "active agent", "active agents"),
+      /** The row's name, a navigation landmark. */
+      row: "Workspaces",
+      /** A tab's name: what it shows, in words ("Backend, in api, 2 active agents"); a bare badge digit says nothing. */
+      tabName: (name: string, folder: string | null, running: number) =>
+        [name, folder === null ? null : `in ${folder}`, running > 0 ? plural(running, "active agent", "active agents") : null].filter((part) => part !== null).join(", "),
       renameFailed: "Could not rename",
       deleteFailed: "Could not delete",
       createFailed: "Could not create",

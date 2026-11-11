@@ -8,6 +8,7 @@ import { agentCounts } from "@/agents/agentCounts";
 import { agentsPanelStore } from "@/agents/agentsPanelState";
 import { agentActivityStore } from "@/store/agentActivity";
 import { nodesStore } from "@/store/nodes";
+import { getByRole, queryByRole } from "@/lib/a11y";
 import { terminalStatusStore } from "@/store/terminalStatus";
 import { AgentCounts } from "./AgentCounts";
 
@@ -38,12 +39,14 @@ it("hides a counter at 0 and opens the panel on what it counts", async () => {
   document.body.append(host);
   const root = createRoot(host);
   await act(async () => root.render(<AgentCounts />));
-  expect(host.querySelector('[aria-label="Agents en cours"]')).toBeNull();
-  const waiting = host.querySelector<HTMLButtonElement>('[aria-label="Agents waiting for your answer"]')!;
-  expect(waiting.textContent).toContain("1");
+  expect(queryByRole(host, "button", /working/)).toBeNull();
+  // Each name starts with the number the counter shows (WCAG 2.5.3 label in name).
+  const waiting = getByRole(host, "button", "1 agent waiting for your answer");
+  expect(waiting.textContent).toBe("1");
   await act(async () => waiting.click());
   expect(agentsPanelStore.getState()).toMatchObject({ open: true, filter: "waiting" });
-  expect(host.querySelector('[aria-label="Active agents in the project"]')).not.toBeNull();
+  const active = getByRole(host, "button", "0 active agents in the project");
+  expect(active.textContent).toBe("0 active");
   await act(async () => root.unmount());
   host.remove();
 });

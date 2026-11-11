@@ -104,9 +104,13 @@ function WorkspaceTab(props: { workspace: Workspace; projectFolder: string; acti
       {/*
         The whole tab selects, padding and badge included, like a browser tab. A
         document tab, not a Tabs trigger: it closes, drags and moves on Alt+arrows,
-        which Radix's own arrow keys would fight. The tab draws its states itself.
+        which Radix's own arrow keys would fight. The tab draws its states itself, and
+        tells the active one to assistive tech as the row's current page.
       */}
       <HintedButton
+        // The workspace on screen is the current page of the row (a navigation, not a tablist: see above).
+        aria-current={active ? "page" : undefined}
+        aria-label={t.tabName(workspace.name, own ? folderName(own) : null, running)}
         hint={
           <span className="flex flex-col">
             <span>{workspace.name}</span>
@@ -209,7 +213,8 @@ export function WorkspaceTabs() {
   const activeId = useWorkspaces((s) => s.activeId);
   const projectFolder = useProjects((s) => s.projects.find((p) => p.id === s.activeId)?.path ?? "");
   return (
-    <div
+    <nav
+      aria-label={t.row}
       onWheel={(e) => {
         if (e.deltaX === 0) e.currentTarget.scrollLeft += e.deltaY;
       }}
@@ -235,6 +240,6 @@ export function WorkspaceTabs() {
         <Plus />
       </IconButton>
       <div data-tauri-drag-region="" className="h-full min-w-6 flex-1" />
-    </div>
+    </nav>
   );
 }

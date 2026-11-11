@@ -47,7 +47,13 @@ export function ProjectCard({ project }: { project: Project }) {
       role="button"
       tabIndex={0}
       onClick={openProject}
-      onKeyDown={(e) => e.key === "Enter" && openProject()}
+      // The card's own keys only: those of its actions menu reach it through the portal, and Enter
+      // on "Project actions" or on a menu item must not open the project as well.
+      onKeyDown={(e) => {
+        if (e.target !== e.currentTarget || (e.key !== "Enter" && e.key !== " ")) return;
+        e.preventDefault();
+        openProject();
+      }}
       className={cn(
         "dp-glass-strong group rounded-xl p-5 transition-[color,background-color,border-color] duration-(--dp-dur-fast) ease-(--dp-ease-out) motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/70",
         openable && "cursor-pointer hover:bg-dp-hover",

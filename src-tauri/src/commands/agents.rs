@@ -17,7 +17,7 @@ use crate::agents::subagents::{Emit, Job, SubagentHook, SubagentSnapshot, Subage
 use crate::agents::extensions::{self, ClaudeExtensions, Places};
 use crate::agents::{claude_settings, mcp_files, prompts};
 use crate::error::{AppError, AppResult};
-use crate::pty::shell::{Agent, AgentHooks, ClaudeLaunch, find_git_bash, which_locate};
+use crate::pty::shell::{Agent, AgentHooks, ClaudeLaunch, Role, find_git_bash, which_locate};
 use crate::sync::lock;
 
 /// Quiet terminals are checked this often (the 1.5 s rule).
@@ -365,10 +365,17 @@ pub fn hooks_for(
                     ),
                 });
             // The terminal's own skills, plugins, MCP servers and subagents, from its folder and profile.
-            let extensions = claude
-                .and_then(|c| c.extensions.as_ref())
-                .zip(Places::of(cwd, config_dir))
-                .and_then(|(choice, places)| extensions::settings_patch(choice, &places));
+            let choice = claude.and_then(|c| c.extensions.as_ref());
+            let places = Places::of(cwd, config_dir);
+            let extensions = choice
+                .zip(places.as_ref())
+                .and_then(|(choice, places)| extensions::settings_patch(choice, places));
+            // A fleet reads no MCP configuration but its own file (`--strict-mcp-config`):
+            // the servers its MCP tab leaves on go into that file.
+            let servers = match (role, places.as_ref()) {
+                (Role::Fleet, Some(places)) => extensions::servers_on(places, choice),
+                _ => serde_json::Map::new(),
+            };
             let settings = claude_settings::write_with(
                 &state.hooks_dir,
                 node_id,
@@ -389,6 +396,7 @@ pub fn hooks_for(
                 node_id,
                 &server.mcp_url(),
                 &token,
+                &servers,
                 prompts::for_role(role),
             )
             .inspect_err(|err| log::error!("tools of {node_id} not written: {err}"))

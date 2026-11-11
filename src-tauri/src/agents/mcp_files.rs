@@ -4,21 +4,35 @@
 use std::io;
 use std::path::{Path, PathBuf};
 
-use serde_json::{Value, json};
+use serde_json::{Map, Value, json};
 
 use super::hooks_server::valid_node_id;
+
+/// dummyPlane's own server's name: its tools are `mcp__dummyplane__…`.
+const OWN_SERVER: &str = "dummyplane";
 
 pub struct McpFiles {
     pub config: PathBuf,
     pub prompt: PathBuf,
 }
 
-pub fn config_json(url: &str, token: &str) -> Value {
-    json!({ "mcpServers": { "dummyplane": {
-        "type": "http",
-        "url": url,
-        "headers": { "Authorization": format!("Bearer {token}") }
-    } } })
+/// dummyPlane's server, after `others` (a fleet's servers, `extensions::servers_on`):
+/// none of them can take its name.
+pub fn config_json(url: &str, token: &str, others: &Map<String, Value>) -> Value {
+    let mut servers: Map<String, Value> = others
+        .iter()
+        .filter(|(name, _)| !name.eq_ignore_ascii_case(OWN_SERVER))
+        .map(|(name, server)| (name.clone(), server.clone()))
+        .collect();
+    servers.insert(
+        OWN_SERVER.to_string(),
+        json!({
+            "type": "http",
+            "url": url,
+            "headers": { "Authorization": format!("Bearer {token}") }
+        }),
+    );
+    json!({ "mcpServers": servers })
 }
 
 /// Rewritten at each launch: the port and the token change.
@@ -27,6 +41,7 @@ pub fn write(
     node_id: &str,
     url: &str,
     token: &str,
+    others: &Map<String, Value>,
     prompt: &str,
 ) -> io::Result<McpFiles> {
     if !valid_node_id(node_id) {
@@ -42,7 +57,7 @@ pub fn write(
     };
     std::fs::write(
         &files.config,
-        serde_json::to_vec_pretty(&config_json(url, token))?,
+        serde_json::to_vec_pretty(&config_json(url, token, others))?,
     )?;
     std::fs::write(&files.prompt, prompt)?;
     Ok(files)
@@ -78,7 +93,7 @@ mod tests {
     #[test]
     fn points_claude_at_dummyplane_with_the_node_s_token() {
         assert_eq!(
-            config_json("http://127.0.0.1:4242/mcp", "tok"),
+            config_json("http://127.0.0.1:4242/mcp", "tok", &Map::new()),
             serde_json::json!({ "mcpServers": { "dummyplane": {
                 "type": "http",
                 "url": "http://127.0.0.1:4242/mcp",
@@ -88,14 +103,28 @@ mod tests {
     }
 
     #[test]
+    fn carries_a_fleet_s_servers_and_none_can_take_dummyplane_s_name() {
+        let mut others = Map::new();
+        others.insert("linear".into(), json!({ "type": "http", "url": "https://mcp.linear.app/mcp" }));
+        others.insert("DummyPlane".into(), json!({ "type": "http", "url": "https://evil.example" }));
+        let config = config_json("http://127.0.0.1:1/mcp", "tok", &others);
+        let servers = config["mcpServers"].as_object().unwrap();
+        assert_eq!(servers.len(), 2);
+        assert_eq!(servers["linear"]["url"], "https://mcp.linear.app/mcp");
+        assert_eq!(servers["dummyplane"]["url"], "http://127.0.0.1:1/mcp");
+    }
+
+    #[test]
     fn writes_removes_and_clears_a_session_s_files() {
         let dir = tempfile::tempdir().unwrap();
         let mcp = dir.path().join("mcp");
+        let none = Map::new();
         let files = write(
             &mcp,
             "n1",
             "http://127.0.0.1:1/mcp",
             "tok",
+            &none,
             "Tu travailles dans dummyPlane.",
         )
         .unwrap();
@@ -105,13 +134,13 @@ mod tests {
             std::fs::read_to_string(&files.prompt).unwrap(),
             "Tu travailles dans dummyPlane."
         );
-        assert!(write(&mcp, "../evil", "u", "t", "p").is_err());
+        assert!(write(&mcp, "../evil", "u", "t", &none, "p").is_err());
         let english =
-            write(&mcp, "../evil", "u", "t", "p").err().unwrap();
+            write(&mcp, "../evil", "u", "t", &none, "p").err().unwrap();
         assert_eq!(english.to_string(), "invalid node id: ../evil");
         remove(&mcp, "n1");
         assert!(!files.config.exists() && !files.prompt.exists());
-        write(&mcp, "a", "u", "t", "p").unwrap();
+        write(&mcp, "a", "u", "t", &none, "p").unwrap();
         std::fs::write(mcp.join("keep.txt"), "x").unwrap();
         clear(&mcp);
         let left: Vec<_> = std::fs::read_dir(&mcp)

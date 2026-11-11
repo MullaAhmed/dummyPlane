@@ -54,7 +54,7 @@ export function GitChip() {
     >
       <Button
         variant="ghost"
-        aria-label={t.open(status.branch)}
+        aria-label={t.open(status.branch, status.changed)}
         onClick={() => gitWindowStore.getState().open(path)}
         className="dp-glass-strong pointer-events-auto h-8 gap-2 rounded-lg px-3 font-mono text-xs font-normal text-dp-text-2 hover:bg-dp-hover hover:text-dp-text"
       >

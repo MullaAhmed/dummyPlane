@@ -27,8 +27,9 @@ import { useGoToData } from "./useGoToData";
 const HEADING =
   "[&_[cmdk-group-heading]]:px-2.5 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:pt-3 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-dp-text-2 [&_[cmdk-group:first-child]_[cmdk-group-heading]]:pt-1";
 // No fade on a row: the selection follows the arrow keys, many times a day, and snaps.
+// Selected, its hints, paths and line numbers step up from text-3 to text-2 (dp-on-soft, index.css).
 const ITEM =
-  "flex h-8 cursor-default items-center gap-2 rounded-md px-2.5 text-(length:--text-ui) text-dp-text-2 hover:bg-dp-hover data-[selected=true]:bg-dp-accent-soft";
+  "flex h-8 cursor-default items-center gap-2 rounded-md px-2.5 text-(length:--text-ui) text-dp-text-2 hover:bg-dp-hover data-[selected=true]:bg-dp-accent-soft data-[selected=true]:dp-on-soft";
 
 /** The palette (spec window §7.1), under the title bar, centered; rendered only while open. */
 export function Palette() {

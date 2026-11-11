@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { FileDiff, RotateCw, X } from "lucide-react";
 import { toast } from "sonner";
 import { PanelTabs, PanelTabsContent, PanelTabsList, PanelTabsTrigger, PanelToggleItem } from "@/components/PanelTabs";
@@ -181,17 +181,19 @@ function ChangesTab({ cwd, base, refresh }: { cwd: string; base: string | null; 
                 onClick={() => setSelected(file)}
                 className={cn(ROW, current && ROW_ON)}
               >
-                <span className={cn("w-3 shrink-0 font-mono font-medium", status.tone)}>{status.letter}</span>
+                {/* On the accent's tint of the file being read, the letter and the counts lift to text-2: danger and text-3 fall under 4.5:1 there (P1-14). */}
+                <span className={cn("w-3 shrink-0 font-mono font-medium", current ? "text-dp-text-2" : status.tone)}>{status.letter}</span>
                 <span className="min-w-0 flex-1 truncate" style={{ direction: "rtl", textAlign: "left" }}>
                   {file.path}
                 </span>
                 {file.added === null ? (
-                  <span className="shrink-0 text-dp-text-3" title={t.binaryOrBig}>
+                  <span className={cn("shrink-0", current ? "text-dp-text-2" : "text-dp-text-3")} title={t.binaryOrBig}>
                     —
                   </span>
                 ) : (
                   <span className="shrink-0 font-mono tabular-nums">
-                    <span className="text-dp-ok">+{file.added}</span> <span className="text-dp-danger">−{file.removed}</span>
+                    <span className={current ? "text-dp-text-2" : "text-dp-ok"}>+{file.added}</span>{" "}
+                    <span className={current ? "text-dp-text-2" : "text-dp-danger"}>−{file.removed}</span>
                   </span>
                 )}
               </button>
@@ -212,6 +214,8 @@ function FileDiffView({ cwd, file, base, refresh }: { cwd: string; file: Changed
   // The remark being typed follows the click to another line instead of being lost.
   const [draft, setDraft] = useState("");
   const remarks = useReview((s) => s.remarks);
+  const grid = useRef<HTMLDivElement>(null);
+  const keysHint = useId();
 
   useEffect(() => {
     let alive = true;
@@ -228,6 +232,17 @@ function FileDiffView({ cwd, file, base, refresh }: { cwd: string; file: Changed
     };
   }, [cwd, file, base, refresh]);
 
+  // A refreshed diff keeps the grid but not always its lines: the tab stop stays on the line it was
+  // on while that row still takes a remark, else it goes to the first; there is always exactly one.
+  useEffect(() => {
+    const root = grid.current;
+    if (!root) return;
+    const stops = [...root.querySelectorAll<HTMLElement>("[data-diff-cell]")];
+    if (stops.length === 0) return;
+    const kept = root.querySelector<HTMLElement>(`[data-diff-index="${root.dataset.stop}"] [data-diff-cell]`) ?? stops[0];
+    for (const cell of stops) cell.tabIndex = cell === kept ? 0 : -1;
+  }, [diff]);
+
   if (error) return <Message>{error}</Message>;
   if (!diff) return <Message>{t.readingDiff}</Message>;
   if (diff.binary) return <Message>{t.binaryNoDiff}</Message>;
@@ -236,38 +251,107 @@ function FileDiffView({ cwd, file, base, refresh }: { cwd: string; file: Changed
   const here = remarks.filter((r) => r.file === file.path && r.line !== undefined);
   const placed = here.map((r) => remarkRow(shown, r));
   const remarkFor = (row: number) => here.filter((_, k) => placed[k] === row);
+  const takesRemark = (line: DiffLine) => line.kind === "add" || line.kind === "ctx" || line.kind === "del";
+  const firstStop = shown.findIndex(takesRemark);
+  /** The line of row `i`, the grid's tab stop once the remark field it opened is closed. */
+  const cellOf = (i: number) => grid.current?.querySelector<HTMLElement>(`[data-diff-index="${i}"] [data-diff-cell]`) ?? null;
   return (
-    <div className="min-w-0 flex-1 overflow-auto font-mono text-xs leading-normal">
-      {shown.map((line, i) => (
-        <div key={i}>
-          <DiffRow line={line} onClick={line.kind === "add" || line.kind === "ctx" || line.kind === "del" ? () => setCommenting(i) : undefined} />
-          {/* The user's own words on the diff: the one thing here in the accent's tint. */}
-          {remarkFor(i).map((remark, j) => (
-            <p key={j} className="my-1 mr-3 ml-22 rounded-md bg-dp-accent-soft px-2 py-1 font-sans text-xs text-dp-text">
-              {remark.text}
+    <>
+      <span id={keysHint} className="sr-only">
+        {t.diffKeys}
+      </span>
+      {/* One tab stop for the whole diff, moved by the arrows (WCAG 2.1.1): a row each, its line or the words on it. */}
+      <div
+        ref={grid}
+        role="grid"
+        aria-label={t.diffLabel(file.path)}
+        aria-describedby={keysHint}
+        onKeyDown={onGridKey}
+        onFocus={(e) => e.target.hasAttribute("data-diff-cell") && rove(e.currentTarget, e.target)}
+        className="min-w-0 flex-1 overflow-auto font-mono text-xs leading-normal"
+      >
+        {shown.map((line, i) => (
+          <Fragment key={i}>
+            <div role="row" data-diff-index={i}>
+              <DiffRow cell line={line} tabbable={i === firstStop} onClick={takesRemark(line) ? () => setCommenting(i) : undefined} />
+            </div>
+            {/* The user's own words on the diff: the one thing here in the accent's tint. */}
+            {remarkFor(i).map((remark, j) => (
+              <div key={`remark-${j}`} role="row">
+                <p role="gridcell" className="my-1 mr-3 ml-22 rounded-md bg-dp-accent-soft px-2 py-1 font-sans text-xs text-dp-text">
+                  {remark.text}
+                </p>
+              </div>
+            ))}
+            {commenting === i && (
+              <div role="row">
+                <div role="gridcell">
+                  <RemarkField
+                    value={draft}
+                    onChange={setDraft}
+                    onDone={(text) => {
+                      // Kept or cancelled, the keyboard goes back to its line, not to the page.
+                      const back = cellOf(i);
+                      if (back) rove(grid.current!, back);
+                      setCommenting(null);
+                      setDraft("");
+                      if (!text) return;
+                      const remark: Remark =
+                        line.kind === "del"
+                          ? { file: file.path, line: line.old, side: "old", lineText: line.text, text }
+                          : { file: file.path, line: line.new, lineText: line.text, text };
+                      reviewStore.getState().add(remark);
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+          </Fragment>
+        ))}
+        {diff.lines.length > MAX_LINES && (
+          <div role="row">
+            <p role="gridcell" className="px-3 py-2 font-sans text-xs text-dp-text-2">
+              {t.moreLines(diff.lines.length - MAX_LINES)}
             </p>
-          ))}
-          {commenting === i && (
-            <RemarkField
-              value={draft}
-              onChange={setDraft}
-              onDone={(text) => {
-                setCommenting(null);
-                setDraft("");
-                if (!text) return;
-                const remark: Remark =
-                  line.kind === "del"
-                    ? { file: file.path, line: line.old, side: "old", lineText: line.text, text }
-                    : { file: file.path, line: line.new, lineText: line.text, text };
-                reviewStore.getState().add(remark);
-              }}
-            />
-          )}
-        </div>
-      ))}
-      {diff.lines.length > MAX_LINES && <p className="px-3 py-2 font-sans text-xs text-dp-text-2">{t.moreLines(diff.lines.length - MAX_LINES)}</p>}
-    </div>
+          </div>
+        )}
+      </div>
+    </>
   );
+}
+
+/** How far Page Up and Page Down move in a diff. */
+const PAGE = 20;
+
+/**
+ * Makes `cell` the grid's one tab stop and focuses it. Done on the DOM: the arrows move
+ * through up to 4000 lines, and none of them is rendered again for it.
+ */
+function rove(grid: HTMLElement, cell: HTMLElement) {
+  for (const other of grid.querySelectorAll<HTMLElement>('[data-diff-cell][tabindex="0"]')) if (other !== cell) other.tabIndex = -1;
+  cell.tabIndex = 0;
+  // Its row, for a refresh to find it again.
+  const row = cell.closest<HTMLElement>("[data-diff-index]")?.dataset.diffIndex;
+  if (row !== undefined) grid.dataset.stop = row;
+  if (document.activeElement !== cell) cell.focus();
+}
+
+/** The diff's keys, on its lines only (the remark field keeps its own): the arrows, Home, End, the pages, and Enter. */
+function onGridKey(e: ReactKeyboardEvent<HTMLDivElement>) {
+  const cell = e.target as HTMLElement;
+  if (!cell.hasAttribute("data-diff-cell")) return;
+  if (e.key === "Enter") {
+    e.preventDefault();
+    cell.click();
+    return;
+  }
+  const cells = [...e.currentTarget.querySelectorAll<HTMLElement>("[data-diff-cell]")];
+  const at = cells.indexOf(cell);
+  const to = ({ ArrowDown: at + 1, ArrowUp: at - 1, Home: 0, End: cells.length - 1, PageDown: at + PAGE, PageUp: at - PAGE } as Record<string, number>)[e.key];
+  if (to === undefined) return;
+  // The grid scrolls to the line it focuses: the container must not scroll a second time.
+  e.preventDefault();
+  rove(e.currentTarget, cells[Math.max(0, Math.min(to, cells.length - 1))]);
 }
 
 function RemarkField({ value: text, onChange: setText, onDone }: { value: string; onChange: (text: string) => void; onDone: (text: string) => void }) {

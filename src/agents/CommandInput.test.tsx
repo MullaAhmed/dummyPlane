@@ -7,6 +7,7 @@ import { agentActivityStore } from "@/store/agentActivity";
 import { nodesStore } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
 import { savePastedImage } from "@/ipc/pastedImages";
+import { accessibleDescription, getByRole, queryByRole } from "@/lib/a11y";
 import { sendCommand } from "./broadcast";
 import { historyStore } from "./history";
 import { CommandInput } from "./CommandInput";
@@ -478,4 +479,23 @@ it("leaves a pasted text to the field (image paste)", async () => {
   await act(async () => void field().dispatchEvent(paste));
   expect(paste.defaultPrevented).toBe(false);
   expect(savePastedImage).not.toHaveBeenCalled();
+});
+
+it("keeps its name once a chip empties the placeholder, and reads who the chips send to", async () => {
+  expect(getByRole(host, "textbox", "Consigne")).toBe(field());
+  expect(queryByRole(host, "list", "Targets")).toBeNull();
+  await type("@cyborg/de");
+  await press("Tab");
+  // The placeholder is gone; the name is not.
+  expect(field().placeholder).toBe("");
+  expect(getByRole(host, "textbox", "Consigne")).toBe(field());
+  expect(accessibleDescription(field())).toBe("To @cyborg, @deadpool");
+  // The chips are a list of targets, each with its ✕.
+  const list = getByRole(host, "list", "Targets");
+  expect([...list.querySelectorAll('[role="listitem"]')].map((item) => item.textContent)).toEqual(["@cyborg", "@deadpool"]);
+  await act(async () => getByRole(list, "button", "Remove @cyborg").click());
+  expect(accessibleDescription(field())).toBe("To @deadpool");
+  await act(async () => getByRole(list, "button", "Remove @deadpool").click());
+  expect(queryByRole(host, "list", "Targets")).toBeNull();
+  expect(accessibleDescription(field())).not.toContain("To @");
 });

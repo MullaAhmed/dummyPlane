@@ -5,6 +5,7 @@ import { afterEach, beforeEach, expect, it } from "vitest";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { gitWindowStore } from "@/git/gitWindowStore";
 import type { Workspace } from "@/ipc/db";
+import { getByRole } from "@/lib/a11y";
 import { projectsStore } from "@/store/projects";
 import { workspacesStore } from "@/store/workspaces";
 import { GitChip } from "./GitChip";
@@ -37,7 +38,8 @@ it("opens the git window on the project's folder (spec fenêtre git §3)", async
   const chip = host.querySelector("button")!;
   expect(chip.textContent).toContain("main");
   expect(chip.textContent).toContain("3");
-  expect(chip.getAttribute("aria-label")).toBe("Open the git window · main");
+  // The name holds the changed count the chip shows (WCAG 2.5.3 label in name).
+  expect(getByRole(host, "button", "Open the git window · main · 3 changed files")).toBe(chip);
   await act(async () => chip.click());
   expect(gitWindowStore.getState().path).toBe("C:/code/api");
 });
@@ -67,4 +69,10 @@ it("reads the folder of the active workspace, not the project's, and follows a s
   await act(async () => workspacesStore.setState({ activeId: "w2" }));
   expect(asked[asked.length - 1]).toBe("C:/code/api");
   expect(host.querySelector("button")!.textContent).toContain("main");
+});
+
+it("names the branch alone when nothing changed", async () => {
+  status = { branch: "main", changed: 0 };
+  await act(async () => root.render(<GitChip />));
+  expect(getByRole(host, "button", "Open the git window · main")).not.toBeNull();
 });

@@ -2,9 +2,13 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { highlightingFor } from "@codemirror/language";
 import { EditorView } from "@codemirror/view";
+import { tags } from "@lezer/highlight";
+import { themeStore, type ThemeChoice } from "@/app/theme";
 import { readSource } from "@/theme/cssBlocks";
 import { CodeEditor, revealLine } from "./CodeEditor";
+import { syntaxStyleFor } from "./syntaxTheme";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -18,7 +22,7 @@ beforeEach(async () => {
   document.body.append(host);
   root = createRoot(host);
   await act(async () =>
-    root.render(<CodeEditor path="a.ts" text={"one\ntwo\nthree\n"} revision={{ id: 0, kind: "open" }} theme="dark" onChange={() => {}} onSave={() => {}} />),
+    root.render(<CodeEditor path="a.ts" text={"one\ntwo\nthree\n"} revision={{ id: 0, kind: "open" }} onChange={() => {}} onSave={() => {}} />),
   );
 });
 afterEach(async () => {
@@ -77,4 +81,26 @@ it("fades on a one-shot class, never a transition on the editor's lines", () => 
   expect(editor).toContain('".cm-dp-flash-out": { animation: "dp-flash-out var(--dp-dur) var(--dp-ease-out) both" }');
   expect(editor).not.toMatch(/"\.cm-(line|activeLine)[^"]*":\s*\{[^}]*transition/);
   expect(readSource("index.css")).toMatch(/@keyframes dp-flash-out \{\s*from \{\s*background-color: var\(--dp-accent-soft\);\s*\}\s*\}/);
+});
+
+it("recolors the code at once when the palette changes, between the two dark palettes too", async () => {
+  const before = themeStore.getState().choice;
+  const keyword = () => highlightingFor(view().state, [tags.keyword]);
+  try {
+    for (const palette of ["electric", "calm", "expressive"] as ThemeChoice[]) {
+      await act(async () => themeStore.setState({ choice: palette }));
+      expect(keyword(), palette).toBe(syntaxStyleFor(palette).style([tags.keyword]));
+      expect(view().state.facet(EditorView.darkTheme), palette).toBe(palette !== "calm");
+    }
+  } finally {
+    await act(async () => themeStore.setState({ choice: before }));
+  }
+});
+
+it("draws the matched brackets, the gutter and special characters in the palette's tokens, not CodeMirror's colors", () => {
+  const editor = readSource("studio/CodeEditor.tsx");
+  expect(editor).toContain('"&.cm-focused .cm-matchingBracket": { backgroundColor: "var(--dp-accent-soft)", outline: "1px solid var(--dp-text-3)" }');
+  expect(editor).toContain('"&.cm-focused .cm-nonmatchingBracket": { backgroundColor: "transparent", outline: "1px solid var(--dp-danger)" }');
+  expect(editor).toContain('".cm-specialChar": { color: "var(--dp-danger)" }');
+  expect(editor).toContain('".cm-gutters": { backgroundColor: "transparent", color: "var(--dp-text-3)", border: "none" }');
 });

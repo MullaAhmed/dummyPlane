@@ -15,7 +15,7 @@ The ink writes the text and is also the accent: `--dp-accent`, `--dp-accent-ink`
 - Surfaces and cards are the ground a step lighter or darker.
 - Hairlines, hovers and the selection are the ink at a low alpha.
 - The second and third text roles are the ink a step toward the ground.
-- Only the status colours (`--dp-wait`, `--dp-ok`, `--dp-danger`) and `--dp-on-role` stand outside the two.
+- Only the status colours (`--dp-wait`, `--dp-ok`, `--dp-danger`), `--dp-on-role` and `--dp-on-wait` stand outside the two.
 
 No glows and no coloured shadows. Depth is surface steps and hairlines.
 
@@ -51,7 +51,7 @@ Accent:
 
 - `--dp-accent`: fills, focus ring, primary buttons, selection.
 - `--dp-accent-ink`: accent used as text. Same value as `--dp-accent` in the three palettes; write text with it so a palette can split the two.
-- `--dp-accent-soft`: tinted background for selected rows.
+- `--dp-accent-soft`: tinted background for selected rows. A selected row also turns on `dp-on-soft` (`index.css`), where it turns selected (`data-[selected=true]:dp-on-soft`, or beside its `bg-dp-accent-soft`): every `text-3` inside steps up to `text-2`, since `text-3` falls to 4.2:1 on the tint. Danger on the tint is `--dp-danger-on-soft`.
 - `--dp-on-accent`: text drawn on an accent fill. It is the ground colour.
 - `--dp-secondary`: accent for chrome and links. Same value as the ink.
 - `--dp-draw`: the ink for drawing on the canvas (the pen). Defined in each palette; no component reads it yet.
@@ -62,6 +62,8 @@ Status:
 - `--dp-ok`: success or live state.
 - `--dp-danger`: errors and destructive actions.
 - `--dp-on-role`: text drawn on a role colour (a group's role). One dark ink, the same in every palette.
+- `--dp-on-wait`: text drawn on the `--dp-wait` fill (the waiting count on the Agents button). Per palette: calm's cream ground (its wait is dark), the dark ink in the other two. At least 4.5:1.
+- `--dp-danger-on-soft`: danger written on the selection's tint (a selected row's `D` and `−N`). Danger mixed 70% with the ink, defined once in the shared block: at least 4.5:1 on the tint, where danger itself falls to 4.1:1 in expressive.
 
 Terminals:
 
@@ -74,6 +76,12 @@ Terminals stay dark in every palette. What xterm draws inside them is `src/nodes
 - Every ANSI colour but `black` reads at 4.5:1 at least on the body, `brightBlack` included, and the selected text at 4.5:1 on the selection. `terminalTheme.test.ts` checks it, with the hue bands and the gaps that keep the six apart.
 - A palette switch recolours every open terminal at once. A subagent's transcript (`SubagentNode`) uses the same theme.
 
+Code editor:
+
+- The editor (the Code Studio, the notes) draws code with `src/studio/syntaxTheme.ts`, one highlight style per palette, never One Dark or CodeMirror's default (made for other grounds: electric's comments read 2.5:1).
+- Its six hues are the terminals', each kept at its OKLCH hue (within 2°) and stepped in lightness for the editor's own grounds: at least 4.5:1 on the surface, the active line and the accent's tint (a search match, the line reached, a selection off the caret line). On the caret's line inside a selection, where the hover stacks on the tint, they read about 4.1:1. Operators and punctuation are `text-2`, comments `text-3` in italic, errors `danger`.
+- Caret, selection, active line, gutter and matched brackets are tokens. A palette switch recolours an open editor at once, between the two dark palettes too. `syntaxTheme.test.ts` checks it.
+
 ## Contrast
 
 Text tokens meet WCAG AA on `surface`, `card` and `canvas`.
@@ -81,6 +89,10 @@ Text tokens meet WCAG AA on `surface`, `card` and `canvas`.
 - Body text, `text-2` and `text-3`: at least 4.5:1.
 - Large text and UI parts: at least 3:1.
 - Status tokens and `accent-ink`: at least 4.5:1 on each surface.
+- On the selection's tint (`accent-soft` over a surface or a card): `text`, `text-2`, the lifted `text-3` and `--dp-danger-on-soft` at least 4.5:1.
+- On a fill: `on-accent` on the accent, `on-wait` on the wait fill, at least 4.5:1.
+- Text over a terminal's dark body sits on a surface card (as `ToolsUnavailable` does) or in the terminal's own inks (`terminalTheme.ts`): the text roles are the ink, which is calm's green, 1.3:1 on calm's body.
+- Tests: `src/theme/legibility.test.ts` computes these pairs from `tokens.css`.
 
 Check any new pair with a contrast tool before use.
 

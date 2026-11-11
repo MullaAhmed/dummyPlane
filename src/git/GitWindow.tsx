@@ -259,13 +259,16 @@ function ChangesTab(props: {
           {files.map((file) => {
             const status = FILE_STATUS[file.status];
             const current = selected?.path === file.path;
+            // On the selection's tint, danger steps toward the ink to keep 4.5:1 (tokens.css): the − count, and a deleted file's D.
+            const danger = current ? "text-dp-danger-on-soft" : "text-dp-danger";
+            const tone = file.status === "deleted" ? danger : status.tone;
             return (
               <li
                 key={file.path}
                 data-git-file={file.path}
                 className={cn(
                   "group flex h-7 items-center gap-2 px-3 text-xs text-dp-text-2 hover:bg-dp-hover",
-                  current && "bg-dp-accent-soft text-dp-text hover:bg-dp-accent-soft",
+                  current && "bg-dp-accent-soft text-dp-text hover:bg-dp-accent-soft dp-on-soft",
                 )}
               >
                 <Checkbox aria-label={t.include(file.path)} checked={!left.has(file.path)} onCheckedChange={() => toggle(file)} className={ROW_CHECK} />
@@ -277,7 +280,7 @@ function ChangesTab(props: {
                   onClick={() => setSelectedPath(file.path)}
                   className="flex h-full min-w-0 flex-1 items-center gap-2 rounded-sm text-left focus-visible:ring-2 focus-visible:ring-dp-accent/70 focus-visible:outline-none"
                 >
-                  <span className={cn("w-3 shrink-0 font-mono font-medium", status.tone)}>{status.letter}</span>
+                  <span className={cn("w-3 shrink-0 font-mono font-medium", tone)}>{status.letter}</span>
                   <span className="min-w-0 flex-1 truncate" style={{ direction: "rtl", textAlign: "left" }}>
                     {file.path}
                   </span>
@@ -287,7 +290,7 @@ function ChangesTab(props: {
                     </span>
                   ) : (
                     <span className="shrink-0 font-mono tabular-nums">
-                      <span className="text-dp-ok">+{file.added}</span> <span className="text-dp-danger">−{file.removed}</span>
+                      <span className="text-dp-ok">+{file.added}</span> <span className={danger}>−{file.removed}</span>
                     </span>
                   )}
                 </button>

@@ -149,7 +149,7 @@ export function AgentsPanel() {
             value={id}
             data-filter={id}
             data-on={id === filter}
-            className="h-7 min-w-0 gap-1 rounded-md px-2 text-xs font-normal text-dp-text-2 transition-[background-color,color,scale] duration-(--dp-dur-fast) ease-(--dp-ease-out) hover:bg-dp-hover hover:text-dp-text focus-visible:ring-2 focus-visible:ring-dp-accent/70 active:scale-[0.97] motion-reduce:transition-none data-[state=on]:bg-dp-accent-soft data-[state=on]:text-dp-text"
+            className="h-7 min-w-0 gap-1 rounded-md px-2 text-xs font-normal text-dp-text-2 transition-[background-color,color,scale] duration-(--dp-dur-fast) ease-(--dp-ease-out) hover:bg-dp-hover hover:text-dp-text focus-visible:ring-2 focus-visible:ring-dp-accent/70 active:scale-[0.97] motion-reduce:transition-none data-[state=on]:bg-dp-accent-soft data-[state=on]:text-dp-text data-[state=on]:dp-on-soft"
           >
             {label}
             <span className="font-mono text-xs text-dp-text-3 tabular-nums">{counts[id]}</span>

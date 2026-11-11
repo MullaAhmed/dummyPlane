@@ -17,12 +17,14 @@ vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { warning: vi.fn(), err
 
 const DIFF = "diff --git a/src/a.ts b/src/a.ts\n--- a/src/a.ts\n+++ b/src/a.ts\n@@ -1,2 +1,2 @@\n const x = 1;\n-const y = 2;\n+const y = 3;\n";
 let cutList = false;
+let diffText = DIFF;
 let calls: { cmd: string; args: Record<string, unknown> }[];
 let host: HTMLDivElement;
 let root: Root;
 
 beforeEach(async () => {
   calls = [];
+  diffText = DIFF;
   mockIPC((cmd, args) => {
     calls.push({ cmd, args: args as Record<string, unknown> });
     if (cmd === "review_default_base") return "main";
@@ -35,7 +37,7 @@ beforeEach(async () => {
           { path: "notes.md", oldPath: null, status: "untracked", added: 4, removed: 0 },
         ],
       };
-    if (cmd === "review_file_diff") return DIFF;
+    if (cmd === "review_file_diff") return diffText;
     if (cmd === "review_files") return { files: ["README.md", "src/a.ts"], truncated: false };
     if (cmd === "review_read_file") return { text: "# Projet\nBonjour\n", size: 17, truncated: false };
     return undefined;
@@ -94,6 +96,107 @@ it("takes remarks on lines and sends them to the agent in one message", async ()
   await act(async () => button("Send to Batman").click());
   expect(sendToAgents).toHaveBeenCalledWith(["batman"], expect.stringContaining("- src/a.ts:2 `const y = 3;` — Why 3?"));
   await vi.waitFor(() => expect(reviewStore.getState().remarks).toEqual([]));
+});
+
+/** A key pressed on `target`: a native keydown that bubbles and can be cancelled, as the webview sends it. */
+function press(target: Element, key: string) {
+  const event = new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true });
+  target.dispatchEvent(event);
+  return event;
+}
+
+const cells = () => [...host.querySelectorAll<HTMLElement>("[data-diff-cell]")];
+
+it("reaches every line of the diff from the keyboard: one tab stop, moved by the arrows, Home and End, each line named (P1-8)", async () => {
+  await vi.waitFor(() => expect(cells()).toHaveLength(3));
+  const grid = host.querySelector<HTMLElement>('[role="grid"]')!;
+  expect(grid.getAttribute("aria-label")).toBe("Diff of src/a.ts");
+  expect(document.getElementById(grid.getAttribute("aria-describedby")!)?.textContent).toContain("Enter adds a remark");
+  // A row each, the hunk's included; only the lines that take a remark are stops.
+  expect([...grid.children].map((row) => row.getAttribute("role"))).toEqual(["row", "row", "row", "row"]);
+  expect(host.querySelector('[data-diff-line="hunk"]')!.getAttribute("role")).toBe("gridcell");
+  expect(host.querySelector('[data-diff-line="hunk"]')!.hasAttribute("tabindex")).toBe(false);
+  expect(cells().map((c) => c.getAttribute("aria-label"))).toEqual([
+    "Unchanged, old line 1, new line 1: const x = 1;",
+    "Removed, old line 2: const y = 2;",
+    "Added, new line 2: const y = 3;",
+  ]);
+  expect(cells().map((c) => c.tabIndex)).toEqual([0, -1, -1]);
+  // The title no longer speaks of a click.
+  expect(cells()[0].title).toBe("Add a remark on this line");
+
+  cells()[0].focus();
+  const down = await act(async () => press(cells()[0], "ArrowDown"));
+  expect(down.defaultPrevented).toBe(true);
+  expect(document.activeElement).toBe(cells()[1]);
+  // The tab stop went with the focus: Tab out and back lands on this line.
+  expect(cells().map((c) => c.tabIndex)).toEqual([-1, 0, -1]);
+  await act(async () => press(cells()[1], "End"));
+  expect(document.activeElement).toBe(cells()[2]);
+  await act(async () => press(cells()[2], "ArrowDown"));
+  expect(document.activeElement).toBe(cells()[2]);
+  await act(async () => press(cells()[2], "Home"));
+  expect(document.activeElement).toBe(cells()[0]);
+  expect(cells().map((c) => c.tabIndex)).toEqual([0, -1, -1]);
+});
+
+it("keeps exactly one tab stop in the diff through a Refresh that drops the line it was on (P1-8)", async () => {
+  await vi.waitFor(() => expect(cells()).toHaveLength(3));
+  cells()[0].focus();
+  await act(async () => press(cells()[0], "End"));
+  expect(cells().map((c) => c.tabIndex)).toEqual([-1, -1, 0]);
+  // The agent went on: the file now differs by one line only, and the line the stop was on is gone.
+  diffText = "diff --git a/src/a.ts b/src/a.ts\n--- a/src/a.ts\n+++ b/src/a.ts\n@@ -1 +1 @@\n-const x = 1;\n+const x = 2;\n";
+  await act(async () => button("Refresh").click());
+  await vi.waitFor(() => expect(cells()).toHaveLength(2));
+  expect(cells().map((c) => c.tabIndex)).toEqual([0, -1]);
+  // A Refresh that keeps the line keeps the stop on it.
+  await act(async () => press(cells()[0], "ArrowDown"));
+  const fetched = calls.filter((c) => c.cmd === "review_file_diff").length;
+  await act(async () => button("Refresh").click());
+  await vi.waitFor(() => expect(calls.filter((c) => c.cmd === "review_file_diff").length).toBeGreaterThan(fetched));
+  await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
+  expect(cells().map((c) => c.tabIndex)).toEqual([-1, 0]);
+});
+
+it("adds a remark from the keyboard, then gives the keyboard back to its line, kept or cancelled (P1-8)", async () => {
+  await vi.waitFor(() => expect(cells()).toHaveLength(3));
+  const added = () => host.querySelector<HTMLElement>('[data-diff-line="add"]')!;
+  added().focus();
+  await act(async () => press(added(), "Enter"));
+  const field = () => host.querySelector<HTMLInputElement>('[aria-label="Remark on this line"]');
+  expect(document.activeElement).toBe(field());
+  // The field sits in a row of the grid, under its line.
+  expect(field()!.closest('[role="gridcell"]')?.parentElement?.getAttribute("role")).toBe("row");
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(field(), "Why 3?");
+    field()!.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  await act(async () => press(field()!, "Enter"));
+  expect(reviewStore.getState().remarks).toEqual([{ file: "src/a.ts", line: 2, lineText: "const y = 3;", text: "Why 3?" }]);
+  expect(field()).toBeNull();
+  expect(document.activeElement).toBe(added());
+  expect(added().tabIndex).toBe(0);
+
+  await act(async () => press(added(), "Enter"));
+  expect(document.activeElement).toBe(field());
+  await act(async () => press(field()!, "Escape"));
+  expect(field()).toBeNull();
+  expect(document.activeElement).toBe(added());
+  // Escape in the field was the field's: the review stays open, and nothing was added.
+  expect(reviewStore.getState().nodeId).toBe("batman");
+  expect(reviewStore.getState().remarks).toHaveLength(1);
+});
+
+it("lifts the selected file's letter and counts to text-2 on the accent's tint (P1-14)", async () => {
+  await vi.waitFor(() => expect(text()).toContain("notes.md"));
+  const row = (path: string) => [...host.querySelectorAll<HTMLButtonElement>("button[aria-current]")].find((b) => b.textContent?.includes(path))!;
+  const inks = (b: HTMLElement) => [...b.querySelectorAll("span")].map((s) => s.className.match(/text-dp-[\w-]+/)?.[0]).filter(Boolean);
+  expect(row("src/a.ts").getAttribute("aria-current")).toBe("true");
+  expect(inks(row("src/a.ts"))).not.toContain("text-dp-danger");
+  expect(inks(row("src/a.ts"))).not.toContain("text-dp-ok");
+  // The other rows keep their colours.
+  expect(inks(row("notes.md"))).toEqual(expect.arrayContaining(["text-dp-ok", "text-dp-danger"]));
 });
 
 it("browses the repository's files, read-only", async () => {

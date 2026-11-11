@@ -59,6 +59,11 @@ interface CommandInputProps {
   /** Reached without `@`: the selection, or a fleet's agents. */
   fallback: readonly string[];
   placeholder: string;
+  /**
+   * The field's accessible name, "Message agents": it stays while chips empty the placeholder, and must stay
+   * true whoever the chips name (the placeholder by default, for a field that only ever reaches the same agents).
+   */
+  label?: string;
   /** Why Envoyer is grey when nothing is targeted. */
   emptyHint: string;
   /** Who `fallback` is, when it is one agent the user did not select (the active terminal): named so Send never surprises. */
@@ -92,7 +97,7 @@ export function CommandInput(props: CommandInputProps) {
 }
 
 function CommandField(props: CommandInputProps & { deliver: RefObject<(text: string) => void> }) {
-  const { agents, groups, placeholder, emptyHint, sendsTo, autoTarget = null, compact = false, autoFocus = false, deliver } = props;
+  const { agents, groups, placeholder, label = placeholder, emptyHint, sendsTo, autoTarget = null, compact = false, autoFocus = false, deliver } = props;
   const t = useMessages(agentsMessages).command;
   const aui = useAui();
   // The composer owns the text: typing, completing, recalling and sending all go through it.
@@ -312,6 +317,9 @@ function CommandField(props: CommandInputProps & { deliver: RefObject<(text: str
 
   // An empty field shows its keys as keycaps, where the placeholder used to spell them out.
   const showKeys = !compact && text === "" && chips.length === 0;
+  const chipLabels = chips.map((target) => labels.get(targetKey(target)) ?? "");
+  // The field's description: who the chips send to, then its keys.
+  const describedBy = [chips.length > 0 ? `${listId}-to` : null, showKeys ? `${listId}-keys` : null].filter((id) => id !== null).join(" ");
 
   return (
     <ComposerPrimitive.Root ref={root} className="relative flex min-w-0 flex-1 items-end gap-2">
@@ -357,32 +365,46 @@ function CommandField(props: CommandInputProps & { deliver: RefObject<(text: str
               "min-h-8 rounded-md bg-dp-field px-1 ring-1 ring-dp-line ring-inset focus-within:ring-2 focus-within:ring-dp-accent/70",
           )}
         >
-          {chips.map((target) => {
-            const label = labels.get(targetKey(target)) ?? "";
-            return (
-              <span
-                key={targetKey(target)}
-                data-target-chip
-                className="flex h-6 items-center gap-1 rounded-sm bg-dp-accent-soft pl-2 pr-1 font-mono text-xs text-dp-text"
-              >
-                {label}
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-xs"
-                  aria-label={t.remove(label)}
-                  onMouseDown={keepCaret}
-                  onClick={() => removeChip(target)}
-                  className="size-4 rounded-sm text-dp-text-2 hover:bg-dp-hover hover:text-dp-text"
+          {/*
+            The chips are a list of their own, "Targets", each ✕ named after its chip. The list adds no box (contents):
+            its chips wrap with the field, as before; the explicit roles keep it a list without its own layout.
+          */}
+          {chips.length > 0 && (
+            <ul role="list" aria-label={t.targets} className="contents">
+              {chips.map((target, i) => (
+                <li
+                  key={targetKey(target)}
+                  role="listitem"
+                  data-target-chip
+                  className="flex h-6 items-center gap-1 rounded-sm bg-dp-accent-soft pl-2 pr-1 font-mono text-xs text-dp-text"
                 >
-                  <X className="size-3" />
-                </Button>
-              </span>
-            );
-          })}
+                  {chipLabels[i]}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
+                    aria-label={t.remove(chipLabels[i])}
+                    onMouseDown={keepCaret}
+                    onClick={() => removeChip(target)}
+                    className="size-4 rounded-sm text-dp-text-2 hover:bg-dp-hover hover:text-dp-text"
+                  >
+                    <X className="size-3" />
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {/* Who the chips send to, read with the field: they empty its placeholder, and sit before it. */}
+          {chips.length > 0 && (
+            <span id={`${listId}-to`} hidden>
+              {t.to(chipLabels)}
+            </span>
+          )}
           <ComposerPrimitive.Input
             ref={field}
             minRows={1}
+            // A name of its own: the placeholder empties once a chip is there, and a field must keep its name (WCAG 4.1.2).
+            aria-label={label}
             placeholder={chips.length > 0 ? "" : placeholder}
             // The keys are this field's (see useNativeKeyDown); the composer neither submits, cancels nor attaches by itself:
             // a send carries text only (messageText), so a pasted image goes in as its file's path instead.
@@ -393,7 +415,7 @@ function CommandField(props: CommandInputProps & { deliver: RefObject<(text: str
             aria-autocomplete="list"
             aria-controls={listOpen ? listId : undefined}
             aria-activedescendant={listOpen ? `${listId}-${row}` : undefined}
-            aria-describedby={showKeys ? `${listId}-keys` : undefined}
+            aria-describedby={describedBy || undefined}
             onChange={(e) => typed(e.target.value, e.target.selectionStart)}
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}

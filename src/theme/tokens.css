@@ -6,7 +6,9 @@
    ground a step lighter or darker, hairlines, hovers and the selection are the
    ink at a low alpha, and the second and third text roles are the ink a step
    toward the ground. Only the status colors (wait, ok, danger), toned to sit in
-   each palette, and the ink on role colors (--dp-on-role) stand outside the two.
+   each palette, the ink on role colors (--dp-on-role) and the ink on the wait
+   fill (--dp-on-wait: calm's cream, the dark ink elsewhere, 4.5:1 or more)
+   stand outside the two.
    No glows, no colored shadows: depth is surface steps and hairlines, plus one
    small neutral shadow under floating things in the light palette. Every
    surface is opaque: no glass, no blur, no transparency switch.
@@ -33,6 +35,10 @@
   --dp-idle: var(--dp-text-3); /* @deprecated: use --dp-text-3 */
   --dp-done: var(--dp-ok); /* @deprecated: use --dp-ok */
   --dp-live: var(--dp-ok); /* @deprecated: use --dp-ok */
+  /* Danger written on the selection's tint (--dp-accent-soft), the status of a selected row:
+     a step toward the ink, which keeps it at 4.5:1 there (danger itself falls to 4.1:1 on the
+     tint in expressive). legibility.test.ts computes it in each palette. */
+  --dp-danger-on-soft: color-mix(in srgb, var(--dp-danger) 70%, var(--dp-text));
   /* Retired effects, kept as no-ops until no component reads them: the ambient
      color washes. */
   --dp-glow-1: transparent; /* @deprecated: no glows */
@@ -60,6 +66,8 @@
   --dp-accent-soft: rgba(23,63,50,0.12);
   --dp-on-accent: #EDE3CC;
   --dp-on-role: #1F1E1D;
+  /* The wait fill is dark in calm: its count is written in the cream ground (5.3:1). */
+  --dp-on-wait: #EDE3CC;
   --dp-wait: #7A5418;
   --dp-ok: #356A44;
   --dp-danger: #9A3B2C;
@@ -94,6 +102,7 @@
   --dp-accent-soft: rgba(244,244,241,0.12);
   --dp-on-accent: #263CF5;
   --dp-on-role: #1F1E1D;
+  --dp-on-wait: #1F1E1D;
   --dp-wait: #F7DCA2;
   --dp-ok: #AEEBBC;
   --dp-danger: #FFC9C6;
@@ -130,6 +139,7 @@
   --dp-accent-soft: rgba(244,244,241,0.12);
   --dp-on-accent: #101014;
   --dp-on-role: #1F1E1D;
+  --dp-on-wait: #1F1E1D;
   --dp-wait: #DDAA62;
   --dp-ok: #7CC492;
   --dp-danger: #E26D6A;

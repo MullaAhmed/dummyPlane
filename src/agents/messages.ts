@@ -156,6 +156,10 @@ export const agentsMessages = defineMessages({
     command: {
       unknownTarget: (target: string) => `Unknown target: ${target}`,
       remove: (label: string) => `Remove ${label}`,
+      /** The chips' list. */
+      targets: "Targets",
+      /** Who the chips send to, read with the field. */
+      to: (labels: readonly string[]) => `To ${labels.join(", ")}`,
       send: "Send",
       sendTo: (name: string) => `Send to ${name}`,
       sendsTo: (name: string) => `To ${name}`,
@@ -203,7 +207,12 @@ export const agentsMessages = defineMessages({
       command: "Command to run",
       commandHint: "A Custom terminal runs it in its shell when it starts.",
     },
-    link: { hint: "Click a group or an agent to link · Esc to finish", agentHint: "Click another agent or a fleet to link this agent · Esc to cancel" },
+    link: {
+      hint: "Click a group or an agent to link, or pick one below · Esc to finish",
+      agentHint: "Click another agent or a fleet to link this agent, or pick one below · Esc to cancel",
+      kinds: { agent: "Agent", group: "Group", fleet: "Fleet" },
+      linked: "Linked",
+    },
     ollama: {
       title: "Ollama",
       mode: "Mode",

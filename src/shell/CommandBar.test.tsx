@@ -7,6 +7,7 @@ import { activeTerminalStore, setActiveTerminal } from "@/canvas/activeTerminal"
 import { canvasStore, EMPTY_VIEW } from "@/canvas/canvasStore";
 import type { SceneFrame } from "@/canvas/groups";
 import { sendCommand } from "@/agents/broadcast";
+import { accessibleDescription, getByRole } from "@/lib/a11y";
 import { nodesStore, type NodeRecord } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
 import { CommandBar } from "./CommandBar";
@@ -221,4 +222,15 @@ it("follows the terminal last entered", async () => {
   await type("run tests");
   await act(async () => sendButton().click());
   expect(sendCommand).toHaveBeenCalledWith(["t2"], "run tests");
+});
+
+it("keeps the field's generic name with the active terminal's chip, its target in the description", async () => {
+  await activate("t1");
+  // The chip of the moment empties the placeholder: the name stays, and says no agent it could stop being.
+  expect(field().placeholder).toBe("");
+  expect(getByRole(host, "textbox", "Message agents")).toBe(field());
+  expect(accessibleDescription(field())).toBe("To @cyborg");
+  expect(getByRole(getByRole(host, "list", "Targets"), "button", "Remove @cyborg")).not.toBeNull();
+  await removeChip("@cyborg");
+  expect(getByRole(host, "textbox", "Message agents")).toBe(field());
 });

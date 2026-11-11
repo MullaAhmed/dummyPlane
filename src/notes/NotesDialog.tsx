@@ -5,7 +5,6 @@ import { PanelTabs, PanelTabsContent, PanelTabsList, PanelTabsTrigger } from "@/
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { useTheme } from "@/app/theme";
 import { useMessages } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { AccentButton, IconButton } from "@/shell/buttons";
@@ -29,7 +28,6 @@ type Tab = "edit" | "read" | "graph";
 /** The project's notes (spec notes): one open at a time, under the code studio's guards. */
 export default function NotesDialog({ projectId }: { projectId: string }) {
   const t = useMessages(notesMessages);
-  const theme = useTheme();
   const session = useMemo(
     () =>
       createFileSession(
@@ -221,7 +219,7 @@ export default function NotesDialog({ projectId }: { projectId: string }) {
                       onClick={() => open(hit.name)}
                       className={cn(
                         "block w-full px-3 py-1.5 text-left hover:bg-dp-hover focus-visible:ring-2 focus-visible:ring-dp-accent/70 focus-visible:outline-none focus-visible:ring-inset",
-                        hit.name === file && "bg-dp-accent-soft hover:bg-dp-accent-soft",
+                        hit.name === file && "bg-dp-accent-soft hover:bg-dp-accent-soft dp-on-soft",
                       )}
                     >
                       <span className="block truncate text-sm text-dp-text">{hit.name}</span>
@@ -246,7 +244,7 @@ export default function NotesDialog({ projectId }: { projectId: string }) {
               {/* Mounted while hidden: the views come and go, the editor's undo history stays. */}
               <PanelTabsContent value="edit" forceMount className="data-[state=inactive]:hidden">
                 {waiting ?? (
-                  <CodeEditor ref={editor} path={`${file}.md`} text={draft} revision={state.revision} theme={theme} onChange={state.edit} onSave={() => void state.save()} />
+                  <CodeEditor ref={editor} path={`${file}.md`} text={draft} revision={state.revision} onChange={state.edit} onSave={() => void state.save()} />
                 )}
               </PanelTabsContent>
               {file && !loading && !refused && tab !== "graph" && (

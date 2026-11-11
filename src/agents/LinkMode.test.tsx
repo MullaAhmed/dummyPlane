@@ -135,6 +135,135 @@ it("takes another node's Link for a place on that node, not for the linker's Don
   await act(async () => canvasStore.setState({ api: null, links: {} }));
 });
 
+/** A key pressed on `target`: a native keydown that bubbles and can be cancelled, as the webview sends it. */
+async function press(target: Element, key: string, init: KeyboardEventInit = {}) {
+  const event = new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true, ...init });
+  await act(async () => void target.dispatchEvent(event));
+  return event;
+}
+
+const listbox = () => document.querySelector<HTMLElement>('[role="listbox"]');
+const options = () => [...document.querySelectorAll<HTMLElement>('[role="option"]')];
+const activeName = () => document.getElementById(listbox()!.getAttribute("aria-activedescendant") ?? "")?.textContent ?? null;
+const outline = () => document.querySelector(".border-dashed");
+
+async function terminal(id: string, agent: "claude" | "shell") {
+  await nodesStore.getState().create(id, { workspaceId: "w1", kind: "terminal", payload: { title: id, name: id[0].toUpperCase() + id.slice(1), agent, cwd: "C:/code", shell: "default", command: "" } });
+}
+
+const at = (kind: "terminal" | "fleet", id: string, x: number, y: number) => ({ ...createNodeElement(kind, { x, y }), id }) as unknown as ExcalidrawElement;
+
+it("takes no focus and shows no list when nothing on the canvas can be linked", () => {
+  expect(listbox()).toBeNull();
+  expect(document.body.textContent).toContain("Click a group or an agent to link");
+});
+
+it("links two agents from the keyboard: the list takes the focus, the arrows and Tab walk the targets outlined on the canvas, Enter links (P1-9)", async () => {
+  mockIPC(() => undefined);
+  vi.mocked(linkFleet).mockClear();
+  vi.mocked(linkAgents).mockClear();
+  await terminal("batman", "claude");
+  await terminal("cyborg", "claude");
+  await terminal("sh", "shell");
+  await nodesStore.getState().create("atlas", { workspaceId: "w1", kind: "fleet", payload: { name: "Atlas" } });
+  const scene = [at("terminal", "batman", 2800, 400), at("terminal", "cyborg", 1600, 400), at("terminal", "sh", 400, 1600), at("fleet", "atlas", 400, 400)];
+  const link = document.createElement("button");
+  link.setAttribute("data-link-toggle", "batman");
+  document.body.append(link);
+  link.focus();
+  await act(async () => {
+    uiStore.setState({ linking: null });
+    canvasStore.setState({ api: { getSceneElements: () => scene } as never, view: EMPTY_VIEW, frames: [], links: { atlas: { nodeIds: [], groupIds: [] } } });
+  });
+  await act(async () => uiStore.setState({ linking: "batman" }));
+
+  // The list has the keyboard; the hint names it.
+  expect(document.activeElement).toBe(listbox());
+  expect(document.getElementById(listbox()!.getAttribute("aria-labelledby")!)?.textContent).toContain("or pick one below");
+  // In the canvas's reading order; not the agent itself, not a plain shell.
+  expect(options().map((o) => o.textContent)).toEqual(["AtlasFleet", "CyborgAgent"]);
+  expect(listbox()!.hasAttribute("aria-activedescendant")).toBe(false);
+  expect(outline()).toBeNull();
+
+  const down = await press(listbox()!, "ArrowDown");
+  expect(down.defaultPrevented).toBe(true);
+  expect(activeName()).toBe("AtlasFleet");
+  expect(options()[0].getAttribute("aria-selected")).toBe("true");
+  // The target the keyboard is on is outlined on the canvas, as the pointer's is.
+  expect(outline()).not.toBeNull();
+  await press(listbox()!, "ArrowDown");
+  expect(activeName()).toBe("CyborgAgent");
+  await press(listbox()!, "ArrowDown");
+  expect(activeName()).toBe("AtlasFleet");
+  await press(listbox()!, "ArrowUp");
+  expect(activeName()).toBe("CyborgAgent");
+  const tab = await press(listbox()!, "Tab");
+  expect(tab.defaultPrevented).toBe(true);
+  expect(activeName()).toBe("AtlasFleet");
+  await press(listbox()!, "Tab", { shiftKey: true });
+  expect(activeName()).toBe("CyborgAgent");
+
+  await press(listbox()!, "Enter");
+  expect(linkAgents).toHaveBeenCalledWith("batman", "cyborg");
+  expect(linkFleet).not.toHaveBeenCalled();
+  expect(uiStore.getState().linking).toBeNull();
+  // The keyboard is back on the agent's Link, not lost on the page.
+  expect(document.activeElement).toBe(link);
+  await act(async () => canvasStore.setState({ api: null, links: {} }));
+});
+
+it("wires a fleet to each target picked and stays on, a grouped agent standing for its group, a wired one marked (P1-9)", async () => {
+  mockIPC(() => undefined);
+  vi.mocked(linkFleet).mockClear();
+  await terminal("member", "claude");
+  await terminal("solo", "claude");
+  const group = { id: "g1", name: "Backend", group: { role: "builder", pantheon: "dc" } as never, memberIds: ["member"], x: 0, y: 0, width: 900, height: 900 };
+  const scene = [at("terminal", "member", 100, 100), at("terminal", "solo", 1600, 3000)];
+  document.getElementById("finish")!.focus();
+  await act(async () => {
+    uiStore.setState({ linking: null });
+    canvasStore.setState({ api: { getSceneElements: () => scene } as never, view: EMPTY_VIEW, frames: [group], links: { chef: { nodeIds: ["solo"], groupIds: [] } } });
+  });
+  await act(async () => uiStore.setState({ linking: "chef" }));
+  expect(options().map((o) => o.textContent)).toEqual(["BackendGroup", "SoloLinked"]);
+  expect(options()[1].getAttribute("aria-disabled")).toBe("true");
+
+  await press(listbox()!, "ArrowDown");
+  await press(listbox()!, "Enter");
+  expect(linkFleet).toHaveBeenCalledWith("chef", "g1");
+  // From a fleet the mode goes on, the keyboard still in the list, for the next wire.
+  expect(uiStore.getState().linking).toBe("chef");
+  expect(document.activeElement).toBe(listbox());
+  // Already wired: Enter adds nothing.
+  await press(listbox()!, "End");
+  await press(listbox()!, "Enter");
+  expect(linkFleet).toHaveBeenCalledTimes(1);
+
+  // Escape ends it, and gives the keyboard back to the fleet's Link.
+  await press(listbox()!, "Escape");
+  expect(uiStore.getState().linking).toBeNull();
+  expect(document.activeElement).toBe(document.getElementById("finish"));
+  await act(async () => canvasStore.setState({ api: null, frames: [], links: {} }));
+});
+
+it("links a target clicked in the list, a click the canvas layer under it never sees (P1-9)", async () => {
+  mockIPC(() => undefined);
+  vi.mocked(linkFleet).mockClear();
+  vi.mocked(linkAgents).mockClear();
+  await terminal("batman", "claude");
+  await terminal("cyborg", "claude");
+  const scene = [at("terminal", "batman", 400, 400), at("terminal", "cyborg", 1600, 400)];
+  await act(async () => {
+    uiStore.setState({ linking: null });
+    canvasStore.setState({ api: { getSceneElements: () => scene } as never, view: EMPTY_VIEW, frames: [], links: {} });
+  });
+  await act(async () => uiStore.setState({ linking: "batman" }));
+  await act(async () => options()[0].click());
+  expect(linkAgents).toHaveBeenCalledTimes(1);
+  expect(linkAgents).toHaveBeenCalledWith("batman", "cyborg");
+  await act(async () => canvasStore.setState({ api: null, links: {} }));
+});
+
 it("ends on Escape even from a Link button whose foot keeps every key from bubbling", async () => {
   const foot = document.createElement("footer");
   foot.addEventListener("keydown", (e) => e.stopPropagation());

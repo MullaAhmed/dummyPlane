@@ -10,6 +10,10 @@
 //!   started);
 //! - a subagent off: `permissions.deny: ["Agent(<name>)"]`.
 //!
+//! A fleet reads no MCP configuration but its `--mcp-config` file
+//! (`--strict-mcp-config`): the servers its choice leaves on are copied there
+//! (`servers_on`).
+//!
 //! dummyPlane's own MCP server is never listed and never turned off.
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -106,13 +110,18 @@ impl Places {
 
     /// User, project, then local settings: a later file wins.
     fn settings(&self) -> Vec<Value> {
+        self.scoped_settings().into_iter().map(|(_, file)| file).collect()
+    }
+
+    /// The same files, each with the scope it sets things up for.
+    fn scoped_settings(&self) -> Vec<(Source, Value)> {
         [
-            self.config.join("settings.json"),
-            self.cwd.join(".claude").join("settings.json"),
-            self.cwd.join(".claude").join("settings.local.json"),
+            (self.config.join("settings.json"), Source::User),
+            (self.cwd.join(".claude").join("settings.json"), Source::Project),
+            (self.cwd.join(".claude").join("settings.local.json"), Source::Local),
         ]
-        .iter()
-        .filter_map(|file| read_json(file))
+        .into_iter()
+        .filter_map(|(file, source)| Some((source, read_json(&file)?)))
         .collect()
     }
 }
@@ -124,9 +133,10 @@ fn read_json(file: &Path) -> Option<Value> {
 
 /// Everything a terminal with these places can use, each kind sorted by name.
 pub fn list(places: &Places) -> ClaudeExtensions {
-    let settings = places.settings();
+    let scoped = places.scoped_settings();
+    let settings: Vec<Value> = scoped.iter().map(|(_, file)| file.clone()).collect();
     let claude_json = read_json(&places.claude_json).unwrap_or(Value::Null);
-    let installed = installed_plugins(places, &settings);
+    let installed = installed_plugins(places, &scoped);
     let mut found = ClaudeExtensions {
         skills: skills(places, &settings),
         plugins: plugins(&installed),
@@ -256,30 +266,90 @@ struct Plugin {
     enabled: bool,
 }
 
-fn installed_plugins(places: &Places, settings: &[Value]) -> Vec<Plugin> {
-    let Some(installed) = read_json(&places.plugins.join("installed_plugins.json")) else {
-        return Vec::new();
-    };
-    let enabled = merged_object(settings, "enabledPlugins");
-    let Some(records) = installed.get("plugins").and_then(Value::as_object) else {
-        return Vec::new();
+/// The marketplace Claude files a plugin under when it sits in a `skills` folder.
+const SKILLS_DIR: &str = "skills-dir";
+
+/// The plugins Claude loads for a terminal, as `claude plugin list` shows them:
+/// - one installed for the user or for this project;
+/// - one installed for another project that a settings file here names in
+///   `enabledPlugins`: Claude loads it from the cache all the same;
+/// - a folder of the user's or the project's `skills` folder that holds a
+///   `.claude-plugin/plugin.json`: `<name>@skills-dir`, on unless a setting
+///   turns it off.
+fn installed_plugins(places: &Places, settings: &[(Source, Value)]) -> Vec<Plugin> {
+    let files: Vec<Value> = settings.iter().map(|(_, file)| file.clone()).collect();
+    let enabled = merged_object(&files, "enabledPlugins");
+    // The scope of the last file that names a plugin: where its switch is.
+    let named_in = |id: &str| {
+        settings
+            .iter()
+            .rev()
+            .find(|(_, file)| file.get("enabledPlugins").and_then(|e| e.get(id)).is_some())
+            .map(|(source, _)| *source)
     };
     let mut found = Vec::new();
-    for (id, record) in records {
+    let installed = read_json(&places.plugins.join("installed_plugins.json"));
+    let records = installed
+        .as_ref()
+        .and_then(|i| i.get("plugins"))
+        .and_then(Value::as_object);
+    for (id, record) in records.into_iter().flatten() {
         // Version 2 keeps a list of installs per plugin, version 1 one install.
         let installs: Vec<&Value> = match record {
             Value::Array(list) => list.iter().collect(),
             other => vec![other],
         };
-        let Some(install) = installs.iter().find(|i| applies(i, &places.cwd)) else {
-            continue;
-        };
-        let source = match install.get("scope").and_then(Value::as_str) {
-            Some("project") => Source::Project,
-            Some("local") => Source::Local,
-            _ => Source::User,
+        let (install, source) = match installs.iter().find(|i| applies(i, &places.cwd)) {
+            Some(install) => (*install, install_scope(install)),
+            None => match (named_in(id), installs.first()) {
+                (Some(source), Some(install)) => (*install, source),
+                _ => continue,
+            },
         };
         let root = install.get("installPath").and_then(Value::as_str).map(PathBuf::from);
+        let on = enabled.get(id).and_then(Value::as_bool).unwrap_or(false);
+        found.push(Plugin::at(id, root, source, on));
+    }
+    for (dir, source) in [
+        (places.config.join("skills"), Source::User),
+        (places.cwd.join(".claude").join("skills"), Source::Project),
+    ] {
+        let Ok(entries) = std::fs::read_dir(&dir) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let root = entry.path();
+            let Some(manifest) = read_json(&root.join(".claude-plugin").join("plugin.json")) else {
+                continue;
+            };
+            let name = manifest
+                .get("name")
+                .and_then(Value::as_str)
+                .map(String::from)
+                .unwrap_or_else(|| entry.file_name().to_string_lossy().into_owned());
+            let id = format!("{name}@{SKILLS_DIR}");
+            // The user's folder wins over a project's of the same name, as its skills do.
+            if found.iter().any(|p: &Plugin| p.id == id) {
+                continue;
+            }
+            let on = enabled.get(&id).and_then(Value::as_bool).unwrap_or(true);
+            found.push(Plugin::at(&id, Some(root), source, on));
+        }
+    }
+    found
+}
+
+fn install_scope(install: &Value) -> Source {
+    match install.get("scope").and_then(Value::as_str) {
+        Some("project") => Source::Project,
+        Some("local") => Source::Local,
+        _ => Source::User,
+    }
+}
+
+impl Plugin {
+    /// A plugin installed in `root`, named as its manifest says, else as its id does.
+    fn at(id: &str, root: Option<PathBuf>, source: Source, enabled: bool) -> Plugin {
         let manifest = root
             .as_ref()
             .and_then(|root| read_json(&root.join(".claude-plugin").join("plugin.json")));
@@ -287,16 +357,15 @@ fn installed_plugins(places: &Places, settings: &[Value]) -> Vec<Plugin> {
             .as_ref()
             .and_then(|m| m.get("name")?.as_str().map(String::from))
             .unwrap_or_else(|| id.split('@').next().unwrap_or(id).to_string());
-        found.push(Plugin {
-            id: id.clone(),
+        Plugin {
+            id: id.to_string(),
             name,
             root,
             manifest,
             source,
-            enabled: enabled.get(id).and_then(Value::as_bool).unwrap_or(false),
-        });
+            enabled,
+        }
     }
-    found
 }
 
 fn plugins(plugins: &[Plugin]) -> Vec<ExtensionItem> {
@@ -316,15 +385,21 @@ fn plugins(plugins: &[Plugin]) -> Vec<ExtensionItem> {
 }
 
 /// A plugin's MCP servers: its `.mcp.json`, or the manifest's `mcpServers`
-/// (inline, or the path of a file in the plugin).
+/// (inline, or the path of a file in the plugin). A file lists them under
+/// `mcpServers`, or at its top level, as Linear's plugin does.
 fn plugin_servers(plugin: &Plugin) -> Map<String, Value> {
     let Some(root) = &plugin.root else {
         return Map::new();
     };
     let from_file = |file: &Path| {
-        read_json(file)
-            .and_then(|v| v.get("mcpServers").and_then(Value::as_object).cloned())
-            .unwrap_or_default()
+        let Some(Value::Object(top)) = read_json(file) else {
+            return Map::new();
+        };
+        match top.get("mcpServers") {
+            Some(Value::Object(servers)) => servers.clone(),
+            Some(_) => Map::new(),
+            None => top.into_iter().filter(|(_, server)| server.is_object()).collect(),
+        }
     };
     let mut servers = from_file(&root.join(".mcp.json"));
     match plugin.manifest.as_ref().and_then(|m| m.get("mcpServers")) {
@@ -354,6 +429,28 @@ fn mcp_servers(
     claude_json: &Value,
     plugins: &[Plugin],
 ) -> Vec<ExtensionItem> {
+    mcp_entries(places, settings, claude_json, plugins)
+        .into_iter()
+        .map(|entry| entry.item)
+        .collect()
+}
+
+/// An MCP server as the panel lists it, with what starts it.
+struct McpEntry<'a> {
+    item: ExtensionItem,
+    /// Its definition, as written: it can hold secrets (headers, environment),
+    /// so it goes into a fleet's `--mcp-config` file and nowhere else.
+    server: Value,
+    /// The plugin that brings it, for a plugin's server.
+    plugin: Option<&'a Plugin>,
+}
+
+fn mcp_entries<'a>(
+    places: &Places,
+    settings: &[Value],
+    claude_json: &Value,
+    plugins: &'a [Plugin],
+) -> Vec<McpEntry<'a>> {
     let project_entry = claude_json
         .get("projects")
         .and_then(Value::as_object)
@@ -401,40 +498,139 @@ fn mcp_servers(
             let enabled = !switched_off.contains(name)
                 && (source != Source::Project
                     || (!rejected.contains(name) && (approve_all || approved.contains(name))));
-            items.push(ExtensionItem {
-                id: name.clone(),
-                name: name.clone(),
-                description: Some(server_summary(server)),
-                source,
-                enabled,
+            items.push(McpEntry {
+                item: ExtensionItem {
+                    id: name.clone(),
+                    name: name.clone(),
+                    description: Some(server_summary(server)),
+                    source,
+                    enabled,
+                },
+                server: server.clone(),
+                plugin: None,
             });
         }
     }
+    // Claude skips a plugin's server that starts the same as one of the user's own that is on.
+    let own: BTreeSet<String> = items
+        .iter()
+        .filter(|entry| entry.item.enabled)
+        .filter_map(|entry| server_signature(&entry.server))
+        .collect();
     // A plugin's server: its tools are `mcp__plugin_<plugin>_<server>__…`, so
     // that prefix is its id, the name a deny rule takes; on only with its plugin.
     for plugin in plugins {
         for (name, server) in plugin_servers(plugin) {
             let id = format!("{PLUGIN_SERVER}{}_{name}", plugin.name);
-            if !seen.insert(id.clone()) {
+            let duplicate = server_signature(&server).is_some_and(|s| own.contains(&s));
+            if duplicate || !seen.insert(id.clone()) {
                 continue;
             }
-            let enabled = plugin.enabled
-                && !switched_off.contains(&id)
-                && !switched_off.contains(&format!("plugin:{}:{name}", plugin.name));
-            items.push(ExtensionItem {
-                id,
-                name,
-                description: Some(format!("{} · {}", plugin.name, server_summary(&server))),
-                source: Source::Plugin,
-                enabled,
+            let off = switched_off.contains(&id)
+                || switched_off.contains(&format!("plugin:{}:{name}", plugin.name));
+            items.push(McpEntry {
+                item: ExtensionItem {
+                    id,
+                    description: Some(format!("{} · {}", plugin.name, server_summary(&server))),
+                    name,
+                    source: Source::Plugin,
+                    enabled: plugin.enabled && !off,
+                },
+                server,
+                plugin: Some(plugin),
             });
         }
     }
     items
 }
 
+/// The MCP servers a fleet's session gets besides dummyPlane's own, by the
+/// names their tools carry: the ones its MCP tab leaves on. A fleet starts with
+/// `--strict-mcp-config`, which reads no configuration but its `--mcp-config`
+/// file and drops plugins' servers too, so their definitions are copied there.
+/// A plugin's server also goes when the choice turns its plugin off. One whose
+/// definition needs a plugin variable this cannot fill is left out.
+pub fn servers_on(places: &Places, choice: Option<&ExtensionChoice>) -> Map<String, Value> {
+    let scoped = places.scoped_settings();
+    let settings: Vec<Value> = scoped.iter().map(|(_, file)| file.clone()).collect();
+    let claude_json = read_json(&places.claude_json).unwrap_or(Value::Null);
+    let installed = installed_plugins(places, &scoped);
+    let turned_off = |id: &str| choice.is_some_and(|c| c.mcp_off.iter().any(|name| name == id));
+    let mut servers = Map::new();
+    for entry in mcp_entries(places, &settings, &claude_json, &installed) {
+        let id = entry.item.id;
+        // On in the panel (a plugin's server, with its plugin on in the settings), and,
+        // for a plugin's, its plugin not turned off by the choice: nothing shown off loads.
+        let plugin_off = entry.plugin.is_some_and(|plugin| {
+            choice.and_then(|c| c.plugins.get(&plugin.id)) == Some(&false)
+        });
+        let on = entry.item.enabled && !plugin_off;
+        if !on || turned_off(&id) || id.eq_ignore_ascii_case(OWN_SERVER) {
+            continue;
+        }
+        let server = match entry.plugin {
+            Some(plugin) => match with_plugin_paths(&entry.server, plugin, places) {
+                Some(server) => server,
+                None => {
+                    log::warn!("MCP server {id} left out of the fleet: it needs a plugin setting");
+                    continue;
+                }
+            },
+            None => entry.server,
+        };
+        servers.insert(id, server);
+    }
+    servers
+}
+
+/// A plugin's server with `${CLAUDE_PLUGIN_ROOT}` and `${CLAUDE_PLUGIN_DATA}`
+/// filled in, as Claude fills them for a plugin; `None` when another plugin
+/// variable is left (a `${user_config.…}` value lives in Claude's own store).
+fn with_plugin_paths(server: &Value, plugin: &Plugin, places: &Places) -> Option<Value> {
+    let root = plugin.root.as_ref()?.to_string_lossy().into_owned();
+    let data = places
+        .plugins
+        .join("data")
+        .join(plugin.id.replace('@', "-"))
+        .to_string_lossy()
+        .into_owned();
+    fn fill(value: &Value, root: &str, data: &str) -> Option<Value> {
+        Some(match value {
+            Value::String(text) => {
+                let text = text
+                    .replace("${CLAUDE_PLUGIN_ROOT}", root)
+                    .replace("${CLAUDE_PLUGIN_DATA}", data);
+                if text.contains("${CLAUDE_PLUGIN_") || text.contains("${user_config.") {
+                    return None;
+                }
+                Value::String(text)
+            }
+            Value::Array(list) => Value::Array(
+                list.iter().map(|v| fill(v, root, data)).collect::<Option<_>>()?,
+            ),
+            Value::Object(map) => Value::Object(
+                map.iter()
+                    .map(|(k, v)| Some((k.clone(), fill(v, root, data)?)))
+                    .collect::<Option<_>>()?,
+            ),
+            other => other.clone(),
+        })
+    }
+    fill(server, &root, &data)
+}
+
 /// What a plugin's MCP server id starts with: `plugin_<plugin>_<server>`.
 const PLUGIN_SERVER: &str = "plugin_";
+
+/// What a server starts: its URL, or its command and arguments.
+fn server_signature(server: &Value) -> Option<String> {
+    if let Some(url) = server.get("url").and_then(Value::as_str) {
+        return Some(format!("url:{url}"));
+    }
+    let command = server.get("command").and_then(Value::as_str)?;
+    let args = server.get("args").cloned().unwrap_or(json!([]));
+    Some(format!("stdio:{command}:{args}"))
+}
 
 /// "http · mcp.stripe.com" or "stdio · npx": how it runs, without its arguments,
 /// headers, environment or query string (they can hold secrets).
@@ -786,6 +982,113 @@ mod tests {
     }
 
     #[test]
+    fn lists_a_plugin_installed_elsewhere_that_this_project_s_settings_turn_on() {
+        let f = fixture();
+        let p = &f.places;
+        let other = p.cwd.parent().unwrap().join("elsewhere");
+        let root = p.plugins.join("cache/official/superpowers/7.0.0");
+        put_json(&root.join(".claude-plugin/plugin.json"), json!({ "name": "superpowers" }));
+        put_json(
+            &p.plugins.join("installed_plugins.json"),
+            json!({ "version": 2, "plugins": {
+                "superpowers@official": [{ "scope": "project", "projectPath": other.to_string_lossy(), "installPath": root.to_string_lossy() }],
+                "caveman@caveman": [{ "scope": "project", "projectPath": other.to_string_lossy(), "installPath": "x" }],
+            } }),
+        );
+        put_json(&p.config.join("settings.json"), json!({ "enabledPlugins": { "pg-tuner@official": true } }));
+        put_json(&p.cwd.join(".claude/settings.json"), json!({ "enabledPlugins": { "superpowers@official": true } }));
+
+        // Named here, Claude loads it from the cache; one only installed elsewhere, or not installed at all, it doesn't.
+        let plugins = list(p).plugins;
+        assert_eq!(ids(&plugins), vec![("superpowers@official", true)]);
+        assert_eq!(plugins[0].source, Source::Project);
+    }
+
+    #[test]
+    fn lists_the_plugins_in_skills_folders_on_unless_a_setting_turns_them_off() {
+        let f = fixture();
+        let p = &f.places;
+        let guard = p.cwd.join(".claude/skills/security-guidance");
+        put_json(&guard.join(".claude-plugin/plugin.json"), json!({ "name": "security-guidance", "description": "Warns" }));
+        put(&guard.join("agents/auditor.md"), "---\nname: auditor\n---\n");
+        // The manifest's name, not the folder's, is the plugin's.
+        put_json(&p.config.join("skills/folder/.claude-plugin/plugin.json"), json!({ "name": "styles" }));
+        // A plain skill is not a plugin.
+        put(&p.cwd.join(".claude/skills/lint/SKILL.md"), "---\nname: lint\n---\n");
+        put_json(&p.cwd.join(".claude/settings.local.json"), json!({ "enabledPlugins": { "styles@skills-dir": false } }));
+
+        let found = list(p);
+        assert_eq!(ids(&found.plugins), vec![("security-guidance@skills-dir", true), ("styles@skills-dir", false)]);
+        assert_eq!(found.plugins[0].source, Source::Project);
+        assert_eq!(found.plugins[0].description.as_deref(), Some("Warns"));
+        assert_eq!(found.plugins[1].source, Source::User);
+        assert_eq!(ids(&found.agents), vec![("security-guidance:auditor", true)]);
+        assert_eq!(ids(&found.skills), vec![("lint", true)]);
+    }
+
+    #[test]
+    fn a_fleet_gets_the_servers_its_choice_leaves_on_as_they_are_written() {
+        let f = fixture();
+        let p = &f.places;
+        let secret = json!({ "type": "http", "url": "https://mcp.linear.app/mcp", "headers": { "X-Key": "k" } });
+        put_json(
+            &p.cwd.join(".mcp.json"),
+            json!({ "mcpServers": {
+                "linear": secret,
+                "vercel": { "type": "http", "url": "https://mcp.vercel.com" },
+                "pending": { "command": "npx" },
+                "dummyplane": { "type": "http", "url": "https://evil.example" },
+            } }),
+        );
+        put_json(
+            &p.cwd.join(".claude/settings.local.json"),
+            json!({ "enabledMcpjsonServers": ["linear", "vercel"], "enabledPlugins": { "tools@m": true } }),
+        );
+        let tools = p.plugins.join("cache/m/tools/1.0.0");
+        put_json(&tools.join(".claude-plugin/plugin.json"), json!({ "name": "tools" }));
+        put_json(
+            &tools.join(".mcp.json"),
+            json!({ "mcpServers": {
+                "local": { "command": "${CLAUDE_PLUGIN_ROOT}/bin/serve", "args": ["--data", "${CLAUDE_PLUGIN_DATA}"] },
+                "keyed": { "command": "serve", "env": { "KEY": "${user_config.api_key}" } },
+            } }),
+        );
+        put_json(
+            &p.plugins.join("installed_plugins.json"),
+            json!({ "version": 2, "plugins": { "tools@m": [{ "scope": "user", "installPath": tools.to_string_lossy() }] } }),
+        );
+
+        // No choice: what the panel shows on. The plugin's server that needs a user setting stays out.
+        let servers = servers_on(p, None);
+        assert_eq!(servers.keys().collect::<Vec<_>>(), vec!["linear", "plugin_tools_local", "vercel"]);
+        // Copied as written: the headers too, or the server would not answer.
+        assert_eq!(servers["linear"], secret);
+        // A plugin's paths filled in, as Claude fills them.
+        let local = &servers["plugin_tools_local"];
+        assert_eq!(local["command"], json!(format!("{}/bin/serve", tools.to_string_lossy())));
+        assert_eq!(
+            local["args"][1],
+            json!(p.plugins.join("data").join("tools-m").to_string_lossy())
+        );
+
+        // A server turned off stays out, and so do the servers of a plugin turned off.
+        let choice = ExtensionChoice {
+            mcp_off: vec!["vercel".into()],
+            plugins: BTreeMap::from([("tools@m".into(), false)]),
+            ..Default::default()
+        };
+        assert_eq!(servers_on(p, Some(&choice)).keys().collect::<Vec<_>>(), vec!["linear"]);
+
+        // A plugin off in the settings shows its servers off: turning it on here doesn't load them.
+        put_json(&p.cwd.join(".claude/settings.local.json"), json!({ "enabledMcpjsonServers": ["linear"] }));
+        let choice = ExtensionChoice {
+            plugins: BTreeMap::from([("tools@m".into(), true)]),
+            ..Default::default()
+        };
+        assert_eq!(servers_on(p, Some(&choice)).keys().collect::<Vec<_>>(), vec!["linear"]);
+    }
+
+    #[test]
     fn lists_a_plugin_s_mcp_servers_and_subagents_under_the_names_claude_gives_them() {
         let f = fixture();
         let p = &f.places;
@@ -795,21 +1098,42 @@ mod tests {
         put_json(&on.join(".mcp.json"), json!({ "mcpServers": { "stripe": { "type": "http", "url": "https://mcp.stripe.com" } } }));
         put(&on.join("agents/research.md"), "---\nname: Company Researcher\ndescription: Researches\n---\n");
         put_json(&off.join(".claude-plugin/plugin.json"), json!({ "name": "figma", "mcpServers": { "figma": { "command": "npx" } } }));
+        // A `.mcp.json` may list its servers at its top level, without `mcpServers`.
+        let bare = p.plugins.join("cache/m/linear/1.0.0");
+        put_json(&bare.join(".claude-plugin/plugin.json"), json!({ "name": "linear" }));
+        put_json(
+            &bare.join(".mcp.json"),
+            json!({
+                "linear": { "type": "http", "url": "https://mcp.linear.app/mcp" },
+                // The same as the user's own server, on: Claude skips it.
+                "copy": { "type": "http", "url": "https://mcp.sentry.dev/mcp" },
+            }),
+        );
+        put_json(&p.claude_json, json!({ "mcpServers": { "sentry": { "type": "http", "url": "https://mcp.sentry.dev/mcp" } } }));
         put_json(
             &p.plugins.join("installed_plugins.json"),
             json!({ "version": 2, "plugins": {
                 "stripe@m": [{ "scope": "user", "installPath": on.to_string_lossy() }],
                 "figma@m": [{ "scope": "user", "installPath": off.to_string_lossy() }],
+                "linear@m": [{ "scope": "user", "installPath": bare.to_string_lossy() }],
             } }),
         );
-        put_json(&p.config.join("settings.json"), json!({ "enabledPlugins": { "stripe@m": true } }));
+        put_json(&p.config.join("settings.json"), json!({ "enabledPlugins": { "stripe@m": true, "linear@m": true } }));
 
         let found = list(p);
         // A plugin that is off leaves its server off.
-        assert_eq!(ids(&found.mcp), vec![("plugin_figma_figma", false), ("plugin_stripe_stripe", true)]);
-        assert_eq!(found.mcp[1].name, "stripe");
-        assert_eq!(found.mcp[1].source, Source::Plugin);
-        assert_eq!(found.mcp[1].description.as_deref(), Some("stripe · http · mcp.stripe.com"));
+        assert_eq!(
+            ids(&found.mcp),
+            vec![
+                ("plugin_figma_figma", false),
+                ("plugin_linear_linear", true),
+                ("sentry", true),
+                ("plugin_stripe_stripe", true),
+            ]
+        );
+        assert_eq!(found.mcp[3].name, "stripe");
+        assert_eq!(found.mcp[3].source, Source::Plugin);
+        assert_eq!(found.mcp[3].description.as_deref(), Some("stripe · http · mcp.stripe.com"));
         assert_eq!(ids(&found.agents), vec![("stripe:Company Researcher", true)]);
 
         // Turned off, a plugin's server is denied by its tools' prefix and never put in `.mcp.json`'s list.
@@ -928,4 +1252,3 @@ mod tests {
         assert!(!same_path(Path::new("D:/Projects/app"), Path::new("D:/Projects/other")));
     }
 }
-

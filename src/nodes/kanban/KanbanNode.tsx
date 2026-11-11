@@ -10,6 +10,10 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuShortcut,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
@@ -17,6 +21,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useMessages } from "@/i18n";
+import { AGENTS } from "@/agents/catalog";
 import {
   addCard,
   addColumn,
@@ -32,11 +37,12 @@ import {
 } from "@/kanban/board";
 import { kanbanWidth } from "@/kanban/width";
 import { canvasStore, useCanvas } from "@/canvas/canvasStore";
-import { endCardDrag, startCardDrag } from "@/kanban/dropOnTerminal";
+import { nodeKindOf } from "@/canvas/nodeElement";
+import { endCardDrag, sendCardToTerminal, startCardDrag } from "@/kanban/dropOnTerminal";
 import { createIssueForCard, detectRepo, linkBoard, moveCardWithGithub, parseProject, syncBoard } from "@/kanban/github";
 import { useNativeKeyDown } from "@/lib/useNativeKeyDown";
 import { AccentButton, Hint, HintedButton, IconButton, QuietButton } from "@/shell/buttons";
-import { nodesStore, useNodes } from "@/store/nodes";
+import { nodesStore, terminalOf, useNodes } from "@/store/nodes";
 import { KANBAN_PRIORITIES, type KanbanBoardLink, type KanbanCard, type KanbanColumn, type KanbanPayload, type KanbanPriority } from "@/nodes/types";
 import { KANBAN_CARD_MIME } from "./drag";
 import { kanbanNodeMessages } from "./messages";
@@ -69,10 +75,28 @@ function Tag({ hint, ...props }: ComponentProps<"span"> & { hint?: string }) {
 const CHOICE =
   "h-7 min-w-0 gap-1.5 rounded-md border border-dp-line px-2 text-xs font-normal text-dp-text-2 transition-[color,background-color,border-color,scale] duration-(--dp-dur-fast) ease-(--dp-ease-out) motion-reduce:transition-none hover:bg-dp-hover hover:text-dp-text focus-visible:ring-2 focus-visible:ring-dp-accent/70 active:scale-[0.97] data-[state=on]:border-dp-accent data-[state=on]:bg-dp-accent-soft data-[state=on]:text-dp-text";
 
-/** Where a dragged card would land. */
+/** Where a dragged card would land; where a card moved from the keyboard lands. */
 interface DropSpot {
   columnId: string;
   index: number;
+}
+
+/** The keyboard's alternative to a drag (WCAG 2.5.7): Alt and an arrow move the card a column or a place. */
+export type CardStep = "left" | "right" | "up" | "down";
+
+const STEP_KEYS: Record<string, CardStep> = { ArrowLeft: "left", ArrowRight: "right", ArrowUp: "up", ArrowDown: "down" };
+
+/** The terminals of the canvas the board is on: where a drop could send a card. */
+function sceneTerminals(): { id: string; name: string }[] {
+  const elements = canvasStore.getState().api?.getSceneElements() ?? [];
+  const nodes = nodesStore.getState().nodes;
+  return elements
+    .filter((e) => !e.isDeleted && nodeKindOf(e) === "terminal")
+    .flatMap((e) => {
+      const payload = terminalOf(nodes[e.id]);
+      return payload ? [{ id: e.id, name: payload.name || payload.title || AGENTS[payload.agent].label }] : [];
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 /** The board as it is now, read when acting rather than when rendered. */
@@ -110,7 +134,21 @@ export function KanbanNode({ nodeId }: { nodeId: string }) {
   const [spot, setSpot] = useState<DropSpot | null>(null);
   const [linking, setLinking] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  // A card moved from the keyboard keeps it: it is focused again where it lands (a GitHub-linked one lands later).
+  const [landing, setLanding] = useState<(DropSpot & { cardId: string }) | null>(null);
+  const [announcement, setAnnouncement] = useState("");
+  const rootRef = useRef<HTMLDivElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
+
+  const landedColumn = record?.kind === "kanban" && landing ? record.payload.columns.find((c) => c.id === landing.columnId) : undefined;
+  const landed = landing !== null && landedColumn?.cardIds[landing.index] === landing.cardId;
+  useEffect(() => {
+    if (!landing || !landed) return;
+    const column = [...(rootRef.current?.querySelectorAll<HTMLElement>("[data-column-id]") ?? [])].find((c) => c.dataset.columnId === landing.columnId);
+    const card = [...(column?.querySelectorAll<HTMLElement>("[data-card-id]") ?? [])].find((c) => c.dataset.cardId === landing.cardId);
+    card?.querySelector<HTMLElement>("[data-card-open]")?.focus();
+    setLanding(null);
+  }, [landing, landed]);
 
   // The wheel scrolls the board, not the canvas (Excalidraw listens below React's root).
   useEffect(() => {
@@ -191,11 +229,37 @@ export function KanbanNode({ nodeId }: { nodeId: string }) {
     setSpot(null);
   };
 
+  /** A move from the card's menu or its keys (no index: the column's end): it keeps the keyboard and says where it went. */
+  const moveCardTo = (cardId: string, columnId: string, index?: number) => {
+    const column = currentBoard(nodeId)?.columns.find((c) => c.id === columnId);
+    if (!column) return;
+    const others = column.cardIds.filter((id) => id !== cardId).length;
+    const at = index === undefined ? others : Math.max(0, Math.min(index, others));
+    setLanding({ cardId, columnId, index: at });
+    setAnnouncement(t.card.moved(column.title, at + 1, others + 1));
+    void moveCardWithGithub(nodeId, cardId, columnId, at);
+  };
+
+  const stepCard = (cardId: string, step: CardStep) => {
+    const columns = currentBoard(nodeId)?.columns ?? [];
+    const from = columns.findIndex((c) => c.cardIds.includes(cardId));
+    if (from < 0) return;
+    const index = columns[from].cardIds.indexOf(cardId);
+    if (step === "left" && from > 0) moveCardTo(cardId, columns[from - 1].id);
+    if (step === "right" && from < columns.length - 1) moveCardTo(cardId, columns[from + 1].id);
+    if (step === "up" && index > 0) moveCardTo(cardId, columns[from].id, index - 1);
+    if (step === "down" && index < columns[from].cardIds.length - 1) moveCardTo(cardId, columns[from].id, index + 1);
+  };
+
   const editedCard = editing?.mode === "edit" ? board.cards[editing.cardId] : undefined;
   const editedColumn = editing?.mode === "new" ? board.columns.find((c) => c.id === editing.columnId) : undefined;
 
   return (
-    <div data-kanban={nodeId} className="flex h-full flex-col overflow-hidden rounded-xl border border-dp-line bg-dp-surface text-dp-text">
+    <div ref={rootRef} data-kanban={nodeId} className="flex h-full flex-col overflow-hidden rounded-xl border border-dp-line bg-dp-surface text-dp-text">
+      {/* Mounted from the start: a live region that appears with its text is not announced. */}
+      <span role="status" className="sr-only">
+        {announcement}
+      </span>
       <header className="flex h-9 shrink-0 items-center gap-2 border-b border-dp-line px-3">
         <KanbanSquare className="size-4 shrink-0 text-dp-text-2" />
         <span className="truncate text-(length:--text-ui) font-medium text-dp-text">{t.title}</span>
@@ -261,6 +325,9 @@ export function KanbanNode({ nodeId }: { nodeId: string }) {
                 onRemove={() => commit(nodeId, (b) => removeColumn(b, column.id))}
                 onNewCard={() => setEditing({ mode: "new", columnId: column.id })}
                 onOpenCard={(cardId) => setEditing({ mode: "edit", cardId })}
+                columns={board.columns}
+                onMoveCard={moveCardTo}
+                onStepCard={stepCard}
                 dragged={dragged}
                 spot={spot?.columnId === column.id ? spot.index : null}
                 onCardDragStart={onCardDragStart}
@@ -424,6 +491,10 @@ interface ColumnViewProps {
   onRemove: () => void;
   onNewCard: () => void;
   onOpenCard: (cardId: string) => void;
+  /** Every column of the board, for a card's "Move to". */
+  columns: KanbanColumn[];
+  onMoveCard: (cardId: string, columnId: string, index?: number) => void;
+  onStepCard: (cardId: string, step: CardStep) => void;
   dragged: string | null;
   spot: number | null;
   onCardDragStart: (e: DragEvent, card: KanbanCard) => void;
@@ -482,16 +553,23 @@ function ColumnView(props: ColumnViewProps) {
         </span>
       </div>
       <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-2 pb-2">
-        {cards.map((card) => {
+        {cards.map((card, place) => {
           const index = shown.indexOf(card);
           return (
             <div key={card.id} className="contents">
               {spot !== null && index === spot && indicator}
               <CardView
                 t={t}
+                boardId={props.boardId}
                 card={card}
+                columnId={column.id}
+                columns={props.columns}
+                first={place === 0}
+                last={place === cards.length - 1}
                 dragging={card.id === dragged}
                 onOpen={() => props.onOpenCard(card.id)}
+                onMove={(columnId, at) => props.onMoveCard(card.id, columnId, at)}
+                onStep={(step) => props.onStepCard(card.id, step)}
                 onDragStart={(e) => props.onCardDragStart(e, card)}
                 onDragEnd={props.onCardDragEnd}
               />
@@ -513,37 +591,77 @@ function ColumnView(props: ColumnViewProps) {
   );
 }
 
+/** The keys a card's button answers, besides Enter and Space that open it. */
+const CARD_KEYS = "Alt+ArrowLeft Alt+ArrowRight Alt+ArrowUp Alt+ArrowDown";
+
 function CardView({
   t,
+  boardId,
   card,
+  columnId,
+  columns,
+  first,
+  last,
   dragging,
   onOpen,
+  onMove,
+  onStep,
   onDragStart,
   onDragEnd,
 }: {
   t: Messages;
+  boardId: string;
   card: KanbanCard;
+  columnId: string;
+  columns: KanbanColumn[];
+  first: boolean;
+  last: boolean;
   dragging: boolean;
   onOpen: () => void;
+  onMove: (columnId: string, index?: number) => void;
+  onStep: (step: CardStep) => void;
   onDragStart: (e: DragEvent) => void;
   onDragEnd: () => void;
 }) {
   const overdue = card.due !== undefined && dueState(card.due) === "overdue";
+  const button = useRef<HTMLButtonElement>(null);
+  // Its keys stop at the button (useNativeKeyDown): Excalidraw would nudge the node on an arrow, delete it on Backspace.
+  useNativeKeyDown(button, (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      onOpen();
+      return;
+    }
+    const step = STEP_KEYS[e.key];
+    if (!step || !e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+    // Alt+Left is the webview's Back as well.
+    e.preventDefault();
+    onStep(step);
+  });
   return (
+    // The pointer opens and drags the whole card; the keyboard reaches its button, whose focus rings the card.
     <div
       data-card-id={card.id}
-      role="button"
-      tabIndex={0}
       draggable
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onClick={onOpen}
       className={cn(
-        "relative shrink-0 cursor-grab overflow-hidden active:cursor-grabbing rounded-md border border-dp-line bg-dp-card px-3 py-2 text-left text-dp-text shadow-dp transition-[border-color,opacity] duration-(--dp-dur-fast) ease-(--dp-ease-out) hover:border-dp-text-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/70 motion-reduce:transition-none",
+        "group/card relative shrink-0 cursor-grab overflow-hidden active:cursor-grabbing rounded-md border border-dp-line bg-dp-card px-3 py-2 text-left text-dp-text shadow-dp transition-[border-color,opacity] duration-(--dp-dur-fast) ease-(--dp-ease-out) hover:border-dp-text-3 has-[[data-card-open]:focus-visible]:ring-2 has-[[data-card-open]:focus-visible]:ring-dp-accent/70 motion-reduce:transition-none",
         dragging && "opacity-40",
       )}
     >
-      <p className="text-(length:--text-ui) leading-snug font-medium break-words text-dp-text">{card.title}</p>
+      <button
+        ref={button}
+        type="button"
+        data-card-open
+        aria-keyshortcuts={CARD_KEYS}
+        // Under the pointer it is the card: a drag still starts on the card, a click still opens it.
+        className="pointer-events-none block w-full pr-6 text-left text-(length:--text-ui) leading-snug font-medium break-words text-dp-text focus-visible:outline-none"
+      >
+        {card.title}
+      </button>
+      <CardMenu t={t} boardId={boardId} cardId={card.id} columnId={columnId} columns={columns} first={first} last={last} focusCard={() => button.current?.focus()} onMove={onMove} onStep={onStep} />
       {(card.priority !== "none" || card.due || card.github || card.agent) && (
         <div className="mt-2 flex flex-wrap gap-1">
           {/* The priority, as the dialog shows it: its dot and its word, no coloured stripe down the card. */}
@@ -592,6 +710,109 @@ function CardView({
       {card.notes.trim() && <p className="mt-1 line-clamp-2 text-xs leading-snug text-dp-text-2">{card.notes}</p>}
     </div>
   );
+}
+
+/**
+ * A card's "⋯": what a drag does, without one (WCAG 2.5.7). It moves the card to another column or a place
+ * up or down, or sends it to a terminal of the canvas, as a drop on that terminal does.
+ */
+function CardMenu({
+  t,
+  boardId,
+  cardId,
+  columnId,
+  columns,
+  first,
+  last,
+  focusCard,
+  onMove,
+  onStep,
+}: {
+  t: Messages;
+  boardId: string;
+  cardId: string;
+  columnId: string;
+  columns: KanbanColumn[];
+  first: boolean;
+  last: boolean;
+  focusCard: () => void;
+  onMove: (columnId: string) => void;
+  onStep: (step: CardStep) => void;
+}) {
+  // After a move the keyboard goes back to the card, not to this button: the board focuses it where it lands.
+  const moved = useRef(false);
+  const move = (run: () => void) => () => {
+    moved.current = true;
+    run();
+  };
+  const here = columns.findIndex((c) => c.id === columnId);
+  const keyOf = (index: number) => (index === here - 1 ? "Alt+←" : index === here + 1 ? "Alt+→" : null);
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <IconButton
+          label={t.card.menu}
+          onClick={(e) => e.stopPropagation()}
+          // Shown with the pointer on the card or the keyboard in it, at once.
+          className="absolute top-1.5 right-1.5 size-6 opacity-0 group-hover/card:opacity-100 group-focus-within/card:opacity-100 aria-expanded:opacity-100"
+        >
+          <MoreHorizontal />
+        </IconButton>
+      </DropdownMenuTrigger>
+      {/* Portalled, but its clicks still bubble through React to the card, which would open its dialog. */}
+      <DropdownMenuContent
+        align="end"
+        className="w-48"
+        onClick={(e) => e.stopPropagation()}
+        onCloseAutoFocus={(e) => {
+          if (!moved.current) return;
+          moved.current = false;
+          e.preventDefault();
+          focusCard();
+        }}
+      >
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger disabled={columns.length < 2}>{t.card.moveTo}</DropdownMenuSubTrigger>
+          <DropdownMenuSubContent className="w-48">
+            {columns.map((column, index) =>
+              column.id === columnId ? null : (
+                <DropdownMenuItem key={column.id} onSelect={move(() => onMove(column.id))}>
+                  <span className="min-w-0 truncate">{column.title}</span>
+                  {keyOf(index) && <DropdownMenuShortcut>{keyOf(index)}</DropdownMenuShortcut>}
+                </DropdownMenuItem>
+              ),
+            )}
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
+        <DropdownMenuItem disabled={first} onSelect={move(() => onStep("up"))}>
+          {t.card.moveUp}
+          <DropdownMenuShortcut>Alt+↑</DropdownMenuShortcut>
+        </DropdownMenuItem>
+        <DropdownMenuItem disabled={last} onSelect={move(() => onStep("down"))}>
+          {t.card.moveDown}
+          <DropdownMenuShortcut>Alt+↓</DropdownMenuShortcut>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger>{t.card.sendTo}</DropdownMenuSubTrigger>
+          <DropdownMenuSubContent className="max-h-72 w-56 overflow-y-auto">
+            <SendToItems t={t} boardId={boardId} cardId={cardId} />
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+/** The canvas's terminals, read when the submenu opens: sending types the card into one, as a drop on it does. */
+function SendToItems({ t, boardId, cardId }: { t: Messages; boardId: string; cardId: string }) {
+  const terminals = sceneTerminals();
+  if (terminals.length === 0) return <DropdownMenuItem disabled>{t.card.noTerminal}</DropdownMenuItem>;
+  return terminals.map((terminal) => (
+    <DropdownMenuItem key={terminal.id} onSelect={() => void sendCardToTerminal(boardId, cardId, terminal.id)}>
+      <span className="min-w-0 truncate">{terminal.name}</span>
+    </DropdownMenuItem>
+  ));
 }
 
 /** "28 Oct": the date of a YYYY-MM-DD, without its year. */

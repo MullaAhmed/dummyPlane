@@ -28,12 +28,13 @@ export function ActivityRail() {
   const codeOnScreen = useWorkspaces((s) => isCode(s.workspaces.find((w) => w.id === s.activeId)));
   return (
     <nav className="dp-glass absolute right-3 top-1/2 z-30 flex -translate-y-1/2 flex-col items-center gap-0.5 rounded-lg p-1">
-      <RailButton label={t.agents} active={open} onClick={() => setAgentsPanel(!open)}>
+      {/* Its name carries the pip's number: "Agents, 2 waiting" (WCAG 2.5.3 label in name). */}
+      <RailButton label={waiting > 0 ? t.agentsWaiting(waiting) : t.agents} active={open} onClick={() => setAgentsPanel(!open)}>
         <Users />
         {waiting > 0 && (
           <span
             data-pip
-            className="absolute right-0.5 top-0.5 min-w-3.5 rounded-full bg-dp-wait px-1 font-mono text-xs font-medium leading-3.5 tabular-nums text-dp-on-role"
+            className="absolute right-0.5 top-0.5 min-w-3.5 rounded-full bg-dp-wait px-1 font-mono text-xs font-medium leading-3.5 tabular-nums text-dp-on-wait"
           >
             {waiting}
           </span>

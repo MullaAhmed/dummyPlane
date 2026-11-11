@@ -34,6 +34,7 @@
   --color-dp-accent-ink: var(--dp-accent-ink);
   --color-dp-accent-soft: var(--dp-accent-soft);
   --color-dp-danger: var(--dp-danger);
+  --color-dp-danger-on-soft: var(--dp-danger-on-soft);
   --color-dp-terminal: var(--dp-terminal);
   --color-dp-terminal-head: var(--dp-terminal-head);
   --color-dp-working: var(--dp-working);
@@ -45,6 +46,7 @@
   --color-dp-text-3: var(--dp-text-3);
   --color-dp-on-accent: var(--dp-on-accent);
   --color-dp-on-role: var(--dp-on-role);
+  --color-dp-on-wait: var(--dp-on-wait);
   --color-dp-wait: var(--dp-wait);
   --color-dp-ok: var(--dp-ok);
   --color-dp-tab-on: var(--dp-tab-on);
@@ -152,6 +154,15 @@
   :not(.excalidraw *, .xterm *)::-webkit-scrollbar-corner {
     background: transparent;
   }
+}
+
+/* A selected row, on the selection's tint (--dp-accent-soft over a surface): its tertiary text
+   steps up to the secondary role, since text-3 falls to 4.2:1 on the tint (expressive). The row
+   turns it on where it turns selected (`data-[selected=true]:dp-on-soft`, or beside its
+   `bg-dp-accent-soft`): @theme inline writes text-dp-text-3 as var(--dp-text-3), read at each
+   element, so every text-3 inside the row follows. legibility.test.ts computes the pair. */
+@utility dp-on-soft {
+  --dp-text-3: var(--dp-text-2);
 }
 
 @layer components {

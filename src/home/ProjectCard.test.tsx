@@ -1,8 +1,9 @@
 // @vitest-environment happy-dom
 import { act } from "react";
 import { createRoot } from "react-dom/client";
-import { expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { confirmAction } from "@/components/confirm";
+import { getByRole, queryAllByRole } from "@/lib/a11y";
 import { projectsStore, type Project } from "@/store/projects";
 import { ProjectCard } from "./ProjectCard";
 
@@ -43,4 +44,51 @@ it("asks in the app's own dialog before removing a project, and keeps it on Canc
   await act(async () => root.unmount());
   document.body.replaceChildren();
   remove.mockRestore();
+});
+
+describe("the keyboard opens the project from the card only", () => {
+  const press = (target: Element, key: string) => target.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }));
+
+  async function card() {
+    const open = vi.spyOn(projectsStore.getState(), "open").mockResolvedValue();
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+    await act(async () => root.render(<ProjectCard project={project(false)} />));
+    const done = async () => {
+      await act(async () => root.unmount());
+      document.body.replaceChildren();
+      open.mockRestore();
+    };
+    return { host, open, done };
+  }
+
+  it("opens the project on Enter or Space on the card", async () => {
+    const { host, open, done } = await card();
+    const self = getByRole(host, "button", /^api/);
+    await act(async () => press(self, "Enter"));
+    expect(open).toHaveBeenCalledTimes(1);
+    const space = new KeyboardEvent("keydown", { key: " ", bubbles: true, cancelable: true });
+    await act(async () => self.dispatchEvent(space));
+    expect(open).toHaveBeenCalledTimes(2);
+    // Space on a button must not scroll the page.
+    expect(space.defaultPrevented).toBe(true);
+    await done();
+  });
+
+  it("opens the actions menu on Enter on its button, not the project", async () => {
+    const { host, open, done } = await card();
+    await act(async () => press(getByRole(host, "button", "Project actions"), "Enter"));
+    expect(queryAllByRole(document.body, "menuitem").length).toBeGreaterThan(0);
+    expect(open).not.toHaveBeenCalled();
+    await done();
+  });
+
+  it.each(["Rename", "Remove from the list"])("runs %s on Enter in the menu without opening the project", async (item) => {
+    const { host, open, done } = await card();
+    await act(async () => press(getByRole(host, "button", "Project actions"), "Enter"));
+    await act(async () => press(getByRole(document.body, "menuitem", item), "Enter"));
+    expect(open).not.toHaveBeenCalled();
+    await done();
+  });
 });

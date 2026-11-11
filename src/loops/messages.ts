@@ -13,7 +13,8 @@ export const loopsMessages = defineMessages({
     indicator: {
       label: (loops: number, runs: number) => `${plural(loops, "loop", "loops")} · ${plural(runs, "run", "runs")}`,
       stopAll: "Stop all",
-      open: "Open loops",
+      // The name starts with what the button shows (WCAG 2.5.3 label in name).
+      open: (summary: string) => `${summary}, open the loops`,
     },
     dialog: {
       title: "Loops",
@@ -33,11 +34,13 @@ export const loopsMessages = defineMessages({
       noTargets: "No agent on the canvas",
       trigger: "Trigger",
       triggers: { interval: "Every N minutes", idle: "An agent becomes idle", output: "Output contains a text" },
-      minutes: "Minutes",
+      // A number reads as a sentence, the field between the words: "Every 30 minutes", "At most 5 runs".
+      every: "Every",
+      atMost: "At most",
+      unitMinutes: "minutes",
+      unitRuns: "runs",
       text: "Text to spot",
       stop: "End of the loop (at least one)",
-      maxRuns: "Number of runs",
-      maxMinutes: "Duration in minutes",
       save: "Save",
       cancel: "Cancel",
       close: "Close",

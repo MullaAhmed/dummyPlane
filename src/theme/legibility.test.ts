@@ -1,8 +1,8 @@
-import { expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 // Slow under the load of the full suite: this file's tests get their own timeout.
 vi.setConfig({ testTimeout: 30_000 });
-import { contrast } from "./colorMath";
+import { blend, contrast } from "./colorMath";
 import { cssBlock, readSource, sourceFiles } from "./cssBlocks";
 
 const tokens = readSource("theme/tokens.css");
@@ -55,4 +55,94 @@ it("never inks with the canvas color, nor with an agent's raw tint", () => {
     expect(/text-dp-canvas/.test(text), `${file} : texte couleur du canvas`).toBe(false);
     expect(/color:\s*(meta|AGENTS\[[^\]]+\])\.tint\b/.test(text), `${file} : teinte brute en couleur de texte`).toBe(false);
   }
+});
+
+/** An `rgba(r,g,b,a)` token over an opaque ground, composited as the browser does. */
+function over(ground: string, value: string): string {
+  const m = /^rgba\((\d+),(\d+),(\d+),([\d.]+)\)$/.exec(value);
+  if (!m) throw new Error(`not an rgba token: ${value}`);
+  const top = "#" + m.slice(1, 4).map((v) => Number(v).toString(16).padStart(2, "0")).join("");
+  return blend(ground, top, Number(m[4]));
+}
+
+/** The value of a `var(--dp-…)` in `t`, or the hex itself. */
+const resolve = (t: Record<string, string>, value: string) => t[/^var\((--dp-[\w-]+)\)$/.exec(value)?.[1] ?? ""] ?? value;
+
+it("writes the waiting count on its wait fill at 4.5:1 in every palette, with the rail pip's own classes (P1-13)", () => {
+  const rail = readSource("shell/ActivityRail.tsx");
+  // The pip's class string: the first className after data-pip, whatever attributes come between.
+  const at = rail.indexOf("data-pip");
+  expect(at, "the rail draws its waiting pip").toBeGreaterThanOrEqual(0);
+  const pip = /className="([^"]*)"/.exec(rail.slice(at))![1];
+  const fill = /(?:^|\s)bg-dp-([\w-]+)(?=\s|$)/.exec(pip)![1];
+  const ink = /(?:^|\s)text-dp-([\w-]+)(?=\s|$)/.exec(pip)![1];
+  expect([fill, ink]).toEqual(["wait", "on-wait"]);
+  // index.css hands the token to Tailwind, or text-dp-on-wait would draw nothing.
+  expect(cssBlock(readSource("index.css"), "@theme inline")["--color-dp-on-wait"]).toBe("var(--dp-on-wait)");
+  for (const [palette, selector] of Object.entries(PALETTES)) {
+    const t = cssBlock(tokens, selector);
+    expect(contrast(t[`--dp-${ink}`], t[`--dp-${fill}`]), `${palette} ${ink} on ${fill}`).toBeGreaterThanOrEqual(4.5);
+  }
+  // The audit's number: the role ink read 2.46:1 on calm's wait.
+  const calm = cssBlock(tokens, PALETTES.calm);
+  expect(contrast(calm["--dp-on-role"], calm["--dp-wait"])).toBeCloseTo(2.46, 2);
+});
+
+describe("text on a selected row (the accent's tint) keeps 4.5:1 (P1-14)", () => {
+  const index = readSource("index.css");
+  /** The selection's tint over the grounds a selected row sits on: the panels and menus, the cards. */
+  const tints = (t: Record<string, string>) => ({ surface: over(t["--dp-surface"], t["--dp-accent-soft"]), card: over(t["--dp-card"], t["--dp-accent-soft"]) });
+
+  it("composites like the audit measured: text-3 on the tint 4.44 in calm, 4.24 in expressive; danger 4.06 in expressive", () => {
+    const calm = cssBlock(tokens, PALETTES.calm);
+    const expressive = cssBlock(tokens, PALETTES.expressive);
+    expect(contrast(calm["--dp-text-3"], tints(calm).surface)).toBeCloseTo(4.44, 1);
+    expect(contrast(expressive["--dp-text-3"], tints(expressive).surface)).toBeCloseTo(4.24, 1);
+    expect(contrast(expressive["--dp-danger"], tints(expressive).surface)).toBeCloseTo(4.06, 1);
+  });
+
+  it("steps a selected row's tertiary text up to a role that reads on the tint, every text-3 inside included", () => {
+    const lift = cssBlock(index, "@utility dp-on-soft");
+    expect(Object.keys(lift)).toEqual(["--dp-text-3"]);
+    // @theme inline writes text-dp-text-3 as var(--dp-text-3), read at the element: the row's own value reaches its children.
+    expect(cssBlock(index, "@theme inline")["--color-dp-text-3"]).toBe("var(--dp-text-3)");
+    for (const [palette, selector] of Object.entries(PALETTES)) {
+      const t = cssBlock(tokens, selector);
+      const ink = resolve(t, lift["--dp-text-3"]);
+      for (const [ground, tint] of Object.entries(tints(t))) {
+        expect(contrast(ink, tint), `${palette} lifted text-3 on the tint over the ${ground}`).toBeGreaterThanOrEqual(4.5);
+        for (const role of ["--dp-text", "--dp-text-2"]) expect(contrast(t[role], tint), `${palette} ${role} on the tint over the ${ground}`).toBeGreaterThanOrEqual(4.5);
+      }
+    }
+  });
+
+  it("writes danger on the tint a step toward the ink, at 4.5:1; ok and wait read there as they are", () => {
+    const mix = /^color-mix\(in srgb, var\((--dp-[\w-]+)\) (\d+)%, var\((--dp-[\w-]+)\)\)$/.exec(cssBlock(tokens, ":root")["--dp-danger-on-soft"]);
+    expect(mix, "--dp-danger-on-soft is danger mixed toward the ink").not.toBeNull();
+    expect([mix![1], mix![3]]).toEqual(["--dp-danger", "--dp-text"]);
+    expect(cssBlock(index, "@theme inline")["--color-dp-danger-on-soft"]).toBe("var(--dp-danger-on-soft)");
+    for (const [palette, selector] of Object.entries(PALETTES)) {
+      const t = cssBlock(tokens, selector);
+      const danger = blend(t[mix![3]], t[mix![1]], Number(mix![2]) / 100);
+      for (const [ground, tint] of Object.entries(tints(t))) {
+        expect(contrast(danger, tint), `${palette} danger-on-soft on the tint over the ${ground}`).toBeGreaterThanOrEqual(4.5);
+      }
+      // A selected git row's + count and A/N letter: on the tint over the panel's surface.
+      for (const role of ["--dp-ok", "--dp-wait"]) expect(contrast(t[role], tints(t).surface), `${palette} ${role} on the tint`).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it("turns the lift on in every selected row that holds tertiary text or a danger count", () => {
+    const rows: [string, string][] = [
+      ["commands/Palette.tsx", "data-[selected=true]:bg-dp-accent-soft data-[selected=true]:dp-on-soft"], // palette and Go to rows
+      ["agents/AgentsPanel.tsx", "data-[state=on]:bg-dp-accent-soft data-[state=on]:text-dp-text data-[state=on]:dp-on-soft"], // the filter's count
+      ["notes/NotesDialog.tsx", '"bg-dp-accent-soft hover:bg-dp-accent-soft dp-on-soft"'], // the note's excerpt
+      ["git/GitWindow.tsx", 'current && "bg-dp-accent-soft text-dp-text hover:bg-dp-accent-soft dp-on-soft"'], // the file row
+      ["git/GitWindow.tsx", 'const danger = current ? "text-dp-danger-on-soft" : "text-dp-danger";'],
+      ["studio/CodeWorkspace.tsx", 'node.path === active && "bg-dp-accent-soft text-dp-text hover:bg-dp-accent-soft dp-on-soft"'], // the file tree
+    ];
+    for (const [file, row] of rows) expect(readSource(file), file).toContain(row);
+    // The git row writes its − count and D letter in that variable, never in danger itself.
+    expect(readSource("git/GitWindow.tsx")).not.toContain('<span className="text-dp-danger">−');
+  });
 });

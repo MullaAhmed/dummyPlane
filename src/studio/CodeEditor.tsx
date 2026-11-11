@@ -1,10 +1,9 @@
 import { useEffect, useImperativeHandle, useRef, type Ref } from "react";
 import { autocompletion, closeBrackets, closeBracketsKeymap, closeCompletion, completionKeymap } from "@codemirror/autocomplete";
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
-import { bracketMatching, defaultHighlightStyle, foldGutter, foldKeymap, indentOnInput, syntaxHighlighting } from "@codemirror/language";
+import { bracketMatching, foldGutter, foldKeymap, indentOnInput, syntaxHighlighting } from "@codemirror/language";
 import { closeSearchPanel, highlightSelectionMatches, searchKeymap } from "@codemirror/search";
 import { Compartment, EditorSelection, EditorState, StateEffect, StateField, Transaction, type Extension } from "@codemirror/state";
-import { oneDarkHighlightStyle } from "@codemirror/theme-one-dark";
 import {
   Decoration,
   EditorView,
@@ -17,10 +16,11 @@ import {
   lineNumbers,
   rectangularSelection,
 } from "@codemirror/view";
-import type { Theme } from "@/app/theme";
+import { PALETTES, usePalette, type ThemeChoice } from "@/app/theme";
 import type { Revision } from "./fileSession";
 import { languageFor, otherLanguageFor } from "./languages";
 import { studioStore, useStudio } from "./studioStore";
+import { syntaxStyleFor } from "./syntaxTheme";
 import { smallestChange } from "./text";
 
 /**
@@ -88,8 +88,12 @@ export function revealLine(view: EditorView, line: number, column = 1) {
   );
 }
 
-/** The app's tokens, so the editor follows the theme; the highlighting is chosen per theme. */
-function themeFor(theme: Theme): Extension {
+/**
+ * The app's tokens, so the editor follows the palette; the highlighting is the palette's own
+ * (syntaxTheme.ts). CodeMirror's base theme hard-codes the matched brackets and special characters:
+ * they are redrawn here in tokens, a ring of text-3 (3:1 and more on every ground) around a match.
+ */
+function themeFor(palette: ThemeChoice): Extension {
   return [
     EditorView.theme(
       {
@@ -103,6 +107,10 @@ function themeFor(theme: Theme): Extension {
         },
         ".cm-gutters": { backgroundColor: "transparent", color: "var(--dp-text-3)", border: "none" },
         ".cm-activeLine, .cm-activeLineGutter": { backgroundColor: "var(--dp-hover)" },
+        ".cm-activeLineGutter": { color: "var(--dp-text-2)" },
+        "&.cm-focused .cm-matchingBracket": { backgroundColor: "var(--dp-accent-soft)", outline: "1px solid var(--dp-text-3)" },
+        "&.cm-focused .cm-nonmatchingBracket": { backgroundColor: "transparent", outline: "1px solid var(--dp-danger)" },
+        ".cm-specialChar": { color: "var(--dp-danger)" },
         ".cm-foldPlaceholder": { backgroundColor: "var(--dp-field)", border: "none", color: "var(--dp-text-2)" },
         ".cm-selectionMatch": { backgroundColor: "var(--dp-hover)" },
         ".cm-searchMatch": { backgroundColor: "var(--dp-accent-soft)", outline: "1px solid var(--dp-line)" },
@@ -120,9 +128,9 @@ function themeFor(theme: Theme): Extension {
         // on a class that lives one --dp-dur: never transitions on .cm-line itself (dp-flash-out, index.css).
         ".cm-dp-flash-out": { animation: "dp-flash-out var(--dp-dur) var(--dp-ease-out) both" },
       },
-      { dark: theme === "dark" },
+      { dark: PALETTES[palette].scheme === "dark" },
     ),
-    syntaxHighlighting(theme === "dark" ? oneDarkHighlightStyle : defaultHighlightStyle),
+    syntaxHighlighting(syntaxStyleFor(palette)),
   ];
 }
 
@@ -137,14 +145,15 @@ interface CodeEditorProps {
   text: string;
   /** Says when `text` comes from the disk. */
   revision: Revision;
-  theme: Theme;
   onChange: (content: string) => void;
   onSave: () => void;
   ref?: Ref<CodeEditorHandle>;
 }
 
-/** A CodeMirror 6 editor for one file; its undo history lives as long as it does. */
-export function CodeEditor({ path, text, revision, theme, onChange, onSave, ref }: CodeEditorProps) {
+/** A CodeMirror 6 editor for one file; its undo history lives as long as it does. It follows the palette. */
+export function CodeEditor({ path, text, revision, onChange, onSave, ref }: CodeEditorProps) {
+  // The palette, not its light or dark scheme: electric and expressive are both dark, with their own colors.
+  const palette = usePalette();
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
   const themes = useRef(new Compartment());
@@ -201,7 +210,7 @@ export function CodeEditor({ path, text, revision, theme, onChange, onSave, ref 
           ]),
           flashLine,
           language.current.of(languageFor(path)),
-          themes.current.of(themeFor(theme)),
+          themes.current.of(themeFor(palette)),
           EditorView.updateListener.of((update) => {
             if (update.docChanged && !update.transactions.some((tr) => tr.annotation(Transaction.remote))) handlers.current.onChange(update.state.doc.toString());
           }),
@@ -220,7 +229,7 @@ export function CodeEditor({ path, text, revision, theme, onChange, onSave, ref 
       created.destroy();
       view.current = null;
     };
-    // The editor is made once per file: `text` and `theme` are read here only.
+    // The editor is made once per file: `text` and `palette` are read here only.
   }, [path]);
 
   // The same document, from the disk: the cursor stays, and undo does not bring the old text back as an edit.
@@ -232,8 +241,8 @@ export function CodeEditor({ path, text, revision, theme, onChange, onSave, ref 
   }, [revision.id]);
 
   useEffect(() => {
-    view.current?.dispatch({ effects: themes.current.reconfigure(themeFor(theme)) });
-  }, [theme]);
+    view.current?.dispatch({ effects: themes.current.reconfigure(themeFor(palette)) });
+  }, [palette]);
 
   // After the editor is made: a line asked for this file is reached once, then forgotten.
   const pending = useStudio((s) => (s.pendingLine?.path === path ? s.pendingLine : null));

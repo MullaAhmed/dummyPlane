@@ -9,6 +9,7 @@ import { terminalStatusStore } from "@/store/terminalStatus";
 import { requestUi } from "@/commands/uiRequests";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import type { Workspace } from "@/ipc/db";
+import { getByRole, queryAllByRole } from "@/lib/a11y";
 import { workspacesStore } from "@/store/workspaces";
 import { TABS_HEIGHT } from "./layout";
 import { WorkspaceTabs } from "./WorkspaceTabs";
@@ -74,6 +75,35 @@ it("shows the workspaces as browser tabs, then +, then empty space that moves th
   const spacer = row().lastElementChild as HTMLElement;
   expect(spacer.getAttribute("data-tauri-drag-region")).toBe("");
   expect(spacer.querySelector("button")).toBeNull();
+});
+
+it("tells which workspace is on screen: the row is a navigation, the active tab its current page", async () => {
+  const nav = getByRole(host, "navigation", "Workspaces");
+  expect(nav).toBe(row());
+  expect(getByRole(nav, "button", "Backend").getAttribute("aria-current")).toBe("page");
+  expect(getByRole(nav, "button", "Workspace 1").hasAttribute("aria-current")).toBe(false);
+  expect(queryAllByRole(nav, "button").filter((b) => b.getAttribute("aria-current") === "page")).toHaveLength(1);
+  await act(async () => getByRole(nav, "button", "Workspace 1").click());
+  expect(getByRole(nav, "button", "Workspace 1").getAttribute("aria-current")).toBe("page");
+  expect(getByRole(nav, "button", "Backend").hasAttribute("aria-current")).toBe(false);
+});
+
+it("names a tab's agent count and folder in words, never a bare digit", async () => {
+  await act(async () => {
+    await nodesStore.getState().create("t1", {
+      workspaceId: "w1",
+      kind: "terminal",
+      payload: { title: "Ada", name: "Ada", agent: "claude", cwd: "C:/code", shell: "default", command: "" },
+    });
+    terminalStatusStore.getState().set("t1", { state: "running" });
+    workspacesStore.setState({
+      workspaces: workspacesStore.getState().workspaces.map((w) => (w.id === "w1" ? { ...w, folder: "D:/work/lib" } : w)),
+    });
+  });
+  const tab = getByRole(host, "button", "Workspace 1, in lib, 1 active agent");
+  expect(tab.querySelector("[data-badge]")!.textContent).toBe("1");
+  // The active tab shows 0 with nothing running: no count to name.
+  expect(getByRole(host, "button", "Backend").querySelector("[data-badge]")!.textContent).toBe("0");
 });
 
 it("scrolls the tabs sideways with the wheel, without a scrollbar eating their height", async () => {

@@ -73,6 +73,8 @@ export function CommandBar() {
         groups={groups}
         fallback={fallback}
         placeholder={activeName ? t.placeholderTo(activeName) : t.placeholder}
+        // The name stays generic: the active terminal's chip can be removed or replaced, the name would then lie.
+        label={t.placeholder}
         emptyHint={t.emptyHint}
         sendsTo={activeName}
         autoTarget={autoTarget}
