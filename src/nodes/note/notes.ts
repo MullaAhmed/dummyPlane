@@ -10,7 +10,7 @@ import { createNodeElement, nodeKindOf } from "@/canvas/nodeElement";
 import { allowRemoval } from "@/canvas/removalGuard";
 import { messages } from "@/i18n";
 import { nodesStore } from "@/store/nodes";
-import { emptyNotesOf, linkFor, NOTE_HOSTS, noteChanges, relinkNotes, settleNotes, withNoteLink, type NoteLink } from "./link";
+import { emptyNotesOf, linkFor, NOTE_HOSTS, noteChanges, notesOutOfGroups, relinkNotes, settleNotes, withNoteLink, type NoteLink } from "./link";
 import { noteMessages } from "./messages";
 import { newNoteRect } from "./placement";
 
@@ -185,7 +185,7 @@ export function createNoteWatch() {
     // A gesture began meanwhile: the change that ends it decides again.
     if (busy(appState)) return;
     const current = api.getSceneElementsIncludingDeleted();
-    const next = settleNotes(relinkNotes(current, pending));
+    const next = notesOutOfGroups(settleNotes(relinkNotes(current, pending)));
     pending.clear();
     if (next === current) return;
     // Excalidraw knows its active node by the element object: a note being typed in stays active.
@@ -204,7 +204,7 @@ export function createNoteWatch() {
     if (version === lastVersion) return;
     lastVersion = version;
     for (const [id, link] of noteChanges(elements, seen)) pending.set(id, link);
-    if (pending.size === 0 && settleNotes(elements) === elements) return;
+    if (pending.size === 0 && notesOutOfGroups(settleNotes(elements)) === elements) return;
     frame ??= requestAnimationFrame(apply);
   };
 }

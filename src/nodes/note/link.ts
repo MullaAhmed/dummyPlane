@@ -1,5 +1,5 @@
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
-import type { Rect } from "@/canvas/groups";
+import { groupInfoOf, type Rect } from "@/canvas/groups";
 import { nodeKindOf, type NodeKind } from "@/canvas/nodeElement";
 
 /**
@@ -246,4 +246,40 @@ export function remapCopiedNotes<T extends ExcalidrawElement>(elements: readonly
 export function emptyNotesOf(elements: readonly ExcalidrawElement[], hostIds: Iterable<string>, isEmpty: (noteId: string) => boolean): string[] {
   const hosts = new Set(hostIds);
   return elements.filter((e) => isNote(e) && hosts.has(noteLinkOf(e)?.of ?? "") && isEmpty(e.id)).map((e) => e.id);
+}
+
+/**
+ * The scene with no attached note standing over a group's frame: one that a
+ * group grew over (a new column), or that was dropped on one, moves right of
+ * the frame, level where it was, and keeps that place from then on. A group's
+ * frame clips what it holds and counts it as one of its terminals: a note is
+ * never in one. The scene itself when no note is over a group.
+ */
+export function notesOutOfGroups<T extends ExcalidrawElement>(elements: readonly T[]): readonly T[] {
+  const groups = elements.filter((e) => !e.isDeleted && groupInfoOf(e) !== null).map(rectOf);
+  if (groups.length === 0) return elements;
+  const hosts = liveHosts(elements);
+  const out = new Map<string, { x: number; link: NoteLink }>();
+  for (const note of elements) {
+    if (!isNote(note)) continue;
+    const host = hostOf(note, hosts);
+    if (!host) continue;
+    const rect = rectOf(note);
+    // Past one frame, the note may land on the next: as many passes as there are groups.
+    for (let pass = 0; pass < groups.length; pass++) {
+      const over = groups.find((g) => overlapsRect(rect, g));
+      if (!over) break;
+      rect.x = over.x + over.width + NOTE_GAP;
+    }
+    if (rect.x !== note.x) out.set(note.id, { x: rect.x, link: linkFor(host.id, rect, host) });
+  }
+  if (out.size === 0) return elements;
+  return elements.map((e) => {
+    const moved = out.get(e.id);
+    return moved ? changed(e, { x: moved.x, customData: withNoteLink(e.customData, moved.link) } as Partial<T>) : e;
+  });
+}
+
+function overlapsRect(a: Rect, b: Rect): boolean {
+  return Math.min(a.x + a.width, b.x + b.width) > Math.max(a.x, b.x) && Math.min(a.y + a.height, b.y + b.height) > Math.max(a.y, b.y);
 }
