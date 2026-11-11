@@ -253,7 +253,11 @@ export const shellMessages = defineMessages(
       tokensByAgent: "By agent",
       tokensOtherSessions: "Other Claude sessions",
       tokensByModel: "By model",
-      tokensLegend: "of which output (accent)",
+      /** The chart's legend, a swatch each: a day's whole column, then its output part. */
+      tokensLegendTotal: "All tokens",
+      tokensLegend: "Output",
+      /** The days as a table, for a screen reader: the chart itself only shows them. */
+      tokensDayColumn: "Day",
       tokensFiles: (count: number) => `${count} file${count > 1 ? "s" : ""} read`,
       tokensTruncated: "reading cut short: these figures are a minimum",
       tokensLocal: "Read on this PC, nothing is sent. Codex is not supported.",

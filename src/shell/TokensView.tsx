@@ -67,7 +67,27 @@ export function TokensView({ onBack }: { onBack: () => void }) {
       ) : (
         <>
           <section className="flex flex-col gap-1.5">
-            <div role="img" aria-label={u.tokensChart(formatTokens(peak))} className="flex h-24 items-end gap-0.5">
+            {/* The figures, read by a screen reader; the columns below only draw them. */}
+            <table data-tokens-table className="sr-only">
+              <caption>{u.tokensChart(formatTokens(peak))}</caption>
+              <thead>
+                <tr>
+                  <th scope="col">{u.tokensDayColumn}</th>
+                  <th scope="col">{u.tokensLegendTotal}</th>
+                  <th scope="col">{u.tokensLegend}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {columns.map((column) => (
+                  <tr key={column.date}>
+                    <th scope="row">{column.date}</th>
+                    <td>{formatTokens(column.total)}</td>
+                    <td>{formatTokens(column.counts.output)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div aria-hidden className="flex h-24 items-end gap-0.5">
               {columns.map((column) => (
                 <div
                   key={column.date}
@@ -75,7 +95,8 @@ export function TokensView({ onBack }: { onBack: () => void }) {
                   title={u.tokensDay(column.date, formatTokens(column.total), formatTokens(column.counts.output))}
                   className="flex h-full min-w-0 flex-1 flex-col justify-end"
                 >
-                  <div className="flex flex-col justify-end overflow-hidden rounded-xs bg-dp-line" style={{ height: `${column.height * 100}%` }}>
+                  {/* The day's total in the tertiary text tone (a graphic must read at 3:1), its output part in the accent. */}
+                  <div data-day-total className="flex flex-col justify-end overflow-hidden rounded-xs bg-dp-text-3" style={{ height: `${column.height * 100}%` }}>
                     <div className="bg-dp-accent" style={{ height: `${column.outputShare * 100}%` }} />
                   </div>
                 </div>
@@ -83,9 +104,15 @@ export function TokensView({ onBack }: { onBack: () => void }) {
             </div>
             <div className="flex justify-between font-mono text-xs text-dp-text-3">
               <span>{columns[0]?.date.slice(5)}</span>
-              <span className="flex items-center gap-1">
-                <span className="size-1.5 rounded-full bg-dp-accent" />
-                {u.tokensLegend}
+              <span className="flex items-center gap-3">
+                <span className="flex items-center gap-1">
+                  <span aria-hidden className="size-1.5 rounded-full bg-dp-text-3" />
+                  {u.tokensLegendTotal}
+                </span>
+                <span className="flex items-center gap-1">
+                  <span aria-hidden className="size-1.5 rounded-full bg-dp-accent" />
+                  {u.tokensLegend}
+                </span>
               </span>
               <span>{columns[columns.length - 1]?.date.slice(5)}</span>
             </div>
