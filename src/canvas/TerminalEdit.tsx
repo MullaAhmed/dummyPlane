@@ -115,6 +115,8 @@ export function TerminalEdit({ nodeId, onFold }: { nodeId: string; onFold: () =>
           size="icon-xs"
           aria-label={t.foldPanel}
           title={t.foldPanel}
+          // Where the keyboard lands when the panel opens from its tab (SelectionPanel).
+          data-fold
           aria-expanded
           aria-controls={bodyId}
           onMouseDown={keepCanvasFocus}
@@ -630,8 +632,12 @@ function FolderPath({ cwd, onChange }: { cwd: string; onChange?: () => void }) {
             {copied ? <Check className="size-3.5" /> : <ClipboardCopy className="size-3.5" />}
           </Button>
         </TooltipTrigger>
-        <TooltipContent side="bottom" sideOffset={6}>
-          {copied ? t.pathCopied : t.copyPath}
+        {/* The whole path under its name: the keyboard reaches it here, never the path's own native title. */}
+        <TooltipContent side="bottom" sideOffset={6} className="max-w-xs flex-col items-start gap-0.5">
+          <span>{copied ? t.pathCopied : t.copyPath}</span>
+          <span data-folder-hint className="font-mono break-all">
+            {cwd}
+          </span>
         </TooltipContent>
       </Tooltip>
       {onChange && (

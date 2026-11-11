@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type Ref } from "react";
 import { CaptureUpdateAction, Excalidraw, getSceneVersion, newElementWith } from "@excalidraw/excalidraw";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { AppState, BinaryFiles, ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import "@excalidraw/excalidraw/index.css";
 import { toast } from "sonner";
 import { usePalette, useTheme } from "@/app/theme";
+import { Button } from "@/components/ui/button";
 import { completeArrival } from "@/commands/pendingArrival";
 import { assignMissingNames } from "@/agents/naming";
 import { dismissResumeOffer, offerResumeAll } from "@/agents/ResumeAllToast";
@@ -45,16 +46,22 @@ import { wirePaths } from "./overlay/wirePaths";
 import { loadScene, rememberScene, type LoadedScene } from "./sceneCache";
 import { EXCALIDRAW_UI_OPTIONS, withSceneDefaults } from "./sceneDefaults";
 import { sceneGone, sceneReady } from "./sceneReady";
+import { createSceneDerivation } from "./sceneDerive";
 import { createSceneSync, liveNodeIds, liveNodeRects } from "./sceneSync";
 import { messages, useMessages } from "@/i18n";
 import { canvasMessages } from "./messages";
 
 const reportSaveError = (error: unknown) => toast.error(messages(canvasMessages).saveFailed(String(error)));
 
-/** One Excalidraw instance per workspace; remounted (via `key`) when switching. */
+/**
+ * One Excalidraw instance per workspace; remounted (via `key`) when switching. A scene that
+ * failed to load says why and offers to try again (a failed read is not kept: loadScene reads anew).
+ */
 export function Canvas({ workspaceId }: { workspaceId: string }) {
   const [scene, setScene] = useState<LoadedScene | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  const status = useRef<HTMLDivElement>(null);
   const t = useMessages(canvasMessages);
 
   useEffect(() => {
@@ -66,15 +73,37 @@ export function Canvas({ workspaceId }: { workspaceId: string }) {
     return () => {
       alive = false;
     };
-  }, [workspaceId]);
+  }, [workspaceId, attempt]);
 
-  if (error) return <Centered>{t.loadFailed(error)}</Centered>;
-  if (!scene) return <Centered>{t.loading}</Centered>;
+  const retry = () => {
+    // The button goes with the error: the keyboard on it stays on the status that says "Loading…", not on the page's body.
+    if (status.current?.contains(document.activeElement)) status.current.focus({ preventScroll: true });
+    setError(null);
+    setAttempt((n) => n + 1);
+  };
+
+  if (error)
+    return (
+      <Centered ref={status}>
+        <div className="grid justify-items-center gap-3">
+          <p>{t.loadFailed(error)}</p>
+          <Button type="button" variant="secondary" size="sm" onClick={retry}>
+            {t.retryLoad}
+          </Button>
+        </div>
+      </Centered>
+    );
+  if (!scene) return <Centered ref={status}>{t.loading}</Centered>;
   return <LoadedCanvas workspaceId={workspaceId} scene={scene} />;
 }
 
-function Centered({ children }: { children: ReactNode }) {
-  return <div className="absolute inset-0 grid place-items-center text-sm text-dp-text-2">{children}</div>;
+/** The canvas's place while it has no scene: the words said to screen readers too, and a place for the keyboard to wait. */
+function Centered({ ref, children }: { ref?: Ref<HTMLDivElement>; children: ReactNode }) {
+  return (
+    <div ref={ref} role="status" tabIndex={-1} className="absolute inset-0 grid place-items-center text-sm text-dp-text-2 outline-none">
+      {children}
+    </div>
+  );
 }
 
 function LoadedCanvas({ workspaceId, scene }: { workspaceId: string; scene: LoadedScene }) {
@@ -118,6 +147,23 @@ function LoadedCanvas({ workspaceId, scene }: { workspaceId: string; scene: Load
     };
   }, [api, workspaceId]);
 
+  // What the overlays and panels read of the scene, derived only when the scene (or the selection) changed: not per pan frame.
+  const derive = useMemo(
+    () =>
+      createSceneDerivation({
+        selection: (elements, selected) => canvasStore.getState().setDrawnSelection(drawnSelectionOf(elements, selected)),
+        scene: (elements) => {
+          const store = canvasStore.getState();
+          store.setFrames(framesFromScene(elements));
+          store.setNodeIds(liveNodeIds(elements));
+          store.setNodeRects(liveNodeRects(elements));
+          store.setLinks(fleetLinks(elements));
+          store.setWires(wirePaths(elements));
+        },
+      }),
+    [],
+  );
+
   // The next workspace must not show this one's groups before its first change.
   useEffect(
     () => () => {
@@ -127,8 +173,10 @@ function LoadedCanvas({ workspaceId, scene }: { workspaceId: string; scene: Load
       canvasStore.getState().setLinks({});
       canvasStore.getState().setWires([]);
       canvasStore.getState().setDrawnSelection([]);
+      // Emptied: the next change derives them again, even a pan's.
+      derive.reset();
     },
-    [],
+    [derive],
   );
 
   const sync = useMemo(
@@ -190,7 +238,8 @@ function LoadedCanvas({ workspaceId, scene }: { workspaceId: string; scene: Load
 
   const onChange = useCallback(
     (elements: readonly ExcalidrawElement[], appState: AppState, files: BinaryFiles) => {
-      sync.onChange(elements, appState, files, getSceneVersion(elements));
+      const version = getSceneVersion(elements);
+      sync.onChange(elements, appState, files, version);
       const verdict = guardRemovals(elements, removedNow.current);
       removedNow.current = [];
       settleRemovals(verdict);
@@ -199,12 +248,7 @@ function LoadedCanvas({ workspaceId, scene }: { workspaceId: string; scene: Load
       watchSpawnDrags(elements, appState);
       watchLayout(elements, appState);
       canvasStore.getState().setView(viewFrom(appState));
-      canvasStore.getState().setDrawnSelection(drawnSelectionOf(elements, appState.selectedElementIds));
-      canvasStore.getState().setFrames(framesFromScene(elements));
-      canvasStore.getState().setNodeIds(liveNodeIds(elements));
-      canvasStore.getState().setNodeRects(liveNodeRects(elements));
-      canvasStore.getState().setLinks(fleetLinks(elements));
-      canvasStore.getState().setWires(wirePaths(elements));
+      derive(elements, version, appState.selectedElementIds);
       if (api) scheduleWireUpkeep(api, elements);
       // The eraser never erases a node: with it active, the nodes are locked, which it skips.
       if (api) scheduleEraserGuard(api, elements, appState.activeTool.type === "eraser");
@@ -213,7 +257,7 @@ function LoadedCanvas({ workspaceId, scene }: { workspaceId: string; scene: Load
       // Deferred: changing the view from inside onChange would re-enter it.
       if (activated && api) requestAnimationFrame(() => showAtFullSize(api, activated));
     },
-    [sync, guardRemovals, trackActivation, watchSpawnDrags, watchLayout, workspaceId, api],
+    [sync, guardRemovals, trackActivation, watchSpawnDrags, watchLayout, derive, workspaceId, api],
   );
 
   return (

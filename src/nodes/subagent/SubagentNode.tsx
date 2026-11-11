@@ -119,8 +119,8 @@ export function SubagentNode({ nodeId }: { nodeId: string }) {
       className={cn(NODE_FRAME, "bg-dp-terminal font-mono")}
       style={{ ...frameStyle(selected, false), ...inks(terminalThemeFor(palette), done) }}
     >
-      {/* The task line's tooltip says it all: no native title beside it. */}
-      <NodeHeader title={about ? undefined : title} className="font-sans text-dp-text">
+      {/* No native title on the header: it showed over the Close hint. A long name carries its own; the task line's tooltip says the rest. */}
+      <NodeHeader className="font-sans text-dp-text">
         <Bot aria-hidden className="size-4 shrink-0 text-dp-text-2" />
         {entry && about ? (
           <NodeTitle
@@ -136,7 +136,9 @@ export function SubagentNode({ nodeId }: { nodeId: string }) {
         ) : (
           <>
             {from}
-            <span className="min-w-0 truncate text-(length:--text-ui) font-medium">{title}</span>
+            <span className="min-w-0 truncate text-(length:--text-ui) font-medium" title={title}>
+              {title}
+            </span>
           </>
         )}
         <NodeHeaderEnd>
