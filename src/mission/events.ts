@@ -1,14 +1,14 @@
-import { signalWire } from "@/canvas/wireActivity";
+import { talk } from "@/agents/talkWires";
 import { messages } from "@/i18n";
 import { ptySendText } from "@/ipc/pty";
 import { agentMessages } from "@/mcp/messages";
 import { freshText, quietFor, typedAgo } from "@/nodes/terminal/registry";
 import { agentActivityStore } from "@/store/agentActivity";
-import { nodesStore, sessionOf } from "@/store/nodes";
+import { isManagerRecord, nodesStore, nodeNameOf, sessionOf } from "@/store/nodes";
 import { isRunning, terminalStatusStore } from "@/store/terminalStatus";
 import { remoteBusy } from "@/agents/remoteControl";
 import { whenReady } from "./ready";
-import { memberOf } from "./store";
+import { managedFleet, memberOf, missionOf, missionRunner } from "./store";
 
 /** Lines waiting for their fleet to be free. */
 const queues = new Map<string, { line: string; typed?: () => void }[]>();
@@ -82,16 +82,39 @@ export function pendingEvents(fleetId: string): readonly string[] {
   return (queues.get(fleetId) ?? []).map((entry) => entry.line);
 }
 
-/** Watches the members of running missions, and frees held lines when a fleet is free again. */
+/** A node whose lines wait for its CLI's prompt after a (re)start: a Fleet, or a mission's Manager. */
+const takesLines = (nodeId: string) => {
+  const record = nodesStore.getState().nodes[nodeId];
+  return record?.kind === "fleet" || isManagerRecord(record);
+};
+
+/**
+ * A running mission's Manager is stuck on the user (spec babysitter Fleet): its Fleet hears it, in one line,
+ * and tells them. Its team's news never reaches the Fleet.
+ */
+function tellFleetOfManager(managerId: string, line: (name: string) => string) {
+  const fleetId = managedFleet(managerId);
+  if (!fleetId || missionOf(nodesStore.getState().nodes[fleetId])?.state !== "en_cours") return;
+  notify(fleetId, line(nodeNameOf(nodesStore.getState().nodes[managerId])));
+}
+
+/**
+ * Watches the members of running missions, and frees held lines when a fleet is free again. A member's
+ * question or stop goes to whoever runs its mission (`missionRunner`), its Manager or, run the old way, its
+ * Fleet; the message draws its wire.
+ */
 export function installMissionEvents(): () => void {
   const flushAll = () => [...queues.keys()].forEach(flush);
+  const lines = () => messages(agentMessages).lines;
   const offActivity = agentActivityStore.subscribe((state, previous) => {
     for (const [nodeId, now] of Object.entries(state.activities)) {
       if (now.activity !== "waiting" || previous.activities[nodeId]?.activity === "waiting") continue;
+      tellFleetOfManager(nodeId, lines().waiting);
       const found = memberOf(nodeId);
       if (!found) continue;
-      signalWire(nodeId, "toFleet", found.fleetId);
-      notify(found.fleetId, messages(agentMessages).lines.waiting(found.member.name));
+      const runner = missionRunner(found.fleetId);
+      talk(nodeId, runner);
+      notify(runner, lines().waiting(found.member.name));
     }
     flushAll();
   });
@@ -99,12 +122,14 @@ export function installMissionEvents(): () => void {
     // A terminal removed from the canvas leaves the statuses: it stopped too.
     for (const nodeId of new Set([...Object.keys(previous.statuses), ...Object.keys(state.statuses)])) {
       const started = previous.statuses[nodeId]?.state !== "running" && state.statuses[nodeId]?.state === "running";
-      if (started && nodesStore.getState().nodes[nodeId]?.kind === "fleet") awaitPrompt(nodeId);
+      if (started && takesLines(nodeId)) awaitPrompt(nodeId);
       if (previous.statuses[nodeId]?.state !== "running" || state.statuses[nodeId]?.state === "running") continue;
+      tellFleetOfManager(nodeId, lines().managerStopped);
       const found = memberOf(nodeId);
       if (!found) continue;
-      signalWire(nodeId, "toFleet", found.fleetId);
-      notify(found.fleetId, messages(agentMessages).lines.stopped(found.member.name));
+      const runner = missionRunner(found.fleetId);
+      talk(nodeId, runner);
+      notify(runner, lines().stopped(found.member.name));
     }
     flushAll();
   });

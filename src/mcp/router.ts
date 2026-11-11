@@ -1,26 +1,35 @@
 import { messages } from "@/i18n";
 import { mcpReply, onMcpCall, type McpCall } from "@/ipc/mcp";
 import { notesTool, notesToolSpec } from "@/notes/agentTool";
-import { nodesStore, sessionOf, terminalOf } from "@/store/nodes";
+import { missionOf } from "@/mission/store";
+import { isManagerRecord, nodesStore, sessionOf, terminalOf } from "@/store/nodes";
 import { AGENT_ONLY, agentTools, declareSteps, markStep, refused, reportTool, spawnAgentSpec, spawnAgentTool } from "./agentTools";
 import { linkTool, linkTools } from "./linkTools";
 import { outputGuideSpec, outputGuideTool, outputTools, readNodeSpec, readNodeTool, showOutputTool } from "./nodeTools";
 import { agentMessages } from "./messages";
-import { FLEET_ONLY, fleetTool, fleetTools } from "./fleetTools";
+import { FLEET_ONLY, fleetTool, fleetTools, MANAGER_ONLY, managerTool, managerTools, runsTheOldWay } from "./fleetTools";
 import { internalCall, RENAMED } from "./protocol";
 
 const t = () => messages(agentMessages).router;
 
-/** The interface's answer to one MCP call of a node, by its kind (spec orchestrateur §4.1, §4.3). */
+/**
+ * The interface's answer to one MCP call of a node, by its kind and role (spec orchestrateur §4.1, §4.3):
+ * a Fleet plans and babysits its board, a mission's Manager runs the board with the team, an agent works.
+ */
 export async function answer(call: McpCall): Promise<unknown> {
   const record = nodesStore.getState().nodes[call.nodeId];
   const fleet = record?.kind === "fleet";
+  const manager = isManagerRecord(record);
   if (call.method === "tools/list") {
-    // Remote Control is Claude's: a fleet on another CLI is not offered it. spawn_agent is every session's, as listed once per session.
+    // Remote Control is Claude's: a fleet on another CLI is not offered it. spawn_agent is every session's but the
+    // Manager's (its team starts from the queue), as listed once per session. The team's tools are a Fleet's only
+    // while it runs a mission launched before Managers existed.
     const claude = sessionOf(record)?.agent !== "codex";
     const own = fleet
-      ? [...fleetTools().filter((tool) => claude || tool.name !== "remote_control"), spawnAgentSpec(true), outputGuideSpec()]
-      : [...agentTools(), ...linkTools(), ...outputTools()];
+      ? [...fleetTools({ legacy: runsTheOldWay(missionOf(record)), claude }), spawnAgentSpec(true), outputGuideSpec()]
+      : manager
+        ? [...managerTools(), outputGuideSpec()]
+        : [...agentTools(), ...linkTools(), ...outputTools()];
     return { tools: [...own, readNodeSpec(), notesToolSpec()] };
   }
   const asked = String(call.params.name ?? "");
@@ -36,7 +45,10 @@ export async function answer(call: McpCall): Promise<unknown> {
   // A Fleet's sub-agent is a regular agent in its own terminal, for work beside its mission's queue.
   if (fleet && name === "spawn_agent") return spawnAgentTool(call.nodeId, args);
   if (fleet) return AGENT_ONLY.has(name) ? refused(t().agentsOnly) : fleetTool(call.nodeId, name, args);
+  // Before any agent's tool: a Manager neither reports nor spawns, its team's agents start from the queue.
+  if (manager) return managerTool(call.nodeId, name, args);
   if (!terminalOf(record)) return refused(t().gone);
+  if (MANAGER_ONLY.has(name)) return refused(t().managerOnly);
   if (FLEET_ONLY.has(name)) return refused(t().fleetOnly);
   switch (name) {
     case "declarer_etapes":

@@ -39,6 +39,10 @@ const TOOLS: Record<string, string> = {
   show_output: "show_output",
   output_guide: "output_guide",
   read_node: "read_node",
+  prioritize: "prioritize",
+  stop_mission: "stop_mission",
+  move_card: "move_card",
+  need_user: "need_user",
 };
 
 /** The former names, for the agent that still calls one: what it is called now. */

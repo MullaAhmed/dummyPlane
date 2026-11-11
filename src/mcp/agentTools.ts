@@ -1,11 +1,12 @@
 import { signalWire } from "@/canvas/wireActivity";
+import { talk } from "@/agents/talkWires";
 import { messages } from "@/i18n";
 import { declaredSteps, markedSteps, MAX_STEPS } from "@/nodes/steps";
 import { notify } from "@/mission/events";
 import { oneLine, type ReportStatus } from "@/mission/mission";
 import { finishMissionCard, flagMissionCard } from "@/kanban/fleetBoards";
 import { afterReport } from "@/mission/queue";
-import { isFleetClosed, memberOf, missionOf, updateMember } from "@/mission/store";
+import { isFleetClosed, memberOf, missionOf, missionRunner, updateMember } from "@/mission/store";
 import { spawnAgent } from "@/agents/spawn";
 import { markReported, MAX_SPAWN_DEPTH, spawnedByOf } from "@/agents/spawnFamily";
 import { onAgentReported } from "@/nodes/terminal/minimize";
@@ -82,8 +83,11 @@ export function spawnAgentSpec(fleet = false) {
 /** Internal names of the agents' tools (`./protocol.ts`), linked agents' (`./linkTools.ts`) and outputs' (`./nodeTools.ts`) included; spawn_agent is a Fleet's too. */
 export const AGENT_ONLY = new Set(["declarer_etapes", "etape", "rendre_compte", "linked_agents", "message_agent", "read_agent", "show_output"]);
 
-/** Who hears an agent's news over a wire: its mission's fleet, else the agent that spawned it. */
-const listenerOf = (nodeId: string) => memberOf(nodeId)?.fleetId ?? spawnedByOf(nodeId);
+/** Who hears an agent's news over a wire: whoever runs its mission (its Manager, or its Fleet run the old way), else the agent that spawned it. */
+const listenerOf = (nodeId: string) => {
+  const found = memberOf(nodeId);
+  return found ? missionRunner(found.fleetId) : spawnedByOf(nodeId);
+};
 
 export function declareSteps(nodeId: string, args: Record<string, unknown>): ToolResult {
   const steps = declaredSteps(args.etapes);
@@ -123,7 +127,7 @@ function reportToParent(nodeId: string, summary: string, status: ReportStatus): 
   const name = nodeNameOf(nodes[nodeId]) || "A sub-agent";
   // Its task is done: it no longer counts against the sub-agents at work.
   markReported(nodeId);
-  signalWire(nodeId, "toFleet", parentId);
+  talk(nodeId, parentId);
   if (!sessionOf(nodes[parentId]) || !isRunning(parentId)) return said(t().agent.unheardParent);
   notify(parentId, t().agent.reported(name, outReport(status), oneLine(summary)));
   return said(t().agent.sentToParent(nodeNameOf(nodes[parentId]) || "your parent agent"));
@@ -144,21 +148,26 @@ export function report(nodeId: string, args: Record<string, unknown>, ui?: strin
   const status = args.statut;
   if (!summary) return refused(t().agent.summarize);
   if (status !== "termine" && status !== "bloque" && status !== "echec") return refused(t().agent.unknownStatus(String(status)));
-  const toParent = reportToParent(nodeId, summary, status);
+  // A team agent under its Manager reports once, to its mission: its parent is the one that runs it.
+  const runner = found ? missionRunner(found.fleetId) : undefined;
+  const toParent = runner !== undefined && spawnedByOf(nodeId) === runner ? null : reportToParent(nodeId, summary, status);
   if (!found) return toParent!;
   // `merge` merges every "done" branch again: a merged one stays so until then (final review H2).
   const check = typeof args.check === "string" ? oneLine(args.check) : "";
   updateMember(found.fleetId, nodeId, { report: { summary, status, at: Date.now(), ...(check ? { check } : {}) } });
-  signalWire(nodeId, "toFleet", found.fleetId);
-  // Its Kanban card follows: done, or on alert in "In progress".
+  const listener = runner ?? found.fleetId;
+  talk(nodeId, listener);
+  // Its Kanban card follows: done, or on alert (in "Blocked" on a board a Manager runs).
   const plan = missionOf(nodesStore.getState().nodes[found.fleetId])?.plan;
   if (status === "termine") void finishMissionCard(found.fleetId, plan, found.member.task).catch(() => undefined);
-  else flagMissionCard(found.fleetId, plan, found.member.task, status === "bloque" ? "blocked" : "failed");
-  // Queued even when nobody listens: a relaunched or restored fleet hears it then (final review R3).
-  notify(found.fleetId, t().agent.reported(found.member.name, outReport(status), oneLine(summary)));
+  else void flagMissionCard(found.fleetId, plan, found.member.task, status === "bloque" ? "blocked" : "failed").catch(() => undefined);
+  // Queued even when nobody listens: a relaunched or restored Manager or fleet hears it then (final review R3).
+  // Under a Manager, the Fleet never hears it: the team's news is the Manager's.
+  notify(listener, t().agent.reported(found.member.name, outReport(status), oneLine(summary)));
   // The queue moves on without it: a stopped fleet must not stall the night.
   void afterReport(found.fleetId, nodeId);
-  const toFleet = isFleetClosed(found.fleetId) || !isRunning(found.fleetId) ? t().agent.unheard : t().agent.sent;
+  const heard = !isFleetClosed(found.fleetId) && isRunning(listener);
+  const toFleet = !heard ? t().agent.unheard : listener === found.fleetId ? t().agent.sent : t().agent.sentToParent(nodeNameOf(nodesStore.getState().nodes[listener]) || "the Manager");
   return said(toParent ? `${toFleet} ${toParent.content[0].text}` : toFleet);
 }
 

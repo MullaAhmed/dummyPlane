@@ -196,8 +196,10 @@ export type AgentState = "travaille" | "attend" | "inactif" | "arrêté";
 /** An agent's state as the fleet reads it (spec §7.2 `equipe`). */
 export function agentState(nodeId: string): AgentState {
   if (!isRunning(nodeId)) return "arrêté";
-  const activity = agentActivityStore.getState().activities[nodeId]?.activity;
-  return activity === "working" ? "travaille" : activity === "waiting" ? "attend" : "inactif";
+  const activity = agentActivityStore.getState().activities[nodeId];
+  // Its agent exited, back at its shell ("Agent exited"): nobody works there, whatever its last activity said.
+  if (activity?.left) return "arrêté";
+  return activity?.activity === "working" ? "travaille" : activity?.activity === "waiting" ? "attend" : "inactif";
 }
 
 /** An agent's time and budget for its bar; `report` once it reported: its time is then frozen at that moment. */

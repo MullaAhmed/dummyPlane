@@ -6,7 +6,7 @@ import { isRunning } from "@/store/terminalStatus";
 import { notify } from "./events";
 import { overruns, remainingGlobal, windingDown } from "./mission";
 import { missionMessages } from "./messages";
-import { isFleetClosed, missionOf, setMission, updateMember } from "./store";
+import { isFleetClosed, missionOf, missionRunner, setMission, updateMember } from "./store";
 
 /** How often the missions' clocks are read. */
 export const CLOCK_MS = 15_000;
@@ -39,19 +39,19 @@ export function checkBudgets(now = Date.now()) {
         // Recorded as told once typed: a line lost with the app is told again at the next start.
         waiting.add(key);
         const over = mission.overnight ? lines.targetOver : lines.budgetOver;
-        notify(fleetId, over(overrun.name, overrun.task, overrun.budget), told);
+        notify(missionRunner(fleetId), over(overrun.name, overrun.task, overrun.budget), told);
       } else told();
     }
     if (mission.state === "en_cours" && !mission.windDownTold && !mission.globalOverdue && !found.global && windingDown(mission, now) && !waiting.has(`${fleetId}:windDown`)) {
       waiting.add(`${fleetId}:windDown`);
-      notify(fleetId, lines.windDown(remainingGlobal(mission, now) ?? 0), () => {
+      notify(missionRunner(fleetId), lines.windDown(remainingGlobal(mission, now) ?? 0), () => {
         waiting.delete(`${fleetId}:windDown`);
         setMission(fleetId, { windDownTold: true });
       });
     }
     if (found.global && !waiting.has(`${fleetId}:global`)) {
       waiting.add(`${fleetId}:global`);
-      notify(fleetId, lines.globalOver(mission.budgetMin ?? 0), () => {
+      notify(missionRunner(fleetId), lines.globalOver(mission.budgetMin ?? 0), () => {
         waiting.delete(`${fleetId}:global`);
         setMission(fleetId, { globalOverdue: true });
       });

@@ -234,8 +234,12 @@ describe("a report written in OpenUI Lang", () => {
     expect(list.tools.find((t) => t.name === "report")!.inputSchema.properties.summary.description).toContain("OpenUI Lang");
     await nodesStore.getState().create("chef", { workspaceId: "w1", kind: "fleet", payload: { name: "Fleet" } });
     const fleet = (await answer({ callId: 1, nodeId: "chef", method: "tools/list", params: {} })) as typeof list;
-    expect(fleet.tools.find((t) => t.name === "finish")!.inputSchema.properties.summary.description).toContain("OpenUI Lang");
     expect(fleet.tools.some((t) => t.name === "output_guide")).toBe(true);
+    // The Manager writes the mission's summary (finish): in OpenUI Lang too.
+    await nodesStore.getState().create("boss", { workspaceId: "w1", kind: "terminal", payload: { title: "Manager", name: "Manager", agent: "claude", cwd: "C:/p", shell: "default", command: "", role: "manager", fleet: "chef" } });
+    const manager = (await answer({ callId: 1, nodeId: "boss", method: "tools/list", params: {} })) as typeof list;
+    expect(manager.tools.find((t) => t.name === "finish")!.inputSchema.properties.summary.description).toContain("OpenUI Lang");
+    expect(manager.tools.some((t) => t.name === "output_guide")).toBe(true);
     expect(textOf(await call("chef", "output_guide", {}))).toContain("root = Stack(");
   });
 });

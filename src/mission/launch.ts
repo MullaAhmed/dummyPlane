@@ -1,5 +1,5 @@
 import { userIsTyping } from "@/canvas/typing";
-import { signalWire } from "@/canvas/wireActivity";
+import { talk } from "@/agents/talkWires";
 import { IN_VIEW, quietly, type Arrival } from "@/agents/arrivals";
 import { pauseAgents } from "@/agents/broadcast";
 import { signalFinish } from "@/agents/finishes";
@@ -18,19 +18,21 @@ import { ptySendText, ptyWrite, type AgentId, type Permission } from "@/ipc/pty"
 import { FLEET_CAPABLE } from "@/fleet/capable";
 import { newConversation, newTerminalPayload } from "@/nodes/terminal/launch";
 import { freshText, quietFor, relaunchTerminal, stopTerminal } from "@/nodes/terminal/registry";
-import { linkedBoards, reassignMissionCard, startMissionCards } from "@/kanban/fleetBoards";
+import { addTaskCards, linkedBoards, reassignMissionCard, startMissionCards } from "@/kanban/fleetBoards";
 import { agentMessages } from "@/mcp/messages";
 import { outReport } from "@/mcp/protocol";
 import { nodesStore, sessionOf, terminalOf } from "@/store/nodes";
 import { isRunning } from "@/store/terminalStatus";
+import { markLaunching } from "@/agents/spawnFamily";
 import { activeCount, freeSeat, holdSeat, oneAtATime } from "./active";
 import { notify } from "./events";
 import { missionFolder } from "./folder";
+import { addTeamMember, fleetNameOf, reflowTeam, removeManager, setUpBoard, undoSetup, type MissionSetup } from "./manager";
 import { nightSession } from "./overnight";
 import { NEW_AGENT, NEW_MISSION, oneLine, pastTask, queuedTask, sameName, type Member, type Mission, type SubTask } from "./mission";
 import { whenReady } from "./ready";
 import { modelFor } from "./router";
-import { canvasKnown, linkedTeamAgents, linkedGroups, missionOf, fleetShown, releaseSpawnedPermission, setMission, updateMember, workspaceCanvas } from "./store";
+import { canvasKnown, linkedTeamAgents, linkedGroups, missionOf, missionRunner, fleetShown, releaseSpawnedPermission, setMission, updateMember, workspaceCanvas } from "./store";
 
 const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));
 const t = () => messages(agentMessages);
@@ -49,7 +51,9 @@ export function subTaskText(mission: string, task: SubTask, branch: string, hand
  * task names its card or not: `card` is optional, the card's text was still read.
  */
 export function withTicketNote(fleetId: string, mission: Mission, text: string, task?: { card?: string }): string {
-  return mission.tickets || task?.card || linkedBoards(fleetId).length > 0 ? `${text} ${t().lines.ticketData}` : text;
+  // A board the go-ahead made holds only the plan's own cards: nobody else wrote them.
+  const handed = !mission.boardMade && (task?.card !== undefined || linkedBoards(fleetId).length > 0);
+  return mission.tickets || handed ? `${text} ${t().lines.ticketData}` : text;
 }
 
 /** What the next agent learns of the previous one (spec §7.2 reassign). */
@@ -116,12 +120,16 @@ function checkGroups(fleetId: string, plan: readonly SubTask[]) {
  */
 const teamArrival = (): Arrival => (userIsTyping() ? quietly("mission") : IN_VIEW);
 
-type Team = Required<Pick<Mission, "project" | "slug" | "branch" | "worktree">> & Pick<Mission, "frameId" | "members">;
+type Team = Required<Pick<Mission, "project" | "slug" | "branch" | "worktree" | "manager" | "board">> & Pick<Mission, "members">;
 
 /** The relaunch of each linked agent: it is judged ready only once it is done. */
 type Restarts = Map<string, Promise<void>>;
 
-/** dummyPlane — not the AI — forms the team: every worktree first, then the agents (spec §7.3). */
+/**
+ * dummyPlane — not the AI — forms the team: every worktree first, then the board and its Manager
+ * (`./manager`), then the agents, the new ones as the Manager's sub-agents in a tree under it (spec §7.3,
+ * spec babysitter Fleet). A failure takes back what this launch made.
+ */
 async function formTeam(fleetId: string, workspaceId: string, project: string, mission: Mission, restarts: Restarts): Promise<Team> {
   const plan = mission.plan ?? [];
   const linked = linkedTeamAgents(fleetId);
@@ -134,7 +142,7 @@ async function formTeam(fleetId: string, workspaceId: string, project: string, m
   const pantheonOf = (task: SubTask) => workspaceCanvas(workspaceId).frames.find((f) => f.id === task.group?.id)?.group?.pantheon ?? pantheon;
   const made: Worktree[] = [];
   const joined: string[] = [];
-  let frameId: string | undefined;
+  let setup: MissionSetup | null = null;
   try {
     const root = await missionPrepare(project, mission.name ?? "mission");
     made.push(root);
@@ -161,20 +169,17 @@ async function formTeam(fleetId: string, workspaceId: string, project: string, m
     // Shown or not, its scene must be known to take the team (spec overnight mission §6.1).
     if (!canvasKnown(fleetId)) throw new Error(t().launch.leftWorkspace);
     checkGroups(fleetId, plan);
-    const created = members.filter((m) => !m.linked && !m.group);
-    if (created.length > 0) {
-      const group = await launchGroup(
-        { name: `Mission ${mission.name}`, role: "general", agents: created.map(() => teamAgent(fleetId)) },
-        defaultLaunchOptions(),
-        besideFleet(fleetId, workspaceId, created.length),
-        { pantheon, names: created.map((m) => m.name), cwds: created.map((m) => m.worktree), models: created.map((m) => m.model), permission: mission.permission, workspaceId },
-        teamArrival(),
-      );
-      if (!group) throw new Error(t().launch.groupFailed);
-      created.forEach((member, i) => (member.nodeId = group.nodeIds[i]));
-      frameId = group.frameId;
-      linkFleet(fleetId, group.frameId);
+    // The board beside the Fleet, its Manager under it: the user just asked for them, they come into view.
+    setup = await setUpBoard(fleetId, workspaceId, mission, teamAgent(fleetId), teamArrival());
+    for (const [i, member] of members.entries()) {
+      if (member.linked || member.group) continue;
+      const payload = agentPayload(teamAgent(fleetId), member.name, member.worktree, member.model, mission.permission);
+      const nodeId = await addTeamMember(workspaceId, setup.managerId, payload, plan[i].title, quietly("mission"));
+      if (!nodeId) throw new Error(t().launch.groupFailed);
+      member.nodeId = nodeId;
+      joined.push(nodeId);
     }
+    reflowTeam(workspaceId, setup.managerId);
     for (const [i, member] of members.entries()) {
       const group = plan[i].group;
       if (!group) continue;
@@ -185,14 +190,16 @@ async function formTeam(fleetId: string, workspaceId: string, project: string, m
       member.nodeId = nodeId;
       joined.push(nodeId);
     }
-    // launchGroup framed its own group only. Not while the user types: the agents started where they are, and the notice says so.
-    if (joined.length > 0 && fleetShown(fleetId) && !userIsTyping()) showGroups([...new Set(members.flatMap((m) => m.group ?? []).concat(frameId ?? []))]);
+    // Agents who joined a linked group are shown there. Not while the user types: the notice says so.
+    const groups = [...new Set(members.flatMap((m) => m.group ?? []))];
+    if (groups.length > 0 && fleetShown(fleetId) && !userIsTyping()) showGroups(groups);
     // Linked agents move only once the whole team exists (final review H2).
     for (const member of members) if (member.linked) restarts.set(member.nodeId, restartIn(member.nodeId, member.worktree, member.model, mission.permission));
-    return { project, slug: root.slug, branch: root.branch, worktree: root.path, frameId, members };
+    return { project, slug: root.slug, branch: root.branch, worktree: root.path, members, manager: setup.managerId, board: setup.boardId };
   } catch (error) {
     // Its terminals first: no agent may sit in a folder that goes.
-    removeTeam(fleetId, workspaceId, frameId, joined);
+    removeTeam(fleetId, workspaceId, undefined, joined);
+    if (setup) undoSetup(fleetId, workspaceId, setup);
     // What this launch made goes, so the plan can be launched again; never forced (final review H2).
     if (made.length > 0) await missionDiscard(project, made).catch(() => undefined);
     throw error;
@@ -213,23 +220,30 @@ function removeTeam(fleetId: string, workspaceId: string, frameId: string | unde
 /** Types `text`, its sub-task, in a member's terminal once it is ready (spec §7.3). */
 export async function assign(fleetId: string, member: Member, text: string, restarted: Promise<void> = Promise.resolve()) {
   const id = member.nodeId;
-  // Before its relaunch ends, its screen and silence are the previous session's (final review H2).
-  await restarted.catch(() => undefined);
-  const agent = terminalOf(nodesStore.getState().nodes[id])?.agent;
-  const ready = await whenReady({ running: () => isRunning(id), quietMs: () => quietFor(id), screen: () => freshText(id, 50), press: (keys) => ptyWrite(id, keys), agent });
-  if (missionOf(nodesStore.getState().nodes[fleetId])?.state !== "en_cours") return;
-  if (!isRunning(id)) {
-    notify(fleetId, t().lines.notStarted(member.name));
-    return;
+  try {
+    // Before its relaunch ends, its screen and silence are the previous session's (final review H2).
+    await restarted.catch(() => undefined);
+    const agent = terminalOf(nodesStore.getState().nodes[id])?.agent;
+    const ready = await whenReady({ running: () => isRunning(id), quietMs: () => quietFor(id), screen: () => freshText(id, 50), press: (keys) => ptyWrite(id, keys), agent });
+    if (missionOf(nodesStore.getState().nodes[fleetId])?.state !== "en_cours") return;
+    // Its Manager hears it, or the Fleet of a mission run the old way: never a Fleet whose board a Manager runs.
+    const runner = missionRunner(fleetId);
+    if (!isRunning(id)) {
+      notify(runner, t().lines.notStarted(member.name));
+      return;
+    }
+    // Its shell outlives a Claude that quit: the sub-task would be typed as a command (README mission).
+    if (!ready) {
+      notify(runner, t().lines.notReady(member.name));
+      return;
+    }
+    await ptySendText(id, text);
+    talk(runner, id);
+    updateMember(fleetId, id, { sentAt: Date.now() });
+  } finally {
+    // Its sub-task typed or given up: teammates may message it now.
+    markLaunching(id, false);
   }
-  // Its shell outlives a Claude that quit: the sub-task would be typed as a command (README mission).
-  if (!ready) {
-    notify(fleetId, t().lines.notReady(member.name));
-    return;
-  }
-  await ptySendText(id, text);
-  signalWire(id, "toAgent", fleetId);
-  updateMember(fleetId, id, { sentAt: Date.now() });
 }
 
 /** "Launch the mission" (spec §7.3): the plan's go-ahead. A second click while it launches does nothing. */
@@ -258,13 +272,19 @@ export async function launchMission(fleetId: string): Promise<void> {
     notify(fleetId, t().lines.couldNotStart(errorText(error)));
     return;
   }
-  // `add_tasks` may have queued more while the team formed.
-  const queue = missionOf(nodesStore.getState().nodes[fleetId])?.queue ?? mission.queue;
-  setMission(fleetId, { state: "en_cours", startedAt: Date.now(), ...team, plan, ...(waiting.length > 0 ? { queue: [...waiting, ...(queue ?? [])] } : {}) });
+  // `add_tasks` may have queued more while the team formed. Every task, the plan's and the queue's, is a card of the board.
+  const queue = [...waiting, ...(missionOf(nodesStore.getState().nodes[fleetId])?.queue ?? mission.queue ?? [])];
+  const carded = addTaskCards(fleetId, plan);
+  const cardedQueue = addTaskCards(fleetId, queue);
+  setMission(fleetId, { state: "en_cours", startedAt: Date.now(), ...team, plan: carded, frameId: undefined, ...(cardedQueue.length > 0 ? { queue: cardedQueue } : {}) });
+  const started = missionOf(nodesStore.getState().nodes[fleetId]) ?? mission;
+  // The Manager gets its orders; the Fleet hears nothing of the team from now on (`missionRunner`).
   const names = team.members.map((m) => `${m.name} (${m.task})`).join(", ");
-  notify(fleetId, t().lines.goAhead(names, team.branch));
-  void startMissionCards(fleetId, team.members, plan).catch(() => undefined);
-  team.members.forEach((member, i) => void assign(fleetId, member, withTicketNote(fleetId, mission, subTaskText(mission.name ?? "", plan[i], member.branch), plan[i]), restarts.get(member.nodeId)));
+  notify(team.manager, t().lines.managerOrders(mission.name ?? "", fleetNameOf(fleetId), oneLine(mission.task ?? ""), team.board, names, team.branch, mission.maxAgents));
+  talk(fleetId, team.board);
+  talk(team.board, team.manager);
+  void startMissionCards(fleetId, team.members, carded).catch(() => undefined);
+  team.members.forEach((member, i) => void assign(fleetId, member, withTicketNote(fleetId, started, subTaskText(mission.name ?? "", carded[i], member.branch), carded[i]), restarts.get(member.nodeId)));
   // Fewer sub-tasks than Max agents, and tasks queued: new agents take them now. Imported late: the queue imports this module.
   if (plan.length < mission.maxAgents && queue?.length) void import("./queue").then(({ pumpQueue }) => pumpQueue(fleetId)).catch(() => undefined);
 }
@@ -280,10 +300,12 @@ export function endMission(fleetId: string, summary: string, ui?: string) {
   // The user hears it, if away (`@/shell/finishAlert`).
   signalFinish({ nodeId: fleetId, state: "done", summary });
   for (const member of mission.members) if (member.linked && mission.project) void restartIn(member.nodeId, mission.project);
-  // Its own sub-agents (spawn_agent) stay open, without the night's permission: a later restart asks.
+  // Its own sub-agents (spawn_agent) stay open, without the night's permission: a later restart asks. So do its Manager's.
   releaseSpawnedPermission(fleetId, mission.permission);
-  // Those who joined a group go alone: it stays, with its own agents (spec specialised groups §4).
-  const joined = mission.members.filter((m) => !m.linked && m.group).map((m) => m.nodeId);
+  // Those who joined a group go alone: it stays, with its own agents (spec specialised groups §4). Under a
+  // Manager, every agent made for the mission goes one by one (no mission group); the Manager stays until the
+  // user cleans the mission up, its terminal showing how it ended.
+  const joined = mission.members.filter((m) => !m.linked && (mission.manager !== undefined || m.group)).map((m) => m.nodeId);
   if (canvasKnown(fleetId)) {
     removeTeam(fleetId, record.workspaceId, mission.frameId, joined);
     return;
@@ -343,6 +365,8 @@ export async function cleanMission(fleetId: string): Promise<Cleanup | string> {
   if (mission.overnight) void nightSession(fleetId, { linear: false }).catch((error: unknown) => console.warn("fleet session not restored after the night", error));
   // The router is a setting like Max agents: the next mission keeps it checked.
   if (mission.router) next.router = true;
+  // Its Manager goes with it; its board stays, still the Fleet's: the next mission runs on it.
+  removeManager(fleetId);
   try {
     return mission.project && mission.slug ? await missionCleanup(mission.project, mission.slug, mission.members.map((m) => m.name)) : { removed: [], kept: [] };
   } catch (error) {
@@ -376,7 +400,12 @@ export async function newMember(fleetId: string, workspaceId: string, mission: M
   }
   const model = teamModel(fleetId, mission, task);
   let nodeId: string | null = null;
-  if (frame) {
+  if (mission.manager && !chosen) {
+    // Under its Manager: one more of its sub-agents, in its tree. It arrives on its own, never taking the view nor the keyboard.
+    const payload = agentPayload(teamAgent(fleetId), name, tree.path, model, mission.permission);
+    nodeId = await addTeamMember(workspaceId, mission.manager, payload, task.title, quietly("mission"));
+    if (nodeId) reflowTeam(workspaceId, mission.manager);
+  } else if (frame) {
     // A queue's or a handover's agent arrives on its own, whenever a seat frees up: it never takes the view nor the keyboard.
     nodeId = await addTerminal(workspaceId, agentPayload(teamAgent(fleetId), name, tree.path, model, mission.permission), frameCenter(frame), frame.id, quietly("mission"));
   } else {
@@ -462,12 +491,13 @@ export async function reassignTask(fleetId: string, fromNodeId: string, target: 
   const latest = missionOf(nodesStore.getState().nodes[fleetId]) ?? mission;
   const members = latest.members.map((m) => (m.nodeId === from.nodeId ? { ...m, handedTo: to.name } : m.nodeId === to.nodeId ? to : m));
   setMission(fleetId, { members: members.some((m) => m.nodeId === to.nodeId) ? members : [...members, to] });
-  reassignMissionCard(fleetId, latest.plan, task.title, to.name);
+  void reassignMissionCard(fleetId, latest.plan, task.title, to.name).catch(() => undefined);
   // The previous agent stops: its sub-task is another's now (final review H3).
   await pauseAgents([from.nodeId]).catch(() => 0);
   if (isRunning(from.nodeId)) {
+    const runner = missionRunner(fleetId);
     void ptySendText(from.nodeId, t().lines.handedAway(from.task, to.name)).then(
-      () => signalWire(from.nodeId, "toAgent", fleetId),
+      () => talk(runner, from.nodeId),
       () => undefined,
     );
   }

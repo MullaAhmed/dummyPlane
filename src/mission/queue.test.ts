@@ -35,6 +35,25 @@ vi.mock("@/agents/broadcast", () => ({ pauseAgents: vi.fn(() => Promise.resolve(
 vi.mock("@/canvas/arrive", () => ({ showNode: vi.fn() }));
 vi.mock("./ready", () => ({ whenReady: vi.fn(() => Promise.resolve(true)) }));
 vi.mock("./events", () => ({ notify: vi.fn() }));
+// The board and its Manager are scene work (`./manager.test.ts`): a go-ahead here gets board b1 and Manager m1.
+vi.mock("./manager", async (importOriginal) => {
+  const original = await importOriginal<typeof import("./manager")>();
+  const terminals = await import("@/agents/terminals");
+  const store = await import("./store");
+  return {
+    ...original,
+    setUpBoard: vi.fn(async (fleetId: string) => {
+      store.setMission(fleetId, { board: "b1", manager: "m1", boardMade: true });
+      return { boardId: "b1", boardMade: true, managerId: "m1", managerMade: true };
+    }),
+    addTeamMember: vi.fn((workspaceId: string, managerId: string, payload: TerminalPayload, task: string, arrival: never) =>
+      terminals.addTerminal(workspaceId, { ...payload, spawnedBy: managerId, task }, { x: 0, y: 0 }, null, arrival),
+    ),
+    reflowTeam: vi.fn(),
+    undoSetup: vi.fn(),
+    removeManager: vi.fn(),
+  };
+});
 
 const session: TerminalPayload = { title: "Chef", name: "Chef", agent: "claude", cwd: "C:/code/proj", shell: "default", command: "", claudeSessionId: "s0", role: "orchestrator" };
 const done = { summary: "Login fait", status: "termine" as const, at: 600_000 };
@@ -752,12 +771,15 @@ describe("Max agents caps the agents at work, not the team", () => {
 
   it("fills the seats a short plan leaves at the go-ahead: Max agents 2, one sub-task, three queued", async () => {
     vi.mocked(missionPrepare).mockResolvedValue({ slug: "auth", branch: "dummyplane/auth", path: "C:/w/auth" });
-    vi.mocked(launchGroup).mockResolvedValue({ frameId: "f1", nodeIds: ["n0"] } as never);
     await setup({ state: "plan", maxAgents: 2, plan: [{ title: "Login", brief: "Fais le login", agent: "nouveau", budgetMin: 20 }], queue: queued("Docs", "Tests", "Lint"), members: [] });
     await launchMission("chef");
     await vi.waitFor(() => expect(missionNow().members.map((m) => m.task)).toEqual(["Login", "Docs"]));
+    expect(launchGroup).not.toHaveBeenCalled();
     expect(missionNow().queue?.map((t) => t.title)).toEqual(["Tests", "Lint"]);
-    expect(lines()).toContainEqual(expect.stringContaining('a new agent, takes "Docs". Still waiting: 2.'));
+    // Both are the Manager's sub-agents, and the Manager hears the queue: the Fleet hears nothing of it.
+    expect(vi.mocked(addTerminal).mock.calls.map(([, payload]) => payload.spawnedBy)).toEqual(["m1", "m1"]);
+    expect(vi.mocked(notify).mock.calls).toContainEqual(["m1", expect.stringContaining('a new agent, takes "Docs". Still waiting: 2.')]);
+    expect(vi.mocked(notify).mock.calls.some(([id]) => id === "chef")).toBe(false);
   });
 
   it("starts a new agent for the queue when a seat is free and nobody has finished (after a launch)", async () => {

@@ -7,7 +7,7 @@ import { activeCount, freeSeat, holdSeat, moving, oneAtATime, seatHeld, seatsHel
 import { notify } from "./events";
 import { assign, mergeMember, newMember, subTaskText, withTicketNote } from "./launch";
 import { NEW_AGENT, noNewWork, type Member, type Mission, type QueuedTask, type Report, type SubTask } from "./mission";
-import { agentState, canvasKnown, isFleetClosed, missionOf, setMission, updateMember } from "./store";
+import { agentState, canvasKnown, isFleetClosed, missionOf, missionRunner, setMission, updateMember } from "./store";
 
 const t = () => messages(agentMessages);
 const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));
@@ -58,7 +58,7 @@ async function mergeBranch(fleetId: string, nodeId: string): Promise<boolean> {
   const ready = mergeable(fleetId, nodeId, report);
   if (!ready) return false;
   const { line, merged, uncommitted } = await mergeMember(fleetId, ready.worktree, ready.member);
-  if (!merged || uncommitted) notify(fleetId, line);
+  if (!merged || uncommitted) notify(missionRunner(fleetId), line);
   return merged;
 }
 
@@ -125,7 +125,7 @@ async function startHeld(fleetId: string, task: QueuedTask): Promise<{ said: str
 async function startNew(fleetId: string, task: QueuedTask): Promise<void> {
   holdSeat(fleetId, task.title);
   const result = await startHeld(fleetId, task);
-  if (result) notify(fleetId, result.said);
+  if (result) notify(missionRunner(fleetId), result.said);
 }
 
 /**
@@ -167,7 +167,7 @@ function tellIfIdle(fleetId: string) {
   const key = `${fleetId}:${mission.startedAt}`;
   if (idleTold.get(key) === line) return;
   idleTold.set(key, line);
-  notify(fleetId, line);
+  notify(missionRunner(fleetId), line);
 }
 
 /**

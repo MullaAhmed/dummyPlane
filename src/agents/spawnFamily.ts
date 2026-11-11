@@ -1,4 +1,4 @@
-import { nodesStore, terminalOf } from "@/store/nodes";
+import { isManagerNode, nodesStore, terminalOf } from "@/store/nodes";
 import { statusOf } from "@/store/terminalStatus";
 import type { ClosingAgents } from "@/store/ui";
 import { sceneAccess } from "./sceneAccess";
@@ -90,9 +90,15 @@ function atWork(id: string): boolean {
   return !reported.has(id) && (state === "running" || state === "starting");
 }
 
-/** The sub-agents at work now, every tree and workspace together: created, not stopped, not reported yet. */
+/**
+ * The sub-agents at work now, every tree and workspace together: created, not stopped, not reported yet. A
+ * mission's agents under their Manager are its team, counted by Max active agents, not here; theirs count.
+ */
 export function runningSpawned(): number {
-  return Object.entries(nodesStore.getState().nodes).filter(([id, record]) => Boolean(terminalOf(record)?.spawnedBy) && atWork(id)).length;
+  return Object.entries(nodesStore.getState().nodes).filter(([id, record]) => {
+    const parent = terminalOf(record)?.spawnedBy;
+    return Boolean(parent) && !isManagerNode(parent!) && atWork(id);
+  }).length;
 }
 
 /**

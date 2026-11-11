@@ -120,7 +120,8 @@ describe("the fleet's tools (spec orchestrateur §7.2)", () => {
 
   it("lists them for the fleet only, and each side refuses the other's", async () => {
     const list = (await answer({ callId: 1, nodeId: "chef", method: "tools/list", params: {} })) as { tools: { name: string }[] };
-    expect(list.tools.map((t) => t.name)).toEqual(["mission", "propose_plan", "add_tasks", "queue", "next_task", "tickets", "board", "team", "read_output", "write", "extend", "interrupt", "reassign", "merge", "finish", "remote_control", "spawn_agent", "output_guide", "read_node", "notes"]);
+    // The babysitter's: it plans, then adds and orders the board's cards, looks, and may stop the mission (spec babysitter Fleet).
+    expect(list.tools.map((t) => t.name)).toEqual(["mission", "propose_plan", "add_tasks", "queue", "prioritize", "tickets", "board", "team", "stop_mission", "remote_control", "spawn_agent", "output_guide", "read_node", "notes"]);
     expect(textOf(await call("batman", "propose_plan", plan))).toBe("This tool is for the fleet.");
     expect(textOf(await call("chef", "report", { summary: "x", status: "done" }))).toBe("This tool is for agents.");
     expect(textOf(await call("batman", "board", {}))).toBe("This tool is for the fleet.");
@@ -323,7 +324,7 @@ describe("the fleet's tools (spec orchestrateur §7.2)", () => {
     expect(textOf(await call("loin", "propose_plan", { ...plan, subtasks: [{ ...plan.subtasks[1], group: "Interface" }] }))).toContain("not on screen");
   });
 
-  describe("once the team is formed", () => {
+  describe("once the team is formed, for a mission run the old way (no Manager: saved before Managers existed)", () => {
     beforeAll(() =>
       setMission("chef", {
         state: "en_cours",
@@ -331,6 +332,16 @@ describe("the fleet's tools (spec orchestrateur §7.2)", () => {
         members: [{ nodeId: "batman", name: "Batman", task: "Login", budgetMin: 20, linked: true, branch: "dummyplane/auth-batman", worktree: "C:/w/batman", sentAt: Date.now() }],
       }),
     );
+
+    it("lists the team's tools for the Fleet, which runs it to its end", async () => {
+      const list = (await answer({ callId: 1, nodeId: "chef", method: "tools/list", params: {} })) as { tools: { name: string }[] };
+      expect(list.tools.map((t) => t.name)).toEqual([
+        "mission", "propose_plan", "add_tasks", "queue", "prioritize", "next_task", "tickets", "board", "team",
+        "read_output", "write", "extend", "interrupt", "reassign", "merge", "finish", "stop_mission", "remote_control",
+        "spawn_agent", "output_guide", "read_node", "notes",
+      ]);
+      expect(JSON.parse(textOf(await call("chef", "mission", {})))).toMatchObject({ runs: "fleet", manager: null, board: null });
+    });
 
     it("says each member's group and speciality, to choose who takes a sub-task over (spec groupes spécialisés §3)", async () => {
       const front = { id: "g1", name: "Interface", x: 0, y: 0, width: 10, height: 10, memberIds: ["batman"], group: { role: "frontend" as const, pantheon: "egyptian", speciality: "Frontend" } };
@@ -451,6 +462,137 @@ describe("the fleet's tools (spec orchestrateur §7.2)", () => {
       expect(textOf(await call("chef", "finish", { summary: "Fini" }))).toContain("Mission finished");
       expect(endMission).toHaveBeenCalledWith("chef", "Fini");
     });
+  });
+});
+
+describe("a mission its Manager runs (spec babysitter Fleet)", () => {
+  const member = (nodeId: string, name: string, task: string) => ({ nodeId, name, task, budgetMin: 20, linked: false, branch: `dummyplane/auth-${nodeId}`, worktree: `C:/w/${nodeId}`, sentAt: Date.now() });
+  const lines = (nodeId: string) => vi.mocked(notify).mock.calls.filter(([id]) => id === nodeId).map(([, line]) => line);
+  const terminal = (name: string, extra: Record<string, unknown> = {}) => ({ title: name, name, agent: "claude" as const, cwd: "C:/code", shell: "default" as const, command: "", ...extra });
+
+  beforeAll(async () => {
+    await nodesStore.getState().create("bossboard", {
+      workspaceId: "w1",
+      kind: "kanban",
+      payload: {
+        columns: [
+          { id: "todo", title: "To do", cardIds: ["c1"] },
+          { id: "doing", title: "In progress", cardIds: [] },
+          { id: "done", title: "Done", cardIds: [] },
+        ],
+        cards: { c1: { id: "c1", title: "Docs", notes: "", priority: "none" } },
+        orchestrator: { nodeId: "babysitter", columnId: "todo" },
+      },
+    });
+    await nodesStore.getState().create("babysitter", {
+      workspaceId: "w1",
+      kind: "fleet",
+      payload: {
+        name: "Chef",
+        mission: {
+          state: "en_cours",
+          maxAgents: 1,
+          name: "Auth",
+          branch: "dummyplane/auth",
+          manager: "boss",
+          board: "bossboard",
+          boardMade: true,
+          plan: [{ title: "Login", brief: "b", agent: "nouveau", budgetMin: 20 }],
+          queue: [{ title: "Docs", brief: "d", budgetMin: 10, card: "c1" }],
+          members: [member("robin", "Robin", "Login")],
+        },
+      },
+    });
+    await nodesStore.getState().create("boss", { workspaceId: "w1", kind: "terminal", payload: terminal("Manager", { role: "manager", fleet: "babysitter" }) });
+    await nodesStore.getState().create("robin", { workspaceId: "w1", kind: "terminal", payload: terminal("Robin", { spawnedBy: "boss" }) });
+    for (const id of ["babysitter", "boss", "robin"]) terminalStatusStore.getState().set(id, { state: "running" });
+  });
+
+  it("lists the Manager its own tools: the team's and the board's, no spawn_agent nor report", async () => {
+    const list = (await answer({ callId: 1, nodeId: "boss", method: "tools/list", params: {} })) as { tools: { name: string }[] };
+    expect(list.tools.map((t) => t.name)).toEqual([
+      "mission", "add_tasks", "queue", "next_task", "board", "move_card", "team", "read_output", "write", "extend",
+      "interrupt", "reassign", "merge", "finish", "need_user", "output_guide", "read_node", "notes",
+    ]);
+    expect(textOf(await call("boss", "report", { summary: "x", status: "done" }))).toContain("not the Manager's");
+    expect(textOf(await call("boss", "spawn_agent", { task: "x" }))).toContain("not the Manager's");
+    expect(textOf(await call("boss", "propose_plan", {}))).toBe("This tool is for the fleet.");
+    expect(textOf(await call("robin", "move_card", { card: "c1", column: "Done" }))).toBe("This tool is for a mission's Manager.");
+    expect(textOf(await call("babysitter", "need_user", { reason: "x" }))).toBe("This tool is for a mission's Manager.");
+  });
+
+  it("lists the Fleet no team tool while its Manager runs the mission, and refuses them", async () => {
+    const list = (await answer({ callId: 1, nodeId: "babysitter", method: "tools/list", params: {} })) as { tools: { name: string }[] };
+    expect(list.tools.map((t) => t.name)).not.toContain("write");
+    expect(list.tools.map((t) => t.name)).not.toContain("finish");
+    expect(textOf(await call("babysitter", "write", { agent: "Robin", text: "x" }))).toContain("Manager, the Manager, runs this mission's team");
+    expect(textOf(await call("babysitter", "merge", {}))).toContain("runs this mission's team");
+    expect(JSON.parse(textOf(await call("babysitter", "mission", {})))).toMatchObject({ runs: "manager", manager: "Manager", board: "bossboard" });
+    // Looking is the Fleet's: the team and the queue, read-only.
+    expect(JSON.parse(textOf(await call("babysitter", "team", {})))[0]).toMatchObject({ name: "Robin", subtask: "Login" });
+  });
+
+  it("takes a team agent's report to its Manager, once, and never to the Fleet", async () => {
+    vi.mocked(notify).mockClear();
+    expect(textOf(await call("robin", "report", { summary: "Login fait", status: "done" }))).toBe("Report passed on to Manager.");
+    expect(lines("boss")).toEqual(["Robin reported (done): Login fait"]);
+    expect(lines("babysitter")).toEqual([]);
+  });
+
+  it("tells the Fleet one line when the Manager is stuck, and one when the board is finished", async () => {
+    vi.mocked(notify).mockClear();
+    expect(textOf(await call("boss", "need_user", { reason: "A merge conflict\nin auth.ts" }))).toContain("Passed on to Chef");
+    expect(lines("babysitter")).toEqual(["Manager needs the user: A merge conflict in auth.ts"]);
+    vi.mocked(endMission).mockImplementationOnce((fleetId: string, summary: string) => setMission(fleetId, { summary }));
+    expect(textOf(await call("boss", "finish", { summary: "Login and docs\ndone." }))).toContain("Mission finished");
+    expect(endMission).toHaveBeenCalledWith("babysitter", "Login and docs\ndone.");
+    expect(lines("babysitter")).toEqual(["Manager needs the user: A merge conflict in auth.ts", "The board is finished: Login and docs done."]);
+    setMission("babysitter", { summary: undefined });
+  });
+
+  it("adds the Fleet's tasks as cards in the board's to-do column, and tells the Manager", async () => {
+    vi.mocked(notify).mockClear();
+    const added = await call("babysitter", "add_tasks", { tasks: [{ title: "Tests", brief: "Write the tests", budget_min: 15 }] });
+    expect(textOf(added)).toContain("1 task added");
+    const board = nodesStore.getState().nodes.bossboard.payload as { columns: { id: string; cardIds: string[] }[]; cards: Record<string, { title: string; notes: string }> };
+    const todo = board.columns.find((c) => c.id === "todo")!;
+    const card = todo.cardIds.find((id) => board.cards[id].title === "Tests")!;
+    expect(board.cards[card].notes).toBe("Write the tests");
+    expect(missionOf(nodesStore.getState().nodes.babysitter)?.queue?.find((task) => task.title === "Tests")?.card).toBe(card);
+    expect(lines("boss")).toEqual(['Chef added 1 card to the board: "Tests". They wait in the queue: a new agent takes each as a seat frees up.']);
+    expect(lines("babysitter")).toEqual([]);
+  });
+
+  it("reorders the queue and the to-do column for the Fleet, and the Manager hears the new order", async () => {
+    vi.mocked(notify).mockClear();
+    expect(textOf(await call("babysitter", "prioritize", { task: "tests", position: 1, priority: "high" }))).toBe('"Tests" is number 1 of 2 in the queue. "Tests": priority high.');
+    const mission = missionOf(nodesStore.getState().nodes.babysitter)!;
+    expect(mission.queue?.map((t) => t.title)).toEqual(["Tests", "Docs"]);
+    const board = nodesStore.getState().nodes.bossboard.payload as { columns: { id: string; cardIds: string[] }[]; cards: Record<string, { priority: string }> };
+    const todo = board.columns.find((c) => c.id === "todo")!.cardIds;
+    expect(todo).toEqual([mission.queue![0].card, "c1"]);
+    expect(board.cards[mission.queue![0].card!].priority).toBe("high");
+    expect(lines("boss")).toEqual(['Chef reordered the queue: "Tests", "Docs".']);
+    expect(await call("babysitter", "prioritize", { task: "Nope", position: 1 })).toMatchObject({ isError: true });
+  });
+
+  it("lets the Manager move a card by the column's title", async () => {
+    expect(textOf(await call("boss", "move_card", { card: "c1", column: "in progress" }))).toBe('"Docs" moved to In progress.');
+    expect(await call("boss", "move_card", { card: "zz", column: "Done" })).toMatchObject({ isError: true });
+  });
+
+  it("stops the mission for the Fleet, the Manager told", async () => {
+    vi.mocked(notify).mockClear();
+    expect(await call("babysitter", "stop_mission", {})).toMatchObject({ isError: true });
+    expect(textOf(await call("babysitter", "stop_mission", { reason: "The user changed their mind" }))).toContain("Mission stopped");
+    expect(endMission).toHaveBeenCalledWith("babysitter", "Stopped by Chef: The user changed their mind");
+    expect(lines("boss")).toEqual(["Chef stopped the mission: The user changed their mind"]);
+  });
+
+  it("gives Remote Control the Manager too, by its name", async () => {
+    vi.mocked(setRemoteControl).mockResolvedValue({ on: true, url: "https://claude.ai/x" } as never);
+    expect(textOf(await call("babysitter", "remote_control", { on: true, agents: ["manager"] }))).toContain("Manager: on");
+    expect(setRemoteControl).toHaveBeenCalledWith("boss", true);
   });
 });
 

@@ -1,14 +1,14 @@
-import { signalWire } from "@/canvas/wireActivity";
+import { talk } from "@/agents/talkWires";
 import { AGENTS } from "@/agents/catalog";
 import { linkedAgentsOf, type LinkedAgent } from "@/agents/agentLinks";
 import { isLaunching, spawnedByOf } from "@/agents/spawnFamily";
 import { messages } from "@/i18n";
 import { notify } from "@/mission/events";
 import { oneLine, sameName } from "@/mission/mission";
-import { agentState } from "@/mission/store";
+import { agentState, missionPeers } from "@/mission/store";
 import { terminalText } from "@/nodes/terminal/registry";
 import { agentActivityStore } from "@/store/agentActivity";
-import { nodesStore, terminalOf } from "@/store/nodes";
+import { isManagerNode, nodesStore, terminalOf } from "@/store/nodes";
 import { isRunning } from "@/store/terminalStatus";
 import { refused, said, type ToolResult } from "./agentTools";
 import { agentMessages } from "./messages";
@@ -61,10 +61,22 @@ function relationOf(nodeId: string, peerId: string): string {
   return "linked";
 }
 
+/**
+ * The agents `nodeId` reaches: those wired to it, and, in a mission its Manager runs, its Manager and its
+ * teammates with no wire yet (`missionPeers`): the first message draws one. Null when its canvas was never
+ * read and it has no teammate.
+ */
+function reachable(nodeId: string): LinkedAgent[] | null {
+  const linked = linkedAgentsOf(nodeId);
+  const peers = missionPeers(nodeId).filter((id) => id !== nodeId && !linked?.some((a) => a.nodeId === id) && terminalOf(nodesStore.getState().nodes[id]));
+  if (linked === null && peers.length === 0) return null;
+  return [...(linked ?? []), ...peers.map((id) => ({ nodeId: id, name: nameOf(id), outgoing: false }))];
+}
+
 /** The linked agent `raw` names, by id or by name; else why none. */
 function linkedNamed(nodeId: string, raw: unknown): LinkedAgent | string {
   const l = t().links;
-  const linked = linkedAgentsOf(nodeId);
+  const linked = reachable(nodeId);
   if (linked === null) return l.noCanvas;
   const name = typeof raw === "string" ? raw.trim() : "";
   if (!name) return l.whom;
@@ -77,7 +89,7 @@ function linkedNamed(nodeId: string, raw: unknown): LinkedAgent | string {
 }
 
 function listLinked(nodeId: string): ToolResult {
-  const linked = linkedAgentsOf(nodeId);
+  const linked = reachable(nodeId);
   if (linked === null) return refused(t().links.noCanvas);
   if (linked.length === 0) return said(t().links.none);
   return said(
@@ -98,10 +110,10 @@ function messageLinked(nodeId: string, args: Record<string, unknown>): ToolResul
   if (!isRunning(peer.nodeId)) return refused(l.stopped(peer.name));
   // A sub-agent just spawned runs its shell before its Claude: the line would run there as a command.
   if (isLaunching(peer.nodeId)) return refused(l.starting(peer.name));
-  notify(peer.nodeId, l.message(nameOf(nodeId), text));
-  // The light runs along the wire from the sender: a pulse on the wire's end, naming its start.
-  if (peer.outgoing) signalWire(peer.nodeId, "toAgent", nodeId);
-  else signalWire(nodeId, "toFleet", peer.nodeId);
+  // A Manager answers its team with write: it has no message_agent.
+  notify(peer.nodeId, isManagerNode(peer.nodeId) ? l.toManager(nameOf(nodeId), text) : l.message(nameOf(nodeId), text));
+  // The message draws its wire when none joins them yet, and the light runs along it from the sender.
+  talk(nodeId, peer.nodeId);
   const waiting = agentActivityStore.getState().activities[peer.nodeId]?.activity === "waiting";
   return said(waiting ? l.held(peer.name) : l.sent(peer.name));
 }

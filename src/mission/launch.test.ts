@@ -25,6 +25,7 @@ import { onFinish, type FinishSignal } from "@/agents/finishes";
 import { cleanMission, endMission, handoverText, launchMission, mergeMission, reassignTask, subTaskText, withTicketNote } from "./launch";
 import { NEW_MISSION, type Member, type Mission } from "./mission";
 import { missionOf, releaseTeamPermission, updateMember } from "./store";
+import { setUpBoard, undoSetup } from "./manager";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
 vi.mock("@/ipc/mission", () => ({ missionPrepare: vi.fn(), missionAddAgent: vi.fn(), missionMerge: vi.fn(), missionCleanup: vi.fn(), missionDiscard: vi.fn(() => Promise.resolve({ removed: [], kept: [] })) }));
@@ -46,6 +47,25 @@ vi.mock("./store", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./store")>()),
   linkedTeamAgents: vi.fn(() => [{ nodeId: "batman", name: "Batman" }]),
 }));
+// The board and its Manager are scene work (`./manager.test.ts`): here the go-ahead gets board b1 and Manager m1.
+vi.mock("./manager", async (importOriginal) => {
+  const original = await importOriginal<typeof import("./manager")>();
+  const terminals = await import("@/agents/terminals");
+  const store = await import("./store");
+  return {
+    ...original,
+    setUpBoard: vi.fn(async (fleetId: string) => {
+      store.setMission(fleetId, { board: "b1", manager: "m1", boardMade: true });
+      return { boardId: "b1", boardMade: true, managerId: "m1", managerMade: true };
+    }),
+    addTeamMember: vi.fn((workspaceId: string, managerId: string, payload: TerminalPayload, task: string, arrival: never) =>
+      terminals.addTerminal(workspaceId, { ...payload, spawnedBy: managerId, task }, { x: 0, y: 0 }, null, arrival),
+    ),
+    reflowTeam: vi.fn(),
+    undoSetup: vi.fn((fleetId: string) => store.setMission(fleetId, { board: undefined, manager: undefined, boardMade: undefined })),
+    removeManager: vi.fn(),
+  };
+});
 
 // How agents arrive: the go-ahead's team comes into view (the user just asked for it), a replacement's agent never does.
 const inView = { reveal: true };
@@ -144,7 +164,7 @@ describe("the model router (spec maj §3)", () => {
   it("starts each agent on the model of its sub-task's level, and gives the linked ones theirs back at the end", async () => {
     await setup({ router: true, plan: [{ ...plan[0], level: "eleve" }, { ...plan[1], level: "faible" }] });
     await launchMission("chef");
-    expect(launchGroup).toHaveBeenCalledWith(expect.anything(), expect.anything(), undefined, expect.objectContaining({ models: ["claude-haiku-5-5"] }), inView);
+    expect(addTerminal).toHaveBeenCalledWith("w1", expect.objectContaining({ model: "claude-haiku-5-5", spawnedBy: "m1" }), expect.anything(), null, quiet);
     expect(terminalOf(nodesStore.getState().nodes.batman)?.model).toBe("claude-opus-5-5");
     expect(relaunchTerminal).toHaveBeenCalledWith("batman", expect.objectContaining({ model: "claude-opus-5-5" }), "new");
     expect(missionNow().members.map((m) => m.model)).toEqual(["claude-opus-5-5", "claude-haiku-5-5"]);
@@ -164,15 +184,16 @@ describe("the model router (spec maj §3)", () => {
   it("leaves the models alone without the router", async () => {
     await setup({ plan: [{ ...plan[0], level: "eleve" }, { ...plan[1], level: "faible" }] });
     await launchMission("chef");
-    expect(launchGroup).toHaveBeenCalledWith(expect.anything(), expect.anything(), undefined, expect.objectContaining({ models: [undefined] }), inView);
+    expect(vi.mocked(addTerminal).mock.calls[0][1].model).toBeUndefined();
     expect(terminalOf(nodesStore.getState().nodes.batman)?.model).toBeUndefined();
     expect(missionNow().members.map((m) => m.model)).toEqual([undefined, undefined]);
   });
 });
 
 describe("launchMission (spec §7.3)", () => {
-  it("forms the team: a worktree each, linked agents relaunched there anew, new ones in the mission's group", async () => {
+  it("forms the team: a worktree each, linked agents relaunched there anew, new ones under the board's Manager", async () => {
     await setup();
+    vi.mocked(addTerminal).mockResolvedValueOnce("n1");
     await launchMission("chef");
     const mission = missionNow();
     const fresh = mission.members[1].name;
@@ -186,21 +207,27 @@ describe("launchMission (spec §7.3)", () => {
     expect(batman.claudeSessionId).not.toBe("old");
     expect(batman.steps).toBeUndefined();
     expect(relaunchTerminal).toHaveBeenCalledWith("batman", expect.objectContaining({ cwd: batman.cwd, claudeSessionId: batman.claudeSessionId }), "new");
-    expect(launchGroup).toHaveBeenCalledWith(
-      { name: "Mission Auth", role: "general", agents: ["claude"] },
+    // The board and its Manager come into view (the user just asked for them); the new agents are the Manager's sub-agents.
+    expect(setUpBoard).toHaveBeenCalledWith("chef", "w1", expect.objectContaining({ name: "Auth" }), "claude", inView);
+    expect(addTerminal).toHaveBeenCalledWith(
+      "w1",
+      expect.objectContaining({ name: fresh, cwd: tree(`auth-${fresh.toLowerCase()}`).path, spawnedBy: "m1", task: "API" }),
       expect.anything(),
-      undefined,
-      expect.objectContaining({ names: [fresh], cwds: [tree(`auth-${fresh.toLowerCase()}`).path] }),
-      inView,
+      null,
+      quiet,
     );
-    expect(linkFleet).toHaveBeenCalledWith("chef", "f1");
-    expect(mission).toMatchObject({ state: "en_cours", project: "C:/code/proj", slug: "auth", branch: "dummyplane/auth", frameId: "f1" });
+    expect(launchGroup).not.toHaveBeenCalled();
+    expect(linkFleet).not.toHaveBeenCalled();
+    expect(mission).toMatchObject({ state: "en_cours", project: "C:/code/proj", slug: "auth", branch: "dummyplane/auth", manager: "m1", board: "b1" });
+    expect(mission.frameId).toBeUndefined();
     expect(mission.startedAt).toEqual(expect.any(Number));
     expect(mission.members.map((m) => [m.nodeId, m.linked, m.branch])).toEqual([
       ["batman", true, "dummyplane/auth-batman"],
       ["n1", false, tree(`auth-${fresh.toLowerCase()}`).branch],
     ]);
-    expect(vi.mocked(notify).mock.calls[0]).toEqual(["chef", expect.stringContaining("Go-ahead")]);
+    // The Manager gets its orders; the Fleet hears nothing of the team.
+    expect(vi.mocked(notify).mock.calls[0]).toEqual(["m1", expect.stringContaining('You run the mission "Auth" for Chef')]);
+    expect(vi.mocked(notify).mock.calls.some(([id]) => id === "chef")).toBe(false);
     await vi.waitFor(() => expect(missionNow().members.every((m) => m.sentAt !== undefined)).toBe(true));
     expect(ptySendText).toHaveBeenCalledWith("batman", subTaskText("Auth", plan[0], "dummyplane/auth-batman"));
     expect(ptySendText).toHaveBeenCalledWith("n1", subTaskText("Auth", plan[1], tree(`auth-${fresh.toLowerCase()}`).branch));
@@ -210,12 +237,12 @@ describe("launchMission (spec §7.3)", () => {
     const three = ["A", "B", "C"].map((title) => ({ ...plan[1], title }));
     const lint = { title: "Lint", brief: "Lance le lint", budgetMin: 5 };
     await setup({ maxAgents: 2, plan: three, queue: [lint] });
-    vi.mocked(launchGroup).mockResolvedValueOnce({ frameId: "f1", nodeIds: ["n1", "n2"] });
+    vi.mocked(addTerminal).mockResolvedValueOnce("n1").mockResolvedValueOnce("n2");
     terminalStatusStore.getState().set("n2", { state: "running" });
     await launchMission("chef");
     const mission = missionNow();
     expect(missionAddAgent).toHaveBeenCalledTimes(2);
-    expect(launchGroup).toHaveBeenCalledWith(expect.anything(), expect.anything(), undefined, expect.objectContaining({ names: mission.members.map((m) => m.name) }), inView);
+    expect(vi.mocked(addTerminal).mock.calls.map(([, payload]) => payload.name)).toEqual(mission.members.map((m) => m.name));
     expect(mission.members.map((m) => [m.nodeId, m.task])).toEqual([
       ["n1", "A"],
       ["n2", "B"],
@@ -234,6 +261,7 @@ describe("launchMission (spec §7.3)", () => {
 
   it("judges a linked agent ready only once it is relaunched in its worktree (final review H2)", async () => {
     await setup();
+    vi.mocked(addTerminal).mockResolvedValueOnce("n1");
     let relaunched!: () => void;
     vi.mocked(relaunchTerminal).mockReturnValueOnce(new Promise<void>((resolve) => (relaunched = resolve)));
     await launchMission("chef");
@@ -245,12 +273,13 @@ describe("launchMission (spec §7.3)", () => {
     expect(whenReady).toHaveBeenCalledTimes(2);
   });
 
-  it("lights the wire down to an agent once its sub-task is typed (wire activity)", async () => {
+  it("lights the wire down from the Manager to an agent once its sub-task is typed (wire activity)", async () => {
     clearWirePulses();
     await setup();
+    vi.mocked(addTerminal).mockResolvedValueOnce("n1");
     await launchMission("chef");
     await vi.waitFor(() => expect(ptySendText).toHaveBeenCalledWith("n1", expect.any(String)));
-    await vi.waitFor(() => expect(wireActivityStore.getState().pulses.n1).toMatchObject({ direction: "toAgent", fleetId: "chef" }));
+    await vi.waitFor(() => expect(wireActivityStore.getState().pulses.n1).toMatchObject({ direction: "toAgent", fleetId: "m1" }));
     clearWirePulses();
   });
 
@@ -277,11 +306,12 @@ describe("launchMission (spec §7.3)", () => {
     release(tree("auth"));
     await first;
     expect(missionPrepare).toHaveBeenCalledTimes(1);
-    expect(launchGroup).toHaveBeenCalledTimes(1);
+    expect(setUpBoard).toHaveBeenCalledTimes(1);
   });
 
   it("types no sub-task into the shell of an agent whose Claude never got ready (README mission)", async () => {
     await setup();
+    vi.mocked(addTerminal).mockResolvedValueOnce("n1");
     // Its terminal still runs: the shell outlived a Claude that exited at its trust prompt.
     vi.mocked(whenReady).mockResolvedValueOnce(false).mockResolvedValueOnce(false);
     await launchMission("chef");
@@ -289,11 +319,12 @@ describe("launchMission (spec §7.3)", () => {
     expect(ptySendText).not.toHaveBeenCalled();
   });
 
-  it("tells the fleet when an agent did not start, instead of typing into nothing", async () => {
+  it("tells the Manager when an agent did not start, instead of typing into nothing", async () => {
     await setup();
+    vi.mocked(addTerminal).mockResolvedValueOnce("n1");
     terminalStatusStore.getState().set("n1", { state: "stopped" });
     await launchMission("chef");
-    await vi.waitFor(() => expect(notify).toHaveBeenCalledWith("chef", expect.stringContaining("did not start")));
+    await vi.waitFor(() => expect(notify).toHaveBeenCalledWith("m1", expect.stringContaining("did not start")));
     expect(vi.mocked(ptySendText).mock.calls.some(([id]) => id === "n1")).toBe(false);
   });
 });
@@ -320,27 +351,29 @@ describe("a new agent in a chosen group (spec groupes spécialisés §4)", () =>
     await vi.waitFor(() => expect(ptySendText).toHaveBeenCalledWith("n9", expect.stringContaining("API")));
   });
 
-  it("leaves the others in the mission's group and frames both, each name unique", async () => {
+  it("puts the others under the Manager and shows the group, each name unique", async () => {
     await setup({ plan: [plan[0], plan[1], inFront, { ...inFront, title: "Style" }] });
-    vi.mocked(addTerminal).mockResolvedValueOnce("n9").mockResolvedValueOnce("n8");
+    vi.mocked(addTerminal).mockResolvedValueOnce("n1").mockResolvedValueOnce("n9").mockResolvedValueOnce("n8");
     terminalStatusStore.getState().set("n8", { state: "running" });
     await launchMission("chef");
-    expect(launchGroup).toHaveBeenCalledWith(expect.objectContaining({ agents: ["claude"] }), expect.anything(), undefined, expect.anything(), inView);
+    expect(launchGroup).not.toHaveBeenCalled();
+    expect(addTerminal).toHaveBeenCalledWith("w1", expect.objectContaining({ spawnedBy: "m1", task: "API" }), expect.anything(), null, quiet);
+    expect(addTerminal).toHaveBeenCalledWith("w1", expect.not.objectContaining({ spawnedBy: "m1" }), { x: 200, y: 150 }, "g1", inView);
     expect(missionNow().members.map((m) => m.nodeId)).toEqual(["batman", "n1", "n9", "n8"]);
     expect(new Set(missionNow().members.map((m) => m.name)).size).toBe(4);
-    expect(showGroups).toHaveBeenCalledWith(["g1", "f1"]);
-    expect(missionNow().frameId).toBe("f1");
+    expect(showGroups).toHaveBeenCalledWith(["g1"]);
+    expect(missionNow().frameId).toBeUndefined();
   });
 
   it("forms the team quietly when the user is typing by then: nothing framed, the agents arrive where they are", async () => {
     await setup({ plan: [plan[0], plan[1], inFront, { ...inFront, title: "Style" }] });
-    vi.mocked(addTerminal).mockResolvedValueOnce("n9").mockResolvedValueOnce("n8");
+    vi.mocked(addTerminal).mockResolvedValueOnce("n1").mockResolvedValueOnce("n9").mockResolvedValueOnce("n8");
     terminalStatusStore.getState().set("n8", { state: "running" });
     vi.mocked(userIsTyping).mockReturnValue(true);
     await launchMission("chef");
-    expect(launchGroup).toHaveBeenCalledWith(expect.objectContaining({ agents: ["claude"] }), expect.anything(), undefined, expect.anything(), quiet);
+    expect(setUpBoard).toHaveBeenCalledWith("chef", "w1", expect.anything(), "claude", quiet);
     expect(addTerminal).toHaveBeenCalledWith("w1", expect.anything(), { x: 200, y: 150 }, "g1", quiet);
-    expect(addTerminal).toHaveBeenCalledTimes(2);
+    expect(addTerminal).toHaveBeenCalledTimes(3);
     expect(showGroups).not.toHaveBeenCalled();
     // The mission still runs: the team is there, and its sub-tasks are sent.
     expect(missionNow().state).toBe("en_cours");
@@ -350,7 +383,7 @@ describe("a new agent in a chosen group (spec groupes spécialisés §4)", () =>
   it("frames nothing more when nobody joins a group, as before", async () => {
     await setup();
     await launchMission("chef");
-    expect(addTerminal).not.toHaveBeenCalled();
+    expect(addTerminal).not.toHaveBeenCalledWith(expect.anything(), expect.anything(), expect.anything(), "g1", expect.anything());
     expect(showGroups).not.toHaveBeenCalled();
   });
 
@@ -374,25 +407,28 @@ describe("a new agent in a chosen group (spec groupes spécialisés §4)", () =>
     expect(missionDiscard).toHaveBeenCalled();
   });
 
-  it("does not start when the group goes while the mission's group is made: no member without a terminal (final review)", async () => {
+  it("does not start when the group goes while the board is set up: no member without a terminal (final review)", async () => {
     await setup({ plan: [plan[1], inFront] });
-    vi.mocked(launchGroup).mockImplementationOnce(async () => {
+    vi.mocked(addTerminal).mockResolvedValueOnce("n1");
+    vi.mocked(setUpBoard).mockImplementationOnce(async () => {
       canvasStore.setState({ frames: [] });
-      return { frameId: "f1", nodeIds: ["n1"] };
+      return { boardId: "b1", boardMade: true, managerId: "m1", managerMade: true };
     });
     await launchMission("chef");
     expect(missionNow()).toMatchObject({ state: "plan", error: "The group Interface is no longer linked to the fleet.", members: [] });
-    expect(closeGroup).toHaveBeenCalledWith("f1");
+    expect(removeNodes).toHaveBeenCalledWith(["n1"]);
+    expect(undoSetup).toHaveBeenCalledWith("chef", "w1", { boardId: "b1", boardMade: true, managerId: "m1", managerMade: true });
     expect(missionDiscard).toHaveBeenCalled();
   });
 
   it("takes back what it created when an agent cannot join, so no terminal sits in a removed worktree", async () => {
     await setup({ plan: [plan[1], inFront, { ...inFront, title: "Style" }] });
-    vi.mocked(addTerminal).mockResolvedValueOnce("n9").mockResolvedValueOnce(null);
+    vi.mocked(addTerminal).mockResolvedValueOnce("n1").mockResolvedValueOnce("n9").mockResolvedValueOnce(null);
     await launchMission("chef");
     expect(missionNow().state).toBe("plan");
-    expect(closeGroup).toHaveBeenCalledWith("f1");
-    expect(removeNodes).toHaveBeenCalledWith(["n9"]);
+    expect(missionNow().manager).toBeUndefined();
+    expect(undoSetup).toHaveBeenCalled();
+    expect(removeNodes).toHaveBeenCalledWith(["n1", "n9"]);
     expect(missionDiscard).toHaveBeenCalled();
     expect(relaunchTerminal).not.toHaveBeenCalled();
   });
@@ -466,10 +502,11 @@ describe("a mission whose workspace is not on screen (spec mission de nuit §6.1
     rememberScene("w1", [...wired, { id: "g1", type: "frame", name: "Interface", x: 0, y: 0, width: 800, height: 500, isDeleted: false, frameId: null, customData: { dummyplane: { kind: "group", role: "frontend", pantheon: "norse" } } }, { id: "w", type: "arrow", isDeleted: false, frameId: null, startBinding: { elementId: "chef" }, endBinding: { elementId: "g1" } }] as never, {} as never, {}, []);
     await launchMission("chef");
     expect(missionNow().state).toBe("en_cours");
-    expect(launchGroup).toHaveBeenCalledWith(expect.anything(), expect.anything(), expect.objectContaining({ x: expect.any(Number) }), expect.objectContaining({ workspaceId: "w1" }), inView);
+    expect(setUpBoard).toHaveBeenCalledWith("chef", "w1", expect.anything(), "claude", inView);
+    expect(addTerminal).toHaveBeenCalledWith("w1", expect.objectContaining({ spawnedBy: "m1" }), expect.anything(), null, quiet);
     expect(addTerminal).toHaveBeenCalledWith("w1", expect.anything(), { x: 400, y: 250 }, "g1", inView);
     expect(showGroups).not.toHaveBeenCalled();
-    expect(linkFleet).toHaveBeenCalledWith("chef", "f1");
+    expect(linkFleet).not.toHaveBeenCalled();
   });
 
   it("closes the created agents in the stored scene at the end, the group that a member joined staying", async () => {
@@ -514,6 +551,7 @@ describe("a mission fed by tickets (review)", () => {
 
   it("tells each agent its task may come from a stranger's text", async () => {
     await setup({ tickets: { kind: "github", label: "overnight" } });
+    vi.mocked(addTerminal).mockResolvedValueOnce("n1");
     await launchMission("chef");
     await vi.waitFor(() => expect(ptySendText).toHaveBeenCalled());
     expect(vi.mocked(ptySendText).mock.calls.every(([, text]) => text.includes(data))).toBe(true);
@@ -530,8 +568,9 @@ describe("a mission fed by tickets (review)", () => {
     nodesStore.getState().update("k1", { orchestrator: undefined });
   });
 
-  it("says nothing of it in a mission without tickets", async () => {
+  it("says nothing of it in a mission without tickets, its board made by the go-ahead", async () => {
     await setup();
+    vi.mocked(addTerminal).mockResolvedValueOnce("n1");
     await launchMission("chef");
     await vi.waitFor(() => expect(ptySendText).toHaveBeenCalled());
     expect(vi.mocked(ptySendText).mock.calls.some(([, text]) => text.includes(data))).toBe(false);
@@ -542,7 +581,7 @@ describe("a mission's permissions (spec mission de nuit §5.3)", () => {
   it("reach every agent of the team, and leave the linked ones at the end", async () => {
     await setup({ permission: "work" });
     await launchMission("chef");
-    expect(launchGroup).toHaveBeenCalledWith(expect.anything(), expect.anything(), undefined, expect.objectContaining({ permission: "work" }), inView);
+    expect(addTerminal).toHaveBeenCalledWith("w1", expect.objectContaining({ permission: "work", spawnedBy: "m1" }), expect.anything(), null, quiet);
     expect(terminalOf(nodesStore.getState().nodes.batman)?.permission).toBe("work");
     expect(relaunchTerminal).toHaveBeenCalledWith("batman", expect.objectContaining({ permission: "work" }), "new");
     endMission("chef", "Fini.");
@@ -554,7 +593,7 @@ describe("a mission's permissions (spec mission de nuit §5.3)", () => {
     await setup();
     await launchMission("chef");
     expect(terminalOf(nodesStore.getState().nodes.batman)?.permission).toBeUndefined();
-    expect(vi.mocked(launchGroup).mock.calls[0][3]?.permission).toBeUndefined();
+    expect(vi.mocked(addTerminal).mock.calls[0][1].permission).toBeUndefined();
   });
 });
 
@@ -678,9 +717,9 @@ it("keeps the router setting when the mission is cleaned (backlog 27 oct)", asyn
 });
 
 describe("what the final review of H2 found", () => {
-  it("undoes the worktrees of a launch that fails, and moves no linked agent before the group exists", async () => {
+  it("undoes the worktrees of a launch that fails, and moves no linked agent before the team exists", async () => {
     await setup();
-    vi.mocked(launchGroup).mockResolvedValueOnce(null);
+    vi.mocked(addTerminal).mockResolvedValueOnce(null);
     await launchMission("chef");
     expect(missionNow()).toMatchObject({ state: "plan", error: "The new agents' group could not be created." });
     expect(relaunchTerminal).not.toHaveBeenCalled();
@@ -698,6 +737,7 @@ describe("what the final review of H2 found", () => {
     await launchMission("chef");
     expect(missionNow()).toMatchObject({ state: "plan", error: expect.stringContaining("no longer on screen") });
     expect(launchGroup).not.toHaveBeenCalled();
+    expect(setUpBoard).not.toHaveBeenCalled();
     expect(relaunchTerminal).not.toHaveBeenCalled();
     expect(missionDiscard).toHaveBeenCalled();
   });

@@ -14,7 +14,7 @@ import { goToAgent } from "@/commands/goToRun";
 import { memberOf } from "@/mission/store";
 import { messages } from "@/i18n";
 import { agentActivityStore, type AgentActivity } from "@/store/agentActivity";
-import { nodesStore } from "@/store/nodes";
+import { isManagerRecord, nodesStore } from "@/store/nodes";
 import { projectsStore } from "@/store/projects";
 import { workspacesStore } from "@/store/workspaces";
 import { shellMessages } from "./messages";
@@ -92,6 +92,8 @@ function isMainAgent(nodeId: string): boolean {
   const record = nodesStore.getState().nodes[nodeId];
   if (record?.kind === "fleet") return true;
   if (record?.kind !== "terminal" || record.payload.agent === "shell") return false;
+  // A mission's Manager works for its Fleet: the mission's end alerts once, on the Fleet.
+  if (isManagerRecord(record)) return false;
   // A running mission's team agent is the Fleet's to hear: the mission's end alerts once.
   return !record.payload.spawnedBy && memberOf(nodeId) === null;
 }
