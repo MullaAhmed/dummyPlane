@@ -2,7 +2,6 @@ import { Terminal, type IMarker } from "@xterm/xterm";
 import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { WebglAddon } from "@xterm/addon-webgl";
-import { openUrl } from "@tauri-apps/plugin-opener";
 import "@xterm/xterm/css/xterm.css";
 import { ptyKill, ptyResize, ptyWrite } from "@/ipc/pty";
 import type { TerminalPayload } from "@/nodes/types";
@@ -17,6 +16,7 @@ import { bufferText } from "./bufferText";
 import { freshScreen, textSince } from "./freshScreen";
 import { pasteImage, pastedImage, takeOverPaste } from "./imagePaste";
 import { keyAction, NEWLINE_SEQUENCE } from "./keys";
+import { openTerminalLink, terminalLinkHandler } from "./links";
 import { newConversation, relaunchMode, type LaunchMode } from "./launch";
 import { onNewWork } from "./minimize";
 import { isTypingKey, startsNewConversation, startsOnKeystroke } from "./pill";
@@ -79,10 +79,12 @@ function create(nodeId: string): Entry {
     fontSize: BASE_FONT_SIZE,
     theme: terminalThemeFor(currentPalette()),
     windowsPty: { backend: "conpty" },
+    // OSC 8 hyperlinks (Claude Code's) open through the same door as the addon's, with no prompt (./links.ts).
+    linkHandler: terminalLinkHandler,
   });
   term.loadAddon(new Unicode11Addon());
   term.unicode.activeVersion = "11";
-  term.loadAddon(new WebLinksAddon((_event, uri) => void openUrl(uri)));
+  term.loadAddon(new WebLinksAddon((_event, uri) => openTerminalLink(uri)));
   const screen = document.createElement("div");
   screen.style.cssText = "position:absolute;left:0;top:0;overflow:hidden;transform-origin:0 0";
   const entry: Entry = { term, screen, zoom: 1, opened: false, session: { replaying: false } };
