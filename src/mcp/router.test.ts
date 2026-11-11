@@ -120,7 +120,7 @@ describe("the fleet's tools (spec orchestrateur §7.2)", () => {
 
   it("lists them for the fleet only, and each side refuses the other's", async () => {
     const list = (await answer({ callId: 1, nodeId: "chef", method: "tools/list", params: {} })) as { tools: { name: string }[] };
-    expect(list.tools.map((t) => t.name)).toEqual(["mission", "propose_plan", "add_tasks", "queue", "next_task", "tickets", "board", "team", "read_output", "write", "extend", "interrupt", "reassign", "merge", "finish", "remote_control", "notes"]);
+    expect(list.tools.map((t) => t.name)).toEqual(["mission", "propose_plan", "add_tasks", "queue", "next_task", "tickets", "board", "team", "read_output", "write", "extend", "interrupt", "reassign", "merge", "finish", "remote_control", "spawn_agent", "notes"]);
     expect(textOf(await call("batman", "propose_plan", plan))).toBe("This tool is for the fleet.");
     expect(textOf(await call("chef", "report", { summary: "x", status: "done" }))).toBe("This tool is for agents.");
     expect(textOf(await call("batman", "board", {}))).toBe("This tool is for the fleet.");
@@ -132,6 +132,22 @@ describe("the fleet's tools (spec orchestrateur §7.2)", () => {
     const names = list.tools.map((t) => t.name);
     expect(names).toContain("mission");
     expect(names).not.toContain("remote_control");
+    // dummyPlane's tools come from this list, whatever the CLI: a Codex fleet delegates with spawn_agent too.
+    expect(names).toContain("spawn_agent");
+  });
+
+  it("offers the fleet spawn_agent for ad-hoc work beside its queue, and routes it to a sub-agent", async () => {
+    const list = (await answer({ callId: 1, nodeId: "chef", method: "tools/list", params: {} })) as { tools: { name: string; description: string; inputSchema: { required: string[] } }[] };
+    const spawn = list.tools.find((tool) => tool.name === "spawn_agent")!;
+    expect(spawn.description).toContain("ad-hoc work outside your mission's queue");
+    expect(spawn.description).toContain("regular agent");
+    expect(spawn.description).toContain("propose_plan or add_tasks");
+    expect(spawn.description).not.toContain("same worktree");
+    expect(spawn.inputSchema.required).toEqual(["task"]);
+    // Routed to spawn_agent, not refused as an agent's tool: without a task it asks for one.
+    const result = (await call("chef", "spawn_agent", { title: "Lookup" })) as { isError?: boolean };
+    expect(result.isError).toBe(true);
+    expect(textOf(result)).toBe("Give the sub-agent its task (task): the complete instructions.");
   });
 
   it("reads the Kanban boards handed to it with board", async () => {

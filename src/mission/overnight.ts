@@ -6,7 +6,7 @@ import { relaunchTerminal } from "@/nodes/terminal/registry";
 import { nodesStore, sessionOf, updateSession } from "@/store/nodes";
 import { isRunning } from "@/store/terminalStatus";
 import { notify } from "./events";
-import { missionOf, setMission } from "./store";
+import { missionOf, releaseSpawnedPermission, setMission } from "./store";
 import type { TicketSource } from "./tickets";
 
 export const DEFAULT_AWAY_HOURS = 8;
@@ -59,7 +59,10 @@ const afterRestart = (restart: Promise<void>, then: () => void) =>
 export function startOvernight(fleetId: string, choice: OvernightChoice): Promise<void> {
   const { awayMin, agents, source, autoLaunch, permission } = choice;
   const changing = choiceOf(fleetId) !== null;
+  const before = missionOf(nodesStore.getState().nodes[fleetId])?.permission;
   setMission(fleetId, { overnight: true, budgetMin: awayMin, maxAgents: agents, tickets: source, autoLaunch: autoLaunch || undefined, permission });
+  // The Fleet's sub-agents (spawn_agent) do not keep what a night changed no longer lets them do.
+  if (before !== permission) releaseSpawnedPermission(fleetId, before);
   const lines = messages(agentMessages).lines;
   const orders = (changing ? lines.overnightChanged : lines.overnightStart)(awayMin, agents, autoLaunch);
   // After the restart, if any: typed before it, the line would reach the session it ends. The new one's lines wait for its prompt (events.ts).
@@ -69,6 +72,7 @@ export function startOvernight(fleetId: string, choice: OvernightChoice): Promis
 /** "Cancel the night": a regular mission again, its plan kept; the fleet is told, and goes back to its day session. */
 export function cancelOvernight(fleetId: string): Promise<void> {
   if (!nightEditable(fleetId)) return Promise.resolve();
+  releaseSpawnedPermission(fleetId, missionOf(nodesStore.getState().nodes[fleetId])?.permission);
   setMission(fleetId, { overnight: undefined, budgetMin: undefined, tickets: undefined, autoLaunch: undefined, permission: undefined, windDownTold: undefined, globalOverdue: undefined });
   return afterRestart(nightSession(fleetId, { linear: false }), () => notify(fleetId, messages(agentMessages).lines.overnightCancelled));
 }

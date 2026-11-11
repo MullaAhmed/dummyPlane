@@ -44,7 +44,8 @@ export function isFleetClosed(fleetId: string): boolean {
 /**
  * Its fleet closed mid-mission: its agents go on as they run, but none starts
  * again with what the mission let it do unasked (backlog: a permission kept
- * after a fleet's closing). A later restart asks as usual.
+ * after a fleet's closing). A later restart asks as usual. Nor do the
+ * sub-agents it opened with spawn_agent, which got the same.
  */
 export function releaseTeamPermission(fleetId: string) {
   const mission = missionOf(nodesStore.getState().nodes[fleetId]);
@@ -52,6 +53,32 @@ export function releaseTeamPermission(fleetId: string) {
   for (const member of mission.members) {
     const payload = terminalOf(nodesStore.getState().nodes[member.nodeId]);
     if (payload?.permission === mission.permission) nodesStore.getState().update(member.nodeId, { permission: undefined });
+  }
+  releaseSpawnedPermission(fleetId, mission.permission);
+}
+
+/** The terminals whose spawn_agent chain leads up to `fleetId`: its sub-agents and theirs, closed ones included. */
+export function spawnedUnder(fleetId: string): string[] {
+  const nodes = nodesStore.getState().nodes;
+  return Object.keys(nodes).filter((id) => {
+    const seen = new Set([id]);
+    for (let up = terminalOf(nodes[id])?.spawnedBy; up && !seen.has(up); up = terminalOf(nodes[up])?.spawnedBy) {
+      if (up === fleetId) return true;
+      seen.add(up);
+    }
+    return false;
+  });
+}
+
+/**
+ * The sub-agents a fleet opened (spawn_agent), and theirs, got its night's
+ * permission like its team: it goes when the night ends or the fleet closes. A
+ * later restart asks as usual.
+ */
+export function releaseSpawnedPermission(fleetId: string, permission: Mission["permission"]) {
+  if (!permission) return;
+  for (const id of spawnedUnder(fleetId)) {
+    if (terminalOf(nodesStore.getState().nodes[id])?.permission === permission) nodesStore.getState().update(id, { permission: undefined });
   }
 }
 
