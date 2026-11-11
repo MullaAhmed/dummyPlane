@@ -48,7 +48,7 @@ export function AgentCounts() {
           {waiting}
         </Count>
       )}
-      <Count label={t.active} name={t.activeName(running)} color="var(--dp-ok)" filter="all">
+      <Count label={t.active} name={t.activeName(running)} color="var(--dp-ok)" filter="active">
         {t.activeCount(running)}
       </Count>
     </div>

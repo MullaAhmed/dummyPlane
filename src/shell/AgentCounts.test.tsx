@@ -70,9 +70,11 @@ it("hides a counter at 0 and opens the panel on what it counts", async () => {
   expect(waiting.textContent).toBe("1");
   await act(async () => waiting.click());
   expect(agentsPanelStore.getState()).toMatchObject({ open: true, filter: "waiting" });
-  // Both agents run: the one waiting and the one ready are active.
+  // Both agents run: the one waiting and the one ready are active. "N active" opens the Active filter.
   const active = getByRole(host, "button", "2 active agents in this workspace");
   expect(active.textContent).toBe("2 active");
+  await act(async () => active.click());
+  expect(agentsPanelStore.getState().filter).toBe("active");
   await unmount();
 });
 
@@ -102,7 +104,18 @@ it("counts working, waiting and active over the same agents of the workspace on 
   // The panel each counter opens shows the same numbers under its filters.
   const panel = await render(<AgentsPanel />);
   const filter = (id: string) => panel.host.querySelector<HTMLElement>(`[data-filter="${id}"]`)!.textContent!.replace(/\D+/g, "");
-  expect([filter("working"), filter("waiting")]).toEqual(["2", "1"]);
+  expect([filter("active"), filter("working"), filter("waiting")]).toEqual(["4", "2", "1"]);
+  // "4 active" opens on as many rows: Ada, Bob and Cy, and the Fleet in its own section.
+  await act(async () => getByRole(bar.host, "button", "4 active agents in this workspace").click());
+  expect(agentsPanelStore.getState().filter).toBe("active");
+  const rows = [...panel.host.querySelectorAll("[data-row-actions]")].map((actions) => actions.closest(".group")!.textContent!);
+  expect(rows.map((text) => text.split(" ")[0])).toEqual(["ada", "bob", "cy"]);
+  expect(panel.host.textContent).toContain("Atlas");
+  // Under All, the busy console's row reads Running, neither Working nor Active: it runs no agent, and the
+  // Active filter and "N active" leave it out.
+  await act(async () => agentsPanelStore.setState({ filter: "all" }));
+  const pill = [...panel.host.querySelectorAll("[data-status]")].find((dot) => dot.closest(".group")?.textContent?.startsWith("console"));
+  expect(pill?.parentElement?.textContent).toBe("Running");
   await bar.unmount();
   await panel.unmount();
 

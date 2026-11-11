@@ -23,6 +23,8 @@ export const nodesMessages = defineMessages(
       exitedWith: (code: number) => `Exited · ${code}`,
       // Claude exited and its terminal is back at the shell, which still runs.
       left: "Agent exited",
+      // A plain console that runs and is not quiet: no agent, so neither Working nor Active (the counts' words).
+      running: "Running",
       error: "Error",
       toolsUnavailable: "Tools unavailable",
       since: (label: string, duration: string) => `${label} for ${duration}`,

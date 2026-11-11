@@ -41,8 +41,8 @@ describe("catalogs in English", () => {
     expect(PANTHEONS.map((p) => p.label)).toEqual(["DC", "Marvel", "Throne of Glass", "Star Wars", "Lord of the Rings"]);
     // The characters keep their names.
     expect(PANTHEONS.find((p) => p.id === "marvel")!.names[0]).toBe("Thor");
-    expect(PANEL_FILTERS.map((f) => f.label)).toEqual(["All", "Waiting", "Working", "Done"]);
-    expect(panelSections([{ id: "a", name: "Batman", agent: "claude", state: "idle" }], [], "all")[0].name).toBe("No group");
+    expect(PANEL_FILTERS.map((f) => f.label)).toEqual(["All", "Active", "Waiting", "Working", "Done"]);
+    expect(panelSections([{ id: "a", name: "Batman", agent: "claude", state: "idle", live: true }], [], "all")[0].name).toBe("No group");
   });
 
   it("uses the English labels", () => {
@@ -140,7 +140,7 @@ describe("components in English", () => {
       expect(byLabel(label), label).not.toBeNull();
     }
     const filters = [...host.querySelectorAll<HTMLButtonElement>("[data-filter]")];
-    expect(filters.map((f) => f.textContent?.replace(/\d+$/, ""))).toEqual(["All", "Waiting", "Working", "Done"]);
+    expect(filters.map((f) => f.textContent?.replace(/\d+$/, ""))).toEqual(["All", "Active", "Waiting", "Working", "Done"]);
     await act(async () => agentsPanelStore.setState({ filter: "working" }));
     expect(host.textContent).toContain("No agent in this filter");
     // Hovering buttons of the row.

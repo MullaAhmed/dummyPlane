@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { useMessages } from "@/i18n";
-import { agentStateOf } from "@/agents/agentState";
+import { agentStateOf, isAgentNode } from "@/agents/agentState";
 import { removeNodes } from "@/agents/terminals";
 import { useActivity } from "@/store/agentActivity";
 import { nodeNameOf, useNodes } from "@/store/nodes";
@@ -58,8 +58,8 @@ function CloseAgentContent({ closing, open }: { closing: ClosingAgents | null; o
   const fleet = one && first?.kind === "fleet";
   const inMission = fleet && first.payload.mission?.state === "en_cours";
   // Spec habillage §7.5: "is working" or "is ready", by what the agent is doing, read as its pill reads it
-  // (agentState): an agent that exited, or a process that stopped, is neither.
-  const agentState = agentStateOf(status, activity);
+  // (agentState): an agent that exited, a process that stopped or a plain console (no agent) is neither.
+  const agentState = isAgentNode(first) ? agentStateOf(status, activity) : null;
   const state = agentState === "working" ? "Working" : agentState === "ready" ? "Ready" : null;
   const children = closing?.children ?? [];
   // Asked for its sub-agents only: the agent itself has stopped.

@@ -239,7 +239,14 @@ export function TerminalHeader(props: {
       {spawned && !editing ? <NodeTitle name={name} line={spawned.line} detail={spawned.detail} /> : name}
       <NodeHeaderEnd>
         {showStatus && (
-          <StatusPill status={status} activity={activity} indigo={meta.tint === INDIGO} report={payload.lastReport?.status} labelClassName="@max-xs/head:sr-only" />
+          <StatusPill
+            status={status}
+            activity={activity}
+            indigo={meta.tint === INDIGO}
+            report={payload.lastReport?.status}
+            labelClassName="@max-xs/head:sr-only"
+            shell={payload.agent === "shell"}
+          />
         )}
         <div className={cn(WIDE_ONLY, "items-center gap-1")}>
           {payload.agent === "claude" && <AccountChip accountId={payload.accountId} />}

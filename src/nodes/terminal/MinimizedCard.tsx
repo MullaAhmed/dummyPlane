@@ -78,7 +78,7 @@ export function MinimizedCard(props: { nodeId: string; payload: TerminalPayload;
         </span>
         <div className="ml-auto flex shrink-0 items-center gap-1">
           {/* Its report while it rests; Working again as soon as it is. */}
-          <StatusPill status={status} activity={activity} indigo={meta.tint === INDIGO} report={report?.status} />
+          <StatusPill status={status} activity={activity} indigo={meta.tint === INDIGO} report={report?.status} shell={payload.agent === "shell"} />
           <HeaderButton label={t.expand} onClick={() => expandTerminal(nodeId)}>
             <Maximize2 />
           </HeaderButton>

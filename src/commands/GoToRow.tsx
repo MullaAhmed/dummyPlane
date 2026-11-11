@@ -35,7 +35,7 @@ function TerminalLine({ item }: { item: GoToItem }) {
       )}
       <Elsewhere item={item} />
       <span className="ml-auto shrink-0">
-        <StatusPill status={status} activity={activity} indigo={meta.tint === INDIGO} report={report} />
+        <StatusPill status={status} activity={activity} indigo={meta.tint === INDIGO} report={report} shell={meta === AGENTS.shell} />
       </span>
     </>
   );

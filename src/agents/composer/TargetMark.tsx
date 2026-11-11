@@ -30,6 +30,7 @@ export function AgentStatusDot({ id }: { id: string }) {
   const status = useTerminalStatus(id);
   const activity = useActivity(id);
   const report = useNodes((s) => terminalOf(s.nodes[id])?.lastReport?.status);
-  const pill = pillOf(status, pillActivity(status, activity), false, report);
+  const shell = useNodes((s) => terminalOf(s.nodes[id])?.agent === "shell");
+  const pill = pillOf(status, pillActivity(status, activity, shell), false, report);
   return <StatusDot state={DOT_OF_TONE[pill.tone]} label={pill.label} data-status-dot={pill.tone} />;
 }

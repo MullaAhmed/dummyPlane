@@ -22,7 +22,7 @@ import { setAgentsFilter, setAgentsPanel, useAgentsPanel } from "./agentsPanelSt
 import { pauseAll, resumeAll, workspaceTerminalIds } from "./broadcast";
 import { AGENTS } from "./catalog";
 import { ComposeGroup } from "./ComposeGroup";
-import { isAgentNode } from "./agentState";
+import { agentStateOf, isAgentNode, isLive } from "./agentState";
 import { PANEL_FILTERS, filterCounts, inFilter, panelSections, panelStateOf, type PanelAgent, type PanelFilter } from "./agentsView";
 import { GroupMenu } from "./GroupMenu";
 import { countsText } from "./groupSummary";
@@ -56,14 +56,16 @@ export function AgentsPanel() {
     const payload = terminalOf(nodes[id]);
     if (!payload) return [];
     const status = statuses[id] ?? { state: "stopped" as const };
-    // The reading the title bar's counters share (agentState): a plain shell is never at work nor waiting.
-    const state = panelStateOf(status, activities[id], payload.lastReport?.status, isAgentNode(nodes[id]));
+    // The reading the title bar's counters share (agentState): a plain shell is never at work, waiting nor live.
+    const isAgent = isAgentNode(nodes[id]);
+    const state = panelStateOf(status, activities[id], payload.lastReport?.status, isAgent);
     return [
       {
         id,
         name: payload.name || AGENTS[payload.agent].label,
         agent: payload.agent,
         state,
+        live: isAgent && isLive(agentStateOf(status, activities[id], payload.lastReport?.status)),
         since: status.state === "running" ? activities[id]?.since : undefined,
       },
     ];
@@ -72,10 +74,12 @@ export function AgentsPanel() {
   const allFleets = nodeIds.flatMap((id) => {
     const record = nodes[id];
     if (record?.kind !== "fleet") return [];
-    const state = panelStateOf(statuses[id] ?? { state: "stopped" as const }, activities[id], record.payload.session?.lastReport?.status);
-    return [{ id, name: readFleetPayload(record.payload).name, state }];
+    const status = statuses[id] ?? { state: "stopped" as const };
+    const report = record.payload.session?.lastReport?.status;
+    const state = panelStateOf(status, activities[id], report);
+    return [{ id, name: readFleetPayload(record.payload).name, state, live: isLive(agentStateOf(status, activities[id], report)) }];
   });
-  const fleets = allFleets.filter((f) => inFilter(f.state, filter));
+  const fleets = allFleets.filter((f) => inFilter(f, filter));
   const counts = filterCounts([...agents, ...allFleets]);
   const sections = panelSections(agents, frames, filter);
   const keyOf = (id: string | null) => id ?? OUTSIDE;

@@ -1,7 +1,7 @@
 use rusqlite::{Connection, OptionalExtension, params};
 use serde::Serialize;
 
-use super::{now_ms, workspaces};
+use super::{nodes, now_ms, workspaces};
 use crate::error::{AppError, AppResult};
 
 /// A project is a repository folder holding workspaces (spec habillage §6).
@@ -235,6 +235,46 @@ pub fn node_ids(conn: &Connection, id: &str) -> AppResult<Vec<String>> {
     Ok(ids.collect::<rusqlite::Result<_>>()?)
 }
 
+/// The nodes of a project that hold an agent: its Fleets, and its terminals whose program is an agent,
+/// never a plain shell (the interface's `isAgentNode`). The home screen counts those whose process runs.
+pub fn agent_node_ids(conn: &Connection, id: &str) -> AppResult<Vec<String>> {
+    let mut stmt = conn.prepare(
+        "SELECT n.id, n.kind, n.payload_json FROM nodes n JOIN workspaces w ON w.id = n.workspace_id
+         WHERE w.project_id = ?1",
+    )?;
+    let rows = stmt.query_map([id], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, String>(2)?,
+        ))
+    })?;
+    let mut ids = Vec::new();
+    for row in rows {
+        let (node_id, kind, payload) = row?;
+        if holds_agent(&kind, &payload) {
+            ids.push(node_id);
+        }
+    }
+    Ok(ids)
+}
+
+/// A Fleet always does; a terminal does when its agent, read as the interface reads it (`agent`, else the
+/// older `preset`), is not the plain shell. A terminal the interface cannot read is no node of its.
+fn holds_agent(kind: &str, payload: &str) -> bool {
+    if kind == nodes::STORED_FLEET_KIND {
+        return true;
+    }
+    if kind != nodes::NodeKind::Terminal.as_str() {
+        return false;
+    }
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(payload) else {
+        return false;
+    };
+    let text = |key: &str| value.get(key).and_then(serde_json::Value::as_str);
+    matches!(text("agent").or_else(|| text("preset")), Some(agent) if agent != "shell")
+}
+
 /// Deletes a project and, by cascade, its workspaces and their content.
 pub fn delete(conn: &Connection, id: &str) -> AppResult<Deleted> {
     let tx = conn.unchecked_transaction()?;
@@ -381,6 +421,52 @@ mod tests {
                 assert!(get(conn, &b.id)?.last_opened_at > 0);
                 assert_eq!(rename(conn, "nope", "x").unwrap_err().kind(), "notFound");
                 assert_eq!(rename(conn, &a.id, " ").unwrap_err().kind(), "invalidInput");
+                Ok(())
+            })
+            .unwrap();
+    }
+
+    #[test]
+    fn names_the_nodes_that_hold_an_agent_never_a_plain_shell() {
+        Db::open_in_memory()
+            .unwrap()
+            .with(|conn| {
+                let project = create(conn, "C:\\a")?;
+                let first = workspaces::list(conn, &project.id)?.remove(0);
+                let second = workspaces::create(conn, &project.id, "Second", workspaces::CANVAS)?;
+                let other = create(conn, "C:\\b")?;
+                let elsewhere = workspaces::list(conn, &other.id)?.remove(0);
+                let terminal = nodes::NodeKind::Terminal;
+                nodes::save(conn, "claude", &first.id, terminal, r#"{"agent":"claude"}"#)?;
+                nodes::save(conn, "codex", &second.id, terminal, r#"{"agent":"codex"}"#)?;
+                // Saved before `agent` was named so: the interface reads `preset`.
+                nodes::save(conn, "old", &first.id, terminal, r#"{"preset":"claude"}"#)?;
+                nodes::save(
+                    conn,
+                    "fleet",
+                    &first.id,
+                    nodes::NodeKind::Fleet,
+                    r#"{"name":"Atlas"}"#,
+                )?;
+                nodes::save(conn, "console", &first.id, terminal, r#"{"agent":"shell"}"#)?;
+                nodes::save(conn, "unread", &first.id, terminal, "{}")?;
+                nodes::save(
+                    conn,
+                    "note",
+                    &first.id,
+                    nodes::NodeKind::Note,
+                    r#"{"agent":"claude"}"#,
+                )?;
+                nodes::save(
+                    conn,
+                    "away",
+                    &elsewhere.id,
+                    terminal,
+                    r#"{"agent":"claude"}"#,
+                )?;
+                let mut ids = agent_node_ids(conn, &project.id)?;
+                ids.sort();
+                assert_eq!(ids, vec!["claude", "codex", "fleet", "old"]);
                 Ok(())
             })
             .unwrap();

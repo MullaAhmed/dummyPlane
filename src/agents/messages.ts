@@ -35,7 +35,7 @@ export const agentsMessages = defineMessages({
       "star-wars": "Star Wars",
       "lord-of-the-rings": "Lord of the Rings",
     },
-    filters: { all: "All", waiting: "Waiting", working: "Working", done: "Done" },
+    filters: { all: "All", active: "Active", waiting: "Waiting", working: "Working", done: "Done" },
     outsideGroup: "No group",
     summary: {
       counts: (members: number, working: number) => `${members} · ${working > 0 ? `${working} working` : "idle"}`,

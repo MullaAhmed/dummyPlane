@@ -64,18 +64,18 @@ it("starts New console at the center of the view, the click not taken for a poin
   expect(newConsole).toHaveBeenCalledWith();
 });
 
-it("filters on the store's filter: All, Waiting, Working and Done, in that order", async () => {
+it("filters on the store's filter: All, Active, Waiting, Working and Done, in that order", async () => {
   const filters = [...host.querySelectorAll<HTMLButtonElement>("[data-filter]")];
-  expect(filters.map((f) => f.textContent?.replace(/\d+$/, ""))).toEqual(["All", "Waiting", "Working", "Done"]);
-  await act(async () => filters[3].click());
+  expect(filters.map((f) => f.textContent?.replace(/\d+$/, ""))).toEqual(["All", "Active", "Waiting", "Working", "Done"]);
+  await act(async () => filters[4].click());
   expect(agentsPanelStore.getState().filter).toBe("done");
-  expect(filters[3].dataset.on).toBe("true");
+  expect(filters[4].dataset.on).toBe("true");
   // One filter is always on: pressing it again keeps it.
-  await act(async () => filters[3].click());
+  await act(async () => filters[4].click());
   expect(agentsPanelStore.getState().filter).toBe("done");
 });
 
-it("counts and lists the agents by Waiting, Working and Done; one whose activity is unknown, or that starts, shows under All only", async () => {
+it("counts and lists the agents by Active, Waiting, Working and Done; one that starts shows under All only", async () => {
   const claude = (name: string, extra: Partial<TerminalPayload> = {}): TerminalPayload => ({
     title: name,
     name,
@@ -103,12 +103,14 @@ it("counts and lists the agents by Waiting, Working and Done; one whose activity
   }
   await act(async () => canvasStore.getState().setNodeIds(["ada", ...states.map(([id]) => id)]));
   const counts = () => [...host.querySelectorAll<HTMLButtonElement>("[data-filter]")].map((f) => f.textContent);
-  // Ada (stopped), Dee (Ready) and Eve (Done) are done; Gus and Hal are in All alone.
-  expect(counts()).toEqual(["All8", "Waiting1", "Working2", "Done3"]);
+  // Ada (stopped), Dee (Ready) and Eve (Done) are done; every running agent is active, Gus (activity unknown)
+  // included, as the title bar's "N active" counts them; Hal, starting, is in All alone.
+  expect(counts()).toEqual(["All8", "Active6", "Waiting1", "Working2", "Done3"]);
   const shown = async (filter: string) => {
     await act(async () => agentsPanelStore.setState({ filter: filter as "all" }));
     return ["Ada", "Bob", "Cy", "Dee", "Eve", "Fay", "Gus", "Hal"].filter((name) => host.textContent?.includes(name));
   };
+  expect(await shown("active")).toEqual(["Bob", "Cy", "Dee", "Eve", "Fay", "Gus"]);
   expect(await shown("waiting")).toEqual(["Cy"]);
   expect(await shown("working")).toEqual(["Bob", "Fay"]);
   expect(await shown("done")).toEqual(["Ada", "Dee", "Eve"]);
