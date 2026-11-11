@@ -662,6 +662,38 @@ it("puts the tab on the terminal's left when its right has no room", async () =>
   expect(editTab()!.style.left).toBe("616px");
 });
 
+it("carries the keyboard from its tab into the panel, and back to the tab when it folds, never to the page's body (P2 #1)", async () => {
+  await mountTerminal(terminal(), ["t1"], null, false);
+  // Enter on the focused tab: the panel takes its place, and the keyboard lands on its fold chevron.
+  editTab()!.focus();
+  await act(async () => editTab()!.click());
+  const fold = button("Fold the panel")!;
+  expect(document.activeElement).toBe(fold);
+  // Folded from the keyboard: back on the tab that comes back.
+  await act(async () => fold.click());
+  expect(document.activeElement).toBe(editTab());
+});
+
+it("leaves the focus alone for a press, which keeps the canvas's, and when a new selection folds the panel", async () => {
+  await mountTerminal(terminal(), ["t1"], null, false);
+  const canvas = document.createElement("div");
+  canvas.tabIndex = -1;
+  document.body.append(canvas);
+  canvas.focus();
+  // A mouse press never focuses the tab (keepCanvasFocus): the focus stays on the canvas.
+  await act(async () => editTab()!.click());
+  expect(document.activeElement).toBe(canvas);
+  await act(async () => button("Fold the panel")!.click());
+  expect(document.activeElement).toBe(canvas);
+  // Open from the keyboard, then folded by selecting nothing: no tab to go back to, nothing moved.
+  editTab()!.focus();
+  await act(async () => editTab()!.click());
+  canvas.focus();
+  await act(async () => canvasStore.setState({ view: { ...canvasStore.getState().view, selectedIds: [] } }));
+  expect(document.activeElement).toBe(canvas);
+  canvas.remove();
+});
+
 it("folds back to its tab, and every terminal selected starts on its tab", async () => {
   await mountTerminal(terminal());
   expect(button("Fold the panel")!.getAttribute("aria-expanded")).toBe("true");

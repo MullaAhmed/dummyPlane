@@ -115,6 +115,8 @@ export function TerminalEdit({ nodeId, onFold }: { nodeId: string; onFold: () =>
           size="icon-xs"
           aria-label={t.foldPanel}
           title={t.foldPanel}
+          // Where the keyboard lands when the panel opens from its tab (SelectionPanel).
+          data-fold
           aria-expanded
           aria-controls={bodyId}
           onMouseDown={keepCanvasFocus}
