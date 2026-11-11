@@ -16,23 +16,25 @@ The mark is a pixel symbol built from a grid of 4 × 4 squares.
 |---|---|
 | [`brand/logo-icon-cream.svg`](brand/logo-icon-cream.svg), [`brand/logo-icon-white.svg`](brand/logo-icon-white.svg), [`brand/logo-icon-black.svg`](brand/logo-icon-black.svg) | The mark alone, transparent background: app icon, avatar, favicon. Cream and white for dark backgrounds, black for light ones |
 | [`brand/logo-wordmark-*.svg`](brand/) and [`brand/logo-horizontal-*.svg`](brand/) | Lettering only, and mark with lettering. **Not in use yet:** the lettering in this pack reads "dummyIndex", not dummyPlane |
-| [`brand/banner-dark.png`](brand/banner-dark.png), [`brand/banner-light.png`](brand/banner-light.png) | README header, 2560 × 800 (still the previous logo) |
-| [`brand/social-preview.png`](brand/social-preview.png) | GitHub social preview, 1280 × 640 (still the previous logo) |
+| [`brand/banner-dark.png`](brand/banner-dark.png), [`brand/banner-light.png`](brand/banner-light.png) | README header, 2560 × 800, in the Dark and Expressive and Calm and Playful palettes (still the previous logo) |
+| [`brand/social-preview.png`](brand/social-preview.png) | GitHub social preview, 1280 × 640, in Dark and Expressive (still the previous logo) |
 
 Please keep the mark's proportions and colors, and leave some room around it.
 
 ## Colors
 
-| | Dark theme (Argile) | Light theme (Ivoire) |
-|---|---|---|
-| Canvas | `#232220` | `#F7F5EF` |
-| Text | `#F5F4EF` | `#29261B` |
-| Accent | `#D97757` | `#C2603F` |
-| Waiting | `#D4A27F` | `#B07D3A` |
-| Success | `#8FA876` | `#5E7A43` |
-| Terminals (both themes) | `#1A1918` | `#1A1918` |
+The banners use two of the app's three palettes (the third is Electric and Energetic, canvas `#263CF5`, ink `#F4F4F1`). A palette is a canvas and an ink, and the ink is also the accent.
 
-The full set of tokens is in the identity spec, [`docs/superpowers/specs/2026-10-25-dummyplane-identite-design.md`](../superpowers/specs/2026-10-25-dummyplane-identite-design.md) §4.
+| | Dark and Expressive (the default) | Calm and Playful |
+|---|---|---|
+| Canvas | `#101014` | `#EDE3CC` |
+| Text and accent | `#F4F4F1` | `#173F32` |
+| Text on an accent fill | `#101014` | `#EDE3CC` |
+| Waiting | `#DDAA62` | `#7A5418` |
+| Success | `#7CC492` | `#356A44` |
+| Terminals | `#0B0B0E` | `#0F2921` |
+
+The full set of tokens is in [`src/theme/tokens.css`](../../src/theme/tokens.css) and the identity spec, [`docs/superpowers/specs/2026-10-25-dummyplane-identite-design.md`](../superpowers/specs/2026-10-25-dummyplane-identite-design.md) §4.
 
 ## Screenshots and GIFs
 
