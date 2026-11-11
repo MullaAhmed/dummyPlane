@@ -17,8 +17,7 @@ export const missionMessages = defineMessages({
     title: (name: string) => `Mission${name ? ` · ${name}` : ""}`,
     writeTask: "write it in the terminal above",
     settings: "Settings",
-    settingsSummary: (agents: number | null, router: boolean) =>
-      agents === null ? (router ? "model router" : "no model router") : [`up to ${plural(agents, "agent", "agents")} at once`, ...(router ? ["model router"] : [])].join(" · "),
+    settingsSummary: (agents: number) => `up to ${plural(agents, "agent", "agents")} at once`,
     min: "min",
     maxAgents: "Max active agents",
     maxAgentsHint: "The most agents working at once",

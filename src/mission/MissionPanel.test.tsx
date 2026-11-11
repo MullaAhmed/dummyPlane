@@ -4,6 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeAll, expect, it, vi } from "vitest";
 import { mockIPC } from "@tauri-apps/api/mocks";
 import { toast } from "sonner";
+import type { AgentId } from "@/ipc/pty";
 import { nodesStore } from "@/store/nodes";
 import { cleanMission, launchMission } from "./launch";
 import { NEW_MISSION, type Mission } from "./mission";
@@ -34,11 +35,16 @@ afterEach(async () => {
 beforeAll(async () => {
   await Promise.all([import("@/openui/plainText"), import("@/openui/OpenUIView")]);
 }, 60_000);
-async function show(mission?: Partial<Mission>) {
+async function show(mission?: Partial<Mission>, agent?: AgentId) {
   await nodesStore.getState().create("chef", {
     workspaceId: "w1",
     kind: "fleet",
-    payload: mission ? { name: "Chef", mission: { ...NEW_MISSION, ...mission } } : { name: "Chef" },
+    payload: {
+      name: "Chef",
+      ...(mission ? { mission: { ...NEW_MISSION, ...mission } } : {}),
+      // A Fleet runs on the CLI its session names; one with no session yet is Claude's.
+      ...(agent ? { session: { title: "Chef", name: "Chef", agent, cwd: "C:/p", shell: "default" as const, command: "" } } : {}),
+    },
   });
   host = document.createElement("div");
   document.body.append(host);
@@ -62,6 +68,8 @@ const settingsToggle = () => host.querySelector<HTMLButtonElement>("[data-missio
 async function openSettings() {
   await act(async () => settingsToggle().click());
 }
+/** The model router's checkbox: in plain view, no fold to open first. */
+const routerSwitch = () => host.querySelector<HTMLElement>('[aria-label="Model router"]');
 
 it("sets the mission's team size before the plan, and no global budget any more (spec §7.1)", async () => {
   await show();
@@ -76,10 +84,55 @@ it("turns the model router on, and shows each sub-task's level and model (spec m
   await show({ state: "plan", name: "Auth", plan: [{ title: "Login", brief: "Fais le login", agent: "Batman", budgetMin: 20, level: "faible" }] });
   expect(host.textContent).toContain("low");
   expect(host.textContent).not.toContain("Haiku 5.5");
-  await openSettings();
-  await act(async () => (host.querySelector('[aria-label="Model router"]') as HTMLInputElement).click());
+  // The switch is in view with the Settings fold shut: nothing to open to find it.
+  expect(settingsToggle().getAttribute("aria-expanded")).toBe("false");
+  await act(async () => routerSwitch()!.click());
   expect(missionOf(nodesStore.getState().nodes.chef)?.router).toBe(true);
   expect(host.textContent).toContain("low · Haiku 5.5");
+  expect(settingsToggle().getAttribute("aria-expanded")).toBe("false");
+});
+
+it("shows the model router as its own row while the mission is set up, before any plan and in a night", async () => {
+  for (const mission of [undefined, { state: "plan" as const, plan: [{ title: "Login", brief: "b", agent: "Batman", budgetMin: 20 }] }, { overnight: true }]) {
+    await show(mission);
+    const row = routerSwitch()!;
+    expect(row).not.toBeNull();
+    // Outside the fold, and named by its visible label, whose hint says what it does.
+    expect(host.querySelector("#" + settingsToggle()?.getAttribute("aria-controls"))?.contains(row) ?? false).toBe(false);
+    expect(row.getAttribute("aria-checked")).toBe("false");
+    expect(row.labels?.[0]?.textContent ?? "Model router").toBe("Model router");
+    await act(async () => row.click());
+    expect(missionOf(nodesStore.getState().nodes.chef)?.router).toBe(true);
+    expect(routerSwitch()!.getAttribute("aria-checked")).toBe("true");
+    await act(async () => routerSwitch()!.click());
+    expect(missionOf(nodesStore.getState().nodes.chef)?.router).toBeUndefined();
+    await act(async () => root.unmount());
+    host.remove();
+  }
+  // Re-mounted for the afterEach that unmounts it.
+  await show();
+});
+
+it("shows the model router for a Fleet whose session runs Claude, not for one on another CLI (its levels name Claude's models)", async () => {
+  await show({}, "claude");
+  expect(routerSwitch()).not.toBeNull();
+  await act(async () => root.unmount());
+  host.remove();
+  await show({}, "codex");
+  expect(routerSwitch()).toBeNull();
+  expect(host.textContent).not.toContain("Model router");
+  // Its other settings stay.
+  expect(settingsToggle().textContent).toBe("Settingsup to 4 agents at once");
+});
+
+it("shows the model router only until the go-ahead: the team's rows carry the models after", async () => {
+  await show({ state: "lancement", router: true, plan: [{ title: "Login", brief: "b", agent: "Batman", budgetMin: 20, level: "faible" }] });
+  expect(routerSwitch()).toBeNull();
+  await act(async () => root.unmount());
+  host.remove();
+  await show({ state: "en_cours", router: true, members: [{ nodeId: "a", name: "Batman", task: "Login", budgetMin: 20, linked: false, branch: "b", worktree: "w", sentAt: 0, model: "claude-haiku-5-5" }] });
+  expect(routerSwitch()).toBeNull();
+  expect(host.querySelector('[data-member="Batman"]')?.textContent).toContain("Haiku 5.5");
 });
 
 it("shows the plan and gives the go-ahead (spec §7.3)", async () => {
