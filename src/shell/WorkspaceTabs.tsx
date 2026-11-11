@@ -237,6 +237,8 @@ export function WorkspaceTabs() {
   useLayoutEffect(() => {
     const tab = [...(scroller.current?.querySelectorAll<HTMLElement>("[data-tab]") ?? [])].find((el) => el.dataset.tab === activeId);
     tab?.scrollIntoView?.({ inline: "nearest", block: "nearest" });
+    // The tabs sit 1 px low on purpose (top-px, over the row's hairline): the row must not scroll up to show it.
+    if (scroller.current) scroller.current.scrollTop = 0;
     measure();
   }, [activeId, workspaces.length, measure]);
   useEffect(() => {
