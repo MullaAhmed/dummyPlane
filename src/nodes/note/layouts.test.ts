@@ -6,7 +6,7 @@ import { GROUP_GAP } from "@/agents/groupLayout";
 import { layoutSpawnTree, type ParentOf } from "@/agents/spawnLayout";
 import { createGroupFrame, type Rect } from "@/canvas/groups";
 import { createNodeElement, NODE_SIZE } from "@/canvas/nodeElement";
-import { linkFor, NOTE_GAP, notesOutOfGroups, withNoteLink } from "./link";
+import { linkFor, NOTE_GAP, notesClearOfNodes, withNoteLink } from "./link";
 import { newNoteRect } from "./placement";
 
 /**
@@ -137,7 +137,7 @@ it("lays out a spawn tree inside a group without creeping: its notes stand outsi
   const note = noteBeside("rn", root, frame.width + NOTE_GAP, 48);
   const first = layoutSpawnTree([frame, root, child, note], parents({ a: "root" }), "a")!;
   // The group grew around its members; the note moved past it, kept there.
-  const settled = [...notesOutOfGroups(first)];
+  const settled = [...notesClearOfNodes(first)];
   expect(layoutSpawnTree(settled, parents({ a: "root" }), "a")).toBeNull();
   expect(pos(settled, "a")).toEqual({ x: 32 + W + GROUP_GAP, y: 48 });
 });

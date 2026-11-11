@@ -1,5 +1,5 @@
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
-import { groupInfoOf, type Rect } from "@/canvas/groups";
+import type { Rect } from "@/canvas/groups";
 import { nodeKindOf, type NodeKind } from "@/canvas/nodeElement";
 
 /**
@@ -249,27 +249,29 @@ export function emptyNotesOf(elements: readonly ExcalidrawElement[], hostIds: It
 }
 
 /**
- * The scene with no attached note standing over a group's frame: one that a
- * group grew over (a new column), or that was dropped on one, moves right of
- * the frame, level where it was, and keeps that place from then on. A group's
- * frame clips what it holds and counts it as one of its terminals: a note is
- * never in one. The scene itself when no note is over a group.
+ * The scene with no attached note covering another node: one that a terminal
+ * landed on (a group's new column, a sub-agent's place) or that was dropped on
+ * one moves right of that node, level where it was, and keeps that place from
+ * then on. A note may stand over its own host, over a group's frame (Arrange
+ * makes room for it in the group's grid), and over another note. The scene
+ * itself when no note covers a node.
  */
-export function notesOutOfGroups<T extends ExcalidrawElement>(elements: readonly T[]): readonly T[] {
-  const groups = elements.filter((e) => !e.isDeleted && groupInfoOf(e) !== null).map(rectOf);
-  if (groups.length === 0) return elements;
+export function notesClearOfNodes<T extends ExcalidrawElement>(elements: readonly T[]): readonly T[] {
   const hosts = liveHosts(elements);
+  const nodes = elements.filter((e) => !e.isDeleted && nodeKindOf(e) !== null && nodeKindOf(e) !== "note");
+  if (nodes.length === 0) return elements;
   const out = new Map<string, { x: number; link: NoteLink }>();
   for (const note of elements) {
     if (!isNote(note)) continue;
     const host = hostOf(note, hosts);
     if (!host) continue;
     const rect = rectOf(note);
-    // Past one frame, the note may land on the next: as many passes as there are groups.
-    for (let pass = 0; pass < groups.length; pass++) {
-      const over = groups.find((g) => overlapsRect(rect, g));
-      if (!over) break;
-      rect.x = over.x + over.width + NOTE_GAP;
+    const others = nodes.filter((n) => n.id !== host.id).map(rectOf);
+    // Past one node, the note may land on the next: as many passes as there are nodes.
+    for (let pass = 0; pass < others.length; pass++) {
+      const under = others.find((o) => overlapsRect(rect, o));
+      if (!under) break;
+      rect.x = under.x + under.width + NOTE_GAP;
     }
     if (rect.x !== note.x) out.set(note.id, { x: rect.x, link: linkFor(host.id, rect, host) });
   }

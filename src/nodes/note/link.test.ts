@@ -9,7 +9,7 @@ import {
   noteChanges,
   noteHostsOf,
   noteLinkOf,
-  notesOutOfGroups,
+  notesClearOfNodes,
   noteSpotFor,
   relinkNotes,
   remapCopiedNotes,
@@ -175,15 +175,17 @@ describe("copies, closing and groups", () => {
     expect(emptyNotesOf([host, empty, written, other], ["batman"], (id) => id !== "n2")).toEqual(["n1"]);
   });
 
-  it("moves a note a group grew over right of its frame, and keeps it there", () => {
+  it("moves a note a terminal landed on right of that terminal, and keeps it there; a group's frame is no obstacle", () => {
     const host = { ...node("terminal", "batman", { x: 32, y: 48 }), frameId: "g1" } as ExcalidrawElement;
     const frame = createGroupFrame({ x: 0, y: 0, width: 784, height: 544 }, "Olympus", { role: "general", pantheon: "greek" }) as ExcalidrawElement;
-    const note = noteOf("n1", host, { x: 800, y: 48 });
-    expect(notesOutOfGroups([host, frame, note])).toEqual([host, frame, note]);
-    // A new column: the frame grows to the right, over the note.
+    const note = noteOf("n1", host, { x: 768, y: 48 });
+    expect(notesClearOfNodes([host, frame, note])).toEqual([host, frame, note]);
+    // A new column: the group grows to the right and its new terminal lands on the note.
     const grown = { ...frame, width: 1536 } as ExcalidrawElement;
-    const out = notesOutOfGroups([host, grown, note]);
-    expect(at(out, "n1")).toEqual({ x: 1536 + NOTE_GAP, y: 48 });
+    const newcomer = { ...node("terminal", "cyborg", { x: 784, y: 48 }), frameId: "g1" } as ExcalidrawElement;
+    const out = notesClearOfNodes([host, grown, newcomer, note]);
+    expect(at(out, "n1")).toEqual({ x: 784 + 720 + NOTE_GAP, y: 48 });
     expect(settleNotes(out)).toBe(out);
+    expect(notesClearOfNodes(out)).toBe(out);
   });
 });
