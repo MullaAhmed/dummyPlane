@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { screenRectOf } from "@/agents/placement";
 import { useNow } from "@/lib/useNow";
 import { cn } from "@/lib/utils";
@@ -7,7 +8,7 @@ import { settledSteps, type Step } from "@/nodes/steps";
 import { terminalOf, useNodes } from "@/store/nodes";
 import { useSubagents } from "@/store/subagents";
 import { useTerminalStatus } from "@/store/terminalStatus";
-import { useCanvas, type CanvasView } from "../canvasStore";
+import { useCanvas, useCanvasPlace, type CanvasPlace } from "../canvasStore";
 import type { Rect } from "../groups";
 import { BUDGET_COLOR, budgetTitle, dotsOf, TIMELINE_GAP } from "./timeline";
 
@@ -19,11 +20,11 @@ import { BUDGET_COLOR, budgetTitle, dotsOf, TIMELINE_GAP } from "./timeline";
  */
 export function StepTimelines() {
   const rects = useCanvas((s) => s.nodeRects);
-  const view = useCanvas((s) => s.view);
+  const view = useCanvasPlace();
   const nodes = useNodes((s) => s.nodes);
-  // The budget bars move with time, not only with the canvas (spec orchestrateur §8.3).
+  // The budget bars move with time, not only with the canvas (spec orchestrateur §8.3); a pan moves neither.
   const now = useNow(15_000);
-  const budgets = memberBudgets(nodes, now);
+  const budgets = useMemo(() => memberBudgets(nodes, now), [nodes, now]);
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden">
       {Object.entries(rects).map(([id, rect]) => {
@@ -37,7 +38,7 @@ export function StepTimelines() {
   );
 }
 
-function Timeline(props: { nodeId: string; steps: Step[]; budget?: MemberBudget; rect: Rect; view: CanvasView }) {
+function Timeline(props: { nodeId: string; steps: Step[]; budget?: MemberBudget; rect: Rect; view: CanvasPlace }) {
   const { nodeId, steps, budget, rect, view } = props;
   const running = useSubagents(nodeId);
   // A step "en cours" is only marked as live under a process that runs (not after an interruption or a crash).

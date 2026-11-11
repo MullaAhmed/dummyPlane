@@ -11,7 +11,7 @@ import { useActivities } from "@/store/agentActivity";
 import { terminalStatusStore } from "@/store/terminalStatus";
 import { useStore } from "zustand";
 import { uiStore, useUi } from "@/store/ui";
-import { canvasStore, useCanvas, type CanvasView } from "../canvasStore";
+import { canvasStore, useCanvas, useCanvasPlace, type CanvasPlace } from "../canvasStore";
 import { groupBeingRenamed, isGroup, type SceneGroup } from "../groups";
 import { useMessages } from "@/i18n";
 import { canvasMessages } from "../messages";
@@ -31,7 +31,8 @@ const LABEL_HEIGHT = 24;
  */
 export function GroupLabels() {
   const frames = useCanvas((s) => s.frames);
-  const view = useCanvas((s) => s.view);
+  const view = useCanvasPlace();
+  const editingFrame = useCanvas((s) => s.view.editingFrame);
   const activities = useActivities();
   const statuses = useStore(terminalStatusStore, (s) => s.statuses);
   // An activity ends with its process (`pty-exit`), but may outlive a stopped one for a moment: only running members count.
@@ -39,7 +40,7 @@ export function GroupLabels() {
     membersIn(group.memberIds, activity, (id) => activities[id]?.activity, (id) => statuses[id]?.state === "running");
   const groups = frames.filter(isGroup);
   const renaming = useUi((s) => s.renamingGroup);
-  const takeover = groupBeingRenamed(view.editingFrame, frames);
+  const takeover = groupBeingRenamed(editingFrame, frames);
 
   // Double-click (or Enter) on a group's name opened Excalidraw's editor:
   // close it before anything is typed, and rename in the label instead.
@@ -53,7 +54,7 @@ export function GroupLabels() {
     <div className="pointer-events-none absolute inset-0 z-[3] overflow-hidden">
       <style>{groups.map((g) => `.excalidraw [id$="-frame-name-${CSS.escape(g.id)}"]{color:transparent!important}`).join("\n")}</style>
       {groups.map((group) =>
-        group.id === view.editingFrame ? null : (
+        group.id === editingFrame ? null : (
           <GroupLabel
             key={group.id}
             group={group}
@@ -68,7 +69,7 @@ export function GroupLabels() {
   );
 }
 
-function GroupLabel(props: { group: SceneGroup; view: CanvasView; working: number; waiting: number; renaming: boolean }) {
+function GroupLabel(props: { group: SceneGroup; view: CanvasPlace; working: number; waiting: number; renaming: boolean }) {
   const { group, view, working, waiting, renaming } = props;
   const waits = waitingText(waiting);
   const rect = screenRectOf(group, view);
