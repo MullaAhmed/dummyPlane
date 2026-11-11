@@ -96,7 +96,8 @@ describe("installAgent", () => {
   it("says so when the terminal cannot be started", async () => {
     launch.mockRejectedValue(new Error("no shell"));
     expect(await installAgent("codex")).toBeNull();
-    expect(errorToasts(vi.mocked(toast.error))).toEqual([{ title: "Could not launch the agent", description: expect.stringMatching(/then try again no shell$/) }]);
+    // The agent is not installed yet: the toast names the install terminal, and offers no "check that it is installed".
+    expect(errorToasts(vi.mocked(toast.error))).toEqual([{ title: "Could not open the install terminal", description: "no shell" }]);
   });
 
   it("says so when there is no canvas to put the terminal on", async () => {

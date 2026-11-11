@@ -254,6 +254,8 @@ export const agentsMessages = defineMessages({
       terminalTitle: (label: string) => `Install · ${label}`,
       installed: (label: string) => `${label} is installed`,
       noCanvas: "Open a project: the install runs in a terminal on its canvas.",
+      /** The terminal of an install or a model pull did not start; what went wrong goes under it. */
+      terminalFailed: "Could not open the install terminal",
     },
     placement: {
       addToGroup: (name: string) => `Click or press Enter to add it to the group ${name} · Esc to cancel`,

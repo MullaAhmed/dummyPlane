@@ -203,7 +203,7 @@ Errors:
 
 Screens and notices:
 
-- The start-up error (`StatusScreen`), a project whose workspaces do not load (`ProjectView`) and a render error (`CrashNotice`, `AppCrash`) all read the same. The title comes in the app's words, then the error's detail in the code font, `text-xs`, `--dp-text-2`, then the ways out: try again, the logs, troubleshooting.
+- The start-up error (`StatusScreen`), a project whose workspaces do not load (`ProjectView`) and a render error (`CrashNotice`, `AppCrash`) all read the same. The title comes in the app's words, then the error's detail in the code font, `text-xs`, `--dp-text-2`. The full screens and the crash notices end with the ways out: try again, the logs, troubleshooting. The project's load error has none of its own; the title bar and the project picker stay usable.
 - The waiting notice (`WaitingNotice`) uses the same raised surface, bottom left, with one row per agent. Each row shows the agent's waiting `StatusDot`, the ringed signature dot, never a plain colour dot.
 
 Windows notifications (`waitingAlert`, `finishAlert`):

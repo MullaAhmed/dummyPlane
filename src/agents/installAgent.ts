@@ -44,7 +44,7 @@ async function openCommandTerminal(title: string, command: string, shell: ShellK
     else arrive(nodeId);
     return nodeId;
   } catch (error) {
-    toastError(t.launchFailed, { error, next: t.launchNext });
+    toastError(t.install.terminalFailed, { error });
     return null;
   }
 }

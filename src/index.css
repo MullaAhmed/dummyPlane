@@ -238,8 +238,8 @@
    sonner's injected style is unlayered and wins over every utility, so each property it sets on these parts
    rolls back past it to the utilities' layer. Opacity stays sonner's: it hides the buttons of the toasts
    stacked behind. Six attributes out-rank its strongest rule on them (the dark cancel button, five), which
-   comes later in a release build. */
-[data-sonner-toaster][data-sonner-theme] [data-sonner-toast][data-styled="true"][data-type] :is([data-title], [data-description], [data-button]) {
+   comes later in a release build; each is on every toast (a plain toast has no data-type). */
+[data-sonner-toaster][data-sonner-theme] [data-sonner-toast][data-styled="true"][data-x-position] :is([data-title], [data-description], [data-button]) {
   display: revert-layer;
   align-items: revert-layer;
   flex-shrink: revert-layer;

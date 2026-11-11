@@ -6,6 +6,7 @@ import { expect, it } from "vitest";
 import { themeStore } from "@/app/theme";
 import { buttonVariants } from "@/components/ui/button";
 import { TOAST_CLASSES } from "@/components/ui/sonner";
+import { readSource } from "@/theme/cssBlocks";
 import { AppToaster, TOAST_BOTTOM } from "./AppToaster";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -94,6 +95,36 @@ it("draws a toast's action and cancel as the app's buttons: the outline and the 
       expect(button.className.split(/\s+/), `${button.textContent}: ${part}`).toContain(part);
     }
   }
+  await act(async () => root.unmount());
+  host.remove();
+});
+
+it("hands every toast's parts back to the app's classes: a plain Undo toast as much as a typed one (index.css)", async () => {
+  const index = readSource("index.css");
+  const at = index.indexOf("revert-layer");
+  const rule = index.slice(index.lastIndexOf("}", at) + 1, index.indexOf("{", index.lastIndexOf("}", at) + 1)).replace(/\/\*[\s\S]*?\*\//g, "").trim();
+  // The toast's own part of the selector, before the parts it hands back.
+  const toastPart = rule.slice(0, rule.indexOf(" :is(")).trim();
+  expect(toastPart).toContain("[data-sonner-toast]");
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = createRoot(host);
+  await act(async () => root.render(<AppToaster />));
+  await act(async () => {
+    toast("Card deleted", { action: { label: "Undo", onClick: () => undefined } });
+    toast.error("Could not save the canvas", { description: "Access is denied." });
+    toast.loading("Updating…");
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+  });
+  // Sonner keeps the earlier tests' toasts: these three, by their text.
+  const all = [...host.querySelectorAll<HTMLElement>("[data-sonner-toast]")];
+  const toasts = ["Card deleted", "Could not save the canvas", "Updating…"].map((text) => all.find((item) => item.textContent?.includes(text))!);
+  expect(toasts.every(Boolean)).toBe(true);
+  for (const item of toasts) {
+    expect(item.matches(toastPart), `${item.textContent}: ${toastPart}`).toBe(true);
+  }
+  // A plain toast has no data-type: the rule must not ask for one.
+  expect(toasts.find((item) => item.textContent?.includes("Card deleted"))!.hasAttribute("data-type")).toBe(false);
   await act(async () => root.unmount());
   host.remove();
 });
