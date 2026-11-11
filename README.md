@@ -141,7 +141,7 @@ Excalidraw's own keys (`V`, `H`, `R`, `O`, `A`, `T`, `P`, `E`, `Ctrl+Z`…) work
 
 ## Install
 
-Download `dummyPlane_<version>_x64-setup.exe` from the [latest release](https://github.com/Mideky-hub/openvibe/releases/latest) and run it (Windows 10/11). It installs for your user only and needs no administrator rights.
+Download `dummyPlane_<version>_x64-setup.exe` from the [latest release](https://github.com/MullaAhmed/dummyPlane/releases/latest) and run it (Windows 10/11). It installs for your user only and needs no administrator rights.
 
 You also need at least one agent CLI, for example [Claude Code](https://docs.claude.com/en/docs/claude-code/overview), and [Git](https://git-scm.com/): Git Bash provides the `bash` that the usage meter needs.
 
@@ -167,8 +167,8 @@ dummyPlane runs once: launching it a second time brings the open window back (an
 **Build and run:**
 
 ```powershell
-git clone https://github.com/Mideky-hub/openvibe.git
-cd dummyplane
+git clone https://github.com/MullaAhmed/dummyPlane.git
+cd dummyPlane
 pnpm install
 pnpm tauri dev                  # run in development
 pnpm tauri build                # build the installer
@@ -200,6 +200,8 @@ Bug reports, ideas and pull requests are welcome, in English or in French. Start
 ## License and credits
 
 dummyPlane is released under the [MIT License](LICENSE).
+
+dummyPlane is a fork of [OpenVibe](https://github.com/Mideky-hub/openvibe) (MIT, © Mathieu Kerbel), which this project continues at [MullaAhmed/dummyPlane](https://github.com/MullaAhmed/dummyPlane). Thanks to Mathieu Kerbel and the OpenVibe contributors for the original work; the upstream copyright notice is kept in the [LICENSE](LICENSE).
 
 It builds on [Tauri](https://tauri.app/), [Excalidraw](https://github.com/excalidraw/excalidraw), [xterm.js](https://xtermjs.org/), [portable-pty](https://github.com/wezterm/wezterm/tree/main/pty) and [cmdk](https://cmdk.paco.me/).
 dummyPlane is an independent project. It is not affiliated with Symvibe, Anthropic, OpenAI, Google or the makers of the other agents it launches; their names belong to their owners.
