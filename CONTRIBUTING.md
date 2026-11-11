@@ -6,7 +6,7 @@ By taking part, you agree to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Before you start
 
-- **Found a bug?** Search the [issues](https://github.com/Mideky-hub/openvibe/issues) first, then open a bug report with the steps to reproduce, what you expected and what happened. Include your Windows version and the agent CLI and version involved.
+- **Found a bug?** Search the [issues](https://github.com/MullaAhmed/dummyPlane/issues) first, then open a bug report with the steps to reproduce, what you expected and what happened. Include your Windows version and the agent CLI and version involved.
 - **Have an idea?** Check [BACKLOG.md](BACKLOG.md): it may already be planned. Then open a feature request that explains the problem it solves.
 - **Found a security problem?** Do not open an issue. Follow [SECURITY.md](SECURITY.md).
 - **Want to write code?** For anything bigger than a small fix, please open an issue first, so we can agree on the approach before you spend time on it.
@@ -22,8 +22,8 @@ You need Windows 10/11 and:
 - at least one agent CLI on your `PATH`, for example Claude Code, to try the agent features.
 
 ```powershell
-git clone https://github.com/Mideky-hub/openvibe.git
-cd dummyplane
+git clone https://github.com/MullaAhmed/dummyPlane.git
+cd dummyPlane
 pnpm install
 pnpm tauri dev --config '{"identifier":"dev.dummyplane.probe"}'
 ```

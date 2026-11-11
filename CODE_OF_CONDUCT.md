@@ -30,7 +30,7 @@ This Code of Conduct applies in all project spaces: issues, pull requests, discu
 
 ## Reporting
 
-If you experience or witness unacceptable behavior, please report it privately to the maintainer, [@Mideky-hub](https://github.com/Mideky-hub), using the contact details on the maintainer's GitHub profile. You can also use GitHub's **Report content** option on the comment or issue concerned.
+If you experience or witness unacceptable behavior, please report it privately to the maintainer, [@MullaAhmed](https://github.com/MullaAhmed), using the contact details on the maintainer's GitHub profile. You can also use GitHub's **Report content** option on the comment or issue concerned.
 
 All reports will be reviewed and investigated promptly and fairly, and the privacy and security of the person reporting will be respected.
 
