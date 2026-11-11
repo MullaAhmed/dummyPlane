@@ -110,6 +110,7 @@ it("lets an IME finish its word: the Enter that picks a candidate keeps nothing 
 
 it("draws the field's boundary, not only its fill (P2-24)", async () => {
   await open();
+  // Input's control boundary, the shared token (3:1), not a fill alone.
   expect(field().className.split(/\s+/)).not.toContain("border-transparent");
-  expect(field().className.split(/\s+/)).toContain("border");
+  expect(field().className.split(/\s+/)).toContain("border-dp-line-strong");
 });

@@ -201,11 +201,16 @@ function FileTree({ project, active, expanded, setExpanded, onOpen }: FileTreePr
 }
 
 /**
- * Whether a row's name may not fit the panel (w-70, 280 px): its indent, chevron and icon, then
- * 9 px a character, more than a 14 px name ever takes, scrollbar aside. A row that surely fits
- * needs no hint: up to 2000 rows would each carry a tooltip's machinery for nothing (P2-59).
+ * Whether a row's name may not fit the panel (w-70, 280 px): its indent, chevron and icon, then a
+ * width over what a 14 px name takes, 9 px a Latin character and 15 px any other (a CJK glyph is
+ * a full em), scrollbar aside. A row that surely fits needs no hint: up to 2000 rows would each
+ * carry a tooltip's machinery for nothing (P2-59).
  */
-const mayBeCut = (name: string, depth: number) => 8 + depth * 12 + 44 + 8 + name.length * 9 > 280 - 16;
+const mayBeCut = (name: string, depth: number) => {
+  let width = 0;
+  for (const char of name) width += char.charCodeAt(0) < 0x80 ? 9 : 15;
+  return 8 + depth * 12 + 44 + 8 + width > 280 - 16;
+};
 
 /**
  * A row of the tree, not a control: role="treeitem", and up to 2000 of them, kept to the bare element.

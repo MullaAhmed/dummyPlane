@@ -64,7 +64,7 @@ export function SpecialityMenu({ groupId, speciality, onDone }: { groupId: strin
           aria-label={t.groupMenu.specialityLabel}
           placeholder={t.groupMenu.specialityCustom}
           onKeyDown={onKeyDown}
-          // As wide as the menu's items, inside its 4px padding. The fill alone is no boundary (about 1.3:1): the field keeps Input's border.
+          // As wide as the menu's items, inside its 4px padding. The fill alone is no boundary (about 1.3:1): the field keeps Input's border-dp-line-strong.
           className="m-1 h-7 w-[calc(100%-0.5rem)] rounded-md bg-dp-field px-2 text-xs md:text-xs"
         />
         <DropdownMenuSeparator />

@@ -287,13 +287,18 @@ it("shows a row's path in the app's hint when its long name is cut, and spares a
   entries = [
     { path: "a-very-long-file-name-that-the-panel-cannot-hold.ts", kind: "file" },
     { path: "main.ts", kind: "file" },
+    // Wide glyphs: 18 characters, but a full em each.
+    { path: "設計書と仕様書の最新版ドラフト.md", kind: "file" },
   ];
   root = createRoot(host);
   await act(async () => root.render(<CodeWorkspace />));
-  await vi.waitFor(() => expect(items()).toHaveLength(2));
-  const [long, short] = items();
+  await vi.waitFor(() => expect(items()).toHaveLength(3));
+  const long = items().find((i) => i.dataset.path?.startsWith("a-very"))!;
+  const short = items().find((i) => i.dataset.path === "main.ts")!;
+  const wide = items().find((i) => i.dataset.path?.endsWith(".md"))!;
   expect(short.getAttribute("data-slot")).toBeNull();
   expect(long.getAttribute("data-slot")).toBe("tooltip-trigger");
+  expect(wide.getAttribute("data-slot")).toBe("tooltip-trigger");
   const name = long.querySelector(".truncate")!;
   Object.defineProperty(name, "scrollWidth", { configurable: true, value: 400 });
   Object.defineProperty(name, "clientWidth", { configurable: true, value: 180 });
