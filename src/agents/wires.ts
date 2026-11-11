@@ -199,7 +199,7 @@ function route(start: Point, [startSide, endSide]: [Side, Side], end: Point): [n
   return [[0, 0], [dx / 2, 0], [dx / 2, dy], [dx, dy]];
 }
 
-type ElbowForm = Pick<
+export type ElbowForm = Pick<
   ExcalidrawElbowArrowElement,
   | "x"
   | "y"
@@ -221,9 +221,10 @@ type ElbowForm = Pick<
 /**
  * An elbow arrow from `from` to `to` as they stand: bound by fixed points at
  * the middle of the sides that face each other, routed through them. Excalidraw
- * routes it again from those fixed points whenever one of the two moves.
+ * routes it again from those fixed points whenever one of the two moves. Arrange
+ * gives it to a drawn elbow arrow whose ends it moved apart (./arrangeDrawings.ts).
  */
-function elbowForm(from: ExcalidrawElement, to: ExcalidrawElement): ElbowForm {
+export function elbowForm(from: ExcalidrawElement, to: ExcalidrawElement): ElbowForm {
   const sides = wireSides(from, to);
   const startPoint = fixedPointOf(from, sides[0]);
   const endPoint = fixedPointOf(to, sides[1]);
