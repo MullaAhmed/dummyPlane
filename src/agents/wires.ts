@@ -488,7 +488,7 @@ export function withWire(
   return addWire(elements, fleet, target, palette, spawn);
 }
 
-/** The live arrows of a wire with both ends bound: start, end. */
+/** A live wire's two bound ends, start then end; null for any other element, or a wire with a loose end. */
 function boundEnds(element: ExcalidrawElement): [string, string] | null {
   if (element.isDeleted || element.type !== "arrow" || !isWire(element)) return null;
   const { startBinding, endBinding } = element as ExcalidrawArrowElement;

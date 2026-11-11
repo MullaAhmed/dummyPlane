@@ -193,6 +193,16 @@ A terminal and a fleet share one header, `NodeHeader` in `src/nodes/terminal`, b
 
 Press rule: `active:scale-[0.97]` sets the CSS `scale` property, not `transform`. A transition list that names `transform` leaves the press snapping, so name `scale`: `transition-[color,background-color,scale]`, with `duration-(--dp-dur-fast)`, `ease-(--dp-ease-out)` and, under reduced motion, `motion-reduce:transition-[color,background-color] motion-reduce:active:scale-100` (the press stops moving, the colour still eases). `Button` already does this; when a class overrides its transition list, keep `scale` in it. (`transition-transform` is fine for a rotate or a translate: it covers `translate`, `scale` and `rotate`. A bare `transition-[transform]` does not.)
 
+## Wires
+
+A wire is an Excalidraw elbow arrow marked `customData.dummyplane.kind === "wire"` (`src/agents/wires.ts`), 2px, no heads, drawn in the palette's accent. A message passing over it runs a light along it (`WireActivity`, see Motion). What a wire is reads from its stroke and its place, never from its colour alone:
+
+- A team link (Fleet to a group or a terminal), an agent link ("+ Link"), a spawn wire (`spawn_agent`, from the parent to the sub-agent): solid.
+- A talk wire: dashed, in the same colour. It forms when a message passes between two terminals, a Fleet or a Kanban board that no wire joins yet (`talk` in `src/agents/talkWires.ts`). It is saved with the scene, is no undo step, and never puts an agent on a Fleet's team; linking the two by hand turns it solid.
+- A mission's wires: its Fleet to its board, its board to its Manager. Plain solid wires; a Kanban board is a wire's end.
+
+The Manager's team is a vertical tree, not the left-to-right flowchart of other spawn trees (`src/agents/treeLayout.ts`): the Manager on top, each agent's sub-agents under it in rows of at most four that wrap (twelve agents read as a 4×3 grid, about a screen's shape), the rows left-aligned on the parent, `GROUP_GAP` (96px) between a parent and its first row and between rows, `COLUMN_GAP` (32px) between siblings. Each wire leaves its parent's bottom middle and enters its child's top middle. A first-row child's wire goes down to the middle of the gap, across, down; a later row's runs down a riser 16px left of the rows and across in the middle of the gap above its row. No wire crosses a node. Every reflow redraws a wire whose route went astray, so a drag or a closed agent leaves the tree tidy again.
+
 ## Colour rules
 
 - Use `dp-*` tokens only. No raw hex in components.

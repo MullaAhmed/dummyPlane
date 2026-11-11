@@ -28,7 +28,7 @@ vi.mock("@excalidraw/excalidraw", () => ({
   newElementWith: (e: object, fields: object) => ({ ...e, ...fields }),
 }));
 
-const scene = vi.hoisted(() => ({ shown: true, known: true, elements: [] as unknown[] }));
+const scene = vi.hoisted(() => ({ shown: true, known: true, elements: [] as readonly unknown[] }));
 const updateScene = vi.hoisted(() => vi.fn());
 const write = vi.hoisted(() => vi.fn());
 vi.mock("./sceneAccess", () => ({
@@ -178,7 +178,7 @@ describe("talk (a message passed)", () => {
   const pulses = () => wireActivityStore.getState().pulses;
   /** What the canvas lights for the pulses now, on the scene as written. */
   const lit = (elements: readonly ExcalidrawElement[]) => activeWires(wirePaths(elements), framesFromScene(elements), pulses());
-  const latest = () => (updateScene.mock.calls.at(-1)?.[0] as { elements: ExcalidrawElement[]; captureUpdate: string }) ?? null;
+  const latest = () => (updateScene.mock.calls[updateScene.mock.calls.length - 1]?.[0] as { elements: ExcalidrawElement[]; captureUpdate: string }) ?? null;
 
   beforeEach(() => {
     clearWirePulses();
