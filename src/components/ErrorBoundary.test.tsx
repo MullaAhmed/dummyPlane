@@ -98,3 +98,29 @@ it("reads a quiet boundary's key from its hook: a failed dialog opens again on t
   await act(async () => store.setState({ openings: 1 }));
   expect(host.textContent).toBe("fine");
 });
+
+it("recovers a dialog that failed while open: its error closes it, so the next request opens it again", async () => {
+  vi.spyOn(console, "error").mockImplementation(() => undefined);
+  const { createStore, useStore } = await import("zustand");
+  const store = createStore<{ open: boolean }>()(() => ({ open: false }));
+  const useOpen = () => useStore(store, (s) => s.open);
+  const broken = { current: true };
+  function Dialog() {
+    const open = useOpen();
+    if (open && broken.current) throw new Error("render failed");
+    return <p>{open ? "dialog" : ""}</p>;
+  }
+  await act(async () =>
+    root.render(
+      <QuietBoundary scope="accounts dialog" useResetKey={useOpen} onError={() => store.setState({ open: false })}>
+        <Dialog />
+      </QuietBoundary>,
+    ),
+  );
+  await act(async () => store.setState({ open: true }));
+  // It failed open: its flag is cleared, so asking again is a change the boundary sees.
+  expect(store.getState().open).toBe(false);
+  broken.current = false;
+  await act(async () => store.setState({ open: true }));
+  expect(host.textContent).toBe("dialog");
+});

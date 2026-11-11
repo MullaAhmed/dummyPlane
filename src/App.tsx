@@ -22,11 +22,11 @@ import { AccountsDialog } from "@/accounts/AccountsDialog";
 import { useMessages } from "@/i18n";
 import { projectsStore, useProjects } from "@/store/projects";
 import { usePalette } from "@/commands/paletteState";
-import { useAccounts } from "@/accounts/store";
-import { useUpdates } from "@/app/updates";
+import { accountsStore, useAccounts } from "@/accounts/store";
+import { updatesStore, useUpdates } from "@/app/updates";
 import { useFleetAgent } from "@/fleet/fleetAgent";
 import { useStudio } from "@/studio/studioStore";
-import { useTroubleshoot } from "@/shell/troubleshoot";
+import { troubleshootStore, useTroubleshoot } from "@/shell/troubleshoot";
 
 /** What asks each dialog again: read by its own boundary, never here, so App does not re-render on each. */
 const usePaletteOpenings = () => usePalette((s) => s.openings);
@@ -35,6 +35,11 @@ const useQuitting = () => useStudio((s) => s.quitting);
 const useUpdateDialogOpen = () => useUpdates((s) => s.dialogOpen);
 const useTroubleshootingOpen = () => useTroubleshoot((s) => s.open);
 const useFleetAgentAsked = () => useFleetAgent((s) => s.asking);
+
+/** A dialog that failed while open cannot close itself: its flag is cleared, so the next request is a change again. */
+const closeAccounts = () => accountsStore.setState({ open: false });
+const closeUpdate = () => updatesStore.setState({ dialogOpen: false });
+const closeTroubleshooting = () => troubleshootStore.setState({ open: false });
 
 export default function App() {
   const t = useMessages(appMessages);
@@ -64,7 +69,7 @@ export default function App() {
       <QuietBoundary scope="presets dialog" useResetKey={usePaletteOpenings}>
         <SavePresetDialog />
       </QuietBoundary>
-      <QuietBoundary scope="accounts dialog" useResetKey={useAccountsOpen}>
+      <QuietBoundary scope="accounts dialog" useResetKey={useAccountsOpen} onError={closeAccounts}>
         <AccountsDialog />
       </QuietBoundary>
       <QuietBoundary scope="loops" useResetKey={usePaletteOpenings}>
@@ -77,10 +82,10 @@ export default function App() {
       <QuietBoundary scope="unsaved files" useResetKey={useQuitting}>
         <QuitPrompt />
       </QuietBoundary>
-      <QuietBoundary scope="update dialog" useResetKey={useUpdateDialogOpen}>
+      <QuietBoundary scope="update dialog" useResetKey={useUpdateDialogOpen} onError={closeUpdate}>
         <UpdateDialog />
       </QuietBoundary>
-      <QuietBoundary scope="troubleshooting dialog" useResetKey={useTroubleshootingOpen}>
+      <QuietBoundary scope="troubleshooting dialog" useResetKey={useTroubleshootingOpen} onError={closeTroubleshooting}>
         <TroubleshootingDialog />
       </QuietBoundary>
       <QuietBoundary scope="confirmation dialog" useResetKey={usePendingConfirm}>

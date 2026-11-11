@@ -9,6 +9,11 @@ interface Props {
    * fell back tries its children again then, instead of staying down until the app restarts.
    */
   resetKey?: unknown;
+  /**
+   * After an error: a dialog that failed while open clears its open flag here, since its own close is gone with it.
+   * The next request then sets it again, a change `resetKey` sees.
+   */
+  onError?: () => void;
   children: ReactNode;
 }
 
@@ -26,10 +31,12 @@ export class ErrorBoundary extends Component<Props, { error: Error | null }> {
 
   componentDidCatch(error: unknown, info: ErrorInfo) {
     console.error(`[ui] ${this.props.scope}`, error, info.componentStack ?? "");
+    this.props.onError?.();
   }
 
-  componentDidUpdate(previous: Props) {
-    if (this.state.error && !Object.is(previous.resetKey, this.props.resetKey)) this.retry();
+  componentDidUpdate(previous: Props, before: { error: Error | null }) {
+    // Only an error caught earlier: one caught in this very update is not tried again at once (it would log twice).
+    if (before.error && this.state.error && !Object.is(previous.resetKey, this.props.resetKey)) this.retry();
   }
 
   retry = () => this.setState({ error: null });
@@ -43,9 +50,20 @@ export class ErrorBoundary extends Component<Props, { error: Error | null }> {
  * A part that shows nothing once it failed, a dialog or a meter, until `useResetKey` gives another value: asked for
  * again, it tries again. The key is read here, so only this boundary re-renders when it changes, not its parent.
  */
-export function QuietBoundary({ scope, useResetKey, children }: { scope: string; useResetKey: () => unknown; children: ReactNode }) {
+export function QuietBoundary({
+  scope,
+  useResetKey,
+  onError,
+  children,
+}: {
+  scope: string;
+  useResetKey: () => unknown;
+  /** Clears an open flag the failed dialog can no longer clear (see ErrorBoundary). */
+  onError?: () => void;
+  children: ReactNode;
+}) {
   return (
-    <ErrorBoundary scope={scope} fallback={() => null} resetKey={useResetKey()}>
+    <ErrorBoundary scope={scope} fallback={() => null} resetKey={useResetKey()} onError={onError}>
       {children}
     </ErrorBoundary>
   );

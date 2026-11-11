@@ -52,3 +52,21 @@ it("tries a failed dialog again on the next closing request, instead of staying 
   await act(async () => root.unmount());
   host.remove();
 });
+
+it("drops a closing request its failed dialog can no longer answer, so the same agents asked again open it", async () => {
+  vi.spyOn(console, "error").mockImplementation(() => undefined);
+  agentDialog.fails = true;
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = createRoot(host);
+  await act(async () => root.render(<ProjectDialogs />));
+  await act(async () => uiStore.getState().setClosing({ agents: ["a"], remove: ["a"] }));
+  // Failed while asked: the request is dropped rather than left pending forever.
+  expect(uiStore.getState().closing).toBeNull();
+  agentDialog.fails = false;
+  await act(async () => uiStore.getState().setClosing({ agents: ["a"], remove: ["a"] }));
+  expect(host.textContent).toContain("agent dialog");
+  await act(async () => uiStore.getState().setClosing(null));
+  await act(async () => root.unmount());
+  host.remove();
+});
