@@ -56,11 +56,14 @@ it("opens the notes in their workspace tab, and shows when they are on screen (s
   const root = createRoot(host);
   await act(async () => root.render(<ActivityRail />));
   const notes = host.querySelector<HTMLButtonElement>('[aria-label="Notes"]')!;
-  expect(notes.getAttribute("aria-pressed")).toBe("false");
+  // A workspace it goes to, not a toggle: it says where the user is (aria-current), never "not pressed" (P2-7).
+  expect(notes.hasAttribute("aria-pressed")).toBe(false);
+  expect(notes.hasAttribute("aria-current")).toBe(false);
   await act(async () => notes.click());
   expect(openNotes).toHaveBeenCalled();
   await act(async () => workspacesStore.setState({ activeId: "n1" }));
-  expect(notes.getAttribute("aria-pressed")).toBe("true");
+  expect(notes.getAttribute("aria-current")).toBe("page");
+  expect(notes.hasAttribute("aria-pressed")).toBe(false);
   await act(async () => root.unmount());
   host.remove();
 });

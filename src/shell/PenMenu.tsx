@@ -51,7 +51,7 @@ export function PenMenu({ active }: { active: boolean }) {
       }}
     >
       <PopoverTrigger asChild>
-        <ToolButton label={t.button} active={active}>
+        <ToolButton toggle label={t.button} active={active}>
           <PenLine />
         </ToolButton>
       </PopoverTrigger>

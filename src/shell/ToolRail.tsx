@@ -27,21 +27,21 @@ export function ToolRail() {
   const active = railToolOf(tool);
   return (
     <nav className="dp-glass absolute left-3 top-1/2 z-30 flex -translate-y-1/2 flex-col items-center gap-0.5 rounded-lg p-1">
-      <RailButton label={t.selection} active={active === "selection"} onClick={() => setTool("selection")}>
+      <RailButton toggle label={t.selection} active={active === "selection"} onClick={() => setTool("selection")}>
         <MousePointer2 />
       </RailButton>
-      <RailButton label={t.hand} active={active === "hand"} onClick={() => setTool("hand")}>
+      <RailButton toggle label={t.hand} active={active === "hand"} onClick={() => setTool("hand")}>
         <Hand />
       </RailButton>
       <ShapesMenu active={active === "shapes"} current={tool} onPick={setTool} />
-      <RailButton label={t.text} active={active === "text"} onClick={() => setTool("text")}>
+      <RailButton toggle label={t.text} active={active === "text"} onClick={() => setTool("text")}>
         <Type />
       </RailButton>
       <PenMenu active={active === "pen"} />
-      <RailButton label={t.eraser} active={active === "eraser"} onClick={() => setTool("eraser")}>
+      <RailButton toggle label={t.eraser} active={active === "eraser"} onClick={() => setTool("eraser")}>
         <Eraser />
       </RailButton>
-      <RailButton label={t.image} active={active === "image"} onClick={() => setTool("image")}>
+      <RailButton toggle label={t.image} active={active === "image"} onClick={() => setTool("image")}>
         <ImageIcon />
       </RailButton>
       <Separator />

@@ -34,7 +34,7 @@ export function ShapesMenu(props: { active: boolean; current: string; onPick: (t
       }}
     >
       <PopoverTrigger asChild>
-        <ToolButton label={t.title} active={active}>
+        <ToolButton toggle label={t.title} active={active}>
           <Shapes />
         </ToolButton>
       </PopoverTrigger>
