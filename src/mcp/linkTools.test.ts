@@ -61,12 +61,15 @@ describe("linked agents' tools", () => {
     expect(textOf(await call("chef", "message_agent", { agent: "Batman", text: "hi" }))).toBe("This tool is for agents.");
   });
 
-  it("say no agent is linked when no wire joins the caller to another agent, a fleet's wire included", async () => {
-    scene = withWire(nodes, "chef", "batman");
+  it("say no agent is linked when no wire joins the caller to another agent; a fleet's wire lists the Fleet, not an agent", async () => {
+    scene = nodes;
     expect(textOf(await call("batman", "linked_agents"))).toContain("No agent is linked to you");
-    const refused = await call("batman", "message_agent", { agent: "Chef", text: "hi" });
+    const refused = await call("batman", "message_agent", { agent: "Cyborg", text: "hi" });
     expect(refused.isError).toBe(true);
     expect(textOf(refused)).toContain("No agent is linked to you");
+    // The Fleet that commands it is its own relation (`./handOff.test.ts`).
+    scene = withWire(nodes, "chef", "batman");
+    expect(JSON.parse(textOf(await call("batman", "linked_agents")))).toEqual([{ name: "Chef", id: "chef", state: "stopped", relation: "fleet" }]);
     expect(notify).not.toHaveBeenCalled();
   });
 

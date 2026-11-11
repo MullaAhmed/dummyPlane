@@ -5,7 +5,7 @@ import { messages } from "@/i18n";
 import { ptySendText } from "@/ipc/pty";
 import { missionFolder } from "@/mission/folder";
 import { endMission, launchMission, mergeMission, reassignTask } from "@/mission/launch";
-import { budgetOf, memberTime, NEW_AGENT, nightMin, oneLine, proposedPlan, proposedTasks, remainingGlobal, sameName, spentMin, type Member, type Mission } from "@/mission/mission";
+import { budgetOf, memberTime, NEW_AGENT, nightMin, oneLine, proposedPlan, proposedTasks, remainingGlobal, sameName, spentMin, type Member, type Mission, type QueuedTask } from "@/mission/mission";
 import { activeCount } from "@/mission/active";
 import { giveNext, pumpQueue } from "@/mission/queue";
 import { boardView, todoColumnOf } from "@/kanban/missionLink";
@@ -306,22 +306,34 @@ async function tickets(fleetId: string, mission: Mission): Promise<ToolResult> {
 }
 
 /**
+ * The core of `add_tasks`, shared with a linked agent's `hand_off` (`./handOff.ts`): the tasks join the queue, each one
+ * also a card of the to-do column on a board a Manager runs; `handedBy` names the agent that handed them over. The tasks
+ * with their cards and the queue they joined, or what is wrong.
+ */
+export function enqueueTasks(fleetId: string, mission: Mission, args: Record<string, unknown>, handedBy?: string): { tasks: QueuedTask[]; queue: QueuedTask[]; latest: Mission } | string {
+  if (mission.state === "terminee") return t().fleet.finished;
+  const grouped = Array.isArray(args.tasks) && args.tasks.some((s) => Boolean((s as Record<string, unknown> | null)?.groupe));
+  if (grouped && !canvasKnown(fleetId)) return t().fleet.hiddenWorkspace;
+  const cards = linkedBoards(fleetId).flatMap(({ board }) => Object.keys(board.cards));
+  const proposed = proposedTasks(args, mission, linkedGroups(fleetId), cards);
+  if (typeof proposed === "string") return proposed;
+  const tasks = addTaskCards(fleetId, handedBy ? proposed.map((task) => ({ ...task, handedBy })) : proposed);
+  // Read again: the cards were written meanwhile.
+  const latest = missionOf(nodesStore.getState().nodes[fleetId]) ?? mission;
+  const queue = [...(latest.queue ?? []), ...tasks];
+  setMission(fleetId, { queue });
+  return { tasks, queue, latest };
+}
+
+/**
  * `add_tasks`, the Fleet's or the Manager's: the tasks join the queue; on a board a Manager runs, each is also a
  * card in its to-do column. The queue starts a new agent for each as seats free up, without waiting for anyone.
  * The Fleet's cards travel to the board, then to the Manager, who is told.
  */
 function addTasks(fleetId: string, mission: Mission, args: Record<string, unknown>, caller: string = fleetId): ToolResult {
-  if (mission.state === "terminee") return refused(t().fleet.finished);
-  const grouped = Array.isArray(args.tasks) && args.tasks.some((s) => Boolean((s as Record<string, unknown> | null)?.groupe));
-  if (grouped && !canvasKnown(fleetId)) return refused(t().fleet.hiddenWorkspace);
-  const cards = linkedBoards(fleetId).flatMap(({ board }) => Object.keys(board.cards));
-  const proposed = proposedTasks(args, mission, linkedGroups(fleetId), cards);
-  if (typeof proposed === "string") return refused(proposed);
-  const tasks = addTaskCards(fleetId, proposed);
-  // Read again: the cards were written meanwhile.
-  const latest = missionOf(nodesStore.getState().nodes[fleetId]) ?? mission;
-  const queue = [...(latest.queue ?? []), ...tasks];
-  setMission(fleetId, { queue });
+  const added = enqueueTasks(fleetId, mission, args);
+  if (typeof added === "string") return refused(added);
+  const { tasks, queue, latest } = added;
   if (latest.state === "en_cours" && latest.manager && latest.board) {
     if (caller === fleetId) {
       talk(fleetId, latest.board);
@@ -430,7 +442,7 @@ function needUser(fleetId: string, managerId: string, mission: Mission, args: Re
 
 function describeQueue(fleetId: string, mission: Mission): ToolResult {
   return json({
-    waiting: (mission.queue ?? []).map((s) => ({ title: s.title, brief: s.brief, budget_min: s.budgetMin, level: s.level ? outLevel(s.level) : null, group: s.group?.name ?? null, card: s.card ?? null })),
+    waiting: (mission.queue ?? []).map((s) => ({ title: s.title, brief: s.brief, budget_min: s.budgetMin, level: s.level ? outLevel(s.level) : null, group: s.group?.name ?? null, card: s.card ?? null, ...(s.handedBy ? { handed_by: s.handedBy } : {}) })),
     active_agents: activeCount(fleetId, mission),
     max_agents: mission.maxAgents,
   });
