@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Network, X } from "lucide-react";
 import { useCanvas } from "@/canvas/canvasStore";
 import { useUiRequest } from "@/commands/uiRequests";
-import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+import { DropdownMenuCheckboxItem, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { pauseAll, resumeAll } from "@/agents/broadcast";
 import { AGENTS, INDIGO } from "@/agents/catalog";
 import { LeaveGroupItem } from "@/agents/LeaveGroupItem";
@@ -14,6 +14,7 @@ import { linkedAgents, NO_LINKS } from "@/agents/wires";
 import { cn } from "@/lib/utils";
 import { useNow } from "@/lib/useNow";
 import { clockText } from "@/mission/mission";
+import { missionMessages } from "@/mission/messages";
 import { MissionPanel } from "@/mission/MissionPanel";
 import { RouterToggle } from "@/mission/RouterToggle";
 import { setMission } from "@/mission/store";
@@ -130,6 +131,7 @@ function FleetHeader(props: {
   const { nodeId, name, session, status, activity, clock, routerOn, agentIds } = props;
   const t = useMessages(nodesMessages).fleet;
   const quickNoteLabel = useMessages(noteMessages).add;
+  const routerLabel = useMessages(missionMessages).routerSwitch;
   const [editing, setEditing] = useState(false);
   // "Rename" of the Fleet's radial menu.
   useUiRequest("renameFleet", (request) => {
@@ -163,6 +165,12 @@ function FleetHeader(props: {
           {/* Spec maj §2: the Fleet and its team, followed from the phone. */}
           <DropdownMenuItem onSelect={() => void setRemoteControlAll([nodeId, ...agentIds], true)}>{t.remoteTeam}</DropdownMenuItem>
           <DropdownMenuItem onSelect={() => void setRemoteControlAll([nodeId, ...agentIds], false)}>{t.remoteOff}</DropdownMenuItem>
+          {/* The router's switch is in the header from 28rem on; here it is, at any width. */}
+          {routerOn !== null && (
+            <DropdownMenuCheckboxItem checked={routerOn} onCheckedChange={(on) => setMission(nodeId, { router: on === true || undefined })}>
+              {routerLabel}
+            </DropdownMenuCheckboxItem>
+          )}
           <DropdownMenuSeparator />
           <DropdownMenuItem
             onSelect={() => {

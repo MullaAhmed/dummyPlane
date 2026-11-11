@@ -170,10 +170,28 @@ describe("the model router's sticky switch", () => {
     await view.unmount();
   });
 
+  const payloadOf = () => nodesStore.getState().nodes.batman?.payload as TerminalPayload;
+
+  it("is in its ⋯ menu too, at any width: a checked entry that writes the same switch, never a Manager's", async () => {
+    mockIPC(() => undefined);
+    await nodesStore.getState().create("batman", { workspaceId: "w1", kind: "terminal", payload: claude });
+    const view = await mount(shown({}));
+    await openMore(view.host);
+    const entry = () => document.querySelector<HTMLElement>('[role="menuitemcheckbox"]');
+    expect(entry()?.textContent).toBe("Model router");
+    expect(entry()?.getAttribute("aria-checked")).toBe("false");
+    await act(async () => entry()!.click());
+    expect(payloadOf().router).toBe(true);
+    await view.unmount();
+    const manager = await mount(shown({ role: "manager", fleet: "chef" }));
+    await openMore(manager.host);
+    expect(entry()).toBeNull();
+    await manager.unmount();
+  });
+
   it("stays on until it is turned off, saved in the terminal's payload, and never asks for a restart", async () => {
     mockIPC(() => undefined);
     await nodesStore.getState().create("batman", { workspaceId: "w1", kind: "terminal", payload: { ...claude, model: "claude-haiku-5-5" } });
-    const payloadOf = () => nodesStore.getState().nodes.batman?.payload as TerminalPayload;
     const view = await mount(shown({ model: "claude-haiku-5-5" }));
     await act(async () => router(view.host)!.click());
     expect(payloadOf().router).toBe(true);

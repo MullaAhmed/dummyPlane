@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { ChevronDown, X } from "lucide-react";
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
@@ -22,6 +23,7 @@ import { modelLabel } from "@/mission/router";
 import { openReview } from "@/review/reviewStore";
 import { ROLES } from "@/agents/roles";
 import { MANAGER_ROLE, type AgentId } from "@/ipc/pty";
+import { missionMessages } from "@/mission/messages";
 import { RouterToggle } from "@/mission/RouterToggle";
 import { cn } from "@/lib/utils";
 import type { TerminalPayload } from "@/nodes/types";
@@ -58,6 +60,7 @@ function TerminalMenu(props: { nodeId: string; payload: TerminalPayload; running
   const t = useMessages(nodesMessages).header;
   const duplicate = useMessages(nodesMessages).terminal.duplicate;
   const quickNoteLabel = useMessages(noteMessages).add;
+  const routerLabel = useMessages(missionMessages).routerSwitch;
   const relaunch = (mode: LaunchMode) => relaunchTerminal(nodeId, payload, mode);
   const newSession = () => {
     const fresh = newConversation();
@@ -88,6 +91,15 @@ function TerminalMenu(props: { nodeId: string; payload: TerminalPayload; running
         </>
       ) : (
         <DropdownMenuItem onSelect={() => relaunch("new")}>{t.relaunch}</DropdownMenuItem>
+      )}
+      {/* The router's switch is in the header from 28rem on; here it is, at any width. A Manager's has nothing to route. */}
+      {payload.agent === "claude" && payload.role !== MANAGER_ROLE && (
+        <>
+          <DropdownMenuSeparator />
+          <DropdownMenuCheckboxItem checked={payload.router === true} onCheckedChange={(on) => nodesStore.getState().update(nodeId, { router: on === true || undefined })}>
+            {routerLabel}
+          </DropdownMenuCheckboxItem>
+        </>
       )}
       {/* The model chip says it from 28rem of header on; here it is said, and cleared, at any width. */}
       {payload.model && (

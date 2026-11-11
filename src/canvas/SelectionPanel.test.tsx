@@ -1472,7 +1472,7 @@ describe("the model router's switch in the Edit tab", () => {
     expect(document.activeElement).toBe(sw);
     expect(host.querySelector(`label[for="${sw.id}"]`)?.textContent).toBe("Model router");
     const hint = document.getElementById(sw.getAttribute("aria-describedby")!)!;
-    expect(hint.textContent).toBe(`A sub-task a Fleet gives it starts it on the model of its level: ${ROUTER_LEVELS}. Otherwise it keeps its model`);
+    expect(hint.textContent).toBe(`With it on, a sub-task a Fleet gives it starts it on the model of its level: ${ROUTER_LEVELS}. A sub-task with no level leaves its model as it is`);
     await act(async () => sw.click());
     expect(terminalPayload().router).toBe(true);
     expect(routerSwitch()!.getAttribute("aria-checked")).toBe("true");

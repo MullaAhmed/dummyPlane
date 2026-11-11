@@ -77,8 +77,9 @@ All notable changes to dummyPlane are documented here. The format follows [Keep 
 - **Taken to the agent that asks:** when an agent starts waiting for you, dummyPlane brings you to its terminal and gives it the keyboard, one agent at a time, oldest first. It never moves while you write (it waits for a 3 s pause after your last key, and up to 10 s while the field you are in holds a draft you have not sent; a field that merely has the focus does not hold it), while you answer another waiting agent (one that starts asking while you are in its terminal is gone to as well), while a dialog, menu or the palette is open, in reading mode, or while the window is not in focus (it goes when you come back, if the agent still waits). A setting in the settings menu, *Go to agents that ask*, turns it off.
 - **Done, Blocked and Failed:** once an agent reports and rests, its status reads *Done*, *Blocked* or *Failed* instead of *Ready* (header, minimized card, agents panel, *Go to* and the `@` list) until it works again. Its steps settle with the report, and its budget bar fills in the report's tone. The agents panel filters are now *All*, *Waiting*, *Working* and *Done*; a saved filter that no longer exists moves to the one that took its place.
 - **A model router on every Claude terminal:** a sticky switch, on until you turn it off and saved with the canvas, in the terminal's header (the route icon, from 28rem of node on) and in its *Edit* tab (*Model router*, with its hint).
-  - **What it does:** a linked terminal with it on starts a sub-task a Fleet gives it on the model that sub-task's level names (low Haiku 5.5, medium Sonnet 5.5, high Opus 5.5, extreme Fable 5.1), even with the Fleet's own router off. With it off, the Fleet's router, if on, still routes it as before, and the terminal keeps its model otherwise.
-  - **What it doesn't do:** a task you type by hand has no level, so the switch does nothing there. A sub-task without a level leaves the terminal on the model it has. Switching it never offers *Restart now*: no launch setting changes until a mission gives the terminal a sub-task.
+  - **What it does:** a linked terminal with it on starts a sub-task a Fleet gives it on the model that sub-task's level names (low Haiku 5.5, medium Sonnet 5.5, high Opus 5.5, extreme Fable 5.1), even with the Fleet's own router off. With it off, nothing changes: the Fleet's router, if on, still routes the terminal, and a mission still puts it back on Claude's own model when it ends, as before.
+  - **What it doesn't do:** a task you type by hand has no level, so the switch does nothing there. A sub-task without a level leaves a terminal whose switch is on on the model it has. Switching it never offers *Restart now*: no launch setting changes until a mission gives the terminal a sub-task.
+  - **Narrow nodes:** the header's switch needs 28rem of node, like the model chip; *Model router* is also in the terminal's ⋯ menu and in its *Edit* tab at any width.
   - **The Fleet knows:** its `mission` answer marks the linked agents whose router is on (`router`), so it gives their sub-tasks a level.
 
 ### Changed
@@ -101,10 +102,10 @@ All notable changes to dummyPlane are documented here. The format follows [Keep 
 - **Agents stacked under a Fleet or in a group are spaced further apart,** to leave room for their step frieze.
 
 ### Fixed
-- **The Fleet's model router is back in reach:** since the mission's settings were folded into a *Settings* line, the router's checkbox was hidden behind a fold shut by default, and gone once the team was at work. Now:
+- **The Fleet's model router is back in reach:** when the mission's settings were folded into a *Settings* line, the router's checkbox, a plain row until then, went behind a fold shut by default. Now:
   - **In its panel:** *Model router* is a row of its own, in view before the go-ahead, with its label and its hint, on a night too.
-  - **In its header:** a sticky switch with the clock, from 28rem of node on.
-  - **In its *Edit* tab:** the same switch, in any state of the mission, so the tasks it queues are routed too.
+  - **In its header:** a sticky switch with the clock, from 28rem of node on, and an entry in its ⋯ menu at any width.
+  - **In its *Edit* tab:** the same switch, in any state of the mission (the panel's row goes at the go-ahead), so the tasks it queues are routed too.
   - **Not offered:** a Fleet on Codex, whose levels would name models Codex does not have.
 - **Alerts and notifications on brand:**
   - **Toast types:** each has its own icon shape in its status colour, so an error reads as one.

@@ -285,6 +285,15 @@ describe("its header, the same chrome as a terminal's", () => {
       expect(routerButton()!.getAttribute("aria-pressed")).toBe("false");
     });
 
+    it("is in its ⋯ menu too, at any width, a checked entry that writes the mission's router", async () => {
+      await act(async () => host.querySelector<HTMLButtonElement>('button[aria-label="Fleet menu"]')!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true })));
+      const entry = () => document.querySelector<HTMLElement>('[role="menuitemcheckbox"]');
+      expect(entry()?.textContent).toBe("Model router");
+      expect(entry()?.getAttribute("aria-checked")).toBe("false");
+      await act(async () => entry()!.click());
+      expect(missionRouter()).toBe(true);
+    });
+
     it("is there once the team is at work, and shows none on a Fleet whose session runs another CLI", async () => {
       const mission = (nodesStore.getState().nodes.chef?.payload as FleetPayload).mission ?? NEW_MISSION;
       await act(async () => nodesStore.getState().update("chef", { mission: { ...mission, state: "en_cours", router: true } }));
