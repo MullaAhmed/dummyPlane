@@ -11,6 +11,8 @@ import { LoopsIndicator } from "./LoopsIndicator";
 import { loopsStore } from "./live";
 
 const sends: string[][] = [];
+const toast = vi.hoisted(() => Object.assign(vi.fn(), { error: vi.fn(), success: vi.fn(), info: vi.fn() }));
+vi.mock("sonner", () => ({ toast }));
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
 vi.mock("./live", async () => {
@@ -182,4 +184,24 @@ it("names the indicator by what it shows first", async () => {
   await act(async () => undefined);
   const indicator = getByRole(document.body, "button", "1 loop · 2 runs, open the loops");
   expect(indicator.textContent).toBe("1 loop · 2 runs");
+});
+
+it("deletes a loop at once and takes it back, turned off and at its place, from the toast (audit P2 #42)", async () => {
+  toast.mockClear();
+  const loop = (id: string, name: string) => ({ id, name, instruction: "go", targets: ["batman"], trigger: { kind: "interval" as const, minutes: 30 }, maxRuns: 3 });
+  loopsStore.setState({ loops: [loop("a", "Point"), loop("b", "Tests")], loaded: true, runtime: {} });
+  await open();
+  loopsStore.getState().start("a");
+  const remove = [...document.querySelectorAll<HTMLButtonElement>("button")].filter((b) => b.textContent === "Delete")[0];
+  await act(async () => remove.click());
+  await vi.waitFor(() => expect(loopsStore.getState().loops.map((l) => l.id)).toEqual(["b"]));
+  expect(loopsStore.getState().runningCount()).toBe(0);
+  expect(toast).toHaveBeenCalledTimes(1);
+  const [message, options] = toast.mock.calls[0] as unknown as [string, { action: { label: string; onClick: () => void } }];
+  expect(message).toBe("Loop “Point” deleted");
+  expect(options.action.label).toBe("Undo");
+  await act(async () => options.action.onClick());
+  await vi.waitFor(() => expect(loopsStore.getState().loops.map((l) => l.id)).toEqual(["a", "b"]));
+  expect(loopsStore.getState().runningCount()).toBe(0);
+  expect(document.body.textContent).toContain("Point");
 });

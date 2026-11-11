@@ -109,6 +109,28 @@ export function LoopsDialog() {
   /** A group the error is about (no agent chosen, no end set): the error describes it. */
   const describedIf = (about: LoopError) => (error === about ? errorId : undefined);
 
+  // Deleted at once, and taken back from the toast: the loop's instruction, targets and limits are the user's work.
+  const remove = async (loop: LoopDef, index: number) => {
+    const text = messages(loopsMessages).dialog;
+    try {
+      await loopsStore.getState().remove(loop.id);
+    } catch (e) {
+      toast.error(text.failed(String(e)));
+      return;
+    }
+    toast(text.removed(loop.name), {
+      action: {
+        label: text.undo,
+        onClick: () =>
+          void loopsStore
+            .getState()
+            .restore(loop, index)
+            .then((result) => result === "full" && toast.error(text.full))
+            .catch((e: unknown) => toast.error(text.failed(String(e)))),
+      },
+    });
+  };
+
   const save = async () => {
     if (!form) return;
     const checked = validateLoop({
@@ -142,7 +164,7 @@ export function LoopsDialog() {
         {form === null ? (
           <div className="flex flex-col gap-2">
             {loops.length === 0 && <p className="py-4 text-center text-xs text-dp-text-2">{t.empty}</p>}
-            {loops.map((loop) => {
+            {loops.map((loop, index) => {
               const state = runtime[loop.id];
               const running = state?.running === true;
               const left =
@@ -170,7 +192,7 @@ export function LoopsDialog() {
                   <Button size="sm" variant="ghost" className={ROW_BUTTON} onClick={() => setForm(formOf(loop))}>
                     {t.edit}
                   </Button>
-                  <Button size="sm" variant="ghost" className={ROW_REMOVE} onClick={() => void loopsStore.getState().remove(loop.id)}>
+                  <Button size="sm" variant="ghost" className={ROW_REMOVE} onClick={() => void remove(loop, index)}>
                     {t.remove}
                   </Button>
                 </div>
