@@ -20,6 +20,8 @@ export interface SubTask {
   group?: PlanGroup;
   /** The Kanban card it handles (`board`): it follows the sub-task on its board. */
   card?: string;
+  /** The agent that handed it to the Fleet (`hand_off`); absent for the Fleet's own. */
+  handedBy?: string;
 }
 
 /** A task waiting for a new agent (spec overnight mission §4.1). */

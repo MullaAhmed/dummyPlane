@@ -9,6 +9,7 @@ import { outputGuideSpec, outputGuideTool, outputTools, readNodeSpec, readNodeTo
 import { agentMessages } from "./messages";
 import { FLEET_ONLY, fleetTool, fleetTools, MANAGER_ONLY, managerTool, managerTools, runsTheOldWay } from "./fleetTools";
 import { internalCall, RENAMED } from "./protocol";
+import { handOffTool, handOffTools } from "./handOff";
 
 const t = () => messages(agentMessages).router;
 
@@ -30,7 +31,8 @@ export async function answer(call: McpCall): Promise<unknown> {
       : manager
         ? [...managerTools(), outputGuideSpec()]
         : [...agentTools(), ...linkTools(), ...outputTools()];
-    return { tools: [...own, readNodeSpec(), notesToolSpec()] };
+    // hand_off: only an agent wired to a Fleet (never a Fleet, a Manager or a mission's team) has it.
+    return { tools: [...own, ...handOffTools(call.nodeId), readNodeSpec(), notesToolSpec()] };
   }
   const asked = String(call.params.name ?? "");
   const { name, args } = internalCall(asked, (call.params.arguments ?? {}) as Record<string, unknown>);
@@ -59,6 +61,8 @@ export async function answer(call: McpCall): Promise<unknown> {
       return reportTool(call.nodeId, args);
     case "spawn_agent":
       return spawnAgentTool(call.nodeId, args);
+    case "hand_off":
+      return handOffTool(call.nodeId, args);
     case "show_output":
       return showOutputTool(call.nodeId, args);
     default:
