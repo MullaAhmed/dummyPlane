@@ -72,7 +72,9 @@ it("enables Send for a selected terminal once an instruction is typed, and sends
 it("keeps Send grey with nothing selected and no @, saying how to target", async () => {
   await type("run tests");
   expect(sendButton().disabled).toBe(true);
-  expect(sendButton().title).toBe("Select agents or type @");
+  // Send's hint says it, the app's tooltip on its wrapper; never a native title.
+  expect(sendButton().hasAttribute("title")).toBe(false);
+  expect(sendButton().closest("[data-send-hint]")!.getAttribute("data-send-hint")).toBe("Select agents or type @");
   expect(host.textContent).toContain("Select agents or type @");
 });
 

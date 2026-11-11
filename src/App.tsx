@@ -8,8 +8,9 @@ import { LoopsIndicator } from "@/loops/LoopsIndicator";
 import { SavePresetDialog } from "@/presets/SavePresetDialog";
 import { appMessages } from "@/app/messages";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { usePendingConfirm } from "@/components/confirm";
 import { FleetAgentDialog } from "@/fleet/FleetAgentDialog";
-import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { QuietBoundary } from "@/components/ErrorBoundary";
 import { HINT_DELAY_MS, TooltipProvider } from "@/components/ui/tooltip";
 import { HomeScreen } from "@/home/HomeScreen";
 import { AppToaster } from "@/shell/AppToaster";
@@ -18,8 +19,27 @@ import { StatusScreen } from "@/shell/StatusScreen";
 import { TroubleshootingDialog } from "@/shell/TroubleshootingDialog";
 import { UpdateDialog } from "@/shell/UpdateDialog";
 import { AccountsDialog } from "@/accounts/AccountsDialog";
-import { messages, useMessages } from "@/i18n";
+import { useMessages } from "@/i18n";
 import { projectsStore, useProjects } from "@/store/projects";
+import { usePalette } from "@/commands/paletteState";
+import { accountsStore, useAccounts } from "@/accounts/store";
+import { updatesStore, useUpdates } from "@/app/updates";
+import { useFleetAgent } from "@/fleet/fleetAgent";
+import { useStudio } from "@/studio/studioStore";
+import { troubleshootStore, useTroubleshoot } from "@/shell/troubleshoot";
+
+/** What asks each dialog again: read by its own boundary, never here, so App does not re-render on each. */
+const usePaletteOpenings = () => usePalette((s) => s.openings);
+const useAccountsOpen = () => useAccounts((s) => s.open);
+const useQuitting = () => useStudio((s) => s.quitting);
+const useUpdateDialogOpen = () => useUpdates((s) => s.dialogOpen);
+const useTroubleshootingOpen = () => useTroubleshoot((s) => s.open);
+const useFleetAgentAsked = () => useFleetAgent((s) => s.asking);
+
+/** A dialog that failed while open cannot close itself: its flag is cleared, so the next request is a change again. */
+const closeAccounts = () => accountsStore.setState({ open: false });
+const closeUpdate = () => updatesStore.setState({ dialogOpen: false });
+const closeTroubleshooting = () => troubleshootStore.setState({ open: false });
 
 export default function App() {
   const t = useMessages(appMessages);
@@ -30,7 +50,8 @@ export default function App() {
     boot().catch((error: unknown) => {
       const message = error instanceof Error ? error.message : String(error);
       console.error("start failed", error);
-      projectsStore.setState({ view: "error", error: messages(appMessages).startInterrupted(message) });
+      // The sentence is built where it shows, as for a failed read of the projects (projectsStore.init).
+      projectsStore.setState({ view: "error", error: message });
     });
   }, []);
 
@@ -39,38 +60,40 @@ export default function App() {
       {view === "home" && <HomeScreen />}
       {view === "project" && <ProjectView />}
       {view === "loading" && <StatusScreen message={t.loading} />}
-      {view === "error" && <StatusScreen message={t.projectsLoadFailed(String(error))} />}
-      <ErrorBoundary scope="palette" fallback={() => null}>
+      {view === "error" && <StatusScreen failed message={t.startFailed(String(error))} />}
+      {/* A dialog that failed once shows nothing; it tries again the next time it is asked for (its key changes). */}
+      <QuietBoundary scope="palette" useResetKey={usePaletteOpenings}>
         <Palette />
-      </ErrorBoundary>
-      <ErrorBoundary scope="presets dialog" fallback={() => null}>
+      </QuietBoundary>
+      {/* Presets, loops and Go to line open from the palette (or its shortcuts): its next opening tries them again. */}
+      <QuietBoundary scope="presets dialog" useResetKey={usePaletteOpenings}>
         <SavePresetDialog />
-      </ErrorBoundary>
-      <ErrorBoundary scope="accounts dialog" fallback={() => null}>
+      </QuietBoundary>
+      <QuietBoundary scope="accounts dialog" useResetKey={useAccountsOpen} onError={closeAccounts}>
         <AccountsDialog />
-      </ErrorBoundary>
-      <ErrorBoundary scope="loops" fallback={() => null}>
+      </QuietBoundary>
+      <QuietBoundary scope="loops" useResetKey={usePaletteOpenings}>
         <LoopsDialog />
         <LoopsIndicator />
-      </ErrorBoundary>
-      <ErrorBoundary scope="go to line" fallback={() => null}>
+      </QuietBoundary>
+      <QuietBoundary scope="go to line" useResetKey={usePaletteOpenings}>
         <GoToLine />
-      </ErrorBoundary>
-      <ErrorBoundary scope="unsaved files" fallback={() => null}>
+      </QuietBoundary>
+      <QuietBoundary scope="unsaved files" useResetKey={useQuitting}>
         <QuitPrompt />
-      </ErrorBoundary>
-      <ErrorBoundary scope="update dialog" fallback={() => null}>
+      </QuietBoundary>
+      <QuietBoundary scope="update dialog" useResetKey={useUpdateDialogOpen} onError={closeUpdate}>
         <UpdateDialog />
-      </ErrorBoundary>
-      <ErrorBoundary scope="troubleshooting dialog" fallback={() => null}>
+      </QuietBoundary>
+      <QuietBoundary scope="troubleshooting dialog" useResetKey={useTroubleshootingOpen} onError={closeTroubleshooting}>
         <TroubleshootingDialog />
-      </ErrorBoundary>
-      <ErrorBoundary scope="confirmation dialog" fallback={() => null}>
+      </QuietBoundary>
+      <QuietBoundary scope="confirmation dialog" useResetKey={usePendingConfirm}>
         <ConfirmDialog />
-      </ErrorBoundary>
-      <ErrorBoundary scope="fleet agent dialog" fallback={() => null}>
+      </QuietBoundary>
+      <QuietBoundary scope="fleet agent dialog" useResetKey={useFleetAgentAsked}>
         <FleetAgentDialog />
-      </ErrorBoundary>
+      </QuietBoundary>
       <AppToaster />
     </TooltipProvider>
   );

@@ -24,7 +24,8 @@ function Row({ agent, children }: { agent: WaitingAgent; children: ReactNode }) 
 
 /**
  * Who has a question (spec notification §4): at the bottom left, for as long
- * as an agent waits. The top of the canvas stays to the bars, the bottom right
+ * as an agent waits. Below 1,340 px the centred command bar reaches its column:
+ * there it rises 8 px above the command band (`--dp-bottom-band`, ProjectView). The top of the canvas stays to the bars, the bottom right
  * to the toasts; 70 px from the edge clears the tool rail in a short window
  * (the rail ends at 58: 12 in, 4 + 36 + 4 wide, 2 hairlines; then the 12 of a gap).
  * The live region stays mounted: one that appears with its text is not announced.
@@ -41,18 +42,15 @@ export function WaitingNotice() {
         <section
           data-waiting-notice
           aria-label={t.agentCounts.waiting}
-          className="dp-glass-strong absolute bottom-14 left-[70px] z-30 flex w-[260px] animate-in fade-in-0 slide-in-from-bottom-1 duration-(--dp-dur) ease-(--dp-ease-out) motion-reduce:slide-in-from-bottom-0 flex-col rounded-lg p-1"
+          className="dp-glass-strong absolute bottom-14 max-[1340px]:bottom-[calc(var(--dp-bottom-band,2.25rem)+1.25rem)] left-[70px] z-30 flex w-[260px] animate-in fade-in-0 slide-in-from-bottom-1 duration-(--dp-dur) ease-(--dp-ease-out) motion-reduce:slide-in-from-bottom-0 flex-col rounded-lg p-1"
         >
           {agents.slice(0, MAX_ROWS).map((agent) => (
             <Row key={agent.id} agent={agent}>
               <span aria-hidden className="size-2 shrink-0 rounded-full bg-dp-wait" />
               <span className="min-w-0 flex-1">
                 <span className="block truncate">{t.waitingNotice.question(agent.name)}</span>
-                {agent.message && (
-                  <span title={agent.message} className="block truncate text-xs text-dp-text-2">
-                    {agent.message}
-                  </span>
-                )}
+                {/* Two lines of the question, never a native title: the row's name reads it whole, and a click shows the agent. */}
+                {agent.message && <span className="line-clamp-2 block break-words text-xs text-dp-text-2">{agent.message}</span>}
               </span>
               {agent.workspaceId !== activeId && (
                 <span className="max-w-24 shrink-0 truncate font-mono text-xs text-dp-text-3">

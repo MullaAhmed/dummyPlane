@@ -65,6 +65,8 @@ export const shellMessages = defineMessages(
       agentsKeepRunning: "Your agents keep running: reloading the interface finds them again.",
       reload: "Reload the interface",
     },
+    /** The start-up error screen: what failed, then the ways out. */
+    statusScreen: { tryAgain: "Try again", openLogs: "Open the logs folder", troubleshooting: "Troubleshooting…" },
     modeExit: { zen: "Leave zen mode", reading: "Leave reading mode" },
     projectPicker: { project: "Project", allProjects: "All projects…", closeProject: "Close the project", openFailed: (error: string) => `Could not open: ${error}` },
     searchField: { project: "Search for a project", inProject: (name: string) => `Search in ${name}`, shortcut: "Ctrl+P" },
@@ -153,7 +155,11 @@ export const shellMessages = defineMessages(
       willClose: "dummyPlane will close during the installation, then restart",
       later: "Later",
       install: "Install and restart",
-      downloading: (percent: number) => `Downloading… ${percent}%`,
+      downloading: (percent: number | null) => (percent === null ? "Downloading…" : `Downloading… ${percent}%`),
+      installing: "Installing…",
+      /** Read out once per stage, not at every percent. */
+      downloadingStatus: "Downloading the update",
+      installingStatus: "Installing the update: dummyPlane will restart",
       failed: "The update failed",
     },
     window: {
@@ -170,6 +176,8 @@ export const shellMessages = defineMessages(
     tabs: {
       deleteWorkspace: "Delete the workspace",
       rename: "Rename",
+      /** The rename field's name: it takes focus with the old name selected, and says what it edits. */
+      nameField: "Workspace name",
       moveLeft: "Move left",
       moveRight: "Move right",
       folder: "Folder…",
@@ -245,7 +253,11 @@ export const shellMessages = defineMessages(
       tokensByAgent: "By agent",
       tokensOtherSessions: "Other Claude sessions",
       tokensByModel: "By model",
-      tokensLegend: "of which output (accent)",
+      /** The chart's legend, a swatch each: a day's whole column, then its output part. */
+      tokensLegendTotal: "All tokens",
+      tokensLegend: "Output",
+      /** The days as a table, for a screen reader: the chart itself only shows them. */
+      tokensDayColumn: "Day",
       tokensFiles: (count: number) => `${count} file${count > 1 ? "s" : ""} read`,
       tokensTruncated: "reading cut short: these figures are a minimum",
       tokensLocal: "Read on this PC, nothing is sent. Codex is not supported.",

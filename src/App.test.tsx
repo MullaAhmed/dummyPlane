@@ -24,7 +24,11 @@ it("says the start failed instead of loading forever", async () => {
   document.body.append(host);
   const root = createRoot(host);
   await act(async () => root.render(<App />));
-  expect(host.textContent).toContain("start interrupted (local server refused)");
+  expect(host.textContent).toContain("dummyPlane could not start: local server refused");
+  // No dead end: the screen offers to try again, the logs and the troubleshooting dialog.
+  for (const action of ["Try again", "Open the logs folder", "Troubleshooting…"]) {
+    expect([...host.querySelectorAll("button")].some((b) => b.textContent === action)).toBe(true);
+  }
   expect(host.textContent).not.toContain("Chargement…");
   await act(async () => root.unmount());
 });

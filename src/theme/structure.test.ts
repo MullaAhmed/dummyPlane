@@ -86,5 +86,6 @@ it("starts the placement and link layers under the bars, and truncates a long br
     expect(text, file).not.toMatch(/fixed inset-0 z-40/);
     expect(text, file).toContain("top: TOP_ROW_HEIGHT");
   }
-  expect(readSource("shell/GitChip.tsx")).toMatch(/max-w-\[150px\] truncate/);
+  // Truncated, and capped shorter where the centred command bar comes close (P2 #35).
+  expect(readSource("shell/GitChip.tsx")).toMatch(/max-w-20 truncate min-\[1150px\]:max-w-\[150px\]/);
 });

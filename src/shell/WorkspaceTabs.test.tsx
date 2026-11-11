@@ -106,11 +106,50 @@ it("names a tab's agent count and folder in words, never a bare digit", async ()
   expect(getByRole(host, "button", "Backend").querySelector("[data-badge]")!.textContent).toBe("0");
 });
 
+const scroller = () => row().querySelector<HTMLElement>("[data-tab-scroller]")!;
+
 it("scrolls the tabs sideways with the wheel, without a scrollbar eating their height", async () => {
-  expect(row().className).toContain("[scrollbar-width:none]");
-  expect(row().className).toContain("overflow-y-hidden");
-  await act(async () => row().dispatchEvent(new WheelEvent("wheel", { deltaY: 120, bubbles: true })));
-  expect(row().scrollLeft).toBe(120);
+  expect(scroller().className).toContain("[scrollbar-width:none]");
+  expect(scroller().className).toContain("overflow-y-hidden");
+  await act(async () => scroller().dispatchEvent(new WheelEvent("wheel", { deltaY: 120, bubbles: true })));
+  expect(scroller().scrollLeft).toBe(120);
+});
+
+it("keeps + out of the scrolling tabs, so it never scrolls away with them", () => {
+  const plus = row().querySelector('[aria-label="New workspace"]')!;
+  expect(scroller().contains(plus)).toBe(false);
+  expect(plus.parentElement).toBe(row());
+  expect(tabs().every((tab) => scroller().contains(tab))).toBe(true);
+});
+
+it("scrolls the tab on screen into view when another workspace is opened", async () => {
+  const shown: string[] = [];
+  const original = HTMLElement.prototype.scrollIntoView;
+  HTMLElement.prototype.scrollIntoView = function (this: HTMLElement) {
+    if (this.dataset.tab) shown.push(this.dataset.tab);
+  };
+  try {
+    await act(async () => workspacesStore.setState({ activeId: "w1" }));
+    expect(shown[shown.length - 1]).toBe("w1");
+  } finally {
+    HTMLElement.prototype.scrollIntoView = original;
+  }
+});
+
+it("fades an edge the tabs are cut at, and only then", async () => {
+  const el = scroller();
+  Object.defineProperty(el, "clientWidth", { configurable: true, value: 200 });
+  Object.defineProperty(el, "scrollWidth", { configurable: true, value: 600 });
+  await act(async () => el.dispatchEvent(new Event("scroll")));
+  expect(el.style.maskImage).toContain("black calc(100% - 24px), transparent)");
+  expect(el.style.maskImage).toMatch(/^linear-gradient\(to right, black,/);
+  el.scrollLeft = 400;
+  await act(async () => el.dispatchEvent(new Event("scroll")));
+  expect(el.style.maskImage).toMatch(/^linear-gradient\(to right, transparent,.*black\)$/);
+  Object.defineProperty(el, "scrollWidth", { configurable: true, value: 200 });
+  el.scrollLeft = 0;
+  await act(async () => el.dispatchEvent(new Event("scroll")));
+  expect(el.style.maskImage).toBe("");
 });
 
 it("selects a tab from anywhere on it, its badge included", async () => {
@@ -150,6 +189,8 @@ it("opens a tab's name editor on request (\"Rename the workspace\")", async () =
   const field = row().querySelector("input")!;
   expect(field.value).toBe("Backend");
   expect(document.activeElement).toBe(field);
+  // A field that takes focus says what it edits.
+  expect(field.getAttribute("aria-label")).toBe("Workspace name");
 });
 
 it("moves a tab with Alt+arrows from the keyboard, or by dragging it onto another", async () => {
