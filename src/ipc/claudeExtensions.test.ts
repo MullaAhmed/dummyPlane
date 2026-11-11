@@ -3,7 +3,14 @@ import { buildSpawnSpec } from "@/nodes/terminal/launch";
 import { readTerminalPayload, type TerminalPayload } from "@/nodes/types";
 import { canSwitch, isOn, isOwnMcpServer, readExtensionChoice, withItem, withItems, withoutOwnServer, type ExtensionItem } from "./claudeExtensions";
 
-const item = (id: string, enabled = true): ExtensionItem => ({ id, name: id, source: "user", enabled });
+/** An item of the user's, on unless told; or with these fields. */
+const item = (id: string, patch: boolean | Partial<ExtensionItem> = true): ExtensionItem => ({
+  id,
+  name: id,
+  source: "user",
+  enabled: true,
+  ...(typeof patch === "boolean" ? { enabled: patch } : patch),
+});
 
 describe("a terminal's choice of skills, plugins, MCP servers and subagents", () => {
   it("keeps only what changes something", () => {
@@ -64,6 +71,23 @@ describe("a terminal's choice of skills, plugins, MCP servers and subagents", ()
   });
 });
 
+describe("a plugin's skill", () => {
+  const skill = item("codex:rescue", { source: "plugin", fixed: "plugin", plugin: "codex@openai", enabled: true });
+
+  it("has no switch of its own, and a choice of its name changes nothing", () => {
+    expect(canSwitch("skills", skill)).toBe(false);
+    expect(withItems("skills", [skill], false, undefined)).toBeUndefined();
+    expect(isOn("skills", skill, { skillsOff: ["codex:rescue"] })).toBe(true);
+  });
+
+  it("is on and off with its plugin, as this terminal's choice switches it", () => {
+    expect(isOn("skills", skill, { plugins: { "codex@openai": false } })).toBe(false);
+    const offInSettings = { ...skill, enabled: false };
+    expect(isOn("skills", offInSettings, undefined)).toBe(false);
+    expect(isOn("skills", offInSettings, { plugins: { "codex@openai": true } })).toBe(true);
+  });
+});
+
 describe("dummyPlane's own MCP server, the Fleet's mission tools", () => {
   it("is recognised by its name, whatever the case or the spaces", () => {
     expect(isOwnMcpServer("dummyplane")).toBe(true);
@@ -72,15 +96,19 @@ describe("dummyPlane's own MCP server, the Fleet's mission tools", () => {
     expect(isOwnMcpServer("plugin_dummyplane_x")).toBe(false);
   });
 
-  it("is left out of the lists an answer brings, and only the MCP one", () => {
+  it("is one fixed row of the MCP list: any other entry of its name is left out, and only from that list", () => {
+    const own = item("dummyplane", { source: "app", fixed: "own" });
     const lists = withoutOwnServer({
       skills: [item("dummyplane")],
       plugins: [],
-      mcp: [item("dummyplane"), item("DummyPlane"), item("github")],
+      mcp: [item("dummyplane"), item("DummyPlane"), own, item("github")],
       agents: [],
     });
-    expect(lists.mcp.map((i) => i.id)).toEqual(["github"]);
+    expect(lists.mcp).toEqual([own, item("github")]);
     expect(lists.skills.map((i) => i.id)).toEqual(["dummyplane"]);
+    // Always on, whatever a choice says.
+    expect(isOn("mcp", own, { mcpOff: ["dummyplane"] })).toBe(true);
+    expect(canSwitch("mcp", own)).toBe(false);
   });
 
   it("is never stored in a choice, even one saved by an older build or edited by hand", () => {

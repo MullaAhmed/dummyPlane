@@ -2,12 +2,17 @@ import { call } from "./invoke";
 
 /**
  * Where an item is set up: the Claude folder (user), the project's files, the
- * project's entry in `.claude.json` (local), a plugin. A plugin's MCP servers
- * (id `plugin_<plugin>_<server>`, their tools' prefix) and subagents (id
- * `<plugin>:<name>`) are on only while their plugin is; its skills are not
- * listed, they follow the plugin's switch.
+ * project's entry in `.claude.json` (local), a plugin, Claude Code itself
+ * (builtin: Claude in Chrome), the claude.ai account (synced skills, id
+ * `anthropic-skills:<name>`), dummyPlane (app: its own MCP server). A plugin's
+ * skills (id `<plugin>:<name>`), MCP servers (id `plugin_<plugin>_<server>`,
+ * their tools' prefix) and subagents (id `<plugin>:<name>`) are on only while
+ * their plugin is.
  */
-export type ExtensionSource = "user" | "project" | "local" | "plugin";
+export type ExtensionSource = "user" | "project" | "local" | "plugin" | "builtin" | "synced" | "app";
+
+/** Why a listed item can't be switched here: a plugin's skill follows its plugin; dummyPlane's own server stays on. */
+export type ExtensionFixed = "plugin" | "own";
 
 /** One skill, plugin, MCP server or subagent a Claude terminal can use. Mirrors Rust's `ExtensionItem`. */
 export interface ExtensionItem {
@@ -18,6 +23,10 @@ export interface ExtensionItem {
   source: ExtensionSource;
   /** On without this terminal's choice: what the user's own settings give. */
   enabled: boolean;
+  /** Listed, never switched from the panel. */
+  fixed?: ExtensionFixed;
+  /** The plugin a plugin's skill comes with (`name@marketplace`): the skill is on while the plugin is. */
+  plugin?: string;
 }
 
 /** What a Claude terminal can find in its folder and its profile, by kind. Mirrors Rust's `ClaudeExtensions`. */
@@ -45,10 +54,12 @@ export interface ExtensionChoice {
 }
 
 /**
- * dummyPlane's own MCP server (`mcp_files::config_json`): a Fleet's mission tools
- * (propose_plan, team, merge…). Rust never lists it and never writes it into a
+ * dummyPlane's own MCP server (`mcp_files::config_json`): every Claude terminal's
+ * tools to talk to dummyPlane (report, step, spawn_agent…), a Fleet's mission
+ * tools. Rust lists it once, fixed (source "app"), and never writes it into a
  * deny rule (`extensions.rs`); this is the same rule on this side, so no list
- * shows it and no stored choice names it, whatever a saved file or an answer says.
+ * shows another entry of that name and no stored choice names it, whatever a
+ * saved file or an answer says.
  */
 export const OWN_MCP_SERVER = "dummyplane";
 
@@ -71,10 +82,10 @@ export const claudeLaunchDefaults = (cwd: string, configDir?: string): Promise<C
     return typeof model === "string" && model.trim() ? { model: model.trim() } : {};
   });
 
-/** The lists without dummyPlane's own MCP server. */
+/** The lists with dummyPlane's own MCP server as its one fixed row: any other entry of that name is dropped. */
 export const withoutOwnServer = (lists: ClaudeExtensions): ClaudeExtensions => ({
   ...lists,
-  mcp: (lists.mcp ?? []).filter((item) => !isOwnMcpServer(item.id) && !isOwnMcpServer(item.name)),
+  mcp: (lists.mcp ?? []).filter((item) => !(isOwnMcpServer(item.id) || isOwnMcpServer(item.name)) || (item.source === "app" && item.fixed === "own")),
 });
 
 const names = (raw: unknown, keep: (name: string) => boolean = () => true): string[] | undefined => {
@@ -101,8 +112,10 @@ export function readExtensionChoice(raw: unknown): ExtensionChoice | undefined {
   return Object.keys(choice).length ? choice : undefined;
 }
 
-/** Whether `item` is on for a terminal with this choice. */
+/** Whether `item` is on for a terminal with this choice. A fixed item is as it is; a plugin's skill is on with its plugin. */
 export function isOn(kind: keyof ClaudeExtensions, item: ExtensionItem, choice: ExtensionChoice | undefined): boolean {
+  if (item.fixed === "own") return true;
+  if (item.fixed === "plugin") return (item.plugin ? choice?.plugins?.[item.plugin] : undefined) ?? item.enabled;
   switch (kind) {
     case "plugins":
       return choice?.plugins?.[item.id] ?? item.enabled;
@@ -121,7 +134,7 @@ export function isOn(kind: keyof ClaudeExtensions, item: ExtensionItem, choice: 
  * (or its plugin) leave on.
  */
 export function canSwitch(kind: keyof ClaudeExtensions, item: ExtensionItem): boolean {
-  if (kind === "mcp" && isOwnMcpServer(item.id)) return false;
+  if (item.fixed || (kind === "mcp" && isOwnMcpServer(item.id))) return false;
   return kind === "plugins" || item.enabled;
 }
 

@@ -25,11 +25,13 @@ import { forgetStartedChoice, noteChoiceChange, useRestartPending } from "./star
 
 /*
  * The skills, plugins, MCP servers and subagents a Claude terminal can turn
- * off or on, from its folder, its profile and its plugins. A plugin's MCP
- * servers and subagents are listed (source "plugin") and are on only while
- * their plugin is; a plugin's skills follow its switch in Plugins
- * (`skillOverrides` doesn't reach them). claude.ai's connectors are not listed:
- * nothing on disk names them.
+ * off or on, from its folder, its profile, its claude.ai account and its
+ * plugins. A plugin's skills, MCP servers and subagents are listed (source
+ * "plugin") and are on only while their plugin is; its skills are fixed to its
+ * switch in Plugins (`skillOverrides` doesn't reach them). dummyPlane's own MCP
+ * server is listed, fixed. What nothing on disk names is said under its list,
+ * not hidden: claude.ai's connectors, Claude Code's built-in plugins, bundled
+ * skills and built-in subagents.
  */
 
 export type ExtensionKind = keyof ClaudeExtensions;
@@ -86,8 +88,8 @@ const folderName = (cwd: string) => cwd.split(/[\\/]/).filter(Boolean).pop() ?? 
 
 /**
  * One kind's list in the edit panel of a Claude terminal, or of a Fleet (its
- * session's, nested in the node): its items, each on or off for it alone.
- * dummyPlane's own MCP server is not among them (`withoutOwnServer`).
+ * session's, nested in the node): its items, each on or off for it alone, or
+ * fixed and saying why. dummyPlane's own MCP server is one row (`withoutOwnServer`).
  */
 export function ExtensionList(props: { nodeId: string; kind: ExtensionKind; cwd: string; choice: ExtensionChoice | undefined; lists: ExtensionLists; onRetry: () => void }) {
   const { nodeId, kind, lists } = props;
@@ -111,19 +113,14 @@ export function ExtensionList(props: { nodeId: string; kind: ExtensionKind; cwd:
   }
 
   const items = lists.data[kind] ?? [];
-  // claude.ai's connectors come from the account: nothing on disk names them, so the MCP tab says so.
-  // A Fleet's own mission server has no row (it cannot be switched off), and the tab says that too.
-  const connectors = kind === "mcp" && (
-    <>
-      <Note>{s.connectorsNotListed}</Note>
-      {fleet && <Note>{s.missionServerAlwaysOn}</Note>}
-    </>
-  );
+  // What Claude loads but nothing on disk names (claude.ai's connectors, Claude Code's own plugins, skills and
+  // subagents): each tab says so under its list rather than leave it out unsaid.
+  const unlisted = <Note>{s.notListed[kind]}</Note>;
   if (items.length === 0) {
     return (
       <>
         <Note>{s.empty[kind](folderName(props.cwd))}</Note>
-        {connectors}
+        {unlisted}
       </>
     );
   }
@@ -178,12 +175,13 @@ export function ExtensionList(props: { nodeId: string; kind: ExtensionKind; cwd:
               on={isOn(kind, item, props.choice)}
               // Plugins turn on as well as off; the others only turn off what the user's settings leave on.
               locked={!canSwitch(kind, item)}
+              fleet={fleet}
               onToggle={(on) => toggle(item, on)}
             />
           ))}
         </ul>
       )}
-      {connectors}
+      {unlisted}
       <RestartLine nodeId={nodeId} choice={props.choice} />
     </div>
   );
@@ -272,16 +270,20 @@ export const HOVERED_BOX = "group-hover/row:border-dp-text-2 data-checked:group-
 /**
  * One item: its name, where it is set up (quiet mono text) and a one-line
  * description, whole on hover. The row is the checkbox's label. An item the
- * user's own settings (or its plugin) turn off stays off here, and says why on
- * its second line, where the description would be.
+ * user's own settings (or its plugin) turn off stays off here, and an item
+ * that is fixed (a plugin's skill, dummyPlane's own server) stays as it is:
+ * each says why on its second line, where the description would be.
  */
-function ExtensionRow({ item, on, locked, onToggle }: { item: ExtensionItem; on: boolean; locked: boolean; onToggle: (on: boolean) => void }) {
+function ExtensionRow(props: { item: ExtensionItem; on: boolean; locked: boolean; fleet: boolean; onToggle: (on: boolean) => void }) {
+  const { item, on, locked, onToggle } = props;
   const t = useMessages(canvasMessages).selection;
   const id = useId();
   const described = useId();
   const reason = useId();
-  // A plugin's server or subagent is off because its plugin is, not because of a setting of its own.
-  const whyOff = item.source === "plugin" ? t.offWithPlugin : t.offInSettings;
+  // Fixed, it says what it follows; off, why: a plugin's server or subagent is off because its plugin is, not
+  // because of a setting of its own.
+  const whyOff =
+    item.fixed === "own" ? (props.fleet ? t.missionServerAlwaysOn : t.ownServerAlwaysOn) : item.fixed === "plugin" ? t.followsPlugin : item.source === "plugin" ? t.offWithPlugin : t.offInSettings;
   return (
     <li
       data-extension={item.id}

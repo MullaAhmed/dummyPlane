@@ -1056,25 +1056,61 @@ it("keeps a fleet's extension choices in its session, each toggle on top of the 
   expect(fleetOf().session?.extensions).toBeUndefined();
 });
 
-it("never lists the mission's own MCP server, so it cannot be switched off from the MCP tab", async () => {
-  serveExtensions(() => ({ ...EXTENSIONS, mcp: [item("dummyplane", { description: "http · 127.0.0.1" }), item("DummyPlane"), item("github")] }));
+/** dummyPlane's own server, as Rust lists it: once, fixed. */
+const OWN_SERVER_ROW = item("dummyplane", { source: "app", fixed: "own" });
+
+it("lists the mission's own MCP server once, fixed and on, so it cannot be switched off from the MCP tab", async () => {
+  serveExtensions(() => ({ ...EXTENSIONS, mcp: [OWN_SERVER_ROW, item("dummyplane", { description: "http · 127.0.0.1" }), item("DummyPlane"), item("github")] }));
   await mountFleet();
   await openTab("MCP");
-  expect([...host.querySelectorAll("[data-extension]")].map((row) => row.getAttribute("data-extension"))).toEqual(["github"]);
-  expect(checkbox("dummyplane")).toBeNull();
-  expect(host.textContent).toContain("The fleet's mission server is always on");
-  // "Unselect all" turns off what is listed: the mission's server is not.
+  expect([...host.querySelectorAll("[data-extension]")].map((row) => row.getAttribute("data-extension"))).toEqual(["dummyplane", "github"]);
+  const own = checkbox("dummyplane")!;
+  expect(own.disabled).toBe(true);
+  expect(own.getAttribute("aria-checked")).toBe("true");
+  expect(document.getElementById(own.getAttribute("aria-describedby")!)?.textContent).toBe("The fleet's mission server is always on");
+  expect(host.querySelector("[data-extension='dummyplane']")?.textContent).toContain("dummyPlane");
+  // "Unselect all" turns off what can be switched: the mission's server is not.
   await act(async () => buttonText("Unselect all")!.click());
   expect(fleetOf().session?.extensions).toEqual({ mcpOff: ["github"] });
-  expect(onCount()).toBe("0 of 1 on");
+  expect(onCount()).toBe("1 of 2 on");
 });
 
-it("shows a terminal's MCP tab without the mission server, and without the fleet's note", async () => {
-  serveExtensions(() => ({ ...EXTENSIONS, mcp: [item("dummyplane"), item("github")] }));
+it("shows a terminal's own dummyPlane server in its words, not the fleet's", async () => {
+  serveExtensions(() => ({ ...EXTENSIONS, mcp: [OWN_SERVER_ROW, item("dummyplane"), item("github")] }));
   await mountTerminal(terminal());
   await openTab("MCP");
-  expect([...host.querySelectorAll("[data-extension]")].map((row) => row.getAttribute("data-extension"))).toEqual(["github"]);
+  expect([...host.querySelectorAll("[data-extension]")].map((row) => row.getAttribute("data-extension"))).toEqual(["dummyplane", "github"]);
+  expect(host.querySelector("[data-extension='dummyplane']")?.textContent).toContain("dummyPlane's tools: always on");
   expect(host.textContent).not.toContain("mission server");
+});
+
+it("lists claude.ai skills, commands and a plugin's skills, the plugin's fixed to its plugin, and says what isn't listed", async () => {
+  serveExtensions(() => ({
+    ...EXTENSIONS,
+    skills: [
+      item("anthropic-skills:pdf", { name: "pdf", source: "synced" }),
+      item("chatlog", { source: "project", description: "Saves the chat log" }),
+      item("codex:rescue", { source: "plugin", fixed: "plugin", plugin: "codex@openai" }),
+    ],
+    plugins: [item("codex@openai", { name: "codex" })],
+  }));
+  await mountTerminal(terminal());
+  await openTab("Skills");
+  expect(host.querySelector("[data-extension='anthropic-skills:pdf']")?.textContent).toContain("claude.ai");
+  expect(host.textContent).toContain("Claude Code's bundled skills aren't listed here");
+  const rescue = checkbox("codex:rescue")!;
+  expect(rescue.disabled).toBe(true);
+  expect(rescue.getAttribute("aria-checked")).toBe("true");
+  expect(document.getElementById(rescue.getAttribute("aria-describedby")!)?.textContent).toBe("Comes with its plugin: switch the plugin in Plugins");
+  // A claude.ai skill turns off under the name Claude's overrides take.
+  await act(async () => checkbox("pdf")!.click());
+  expect(payloadOf().extensions).toEqual({ skillsOff: ["anthropic-skills:pdf"] });
+  // The plugin turned off for this terminal takes its skills with it.
+  await openTab("Plugins");
+  expect(host.textContent).toContain("run /plugin in the terminal to see them");
+  await act(async () => checkbox("codex")!.click());
+  await openTab("Skills");
+  expect(checkbox("codex:rescue")!.getAttribute("aria-checked")).toBe("false");
 });
 
 it("renames and deletes a fleet that has no session yet, with nothing else to edit", async () => {

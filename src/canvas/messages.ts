@@ -115,18 +115,31 @@ export const canvasMessages = defineMessages(
       unselectAll: "Unselect all",
       listFailed: (error: string) => `Could not read the list: ${error}`,
       retry: "Try again",
-      sources: { user: "user", project: "project", local: "local", plugin: "plugin" },
+      sources: { user: "user", project: "project", local: "local", plugin: "plugin", builtin: "built-in", synced: "claude.ai", app: "dummyPlane" },
       sourceHints: {
         user: "From your Claude folder",
         project: "From the project's files",
         local: "From the project's entry in .claude.json",
         plugin: "From a plugin: on only while the plugin is",
+        builtin: "Built into Claude Code",
+        synced: "From your claude.ai account, synced by Claude Code",
+        app: "dummyPlane's own",
       },
       offInSettings: "Off in your Claude settings",
       offWithPlugin: "Its plugin is off: turn it on in Plugins first",
-      connectorsNotListed: "claude.ai connectors aren't listed here",
+      // A plugin's skill: Claude's skill overrides don't reach it, so it has no switch of its own.
+      followsPlugin: "Comes with its plugin: switch the plugin in Plugins",
+      // dummyPlane's own server has no switch: its tools are how the terminal reports, marks steps and opens agents.
+      ownServerAlwaysOn: "dummyPlane's tools: always on",
       // A fleet's session always has dummyPlane's own server: it carries the mission's tools, so it has no switch.
       missionServerAlwaysOn: "The fleet's mission server is always on",
+      // Under each list: what Claude loads that nothing on disk names, so the list can't show it.
+      notListed: {
+        skills: "Claude Code's bundled skills aren't listed here: they ship inside Claude Code",
+        plugins: "Claude Code's built-in plugins aren't listed here: run /plugin in the terminal to see them",
+        mcp: "claude.ai connectors aren't listed here",
+        agents: "Claude Code's built-in subagents aren't listed here",
+      },
       appliesOnRestart: "Changes apply when the terminal restarts",
       appliesOnRestartFleet: "Changes apply when the fleet restarts",
       // Beside "Restart now": the running session still has the choices it started with.

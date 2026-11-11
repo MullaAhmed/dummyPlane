@@ -1,8 +1,10 @@
 //! The skills, plugins, MCP servers and subagents a Claude terminal can use, as
 //! its folder and its profile set them up, and one terminal's choice among
 //! them, written into its `--settings` file:
-//! - a skill off: `skillOverrides: { name: "off" }` (hidden from Claude; a
-//!   plugin's skills follow their plugin);
+//! - a skill off: `skillOverrides: { name: "off" }` (hidden from Claude). It
+//!   reaches a skill, a command and a claude.ai skill (`anthropic-skills:<name>`)
+//!   but not a plugin's skill, which follows its plugin (checked against Claude
+//!   Code 2.1.322);
 //! - a plugin on or off: `enabledPlugins: { "name@marketplace": bool }`, which
 //!   wins over the user's, project's and local settings;
 //! - an MCP server off: `permissions.deny: ["mcp__<name>"]` (its tools are
@@ -14,7 +16,10 @@
 //! (`--strict-mcp-config`): the servers its choice leaves on are copied there
 //! (`servers_on`).
 //!
-//! dummyPlane's own MCP server is never listed and never turned off.
+//! dummyPlane's own MCP server is listed, fixed (`Fixed::Own`), and never
+//! turned off. Claude Code's built-in plugins, bundled skills and built-in
+//! subagents are not listed: nothing on disk names them (`claude plugin list`
+//! leaves them out too).
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
@@ -39,8 +44,24 @@ pub enum Source {
     Project,
     /// The project's entry in `.claude.json`, on this machine only.
     Local,
-    /// A plugin's MCP server or subagent: on only while its plugin is.
+    /// A plugin's skill, MCP server or subagent: on only while its plugin is.
     Plugin,
+    /// Claude Code itself: its Chrome server (`claude-in-chrome`).
+    Builtin,
+    /// The user's claude.ai account: its skills, synced into the Claude folder.
+    Synced,
+    /// dummyPlane: its own MCP server.
+    App,
+}
+
+/// Why an item cannot be switched from the panel, though it is listed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Fixed {
+    /// A plugin's skill: `skillOverrides` doesn't reach it; it is on with its plugin.
+    Plugin,
+    /// dummyPlane's own server: its tools are how the terminal talks to dummyPlane.
+    Own,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -54,6 +75,26 @@ pub struct ExtensionItem {
     pub source: Source,
     /// On without the terminal's choice: what the user's own settings give.
     pub enabled: bool,
+    /// Listed but not switched here, and why.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fixed: Option<Fixed>,
+    /// The plugin that brings it (`name@marketplace`), for a plugin's skill.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub plugin: Option<String>,
+}
+
+impl ExtensionItem {
+    fn new(id: String, name: String, description: Option<String>, source: Source, enabled: bool) -> Self {
+        ExtensionItem {
+            id,
+            name,
+            description,
+            source,
+            enabled,
+            fixed: None,
+            plugin: None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
@@ -160,7 +201,7 @@ pub fn list(places: &Places) -> ClaudeExtensions {
     let claude_json = read_json(&places.claude_json).unwrap_or(Value::Null);
     let installed = installed_plugins(places, &scoped);
     let mut found = ClaudeExtensions {
-        skills: skills(places, &settings),
+        skills: skills(places, &settings, &claude_json, &installed),
         plugins: plugins(&installed),
         mcp: mcp_servers(places, &settings, &claude_json, &installed),
         agents: agents(places, &settings, &installed),
@@ -178,40 +219,179 @@ pub fn list(places: &Places) -> ClaudeExtensions {
 
 // ---------------------------------------------------------------- skills
 
-fn skills(places: &Places, settings: &[Value]) -> Vec<ExtensionItem> {
+/// The skills Claude lists for a terminal, each once:
+/// - the user's and the project's `skills/<name>/SKILL.md` (the user's wins);
+/// - their `commands/<name>.md`, which Claude lists as skills, unless a skill
+///   has the name;
+/// - the claude.ai account's skills, synced into `skills/synced/<org>_<account>/`,
+///   which Claude names `anthropic-skills:<name>`;
+/// - each plugin's skills and commands, `<plugin>:<name>`, fixed: they follow
+///   their plugin.
+fn skills(places: &Places, settings: &[Value], claude_json: &Value, plugins: &[Plugin]) -> Vec<ExtensionItem> {
     let overrides = merged_object(settings, "skillOverrides");
+    let off = |key: &str| overrides.get(key).and_then(Value::as_str) == Some("off");
     let mut seen = BTreeSet::new();
     let mut items = Vec::new();
-    // The user's skill wins over a project's of the same name.
-    for (dir, source) in [
-        (places.config.join("skills"), Source::User),
-        (places.cwd.join(".claude").join("skills"), Source::Project),
-    ] {
-        let Ok(entries) = std::fs::read_dir(&dir) else {
+    let mut push = |item: ExtensionItem, items: &mut Vec<ExtensionItem>| {
+        if seen.insert(item.id.clone()) {
+            items.push(item);
+        }
+    };
+    let folders = [
+        (places.config.clone(), Source::User),
+        (places.cwd.join(".claude"), Source::Project),
+    ];
+    for (folder, source) in &folders {
+        for (name, description) in skill_folders(&folder.join("skills")) {
+            let enabled = !off(&name);
+            push(ExtensionItem::new(name.clone(), name, description, *source, enabled), &mut items);
+        }
+    }
+    for (folder, source) in &folders {
+        for (name, description) in command_files(&folder.join("commands")) {
+            let enabled = !off(&name);
+            push(ExtensionItem::new(name.clone(), name, description, *source, enabled), &mut items);
+        }
+    }
+    if let Some(bucket) = synced_skills_dir(places, claude_json) {
+        for (name, description) in skill_folders(&bucket) {
+            // Either spelling turns it off: Claude checks the namespaced name and the bare one.
+            let id = format!("{SYNCED_SKILLS}:{name}");
+            let enabled = !off(&id) && !off(&name);
+            push(ExtensionItem::new(id, name, description, Source::Synced, enabled), &mut items);
+        }
+    }
+    for plugin in plugins {
+        let Some(root) = &plugin.root else {
             continue;
         };
-        for entry in entries.flatten() {
-            let folder = entry.path();
-            let Ok(text) = std::fs::read_to_string(folder.join("SKILL.md")) else {
-                continue;
-            };
-            let front = front_matter(&text);
-            let fallback = entry.file_name().to_string_lossy().into_owned();
-            let id = front.get("name").cloned().unwrap_or(fallback);
-            if !seen.insert(id.clone()) {
-                continue;
-            }
-            let enabled = overrides.get(&id).and_then(Value::as_str) != Some("off");
-            items.push(ExtensionItem {
-                name: id.clone(),
-                id,
-                description: front.get("description").map(|d| short(d)),
-                source,
-                enabled,
-            });
+        let (skill_dirs, command_paths) = plugin_skill_paths(plugin, root);
+        let found = skill_dirs
+            .iter()
+            .flat_map(|dir| skill_folders(dir))
+            .chain(command_paths.iter().flat_map(|path| command_files(path)));
+        for (name, description) in found {
+            let mut item = ExtensionItem::new(
+                format!("{}:{name}", plugin.name),
+                format!("{}:{name}", plugin.name),
+                description,
+                Source::Plugin,
+                plugin.enabled,
+            );
+            item.fixed = Some(Fixed::Plugin);
+            item.plugin = Some(plugin.id.clone());
+            push(item, &mut items);
         }
     }
     items
+}
+
+/// What Claude calls the claude.ai account's skills: `anthropic-skills:<name>`.
+const SYNCED_SKILLS: &str = "anthropic-skills";
+
+/// The folder of the signed-in account's synced skills, as `.claude.json`'s
+/// `oauthAccount` names it: `<config>/skills/synced/<organization>_<account>`.
+fn synced_skills_dir(places: &Places, claude_json: &Value) -> Option<PathBuf> {
+    let account = claude_json.get("oauthAccount")?;
+    let organization = account.get("organizationUuid")?.as_str()?;
+    let user = account.get("accountUuid")?.as_str()?;
+    let bucket = format!("{organization}_{user}");
+    // Two ids, never a path: anything else names no folder.
+    let plain = |id: &str| !id.is_empty() && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-');
+    if !plain(organization) || !plain(user) {
+        return None;
+    }
+    Some(places.config.join("skills").join("synced").join(bucket))
+}
+
+/// A plugin's skill folders and command paths: `skills/` and `commands/`, plus
+/// those its manifest adds (`"skills"`, `"commands"`: a path or a list of them).
+fn plugin_skill_paths(plugin: &Plugin, root: &Path) -> (Vec<PathBuf>, Vec<PathBuf>) {
+    let extra = |key: &str| -> Vec<PathBuf> {
+        let listed: Vec<&str> = match plugin.manifest.as_ref().and_then(|m| m.get(key)) {
+            Some(Value::String(path)) => vec![path.as_str()],
+            Some(Value::Array(paths)) => paths.iter().filter_map(Value::as_str).collect(),
+            _ => Vec::new(),
+        };
+        listed
+            .into_iter()
+            // Inside the plugin only.
+            .filter(|path| !Path::new(path).is_absolute() && !path.split(['/', '\\']).any(|part| part == ".."))
+            .map(|path| root.join(path))
+            .collect()
+    };
+    let mut skills = vec![root.join("skills")];
+    skills.extend(extra("skills"));
+    let mut commands = vec![root.join("commands")];
+    commands.extend(extra("commands"));
+    skills.dedup();
+    commands.dedup();
+    (skills, commands)
+}
+
+/// Each `<dir>/<folder>/SKILL.md`: its name (the front matter's, else the
+/// folder's) and its description.
+fn skill_folders(dir: &Path) -> Vec<(String, Option<String>)> {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return Vec::new();
+    };
+    let mut found: Vec<(String, Option<String>)> = entries
+        .flatten()
+        .filter_map(|entry| {
+            let text = std::fs::read_to_string(entry.path().join("SKILL.md")).ok()?;
+            let front = front_matter(&text);
+            let name = front
+                .get("name")
+                .cloned()
+                .unwrap_or_else(|| entry.file_name().to_string_lossy().into_owned());
+            Some((name, front.get("description").map(|d| short(d))))
+        })
+        .collect();
+    found.sort();
+    found
+}
+
+/// Each command of a `commands` folder (or the one file a plugin's manifest
+/// names): `<name>.md`, named after its file, described by its front matter or
+/// its first line. A `README.md` documents the folder: it is no command.
+fn command_files(path: &Path) -> Vec<(String, Option<String>)> {
+    let files: Vec<PathBuf> = if path.is_file() {
+        vec![path.to_path_buf()]
+    } else {
+        let Ok(entries) = std::fs::read_dir(path) else {
+            return Vec::new();
+        };
+        entries.flatten().map(|entry| entry.path()).collect()
+    };
+    let mut found: Vec<(String, Option<String>)> = files
+        .into_iter()
+        .filter(|file| file.is_file() && file.extension().is_some_and(|ext| ext == "md"))
+        .filter_map(|file| {
+            let name = file.file_stem()?.to_string_lossy().into_owned();
+            if name.eq_ignore_ascii_case("readme") || name.is_empty() {
+                return None;
+            }
+            let text = std::fs::read_to_string(&file).ok()?;
+            let front = front_matter(&text);
+            let description = front.get("description").map(|d| short(d)).or_else(|| first_line(&text));
+            Some((name, description))
+        })
+        .collect();
+    found.sort();
+    found
+}
+
+/// The first line of a Markdown file's body, its heading marks dropped.
+fn first_line(text: &str) -> Option<String> {
+    let text = text.trim_start_matches('\u{feff}');
+    let body = match text.strip_prefix("---") {
+        Some(rest) => rest.split_once("\n---").map_or("", |(_, body)| body),
+        None => text,
+    };
+    body.lines()
+        .map(|line| line.trim().trim_start_matches('#').trim())
+        .find(|line| !line.is_empty())
+        .map(short)
 }
 
 // ---------------------------------------------------------------- subagents
@@ -244,6 +424,10 @@ fn agents(places: &Places, settings: &[Value], plugins: &[Plugin]) -> Vec<Extens
                 continue;
             };
             let front = front_matter(&text);
+            // A subagent is described in its front matter; a file with none (a README) is not one.
+            if front.is_empty() {
+                continue;
+            }
             let fallback = file
                 .file_stem()
                 .map(|s| s.to_string_lossy().into_owned())
@@ -259,13 +443,8 @@ fn agents(places: &Places, settings: &[Value], plugins: &[Plugin]) -> Vec<Extens
             let enabled = plugin.is_none_or(|p| p.enabled)
                 && !denied.contains(&format!("Agent({id})"))
                 && !denied.contains(&format!("Task({id})"));
-            items.push(ExtensionItem {
-                name: id.clone(),
-                id,
-                description: front.get("description").map(|d| short(d)),
-                source,
-                enabled,
-            });
+            let description = front.get("description").map(|d| short(d));
+            items.push(ExtensionItem::new(id.clone(), id, description, source, enabled));
         }
     }
     items
@@ -393,15 +572,17 @@ impl Plugin {
 fn plugins(plugins: &[Plugin]) -> Vec<ExtensionItem> {
     plugins
         .iter()
-        .map(|plugin| ExtensionItem {
-            id: plugin.id.clone(),
-            name: plugin.name.clone(),
-            description: plugin
-                .manifest
-                .as_ref()
-                .and_then(|m| m.get("description")?.as_str().map(short)),
-            source: plugin.source,
-            enabled: plugin.enabled,
+        .map(|plugin| {
+            ExtensionItem::new(
+                plugin.id.clone(),
+                plugin.name.clone(),
+                plugin
+                    .manifest
+                    .as_ref()
+                    .and_then(|m| m.get("description")?.as_str().map(short)),
+                plugin.source,
+                plugin.enabled,
+            )
         })
         .collect()
 }
@@ -445,17 +626,35 @@ fn applies(install: &Value, cwd: &Path) -> bool {
 
 // ---------------------------------------------------------------- MCP servers
 
+/// The servers a terminal's Claude starts: the configured ones (`mcp_entries`),
+/// Claude in Chrome once `.claude.json` says whether it is on by default (its
+/// tools, `mcp__claude-in-chrome__…`, are denied like any server's), and
+/// dummyPlane's own, which every Claude terminal it starts gets and keeps.
 fn mcp_servers(
     places: &Places,
     settings: &[Value],
     claude_json: &Value,
     plugins: &[Plugin],
 ) -> Vec<ExtensionItem> {
-    mcp_entries(places, settings, claude_json, plugins)
+    let mut items: Vec<ExtensionItem> = mcp_entries(places, settings, claude_json, plugins)
         .into_iter()
         .map(|entry| entry.item)
-        .collect()
+        .collect();
+    let taken = |items: &[ExtensionItem], id: &str| items.iter().any(|item| item.id.eq_ignore_ascii_case(id));
+    if let Some(on) = claude_json.get("claudeInChromeDefaultEnabled").and_then(Value::as_bool)
+        && !taken(&items, CHROME_SERVER)
+    {
+        let denied = denied_rules(settings).contains(&format!("mcp__{CHROME_SERVER}"));
+        items.push(ExtensionItem::new(CHROME_SERVER.into(), CHROME_SERVER.into(), None, Source::Builtin, on && !denied));
+    }
+    let mut own = ExtensionItem::new(OWN_SERVER.into(), OWN_SERVER.into(), None, Source::App, true);
+    own.fixed = Some(Fixed::Own);
+    items.push(own);
+    items
 }
+
+/// Claude Code's own Chrome server, as its tools name it.
+const CHROME_SERVER: &str = "claude-in-chrome";
 
 /// An MCP server as the panel lists it, with what starts it.
 struct McpEntry<'a> {
@@ -521,13 +720,7 @@ fn mcp_entries<'a>(
                 && (source != Source::Project
                     || (!rejected.contains(name) && (approve_all || approved.contains(name))));
             items.push(McpEntry {
-                item: ExtensionItem {
-                    id: name.clone(),
-                    name: name.clone(),
-                    description: Some(server_summary(server)),
-                    source,
-                    enabled,
-                },
+                item: ExtensionItem::new(name.clone(), name.clone(), Some(server_summary(server)), source, enabled),
                 server: server.clone(),
                 plugin: None,
             });
@@ -550,14 +743,9 @@ fn mcp_entries<'a>(
             }
             let off = switched_off.contains(&id)
                 || switched_off.contains(&format!("plugin:{}:{name}", plugin.name));
+            let description = Some(format!("{} · {}", plugin.name, server_summary(&server)));
             items.push(McpEntry {
-                item: ExtensionItem {
-                    id,
-                    description: Some(format!("{} · {}", plugin.name, server_summary(&server))),
-                    name,
-                    source: Source::Plugin,
-                    enabled: plugin.enabled && !off,
-                },
+                item: ExtensionItem::new(id, name, description, Source::Plugin, plugin.enabled && !off),
                 server,
                 plugin: Some(plugin),
             });
@@ -973,6 +1161,8 @@ mod tests {
         put(&p.config.join("agents/reviewer.md"), "---\nname: code-reviewer\ndescription: Reviews\n---\n");
         put(&p.cwd.join(".claude/agents/tester.md"), "---\nname: tester\n---\n");
         put(&p.cwd.join(".claude/agents/notes.txt"), "not an agent");
+        // A Markdown file with no front matter documents the folder: it is no subagent.
+        put(&p.cwd.join(".claude/agents/README.md"), "# Our agents\nThe team.");
         put_json(&p.config.join("settings.json"), json!({ "permissions": { "deny": ["Agent(tester)"] } }));
 
         assert_eq!(ids(&list(p).agents), vec![("code-reviewer", true), ("tester", false)]);
@@ -1147,15 +1337,16 @@ mod tests {
         assert_eq!(
             ids(&found.mcp),
             vec![
+                ("dummyplane", true),
                 ("plugin_figma_figma", false),
                 ("plugin_linear_linear", true),
                 ("sentry", true),
                 ("plugin_stripe_stripe", true),
             ]
         );
-        assert_eq!(found.mcp[3].name, "stripe");
-        assert_eq!(found.mcp[3].source, Source::Plugin);
-        assert_eq!(found.mcp[3].description.as_deref(), Some("stripe · http · mcp.stripe.com"));
+        assert_eq!(found.mcp[4].name, "stripe");
+        assert_eq!(found.mcp[4].source, Source::Plugin);
+        assert_eq!(found.mcp[4].description.as_deref(), Some("stripe · http · mcp.stripe.com"));
         assert_eq!(ids(&found.agents), vec![("stripe:Company Researcher", true)]);
 
         // Turned off, a plugin's server is denied by its tools' prefix and never put in `.mcp.json`'s list.
@@ -1173,7 +1364,7 @@ mod tests {
     }
 
     #[test]
-    fn lists_mcp_servers_of_every_scope_but_dummyplane_s_own() {
+    fn lists_mcp_servers_of_every_scope_and_dummyplane_s_own_fixed() {
         let f = fixture();
         let p = &f.places;
         // `.claude.json` keys projects with forward slashes.
@@ -1204,12 +1395,128 @@ mod tests {
         let mcp = list(p).mcp;
         assert_eq!(
             ids(&mcp),
-            vec![("db", true), ("docs", true), ("github", false), ("pending", false)]
+            vec![("db", true), ("docs", true), ("dummyplane", true), ("github", false), ("pending", false)]
         );
         assert_eq!(mcp[0].source, Source::Local);
         assert_eq!(mcp[0].description.as_deref(), Some("stdio · pg-mcp.exe"));
         // No credentials, path or query string reach the interface.
-        assert_eq!(mcp[2].description.as_deref(), Some("http · api.github.com"));
+        assert_eq!(mcp[3].description.as_deref(), Some("http · api.github.com"));
+        // dummyPlane's own server, once, fixed: never the user's entry of that name, and nothing of its definition.
+        assert_eq!(mcp[2].source, Source::App);
+        assert_eq!(mcp[2].fixed, Some(Fixed::Own));
+        assert_eq!(mcp[2].description, None);
+        assert!(mcp.iter().all(|item| item.fixed.is_none() || item.id == "dummyplane"));
+    }
+
+    #[test]
+    fn lists_claude_in_chrome_once_claude_json_says_whether_it_is_on() {
+        let f = fixture();
+        let p = &f.places;
+        let chrome = |p: &Places| list(p).mcp.into_iter().find(|item| item.id == "claude-in-chrome");
+        // Never set up: Claude doesn't start it, nothing lists it.
+        assert_eq!(chrome(p), None);
+        put_json(&p.claude_json, json!({ "claudeInChromeDefaultEnabled": true }));
+        let on = chrome(p).unwrap();
+        assert_eq!((on.source, on.enabled, on.fixed), (Source::Builtin, true, None));
+        // Denied in the settings, or off by default: shown off.
+        put_json(&p.config.join("settings.json"), json!({ "permissions": { "deny": ["mcp__claude-in-chrome"] } }));
+        assert!(!chrome(p).unwrap().enabled);
+        put_json(&p.config.join("settings.json"), json!({}));
+        put_json(&p.claude_json, json!({ "claudeInChromeDefaultEnabled": false }));
+        assert!(!chrome(p).unwrap().enabled);
+        // Turned off for a terminal: its tools are denied by name, and a fleet never copies it (it has no definition).
+        put_json(&p.claude_json, json!({ "claudeInChromeDefaultEnabled": true }));
+        let choice = ExtensionChoice { mcp_off: vec!["claude-in-chrome".into()], ..Default::default() };
+        assert_eq!(settings_patch(&choice, p).unwrap()["permissions"]["deny"], json!(["mcp__claude-in-chrome"]));
+        assert!(servers_on(p, None).is_empty());
+    }
+
+    #[test]
+    fn lists_commands_claude_ai_skills_and_plugins_skills_as_claude_names_them() {
+        let f = fixture();
+        let p = &f.places;
+        put(&p.config.join("skills/deploy/SKILL.md"), "---\nname: deploy\ndescription: Ships it\n---\n");
+        // Commands are skills to Claude: named after their file, described by their front matter or first line.
+        put(&p.config.join("commands/tokens.md"), "---\ndescription: Token usage\n---\nBody");
+        put(&p.cwd.join(".claude/commands/chatlog.md"), "\n# Saves the chat log\n\nMore.");
+        // A skill of the same name wins; a README documents the folder.
+        put(&p.cwd.join(".claude/commands/deploy.md"), "Deploys");
+        put(&p.cwd.join(".claude/commands/README.md"), "# The commands");
+        // The signed-in account's claude.ai skills; another account's bucket is not this one's.
+        put_json(&p.claude_json, json!({ "oauthAccount": { "organizationUuid": "org-1", "accountUuid": "acct-1" } }));
+        put(&p.config.join("skills/synced/org-1_acct-1/pdf/SKILL.md"), "---\nname: pdf\ndescription: PDFs\n---\n");
+        put(&p.config.join("skills/synced/org-1_acct-1/docx/SKILL.md"), "---\nname: docx\n---\n");
+        put(&p.config.join("skills/synced/org-2_acct-9/xlsx/SKILL.md"), "---\nname: xlsx\n---\n");
+        // A plugin's skills and commands, on with it; an off plugin's, off.
+        let codex = p.plugins.join("cache/m/codex/1.0.0");
+        put_json(&codex.join(".claude-plugin/plugin.json"), json!({ "name": "codex", "commands": ["./extra/setup.md"] }));
+        put(&codex.join("skills/runtime/SKILL.md"), "---\nname: codex-cli-runtime\n---\n");
+        put(&codex.join("commands/rescue.md"), "---\ndescription: Rescue\n---\n");
+        put(&codex.join("extra/setup.md"), "Sets up");
+        let figma = p.plugins.join("cache/m/figma/1.0.0");
+        put_json(&figma.join(".claude-plugin/plugin.json"), json!({ "name": "figma" }));
+        put(&figma.join("skills/inspect/SKILL.md"), "---\nname: inspect\n---\n");
+        put_json(
+            &p.plugins.join("installed_plugins.json"),
+            json!({ "version": 2, "plugins": {
+                "codex@m": [{ "scope": "user", "installPath": codex.to_string_lossy() }],
+                "figma@m": [{ "scope": "user", "installPath": figma.to_string_lossy() }],
+            } }),
+        );
+        put_json(
+            &p.config.join("settings.json"),
+            json!({ "enabledPlugins": { "codex@m": true }, "skillOverrides": { "anthropic-skills:pdf": "off", "tokens": "off", "docx": "off" } }),
+        );
+
+        let skills = list(p).skills;
+        let by_id = |id: &str| skills.iter().find(|item| item.id == id).unwrap_or_else(|| panic!("{id} not listed"));
+        let mut listed: Vec<&str> = skills.iter().map(|item| item.id.as_str()).collect();
+        listed.sort();
+        assert_eq!(
+            listed,
+            vec![
+                "anthropic-skills:docx",
+                "anthropic-skills:pdf",
+                "chatlog",
+                "codex:codex-cli-runtime",
+                "codex:rescue",
+                "codex:setup",
+                "deploy",
+                "figma:inspect",
+                "tokens",
+            ]
+        );
+        assert_eq!(by_id("deploy").source, Source::User);
+        assert_eq!(by_id("tokens").description.as_deref(), Some("Token usage"));
+        assert!(!by_id("tokens").enabled);
+        assert_eq!(by_id("chatlog").source, Source::Project);
+        assert_eq!(by_id("chatlog").description.as_deref(), Some("Saves the chat log"));
+        // A claude.ai skill: its bare name shown, its namespaced one switched; either spelling turns it off.
+        let pdf = by_id("anthropic-skills:pdf");
+        assert_eq!((pdf.name.as_str(), pdf.source, pdf.enabled, pdf.fixed), ("pdf", Source::Synced, false, None));
+        assert!(!by_id("anthropic-skills:docx").enabled);
+        // A plugin's skill is fixed to its plugin, which it names.
+        let runtime = by_id("codex:codex-cli-runtime");
+        assert_eq!((runtime.source, runtime.enabled, runtime.fixed), (Source::Plugin, true, Some(Fixed::Plugin)));
+        assert_eq!(runtime.plugin.as_deref(), Some("codex@m"));
+        assert_eq!(by_id("codex:rescue").description.as_deref(), Some("Rescue"));
+        assert!(!by_id("figma:inspect").enabled);
+
+        // Turned off for a terminal: the namespaced name goes into `skillOverrides`, which Claude reads for it.
+        let choice = ExtensionChoice { skills_off: vec!["anthropic-skills:pdf".into(), "chatlog".into()], ..Default::default() };
+        let overrides = &settings_patch(&choice, p).unwrap()["skillOverrides"];
+        assert_eq!(overrides["anthropic-skills:pdf"], json!("off"));
+        assert_eq!(overrides["chatlog"], json!("off"));
+    }
+
+    #[test]
+    fn finds_no_claude_ai_skills_without_an_account_or_with_an_id_that_is_a_path() {
+        let f = fixture();
+        let p = &f.places;
+        put(&p.config.join("skills/synced/org-1_acct-1/pdf/SKILL.md"), "---\nname: pdf\n---\n");
+        assert!(list(p).skills.is_empty());
+        put_json(&p.claude_json, json!({ "oauthAccount": { "organizationUuid": "../..", "accountUuid": "acct-1" } }));
+        assert!(list(p).skills.is_empty());
     }
 
     #[test]
