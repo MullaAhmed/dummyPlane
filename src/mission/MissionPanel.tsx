@@ -170,6 +170,7 @@ function RouterRow({ nodeId, mission }: { nodeId: string; mission: Mission }) {
     <div className="flex h-7 items-center gap-2">
       <Checkbox
         id={router}
+        role="switch"
         aria-label={t.routerLabel}
         checked={mission.router === true}
         onCheckedChange={(checked) => setMission(nodeId, { router: checked === true || undefined })}

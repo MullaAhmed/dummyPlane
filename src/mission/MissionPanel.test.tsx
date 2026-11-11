@@ -69,7 +69,7 @@ async function openSettings() {
   await act(async () => settingsToggle().click());
 }
 /** The model router's checkbox: in plain view, no fold to open first. */
-const routerSwitch = () => host.querySelector<HTMLElement>('[aria-label="Model router"]');
+const routerSwitch = () => host.querySelector<HTMLButtonElement>('[aria-label="Model router"]');
 
 it("sets the mission's team size before the plan, and no global budget any more (spec §7.1)", async () => {
   await show();
@@ -168,8 +168,9 @@ it("keeps the night's choices in view, to change or call off until its team is f
   expect(night.textContent).toContain("TicketsLinear · team ENG · label overnight");
   expect(night.textContent).toContain("UnaskedEdit files");
   expect(night.textContent).toContain("StartAs soon as the plan is ready");
-  // A night sets its own team size: the settings keep the router.
-  expect(settingsToggle().textContent).toBe("Settingsno model router");
+  // A night sets its own team size, so no Settings fold is left: the router stays in view on its own row.
+  expect(settingsToggle()).toBeNull();
+  expect(routerSwitch()?.getAttribute("aria-checked")).toBe("false");
   await act(async () => button("Edit…").click());
   expect(document.body.textContent).toContain("Change the night");
   expect(document.querySelector<HTMLInputElement>('[aria-label="Time away (hours)"]')!.value).toBe("8");
@@ -275,7 +276,10 @@ it("shows the mission panel in English", async () => {
   // The panel is named for screen readers; its status line says where the mission stands, then its name.
   expect(host.querySelector("[data-mission]")!.getAttribute("aria-label")).toBe("Mission · Auth");
   expect(host.querySelector("header")!.textContent).toContain("Plan proposed · waiting for the go-ahead · Auth");
-  expect(settingsToggle().textContent).toBe("Settingsup to 4 agents at once · model router");
+  expect(settingsToggle().textContent).toBe("Settingsup to 4 agents at once");
+  // The router is a row of its own, in view, named by its visible label and with its hint.
+  expect(routerSwitch()?.getAttribute("aria-checked")).toBe("true");
+  expect(host.textContent).toContain("Model router");
   await openSettings();
   expect(host.textContent).toContain("Max active agents");
   expect(host.textContent).toContain("low · Haiku 5.5");

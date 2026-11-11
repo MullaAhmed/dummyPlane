@@ -15,6 +15,8 @@ import { cn } from "@/lib/utils";
 import { useNow } from "@/lib/useNow";
 import { clockText } from "@/mission/mission";
 import { MissionPanel } from "@/mission/MissionPanel";
+import { RouterToggle } from "@/mission/RouterToggle";
+import { setMission } from "@/mission/store";
 import { useActivity, type AgentActivity } from "@/store/agentActivity";
 import { nodesStore, useNodes } from "@/store/nodes";
 import { useTerminalStatus, type TerminalStatus } from "@/store/terminalStatus";
@@ -51,6 +53,8 @@ export function FleetNode({ nodeId }: { nodeId: string }) {
   const session = record?.kind === "fleet" ? record.payload.session : undefined;
   const now = useNow(15_000);
   const clock = record?.kind === "fleet" && record.payload.mission ? clockText(record.payload.mission, now) : null;
+  // The model router's state when the Fleet has one (a Fleet on Claude, which a session not yet made is), else null.
+  const routerOn = record?.kind === "fleet" && (session?.agent ?? "claude") === "claude" ? record.payload.mission?.router === true : null;
 
   useEffect(() => {
     const current = nodesStore.getState().nodes[nodeId];
@@ -94,6 +98,7 @@ export function FleetNode({ nodeId }: { nodeId: string }) {
         status={status}
         activity={activity}
         clock={clock}
+        routerOn={routerOn}
         agentIds={linked.agentIds}
       />
       <div ref={sessionAreaRef} className={cn(TERMINAL_BODY, "min-h-30 bg-dp-terminal")}>
@@ -119,9 +124,10 @@ function FleetHeader(props: {
   status: TerminalStatus;
   activity?: AgentActivity;
   clock: string | null;
+  routerOn: boolean | null;
   agentIds: readonly string[];
 }) {
-  const { nodeId, name, session, status, activity, clock, agentIds } = props;
+  const { nodeId, name, session, status, activity, clock, routerOn, agentIds } = props;
   const t = useMessages(nodesMessages).fleet;
   const quickNoteLabel = useMessages(noteMessages).add;
   const [editing, setEditing] = useState(false);
@@ -137,10 +143,16 @@ function FleetHeader(props: {
       <Network className="size-4 shrink-0 text-dp-accent" />
       <NameField value={name} editing={editing} onEditingChange={setEditing} onCommit={(next) => renameFleet(nodeId, next)} />
       <NodeHeaderEnd>
-        {clock && (
-          <span title={t.clockTitle} className={cn(WIDE_ONLY, "font-mono text-dp-text-2 tabular-nums")}>
-            {clock}
-          </span>
+        {/* From 28rem of header on, like a terminal's chips; a narrower node has the same switch in its Edit tab. The router's levels name Claude's models: a Fleet on another CLI has none. */}
+        {(clock || routerOn !== null) && (
+          <div className={cn(WIDE_ONLY, "items-center gap-1")}>
+            {clock && (
+              <span title={t.clockTitle} className="font-mono text-dp-text-2 tabular-nums">
+                {clock}
+              </span>
+            )}
+            {routerOn !== null && <RouterToggle on={routerOn} onChange={(on) => setMission(nodeId, { router: on || undefined })} />}
+          </div>
         )}
         <StatusPill status={status} activity={activity} indigo={AGENTS.claude.tint === INDIGO} labelClassName="@max-xs/head:sr-only" />
         {session && <RemoteButton nodeId={nodeId} wanted={session.remoteControl === true} running={running} />}

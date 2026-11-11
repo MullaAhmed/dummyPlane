@@ -21,7 +21,8 @@ import { Hint, HintedButton } from "@/shell/buttons";
 import { modelLabel } from "@/mission/router";
 import { openReview } from "@/review/reviewStore";
 import { ROLES } from "@/agents/roles";
-import type { AgentId } from "@/ipc/pty";
+import { MANAGER_ROLE, type AgentId } from "@/ipc/pty";
+import { RouterToggle } from "@/mission/RouterToggle";
 import { cn } from "@/lib/utils";
 import type { TerminalPayload } from "@/nodes/types";
 import type { AgentActivity } from "@/store/agentActivity";
@@ -253,6 +254,10 @@ export function TerminalHeader(props: {
         <div className={cn(WIDE_ONLY, "items-center gap-1")}>
           {payload.agent === "claude" && <AccountChip accountId={payload.accountId} />}
           {payload.model && <ModelChip nodeId={nodeId} model={payload.model} />}
+          {/* A Manager runs a board, never a plan's agent: the router has nothing to give it. */}
+          {payload.agent === "claude" && payload.role !== MANAGER_ROLE && (
+            <RouterToggle on={payload.router === true} onChange={(on) => nodesStore.getState().update(nodeId, { router: on || undefined })} />
+          )}
         </div>
         {payload.agent === "claude" && <RemoteButton nodeId={nodeId} wanted={payload.remoteControl === true} running={running} />}
         <TerminalMenu nodeId={nodeId} payload={payload} running={running} onDuplicate={onDuplicate} />

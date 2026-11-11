@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { LEVELS, modelFor, readLevel } from "./router";
+import { LEVELS, modelFor, readLevel, ROUTER_LEVELS } from "./router";
 
 describe("the model router (spec maj §3)", () => {
   it("gives each level of difficulty its model", () => {
@@ -24,5 +24,18 @@ describe("the model router (spec maj §3)", () => {
     expect(modelFor({ router: false }, { level: "faible" })).toBeUndefined();
     expect(modelFor({}, { level: "extreme" })).toBeUndefined();
     expect(modelFor({ router: true }, {})).toBeUndefined();
+  });
+
+  it("is routed by the agent's own router as well, and an agent whose own is off never vetoes the mission's", () => {
+    expect(modelFor({}, { level: "eleve" }, { router: true })).toBe("claude-opus-5-5");
+    expect(modelFor({ router: true }, { level: "eleve" }, { router: false })).toBe("claude-opus-5-5");
+    expect(modelFor({ router: true }, { level: "eleve" }, {})).toBe("claude-opus-5-5");
+    expect(modelFor({}, { level: "eleve" }, { router: false })).toBeUndefined();
+    // Still no level, no model.
+    expect(modelFor({}, {}, { router: true })).toBeUndefined();
+  });
+
+  it("words its table from the levels, never retyped", () => {
+    expect(ROUTER_LEVELS).toBe("low Haiku 5.5, medium Sonnet 5.5, high Opus 5.5, extreme Fable 5.1");
   });
 });

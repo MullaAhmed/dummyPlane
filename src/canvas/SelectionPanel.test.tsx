@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { act } from "react";
 import { createRoot } from "react-dom/client";
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { mockIPC } from "@tauri-apps/api/mocks";
@@ -9,7 +9,8 @@ import { toast } from "sonner";
 import { accountsStore } from "@/accounts/store";
 import type { ClaudeExtensions, ExtensionItem } from "@/ipc/claudeExtensions";
 import { agentsStore } from "@/agents/agentsStore";
-import type { FleetPayload, TerminalPayload } from "@/nodes/types";
+import { ROUTER_LEVELS } from "@/mission/router";
+import { readTerminalPayload, type FleetPayload, type TerminalPayload } from "@/nodes/types";
 import { nodesStore } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
 import { agentActivityStore } from "@/store/agentActivity";
@@ -1451,4 +1452,70 @@ it("turns Remote Control on and off from its box, the same switch as the header'
   // Only Claude has it.
   await mountTerminal(terminal({ agent: "codex" }));
   expect(host.querySelector("button[aria-label='Remote Control']")).toBeNull();
+});
+
+describe("the model router's switch in the Edit tab", () => {
+  const routerSwitch = () => host.querySelector<HTMLButtonElement>("button[role='switch'][aria-label='Model router']");
+  const terminalPayload = () => (nodesStore.getState().nodes.t1 as { payload: TerminalPayload }).payload;
+
+  it("gives a Claude terminal its own switch, named by its visible label and described by its hint, saved at once and with no restart offered", async () => {
+    await mountTerminal(terminal({ model: "claude-haiku-5-5" }));
+    terminalStatusStore.getState().set("t1", { state: "running" });
+    await act(async () => void 0);
+    const sw = routerSwitch()!;
+    expect(sw).not.toBeNull();
+    expect(sw.getAttribute("aria-checked")).toBe("false");
+    // A native button the keyboard reaches: its visible label names it, the line under it describes it.
+    expect(sw.tagName).toBe("BUTTON");
+    expect(sw.tabIndex).toBeGreaterThanOrEqual(0);
+    await act(async () => sw.focus());
+    expect(document.activeElement).toBe(sw);
+    expect(host.querySelector(`label[for="${sw.id}"]`)?.textContent).toBe("Model router");
+    const hint = document.getElementById(sw.getAttribute("aria-describedby")!)!;
+    expect(hint.textContent).toBe(`A sub-task a Fleet gives it starts it on the model of its level: ${ROUTER_LEVELS}. Otherwise it keeps its model`);
+    await act(async () => sw.click());
+    expect(terminalPayload().router).toBe(true);
+    expect(routerSwitch()!.getAttribute("aria-checked")).toBe("true");
+    // The model it chose stays; the switch is no launch setting: a running terminal is not offered a restart.
+    expect(terminalPayload().model).toBe("claude-haiku-5-5");
+    expect(restartNow()).toBeUndefined();
+    await act(async () => routerSwitch()!.click());
+    expect(terminalPayload().router).toBeUndefined();
+    expect(routerSwitch()!.getAttribute("aria-checked")).toBe("false");
+  });
+
+  it("is saved with the canvas: what is stored reads back with it on", async () => {
+    await mountTerminal(terminal());
+    await act(async () => routerSwitch()!.click());
+    expect(readTerminalPayload(JSON.parse(JSON.stringify(terminalPayload())))?.router).toBe(true);
+  });
+
+  it("is offered to a Claude terminal only", async () => {
+    await mountTerminal(terminal({ agent: "codex" }));
+    expect(routerSwitch()).toBeNull();
+  });
+
+  it("gives a Fleet back the mission's switch, in any state of its mission, and it writes the mission's router", async () => {
+    await mountFleet();
+    const sw = routerSwitch()!;
+    expect(sw).not.toBeNull();
+    expect(sw.getAttribute("aria-checked")).toBe("false");
+    expect(document.getElementById(sw.getAttribute("aria-describedby")!)?.textContent).toBe(`Each agent of its team takes the model of its sub-task's level: ${ROUTER_LEVELS}`);
+    await act(async () => sw.click());
+    expect(fleetOf().mission?.router).toBe(true);
+    expect(routerSwitch()!.getAttribute("aria-checked")).toBe("true");
+    // The team is at work: the switch is still there, for the tasks it queues.
+    await act(async () => nodesStore.getState().update("f1", { mission: { ...fleetOf().mission!, state: "en_cours" } }));
+    expect(routerSwitch()!.getAttribute("aria-checked")).toBe("true");
+    await act(async () => routerSwitch()!.click());
+    expect(fleetOf().mission?.router).toBeUndefined();
+    // No second flag on the Fleet's session.
+    expect(fleetOf().session?.router).toBeUndefined();
+    expect(restartNow()).toBeUndefined();
+  });
+
+  it("is not offered to a Fleet on another CLI: its levels name Claude's models", async () => {
+    await mountFleet({ name: "Fleet", session: fleetSession({ agent: "codex" }) });
+    expect(routerSwitch()).toBeNull();
+  });
 });

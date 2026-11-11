@@ -35,6 +35,12 @@ export interface TerminalPayload {
   remoteControl?: boolean;
   /** Claude's model, chosen by a mission's router (spec maj §3) or in the edit panel. */
   model?: string;
+  /**
+   * Claude only: the model router is on for this agent, a sticky switch (its header, its edit panel). A mission that
+   * gives it a sub-task with a level starts it on the model that level names (`modelFor`); without a level, or off,
+   * it keeps `model`. It is not a launch setting: switching it never offers a restart.
+   */
+  router?: true;
   /** Claude's effort level (`--effort`), chosen in the edit panel; absent: Claude's own (its settings, the model's default). */
   effort?: EffortLevel;
   /** What its mission lets it do unasked (spec mission de nuit §5.3); on a fleet's session, its night. */
@@ -275,6 +281,7 @@ export function readTerminalPayload(raw: unknown): TerminalPayload | null {
   }
   if (r.remoteControl === true) payload.remoteControl = true;
   if (typeof r.model === "string" && r.model) payload.model = r.model;
+  if (r.router === true) payload.router = true;
   const effort = readEffort(r.effort);
   if (effort) payload.effort = effort;
   if (r.permission === "ask" || r.permission === "edits" || r.permission === "work") payload.permission = r.permission;

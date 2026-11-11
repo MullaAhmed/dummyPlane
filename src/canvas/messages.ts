@@ -1,4 +1,5 @@
 import { defineMessages } from "@/i18n";
+import { ROUTER_LEVELS } from "@/mission/router";
 
 /** The texts of the canvas (spec première version §7.1). */
 export const canvasMessages = defineMessages(
@@ -90,6 +91,12 @@ export const canvasMessages = defineMessages(
         work: "Commands, the network and this PC's logged-in accounts are open to it · git push blocked",
       },
       account: "Account",
+      // The model router, a switch of the first group: it applies at once and is no launch setting, so it never offers a restart.
+      modelRouter: "Model router",
+      // Under a Fleet's switch: it routes the whole team of its mission.
+      modelRouterFleet: `Each agent of its team takes the model of its sub-task's level: ${ROUTER_LEVELS}`,
+      // Under a terminal's switch: a sub-task from a Fleet, with its level; any other work keeps the chosen model.
+      modelRouterAgent: `A sub-task a Fleet gives it starts it on the model of its level: ${ROUTER_LEVELS}. Otherwise it keeps its model`,
       remoteControl: "Remote Control",
       // Beside its box: where Remote Control stands; it applies to a running session at once.
       remoteStates: { on: "On", connecting: "Connecting…", pending: "At the end of its turn", requested: "Requested", nextStart: "At next start" },
