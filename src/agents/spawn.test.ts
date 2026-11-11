@@ -7,8 +7,10 @@ import { createNodeElement } from "@/canvas/nodeElement";
 import { clearWirePulses, wireActivityStore } from "@/canvas/wireActivity";
 import { ptySendText } from "@/ipc/pty";
 import { notify } from "@/mission/events";
+import { NEW_MISSION, type Mission } from "@/mission/mission";
 import { whenReady } from "@/mission/ready";
 import { workspaceCanvas } from "@/mission/store";
+import { fleetSession } from "@/nodes/terminal/launch";
 import { MAX_STORED_TASK, type TerminalPayload } from "@/nodes/types";
 import { nodesStore, terminalOf } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
@@ -29,6 +31,8 @@ vi.mock("@/nodes/terminal/registry", () => ({ freshText: vi.fn(() => ""), quietF
 vi.mock("@/mission/ready", () => ({ whenReady: vi.fn(() => Promise.resolve(true)) }));
 vi.mock("@/mission/events", () => ({ notify: vi.fn() }));
 vi.mock("@/mission/store", () => ({ workspaceCanvas: vi.fn(() => ({ frames: [], links: {} })) }));
+// The Fleet's workspace folder; its own session started elsewhere.
+vi.mock("@/mission/folder", () => ({ missionFolder: vi.fn(() => "C:/code/project") }));
 vi.mock("./naming", () => ({ nameForNewAgent: vi.fn(() => Promise.resolve("Robin")) }));
 vi.mock("./terminals", () => ({ addTerminal: vi.fn() }));
 vi.mock("./spawnTree", () => ({ reflowSpawnTree: vi.fn(() => true) }));
@@ -232,3 +236,88 @@ describe("spawn_agent", () => {
     expect(vi.mocked(addTerminal).mock.calls[0][1]).toMatchObject({ title: "Login review", task: "You are a reviewer. Review the login diff." });
   });
 });
+
+describe("spawn_agent from a Fleet", () => {
+  /** A Fleet on the canvas, its Claude (or Codex) session started in another folder than its workspace's. */
+  async function addFleet(mission?: Mission, agent: "claude" | "codex" = "claude") {
+    const session = { ...fleetSession("Fleet", { cwd: "C:/code/elsewhere", shell: "pwsh" }, agent), permission: mission?.permission, linear: true as const, remoteControl: true };
+    await nodesStore.getState().create("fleet", { workspaceId: "w1", kind: "fleet", payload: { name: "Fleet", session, ...(mission ? { mission } : {}) } });
+    scene.push({ ...createNodeElement("fleet", { x: 0, y: 600 }), id: "fleet" } as unknown as ExcalidrawElement);
+    running("fleet");
+  }
+
+  const night = (state: Mission["state"]): Mission => ({ ...NEW_MISSION, state, overnight: true, budgetMin: 480, permission: "work" });
+
+  it("opens a regular agent beside the Fleet, in its workspace's folder, without the manager's rails", async () => {
+    await addFleet();
+    const result = await spawnAgent("fleet", { task: "Find where the router is tested", title: "Lookup" });
+    expect(result.error).toBeUndefined();
+    expect(result.text).toContain("Robin opened beside you");
+    const [workspaceId, payload, center] = vi.mocked(addTerminal).mock.calls[0];
+    expect(workspaceId).toBe("w1");
+    expect(payload).toMatchObject({ name: "Robin", title: "Lookup", agent: "claude", cwd: "C:/code/project", shell: "pwsh", spawnedBy: "fleet" });
+    // An agent's launch: no fleet role (no edit/command deny, the user's servers on), no Linear, no Remote Control, no night.
+    for (const key of ["role", "linear", "remoteControl", "permission", "extensions"]) expect(payload).not.toHaveProperty(key);
+    expect(payload.claudeSessionId).toBeTruthy();
+    expect(payload.claudeSessionId).not.toBe(sessionOfFleet().claudeSessionId);
+    const fleet = scene.find((e) => e.id === "fleet")!;
+    expect(center.x).toBeGreaterThan(fleet.x + fleet.width);
+    // Its brief names the Fleet, which its report goes back to.
+    await vi.waitFor(() => expect(ptySendText).toHaveBeenCalled());
+    expect(vi.mocked(ptySendText).mock.calls[0][1]).toContain("[dummyPlane · sub-agent of Fleet] Find where the router is tested");
+  });
+
+  it("draws a spawn wire from the Fleet to its sub-agent, then lays the tree out", async () => {
+    await addFleet();
+    await spawnAgent("fleet", { task: "Do it" });
+    const wire = scene.find((e) => e.type === "arrow")!;
+    expect(isSpawnWire(wire)).toBe(true);
+    expect(wire).toMatchObject({ startBinding: { elementId: "fleet" }, endBinding: { elementId: "child1" } });
+    expect(reflowSpawnTree).toHaveBeenCalledWith("w1", "child1");
+  });
+
+  it("gives its sub-agent what a team agent of its night gets, and nothing by day or once the mission is finished", async () => {
+    await addFleet(night("plan"));
+    await spawnAgent("fleet", { task: "Check the tickets' repo" });
+    expect(vi.mocked(addTerminal).mock.calls[0][1].permission).toBe("work");
+
+    nodesStore.getState().update("fleet", { mission: night("en_cours") });
+    await spawnAgent("fleet", { task: "Run the tests" });
+    expect(vi.mocked(addTerminal).mock.calls[1][1].permission).toBe("work");
+
+    // Finished: its session may still hold the night until the mission is cleaned up; the sub-agent does not.
+    nodesStore.getState().update("fleet", { mission: night("terminee") });
+    await spawnAgent("fleet", { task: "Sum it up" });
+    expect(vi.mocked(addTerminal).mock.calls[2][1]).not.toHaveProperty("permission");
+
+    nodesStore.getState().update("fleet", { mission: { ...NEW_MISSION, state: "en_cours" } });
+    await spawnAgent("fleet", { task: "Look it up" });
+    expect(vi.mocked(addTerminal).mock.calls[3][1]).not.toHaveProperty("permission");
+  });
+
+  it("runs a Codex Fleet's sub-agent on Codex, like its team", async () => {
+    await addFleet(undefined, "codex");
+    await spawnAgent("fleet", { task: "Do it" });
+    expect(vi.mocked(addTerminal).mock.calls[0][1]).toMatchObject({ agent: "codex", spawnedBy: "fleet" });
+  });
+
+  it("counts a Fleet as a top agent: its sub-agents go 3 levels below it", async () => {
+    await addFleet();
+    await spawnAgent("fleet", { task: "Level 1" });
+    await spawnAgent("child1", { task: "Level 2" });
+    expect((await spawnAgent("child2", { task: "Level 3" })).error).toBeUndefined();
+    expect((await spawnAgent("child3", { task: "Level 4" })).error).toBe(true);
+  });
+
+  it("refuses a Fleet without its session", async () => {
+    await nodesStore.getState().create("bare", { workspaceId: "w1", kind: "fleet", payload: { name: "Bare" } });
+    scene.push({ ...createNodeElement("fleet", { x: 0, y: 0 }), id: "bare" } as unknown as ExcalidrawElement);
+    expect(await spawnAgent("bare", { task: "Do it" })).toEqual({ text: expect.stringContaining("no longer on the canvas"), error: true });
+  });
+});
+
+function sessionOfFleet(): TerminalPayload {
+  const record = nodesStore.getState().nodes.fleet;
+  if (record?.kind !== "fleet" || !record.payload.session) throw new Error("no fleet session");
+  return record.payload.session;
+}

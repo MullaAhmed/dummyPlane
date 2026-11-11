@@ -78,9 +78,9 @@ export function isWire(element: ExcalidrawElement): boolean {
 }
 
 /**
- * A wire from an agent to the sub-agent it opened with spawn_agent, its start
- * bound to the parent: no fleet at either end, and the upkeep keeps the
- * mark through an orphaning and its undo.
+ * A wire from an agent, or a Fleet, to the sub-agent it opened with
+ * spawn_agent, its start bound to the parent: never a fleet's link to its team
+ * (`fleetTargets`), and the upkeep keeps the mark through an orphaning and its undo.
  */
 export function isSpawnWire(element: ExcalidrawElement): boolean {
   const data = element.customData?.dummyplane as { kind?: unknown; spawn?: unknown } | undefined;
@@ -104,13 +104,14 @@ function otherEnd(arrow: ExcalidrawElement, fleetId: string): string | null {
 
 /**
  * The groups and terminals wired to a fleet, from the arrows of the
- * scene: deleting an arrow or its target cuts the link (spec §13).
+ * scene: deleting an arrow or its target cuts the link (spec §13). Not its
+ * spawn wires: a sub-agent it opened with spawn_agent is not on its team.
  */
 export function fleetTargets(elements: readonly ExcalidrawElement[], fleetId: string): Links {
   const byId = new Map(elements.map((e) => [e.id, e]));
   const links: Links = { groupIds: [], nodeIds: [] };
   for (const element of elements) {
-    if (element.isDeleted) continue;
+    if (element.isDeleted || isSpawnWire(element)) continue;
     const otherId = otherEnd(element, fleetId);
     const other = otherId ? byId.get(otherId) : undefined;
     if (!isWireTarget(other)) continue;
@@ -376,6 +377,8 @@ export function withWire(
   if (!fleet || !target) return [...elements];
   const links = fleetTargets(elements, fleetId);
   if (links.groupIds.includes(targetId) || links.nodeIds.includes(targetId)) return [...elements];
+  // `fleetTargets` leaves spawn wires out: one is not drawn twice.
+  if (spawn && elements.some((e) => !e.isDeleted && isSpawnWire(e) && otherEnd(e, fleetId) === targetId)) return [...elements];
   return addWire(elements, fleet, target, palette, spawn);
 }
 
@@ -446,13 +449,14 @@ const pairOf = (a: string, b: string) => (a < b ? `${a} ${b}` : `${b} ${a}`);
 /**
  * The spawn wires the scene lacks. A spawn wire shows a fact the nodes keep
  * (the child's `spawnedBy`), so each live terminal whose spawner is a live
- * terminal of the same scene has one, unless a live arrow bound to both already
- * joins them, either way round: a "+ Link" is enough, and `withWire` would not
- * add a second. A closed spawner, or one in another workspace, gets none: the
- * child hangs from its nearest live ancestor without a wire.
+ * terminal or Fleet of the same scene has one, unless a live arrow bound to both
+ * already joins them, either way round: a "+ Link" is enough, and `withWire`
+ * would not add a second. A closed spawner, or one in another workspace, gets
+ * none: the child hangs from its nearest live ancestor without a wire.
  */
 export function missingSpawnWires(elements: readonly ExcalidrawElement[], spawnerOf: SpawnerOf): MissingSpawnWire[] {
   const terminals = new Set(elements.filter(isLiveTerminal).map((e) => e.id));
+  const spawners = new Set([...terminals, ...elements.filter((e) => !e.isDeleted && nodeKindOf(e) === "fleet").map((e) => e.id)]);
   const joined = new Set<string>();
   for (const element of elements) {
     if (element.isDeleted || element.type !== "arrow") continue;
@@ -462,7 +466,7 @@ export function missingSpawnWires(elements: readonly ExcalidrawElement[], spawne
   const missing: MissingSpawnWire[] = [];
   for (const childId of terminals) {
     const parentId = spawnerOf(childId);
-    if (!parentId || parentId === childId || !terminals.has(parentId) || joined.has(pairOf(parentId, childId))) continue;
+    if (!parentId || parentId === childId || !spawners.has(parentId) || joined.has(pairOf(parentId, childId))) continue;
     missing.push({ parentId, childId });
   }
   return missing;

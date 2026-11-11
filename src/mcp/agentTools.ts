@@ -9,7 +9,7 @@ import { isFleetClosed, memberOf, missionOf, updateMember } from "@/mission/stor
 import { spawnAgent } from "@/agents/spawn";
 import { markReported, MAX_SPAWN_DEPTH, spawnedByOf } from "@/agents/spawnFamily";
 import { onAgentReported } from "@/nodes/terminal/minimize";
-import { nodeNameOf, nodesStore, terminalOf } from "@/store/nodes";
+import { nodeNameOf, nodesStore, sessionOf, terminalOf } from "@/store/nodes";
 import { isRunning } from "@/store/terminalStatus";
 import { splitGenerated } from "@/openui/detect";
 import { agentMessages } from "./messages";
@@ -57,24 +57,30 @@ export function agentTools() {
         required: ["summary", "status"],
       },
     },
-    {
-      name: "spawn_agent",
-      description: d.spawnAgent(MAX_SPAWN_DEPTH),
-      inputSchema: {
-        type: "object",
-        properties: {
-          task: { type: "string", description: d.spawnTask },
-          title: { type: "string", maxLength: 60, description: d.spawnTitle },
-          model: { type: "string", description: d.spawnModel },
-        },
-        required: ["task"],
-      },
-    },
+    spawnAgentSpec(),
   ];
 }
 
-/** Internal names of the agents' tools (`./protocol.ts`), linked agents' (`./linkTools.ts`) and outputs' (`./nodeTools.ts`) included. */
-export const AGENT_ONLY = new Set(["declarer_etapes", "etape", "rendre_compte", "spawn_agent", "linked_agents", "message_agent", "read_agent", "show_output"]);
+/** spawn_agent: an agent's, or a Fleet's (`fleet`), told it is for ad-hoc work beside its mission's queue. */
+export function spawnAgentSpec(fleet = false) {
+  const d = t().tools;
+  return {
+    name: "spawn_agent",
+    description: (fleet ? d.fleetSpawnAgent : d.spawnAgent)(MAX_SPAWN_DEPTH),
+    inputSchema: {
+      type: "object",
+      properties: {
+        task: { type: "string", description: d.spawnTask },
+        title: { type: "string", maxLength: 60, description: d.spawnTitle },
+        model: { type: "string", description: d.spawnModel },
+      },
+      required: ["task"],
+    },
+  };
+}
+
+/** Internal names of the agents' tools (`./protocol.ts`), linked agents' (`./linkTools.ts`) and outputs' (`./nodeTools.ts`) included; spawn_agent is a Fleet's too. */
+export const AGENT_ONLY = new Set(["declarer_etapes", "etape", "rendre_compte", "linked_agents", "message_agent", "read_agent", "show_output"]);
 
 /** Who hears an agent's news over a wire: its mission's fleet, else the agent that spawned it. */
 const listenerOf = (nodeId: string) => memberOf(nodeId)?.fleetId ?? spawnedByOf(nodeId);
@@ -106,9 +112,9 @@ export async function spawnAgentTool(nodeId: string, args: Record<string, unknow
 }
 
 /**
- * A spawned agent's report, typed into the agent that spawned it as a mission
- * report is into its fleet: queued while that one is busy. Null when
- * nobody spawned it.
+ * A spawned agent's report, typed into the agent or the Fleet that spawned it
+ * as a mission report is into its fleet: queued while that one is busy. Null
+ * when nobody spawned it.
  */
 function reportToParent(nodeId: string, summary: string, status: ReportStatus): ToolResult | null {
   const parentId = spawnedByOf(nodeId);
@@ -118,7 +124,7 @@ function reportToParent(nodeId: string, summary: string, status: ReportStatus): 
   // Its task is done: it no longer counts against the sub-agents at work.
   markReported(nodeId);
   signalWire(nodeId, "toFleet", parentId);
-  if (!terminalOf(nodes[parentId]) || !isRunning(parentId)) return said(t().agent.unheardParent);
+  if (!sessionOf(nodes[parentId]) || !isRunning(parentId)) return said(t().agent.unheardParent);
   notify(parentId, t().agent.reported(name, outReport(status), oneLine(summary)));
   return said(t().agent.sentToParent(nodeNameOf(nodes[parentId]) || "your parent agent"));
 }

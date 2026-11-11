@@ -7,12 +7,13 @@ import { ptySendText, ptyWrite } from "@/ipc/pty";
 import { agentMessages } from "@/mcp/messages";
 import { notify } from "@/mission/events";
 import { oneLine } from "@/mission/mission";
+import { missionFolder } from "@/mission/folder";
 import { whenReady } from "@/mission/ready";
 import { workspaceCanvas } from "@/mission/store";
 import { newTerminalPayload } from "@/nodes/terminal/launch";
 import { freshText, quietFor } from "@/nodes/terminal/registry";
 import { MAX_STORED_TASK, type TerminalPayload } from "@/nodes/types";
-import { nodesStore, terminalOf } from "@/store/nodes";
+import { nodesStore, terminalOf, type NodeRecord } from "@/store/nodes";
 import { isRunning } from "@/store/terminalStatus";
 import { quietly } from "./arrivals";
 import { NODE_GAP } from "./groupLayout";
@@ -25,10 +26,10 @@ import { addTerminal } from "./terminals";
 import { withWire } from "./wires";
 
 /**
- * spawn_agent: an agent delegates a task to a sub-agent that opens as a real
- * Claude terminal beside it, in its folder, the user free to type into it like
- * into any other (Claude's built-in sub-agents run inside their parent and
- * cannot be). The sub-agent's report is typed back into its parent.
+ * spawn_agent: an agent, or a Fleet, delegates a task to a sub-agent that
+ * opens as a real terminal beside it, in its folder, the user free to type into
+ * it like into any other (Claude's built-in sub-agents run inside their parent
+ * and cannot be). The sub-agent's report is typed back into its parent.
  */
 
 /** A title longer than this is cut. */
@@ -72,6 +73,22 @@ function titleOf(title: unknown, task: string): string {
   return clip(given || taskSummary(task) || oneLine(task), MAX_TITLE);
 }
 
+/**
+ * What a sub-agent takes after: an agent's own terminal; for a Fleet, its
+ * session on the Fleet's workspace folder, with what a team agent of its
+ * mission gets unasked: the night's permission while one is set (none by day,
+ * nor once the mission is finished: the user's usual prompts). Never the
+ * manager's rails: the child gets no role, no Linear and the user's servers,
+ * so it edits and runs commands like any agent.
+ */
+export function spawnerOf(record: NodeRecord | undefined, nodeId: string): TerminalPayload | undefined {
+  if (record?.kind === "terminal") return record.payload;
+  if (record?.kind !== "fleet" || !record.payload.session) return undefined;
+  const { session, mission, name } = record.payload;
+  const permission = mission && mission.state !== "terminee" ? mission.permission : undefined;
+  return { ...session, name, cwd: missionFolder(nodeId) || session.cwd, permission };
+}
+
 /** The sub-agent's terminal: its parent's folder, shell, account and mission permissions, its own conversation. */
 export function childPayload(parent: TerminalPayload, parentId: string, name: string, title: string, model?: string, task?: string): TerminalPayload {
   // On its parent's CLI when that one has dummyPlane's tools (Claude, Codex), else on Claude.
@@ -91,7 +108,7 @@ async function spawnNow(parentId: string, args: SpawnArgs): Promise<SpawnResult>
   const model = typeof args.model === "string" ? args.model.trim() : "";
   if (model && !MODEL.test(model)) return refuse(t().model(model));
   const record = nodesStore.getState().nodes[parentId];
-  const parent = terminalOf(record);
+  const parent = spawnerOf(record, parentId);
   if (!record || !parent) return refuse(t().gone);
   if (spawnDepth(parentId) + 1 > MAX_SPAWN_DEPTH) return refuse(t().tooDeep(MAX_SPAWN_DEPTH));
   const max = subagentSettingsStore.getState().maxSpawned;

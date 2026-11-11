@@ -20,6 +20,12 @@ export const agentMessages = defineMessages({
         "Use it instead of the built-in Agent/Task tool, several calls to work in parallel. It returns at once: do not wait or poll. " +
         "When the sub-agent is done it calls report, and its summary is typed into your terminal as \"[dummyPlane] <name> reported (<status>): <summary>\". " +
         `A sub-agent can spawn its own, ${depth} levels below a top agent at most; the number running at once is capped by a setting.`,
+      fleetSpawnAgent: (depth: number) =>
+        "For ad-hoc work outside your mission's queue (a lookup, a check, a one-off task): a sub-agent opens as a new terminal beside you, in your workspace's folder, running your CLI. " +
+        "It is a regular agent, not a manager: it edits files and runs commands, with the user's usual permissions (overnight, what the night lets the team do). The user can watch it and type into it. " +
+        "A mission's work still goes through propose_plan or add_tasks. Use it instead of built-in sub-agents. It returns at once: do not wait or poll. " +
+        "When the sub-agent is done it calls report, and its summary is typed into your terminal as \"[dummyPlane] <name> reported (<status>): <summary>\"; it is not on your team: no merge, reassign or next_task for it. " +
+        `A sub-agent can spawn its own, ${depth} levels below you at most; the number running at once is capped by a setting.`,
       spawnTask: "The complete instructions: the sub-agent starts from nothing and knows only this.",
       spawnTitle: "A short title for its terminal.",
       spawnModel: "Optional Claude model (opus, sonnet, haiku, or a model id); by default Claude's own.",

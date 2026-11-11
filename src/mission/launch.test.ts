@@ -612,6 +612,35 @@ it("takes the mission's permission back from its agents when its fleet closes: a
   expect(permission("other")).toBe("work");
 });
 
+describe("the sub-agents a fleet opened with spawn_agent, which got its night's permission like its team", () => {
+  const terminal = (name: string, spawnedBy?: string, permission?: "work") => ({ title: name, name, agent: "claude" as const, cwd: "C:/w", shell: "default" as const, command: "", ...(spawnedBy ? { spawnedBy } : {}), ...(permission ? { permission } : {}) });
+  const permission = (id: string) => (nodesStore.getState().nodes[id]?.payload as { permission?: string }).permission;
+
+  beforeEach(async () => {
+    await setup({ state: "en_cours", overnight: true, permission: "work", project: "C:/code/proj", members: [] });
+    // Cyborg was opened by the fleet, Raven by Cyborg; Zatanna by an agent outside the fleet.
+    await nodesStore.getState().create("cyborg", { workspaceId: "w1", kind: "terminal", payload: terminal("Cyborg", "chef", "work") });
+    await nodesStore.getState().create("raven", { workspaceId: "w1", kind: "terminal", payload: terminal("Raven", "cyborg", "work") });
+    await nodesStore.getState().create("zatanna", { workspaceId: "w1", kind: "terminal", payload: terminal("Zatanna", "batman", "work") });
+  });
+
+  it("lose it when the fleet closes mid-mission: a later restart asks as usual", () => {
+    releaseTeamPermission("chef");
+    expect(permission("cyborg")).toBeUndefined();
+    expect(permission("raven")).toBeUndefined();
+    expect(permission("zatanna")).toBe("work");
+  });
+
+  it("lose it when the night ends, and stay open: they are not on the team", () => {
+    endMission("chef", "Done.");
+    expect(permission("cyborg")).toBeUndefined();
+    expect(permission("raven")).toBeUndefined();
+    expect(permission("zatanna")).toBe("work");
+    expect(removeNodes).not.toHaveBeenCalledWith(expect.arrayContaining(["cyborg"]));
+    expect(stopTerminal).not.toHaveBeenCalledWith("cyborg");
+  });
+});
+
 it("puts the fleet back on its day session once a night is cleaned up: it asks again, without Linear", async () => {
   await setup({ state: "terminee", overnight: true, budgetMin: 480, project: "C:/code/proj", slug: "auth", members: [] });
   nodesStore.getState().update("chef", { session: { ...session, permission: "edits", linear: true } });

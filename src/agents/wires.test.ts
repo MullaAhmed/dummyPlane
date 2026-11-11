@@ -612,6 +612,45 @@ describe("spawn wires (spawn_agent)", () => {
   });
 });
 
+describe("a Fleet's spawn wire (spawn_agent from a Fleet)", () => {
+  /** A sub-agent the Fleet `fleet` spawned, on its right. */
+  const kid = createNodeElement("terminal", { x: 1200, y: 0 }) as unknown as ExcalidrawElement;
+  const spawned = () => withWire([...base, kid], fleet.id, kid.id, "calm", true);
+  const wireOf = (elements: readonly ExcalidrawElement[]) => elements.find((e) => e.type === "arrow" && !e.isDeleted && isSpawnWire(e))!;
+
+  it("joins the Fleet to its sub-agent, marked as a spawn wire, and is drawn once", () => {
+    const elements = spawned();
+    const wire = wireOf(elements);
+    expect(wire).toMatchObject({ startBinding: { elementId: fleet.id }, endBinding: { elementId: kid.id } });
+    expect(wireKindOf(wire, new Map(elements.map((e) => [e.id, e])))).toBe("spawn");
+    expect(withWire(elements, fleet.id, kid.id, "calm", true)).toHaveLength(elements.length);
+    expect(orphanWires(elements)).toEqual([]);
+  });
+
+  it("does not put the sub-agent on the Fleet's team: no link, no commander", () => {
+    const elements = spawned();
+    expect(fleetTargets(elements, fleet.id)).toEqual({ groupIds: [], nodeIds: [] });
+    const links = fleetLinks(elements);
+    expect(fleetsOf(kid.id, links, framesFromScene(elements))).toEqual([]);
+    expect(unmarkedWires(elements)).toEqual([]);
+    // Linked by hand afterwards, it is on the team: a fleet wire of its own.
+    const linked = withWire(elements, fleet.id, kid.id, "calm");
+    expect(linked).toHaveLength(elements.length + 1);
+    expect(fleetTargets(linked, fleet.id).nodeIds).toEqual([kid.id]);
+  });
+
+  it("is given back by the upkeep when it is missing, as an agent's is", () => {
+    const spawnerOf = (id: string) => (id === kid.id ? fleet.id : undefined);
+    expect(missingSpawnWires([...base, kid], spawnerOf)).toEqual([{ parentId: fleet.id, childId: kid.id }]);
+    const { elements } = withSpawnWires([...base, kid], spawnerOf, "calm");
+    expect(wireOf(elements)).toMatchObject({ startBinding: { elementId: fleet.id }, endBinding: { elementId: kid.id } });
+    expect(missingSpawnWires(elements, spawnerOf)).toEqual([]);
+    // A closed Fleet gives none.
+    const closed = [...base, kid].map((e) => (e.id === fleet.id ? ({ ...e, isDeleted: true } as ExcalidrawElement) : e));
+    expect(missingSpawnWires(closed, spawnerOf)).toEqual([]);
+  });
+});
+
 describe("missing spawn wires (a spawn wire shows the child's spawnedBy)", () => {
   /** `lone` spawned `child`; `other` is nobody's. */
   const child = createNodeElement("terminal", { x: 1200, y: 900 }) as unknown as ExcalidrawElement;
