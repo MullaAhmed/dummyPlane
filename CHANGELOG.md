@@ -5,6 +5,17 @@ All notable changes to dummyPlane are documented here. The format follows [Keep 
 ## [Unreleased]
 
 ### Added
+- **Ungroup everywhere:**
+  - **The selection's ring:** its Group button turns into *Ungroup* when the selection is one group, or drawings grouped in Excalidraw.
+  - **Ctrl+Shift+G:** it ungroups the selection on the canvas, never inside a terminal.
+  - **One node out of a group:** *Remove from group* takes a single terminal or Fleet out of its group, from its ⋯ menu, its ring or the palette. It stays where it is, with its note and output, and a group left empty goes away.
+  - **Folded groups:** ungrouping one no longer leaves its terminals locked.
+- **More arcs in the right-click rings:** every ring ends with *More*, which opens a second arc fanning out beside it along the ring's curve. It opens when you rest on *More* or click it, and the arrow keys and Escape move through it. What didn't fit in a ring lives there, so nothing was dropped:
+  - **The terminal's arc:** Duplicate, Stop, Remove from group, Arrange.
+  - **The group's arc:** Ungroup, Fold, Zoom.
+  - **The canvas's arc:** Overview, Export, Import, PNG.
+  - **The selection's arc:** Lock, then Excalidraw's own menu, last.
+- **Arrange in every ring:** the group's ring arranges inside the group, the selection's ring arranges the selection, and a terminal's or Fleet's *More* arranges its group, along with the canvas ring as before.
 - **The Fleet babysits; a board and a Manager run the mission:**
   - **At the go-ahead:** dummyPlane opens a Kanban board beside the Fleet, or reuses the one the plan came from, and a **Manager** under the board, all wired. The plan's tasks become cards.
   - **The Manager:** a new read-only agent on the Fleet's CLI. It starts the team, reads their reports, merges, reassigns and moves the cards (*In progress*, *Done*, *Blocked*) by itself.
