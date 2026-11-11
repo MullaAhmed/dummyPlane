@@ -23,6 +23,11 @@ export function SpecialityMenu({ groupId, speciality, onDone }: { groupId: strin
     if (input) requestAnimationFrame(() => input.focus({ preventScroll: true }));
   }, []);
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    // An IME composing a word keeps its keys: its Enter picks a candidate, its arrows move among them.
+    if (e.nativeEvent.isComposing || e.keyCode === 229) {
+      e.stopPropagation();
+      return;
+    }
     if (e.key === "Escape" || e.key === "Tab") return;
     // The rest is text, not the menu's typeahead or its Left that closes the submenu.
     e.stopPropagation();
@@ -59,8 +64,8 @@ export function SpecialityMenu({ groupId, speciality, onDone }: { groupId: strin
           aria-label={t.groupMenu.specialityLabel}
           placeholder={t.groupMenu.specialityCustom}
           onKeyDown={onKeyDown}
-          // As wide as the menu's items, inside its 4px padding.
-          className="m-1 h-7 w-[calc(100%-0.5rem)] rounded-md border-transparent bg-dp-field px-2 text-xs md:text-xs"
+          // As wide as the menu's items, inside its 4px padding. The fill alone is no boundary (about 1.3:1): the field keeps Input's border-dp-line-strong.
+          className="m-1 h-7 w-[calc(100%-0.5rem)] rounded-md bg-dp-field px-2 text-xs md:text-xs"
         />
         <DropdownMenuSeparator />
         {ROLE_ORDER.filter((id) => id !== "general").map((id) => item(t.roles[id], t.roles[id]))}

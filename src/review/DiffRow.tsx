@@ -1,3 +1,4 @@
+import { memo } from "react";
 import type { ChangedFile } from "@/ipc/review";
 import { useMessages } from "@/i18n";
 import { cn } from "@/lib/utils";
@@ -19,6 +20,17 @@ export const FILE_STATUS: Record<ChangedFile["status"], { letter: string; tone: 
   renamed: { letter: "R", tone: "text-dp-text-2" },
 };
 
+/** What a changed file's row only shows as signs, in words: its paths, its status, a count it could not make. For the row's hint. */
+export function fileSummary(t: typeof reviewMessages, file: ChangedFile): string {
+  const paths = file.oldPath ? `${file.oldPath} → ${file.path}` : file.path;
+  return [paths, t.status[file.status], file.added === null ? t.binaryOrBig : null].filter(Boolean).join(" · ");
+}
+
+/** A changed file's status for a screen reader: the letter is for the eye, the word is read (a rename says from where). */
+export function statusWords(t: typeof reviewMessages, file: ChangedFile): string {
+  return file.oldPath ? t.renamedFrom(file.oldPath) : t.status[file.status];
+}
+
 /** The tint of an added or deleted line, and the step it takes under the pointer when it takes a remark. */
 const ROW_TONE: Partial<Record<DiffLine["kind"], { rest: string; hover: string }>> = {
   add: { rest: "bg-dp-ok/16", hover: "hover:bg-dp-ok/24" },
@@ -33,12 +45,21 @@ export function lineName(t: typeof reviewMessages, line: DiffLine): string {
   return t.lineSame(line.old, line.new, text);
 }
 
+interface DiffRowProps {
+  line: DiffLine;
+  /** Makes the line take a remark: called with it on a click (or Enter, through the grid). Without it the diff is read-only. */
+  onRemark?: (line: DiffLine) => void;
+  cell?: boolean;
+  tabbable?: boolean;
+}
+
 /**
- * One line of a diff; `onClick` makes it take a remark, without it the diff is read-only.
- * In the review's grid (`cell`) it is a gridcell, its row the caller's, and a line that takes a
- * remark is a stop of the grid's roving focus (`data-diff-cell`), named for a screen reader.
+ * One line of a diff. In the review's grid (`cell`) it is a gridcell, its row the caller's, and a
+ * line that takes a remark is a stop of the grid's roving focus (`data-diff-cell`), named for a
+ * screen reader. Memoised: a diff holds up to 4000 of them, and opening a remark field or typing
+ * in it must not draw them again (its props are the parsed line and a stable callback).
  */
-export function DiffRow({ line, onClick, cell = false, tabbable = false }: { line: DiffLine; onClick?: () => void; cell?: boolean; tabbable?: boolean }) {
+export const DiffRow = memo(function DiffRow({ line, onRemark, cell = false, tabbable = false }: DiffRowProps) {
   const t = useMessages(reviewMessages);
   if (line.kind === "hunk" || line.kind === "meta") {
     return (
@@ -48,6 +69,7 @@ export function DiffRow({ line, onClick, cell = false, tabbable = false }: { lin
     );
   }
   const tone = ROW_TONE[line.kind];
+  const onClick = onRemark ? () => onRemark(line) : undefined;
   const stop = cell && onClick !== undefined;
   return (
     <div
@@ -57,7 +79,6 @@ export function DiffRow({ line, onClick, cell = false, tabbable = false }: { lin
       tabIndex={stop ? (tabbable ? 0 : -1) : undefined}
       aria-label={cell ? lineName(t, line) : undefined}
       onClick={onClick}
-      title={onClick ? t.rowTitle : undefined}
       className={cn(
         "flex",
         tone?.rest,
@@ -73,4 +94,4 @@ export function DiffRow({ line, onClick, cell = false, tabbable = false }: { lin
       <span className="pr-3 whitespace-pre text-dp-text">{line.text}</span>
     </div>
   );
-}
+});

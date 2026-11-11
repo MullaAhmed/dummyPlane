@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -14,12 +14,16 @@ import { accountsMessages } from "./messages";
 /** A profile's actions: one size, quiet until hovered. */
 const ROW_BUTTON = "rounded-md font-normal text-dp-text-2 hover:text-dp-text";
 
+/** A field's visible name: the section label, on a native label (shadcn's Label would resize it), as in the loops dialog. */
+const LABEL = "dp-label";
+
 /** "Claude accounts" (spec comptes §6): profiles are a name and a folder; the login happens in Claude. */
 export function AccountsDialog() {
   const t = useMessages(accountsMessages);
   const { open, profiles, active } = useAccounts((s) => s);
   const [name, setName] = useState("");
   const [folder, setFolder] = useState("");
+  const id = useId();
 
   const guarded = (run: () => Promise<unknown>) => () =>
     run().catch((error: unknown) => toast.error(t.failed(error instanceof Error ? error.message : String(error))));
@@ -74,8 +78,19 @@ export function AccountsDialog() {
           }}
         >
           <p className="dp-label mb-1">{t.addTitle}</p>
-          <Input aria-label={t.nameLabel} placeholder={t.namePlaceholder} value={name} onChange={(e) => setName(e.target.value)} />
-          <Input aria-label={t.folderLabel} placeholder={t.folderPlaceholder} value={folder} onChange={(e) => setFolder(e.target.value)} className="font-mono text-xs md:text-xs" />
+          {/* A visible label over each field: the placeholder is only an example, gone once the user types. */}
+          <div className="grid gap-1.5">
+            <label htmlFor={`${id}-name`} className={LABEL}>
+              {t.nameLabel}
+            </label>
+            <Input id={`${id}-name`} placeholder={t.namePlaceholder} value={name} onChange={(e) => setName(e.target.value)} />
+          </div>
+          <div className="grid gap-1.5">
+            <label htmlFor={`${id}-folder`} className={LABEL}>
+              {t.folderLabel}
+            </label>
+            <Input id={`${id}-folder`} placeholder={t.folderPlaceholder} value={folder} onChange={(e) => setFolder(e.target.value)} className="font-mono text-xs md:text-xs" />
+          </div>
           <div className="flex justify-end">
             <AccentButton type="submit" size="sm" disabled={!name.trim() || !folder.trim()}>
               {t.add}

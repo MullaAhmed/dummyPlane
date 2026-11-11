@@ -1,4 +1,5 @@
-import type { ReactNode } from "react";
+import type { MouseEvent, ReactNode } from "react";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { messages } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { studioMessages } from "./messages";
@@ -52,17 +53,75 @@ export function safeHref(raw: string): string | null {
 }
 
 /**
- * How a caller draws a link instead of a plain `<a>`: generated text opens its
- * links through the opener, http(s) only (`@/openui/actions`). Null draws the
+ * Where the preview's relative links go: `from` is the file the Markdown is read from, and
+ * `openFile` opens a project path in the studio. Without it, relative links stay text.
+ */
+export interface MarkdownLinks {
+  from: string;
+  openFile: (path: string) => void;
+}
+
+/**
+ * A relative link of `from` as a project path: resolved against its folder (a leading `/` is the
+ * project's root), without its `#fragment` or `?query`. null for a bare anchor, or a path that
+ * climbs out of the project.
+ */
+export function resolveLink(from: string, href: string): string | null {
+  const path = href.replace(/\\/g, "/").split(/[?#]/)[0];
+  if (!path) return null;
+  let decoded = path;
+  try {
+    decoded = decodeURI(path);
+  } catch {
+    // A stray % stays as it is.
+  }
+  const parts = decoded.startsWith("/") ? [] : from.split("/").slice(0, -1);
+  for (const part of decoded.split("/")) {
+    if (part === "" || part === ".") continue;
+    if (part !== "..") parts.push(part);
+    else if (parts.pop() === undefined) return null;
+  }
+  return parts.length > 0 ? parts.join("/") : null;
+}
+
+/**
+ * A click that opens the link itself: the webview never navigates or opens a window of its own.
+ * The middle button too (auxclick), which would otherwise open a bare popup webview.
+ */
+function opener(open: () => void) {
+  const go = (event: MouseEvent) => {
+    event.preventDefault();
+    open();
+  };
+  return { onClick: go, onAuxClick: (event: MouseEvent) => event.button === 1 && go(event) };
+}
+
+/** What a link does: the web and mail through the system's opener, a relative path in the studio; null when it goes nowhere. */
+function linkAction(href: string, links: MarkdownLinks | undefined): (() => void) | null {
+  if (/^(https?|mailto):/i.test(href)) return () => void openUrl(href);
+  const path = links ? resolveLink(links.from, href) : null;
+  return path === null || !links ? null : () => links.openFile(path);
+}
+
+/**
+ * How a caller draws a link instead of the plain one: generated text opens its
+ * links through the opener, http(s) only (`@/openui/parts`). Null draws the
  * label as plain text.
  */
 export type LinkRenderer = (href: string, label: ReactNode[], key: number) => ReactNode | null;
 
-export interface MarkdownOptions {
+/**
+ * How Markdown is drawn: the studio preview's relative links (`from`,
+ * `openFile`: `MarkdownLinks`), generated text's own links (`link`), and
+ * classes merged over the block's own (`className`, a smaller size).
+ */
+export interface MarkdownOptions extends Partial<MarkdownLinks> {
   link?: LinkRenderer;
-  /** Classes for the whole block, merged over its own (a smaller size in a panel). */
   className?: string;
 }
+
+const linksOf = (options: MarkdownOptions): MarkdownLinks | undefined =>
+  options.from !== undefined && options.openFile ? { from: options.from, openFile: options.openFile } : undefined;
 
 /** Renders inline formatting: code, bold, italic, links, images (as text). */
 export function renderInline(text: string, options: MarkdownOptions = {}): ReactNode[] {
@@ -86,11 +145,12 @@ export function renderInline(text: string, options: MarkdownOptions = {}): React
       const href = safeHref(m[5]);
       const label = renderInline(m[4], options);
       const custom = href !== null && options.link ? options.link(href, label, k) : undefined;
+      const action = href === null ? null : linkAction(href, linksOf(options));
       if (custom !== undefined) out.push(custom ?? <span key={k}>{label}</span>);
-      else if (href === null) out.push(<span key={k}>{label}</span>);
+      else if (href === null || action === null) out.push(<span key={k}>{label}</span>);
       else
         out.push(
-          <a key={k} href={href} target="_blank" rel="noreferrer noopener" className={LINK_CLASS}>
+          <a key={k} href={href} target="_blank" rel="noreferrer noopener" {...opener(action)} className={LINK_CLASS}>
             {label}
           </a>,
         );
@@ -117,9 +177,11 @@ function startsBlock(line: string, next: string | undefined): boolean {
   );
 }
 
-/** Renders a Markdown string as React nodes; `options.link` draws its links. */
+/**
+ * Renders a Markdown string as React nodes; `options.from` and `openFile` make its
+ * relative links open in the studio, `options.link` draws its links, `className` sizes it.
+ */
 export function renderMarkdown(source: string, options: MarkdownOptions = {}): ReactNode {
-  const inline = (text: string) => renderInline(text, options);
   const lines = source.replace(/\r\n?/g, "\n").split("\n");
   const blocks: ReactNode[] = [];
   let i = 0;
@@ -144,7 +206,7 @@ export function renderMarkdown(source: string, options: MarkdownOptions = {}): R
     } else if ((m = HEADING.exec(line))) {
       const level = m[1].length;
       const Tag = `h${level}` as "h1";
-      blocks.push(<Tag key={key} className={`text-dp-text ${HEADING_CLASSES[level - 1]}`}>{inline(m[2])}</Tag>);
+      blocks.push(<Tag key={key} className={`text-dp-text ${HEADING_CLASSES[level - 1]}`}>{renderInline(m[2], options)}</Tag>);
       i++;
     } else if (HR.test(line)) {
       blocks.push(<hr key={key} className="border-dp-line" />);
@@ -168,7 +230,7 @@ export function renderMarkdown(source: string, options: MarkdownOptions = {}): R
         items.push(m[1]);
         i++;
       }
-      const children = items.map((item, n) => <li key={n}>{inline(item)}</li>);
+      const children = items.map((item, n) => <li key={n}>{renderInline(item, options)}</li>);
       blocks.push(
         ordered ? (
           <ol key={key} className="list-decimal pl-5">{children}</ol>
@@ -184,11 +246,11 @@ export function renderMarkdown(source: string, options: MarkdownOptions = {}): R
       blocks.push(
         <table key={key} className="border-collapse text-sm">
           <thead>
-            <tr>{head.map((c, n) => <th key={n} className="border border-dp-line px-2 py-1 text-left">{inline(c)}</th>)}</tr>
+            <tr>{head.map((c, n) => <th key={n} className="border border-dp-line px-2 py-1 text-left">{renderInline(c, options)}</th>)}</tr>
           </thead>
           <tbody>
             {rows.map((row, r) => (
-              <tr key={r}>{row.map((c, n) => <td key={n} className="border border-dp-line px-2 py-1">{inline(c)}</td>)}</tr>
+              <tr key={r}>{row.map((c, n) => <td key={n} className="border border-dp-line px-2 py-1">{renderInline(c, options)}</td>)}</tr>
             ))}
           </tbody>
         </table>,
@@ -197,7 +259,7 @@ export function renderMarkdown(source: string, options: MarkdownOptions = {}): R
       const para: string[] = [line];
       i++;
       while (i < lines.length && lines[i].trim() && !startsBlock(lines[i], lines[i + 1])) para.push(lines[i++]);
-      blocks.push(<p key={key}>{inline(para.join(" "))}</p>);
+      blocks.push(<p key={key}>{renderInline(para.join(" "), options)}</p>);
     }
   }
   return <div className={cn("flex flex-col gap-2 text-sm text-dp-text", options.className)}>{blocks}</div>;

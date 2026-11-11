@@ -74,6 +74,33 @@ export function remarkRow(lines: readonly DiffLine[], remark: Remark): number {
   return lines.findIndex((l) => onSide(l) && l.text === remark.lineText);
 }
 
+/**
+ * The row where the remark field opened on `line` is, in `lines` read again: the same line
+ * (kind, numbers and text), else the only line of that kind with that text, the line moved by
+ * lines added above it. -1 when it is gone or several lines could be it (a `}`, a blank line):
+ * the field closes rather than file the remark against another line.
+ */
+export function openRow(lines: readonly DiffLine[], line: DiffLine): number {
+  const same = lines.findIndex((l) => l.kind === line.kind && l.old === line.old && l.new === line.new && l.text === line.text);
+  if (same >= 0) return same;
+  const alike = lines.flatMap((l, i) => (l.kind === line.kind && l.text === line.text ? [i] : []));
+  return alike.length === 1 ? alike[0] : -1;
+}
+
+/**
+ * A key per row that follows the line, not its place: a refresh that adds lines above keeps
+ * each row with its own line. Hunk and meta lines have no numbers: their text, else their place.
+ */
+export function rowKeys(lines: readonly DiffLine[]): string[] {
+  const seen = new Set<string>();
+  return lines.map((line, i) => {
+    const key = line.kind === "hunk" ? `hunk:${line.text}` : line.kind === "meta" ? `meta:${i}` : `${line.kind}:${line.old ?? ""}:${line.new ?? ""}`;
+    const unique = seen.has(key) ? `${key}#${i}` : key;
+    seen.add(unique);
+    return unique;
+  });
+}
+
 /** What the agent reads: every remark, then what to do with them. */
 export function reviewMessage(remarks: readonly Remark[]): string {
   const said = messages(agentMessages).review;

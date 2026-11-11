@@ -189,6 +189,29 @@ describe("the notes (spec notes §6)", () => {
     expect(disk["Ideas"]).toBe("# Ideas\n");
   });
 
+  it("ties a refused name to its field, and gives the name up with Escape or the cross (P2-12)", async () => {
+    await click(button("New note"));
+    await type(nameField(), "a/b");
+    await pressEnter(nameField());
+    expect(nameField().getAttribute("aria-invalid")).toBe("true");
+    const reason = document.getElementById(nameField().getAttribute("aria-describedby")!)!;
+    expect(reason.textContent).toContain("This name won't do");
+    expect(reason.getAttribute("role")).toBe("alert");
+
+    const escape = new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true });
+    await act(async () => void nameField().dispatchEvent(escape));
+    expect(escape.defaultPrevented).toBe(true);
+    expect(nameField()).toBeNull();
+    expect(document.activeElement).toBe(button("New note"));
+
+    await click(button("New note"));
+    await type(nameField(), "Half");
+    await click(button("Cancel the new note"));
+    expect(nameField()).toBeNull();
+    expect(document.activeElement).toBe(button("New note"));
+    expect(writes).toEqual([]);
+  });
+
   it("opens a note instead of creating it twice", async () => {
     await click(button("New note"));
     await type(nameField(), "auth");

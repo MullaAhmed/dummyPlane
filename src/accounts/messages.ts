@@ -17,7 +17,7 @@ export const accountsMessages = defineMessages(
     nameLabel: "Name",
     namePlaceholder: "Work",
     folderLabel: "Folder",
-    folderPlaceholder: "C:\Users\me\.claude-work",
+    folderPlaceholder: "C:\\Users\\me\\.claude-work",
     add: "Add",
     failed: (error: string) => `Failed: ${error}`,
     noProject: "Open a project to place the login terminal",

@@ -3,16 +3,24 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
+import { openUrl } from "@tauri-apps/plugin-opener";
+import { undoDepth } from "@codemirror/commands";
+import { EditorView } from "@codemirror/view";
 import { insertFileNode } from "./insert";
 import { projectsStore, type Project } from "@/store/projects";
 import { CodeWorkspace } from "./CodeWorkspace";
 import { editFile, studioStore } from "./studioStore";
 
 vi.mock("./insert", () => ({ insertFileNode: vi.fn() }));
+vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: vi.fn(() => Promise.resolve()) }));
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 let calls: { cmd: string; args: Record<string, unknown> }[];
+/** What the tree reads: three entries, unless a test wants more. */
+let entries: { path: string; kind: "file" | "dir" }[];
+/** What a file reads. */
+let fileText: string;
 /** What the disk answers to a comparison. */
 let disk: string | null;
 let host: HTMLDivElement;
@@ -21,15 +29,16 @@ let root: Root;
 beforeEach(async () => {
   calls = [];
   disk = "v1";
+  entries = [
+    { path: "docs", kind: "dir" },
+    { path: "docs/guide.md", kind: "file" },
+    { path: "main.ts", kind: "file" },
+  ];
+  fileText = "# Guide\n<script>alert(1)</script>\n";
   mockIPC((cmd, args) => {
     calls.push({ cmd, args: args as Record<string, unknown> });
-    if (cmd === "studio_tree")
-      return [
-        { path: "docs", kind: "dir" },
-        { path: "docs/guide.md", kind: "file" },
-        { path: "main.ts", kind: "file" },
-      ];
-    if (cmd === "studio_read") return { text: "# Guide\n<script>alert(1)</script>\n", version: "v1" };
+    if (cmd === "studio_tree") return entries;
+    if (cmd === "studio_read") return { text: fileText, version: "v1" };
     if (cmd === "studio_version") return disk;
     if (cmd === "studio_write") return { status: "saved", version: "v2" };
     return undefined;
@@ -100,9 +109,13 @@ it("asks before closing a tab with unsaved changes", async () => {
 it("shows the project's files in a panel the bar folds, and closes the studio when it goes", async () => {
   expect(studioStore.getState().project).toBe("p1");
   await vi.waitFor(() => expect(modal().querySelector("[data-files]")).not.toBeNull());
-  await click(modal().querySelector('nav [aria-label="Hide the files"]'));
+  // One name, its state pressed or not (P2-15).
+  const toggle = () => modal().querySelector('nav [aria-label="Files"]')!;
+  expect(toggle().getAttribute("aria-pressed")).toBe("true");
+  await click(toggle());
   expect(modal().querySelector("[data-files]")).toBeNull();
-  await click(modal().querySelector('nav [aria-label="Show the files"]'));
+  expect(toggle().getAttribute("aria-pressed")).toBe("false");
+  await click(toggle());
   expect(modal().querySelector("[data-files]")).not.toBeNull();
   await act(async () => root.render(<></>));
   expect(studioStore.getState().project).toBeNull();
@@ -114,12 +127,18 @@ const opened = async () => {
   await vi.waitFor(() => expect(studioStore.getState().tabs[0]?.session.getState().version).toBe("v1"));
 };
 
-it("names its controls in the shared hint: a native title stays on the truncated names only", async () => {
+it("names its controls, its documents and its rows in the shared hint, never a native title (P2-20)", async () => {
   await opened();
   await vi.waitFor(() => expect(modal().querySelector("[data-editor]")).not.toBeNull());
-  const titled = [...modal().querySelectorAll("button[title]")].filter((b) => !["tab", "treeitem"].includes(b.getAttribute("role") ?? ""));
-  expect(titled).toEqual([]);
-  expect(modal().querySelector('[role="tab"]')?.getAttribute("title")).toBe("main.ts");
+  await act(async () => editFile("main.ts", "changed"));
+  expect(modal().querySelectorAll("button[title], [data-dirty][title]")).toHaveLength(0);
+  // A document of the strip: a button, the one shown aria-current; its unsaved dot is read as words.
+  const doc = modal().querySelector<HTMLElement>('[data-tab="main.ts"] button')!;
+  expect(doc.getAttribute("role")).toBeNull();
+  expect(doc.getAttribute("aria-current")).toBe("page");
+  expect(doc.textContent).toContain("Modified, not saved");
+  expect(modal().querySelector("[data-dirty]")!.getAttribute("aria-hidden")).toBe("true");
+  expect(modal().querySelector('[role="tab"], [role="tablist"]')).toBeNull();
 });
 
 it("answers a tab's discard bar like a dialog: Cancel, destructive, then the primary action", async () => {
@@ -171,5 +190,118 @@ it("lays the discard bar over the editor's top edge: the code under the pointer 
   expect(bar.className.split(/\s+/)).toEqual(expect.arrayContaining(["absolute", "inset-x-0", "top-full", "z-10"]));
   expect(bar.parentElement!.className.split(/\s+/)).toContain("relative");
   // Under the tab strip, outside the editor's flow.
-  expect(bar.previousElementSibling!.getAttribute("role")).toBe("tablist");
+  expect(bar.previousElementSibling!.hasAttribute("data-doc-strip")).toBe(true);
+});
+
+const items = () => [...modal().querySelectorAll<HTMLElement>('[role="treeitem"]')];
+const press = (target: Element, key: string) =>
+  act(async () => {
+    const event = new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true });
+    target.dispatchEvent(event);
+    return event;
+  });
+
+it("walks the tree from the keyboard: one tab stop, the arrows, Home and End, each row placed (P2-15)", async () => {
+  await vi.waitFor(() => expect(items()).toHaveLength(2));
+  const tree = modal().querySelector('[role="tree"]')!;
+  expect(tree.getAttribute("aria-label")).toBe("Files");
+  expect(items().map((i) => i.tabIndex)).toEqual([0, -1]);
+  expect(items().map((i) => `${i.getAttribute("aria-level")}:${i.getAttribute("aria-posinset")}/${i.getAttribute("aria-setsize")}`)).toEqual(["1:1/2", "1:2/2"]);
+
+  items()[0].focus();
+  // Right opens the folder, then goes in.
+  await press(items()[0], "ArrowRight");
+  expect(items().map((i) => i.dataset.path)).toEqual(["docs", "docs/guide.md", "main.ts"]);
+  expect(items()[0].getAttribute("aria-expanded")).toBe("true");
+  expect(document.activeElement).toBe(items()[0]);
+  await press(items()[0], "ArrowRight");
+  expect(document.activeElement).toBe(items()[1]);
+  expect(items()[1].getAttribute("aria-level")).toBe("2");
+  expect(items().map((i) => i.tabIndex)).toEqual([-1, 0, -1]);
+  // Left goes to the parent, then closes it.
+  await press(items()[1], "ArrowLeft");
+  expect(document.activeElement).toBe(items()[0]);
+  await press(items()[0], "ArrowLeft");
+  expect(items()).toHaveLength(2);
+  expect(items()[0].getAttribute("aria-expanded")).toBe("false");
+  const end = await press(items()[0], "End");
+  expect(end.defaultPrevented).toBe(true);
+  expect(document.activeElement).toBe(items()[1]);
+  await press(items()[1], "ArrowDown");
+  expect(document.activeElement).toBe(items()[1]);
+  await press(items()[1], "Home");
+  expect(document.activeElement).toBe(items()[0]);
+  // Enter is the row's own click: a file opens.
+  await click(items()[1]);
+  await vi.waitFor(() => expect(studioStore.getState().active).toBe("main.ts"));
+});
+
+it("says when the tree stops at its 2000 rows (P2-52)", async () => {
+  await act(async () => root.unmount());
+  entries = Array.from({ length: 2001 }, (_, i) => ({ path: `f${String(i).padStart(4, "0")}.ts`, kind: "file" as const }));
+  root = createRoot(host);
+  await act(async () => root.render(<CodeWorkspace />));
+  await vi.waitFor(() => expect(items()).toHaveLength(2000));
+  expect(modal().querySelector("[data-files]")!.textContent).toContain("Only the first 2000 rows are shown: filter to narrow down");
+});
+
+it("keeps the editor and its undo history through a look at the preview (P2-49)", async () => {
+  await vi.waitFor(() => expect(modal().querySelector('[data-path="docs"]')).not.toBeNull());
+  await click(modal().querySelector('[data-path="docs"]'));
+  await click(modal().querySelector('[data-path="docs/guide.md"]'));
+  await vi.waitFor(() => expect(modal().querySelector('[data-editor="docs/guide.md"]')).not.toBeNull());
+  const editor = modal().querySelector('[data-editor="docs/guide.md"]');
+  const view = EditorView.findFromDOM(modal().querySelector<HTMLElement>(".cm-editor")!)!;
+  await act(async () => view.dispatch({ changes: { from: view.state.doc.length, insert: "typed" } }));
+  await click([...modal().querySelectorAll("button")].find((b) => b.textContent === "Preview")!);
+  expect(modal().querySelector("[data-preview]")).not.toBeNull();
+  // Hidden under the preview, not destroyed.
+  expect(modal().querySelector('[data-editor="docs/guide.md"]')).toBe(editor);
+  expect(editor!.parentElement!.className.split(/\s+/)).toContain("hidden");
+  await click([...modal().querySelectorAll("button")].find((b) => b.textContent === "Code")!);
+  expect(modal().querySelector('[data-editor="docs/guide.md"]')).toBe(editor);
+  expect(EditorView.findFromDOM(modal().querySelector<HTMLElement>(".cm-editor")!)).toBe(view);
+  expect(undoDepth(view.state)).toBe(1);
+});
+
+it("opens the preview's links: the web through the system, a relative path in the studio (P2-51)", async () => {
+  fileText = "[site](https://x.dev) [main](../main.ts#top) [here](#top)\n";
+  await vi.waitFor(() => expect(modal().querySelector('[data-path="docs"]')).not.toBeNull());
+  await click(modal().querySelector('[data-path="docs"]'));
+  await click(modal().querySelector('[data-path="docs/guide.md"]'));
+  await vi.waitFor(() => expect(studioStore.getState().tabs[0]?.session.getState().version).toBe("v1"));
+  await click([...modal().querySelectorAll("button")].find((b) => b.textContent === "Preview")!);
+  const link = (text: string) => [...modal().querySelectorAll<HTMLElement>("[data-preview] a")].find((a) => a.textContent === text);
+  const web = new MouseEvent("click", { bubbles: true, cancelable: true });
+  await act(async () => void link("site")!.dispatchEvent(web));
+  expect(web.defaultPrevented).toBe(true);
+  expect(openUrl).toHaveBeenCalledWith("https://x.dev");
+  // A bare anchor goes nowhere here: it stays text.
+  expect(link("here")).toBeUndefined();
+  await click(link("main")!);
+  await vi.waitFor(() => expect(studioStore.getState().active).toBe("main.ts"));
+});
+
+it("shows a row's path in the app's hint when its long name is cut, and spares a short one the hint (P2-20, P2-59)", async () => {
+  await act(async () => root.unmount());
+  entries = [
+    { path: "a-very-long-file-name-that-the-panel-cannot-hold.ts", kind: "file" },
+    { path: "main.ts", kind: "file" },
+    // Wide glyphs: 18 characters, but a full em each.
+    { path: "設計書と仕様書の最新版ドラフト.md", kind: "file" },
+  ];
+  root = createRoot(host);
+  await act(async () => root.render(<CodeWorkspace />));
+  await vi.waitFor(() => expect(items()).toHaveLength(3));
+  const long = items().find((i) => i.dataset.path?.startsWith("a-very"))!;
+  const short = items().find((i) => i.dataset.path === "main.ts")!;
+  const wide = items().find((i) => i.dataset.path?.endsWith(".md"))!;
+  expect(short.getAttribute("data-slot")).toBeNull();
+  expect(long.getAttribute("data-slot")).toBe("tooltip-trigger");
+  expect(wide.getAttribute("data-slot")).toBe("tooltip-trigger");
+  const name = long.querySelector(".truncate")!;
+  Object.defineProperty(name, "scrollWidth", { configurable: true, value: 400 });
+  Object.defineProperty(name, "clientWidth", { configurable: true, value: 180 });
+  await act(async () => long.focus());
+  expect(document.querySelector('[data-slot="tooltip-content"]')?.textContent).toContain("a-very-long-file-name-that-the-panel-cannot-hold.ts");
 });

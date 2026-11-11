@@ -52,6 +52,11 @@ describe("visibleRows", () => {
     expect(names(visibleRows(tree, new Set(["src"])))).toEqual(["docs", "src", "  lib", "  a.ts", "  b.ts", "README.md"]);
   });
 
+  it("places each row among its siblings, for a screen reader's level, size and position (P2-15)", () => {
+    const rows = visibleRows(tree, new Set(["src"]));
+    expect(rows.map((r) => `${r.node.name}:${r.depth + 1}:${r.position}/${r.size}`)).toEqual(["docs:1:1/3", "src:1:2/3", "lib:2:1/3", "a.ts:2:2/3", "b.ts:2:3/3", "README.md:1:3/3"]);
+  });
+
   it("while filtering, keeps the matches with their folders, all open", () => {
     expect(names(visibleRows(tree, new Set(), "UTIL"))).toEqual(["src", "  lib", "    util.ts"]);
     expect(visibleRows(tree, new Set(), "nothing")).toEqual([]);

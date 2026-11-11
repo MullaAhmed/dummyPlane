@@ -93,3 +93,24 @@ it("keeps free text on Enter; the menu does not take the keys typed in it", asyn
   await act(async () => field().dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
   expect(setGroupSpeciality).toHaveBeenCalledWith("g1", "Base de données");
 });
+
+it("lets an IME finish its word: the Enter that picks a candidate keeps nothing yet (P2-53)", async () => {
+  await open("API");
+  field().value = "日本";
+  const composing = new KeyboardEvent("keydown", { key: "Enter", bubbles: true, isComposing: true });
+  const stopped = vi.spyOn(composing, "stopPropagation");
+  await act(async () => field().dispatchEvent(composing));
+  // The old IME path: the webview's keyCode 229, without isComposing.
+  await act(async () => field().dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", keyCode: 229, bubbles: true } as KeyboardEventInit)));
+  expect(setGroupSpeciality).not.toHaveBeenCalled();
+  expect(stopped).toHaveBeenCalled();
+  await act(async () => field().dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+  expect(setGroupSpeciality).toHaveBeenCalledWith("g1", "日本");
+});
+
+it("draws the field's boundary, not only its fill (P2-24)", async () => {
+  await open();
+  // Input's control boundary, the shared token (3:1), not a fill alone.
+  expect(field().className.split(/\s+/)).not.toContain("border-transparent");
+  expect(field().className.split(/\s+/)).toContain("border-dp-line-strong");
+});

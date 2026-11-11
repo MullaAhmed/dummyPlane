@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { GitBranch, RotateCw, Undo2, X } from "lucide-react";
 import { toast } from "sonner";
 import { PanelTabs, PanelTabsContent, PanelTabsList, PanelTabsTrigger } from "@/components/PanelTabs";
@@ -10,8 +10,9 @@ import { useMessages } from "@/i18n";
 import { repoCommit, repoDiscard, repoPush, repoState, type RepoState } from "@/ipc/repo";
 import type { ChangedFile } from "@/ipc/review";
 import { cn } from "@/lib/utils";
-import { FILE_STATUS } from "@/review/DiffRow";
+import { FILE_STATUS, fileSummary, statusWords } from "@/review/DiffRow";
 import { reviewMessages } from "@/review/messages";
+import { CutHint, PathTail } from "@/review/PathTail";
 import { useReview } from "@/review/reviewStore";
 import { AccentButton, Hint, IconButton, QuietButton } from "@/shell/buttons";
 import { BOTTOM_BAR_HEIGHT, TOP_ROW_HEIGHT } from "@/shell/layout";
@@ -202,14 +203,53 @@ function ChangesTab(props: {
   const [message, setMessage] = useState("");
   const [committing, setCommitting] = useState(false);
   const [asking, setAsking] = useState<ChangedFile | null>(null);
+  // The list is one tab stop (P2-16): the row that has it, moved by the arrows.
+  const [stop, setStop] = useState<string | null>(null);
+  const list = useRef<HTMLUListElement>(null);
+  const keysHint = useId();
+  // After a discard, the row that takes the keyboard once the list is read again: the file's own when it is
+  // still there (the discard failed), else the next one, else the one before.
+  const afterDiscard = useRef<{ discarded: string; next: string | null } | null>(null);
 
   const chosen = files.filter((file) => !left.has(file.path));
   const selected = files.find((file) => file.path === selectedPath) ?? files[0] ?? null;
+  const stopPath = files.some((file) => file.path === stop) ? stop : (selected?.path ?? null);
+
+  const focusRow = (index: number) => {
+    const row = list.current?.querySelectorAll<HTMLButtonElement>("button[data-git-row]")[index];
+    if (!row) return;
+    setStop(files[index].path);
+    row.focus();
+  };
 
   // A file gone from the list takes its question with it, or the dialog would come back with the file.
   useEffect(() => {
     setAsking((current) => (current && files.some((file) => file.path === current.path) ? current : null));
+    const wanted = afterDiscard.current;
+    if (!wanted) return;
+    afterDiscard.current = null;
+    const path = files.some((file) => file.path === wanted.discarded) ? wanted.discarded : wanted.next;
+    const index = path === null ? -1 : files.findIndex((file) => file.path === path);
+    // The discarded row is gone: its focus would fall to the page. An empty list leaves the tab's own name.
+    if (index >= 0) focusRow(index);
+    else document.querySelector<HTMLElement>('[data-git-window] [role="tab"][data-state="active"]')?.focus();
   }, [files]);
+
+  /** The list's keys, on a row: the arrows, Home and End move; Space includes; Delete asks to discard; Enter is the row's click. */
+  const onRowKey = (e: ReactKeyboardEvent<HTMLButtonElement>, index: number) => {
+    const to = ({ ArrowDown: index + 1, ArrowUp: index - 1, Home: 0, End: files.length - 1 } as Record<string, number>)[e.key];
+    if (to !== undefined) {
+      e.preventDefault();
+      focusRow(Math.max(0, Math.min(to, files.length - 1)));
+    } else if (e.key === " ") {
+      // Not the button's own click, which would show the diff.
+      e.preventDefault();
+      toggle(files[index]);
+    } else if (e.key === "Delete") {
+      e.preventDefault();
+      setAsking(files[index]);
+    }
+  };
 
   const toggle = (file: ChangedFile) =>
     setLeft((current) => {
@@ -235,6 +275,8 @@ function ChangesTab(props: {
 
   // The only way to `repoDiscard`: the dialog's button (spec fenêtre git §2.1).
   const discard = async (file: ChangedFile) => {
+    const at = files.findIndex((other) => other.path === file.path);
+    afterDiscard.current = { discarded: file.path, next: files[at + 1]?.path ?? files[at - 1]?.path ?? null };
     setAsking(null);
     onFailure(null);
     await repoDiscard(path, file, stamps[file.path] ?? "").catch((failed: unknown) => onFailure(errorText(failed)));
@@ -254,9 +296,12 @@ function ChangesTab(props: {
           />
           {t.includeAll}
         </label>
-        <ul className="min-h-0 flex-1 overflow-y-auto py-1">
+        <span id={keysHint} className="sr-only">
+          {t.keys}
+        </span>
+        <ul ref={list} className="min-h-0 flex-1 overflow-y-auto py-1">
           {cut && <li className="px-3 py-1 text-xs text-dp-text-3">{words.listCut(files.length)}</li>}
-          {files.map((file) => {
+          {files.map((file, index) => {
             const status = FILE_STATUS[file.status];
             const current = selected?.path === file.path;
             // On the selection's tint, danger steps toward the ink to keep 4.5:1 (tokens.css): the − count, and a deleted file's D.
@@ -271,30 +316,41 @@ function ChangesTab(props: {
                   current && "bg-dp-accent-soft text-dp-text hover:bg-dp-accent-soft dp-on-soft",
                 )}
               >
-                <Checkbox aria-label={t.include(file.path)} checked={!left.has(file.path)} onCheckedChange={() => toggle(file)} className={ROW_CHECK} />
-                {/* A row of the list, not a control: the row itself carries hover and selection. */}
-                <button
-                  type="button"
-                  title={`${file.oldPath ? `${file.oldPath} → ` : ""}${file.path} · ${words.status[file.status]}`}
-                  aria-current={current}
-                  onClick={() => setSelectedPath(file.path)}
-                  className="flex h-full min-w-0 flex-1 items-center gap-2 rounded-sm text-left focus-visible:ring-2 focus-visible:ring-dp-accent/70 focus-visible:outline-none"
-                >
-                  <span className={cn("w-3 shrink-0 font-mono font-medium", tone)}>{status.letter}</span>
-                  <span className="min-w-0 flex-1 truncate" style={{ direction: "rtl", textAlign: "left" }}>
-                    {file.path}
-                  </span>
-                  {file.added === null ? (
-                    <span className="shrink-0 text-dp-text-3" title={words.binaryOrBig}>
-                      —
+                {/* The box and the discard stay for the pointer; the keyboard reaches both from the row (Space, Delete). */}
+                <Checkbox tabIndex={-1} aria-label={t.include(file.path)} checked={!left.has(file.path)} onCheckedChange={() => toggle(file)} className={ROW_CHECK} />
+                {/* A row of the list, not a control: the row itself carries hover and selection. Its hint says what its signs and a cut path hide. */}
+                <CutHint label={fileSummary(words, file)} always={file.oldPath !== null || file.added === null}>
+                  <button
+                    type="button"
+                    data-git-row
+                    tabIndex={file.path === stopPath ? 0 : -1}
+                    aria-current={current}
+                    aria-describedby={keysHint}
+                    onClick={() => setSelectedPath(file.path)}
+                    onFocus={() => setStop(file.path)}
+                    onKeyDown={(e) => onRowKey(e, index)}
+                    onKeyUp={(e) => e.key === " " && e.preventDefault()}
+                    className="flex h-full min-w-0 flex-1 items-center gap-2 rounded-sm text-left focus-visible:ring-2 focus-visible:ring-dp-accent/70 focus-visible:outline-none"
+                  >
+                    <span aria-hidden className={cn("w-3 shrink-0 font-mono font-medium", tone)}>
+                      {status.letter}
                     </span>
-                  ) : (
-                    <span className="shrink-0 font-mono tabular-nums">
-                      <span className="text-dp-ok">+{file.added}</span> <span className={danger}>−{file.removed}</span>
-                    </span>
-                  )}
-                </button>
-                <IconButton label={t.discard(file.path)} onClick={() => setAsking(file)}>
+                    <span className="sr-only">{statusWords(words, file)}</span>
+                    <PathTail path={file.path} />
+                    {left.has(file.path) && <span className="sr-only">{t.leftOut}</span>}
+                    {file.added === null ? (
+                      <span className="shrink-0 text-dp-text-3">
+                        <span aria-hidden>—</span>
+                        <span className="sr-only">{words.binaryOrBig}</span>
+                      </span>
+                    ) : (
+                      <span className="shrink-0 font-mono tabular-nums">
+                        <span className="text-dp-ok">+{file.added}</span> <span className={danger}>−{file.removed}</span>
+                      </span>
+                    )}
+                  </button>
+                </CutHint>
+                <IconButton tabIndex={-1} label={t.discard(file.path)} onClick={() => setAsking(file)}>
                   <Undo2 />
                 </IconButton>
               </li>

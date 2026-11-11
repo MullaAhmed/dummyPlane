@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type MutableRefObject, type ReactNode } from "react";
 import { FileDiff, RotateCw, X } from "lucide-react";
 import { toast } from "sonner";
 import { PanelTabs, PanelTabsContent, PanelTabsList, PanelTabsTrigger, PanelToggleItem } from "@/components/PanelTabs";
@@ -13,8 +13,9 @@ import { BOTTOM_BAR_HEIGHT, TOP_ROW_HEIGHT } from "@/shell/layout";
 import { messages, useMessages } from "@/i18n";
 import { AccentButton, IconButton } from "@/shell/buttons";
 import { sessionOf, useNodes } from "@/store/nodes";
-import { DiffRow, FILE_STATUS, MAX_LINES } from "./DiffRow";
-import { missionBranchFor, parseDiff, remarkRow, reviewMessage, type DiffLine, type Remark } from "./review";
+import { DiffRow, FILE_STATUS, fileSummary, MAX_LINES, statusWords } from "./DiffRow";
+import { CutHint, PathTail } from "./PathTail";
+import { missionBranchFor, openRow, parseDiff, remarkRow, reviewMessage, rowKeys, type DiffLine, type Remark } from "./review";
 import { reviewMessages } from "./messages";
 import { reviewStore, useReview } from "./reviewStore";
 
@@ -173,30 +174,28 @@ function ChangesTab({ cwd, base, refresh }: { cwd: string; base: string | null; 
           const current = selected?.path === file.path;
           return (
             <li key={file.path}>
-              {/* A row of the list, not a control: Button's centred box would be undone class by class. */}
-              <button
-                type="button"
-                title={`${file.oldPath ? `${file.oldPath} → ` : ""}${file.path} · ${t.status[file.status]}`}
-                aria-current={current}
-                onClick={() => setSelected(file)}
-                className={cn(ROW, current && ROW_ON)}
-              >
-                {/* On the accent's tint of the file being read, the letter and the counts lift to text-2: danger and text-3 fall under 4.5:1 there (P1-14). */}
-                <span className={cn("w-3 shrink-0 font-mono font-medium", current ? "text-dp-text-2" : status.tone)}>{status.letter}</span>
-                <span className="min-w-0 flex-1 truncate" style={{ direction: "rtl", textAlign: "left" }}>
-                  {file.path}
-                </span>
-                {file.added === null ? (
-                  <span className={cn("shrink-0", current ? "text-dp-text-2" : "text-dp-text-3")} title={t.binaryOrBig}>
-                    —
+              {/* A row of the list, not a control: Button's centred box would be undone class by class. Its hint says what its signs and a cut path hide. */}
+              <CutHint label={fileSummary(t, file)} always={file.oldPath !== null || file.added === null}>
+                <button type="button" aria-current={current} onClick={() => setSelected(file)} className={cn(ROW, current && ROW_ON)}>
+                  {/* On the accent's tint of the file being read, the letter and the counts lift to text-2: danger and text-3 fall under 4.5:1 there (P1-14). */}
+                  <span aria-hidden className={cn("w-3 shrink-0 font-mono font-medium", current ? "text-dp-text-2" : status.tone)}>
+                    {status.letter}
                   </span>
-                ) : (
-                  <span className="shrink-0 font-mono tabular-nums">
-                    <span className={current ? "text-dp-text-2" : "text-dp-ok"}>+{file.added}</span>{" "}
-                    <span className={current ? "text-dp-text-2" : "text-dp-danger"}>−{file.removed}</span>
-                  </span>
-                )}
-              </button>
+                  <span className="sr-only">{statusWords(t, file)}</span>
+                  <PathTail path={file.path} />
+                  {file.added === null ? (
+                    <span className={cn("shrink-0", current ? "text-dp-text-2" : "text-dp-text-3")}>
+                      <span aria-hidden>—</span>
+                      <span className="sr-only">{t.binaryOrBig}</span>
+                    </span>
+                  ) : (
+                    <span className="shrink-0 font-mono tabular-nums">
+                      <span className={current ? "text-dp-text-2" : "text-dp-ok"}>+{file.added}</span>{" "}
+                      <span className={current ? "text-dp-text-2" : "text-dp-danger"}>−{file.removed}</span>
+                    </span>
+                  )}
+                </button>
+              </CutHint>
             </li>
           );
         })}
@@ -210,9 +209,11 @@ function FileDiffView({ cwd, file, base, refresh }: { cwd: string; file: Changed
   const t = useMessages(reviewMessages);
   const [diff, setDiff] = useState<{ lines: DiffLine[]; binary: boolean } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [commenting, setCommenting] = useState<number | null>(null);
-  // The remark being typed follows the click to another line instead of being lost.
-  const [draft, setDraft] = useState("");
+  // The line the remark field is open on, by its content: a refresh that moves the line keeps the field on it (P2-48).
+  const [commenting, setCommenting] = useState<DiffLine | null>(null);
+  // The remark being typed, out of React's state: typing draws the field only, not the 4000 lines (P2-59).
+  // It follows a click to another line instead of being lost.
+  const draft = useRef("");
   const remarks = useReview((s) => s.remarks);
   const grid = useRef<HTMLDivElement>(null);
   const keysHint = useId();
@@ -223,7 +224,10 @@ function FileDiffView({ cwd, file, base, refresh }: { cwd: string; file: Changed
       (text) => {
         if (!alive) return;
         setError(null);
-        setDiff(parseDiff(text));
+        const next = parseDiff(text);
+        setDiff(next);
+        // A line gone, or no longer told apart from others, closes its field: the words typed stay for the next one.
+        setCommenting((line) => (line && openRow(next.lines.slice(0, MAX_LINES), line) >= 0 ? line : null));
       },
       (failure: unknown) => alive && setError(errorText(failure)),
     );
@@ -231,6 +235,11 @@ function FileDiffView({ cwd, file, base, refresh }: { cwd: string; file: Changed
       alive = false;
     };
   }, [cwd, file, base, refresh]);
+
+  const shown = useMemo(() => diff?.lines.slice(0, MAX_LINES) ?? [], [diff]);
+  const keys = useMemo(() => rowKeys(shown), [shown]);
+  // One callback for every line: the memoised rows are not drawn again when the field opens or moves.
+  const comment = useCallback((line: DiffLine) => setCommenting(line), []);
 
   // A refreshed diff keeps the grid but not always its lines: the tab stop stays on the line it was
   // on while that row still takes a remark, else it goes to the first; there is always exactly one.
@@ -247,10 +256,13 @@ function FileDiffView({ cwd, file, base, refresh }: { cwd: string; file: Changed
   if (!diff) return <Message>{t.readingDiff}</Message>;
   if (diff.binary) return <Message>{t.binaryNoDiff}</Message>;
   if (diff.lines.length === 0) return <Message>{t.noContentDiff}</Message>;
-  const shown = diff.lines.slice(0, MAX_LINES);
-  const here = remarks.filter((r) => r.file === file.path && r.line !== undefined);
-  const placed = here.map((r) => remarkRow(shown, r));
-  const remarkFor = (row: number) => here.filter((_, k) => placed[k] === row);
+  const placed = new Map<number, Remark[]>();
+  for (const remark of remarks) {
+    if (remark.file !== file.path || remark.line === undefined) continue;
+    const row = remarkRow(shown, remark);
+    placed.set(row, [...(placed.get(row) ?? []), remark]);
+  }
+  const fieldRow = commenting ? openRow(shown, commenting) : -1;
   const takesRemark = (line: DiffLine) => line.kind === "add" || line.kind === "ctx" || line.kind === "del";
   const firstStop = shown.findIndex(takesRemark);
   /** The line of row `i`, the grid's tab stop once the remark field it opened is closed. */
@@ -271,30 +283,29 @@ function FileDiffView({ cwd, file, base, refresh }: { cwd: string; file: Changed
         className="min-w-0 flex-1 overflow-auto font-mono text-xs leading-normal"
       >
         {shown.map((line, i) => (
-          <Fragment key={i}>
+          <Fragment key={keys[i]}>
             <div role="row" data-diff-index={i}>
-              <DiffRow cell line={line} tabbable={i === firstStop} onClick={takesRemark(line) ? () => setCommenting(i) : undefined} />
+              <DiffRow cell line={line} tabbable={i === firstStop} onRemark={takesRemark(line) ? comment : undefined} />
             </div>
             {/* The user's own words on the diff: the one thing here in the accent's tint. */}
-            {remarkFor(i).map((remark, j) => (
+            {(placed.get(i) ?? []).map((remark, j) => (
               <div key={`remark-${j}`} role="row">
                 <p role="gridcell" className="my-1 mr-3 ml-22 rounded-md bg-dp-accent-soft px-2 py-1 font-sans text-xs text-dp-text">
                   {remark.text}
                 </p>
               </div>
             ))}
-            {commenting === i && (
+            {fieldRow === i && (
               <div role="row">
                 <div role="gridcell">
                   <RemarkField
-                    value={draft}
-                    onChange={setDraft}
+                    draft={draft}
                     onDone={(text) => {
                       // Kept or cancelled, the keyboard goes back to its line, not to the page.
                       const back = cellOf(i);
                       if (back) rove(grid.current!, back);
                       setCommenting(null);
-                      setDraft("");
+                      draft.current = "";
                       if (!text) return;
                       const remark: Remark =
                         line.kind === "del"
@@ -354,8 +365,10 @@ function onGridKey(e: ReactKeyboardEvent<HTMLDivElement>) {
   rove(e.currentTarget, cells[Math.max(0, Math.min(to, cells.length - 1))]);
 }
 
-function RemarkField({ value: text, onChange: setText, onDone }: { value: string; onChange: (text: string) => void; onDone: (text: string) => void }) {
+/** The field of a remark: its words are its own state, and kept in `draft` too, so that they follow it to another line. */
+function RemarkField({ draft, onDone }: { draft: MutableRefObject<string>; onDone: (text: string) => void }) {
   const t = useMessages(reviewMessages);
+  const [text, setText] = useState(draft.current);
   return (
     <div className="ml-22 flex items-center gap-2 py-1 pr-3 font-sans">
       <Input
@@ -363,7 +376,10 @@ function RemarkField({ value: text, onChange: setText, onDone }: { value: string
         aria-label={t.remarkLabel}
         placeholder={t.remarkPlaceholder}
         value={text}
-        onChange={(e) => setText(e.target.value)}
+        onChange={(e) => {
+          setText(e.target.value);
+          draft.current = e.target.value;
+        }}
         onKeyDown={(e) => {
           if (e.key === "Enter") onDone(text.trim());
           if (e.key === "Escape") onDone("");
@@ -387,6 +403,8 @@ function FilesTab({ cwd, refresh }: { cwd: string; refresh: number }) {
     reviewFiles(cwd).then(
       (list) => {
         if (!alive) return;
+        // A read that works clears the failure of the one before (P2-47).
+        setError(null);
         setListCut(list.truncated === true);
         setFiles(list.files);
       },
@@ -414,27 +432,22 @@ function FilesTab({ cwd, refresh }: { cwd: string; refresh: number }) {
           {cut && <li className="px-3 py-1 text-xs text-dp-text-3">{t.filesCut(found.length)}</li>}
           {found.map((file) => (
             <li key={file}>
-              <button
-                type="button"
-                title={file}
-                aria-current={selected === file}
-                onClick={() => setSelected(file)}
-                className={cn(ROW, selected === file && ROW_ON)}
-              >
-                <span className="min-w-0 flex-1 truncate" style={{ direction: "rtl", textAlign: "left" }}>
-                  {file}
-                </span>
-              </button>
+              <CutHint label={file}>
+                <button type="button" aria-current={selected === file} onClick={() => setSelected(file)} className={cn(ROW, selected === file && ROW_ON)}>
+                  <PathTail path={file} />
+                </button>
+              </CutHint>
             </li>
           ))}
         </ul>
       </div>
-      {selected ? <FileView key={selected} cwd={cwd} file={selected} /> : <Message>{t.pickFile}</Message>}
+      {selected ? <FileView key={selected} cwd={cwd} file={selected} refresh={refresh} /> : <Message>{t.pickFile}</Message>}
     </div>
   );
 }
 
-function FileView({ cwd, file }: { cwd: string; file: string }) {
+/** A file of the folder, read again on Refresh: an agent may have rewritten it since (P2-47). */
+function FileView({ cwd, file, refresh }: { cwd: string; file: string; refresh: number }) {
   const t = useMessages(reviewMessages);
   const [content, setContent] = useState<FileText | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -442,13 +455,17 @@ function FileView({ cwd, file }: { cwd: string; file: string }) {
   useEffect(() => {
     let alive = true;
     reviewReadFile(cwd, file).then(
-      (read) => alive && setContent(read),
+      (read) => {
+        if (!alive) return;
+        setError(null);
+        setContent(read);
+      },
       (failure: unknown) => alive && setError(errorText(failure)),
     );
     return () => {
       alive = false;
     };
-  }, [cwd, file]);
+  }, [cwd, file, refresh]);
 
   if (error) return <Message>{error}</Message>;
   if (!content) return <Message>{t.readingFile}</Message>;

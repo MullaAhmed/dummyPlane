@@ -23,6 +23,9 @@ export const gitMessages = defineMessages(
       commit: (count: number) => `Commit (${count})`,
       committing: "Committing…",
       committed: (hash: string) => `Commit ${hash} created`,
+      // What a screen reader hears on the list's one tab stop (P2-16).
+      keys: "Up and Down move between the files, Enter shows the diff, Space includes or leaves out the file, Delete discards its changes",
+      leftOut: "left out of the commit",
     },
     discard: {
       title: "Discard these changes?",

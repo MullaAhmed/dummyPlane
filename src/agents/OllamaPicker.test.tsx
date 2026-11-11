@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { act } from "react";
+import { act, StrictMode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
@@ -118,4 +118,52 @@ it("speaks English", async () => {
   models = [];
   await act(async () => button("Try again")!.click());
   expect(button("qwen2.5-coder:7b")!.textContent).toContain("4.7 GB");
+});
+
+it("reads again on Try again, and shows the server's own words (P2-5)", async () => {
+  models = new Error("connection refused");
+  await render();
+  const alert = host.querySelector('[role="alert"]')!;
+  expect(alert.textContent).toContain("The Ollama server is not responding");
+  // The detail is on screen, not in a hover-only title.
+  expect(host.querySelector("[data-ollama-error]")!.textContent).toContain("connection refused");
+  expect(host.querySelector("[title]")).toBeNull();
+
+  let answer: (list: string[]) => void = () => undefined;
+  mockIPC((cmd) => (cmd === "list_ollama_models" ? new Promise<string[]>((done) => (answer = done)) : undefined));
+  await act(async () => button("Try again")!.click());
+  // The retry shows: the reading line is back while the server is asked again.
+  expect(host.textContent).toContain("Reading the models…");
+  expect(host.textContent).not.toContain("not responding");
+  await act(async () => answer(["llama3.2:3b"]));
+  expect(host.querySelector("[data-model]")).not.toBeNull();
+});
+
+it("keeps the latest answer when two reads cross (P2-5)", async () => {
+  const answers: ((list: string[]) => void)[] = [];
+  mockIPC((cmd) => (cmd === "list_ollama_models" ? new Promise<string[]>((done) => answers.push(done)) : undefined));
+  // Strict mode runs the first read twice: the older answer arrives last.
+  await act(async () =>
+    root.render(
+      <StrictMode>
+        <OllamaPicker aiderAvailable onBack={vi.fn()} onPick={onPick} onPull={onPull} />
+      </StrictMode>,
+    ),
+  );
+  expect(answers).toHaveLength(2);
+  await act(async () => answers[1](["new:1b"]));
+  await act(async () => answers[0](["old:1b"]));
+  expect([...host.querySelectorAll<HTMLElement>("[data-model]")].map((b) => b.dataset.model)).toEqual(["new:1b"]);
+});
+
+it("ties a refused name to the field (P2-5)", async () => {
+  await render();
+  expect(field().getAttribute("aria-invalid")).toBe("false");
+  await type("a; calc");
+  await submit();
+  expect(field().getAttribute("aria-invalid")).toBe("true");
+  const [reason, hint] = field().getAttribute("aria-describedby")!.split(" ").map((id) => document.getElementById(id)!);
+  expect(reason.textContent).toBe("This is not an Ollama model name.");
+  expect(reason.getAttribute("role")).toBe("alert");
+  expect(hint).not.toBeNull();
 });

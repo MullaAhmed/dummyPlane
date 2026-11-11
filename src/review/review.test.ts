@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { mockIPC } from "@tauri-apps/api/mocks";
 import { NEW_MISSION } from "@/mission/mission";
 import { nodesStore } from "@/store/nodes";
-import { missionBranchFor, parseDiff, reviewMessage } from "./review";
+import { missionBranchFor, openRow, parseDiff, reviewMessage, rowKeys, type DiffLine } from "./review";
 
 const DIFF = [
   "diff --git a/src/a.ts b/src/a.ts",
@@ -90,4 +90,24 @@ it("finds the row of a remark by its line text when the numbers have drifted (ba
 
 it("quotes the line in the message the agent reads (backlog 27 oct)", () => {
   expect(reviewMessage([{ file: "a.ts", line: 3, lineText: "const y = 3;", text: "why?" }])).toContain("a.ts:3 `const y = 3;` — why?");
+});
+
+describe("openRow and rowKeys (P2-48)", () => {
+  const add = (text: string, line: number): DiffLine => ({ kind: "add", text, new: line });
+  it("finds the line again where it is, moved or not, and gives up when it is gone or ambiguous", () => {
+    const line = add("const y = 3;", 2);
+    expect(openRow([add("a", 1), line], line)).toBe(1);
+    // Three lines added above: the same text, now line 5.
+    expect(openRow([add("1", 1), add("2", 2), add("3", 3), add("a", 4), add("const y = 3;", 5)], line)).toBe(4);
+    expect(openRow([add("a", 1)], line)).toBe(-1);
+    // Two lines could be it: neither is taken.
+    expect(openRow([add("const y = 3;", 1), add("const y = 3;", 3)], line)).toBe(-1);
+  });
+
+  it("keys the rows by their line, never twice the same", () => {
+    const lines = parseDiff("diff --git a/x b/x\n@@ -1,1 +1,2 @@\n same\n+new\n\\ No newline at end of file\n\\ No newline at end of file\n").lines;
+    const keys = rowKeys(lines);
+    expect(new Set(keys).size).toBe(keys.length);
+    expect(keys.slice(0, 3)).toEqual(["hunk:@@ -1,1 +1,2 @@", "ctx:1:1", "add::2"]);
+  });
 });

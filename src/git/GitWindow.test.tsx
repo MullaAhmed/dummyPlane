@@ -458,6 +458,83 @@ describe("the window", () => {
   });
 });
 
+describe("the list of changes from the keyboard (P2-16)", () => {
+  const rows = () => [...document.body.querySelectorAll<HTMLButtonElement>("button[data-git-row]")];
+  const press = (target: Element, key: string) =>
+    act(async () => {
+      const event = new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true });
+      target.dispatchEvent(event);
+      return event;
+    });
+
+  it("is one tab stop, moved by the arrows, Home and End; the box and the discard stay for the pointer", async () => {
+    repo.files = [file("src/a.ts"), file("b.txt", "untracked", [4, 0]), file("c.md")];
+    await render();
+    expect(rows().map((row) => row.tabIndex)).toEqual([0, -1, -1]);
+    expect(labelled("Include src/a.ts").tabIndex).toBe(-1);
+    expect(labelled("Discard src/a.ts").tabIndex).toBe(-1);
+    expect(document.getElementById(rows()[0].getAttribute("aria-describedby")!)!.textContent).toContain("Space includes");
+
+    rows()[0].focus();
+    const down = await press(rows()[0], "ArrowDown");
+    expect(down.defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(rows()[1]);
+    expect(rows().map((row) => row.tabIndex)).toEqual([-1, 0, -1]);
+    await press(rows()[1], "End");
+    expect(document.activeElement).toBe(rows()[2]);
+    await press(rows()[2], "ArrowDown");
+    expect(document.activeElement).toBe(rows()[2]);
+    await press(rows()[2], "Home");
+    expect(document.activeElement).toBe(rows()[0]);
+  });
+
+  it("includes with Space, shows the diff with Enter, asks to discard with Delete", async () => {
+    await render();
+    rows()[1].focus();
+    const space = await press(rows()[1], " ");
+    // Space is not the button's click: the diff shown does not change.
+    expect(space.defaultPrevented).toBe(true);
+    expect(check("Include b.txt").checked).toBe(false);
+    expect(rows()[1].textContent).toContain("left out of the commit");
+    expect(rows()[1].getAttribute("aria-current")).toBe("false");
+    await act(async () => rows()[1].click());
+    expect(rows()[1].getAttribute("aria-current")).toBe("true");
+    await press(rows()[1], "Delete");
+    expect(document.body.querySelector("[role='dialog']")!.textContent).toContain("b.txt");
+    expect(called("repo_discard")).toEqual([]);
+  });
+
+  it("gives the keyboard to the next file after a discard, and to the tab when none is left", async () => {
+    repo.files = [file("src/a.ts"), file("b.txt", "untracked", [4, 0])];
+    await render();
+    rows()[0].focus();
+    await press(rows()[0], "Delete");
+    repo = { ...repo, files: [file("b.txt", "untracked", [4, 0])] };
+    await act(async () => button("Discard this file")!.click());
+    await vi.waitFor(() => expect(rows()).toHaveLength(1));
+    expect(document.activeElement).toBe(rows()[0]);
+    expect(rows()[0].tabIndex).toBe(0);
+
+    await press(rows()[0], "Delete");
+    repo = { ...repo, files: [] };
+    await act(async () => button("Discard this file")!.click());
+    await vi.waitFor(() => expect(document.body.textContent).toContain("Nothing to commit"));
+    expect(document.activeElement?.getAttribute("role")).toBe("tab");
+  });
+});
+
+describe("the rows' paths (P2-40, P2-20)", () => {
+  it("cut a path from its start without moving its leading dot, and name the status in words, not in a native title", async () => {
+    repo.files = [file(".github/workflows/ci.yml"), { ...file("src/new.ts"), status: "renamed", oldPath: "src/old.ts" }];
+    await render();
+    const row = document.body.querySelector<HTMLElement>("[data-git-file='.github/workflows/ci.yml']")!;
+    expect(row.querySelector("[data-path-tail]")!.innerHTML).toBe("<bdi>.github/workflows/ci.yml</bdi>");
+    expect(row.querySelector("[title]")).toBeNull();
+    const renamed = document.body.querySelector<HTMLElement>("[data-git-file='src/new.ts'] button[data-git-row]")!;
+    expect(renamed.textContent).toContain("renamed from src/old.ts");
+  });
+});
+
 describe("the folder it follows", () => {
   const own = (id: string, folder: string | null) => ({ id, projectId: "p", name: id, position: 0, pantheon: null, kind: "canvas" as const, folder });
 

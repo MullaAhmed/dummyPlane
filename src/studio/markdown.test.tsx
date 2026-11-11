@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { renderMarkdown, safeHref } from "./markdown";
+import { renderMarkdown, resolveLink, safeHref } from "./markdown";
 
 /** Renders Markdown to an HTML string for assertions. */
 const html = (src: string) => renderToStaticMarkup(<>{renderMarkdown(src)}</>);
@@ -91,5 +91,27 @@ describe("safeHref", () => {
     expect(safeHref(" JAVA\tSCRIPT:alert(1)")).toBeNull();
     expect(safeHref("vbscript:x")).toBeNull();
     expect(safeHref("data:text/html,x")).toBeNull();
+  });
+});
+
+describe("resolveLink (P2-51)", () => {
+  it("resolves a relative link against the file's folder, without its anchor or query", () => {
+    expect(resolveLink("docs/guide.md", "api.md")).toBe("docs/api.md");
+    expect(resolveLink("docs/guide.md", "./img/a.png?raw#x")).toBe("docs/img/a.png");
+    expect(resolveLink("docs/guide.md", "../src/main.ts#L3")).toBe("src/main.ts");
+    expect(resolveLink("docs/guide.md", "/README.md")).toBe("README.md");
+    expect(resolveLink("README.md", "my%20notes.md")).toBe("my notes.md");
+  });
+
+  it("goes nowhere for a bare anchor or a path out of the project", () => {
+    expect(resolveLink("docs/guide.md", "#install")).toBeNull();
+    expect(resolveLink("docs/guide.md", "../../etc/passwd")).toBeNull();
+  });
+
+  it("leaves relative links as text when nothing can open them", () => {
+    const out = html("[spec](docs/a.md) [web](https://x.dev)");
+    expect(out).not.toContain('href="docs/a.md"');
+    expect(out).toContain("spec");
+    expect(out).toContain('href="https://x.dev"');
   });
 });
