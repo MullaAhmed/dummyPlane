@@ -85,6 +85,13 @@ All notable changes to dummyPlane are documented here. The format follows [Keep 
 - **Agents stacked under a Fleet or in a group are spaced further apart,** to leave room for their step frieze.
 
 ### Fixed
+- **Alerts and notifications on brand:**
+  - **Toast types:** each has its own icon shape in its status colour, so an error reads as one.
+  - **Toast text and buttons:** the text and description use the app's type and inks, the buttons are the app's buttons with their focus ring and press, and the font and motion are the app's. All are checked in every palette.
+  - **Error toasts:** they say what failed in plain words, and what to do next where dummyPlane knows. The error's own text sits in small type underneath, never as the title ("Setting not saved: AppError: database is locked" is now *Could not save the setting*).
+  - **The waiting notice:** it uses the ringed waiting dot.
+  - **Start-up and workspace errors:** they read like the app's crash screen.
+  - **Windows notifications:** they share one shape, the agent and its state as the title ("Batman · Waiting", "Batman · Done") and one line under it. In a development build, Windows shows them under PowerShell's name and icon; the installed app shows dummyPlane's.
 - **A link clicked in a terminal opens once, with no prompt:**
   - **Before:** a link Claude Code marks (an OSC 8 hyperlink) brought up the browser's own warning, "Do you want to navigate to …? This link could potentially be dangerous", while the same link had already opened, so the warning came too late to stop it.
   - **Now:** both kinds of terminal link open in your browser through dummyPlane, once per click. Only web addresses open.
