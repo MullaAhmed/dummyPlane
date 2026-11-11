@@ -6,6 +6,8 @@ import { PALETTES, type ThemeChoice } from "@/app/theme";
 import { displayColorFor, toDisplayColor, toSceneColor } from "@/theme/sceneColors";
 import {
   agentLinksOf,
+  boardAt,
+  boardLinksOf,
   createWire,
   elbowWires,
   isPaletteWireColor,
@@ -29,6 +31,8 @@ import {
   wireColor,
   wireKindOf,
   withAgentLink,
+  withBoardLink,
+  withTalkWire,
   withWire,
 } from "./wires";
 
@@ -788,5 +792,97 @@ describe("agent links (two agents wired without a fleet)", () => {
     const dropped = { ...wire, isDeleted: true, customData: { dummyplane: { kind: "wire", orphaned: true } } } as ExcalidrawElement;
     // An undo bringing the agent back brings the link back.
     expect(revivableWires([...elements.slice(0, -1), dropped])).toEqual([wire.id]);
+  });
+});
+
+describe("an agent or a Fleet wired to a Kanban board", () => {
+  const board = { ...createNodeElement("kanban", { x: 1800, y: 900 }), id: "board" } as unknown as ExcalidrawElement;
+  const scene = [fleet, frame, member, lone, plain, board];
+  const without = (elements: readonly ExcalidrawElement[], id: string) => elements.map((e) => (e.id === id ? ({ ...e, isDeleted: true } as ExcalidrawElement) : e));
+  const arrows = (elements: readonly ExcalidrawElement[]) => elements.filter((e) => e.type === "arrow" && !e.isDeleted);
+
+  it("joins a terminal to a board with a wire, which both ends record", () => {
+    const wired = withBoardLink(scene, lone.id, board.id);
+    expect(arrows(wired)).toHaveLength(1);
+    const wire = arrows(wired)[0] as ExcalidrawArrowElement;
+    expect(isWire(wire)).toBe(true);
+    expect([wire.startBinding?.elementId, wire.endBinding?.elementId]).toEqual([lone.id, board.id]);
+    expect(boardLinksOf(wired, lone.id)).toEqual([board.id]);
+    // Read from the agent's end only: a board is no agent.
+    expect(boardLinksOf(wired, board.id)).toEqual([]);
+    expect(wired.find((e) => e.id === board.id)!.boundElements).toEqual([{ id: wire.id, type: "arrow" }]);
+  });
+
+  it("joins a Fleet to a board too, without making the board part of the Fleet's links", () => {
+    const wired = withBoardLink(scene, fleet.id, board.id);
+    expect(boardLinksOf(wired, fleet.id)).toEqual([board.id]);
+    expect(fleetTargets(wired, fleet.id)).toEqual({ groupIds: [], nodeIds: [] });
+  });
+
+  it("draws no second wire for a pair already linked", () => {
+    const once = withBoardLink(scene, lone.id, board.id);
+    const twice = withBoardLink(once, lone.id, board.id);
+    expect(arrows(twice)).toHaveLength(1);
+    expect(twice.every((e, i) => e === once[i])).toBe(true);
+  });
+
+  it("links an agent to several boards, in the order of its wires", () => {
+    const other = { ...createNodeElement("kanban", { x: 2600, y: 900 }), id: "other" } as unknown as ExcalidrawElement;
+    const wired = withBoardLink(withBoardLink([...scene, other], lone.id, board.id), lone.id, other.id);
+    expect(boardLinksOf(wired, lone.id)).toEqual([board.id, other.id]);
+  });
+
+  it("joins only what a link joins: a terminal or a Fleet to a live board", () => {
+    // A group's frame and a node that is no board.
+    expect(withBoardLink(scene, frame.id, board.id)).toEqual(scene);
+    expect(withBoardLink(scene, lone.id, member.id)).toEqual(scene);
+    expect(withBoardLink(scene, board.id, board.id)).toEqual(scene);
+    // A board that is gone, an agent that is gone.
+    expect(withBoardLink(without(scene, board.id), lone.id, board.id).some((e) => e.type === "arrow")).toBe(false);
+    expect(withBoardLink(without(scene, lone.id), lone.id, board.id).some((e) => e.type === "arrow")).toBe(false);
+  });
+
+  it("counts a wire the user drew, not a talk wire nor a spawn wire", () => {
+    const talking = withTalkWire(scene, lone.id, board.id);
+    expect(arrows(talking)).toHaveLength(1);
+    expect(boardLinksOf(talking, lone.id)).toEqual([]);
+    const spawned = withWire(scene, lone.id, board.id, undefined, true);
+    expect(boardLinksOf(spawned, lone.id)).toEqual([]);
+  });
+
+  it("turns a talk wire already joining the pair into the link, not a second arrow", () => {
+    const talking = withTalkWire(scene, lone.id, board.id) as ExcalidrawElement[];
+    const linked = withBoardLink(talking, lone.id, board.id);
+    expect(arrows(linked)).toHaveLength(1);
+    expect(arrows(linked)[0].strokeStyle).toBe("solid");
+    expect(boardLinksOf(linked, lone.id)).toEqual([board.id]);
+  });
+
+  it("is cut by deleting the wire, or the board, with the upkeep taking the wire a board leaves behind", () => {
+    const wired = withBoardLink(scene, lone.id, board.id);
+    const wire = arrows(wired)[0];
+    expect(boardLinksOf(without(wired, wire.id), lone.id)).toEqual([]);
+    expect(boardLinksOf(without(wired, board.id), lone.id)).toEqual([]);
+    expect(orphanWires(without(wired, board.id))).toEqual([wire.id]);
+    expect(orphanWires(without(wired, lone.id))).toEqual([wire.id]);
+    expect(orphanWires(wired)).toEqual([]);
+    // An undo bringing the board back brings the link back.
+    const dropped = { ...wire, isDeleted: true, customData: { dummyplane: { kind: "wire", orphaned: true } } } as ExcalidrawElement;
+    expect(revivableWires([...wired.filter((e) => e.id !== wire.id), dropped])).toEqual([wire.id]);
+  });
+
+  it("is a link, not a team: the wire reads as a plain one", () => {
+    const wired = withBoardLink(scene, lone.id, board.id);
+    expect(wireKindOf(arrows(wired)[0], new Map(wired.map((e) => [e.id, e])))).toBe("link");
+  });
+
+  it("designates the topmost live board under the pointer", () => {
+    const over = { ...board, id: "over", x: board.x + 10, y: board.y + 10 } as ExcalidrawElement;
+    const at = { x: board.x + 20, y: board.y + 20 };
+    expect(boardAt([board, over], at)).toBe("over");
+    expect(boardAt(without([board, over], "over"), at)).toBe("board");
+    expect(boardAt([board], { x: board.x - 5, y: board.y })).toBeNull();
+    // A terminal under the pointer is no board.
+    expect(boardAt([lone], { x: lone.x + 10, y: lone.y + 10 })).toBeNull();
   });
 });

@@ -4,11 +4,13 @@ import { notesTool, notesToolSpec } from "@/notes/agentTool";
 import { missionOf } from "@/mission/store";
 import { isManagerRecord, nodesStore, sessionOf, terminalOf } from "@/store/nodes";
 import { AGENT_ONLY, agentTools, declareSteps, markStep, refused, reportTool, spawnAgentSpec, spawnAgentTool } from "./agentTools";
+import { BOARD_TOOLS, boardTool, boardTools } from "./boardTools";
 import { linkTool, linkTools } from "./linkTools";
 import { outputGuideSpec, outputGuideTool, outputTools, readNodeSpec, readNodeTool, showOutputTool } from "./nodeTools";
 import { agentMessages } from "./messages";
 import { FLEET_ONLY, fleetTool, fleetTools, MANAGER_ONLY, managerTool, managerTools, runsTheOldWay } from "./fleetTools";
 import { internalCall, RENAMED } from "./protocol";
+import { handOffTool, handOffTools } from "./handOff";
 
 const t = () => messages(agentMessages).router;
 
@@ -26,11 +28,12 @@ export async function answer(call: McpCall): Promise<unknown> {
     // while it runs a mission launched before Managers existed.
     const claude = sessionOf(record)?.agent !== "codex";
     const own = fleet
-      ? [...fleetTools({ legacy: runsTheOldWay(missionOf(record)), claude }), spawnAgentSpec(true), outputGuideSpec()]
+      ? [...fleetTools({ legacy: runsTheOldWay(missionOf(record)), claude }), spawnAgentSpec(true), ...boardTools(), outputGuideSpec()]
       : manager
         ? [...managerTools(), outputGuideSpec()]
-        : [...agentTools(), ...linkTools(), ...outputTools()];
-    return { tools: [...own, readNodeSpec(), notesToolSpec()] };
+        : [...agentTools(), ...linkTools(), ...boardTools(), ...outputTools()];
+    // hand_off: only an agent wired to a Fleet (never a Fleet, a Manager or a mission's team) has it.
+    return { tools: [...own, ...handOffTools(call.nodeId), readNodeSpec(), notesToolSpec()] };
   }
   const asked = String(call.params.name ?? "");
   const { name, args } = internalCall(asked, (call.params.arguments ?? {}) as Record<string, unknown>);
@@ -44,6 +47,8 @@ export async function answer(call: McpCall): Promise<unknown> {
   if (name === "output_guide") return outputGuideTool();
   // A Fleet's sub-agent is a regular agent in its own terminal, for work beside its mission's queue.
   if (fleet && name === "spawn_agent") return spawnAgentTool(call.nodeId, args);
+  // The boards the user wired to an agent or a Fleet: theirs to read, and to add cards to or move them on (refused on a mission's own).
+  if (fleet && BOARD_TOOLS.has(name)) return boardTool(call.nodeId, name, args) ?? refused(t().unknown(asked));
   if (fleet) return AGENT_ONLY.has(name) ? refused(t().agentsOnly) : fleetTool(call.nodeId, name, args);
   // Before any agent's tool: a Manager neither reports nor spawns, its team's agents start from the queue.
   if (manager) return managerTool(call.nodeId, name, args);
@@ -59,10 +64,12 @@ export async function answer(call: McpCall): Promise<unknown> {
       return reportTool(call.nodeId, args);
     case "spawn_agent":
       return spawnAgentTool(call.nodeId, args);
+    case "hand_off":
+      return handOffTool(call.nodeId, args);
     case "show_output":
       return showOutputTool(call.nodeId, args);
     default:
-      return linkTool(call.nodeId, name, args) ?? refused(t().unknown(asked));
+      return linkTool(call.nodeId, name, args) ?? boardTool(call.nodeId, name, args) ?? refused(t().unknown(asked));
   }
 }
 

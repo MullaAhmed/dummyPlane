@@ -1,4 +1,5 @@
 import { defineMessages, plural } from "@/i18n";
+import { ROUTER_LEVELS } from "./router";
 
 export const missionMessages = defineMessages({
     // The first words of the mission's status line, beside its dot.
@@ -17,13 +18,14 @@ export const missionMessages = defineMessages({
     title: (name: string) => `Mission${name ? ` · ${name}` : ""}`,
     writeTask: "write it in the terminal above",
     settings: "Settings",
-    settingsSummary: (agents: number | null, router: boolean) =>
-      agents === null ? (router ? "model router" : "no model router") : [`up to ${plural(agents, "agent", "agents")} at once`, ...(router ? ["model router"] : [])].join(" · "),
+    settingsSummary: (agents: number) => `up to ${plural(agents, "agent", "agents")} at once`,
     min: "min",
     maxAgents: "Max active agents",
     maxAgentsHint: "The most agents working at once",
     routerLabel: "Model router",
-    routerTitle: "Each agent takes the model of its sub-task's level: low Haiku 5.5, medium Sonnet 5.5, high Opus 5.5, extreme Fable 5.1",
+    routerTitle: `Each agent takes the model of its sub-task's level: ${ROUTER_LEVELS}`,
+    // The switch beside a header's chips: its name stays, its state is aria-pressed's.
+    routerSwitch: "Model router",
     linked: (count: number) => plural(count, "agent linked", "agents linked"),
     done: "Done",
     link: "Link",

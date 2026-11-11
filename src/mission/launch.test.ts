@@ -181,6 +181,39 @@ describe("the model router (spec maj §3)", () => {
     expect(notify).toHaveBeenCalledWith("chef", expect.stringContaining("level"));
   });
 
+  it("starts a linked agent whose own router is on on its sub-task's level while the Fleet's router is off; a new agent keeps Claude's own", async () => {
+    await setup({ plan: [{ ...plan[0], level: "eleve" }, { ...plan[1], level: "faible" }] });
+    nodesStore.getState().update("batman", { router: true });
+    await launchMission("chef");
+    expect(terminalOf(nodesStore.getState().nodes.batman)?.model).toBe("claude-opus-5-5");
+    expect(relaunchTerminal).toHaveBeenCalledWith("batman", expect.objectContaining({ model: "claude-opus-5-5" }), "new");
+    expect(vi.mocked(addTerminal).mock.calls[0][1].model).toBeUndefined();
+    expect(missionNow().members.map((m) => m.model)).toEqual(["claude-opus-5-5", undefined]);
+    // The switch is the agent's own: the mission leaves it on, and only the router's model goes back.
+    endMission("chef", "Fini.");
+    expect(terminalOf(nodesStore.getState().nodes.batman)).toMatchObject({ model: undefined, router: true });
+  });
+
+  it("keeps the model of a linked agent whose router is on when its sub-task names no level, and off it goes back to Claude's own as before", async () => {
+    await setup();
+    nodesStore.getState().update("batman", { router: true, model: "claude-sonnet-5-5" });
+    await launchMission("chef");
+    expect(terminalOf(nodesStore.getState().nodes.batman)?.model).toBe("claude-sonnet-5-5");
+    expect(missionNow().members[0].model).toBe("claude-sonnet-5-5");
+    vi.mocked(relaunchTerminal).mockClear();
+    nodesStore.getState().update("chef", { mission: { ...missionNow(), state: "plan", members: [] } });
+    nodesStore.getState().update("batman", { router: undefined });
+    await launchMission("chef");
+    expect(terminalOf(nodesStore.getState().nodes.batman)?.model).toBeUndefined();
+  });
+
+  it("never lets an agent whose own router is off veto the Fleet's: the mission's router still starts it on its level", async () => {
+    await setup({ router: true, plan: [{ ...plan[0], level: "moyen" }, { ...plan[1], level: "faible" }] });
+    nodesStore.getState().update("batman", { router: undefined, model: "claude-opus-5-5" });
+    await launchMission("chef");
+    expect(terminalOf(nodesStore.getState().nodes.batman)?.model).toBe("claude-sonnet-5-5");
+  });
+
   it("leaves the models alone without the router", async () => {
     await setup({ plan: [{ ...plan[0], level: "eleve" }, { ...plan[1], level: "faible" }] });
     await launchMission("chef");

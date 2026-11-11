@@ -55,18 +55,21 @@ afterEach(() => {
 describe("linked agents' tools", () => {
   it("are listed for agents after their own tools, and refused to a fleet", async () => {
     const list = (await answer({ callId: 1, nodeId: "batman", method: "tools/list", params: {} })) as { tools: { name: string }[] };
-    expect(list.tools.map((t) => t.name)).toEqual(["declare_steps", "step", "report", "spawn_agent", "linked_agents", "message_agent", "read_agent", "show_output", "output_guide", "read_node", "notes"]);
+    expect(list.tools.map((t) => t.name)).toEqual(["declare_steps", "step", "report", "spawn_agent", "linked_agents", "message_agent", "read_agent", "linked_boards", "add_board_card", "move_board_card", "show_output", "output_guide", "read_node", "notes"]);
     const manager = (await answer({ callId: 1, nodeId: "chef", method: "tools/list", params: {} })) as { tools: { name: string }[] };
     expect(manager.tools.map((t) => t.name)).not.toContain("message_agent");
     expect(textOf(await call("chef", "message_agent", { agent: "Batman", text: "hi" }))).toBe("This tool is for agents.");
   });
 
-  it("say no agent is linked when no wire joins the caller to another agent, a fleet's wire included", async () => {
-    scene = withWire(nodes, "chef", "batman");
+  it("say no agent is linked when no wire joins the caller to another agent; a fleet's wire lists the Fleet, not an agent", async () => {
+    scene = nodes;
     expect(textOf(await call("batman", "linked_agents"))).toContain("No agent is linked to you");
-    const refused = await call("batman", "message_agent", { agent: "Chef", text: "hi" });
+    const refused = await call("batman", "message_agent", { agent: "Cyborg", text: "hi" });
     expect(refused.isError).toBe(true);
     expect(textOf(refused)).toContain("No agent is linked to you");
+    // The Fleet that commands it is its own relation (`./handOff.test.ts`).
+    scene = withWire(nodes, "chef", "batman");
+    expect(JSON.parse(textOf(await call("batman", "linked_agents")))).toEqual([{ name: "Chef", id: "chef", state: "stopped", relation: "fleet" }]);
     expect(notify).not.toHaveBeenCalled();
   });
 

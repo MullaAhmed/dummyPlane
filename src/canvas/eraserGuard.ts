@@ -75,7 +75,7 @@ function apply(api: ExcalidrawImperativeAPI, eraserActive: boolean) {
   api.updateScene({ elements, captureUpdate: CaptureUpdateAction.NEVER });
 }
 
-/** The nodes unlocked now, whatever the tool: the double-click selects one before the eraser is left. */
+/** The nodes unlocked now, whatever the tool: a click or a double-click selects one before the eraser is left. */
 export function releaseEraserLocks(api: ExcalidrawImperativeAPI) {
   apply(api, false);
 }

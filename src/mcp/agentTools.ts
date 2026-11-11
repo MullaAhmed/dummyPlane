@@ -81,7 +81,7 @@ export function spawnAgentSpec(fleet = false) {
 }
 
 /** Internal names of the agents' tools (`./protocol.ts`), linked agents' (`./linkTools.ts`) and outputs' (`./nodeTools.ts`) included; spawn_agent is a Fleet's too. */
-export const AGENT_ONLY = new Set(["declarer_etapes", "etape", "rendre_compte", "linked_agents", "message_agent", "read_agent", "show_output"]);
+export const AGENT_ONLY = new Set(["declarer_etapes", "etape", "rendre_compte", "linked_agents", "message_agent", "read_agent", "hand_off", "show_output"]);
 
 /** Who hears an agent's news over a wire: whoever runs its mission (its Manager, or its Fleet run the old way), else the agent that spawned it. */
 const listenerOf = (nodeId: string) => {

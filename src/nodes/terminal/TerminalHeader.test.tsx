@@ -1,13 +1,14 @@
 // @vitest-environment happy-dom
 import { act } from "react";
 import { createRoot } from "react-dom/client";
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { requestUi } from "@/commands/uiRequests";
 import { remoteStore } from "@/agents/remoteControl";
 import { canvasStore } from "@/canvas/canvasStore";
 import { leaveGroup } from "@/agents/groups";
 import { nodesStore } from "@/store/nodes";
+import type { TerminalPayload } from "@/nodes/types";
 import { quickNote } from "@/nodes/note/quickNote";
 import { relaunchTerminal, stopTerminal } from "./registry";
 import { TerminalHeader } from "./TerminalHeader";
@@ -152,13 +153,67 @@ it("names the model in its menu too, and clears it there: a narrow header hides 
   await view.unmount();
 });
 
+describe("the model router's sticky switch", () => {
+  const router = (host: HTMLElement) => host.querySelector<HTMLButtonElement>('button[aria-label="Model router"]');
+  const shown = (payload: object) => <TerminalHeader nodeId="batman" payload={{ ...claude, ...payload } as TerminalPayload} status={{ state: "running" }} />;
+
+  it("is on a Claude terminal only, never a Manager's, and keeps to the wide header with the chips", async () => {
+    const view = await mount(shown({}));
+    expect(router(view.host)?.getAttribute("data-router")).toBe("off");
+    // One name, its state in aria-pressed: "Model router, toggle button, not pressed".
+    expect(router(view.host)?.getAttribute("aria-pressed")).toBe("false");
+    expect(router(view.host)?.parentElement?.className).toContain("@md/head:flex");
+    await act(async () => view.root.render(shown({ agent: "shell" })));
+    expect(router(view.host)).toBeNull();
+    await act(async () => view.root.render(shown({ role: "manager", fleet: "chef" })));
+    expect(router(view.host)).toBeNull();
+    await view.unmount();
+  });
+
+  const payloadOf = () => nodesStore.getState().nodes.batman?.payload as TerminalPayload;
+
+  it("is in its ⋯ menu too, at any width: a checked entry that writes the same switch, never a Manager's", async () => {
+    mockIPC(() => undefined);
+    await nodesStore.getState().create("batman", { workspaceId: "w1", kind: "terminal", payload: claude });
+    const view = await mount(shown({}));
+    await openMore(view.host);
+    const entry = () => document.querySelector<HTMLElement>('[role="menuitemcheckbox"]');
+    expect(entry()?.textContent).toBe("Model router");
+    expect(entry()?.getAttribute("aria-checked")).toBe("false");
+    await act(async () => entry()!.click());
+    expect(payloadOf().router).toBe(true);
+    await view.unmount();
+    const manager = await mount(shown({ role: "manager", fleet: "chef" }));
+    await openMore(manager.host);
+    expect(entry()).toBeNull();
+    await manager.unmount();
+  });
+
+  it("stays on until it is turned off, saved in the terminal's payload, and never asks for a restart", async () => {
+    mockIPC(() => undefined);
+    await nodesStore.getState().create("batman", { workspaceId: "w1", kind: "terminal", payload: { ...claude, model: "claude-haiku-5-5" } });
+    const view = await mount(shown({ model: "claude-haiku-5-5" }));
+    await act(async () => router(view.host)!.click());
+    expect(payloadOf().router).toBe(true);
+    // The model it chose stays: the router only speaks when a sub-task with a level comes.
+    expect(payloadOf().model).toBe("claude-haiku-5-5");
+    await act(async () => view.root.render(shown({ router: true, model: "claude-haiku-5-5" })));
+    expect(router(view.host)?.getAttribute("aria-pressed")).toBe("true");
+    expect(router(view.host)?.getAttribute("data-router")).toBe("on");
+    expect(relaunchTerminal).not.toHaveBeenCalled();
+    await act(async () => router(view.host)!.click());
+    expect(payloadOf().router).toBeUndefined();
+    await view.unmount();
+  });
+});
+
 it("keeps the essentials on its row and the rest behind « ⋯ »: Review, Restart, Minimize and Duplicate are menu entries", async () => {
   const onDuplicate = vi.fn();
   const onClose = vi.fn();
   const view = await mount(<TerminalHeader nodeId="batman" payload={claude} status={{ state: "running" }} onDuplicate={onDuplicate} onClose={onClose} />);
   const labels = [...view.host.querySelectorAll("button")].map((b) => b.getAttribute("aria-label"));
-  // The agent, Remote Control, the menu, Close: no more.
-  expect(labels).toEqual(["Agent", expect.stringContaining("Remote Control"), "More actions", "Close"]);
+  // The agent, the model router (wide nodes only: `WIDE_ONLY`), Remote Control, the menu, Close: no more.
+  expect(labels).toEqual(["Agent", "Model router", expect.stringContaining("Remote Control"), "More actions", "Close"]);
   const items = await openMore(view.host);
   expect(textOf(items())).toEqual(["Review changes", "Minimize", "Duplicate", "Quick note", "Resume the session", "New session", "Latest in the folder", "Stop the process"]);
   await act(async () => items()[2]!.click());

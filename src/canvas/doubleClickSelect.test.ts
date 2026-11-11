@@ -87,6 +87,18 @@ function press(target: Element, x: number, y: number) {
   target.dispatchEvent(event);
 }
 
+/** The release of a press (or its cancellation): a click is a press and a release on the same spot. */
+function lift(target: Element, x: number, y: number, type: "pointerup" | "pointercancel" = "pointerup", trusted = true) {
+  const event = new PointerEvent(type, { clientX: x, clientY: y, button: 0, bubbles: true, cancelable: true });
+  Object.defineProperty(event, "isTrusted", { value: trusted });
+  target.dispatchEvent(event);
+}
+/** A click: press and release on the same spot. */
+function click(target: Element, x: number, y: number) {
+  press(target, x, y);
+  lift(target, x, y);
+}
+
 let canvas: HTMLCanvasElement;
 let heard: Mock<(event: Event) => void>;
 let stop: () => void;
@@ -495,5 +507,366 @@ describe("with the selection tool", () => {
     canvas.dispatchEvent(mouse("dblclick", 900, 600));
     expect(fake.updateScene).not.toHaveBeenCalled();
     expect(heard).toHaveBeenCalledTimes(1);
+  });
+});
+
+// A click (a press and a release on the same spot, quick) selects a node with any tool, as a double-click does. A drag stays Excalidraw's: it draws, it pans.
+describe("a single click with a drawing tool", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /** Excalidraw finishes its own pointerup handling after the capture listener: the selection comes a tick later. */
+  const settle = () => vi.advanceTimersByTime(0);
+
+  it.each(["hand", "rectangle", "ellipse", "diamond", "arrow", "line", "freedraw", "text", "eraser"])("selects the terminal and switches to the selection tool with the %s tool", (tool) => {
+    const node = terminal();
+    const fake = fakeApi([node], tool);
+    useApi(fake);
+    click(canvas, 100, 100);
+    // Not under Excalidraw's feet: its own pointerup is not finished yet.
+    expect(fake.updateScene).not.toHaveBeenCalled();
+    settle();
+    expect(fake.state.activeTool).toEqual({ type: "selection" });
+    expect(fake.state.selectedElementIds).toEqual({ [node.id]: true });
+    expect(fake.state.selectedGroupIds).toEqual({});
+  });
+
+  it("selects the Fleet too, and exactly it: the old selection goes", () => {
+    const manager = fleet();
+    const other = terminal();
+    const fake = fakeApi([other, manager], "hand", { selectedElementIds: { [other.id]: true }, selectedGroupIds: { g: true } });
+    useApi(fake);
+    click(canvas, 1100, 100);
+    settle();
+    expect(fake.state.selectedElementIds).toEqual({ [manager.id]: true });
+    expect(fake.state.selectedGroupIds).toEqual({});
+    expect(fake.state.activeTool).toEqual({ type: "selection" });
+  });
+
+  it("takes the view's zoom and scroll into account", () => {
+    const node = terminal();
+    // Window (300, 200) is scene (300 / 0.5 - 400, 200 / 0.5 - 100) = (200, 300): inside the terminal.
+    const fake = fakeApi([node], "rectangle", { zoom: { value: 0.5 }, scrollX: 400, scrollY: 100 });
+    useApi(fake);
+    click(canvas, 300, 200);
+    settle();
+    expect(fake.state.selectedElementIds).toEqual({ [node.id]: true });
+  });
+
+  it("removes the dot a freedraw click left, and drops the drawing in progress", () => {
+    const node = terminal();
+    const kept = dot("kept", 900, 600);
+    const fake = fakeApi([node, kept], "freedraw", { newElement: { id: "d1" } });
+    useApi(fake);
+    press(canvas, 100, 100);
+    fake.draw(dot("d1", 100, 100));
+    lift(canvas, 100, 100);
+    settle();
+    expect(fake.elements().filter((e) => e.isDeleted).map((e) => e.id)).toEqual(["d1"]);
+    expect(fake.state.newElement).toBeNull();
+    expect(fake.state.selectedElementIds).toEqual({ [node.id]: true });
+    expect(fake.state.activeTool).toEqual({ type: "selection" });
+  });
+
+  it("removes the editor the text tool opened under the click, which the release lands in", () => {
+    const node = terminal();
+    const fake = fakeApi([node], "text");
+    useApi(fake);
+    press(canvas, 100, 100);
+    const editor = document.createElement("textarea");
+    editor.className = "excalidraw-wysiwyg";
+    document.querySelector(".excalidraw")!.append(editor);
+    editor.focus();
+    const blurred = vi.fn();
+    editor.addEventListener("blur", blurred);
+    lift(editor, 100, 100);
+    settle();
+    expect(blurred).toHaveBeenCalledTimes(1);
+    expect(fake.state.selectedElementIds).toEqual({ [node.id]: true });
+    expect(fake.state.activeTool).toEqual({ type: "selection" });
+  });
+
+  describe("a drag is left to Excalidraw", () => {
+    it.each(["hand", "rectangle", "arrow", "freedraw", "eraser"])("with the %s tool: it draws, it pans, nothing is selected", (tool) => {
+      const fake = fakeApi([terminal()], tool);
+      useApi(fake);
+      press(canvas, 100, 100);
+      lift(canvas, 160, 100);
+      settle();
+      expect(fake.updateScene).not.toHaveBeenCalled();
+      expect(fake.setActiveTool).not.toHaveBeenCalled();
+      expect(fake.state.activeTool).toEqual({ type: tool });
+      expect(fake.state.selectedElementIds).toEqual({});
+    });
+
+    it("a press that ends a few pixels off, within the slop, is still a click", () => {
+      const node = terminal();
+      const fake = fakeApi([node], "hand");
+      useApi(fake);
+      press(canvas, 100, 100);
+      lift(canvas, 103, 102);
+      settle();
+      expect(fake.state.selectedElementIds).toEqual({ [node.id]: true });
+    });
+
+    it("a drag that starts on empty canvas and ends over a terminal does not select it", () => {
+      const fake = fakeApi([terminal()], "rectangle");
+      useApi(fake);
+      press(canvas, 900, 600);
+      lift(canvas, 100, 100);
+      settle();
+      expect(fake.updateScene).not.toHaveBeenCalled();
+    });
+
+    it("a long press is not a click", () => {
+      const fake = fakeApi([terminal()], "hand");
+      useApi(fake);
+      press(canvas, 100, 100);
+      vi.advanceTimersByTime(800);
+      lift(canvas, 100, 100);
+      settle();
+      expect(fake.updateScene).not.toHaveBeenCalled();
+      expect(fake.setActiveTool).not.toHaveBeenCalled();
+    });
+
+    it("an arrow drawn across a terminal stays what it is", () => {
+      const fake = fakeApi([terminal()], "arrow");
+      useApi(fake);
+      press(canvas, 20, 20);
+      fake.draw(dot("arrow", 20, 20));
+      lift(canvas, 400, 300);
+      settle();
+      expect(fake.elements().filter((e) => e.isDeleted)).toEqual([]);
+      expect(fake.state.activeTool).toEqual({ type: "arrow" });
+    });
+  });
+
+  describe("with the eraser", () => {
+    const guarded = (...elements: ExcalidrawElement[]) => eraserGuard(elements, true) ?? elements;
+
+    it("selects a guarded terminal, gives its lock back and erases nothing", () => {
+      const [node, manager, drawn] = [terminal(), fleet(), dot("drawn", 900, 600)];
+      const fake = fakeApi(guarded(node, manager, drawn), "eraser");
+      useApi(fake);
+      expect(fake.elements().filter((e) => e.locked).map((e) => e.id)).toEqual([node.id, manager.id]);
+      click(canvas, 100, 100);
+      settle();
+      expect(fake.state.activeTool).toEqual({ type: "selection" });
+      expect(fake.state.selectedElementIds).toEqual({ [node.id]: true });
+      expect(fake.elements().map((e) => [e.id, e.locked, e.isDeleted])).toEqual([[node.id, false, false], [manager.id, false, false], ["drawn", false, false]]);
+      expect(fake.elements()[0].customData).toEqual({ kind: "terminal" });
+    });
+
+    it("a drag leaves the locks as they are, and selects nothing", () => {
+      const fake = fakeApi(guarded(terminal()), "eraser");
+      useApi(fake);
+      press(canvas, 100, 100);
+      lift(canvas, 200, 100);
+      settle();
+      expect(fake.updateScene).not.toHaveBeenCalled();
+      expect(fake.elements().every((e) => e.locked)).toBe(true);
+    });
+
+    it("still skips a terminal a folded group keeps hidden", () => {
+      const hidden = { ...terminal(), locked: true };
+      const fake = fakeApi(guarded(hidden), "eraser");
+      useApi(fake);
+      click(canvas, 100, 100);
+      settle();
+      expect(fake.setActiveTool).not.toHaveBeenCalled();
+      expect(fake.updateScene).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("what stays Excalidraw's", () => {
+    it("a click over empty canvas", () => {
+      const fake = fakeApi([terminal()], "rectangle");
+      useApi(fake);
+      click(canvas, 900, 600);
+      settle();
+      expect(fake.updateScene).not.toHaveBeenCalled();
+      expect(fake.setActiveTool).not.toHaveBeenCalled();
+    });
+
+    it("a click with the selection tool", () => {
+      const fake = fakeApi([terminal()], "selection");
+      useApi(fake);
+      click(canvas, 100, 100);
+      settle();
+      expect(fake.updateScene).not.toHaveBeenCalled();
+    });
+
+    it("a click with the laser, which only points", () => {
+      const fake = fakeApi([terminal()], "laser");
+      useApi(fake);
+      click(canvas, 100, 100);
+      settle();
+      expect(fake.updateScene).not.toHaveBeenCalled();
+      expect(fake.state.activeTool).toEqual({ type: "laser" });
+    });
+
+    it("a click in reading mode, where nothing can be selected", () => {
+      const fake = fakeApi([terminal()], "hand", { viewModeEnabled: true });
+      useApi(fake);
+      click(canvas, 100, 100);
+      settle();
+      expect(fake.updateScene).not.toHaveBeenCalled();
+    });
+
+    it("a click on a minimized card, which expands by itself", () => {
+      const fake = fakeApi([terminal()], "rectangle");
+      useApi(fake);
+      const card = document.createElement("div");
+      card.setAttribute("data-minimized", "t1");
+      card.getBoundingClientRect = () => ({ left: 0, right: 720, top: 0, bottom: 68, width: 720, height: 68, x: 0, y: 0, toJSON: () => ({}) });
+      document.querySelector(".excalidraw")!.append(card);
+      click(canvas, 100, 30);
+      settle();
+      expect(fake.updateScene).not.toHaveBeenCalled();
+      // Below the card, on the rest of the terminal's rectangle, it still selects.
+      click(canvas, 100, 300);
+      settle();
+      expect(fake.state.activeTool).toEqual({ type: "selection" });
+    });
+
+    it("a click that adds a point to, or ends, a line or an arrow already under way", () => {
+      const fake = fakeApi([terminal()], "arrow", { multiElement: { id: "arrow" } });
+      useApi(fake);
+      click(canvas, 100, 100);
+      settle();
+      expect(fake.updateScene).not.toHaveBeenCalled();
+      expect(fake.state.activeTool).toEqual({ type: "arrow" });
+      expect(fake.state.multiElement).toEqual({ id: "arrow" });
+    });
+
+    // Excalidraw's tool change deactivates the active node: a click in its xterm, a header button or a link must not switch the tool.
+    it.each([
+      ["hand", "terminal", "data-terminal", 100, 100],
+      ["rectangle", "terminal", "data-terminal", 100, 100],
+      ["eraser", "terminal", "data-terminal", 100, 100],
+      ["hand", "fleet", "data-fleet", 1100, 100],
+    ] as const)("a click in the body of an active node, with the %s tool: the %s's own (%s)", (tool, kind, marker, x, y) => {
+      const node = kind === "terminal" ? terminal() : fleet();
+      const fake = fakeApi([node], tool, { activeEmbeddable: { element: node, state: "active" } });
+      useApi(fake);
+      const body = document.createElement("div");
+      body.setAttribute(marker, node.id);
+      const inner = document.createElement("span");
+      body.append(inner);
+      document.querySelector(".excalidraw")!.append(body);
+      click(inner, x, y);
+      settle();
+      expect(fake.updateScene).not.toHaveBeenCalled();
+      expect(fake.setActiveTool).not.toHaveBeenCalled();
+      expect(fake.state.activeEmbeddable).toEqual({ element: node, state: "active" });
+      // The same node, clicked where the pointer reaches the canvas, still selects.
+      click(canvas, x, y);
+      settle();
+      expect(fake.state.selectedElementIds).toEqual({ [node.id]: true });
+    });
+
+    it("a click that is not on the canvas: a panel over it", () => {
+      const fake = fakeApi([terminal()], "rectangle");
+      useApi(fake);
+      const panel = document.createElement("div");
+      document.body.append(panel);
+      click(panel, 100, 100);
+      settle();
+      expect(fake.updateScene).not.toHaveBeenCalled();
+    });
+
+    it("a release a script made", () => {
+      const fake = fakeApi([terminal()], "rectangle");
+      useApi(fake);
+      press(canvas, 100, 100);
+      lift(canvas, 100, 100, "pointerup", false);
+      settle();
+      expect(fake.updateScene).not.toHaveBeenCalled();
+    });
+
+    it("a press that was cancelled, and one that another press came before the release of", () => {
+      const fake = fakeApi([terminal()], "rectangle");
+      useApi(fake);
+      press(canvas, 100, 100);
+      lift(canvas, 100, 100, "pointercancel");
+      lift(canvas, 100, 100);
+      settle();
+      expect(fake.updateScene).not.toHaveBeenCalled();
+      press(canvas, 100, 100);
+      press(document.body, 900, 600);
+      lift(canvas, 100, 100);
+      settle();
+      expect(fake.updateScene).not.toHaveBeenCalled();
+    });
+
+    it("a click while the canvas is not ready, or once uninstalled", () => {
+      expect(() => click(canvas, 100, 100)).not.toThrow();
+      settle();
+      const fake = fakeApi([terminal()], "rectangle");
+      useApi(fake);
+      stop();
+      click(canvas, 100, 100);
+      settle();
+      expect(fake.updateScene).not.toHaveBeenCalled();
+      stop = installDoubleClickSelect();
+    });
+
+    it("a click whose selection is still waiting when the listeners go", () => {
+      const fake = fakeApi([terminal()], "rectangle");
+      useApi(fake);
+      click(canvas, 100, 100);
+      stop();
+      settle();
+      expect(fake.updateScene).not.toHaveBeenCalled();
+      expect(fake.setActiveTool).not.toHaveBeenCalled();
+      stop = installDoubleClickSelect();
+    });
+
+    it("a click on a node that is gone by the time it would be selected", () => {
+      const node = terminal();
+      const fake = fakeApi([node], "rectangle");
+      useApi(fake);
+      click(canvas, 100, 100);
+      fake.replace([]);
+      settle();
+      expect(fake.updateScene).not.toHaveBeenCalled();
+    });
+  });
+
+  it("two clicks and the double-click after them end the same way: the node selected, the tool the selection one", () => {
+    const node = terminal();
+    const fake = fakeApi([node], "rectangle");
+    useApi(fake);
+    click(canvas, 100, 100);
+    settle();
+    expect(fake.state.activeTool).toEqual({ type: "selection" });
+    vi.advanceTimersByTime(100);
+    // The second click is a selection-tool click now: Excalidraw's.
+    click(canvas, 100, 100);
+    settle();
+    expect(fake.state.selectedElementIds).toEqual({ [node.id]: true });
+    canvas.dispatchEvent(mouse("dblclick", 100, 100));
+    expect(fake.state.selectedElementIds).toEqual({ [node.id]: true });
+    expect(fake.state.activeTool).toEqual({ type: "selection" });
+    expect(fake.setActiveTool).toHaveBeenCalledTimes(1);
+  });
+
+  it("clicks on two nodes, one after the other: each is selected in turn", () => {
+    const [node, manager] = [terminal(), fleet()];
+    const fake = fakeApi([node, manager], "hand");
+    useApi(fake);
+    click(canvas, 100, 100);
+    settle();
+    expect(fake.state.selectedElementIds).toEqual({ [node.id]: true });
+    fake.state.activeTool = { type: "rectangle" };
+    vi.advanceTimersByTime(1_000);
+    click(canvas, 1100, 100);
+    settle();
+    expect(fake.state.selectedElementIds).toEqual({ [manager.id]: true });
+    expect(fake.state.activeTool).toEqual({ type: "selection" });
   });
 });

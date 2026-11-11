@@ -6,10 +6,10 @@
 </p>
 
 <p align="center">
-  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-D97757?style=flat-square"></a>
-  <img alt="Platform: Windows 10/11" src="https://img.shields.io/badge/platform-Windows%2010%2F11-29261B?style=flat-square">
-  <img alt="Built with Tauri 2" src="https://img.shields.io/badge/Tauri-2-8FA876?style=flat-square">
-  <img alt="Status: early preview" src="https://img.shields.io/badge/status-early%20preview-D4A27F?style=flat-square">
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-173F32?style=flat-square"></a>
+  <img alt="Platform: Windows 10/11" src="https://img.shields.io/badge/platform-Windows%2010%2F11-101014?style=flat-square">
+  <img alt="Built with Tauri 2" src="https://img.shields.io/badge/Tauri-2-7CC492?style=flat-square">
+  <img alt="Status: early preview" src="https://img.shields.io/badge/status-early%20preview-DDAA62?style=flat-square">
 </p>
 
 dummyPlane is a desktop app that puts your AI coding agents on an infinite canvas. Each agent runs in a **real terminal** (Claude Code, Codex, Gemini CLI and more). You group agents into teams, brief a whole team in one line, review their changes, and hand a large task to the **fleet**, which plans it with you, then hands it to a Kanban board and a Manager that runs the team while you keep talking.

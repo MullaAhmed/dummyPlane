@@ -133,7 +133,7 @@ function LoadedCanvas({ workspaceId, scene }: { workspaceId: string; scene: Load
   // A box scrolled under the canvas would leave Excalidraw's hit tests off by that much (after a resize).
   useEffect(() => (api ? pinCanvasScroll(api.refresh) : undefined), [api]);
 
-  // A double-click on a terminal or the Fleet selects it, whatever tool is active.
+  // A click or a double-click on a terminal or the Fleet selects it, whatever tool is active (a drag still draws or pans).
   useEffect(() => (api ? installDoubleClickSelect() : undefined), [api]);
 
   // A Ctrl+P target of this workspace waits for its scene to be on screen (spec fenêtre §7.2).
