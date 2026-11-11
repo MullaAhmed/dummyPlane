@@ -3,7 +3,7 @@ import type { ExcalidrawArrowElement, ExcalidrawElement } from "@excalidraw/exca
 import { canvasStore } from "@/canvas/canvasStore";
 import { nodeKindOf } from "@/canvas/nodeElement";
 import { signalWire } from "@/canvas/wireActivity";
-import { nodesStore } from "@/store/nodes";
+import { isManagerRecord, nodesStore, terminalOf } from "@/store/nodes";
 import { sceneAccess } from "./sceneAccess";
 import { joiningWire, wireReading, withTalkWire } from "./wires";
 
@@ -30,7 +30,7 @@ export function talk(fromId: string, toId: string): void {
   const workspaceId = nodes[fromId]?.workspaceId;
   const scene = workspaceId && nodes[toId]?.workspaceId === workspaceId ? sceneAccess(workspaceId) : null;
   if (!scene) {
-    signalWire(toId, "toAgent", fromId);
+    assumedPulse(fromId, toId);
     return;
   }
   let elements = scene.elements();
@@ -56,7 +56,7 @@ export function talk(fromId: string, toId: string): void {
  */
 function pulse(elements: readonly ExcalidrawElement[], wire: ExcalidrawArrowElement | null, fromId: string, toId: string) {
   if (!wire?.startBinding || !wire.endBinding) {
-    signalWire(toId, "toAgent", fromId);
+    assumedPulse(fromId, toId);
     return;
   }
   const byId = new Map(elements.map((e) => [e.id, e]));
@@ -69,4 +69,15 @@ function pulse(elements: readonly ExcalidrawElement[], wire: ExcalidrawArrowElem
   // The far end is one of the two, or the group of the one that is not the Fleet.
   const agent = far === fromId || far === toId ? far : outward ? toId : fromId;
   signalWire(agent, outward ? "toAgent" : "toFleet", near);
+}
+
+/**
+ * No wire to read: the pulse as the wire would run if dummyPlane drew it, from the one that leads to the
+ * one it leads: a Fleet, a Manager, or the agent that spawned the other, is the wire's start.
+ */
+function assumedPulse(fromId: string, toId: string) {
+  const nodes = nodesStore.getState().nodes;
+  const leads = (lead: string, other: string) => nodes[lead]?.kind === "fleet" || isManagerRecord(nodes[lead]) || terminalOf(nodes[other])?.spawnedBy === lead;
+  if (leads(toId, fromId) && !leads(fromId, toId)) signalWire(fromId, "toFleet", toId);
+  else signalWire(toId, "toAgent", fromId);
 }

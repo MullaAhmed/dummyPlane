@@ -11,6 +11,7 @@ import { installMissionEvents, notify, pendingEvents } from "./events";
 import { whenReady } from "./ready";
 import type { Member } from "./mission";
 
+vi.mock("@excalidraw/excalidraw", () => ({}));
 vi.mock("@/ipc/pty", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/ipc/pty")>()), ptySendText: vi.fn(() => Promise.resolve()) }));
 vi.mock("@/nodes/terminal/registry", () => ({ freshText: vi.fn(() => ""), quietFor: vi.fn(() => 0), typedAgo: vi.fn(() => Infinity) }));
 vi.mock("@/agents/remoteControl", () => ({ remoteBusy: vi.fn(() => false) }));
