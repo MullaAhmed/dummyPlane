@@ -4,9 +4,8 @@ import { formatClock } from "@/i18n/format";
 import { messages } from "@/i18n";
 import { agentState } from "@/mission/store";
 import { showOutput } from "@/nodes/output/show";
-import type { SubagentLine } from "@/nodes/subagent/ipc";
 import { entryOfElement, subagentNodesStore } from "@/nodes/subagent/store";
-import { subagentAbout, subagentType } from "@/nodes/subagent/title";
+import { subagentAbout, subagentAnswer, subagentType } from "@/nodes/subagent/title";
 import { terminalText } from "@/nodes/terminal/registry";
 import { COMPONENT_NAMES } from "@/openui/detect";
 import { nodeNameOf, nodesStore, sessionOf, terminalOf } from "@/store/nodes";
@@ -40,8 +39,12 @@ export function outputTools() {
         required: ["title", "ui"],
       },
     },
-    { name: "output_guide", description: d.outputGuide, inputSchema: { type: "object", properties: {} } },
+    outputGuideSpec(),
   ];
+}
+
+export function outputGuideSpec() {
+  return { name: "output_guide", description: t().tools.outputGuide, inputSchema: { type: "object", properties: {} } };
 }
 
 export function readNodeSpec() {
@@ -106,9 +109,7 @@ function readSubagent(elementId: string, link: string): ToolResult | null {
   if (about) out.push(r.asked(about));
   const prompt = entry.lines.find((line) => line.kind === "prompt")?.text ?? entry.prompt;
   if (prompt) out.push(`${r.prompt}\n${prompt}${cut(prompt) ? `\n${r.cut(2000)}` : ""}`);
-  // Its answer: a handback, else its last words once it is done (a tool's output is not its result).
-  const last = (kind: SubagentLine["kind"]) => [...entry.lines].reverse().find((line) => line.kind === kind);
-  const answer = last("report") ?? (entry.state === "done" ? last("text") : undefined);
+  const answer = subagentAnswer(entry);
   if (answer) out.push(`${r.result}\n${answer.text}${cut(answer.text) ? `\n${r.cut(4000)}` : ""}`);
   else out.push(entry.state === "done" ? r.noResult : r.running);
   const rest = entry.lines.filter((line) => line.kind !== "prompt").slice(-60);

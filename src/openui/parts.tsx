@@ -90,8 +90,15 @@ export function Source({ text }: { text: string }) {
   return <pre className="max-h-96 overflow-auto rounded-md border border-dp-line bg-dp-surface p-2 font-mono text-xs whitespace-pre-wrap break-words text-dp-text select-text">{text}</pre>;
 }
 
-export function Markdown(props: { text: unknown; className?: string }) {
-  return <div className={cn("min-w-0 break-words", props.className)}>{renderMarkdown(String(props.text ?? ""), MARKDOWN)}</div>;
+/** A panel's small print: the edit panel's last report, a subagent's answer. */
+export const COMPACT = "gap-1.5 text-xs";
+
+export function Markdown(props: { text: unknown; className?: string; compact?: boolean }) {
+  return (
+    <div className={cn("min-w-0 break-words", props.className)}>
+      {renderMarkdown(String(props.text ?? ""), props.compact ? { ...MARKDOWN, className: COMPACT } : MARKDOWN)}
+    </div>
+  );
 }
 
 export function List(props: { items: unknown; ordered?: unknown }) {

@@ -17,6 +17,7 @@ import { terminalText } from "@/nodes/terminal/registry";
 import { agentActivityStore } from "@/store/agentActivity";
 import { nodesStore, terminalOf } from "@/store/nodes";
 import { isRunning } from "@/store/terminalStatus";
+import { splitGenerated } from "@/openui/detect";
 import { refused, said, type ToolResult } from "./agentTools";
 import { agentMessages } from "./messages";
 import { outAgent, outAgentState, outLevel, outMission, outReport, outStep } from "./protocol";
@@ -114,7 +115,7 @@ export function fleetTools() {
     {
       name: "finish",
       description: d.finish,
-      inputSchema: { type: "object", properties: { summary: { type: "string" }, check: { type: "array", items: { type: "string" }, description: d.finishCheck } }, required: ["summary"] },
+      inputSchema: { type: "object", properties: { summary: { type: "string", description: d.finishSummary }, check: { type: "array", items: { type: "string" }, description: d.finishCheck } }, required: ["summary"] },
     },
     {
       name: "remote_control",
@@ -340,13 +341,16 @@ async function reassign(fleetId: string, mission: Mission, args: Record<string, 
   return typeof result === "string" ? refused(result) : said(t().fleet.handedTo(from.task, result.name));
 }
 
-function finish(fleetId: string, mission: Mission, args: Record<string, unknown>): ToolResult {
+async function finish(fleetId: string, mission: Mission, args: Record<string, unknown>): Promise<ToolResult> {
   if (mission.state !== "en_cours") return refused(t().fleet.noMission);
   const summary = typeof args.bilan === "string" ? args.bilan.trim() : "";
   if (!summary) return refused(t().fleet.summaryMissing);
   const handChecks = Array.isArray(args.check) ? args.check.filter((line): line is string => typeof line === "string" && line.trim() !== "").map(oneLine) : [];
   if (handChecks.length > 0) setMission(fleetId, { handChecks });
-  endMission(fleetId, summary);
+  // In OpenUI Lang, the panel draws it; its text is what the rest reads.
+  const { text, ui } = await splitGenerated(summary);
+  if (ui) endMission(fleetId, text, ui);
+  else endMission(fleetId, text);
   return said(t().fleet.ended);
 }
 

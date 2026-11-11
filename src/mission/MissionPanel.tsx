@@ -2,6 +2,7 @@ import { useId, useRef, useState } from "react";
 import { Check, ChevronDown, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { GeneratedText } from "@/openui/GeneratedText";
 import { useStore } from "zustand";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -103,7 +104,7 @@ function MissionView({ nodeId, mission }: { nodeId: string; mission: Mission }) 
         {morningShown(mission, now) && <MorningReportView mission={mission} />}
         {(mission.state === "en_cours" || mission.state === "terminee") && <Team mission={mission} />}
         {mission.queue && mission.queue.length > 0 && <Queue mission={mission} />}
-        {mission.state === "terminee" && <p className="whitespace-pre-wrap text-dp-text">{mission.summary ?? ""}</p>}
+        {mission.state === "terminee" && <GeneratedText text={mission.summaryUi ?? mission.summary ?? ""} compact className="text-dp-text" />}
       </div>
       {/* Actions stay out of the scrolling body, so they are always visible. */}
       {mission.plan && (mission.state === "plan" || mission.state === "lancement") && <PlanActions nodeId={nodeId} mission={mission} />}
@@ -252,7 +253,7 @@ function Plan({ mission }: { mission: Mission }) {
   const plan = mission.plan ?? [];
   return (
     <div className="flex flex-col gap-2">
-      {mission.task && <p className="text-dp-text">{mission.task}</p>}
+      {mission.task && <GeneratedText text={mission.task} compact />}
       <ol className="flex flex-col gap-1">
         {plan.map((task, i) => (
           <li key={i} className="rounded-md bg-dp-card px-2 py-1">

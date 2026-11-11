@@ -167,3 +167,12 @@ describe("readOutputPayload", () => {
     for (const raw of [null, "x", {}, { title: "T", ui: 3 }]) expect(readOutputPayload(raw)).toBeNull();
   });
 });
+
+describe("a report written in OpenUI Lang", () => {
+  it("keeps its program beside its text, and drops a program that is not a string", () => {
+    const base = { title: "T", name: "N", agent: "claude", cwd: "C:/", shell: "default", command: "" };
+    const ui = 'root = Stack([Text("ok")])';
+    expect(readTerminalPayload({ ...base, lastReport: { status: "done", summary: "ok", ui } })?.lastReport).toEqual({ status: "done", summary: "ok", ui });
+    expect(readTerminalPayload({ ...base, lastReport: { status: "done", summary: "ok", ui: 4 } })?.lastReport).toEqual({ status: "done", summary: "ok" });
+  });
+});

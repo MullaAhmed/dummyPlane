@@ -13,6 +13,8 @@ export const agentMessages = defineMessages({
       report:
         "Report your mission sub-task to the fleet, or your task to the agent that opened you with spawn_agent: a summary and a status (done, blocked or failed).",
       reportCheck: "What the user will have to check by hand, if anything.",
+      reportSummary: "Markdown, or OpenUI Lang (root = Stack([...]); see output_guide) for a table or figures: dummyPlane draws it, and passes it on as text.",
+      finishSummary: "Markdown, or OpenUI Lang (root = Stack([...]); see output_guide) for a table or figures: dummyPlane draws it in your panel.",
       spawnAgent: (depth: number) =>
         "Delegate a task to a sub-agent that opens as a new Claude terminal beside yours, in your folder (same worktree): the user can watch it and type into it. " +
         "Use it instead of the built-in Agent/Task tool, several calls to work in parallel. It returns at once: do not wait or poll. " +

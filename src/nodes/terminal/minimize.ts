@@ -175,7 +175,7 @@ const REPORTED = new Map<unknown, TerminalReportStatus>([
  * summary, unknown status) changes nothing. Never throws: the report must
  * reach its fleet whatever happens here.
  */
-export function onAgentReported(nodeId: string, status: unknown, summary: unknown) {
+export function onAgentReported(nodeId: string, status: unknown, summary: unknown, ui?: string) {
   try {
     const reported = REPORTED.get(status);
     const text = typeof summary === "string" ? summary.trim() : "";
@@ -183,7 +183,7 @@ export function onAgentReported(nodeId: string, status: unknown, summary: unknow
     const payload = terminalOf(nodesStore.getState().nodes[nodeId]);
     if (!payload) return;
     nodesStore.getState().update(nodeId, {
-      lastReport: { status: reported, summary: text },
+      lastReport: { status: reported, summary: text, ...(ui ? { ui } : {}) },
       ...(payload.steps ? { steps: settledSteps(payload.steps, reported) } : {}),
     });
     if (reported === "done") minimizeTerminal(nodeId);

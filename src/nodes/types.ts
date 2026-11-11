@@ -61,7 +61,10 @@ export type TerminalReportStatus = "done" | "blocked" | "failed";
 
 export interface TerminalReport {
   status: TerminalReportStatus;
+  /** Its words: plain text or Markdown, what lines and cards show. */
   summary: string;
+  /** The summary as the agent wrote it in OpenUI Lang, when it did: what the edit panel draws. */
+  ui?: string;
 }
 
 const REPORT_STATUSES = new Set<string>(["done", "blocked", "failed"]);
@@ -77,7 +80,7 @@ function readTerminalReport(raw: unknown): TerminalReport | undefined {
   if (typeof raw !== "object" || raw === null) return undefined;
   const r = raw as Record<string, unknown>;
   if (typeof r.status !== "string" || !REPORT_STATUSES.has(r.status) || typeof r.summary !== "string") return undefined;
-  return { status: r.status as TerminalReportStatus, summary: r.summary };
+  return { status: r.status as TerminalReportStatus, summary: r.summary, ...(typeof r.ui === "string" && r.ui ? { ui: r.ui } : {}) };
 }
 
 /** Content of a fleet node (spec habillage §13, spec orchestrateur §6). */

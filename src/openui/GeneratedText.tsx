@@ -1,6 +1,5 @@
 import { lazy, Suspense } from "react";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { cn } from "@/lib/utils";
 import type { OutputActions } from "./actions";
 import { looksLikeOpenUI } from "./detect";
 import { Markdown, Source } from "./parts";
@@ -16,6 +15,8 @@ export interface GeneratedTextProps {
   actions?: OutputActions;
   /** Show the raw text instead (the output node's "Show source"). */
   source?: boolean;
+  /** Markdown at a panel's small print (12px) instead of 14px. */
+  compact?: boolean;
   className?: string;
 }
 
@@ -27,9 +28,9 @@ export interface GeneratedTextProps {
  * it is there, or if it cannot load, the raw text shows: never a blank.
  */
 export function GeneratedText(props: GeneratedTextProps) {
-  const { text, source = false, className } = props;
+  const { text, source = false, compact = false, className } = props;
   if (source) return <Source text={text} />;
-  if (!looksLikeOpenUI(text)) return <Markdown text={text} className={cn("text-sm", className)} />;
+  if (!looksLikeOpenUI(text)) return <Markdown text={text} compact={compact} className={className} />;
   return (
     <ErrorBoundary scope="generated text" fallback={() => <Source text={text} />}>
       <Suspense fallback={<Source text={text} />}>

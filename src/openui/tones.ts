@@ -48,11 +48,14 @@ export const TONE_RULE: Record<Tone, string> = {
 export const TEXT_TOKENS = ["--dp-text", "--dp-text-2", "--dp-text-3"] as const;
 
 /**
- * The grounds it writes on: the output's body (`bg-dp-surface`) and a Card
- * (`bg-dp-card`). Code always sits on the surface, even inside a card: its
- * syntax colours are measured there (src/studio/syntaxTheme.test.ts).
+ * The grounds it writes on: the output's body and the edit panel
+ * (`bg-dp-surface`), a Card (`bg-dp-card`), and the Fleet's mission panel, on
+ * its frame's head colour (`bg-dp-terminal-head`). Never on a terminal's body
+ * (`--dp-terminal`, 1.3:1 in calm): a subagent's answer gets a surface of its
+ * own. Code always sits on the surface, even inside a card: its syntax colours
+ * are measured there (src/studio/syntaxTheme.test.ts).
  */
-export const GROUND_TOKENS = ["--dp-surface", "--dp-card"] as const;
+export const GROUND_TOKENS = ["--dp-surface", "--dp-card", "--dp-terminal-head"] as const;
 
 /** A line chart's series, in order: the palette's syntax hues (`@/studio/syntaxHues`), each 4.5:1 or more on the surface. */
 export const SERIES_HUES = ["blue", "green", "magenta", "yellow", "cyan", "red"] as const;

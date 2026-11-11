@@ -89,6 +89,13 @@ describe("what is left to check by hand (spec mission de nuit §6.2)", () => {
     expect(missionOf(nodesStore.getState().nodes.chef)?.handChecks).toEqual(["Relire la migration"]);
   });
 
+  it("keeps a summary written in OpenUI Lang to be drawn, and ends the mission with its text", async () => {
+    await setup({ state: "en_cours" });
+    const ui = 'root = Stack([Heading("Night"), Table(["Task", "State"], [["Login", "done"]])])';
+    await fleetTool("chef", "terminer", { bilan: ui });
+    expect(endMission).toHaveBeenCalledWith("chef", "# Night\n\n| Task | State |\n| --- | --- |\n| Login | done |", ui);
+  });
+
   it("asks nothing of a finish without any", async () => {
     await setup({ state: "en_cours" });
     await fleetTool("chef", "terminer", { bilan: "Fini" });

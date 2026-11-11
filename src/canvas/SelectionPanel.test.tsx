@@ -1357,7 +1357,10 @@ it("says where the agent stands now: its dot and word, the step under way, its l
   expect(statusGroup().querySelector("[data-status='working']")).not.toBeNull();
   expect(statusGroup().textContent).toContain("Working");
   expect(host.querySelector("[data-step]")?.textContent).toBe("Step 2 of 3: Build");
-  expect(host.querySelector("[data-report-summary]")?.textContent).toBe("Last report · Waiting for the API key");
+  // The agent's own words, drawn as Markdown under their label.
+  const summary = host.querySelector("[data-report-summary]")!;
+  expect(summary.querySelector("span")?.textContent).toBe("Last report");
+  expect(summary.querySelector("p")?.textContent).toBe("Waiting for the API key");
   expect(statusGroup().textContent).toContain("67.8 k tokens · 7 % context");
 });
 

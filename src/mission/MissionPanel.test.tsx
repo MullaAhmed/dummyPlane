@@ -322,3 +322,18 @@ it("gives an agent's report summary in the app's hint, reached by the keyboard t
   await act(async () => word.focus());
   expect(document.querySelector('[role="tooltip"]')?.textContent).toBe("Blocked on the API key");
 });
+
+it("draws the fleet's summary: Markdown as Markdown, OpenUI Lang through the library", async () => {
+  await show({ state: "terminee", summary: "All **done**.", members: [] });
+  expect(host.querySelector("strong")?.textContent).toBe("done");
+  act(() => root.unmount());
+  host.remove();
+  nodesStore.setState({ nodes: {} });
+  const ui = 'root = Stack([Table(["Task", "State"], [["Login", "done"]])])';
+  await show({ state: "terminee", summary: "| Task | State |", summaryUi: ui, members: [] });
+  await act(async () => {
+    await vi.dynamicImportSettled();
+  });
+  expect([...host.querySelectorAll("td")].map((td) => td.textContent)).toEqual(["Login", "done"]);
+  expect(host.textContent).not.toContain("root =");
+});

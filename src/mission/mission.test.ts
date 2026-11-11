@@ -323,3 +323,11 @@ describe("the time of a mission (spec orchestrateur §8)", () => {
     expect(readMission(saved)).toEqual(saved);
   });
 });
+
+it("keeps a finished mission's summary as the fleet wrote it in OpenUI Lang, beside its text", () => {
+  const ui = 'root = Stack([Text("All done")])';
+  const saved = readMission({ ...NEW_MISSION, state: "terminee", summary: "All done", summaryUi: ui })!;
+  expect(saved.summary).toBe("All done");
+  expect(saved.summaryUi).toBe(ui);
+  expect(readMission({ ...NEW_MISSION, state: "terminee", summaryUi: 3 })!.summaryUi).toBeUndefined();
+});

@@ -120,7 +120,7 @@ describe("the fleet's tools (spec orchestrateur §7.2)", () => {
 
   it("lists them for the fleet only, and each side refuses the other's", async () => {
     const list = (await answer({ callId: 1, nodeId: "chef", method: "tools/list", params: {} })) as { tools: { name: string }[] };
-    expect(list.tools.map((t) => t.name)).toEqual(["mission", "propose_plan", "add_tasks", "queue", "next_task", "tickets", "board", "team", "read_output", "write", "extend", "interrupt", "reassign", "merge", "finish", "remote_control", "read_node", "notes"]);
+    expect(list.tools.map((t) => t.name)).toEqual(["mission", "propose_plan", "add_tasks", "queue", "next_task", "tickets", "board", "team", "read_output", "write", "extend", "interrupt", "reassign", "merge", "finish", "remote_control", "output_guide", "read_node", "notes"]);
     expect(textOf(await call("batman", "propose_plan", plan))).toBe("This tool is for the fleet.");
     expect(textOf(await call("chef", "report", { summary: "x", status: "done" }))).toBe("This tool is for agents.");
     expect(textOf(await call("batman", "board", {}))).toBe("This tool is for the fleet.");

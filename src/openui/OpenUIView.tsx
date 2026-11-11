@@ -17,17 +17,17 @@ import { Markdown, Source } from "./parts";
  * source a click away; a crash while drawing it falls back to Markdown.
  */
 export default function OpenUIView(props: GeneratedTextProps) {
-  const { text, isStreaming = false, actions, className } = props;
+  const { text, isStreaming = false, actions, compact = false, className } = props;
   const t = useMessages(openuiMessages);
   const parsed = useMemo(() => readOpenUI(text), [text]);
   const [open, setOpen] = useState(false);
-  if (!parsed) return <Markdown text={text} className={cn("text-sm", className)} />;
+  if (!parsed) return <Markdown text={text} compact={compact} className={className} />;
   // While it streams, a name not yet defined is only not written yet.
   const broken = parsed.meta.errors.some((error) => (error as { severity?: string }).severity !== "warning") || (!isStreaming && parsed.meta.unresolved.length > 0);
   return (
     <OutputActionsProvider value={actions ?? {}}>
       <div data-openui className={cn("flex min-w-0 flex-col gap-2", className)}>
-        <ErrorBoundary scope="generated text" fallback={() => <Markdown text={text} className="text-sm" />}>
+        <ErrorBoundary scope="generated text" fallback={() => <Markdown text={text} compact={compact} />}>
           <Renderer response={text} library={outputLibrary} isStreaming={isStreaming} />
         </ErrorBoundary>
         {broken && !isStreaming && (

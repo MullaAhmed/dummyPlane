@@ -6,7 +6,9 @@ import { createNodeElement, nodeKindOf } from "@/canvas/nodeElement";
 import { terminalText } from "@/nodes/terminal/registry";
 import { subagentNodesStore } from "@/nodes/subagent/store";
 import type { TerminalPayload } from "@/nodes/types";
-import { nodesStore } from "@/store/nodes";
+import { nodesStore, terminalOf } from "@/store/nodes";
+import { terminalStatusStore } from "@/store/terminalStatus";
+import { notify } from "@/mission/events";
 import { answer } from "./router";
 import { orphanWires } from "@/agents/wires";
 
@@ -177,5 +179,37 @@ describe("read_node", () => {
     const result = await call("chef", "read_node", { link: "dummyplane://terminal/robin" });
     expect(result.isError).toBeUndefined();
     expect(textOf(result)).toContain("Terminal Robin");
+  });
+});
+
+describe("a report written in OpenUI Lang", () => {
+  it("is kept to be drawn, while its parent hears it as text on one line", async () => {
+    nodesStore.getState().update("robin", { spawnedBy: "batman" });
+    terminalStatusStore.getState().set("batman", { state: "running" });
+    const result = await call("robin", "report", { summary: UI, status: "done" });
+    expect(result.isError).toBeUndefined();
+    const report = terminalOf(nodesStore.getState().nodes.robin)?.lastReport;
+    expect(report?.ui).toBe(UI);
+    expect(report?.summary).toBe("# Tests\n\n| Test | Result |\n| --- | --- |\n| saves | ok |\n| reads | failed |");
+    const line = vi.mocked(notify).mock.calls.find(([to]) => to === "batman")![1];
+    expect(line).toContain("Robin reported (done): # Tests | Test | Result |");
+    expect(line).not.toContain("root =");
+    terminalStatusStore.getState().remove("batman");
+  });
+
+  it("leaves a Markdown summary as it is, with no program", async () => {
+    nodesStore.getState().update("robin", { spawnedBy: "batman" });
+    await call("robin", "report", { summary: "All **green**", status: "done" });
+    expect(terminalOf(nodesStore.getState().nodes.robin)?.lastReport).toEqual({ status: "done", summary: "All **green**" });
+  });
+
+  it("tells agents and fleets that OpenUI Lang is welcome where they write long text", async () => {
+    const list = (await answer({ callId: 1, nodeId: "batman", method: "tools/list", params: {} })) as { tools: { name: string; inputSchema: { properties: Record<string, { description?: string }> } }[] };
+    expect(list.tools.find((t) => t.name === "report")!.inputSchema.properties.summary.description).toContain("OpenUI Lang");
+    await nodesStore.getState().create("chef", { workspaceId: "w1", kind: "fleet", payload: { name: "Fleet" } });
+    const fleet = (await answer({ callId: 1, nodeId: "chef", method: "tools/list", params: {} })) as typeof list;
+    expect(fleet.tools.find((t) => t.name === "finish")!.inputSchema.properties.summary.description).toContain("OpenUI Lang");
+    expect(fleet.tools.some((t) => t.name === "output_guide")).toBe(true);
+    expect(textOf(await call("chef", "output_guide", {}))).toContain("root = Stack(");
   });
 });

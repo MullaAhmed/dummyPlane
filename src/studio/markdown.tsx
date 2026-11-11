@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { messages } from "@/i18n";
+import { cn } from "@/lib/utils";
 import { studioMessages } from "./messages";
 
 /** The file's extension, lower case, without the dot; "" when it has none. */
@@ -59,6 +60,8 @@ export type LinkRenderer = (href: string, label: ReactNode[], key: number) => Re
 
 export interface MarkdownOptions {
   link?: LinkRenderer;
+  /** Classes for the whole block, merged over its own (a smaller size in a panel). */
+  className?: string;
 }
 
 /** Renders inline formatting: code, bold, italic, links, images (as text). */
@@ -197,5 +200,5 @@ export function renderMarkdown(source: string, options: MarkdownOptions = {}): R
       blocks.push(<p key={key}>{inline(para.join(" "))}</p>);
     }
   }
-  return <div className="flex flex-col gap-2 text-sm text-dp-text">{blocks}</div>;
+  return <div className={cn("flex flex-col gap-2 text-sm text-dp-text", options.className)}>{blocks}</div>;
 }
