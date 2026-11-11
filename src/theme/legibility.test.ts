@@ -88,6 +88,38 @@ it("writes the waiting count on its wait fill at 4.5:1 in every palette, with th
   expect(contrast(calm["--dp-on-role"], calm["--dp-wait"])).toBeCloseTo(2.46, 2);
 });
 
+describe("a control's own boundary reaches 3:1, where a divider's hairline does not (P2-24)", () => {
+  it("composites like the audit measured: the hairline 1.18-1.25:1 on the surface", () => {
+    for (const [palette, selector] of Object.entries(PALETTES)) {
+      const t = cssBlock(tokens, selector);
+      const ratio = contrast(over(t["--dp-surface"], t["--dp-line"]), t["--dp-surface"]);
+      expect(ratio, `${palette} line on surface`).toBeGreaterThan(1.1);
+      expect(ratio, `${palette} line on surface`).toBeLessThan(1.3);
+    }
+  });
+
+  it("draws --dp-line-strong at 3:1 or more on every ground a field sits on, the selection's tint included", () => {
+    expect(cssBlock(readSource("index.css"), "@theme inline")["--color-dp-line-strong"]).toBe("var(--dp-line-strong)");
+    for (const [palette, selector] of Object.entries(PALETTES)) {
+      const t = cssBlock(tokens, selector);
+      const grounds: Record<string, string> = { canvas: t["--dp-canvas"], surface: t["--dp-surface"], card: t["--dp-card"], head: t["--dp-terminal-head"] };
+      grounds.tint = over(t["--dp-surface"], t["--dp-accent-soft"]);
+      for (const [ground, hex] of Object.entries(grounds)) {
+        expect(contrast(over(hex, t["--dp-line-strong"]), hex), `${palette} line-strong on the ${ground}`).toBeGreaterThanOrEqual(3);
+      }
+    }
+  });
+
+  it("bounds Input, Textarea and the Select trigger with it, never with the divider's hairline", () => {
+    for (const [file, slot] of [["components/ui/input.tsx", "input"], ["components/ui/textarea.tsx", "textarea"], ["components/ui/select.tsx", "select-trigger"]]) {
+      const text = readSource(file);
+      const classes = /"([^"]*)"/.exec(text.slice(text.indexOf("className", text.indexOf(`data-slot="${slot}"`))))![1];
+      expect(classes, file).toMatch(/(?:^|\s)border-dp-line-strong(?=\s|$)/);
+      expect(classes, file).not.toMatch(/(?:^|\s)border-dp-line(?=\s|$)/);
+    }
+  });
+});
+
 describe("text on a selected row (the accent's tint) keeps 4.5:1 (P1-14)", () => {
   const index = readSource("index.css");
   /** The selection's tint over the grounds a selected row sits on: the panels and menus, the cards. */

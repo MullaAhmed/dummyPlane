@@ -56,6 +56,9 @@
   --dp-card: #F2EBDB;
   --dp-field: rgba(23,63,50,0.04);
   --dp-line: rgba(23,63,50,0.1);
+  /* A control's own boundary (fields, select triggers): the ink at 3:1 or more on every ground
+     (WCAG 1.4.11), where --dp-line, a divider, reads 1.2:1. legibility.test.ts computes it. */
+  --dp-line-strong: rgba(23,63,50,0.6);
   --dp-hover: rgba(23,63,50,0.06);
   --dp-text: #173F32;
   --dp-text-2: #315344;
@@ -92,6 +95,9 @@
   --dp-card: #2034DE;
   --dp-field: rgba(244,244,241,0.05);
   --dp-line: rgba(244,244,241,0.1);
+  /* A control's own boundary (fields, select triggers): the ink at 3:1 or more on every ground
+     (WCAG 1.4.11), where --dp-line, a divider, reads 1.2:1. legibility.test.ts computes it. */
+  --dp-line-strong: rgba(244,244,241,0.6);
   --dp-hover: rgba(244,244,241,0.06);
   --dp-text: #F4F4F1;
   --dp-text-2: #E4E5F1;
@@ -129,6 +135,9 @@
   --dp-card: #1E1E21;
   --dp-field: rgba(244,244,241,0.05);
   --dp-line: rgba(244,244,241,0.08);
+  /* A control's own boundary (fields, select triggers): the ink at 3:1 or more on every ground
+     (WCAG 1.4.11), where --dp-line, a divider, reads 1.2:1. legibility.test.ts computes it. */
+  --dp-line-strong: rgba(244,244,241,0.4);
   --dp-hover: rgba(244,244,241,0.06);
   --dp-text: #F4F4F1;
   --dp-text-2: #C2C2C0;

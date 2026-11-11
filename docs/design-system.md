@@ -38,6 +38,7 @@ Every surface is opaque. There is no glass, no blur and no transparency setting.
 Lines and shadows:
 
 - `--dp-line`: borders and dividers.
+- `--dp-line-strong`: a control's own boundary (Input, Textarea, the Select trigger), the ink at 60% in `calm` and `electric` and 40% in `expressive`: 3:1 or more on every ground, where the hairline reads about 1.2:1. Never a divider.
 - `--dp-shadow`, `--dp-float-shadow`: elevation for dialogs, menus and floating bars. A small neutral shadow in `calm` only; no visible shadow in the dark palettes (`0 0 #0000`).
 - `--dp-scrim`: veil behind dialogs and sheets. Flat, nothing blurred behind it. Per palette.
 
