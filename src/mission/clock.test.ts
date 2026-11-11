@@ -186,3 +186,32 @@ it("tells a budget once even while the fleet cannot hear, and records the worst 
   expect(toast.warning).toHaveBeenCalledTimes(1);
   expect(missionOf(nodesStore.getState().nodes.chef2)?.members[0].overdue).toBe(2);
 });
+
+it("tells a mission's Manager, not its Fleet, of a budget used up and of the night's end (spec babysitter Fleet)", async () => {
+  vi.mocked(notify).mockClear();
+  await nodesStore.getState().create("sitter", {
+    workspaceId: "w1",
+    kind: "fleet",
+    payload: {
+      name: "Sitter",
+      mission: {
+        state: "en_cours",
+        name: "Night",
+        maxAgents: 4,
+        overnight: true,
+        budgetMin: 100,
+        startedAt: 0,
+        manager: "boss",
+        members: [{ nodeId: "batman", name: "Batman", task: "Docs", budgetMin: 10, linked: false, branch: "b", worktree: "w", sentAt: 0 }],
+      },
+    },
+  });
+  try {
+    checkBudgets(95 * min);
+    const told = vi.mocked(notify).mock.calls.filter(([to]) => to === "boss" || to === "sitter");
+    expect(told.map(([to]) => to)).toEqual(["boss", "boss"]);
+    expect(told.map(([, line]) => line)).toEqual([expect.stringContaining("Target passed: Batman (Docs)"), expect.stringContaining("min left")]);
+  } finally {
+    setMission("sitter", { state: "terminee" });
+  }
+});

@@ -139,3 +139,61 @@ describe("events to the fleet (spec orchestrateur §7.5)", () => {
     expect(pendingEvents("chef")).toEqual([]);
   });
 });
+
+describe("a mission its Manager runs (spec babysitter Fleet)", () => {
+  beforeAll(async () => {
+    await nodesStore.getState().create("sitter", {
+      workspaceId: "w1",
+      kind: "fleet",
+      payload: { name: "Sitter", mission: { state: "en_cours", maxAgents: 4, manager: "boss", members: [member("robin", "Robin", 1)] } },
+    });
+    await nodesStore.getState().create("boss", {
+      workspaceId: "w1",
+      kind: "terminal",
+      payload: { title: "Manager", name: "Manager", agent: "claude", cwd: "C:/w", shell: "default", command: "", role: "manager", fleet: "sitter" },
+    });
+  });
+
+  beforeEach(async () => {
+    status("sitter", "running");
+    status("boss", "running");
+    status("robin", "running");
+    await tick();
+    activity("sitter", "idle");
+    activity("boss", "idle");
+    activity("robin", "working");
+    vi.mocked(ptySendText).mockClear();
+  });
+
+  it("types a team agent's question and its stop into the Manager, never into the Fleet", async () => {
+    activity("robin", "waiting");
+    status("robin", "stopped");
+    await vi.waitFor(() => expect(sent()).toHaveLength(2));
+    expect(sent()).toEqual([
+      "boss: [dummyPlane] Robin is waiting for the user (a dialog is open in its terminal).",
+      "boss: [dummyPlane] Robin stopped: its terminal is no longer running.",
+    ]);
+  });
+
+  it("tells the Fleet, in one line each, when its Manager waits for the user or stops", async () => {
+    activity("boss", "waiting");
+    await vi.waitFor(() => expect(sent()).toEqual(["sitter: [dummyPlane] Manager is waiting for the user (a dialog is open in its terminal)."]));
+    activity("boss", "idle");
+    status("boss", "stopped");
+    await vi.waitFor(() => expect(sent()).toHaveLength(2));
+    expect(sent()[1]).toBe("sitter: [dummyPlane] Manager stopped: its terminal is no longer running. The board waits: relaunch it from its node, or stop_mission.");
+  });
+
+  it("holds the Manager's lines until its prompt is up after a start", async () => {
+    status("boss", "stopped");
+    vi.mocked(ptySendText).mockClear();
+    let ready!: (value: boolean) => void;
+    vi.mocked(whenReady).mockReturnValueOnce(new Promise((resolve) => (ready = resolve)));
+    status("boss", "running");
+    notify("boss", "You run the mission");
+    await tick();
+    expect(sent()).toEqual([]);
+    ready(true);
+    await vi.waitFor(() => expect(sent()).toEqual(["boss: [dummyPlane] You run the mission"]));
+  });
+});

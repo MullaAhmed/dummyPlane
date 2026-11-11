@@ -6,7 +6,7 @@ import type { Member, SubTask } from "@/mission/mission";
 import type { KanbanPayload } from "@/nodes/types";
 import { nodesStore } from "@/store/nodes";
 import { moveCardWithGithub } from "./github";
-import { finishMissionCard, flagMissionCard, linkedBoards, planWithFleet, reassignMissionCard, startMissionCards } from "./fleetBoards";
+import { addTaskCards, finishMissionCard, flagMissionCard, linkedBoards, moveMissionCard, planWithFleet, reassignMissionCard, startMissionCards } from "./fleetBoards";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
 vi.mock("@/mission/events", () => ({ notify: vi.fn() }));
@@ -100,5 +100,57 @@ describe("the Kanban handed to a fleet", () => {
     expect(vi.mocked(moveCardWithGithub).mock.lastCall?.[4]).toBe("C:/code/mission");
     await finishMissionCard("chef", [{ title: "API", brief: "b", agent: "nouveau", budgetMin: 5, card: "c2" }], "API");
     expect(vi.mocked(moveCardWithGithub).mock.lastCall?.[4]).toBe("C:/code/mission");
+  });
+});
+
+describe("the cards of a mission its Manager runs (spec babysitter Fleet)", () => {
+  beforeAll(async () => {
+    await nodesStore.getState().create("sitter", { workspaceId: "w1", kind: "fleet", payload: { name: "Sitter", mission: { state: "en_cours", maxAgents: 4, members: [], manager: "boss", board: "k2" } } });
+    await nodesStore.getState().create("k2", {
+      workspaceId: "w1",
+      kind: "kanban",
+      payload: {
+        columns: [
+          { id: "backlog", title: "Backlog", cardIds: [] },
+          { id: "todo", title: "To do", cardIds: [] },
+          { id: "done", title: "Done", cardIds: [] },
+        ],
+        cards: {},
+        orchestrator: { nodeId: "sitter", columnId: "todo" },
+      },
+    });
+  });
+  const board = () => (nodesStore.getState().nodes.k2 as { payload: KanbanPayload }).payload;
+  const column = (title: string) => board().columns.find((c) => c.title === title);
+
+  it("adds the tasks as cards in the to-do column, then follows them: In progress, Blocked, In progress again, Done", async () => {
+    const [task] = addTaskCards("sitter", [{ title: "Tests", brief: "Write the tests", budgetMin: 5 }]);
+    expect(column("To do")?.cardIds).toEqual([task.card]);
+    expect(board().cards[task.card!]).toMatchObject({ title: "Tests", notes: "Write the tests" });
+    const plan: SubTask[] = [{ ...task, agent: "Robin" }];
+    await startMissionCards("sitter", [member("Robin", "Tests")], plan);
+    expect(column("In progress")?.cardIds).toEqual([task.card]);
+    await flagMissionCard("sitter", plan, "Tests", "failed");
+    expect(board().columns.map((c) => c.title)).toEqual(["Backlog", "To do", "In progress", "Blocked", "Done"]);
+    expect(column("Blocked")?.cardIds).toEqual([task.card]);
+    expect(board().cards[task.card!].agentStatus).toBe("failed");
+    await reassignMissionCard("sitter", plan, "Tests", "Cyborg");
+    expect(column("In progress")?.cardIds).toEqual([task.card]);
+    expect(board().cards[task.card!]).toMatchObject({ agent: "Cyborg" });
+    expect(board().cards[task.card!].agentStatus).toBeUndefined();
+    await finishMissionCard("sitter", plan, "Tests");
+    expect(column("Done")?.cardIds).toEqual([task.card]);
+  });
+
+  it("moves a card for the Manager, its GitHub issue following like any move", async () => {
+    const [task] = addTaskCards("sitter", [{ title: "Lint", brief: "Run the lint", budgetMin: 5 }]);
+    await moveMissionCard("sitter", task.card!, "backlog");
+    expect(column("Backlog")?.cardIds).toContain(task.card);
+    expect(moveCardWithGithub).toHaveBeenLastCalledWith("k2", task.card, "backlog", undefined, undefined);
+  });
+
+  it("leaves tasks without cards when the mission has no board", () => {
+    const tasks = [{ title: "X", brief: "b", budgetMin: 5 }];
+    expect(addTaskCards("chef", tasks)).toEqual(tasks);
   });
 });

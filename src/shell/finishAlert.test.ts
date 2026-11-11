@@ -267,6 +267,27 @@ describe("who alerts", () => {
     expect(notified().map((n) => n.title)).toEqual(["Alfred · Done"]);
   });
 
+  it("never a mission's Manager: it works for its Fleet, whose mission's end alerts once (spec babysitter Fleet)", async () => {
+    const mission = { state: "en_cours", maxAgents: 2, manager: "boss", members: [] } as Mission;
+    nodesStore.setState((s) => ({
+      nodes: {
+        ...s.nodes,
+        chef: { workspaceId: "w2", kind: "fleet", payload: { name: "Chef", mission } },
+        boss: { workspaceId: "w2", kind: "terminal", payload: terminal("Manager", { role: "manager", fleet: "chef" }) },
+      },
+    }));
+    terminalStatusStore.getState().set("boss", { state: "running" });
+    await turn("boss", LONG);
+    signalFinish({ nodeId: "boss", state: "done", summary: "Merged" });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(sendNotification).not.toHaveBeenCalled();
+    // The Manager's finish ends the mission: the Fleet alerts, once.
+    nodesStore.getState().update("chef", { mission: { ...mission, state: "terminee", summary: "Board done" } });
+    signalFinish({ nodeId: "chef", state: "done", summary: "Board done" });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(notified().map((n) => [n.title, n.body])).toEqual([["Chef · Done", "Board done"]]);
+  });
+
   it("the Fleet: its mission's end with its summary, not each turn while the mission runs", async () => {
     nodesStore.getState().update("chef", { mission: { state: "en_cours", maxAgents: 2, members: [] } });
     await turn("chef", LONG);

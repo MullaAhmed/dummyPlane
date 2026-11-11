@@ -1,6 +1,22 @@
 import { describe, expect, it } from "vitest";
 import { readKanbanPayload, type KanbanPayload } from "@/nodes/types";
-import { boardView, doneTarget, flagCard, inProgressColumn, setCardAgent, linkedTo, linkFleet, planRequest, startCard, withInProgressColumn, type RequestTexts } from "./missionLink";
+import {
+  blockedColumn,
+  boardView,
+  doneTarget,
+  flagCard,
+  inProgressColumn,
+  setCardAgent,
+  linkedTo,
+  linkFleet,
+  planRequest,
+  startCard,
+  todoColumnOf,
+  withBlockedColumn,
+  withInProgressColumn,
+  withTaskCards,
+  type RequestTexts,
+} from "./missionLink";
 
 const ids = () => {
   let n = 0;
@@ -174,5 +190,42 @@ describe("boardView", () => {
       agent_status: null,
     });
     expect(view.columns[0].cards[1].github).toBeNull();
+  });
+});
+
+describe("a mission's cards on the board its Manager runs (spec babysitter Fleet)", () => {
+  it("takes the column handed to the fleet as the to-do, else the first one", () => {
+    expect(todoColumnOf(board(), "chef")?.id).toBe("todo");
+    const handed = linkFleet(board(), "chef", "done");
+    expect(todoColumnOf(handed, "chef")?.id).toBe("done");
+    expect(todoColumnOf(handed, "other")?.id).toBe("todo");
+    expect(todoColumnOf({ columns: [], cards: {} }, "chef")).toBeUndefined();
+  });
+
+  it("makes a card for each task without one, its brief as notes, in order, at the end of the to-do", () => {
+    const tasks = [
+      { title: "Login", brief: "already a card", card: "a" },
+      { title: "API", brief: "Build the API\nthen test it" },
+      { title: "Docs", brief: "Write the docs" },
+    ];
+    const { board: next, tasks: carded } = withTaskCards(board(), "todo", tasks, ids());
+    expect(carded.map((t) => t.card)).toEqual(["a", "new1", "new2"]);
+    expect(next.columns[0].cardIds).toEqual(["a", "b", "new1", "new2"]);
+    expect(next.cards.new1).toEqual({ id: "new1", title: "API", notes: "Build the API then test it", priority: "none" });
+    // Each task keeps its own fields.
+    expect(carded[1]).toMatchObject({ title: "API", brief: "Build the API\nthen test it" });
+  });
+
+  it("makes a card again for a task whose card left the board, and nothing for an unknown column", () => {
+    expect(withTaskCards(board(), "todo", [{ title: "Gone", brief: "b", card: "zz" }], ids()).tasks[0].card).toBe("new1");
+    const same = board();
+    expect(withTaskCards(same, "nope", [{ title: "X", brief: "b" }]).board).toBe(same);
+  });
+
+  it("puts a Blocked column before the done one, made once", () => {
+    const placed = withBlockedColumn(board(), "Blocked", ids());
+    expect(placed.board.columns.map((c) => c.title)).toEqual(["To do", "Blocked", "Done"]);
+    expect(blockedColumn(placed.board)?.id).toBe(placed.columnId);
+    expect(withBlockedColumn(placed.board, "Blocked", ids()).board).toBe(placed.board);
   });
 });
