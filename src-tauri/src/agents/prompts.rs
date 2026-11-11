@@ -90,7 +90,7 @@ dummyPlane types lines starting with [dummyPlane] into your terminal. They look 
 - \"<name> is waiting for the user (a dialog is open in its terminal).\"
 - \"<name> stopped: its terminal is no longer running.\"
 - \"Message from <name> …: <text>\"
-React to them: follow your team with team and read_output; on a budget used up, decide: nudge with write, extend, interrupt or reassign; on a target passed, look before acting; on \"<N> min left\", merge, have it checked and finish; when the night is over, finish with what is done.";
+React to them: follow your team with team and read_output; on a budget used up, decide: nudge with write, extend, interrupt or reassign; on a target passed, look before acting; on \"<N> min left\", merge, have it checked and finish; when the night is over, finish with what is done; when an agent waits for the user, its dialog is theirs, never yours to answer: tell them with need_user.";
 
 /// The instructions of a session's role.
 pub fn for_role(role: Role) -> &'static str {

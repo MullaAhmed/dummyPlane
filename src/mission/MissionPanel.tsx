@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { useCanvas } from "@/canvas/canvasStore";
+import { focusNode } from "@/canvas/focusNode";
 import { BUDGET_COLOR } from "@/canvas/overlay/timeline";
 import { linkedAgents, NO_LINKS } from "@/agents/wires";
 import { messages, useMessages } from "@/i18n";
@@ -18,7 +19,7 @@ import { AccentButton, Hint, HintedButton } from "@/shell/buttons";
 import type { DotState } from "@/nodes/terminal/StatusDot";
 import { useActivities } from "@/store/agentActivity";
 import { FLEET_CAPABLE } from "@/fleet/capable";
-import { sessionOf, terminalOf, useNodes } from "@/store/nodes";
+import { nodeNameOf, sessionOf, terminalOf, useNodes } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
 import { openReview } from "@/review/reviewStore";
 import { uiStore, useUi } from "@/store/ui";
@@ -102,6 +103,7 @@ function MissionView({ nodeId, mission }: { nodeId: string; mission: Mission }) 
           </p>
         )}
         {morningShown(mission, now) && <MorningReportView mission={mission} />}
+        {(mission.state === "en_cours" || mission.state === "terminee") && mission.manager && <RunBy mission={mission} />}
         {(mission.state === "en_cours" || mission.state === "terminee") && <Team mission={mission} />}
         {mission.queue && mission.queue.length > 0 && <Queue mission={mission} />}
         {mission.state === "terminee" && <GeneratedText text={mission.summaryUi ?? mission.summary ?? ""} compact className="text-dp-text" />}
@@ -311,6 +313,34 @@ function PlanActions({ nodeId, mission }: { nodeId: string; mission: Mission }) 
         {launching ? t.launching : t.launch}
       </AccentButton>
     </footer>
+  );
+}
+
+/**
+ * Who runs the team, and where its cards are: the Manager under the board, each a click away. The team's rows
+ * below say who does which task. A mission run the old way has no such line: its Fleet runs it.
+ */
+function RunBy({ mission }: { mission: Mission }) {
+  const t = useMessages(missionMessages);
+  const manager = mission.manager;
+  const board = mission.board;
+  const name = useNodes((s) => (manager ? nodeNameOf(s.nodes[manager]) : "")) || t.showManager;
+  const managerHere = useNodes((s) => (manager ? s.nodes[manager] !== undefined : false));
+  const boardHere = useNodes((s) => (board ? s.nodes[board] !== undefined : false));
+  return (
+    <div data-run-by className="flex h-7 items-center gap-2">
+      <span className="min-w-0 truncate">{t.runBy(name)}</span>
+      {manager && managerHere && (
+        <HintedButton hint={t.showManagerTitle(name)} variant="ghost" size="xs" onClick={() => focusNode(manager)} className={cn("ml-auto", LINE_ACTION)}>
+          {t.showManager}
+        </HintedButton>
+      )}
+      {board && boardHere && (
+        <HintedButton hint={t.showBoardTitle} variant="ghost" size="xs" onClick={() => focusNode(board)} className={cn(!(manager && managerHere) && "ml-auto", LINE_ACTION)}>
+          {t.showBoard}
+        </HintedButton>
+      )}
+    </div>
   );
 }
 

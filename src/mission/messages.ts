@@ -134,6 +134,12 @@ export const missionMessages = defineMessages({
       start: "Start",
     },
     launching: "Launching…",
+    // A mission its Manager runs (spec babysitter Fleet): who runs the team, and where its cards are.
+    runBy: (manager: string) => `Run by ${manager}, on its board`,
+    showManager: "Manager",
+    showManagerTitle: (manager: string) => `Show ${manager}, who runs the team`,
+    showBoard: "Board",
+    showBoardTitle: "Show the mission's board",
     launch: "Launch the mission",
     reviewTitle: (name: string) => `Review ${name}'s work`,
     reviewLabel: (name: string) => `Review of ${name}`,

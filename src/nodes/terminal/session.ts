@@ -72,8 +72,8 @@ export async function startSession(nodeId: string, term: TermSink, payload: Term
     const message = error instanceof Error ? error.message : String(error);
     const kind = error instanceof AppError ? error.kind : undefined;
     setStatus(nodeId, kind ? { state: "error", message, kind } : { state: "error", message });
-    // A refused fleet says why over its terminal (spec première version §4.1).
-    if (kind !== "toolsUnavailable") term.write(`\r\n\x1b[31m${message}\x1b[0m\r\n`);
+    // A refused fleet says why over its terminal (spec première version §4.1); a refused Manager, a plain terminal, in it.
+    if (kind !== "toolsUnavailable" || nodesStore.getState().nodes[nodeId]?.kind !== "fleet") term.write(`\r\n\x1b[31m${message}\x1b[0m\r\n`);
   }
 }
 
