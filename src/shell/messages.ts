@@ -170,6 +170,8 @@ export const shellMessages = defineMessages(
     tabs: {
       deleteWorkspace: "Delete the workspace",
       rename: "Rename",
+      /** The rename field's name: it takes focus with the old name selected, and says what it edits. */
+      nameField: "Workspace name",
       moveLeft: "Move left",
       moveRight: "Move right",
       folder: "Folder…",

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { BookOpen, Code2, Folder, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -58,6 +58,7 @@ function WorkspaceTab(props: { workspace: Workspace; projectFolder: string; acti
     return (
       <Input
         autoFocus
+        aria-label={t.nameField}
         defaultValue={workspace.name}
         className="mb-0.5 h-8 w-40 rounded-md"
         onBlur={(e) => {
@@ -202,40 +203,81 @@ function WorkspaceTab(props: { workspace: Workspace; projectFolder: string; acti
   );
 }
 
+/** How far the row fades at an edge it is cut at: tabs go on past it. */
+const FADE_PX = 24;
+
+/** The row's fade at the edges where tabs are cut off: with no scrollbar, the only sign that more are there. */
+function edgeMask(start: boolean, end: boolean): string | undefined {
+  if (!start && !end) return undefined;
+  return `linear-gradient(to right, ${start ? "transparent" : "black"}, black ${FADE_PX}px, black calc(100% - ${FADE_PX}px), ${end ? "transparent" : "black"})`;
+}
+
 /**
  * Workspace tabs of the open project, then "+", then the empty space that
- * moves the window (spec identité §5.2). The row scrolls sideways, by the
- * wheel, without a scrollbar: it must not drag itself, or a press on it would
- * move the window instead of scrolling.
+ * moves the window (spec identité §5.2). The tabs scroll sideways, by the
+ * wheel, without a scrollbar: their row must not drag itself, or a press on it
+ * would move the window instead of scrolling. "+" stays outside it, always in
+ * reach; the tab on screen is scrolled into view, and a cut edge fades.
  */
 export function WorkspaceTabs() {
   const t = useMessages(shellMessages).tabs;
   const workspaces = useWorkspaces((s) => s.workspaces);
   const activeId = useWorkspaces((s) => s.activeId);
   const projectFolder = useProjects((s) => s.projects.find((p) => p.id === s.activeId)?.path ?? "");
+  const scroller = useRef<HTMLDivElement>(null);
+  const [cut, setCut] = useState({ start: false, end: false });
+  const measure = useCallback(() => {
+    const row = scroller.current;
+    if (!row) return;
+    const start = row.scrollLeft > 0;
+    const end = row.scrollLeft + row.clientWidth < row.scrollWidth - 1;
+    setCut((now) => (now.start === start && now.end === end ? now : { start, end }));
+  }, []);
+  // A new workspace, or one picked from the palette, is shown: never a current tab out of sight.
+  useLayoutEffect(() => {
+    const tab = [...(scroller.current?.querySelectorAll<HTMLElement>("[data-tab]") ?? [])].find((el) => el.dataset.tab === activeId);
+    tab?.scrollIntoView?.({ inline: "nearest", block: "nearest" });
+    measure();
+  }, [activeId, workspaces.length, measure]);
+  useEffect(() => {
+    const row = scroller.current;
+    if (!row || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(row);
+    return () => observer.disconnect();
+  }, [measure]);
+  const mask = edgeMask(cut.start, cut.end);
   return (
     <nav
       aria-label={t.row}
-      onWheel={(e) => {
-        if (e.deltaX === 0) e.currentTarget.scrollLeft += e.deltaY;
-      }}
-      className="dp-glass-strong flex w-full items-end gap-0.5 overflow-x-auto overflow-y-hidden rounded-none border-x-0 border-t-0 px-2.5 [scrollbar-width:none]"
+      className="dp-glass-strong flex w-full items-end gap-0.5 rounded-none border-x-0 border-t-0 px-2.5"
       style={{ height: TABS_HEIGHT }}
     >
-      {workspaces.map((workspace, index) => (
-        <WorkspaceTab
-          key={workspace.id}
-          index={index}
-          count={workspaces.length}
-          workspace={workspace}
-          projectFolder={projectFolder}
-          active={workspace.id === activeId}
-          canRemove={removable(workspaces, workspace)}
-        />
-      ))}
+      <div
+        ref={scroller}
+        data-tab-scroller
+        onWheel={(e) => {
+          if (e.deltaX === 0) e.currentTarget.scrollLeft += e.deltaY;
+        }}
+        onScroll={measure}
+        className="flex h-full min-w-0 items-end gap-0.5 overflow-x-auto overflow-y-hidden [scrollbar-width:none]"
+        style={{ maskImage: mask, WebkitMaskImage: mask }}
+      >
+        {workspaces.map((workspace, index) => (
+          <WorkspaceTab
+            key={workspace.id}
+            index={index}
+            count={workspaces.length}
+            workspace={workspace}
+            projectFolder={projectFolder}
+            active={workspace.id === activeId}
+            canRemove={removable(workspaces, workspace)}
+          />
+        ))}
+      </div>
       <IconButton
         label={t.newWorkspace}
-        className="mb-0.5 size-7"
+        className="mb-0.5 size-7 shrink-0"
         onClick={() => void workspacesStore.getState().create().catch(fail("createFailed"))}
       >
         <Plus />
