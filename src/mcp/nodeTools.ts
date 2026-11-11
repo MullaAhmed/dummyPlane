@@ -4,6 +4,7 @@ import { formatClock } from "@/i18n/format";
 import { messages } from "@/i18n";
 import { agentState } from "@/mission/store";
 import { showOutput } from "@/nodes/output/show";
+import type { SubagentLine } from "@/nodes/subagent/ipc";
 import { entryOfElement, subagentNodesStore } from "@/nodes/subagent/store";
 import { subagentAbout, subagentType } from "@/nodes/subagent/title";
 import { terminalText } from "@/nodes/terminal/registry";
@@ -92,6 +93,9 @@ function readTerminal(nodeId: string, lines: number): ToolResult {
   return said(head.join("\n"));
 }
 
+/** dummyPlane keeps a subagent's prompt and texts up to a length (src-tauri subagent_transcript.rs), marked with "…". */
+const cut = (text: string) => text.endsWith("…");
+
 function readSubagent(elementId: string, link: string): ToolResult | null {
   const r = t().read;
   const entry = entryOfElement(subagentNodesStore.getState().agents, elementId);
@@ -100,11 +104,13 @@ function readSubagent(elementId: string, link: string): ToolResult | null {
   const out = [r.subagent(subagentType(entry), entry.state, parent)];
   const about = subagentAbout(entry);
   if (about) out.push(r.asked(about));
-  const prompts = entry.lines.filter((line) => line.kind === "prompt").map((line) => line.text);
-  if (prompts.length) out.push(`${r.prompt}\n${prompts.join("\n")}`);
-  else if (entry.prompt) out.push(`${r.prompt}\n${entry.prompt}`);
-  const results = entry.lines.filter((line) => line.kind === "report" || line.kind === "result").slice(-1);
-  out.push(results.length ? `${r.result}\n${results.map((line) => line.text).join("\n")}` : r.noResult);
+  const prompt = entry.lines.find((line) => line.kind === "prompt")?.text ?? entry.prompt;
+  if (prompt) out.push(`${r.prompt}\n${prompt}${cut(prompt) ? `\n${r.cut(2000)}` : ""}`);
+  // Its answer: a handback, else its last words once it is done (a tool's output is not its result).
+  const last = (kind: SubagentLine["kind"]) => [...entry.lines].reverse().find((line) => line.kind === kind);
+  const answer = last("report") ?? (entry.state === "done" ? last("text") : undefined);
+  if (answer) out.push(`${r.result}\n${answer.text}${cut(answer.text) ? `\n${r.cut(4000)}` : ""}`);
+  else out.push(entry.state === "done" ? r.noResult : r.running);
   const rest = entry.lines.filter((line) => line.kind !== "prompt").slice(-60);
   if (rest.length) out.push(`${r.transcript}\n${rest.map((line) => `[${line.kind}] ${line.text}`).join("\n")}`);
   return said(`${out.join("\n\n")}\n\n(${link})`);

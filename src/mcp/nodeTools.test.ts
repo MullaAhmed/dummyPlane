@@ -138,6 +138,24 @@ describe("read_node", () => {
     expect(text).toContain("[tool] Bash(gh pr view 12)");
   });
 
+  it("gives a subagent's last words as its result once done, never a tool's output, and says when dummyPlane cut it", async () => {
+    subagentNodesStore.getState().upsert({ nodeId: "robin", agentId: "a2", agentType: "Explore", state: "running" });
+    subagentNodesStore.getState().setElement("a2", "el-2");
+    subagentNodesStore.getState().append("a2", [
+      { kind: "prompt", text: "Find the hooks" },
+      { kind: "text", text: "Looking." },
+      { kind: "tool", text: "Grep(hook)" },
+      { kind: "result", text: "claude_settings.rs:31" },
+    ]);
+    const running = textOf(await call("batman", "read_node", { link: "dummyplane://subagent/el-2" }));
+    expect(running).toContain("Still running: no result yet.");
+    expect(running).not.toContain("Its result:\nclaude_settings.rs:31");
+    subagentNodesStore.getState().append("a2", [{ kind: "text", text: `${"x".repeat(3999)}…` }]);
+    subagentNodesStore.getState().upsert({ nodeId: "robin", agentId: "a2", agentType: "Explore", state: "done" });
+    const done = textOf(await call("batman", "read_node", { link: "dummyplane://subagent/el-2" }));
+    expect(done).toContain(`Its result:\n${"x".repeat(3999)}…\n(dummyPlane keeps the first 4,000 characters`);
+  });
+
   it("reads an output's title and its content as text", async () => {
     const id = /output ([\w-]+) \(/.exec(textOf(await call("robin", "show_output", { title: "Tests", ui: UI })))![1];
     const text = textOf(await call("batman", "read_node", { link: `dummyplane://output/${id}` }));

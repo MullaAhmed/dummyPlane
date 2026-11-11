@@ -1,4 +1,5 @@
 import { lazy, Suspense } from "react";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { cn } from "@/lib/utils";
 import type { OutputActions } from "./actions";
 import { looksLikeOpenUI } from "./detect";
@@ -22,15 +23,18 @@ export interface GeneratedTextProps {
  * Text an agent or a model wrote, shown in the app's own style: OpenUI Lang
  * (a program with a `root =` line) through dummyPlane's library, anything
  * else as Markdown, so plain text and Markdown read as they always did.
- * OpenUI itself loads only when a text needs it (`./OpenUIView.tsx`).
+ * OpenUI itself loads only when a text needs it (`./OpenUIView.tsx`); until
+ * it is there, or if it cannot load, the raw text shows: never a blank.
  */
 export function GeneratedText(props: GeneratedTextProps) {
   const { text, source = false, className } = props;
   if (source) return <Source text={text} />;
   if (!looksLikeOpenUI(text)) return <Markdown text={text} className={cn("text-sm", className)} />;
   return (
-    <Suspense fallback={null}>
-      <OpenUIView {...props} />
-    </Suspense>
+    <ErrorBoundary scope="generated text" fallback={() => <Source text={text} />}>
+      <Suspense fallback={<Source text={text} />}>
+        <OpenUIView {...props} />
+      </Suspense>
+    </ErrorBoundary>
   );
 }
