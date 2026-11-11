@@ -97,10 +97,11 @@ All notable changes to dummyPlane are documented here. The format follows [Keep 
 - **The database is upgraded once more on first start:** migration 5 gives each workspace an optional folder, and migration 6 lets a project have its Notes tab. dummyPlane keeps a copy of the database first (`dummyplane.v4-backup.db`, or `v5` if you ran a development build).
 - **One header for terminals and the Fleet:** the same name field, status, buttons and overflow menu (⋯) on both, and the same rules when a node is narrow.
 - **Interface consistency:** panels, dialogs, menus and hints follow the design system: the same controls, dialog footers, one hint at a time and one set of motions, with a press that eases on scale.
-- **Double-click selects:** a double-click on a terminal or the Fleet selects it with any tool.
+- **Click or double-click selects:** a click or a double-click on a terminal or the Fleet selects it with any tool.
 - **Agents stacked under a Fleet or in a group are spaced further apart,** to leave room for their step frieze.
 
 ### Fixed
+- **One click selects a terminal or the Fleet with any tool:** with the Hand, a shape, an arrow, the pen, the text or the Eraser, a click on one selects it and brings back the selection tool, without a double-click. A drag still draws or pans, the Eraser still never erases a terminal, the Laser still only points, and a click that adds a point to an arrow under way stays that arrow's.
 - **Alerts and notifications on brand:**
   - **Toast types:** each has its own icon shape in its status colour, so an error reads as one.
   - **Toast text and buttons:** the text and description use the app's type and inks, the buttons are the app's buttons with their focus ring and press, and the font and motion are the app's. All are checked in every palette.

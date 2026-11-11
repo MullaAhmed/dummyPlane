@@ -25,7 +25,7 @@ export function findTerminalAt(elements: readonly ExcalidrawElement[], x: number
   return findNodeAt(elements, x, y, ["terminal"]);
 }
 
-/** Topmost live terminal or Fleet (kind "fleet") node containing the scene point, or null: what a double-click selects. */
+/** Topmost live terminal or Fleet (kind "fleet") node containing the scene point, or null: what a click or a double-click selects. */
 export function findTerminalOrFleetAt(elements: readonly ExcalidrawElement[], x: number, y: number): ExcalidrawElement | null {
   return findNodeAt(elements, x, y, ["terminal", "fleet"]);
 }
