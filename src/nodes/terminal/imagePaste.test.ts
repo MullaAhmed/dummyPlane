@@ -1,9 +1,9 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import { savePastedImage } from "@/ipc/pastedImages";
-import { onTerminalPaste, pasteImage, pastedImage, pastedPath } from "./imagePaste";
+import { clipboardImage, pasteImage, pastedImage, pastedPath, takeOverPaste, withPathAt } from "./imagePaste";
 
-vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
+vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { error: vi.fn() }) }));
 vi.mock("@/ipc/pastedImages", () => ({ savePastedImage: vi.fn() }));
 
 const image = (type = "image/png") => new File([new Uint8Array([137, 80, 78, 71])], "image", { type });
@@ -20,7 +20,13 @@ function clipboard({ text = "", html = "", files = [] as File[] } = {}) {
   return { getData: (type: string) => data[type] ?? "", items };
 }
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  // A failed paste writes to the log through the console (app/log.ts): checked below, kept out of the test output.
+  vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  vi.spyOn(console, "error").mockImplementation(() => undefined);
+});
+afterEach(() => vi.restoreAllMocks());
 
 describe("what a paste hands to the terminal", () => {
   it("leaves text to xterm", () => {
@@ -85,26 +91,110 @@ describe("pasting an image", () => {
   });
 });
 
-describe("a terminal's paste event", () => {
-  const event = (data: ReturnType<typeof clipboard>) =>
-    ({ clipboardData: data, preventDefault: vi.fn(), stopPropagation: vi.fn() }) as unknown as ClipboardEvent;
+describe("the path put into a message field", () => {
+  const path = String.raw`C:\cache\paste-1.png`;
 
-  it("takes over an image: xterm would paste an empty string", async () => {
+  it("goes at the caret, a space after it to type on", () => {
+    expect(withPathAt("", 0, 0, path)).toEqual({ text: `${path} `, caret: path.length + 1 });
+    expect(withPathAt("look at ", 8, 8, path)).toEqual({ text: `look at ${path} `, caret: 8 + path.length + 1 });
+  });
+
+  it("is never glued to the words around it", () => {
+    expect(withPathAt("look atthis", 7, 7, path)).toEqual({ text: `look at ${path} this`, caret: 8 + path.length + 1 });
+    expect(withPathAt("look at this", 8, 8, path)).toEqual({ text: `look at ${path} this`, caret: 8 + path.length + 1 });
+  });
+
+  it("replaces the selected text", () => {
+    expect(withPathAt("see HERE now", 4, 8, path).text).toBe(`see ${path} now`);
+  });
+});
+
+describe("a paste taken over in a terminal or a message field", () => {
+  const event = (data: ReturnType<typeof clipboard> | null) =>
+    ({ clipboardData: data, preventDefault: vi.fn(), stopPropagation: vi.fn() }) as unknown as ClipboardEvent;
+  /** What `navigator.clipboard.read` answers once the event is over. */
+  const reads = (...types: string[]) =>
+    vi.fn(async () => [{ types, getType: async (type: string) => new Blob([new Uint8Array([1, 2, 3])], { type }) }]);
+
+  it("takes over an image: xterm and a field would paste nothing", async () => {
     vi.mocked(savePastedImage).mockResolvedValue(String.raw`C:\cache\paste-1.png`);
     const paste = vi.fn();
+    const read = reads("image/png");
     const pasted = event(clipboard({ files: [image()] }));
-    onTerminalPaste(pasted, paste);
+    expect(takeOverPaste(pasted, paste, read)).toBe(true);
     expect(pasted.preventDefault).toHaveBeenCalled();
     expect(pasted.stopPropagation).toHaveBeenCalled();
     await vi.waitFor(() => expect(paste).toHaveBeenCalledWith(String.raw`C:\cache\paste-1.png`));
+    // The event's own image: the clipboard is not read again.
+    expect(read).not.toHaveBeenCalled();
   });
 
-  it("lets xterm paste text as before", () => {
+  it("leaves text to the terminal or the field, even next to an image", () => {
     const paste = vi.fn();
+    const read = reads("image/png");
     const pasted = event(clipboard({ text: "hello", files: [image()] }));
-    onTerminalPaste(pasted, paste);
+    expect(takeOverPaste(pasted, paste, read)).toBe(false);
     expect(pasted.preventDefault).not.toHaveBeenCalled();
     expect(pasted.stopPropagation).not.toHaveBeenCalled();
+    expect(read).not.toHaveBeenCalled();
     expect(savePastedImage).not.toHaveBeenCalled();
+  });
+
+  it("reads the clipboard again when the event shows neither text nor image, and pastes the image found there", async () => {
+    vi.mocked(savePastedImage).mockResolvedValue(String.raw`C:\cache\paste-2.png`);
+    const paste = vi.fn();
+    const read = reads("text/html", "image/png");
+    const pasted = event(clipboard());
+    expect(takeOverPaste(pasted, paste, read)).toBe(true);
+    // No empty paste reaches the agent meanwhile.
+    expect(pasted.preventDefault).toHaveBeenCalled();
+    expect(pasted.stopPropagation).toHaveBeenCalled();
+    await vi.waitFor(() => expect(paste).toHaveBeenCalledWith(String.raw`C:\cache\paste-2.png`));
+    expect(savePastedImage).toHaveBeenCalledWith(new Uint8Array([1, 2, 3]), "png");
+    // The log keeps what the event carried, for a paste that still fails.
+    expect(console.warn).toHaveBeenCalledWith(expect.stringContaining("no text and no image in the paste event"));
+  });
+
+  it("says there is nothing to paste when the clipboard has no image either", async () => {
+    const paste = vi.fn();
+    expect(takeOverPaste(event(clipboard({ files: [image("image/svg+xml")] })), paste, reads("image/svg+xml"))).toBe(true);
+    await vi.waitFor(() => expect(toast).toHaveBeenCalledWith("Nothing to paste", { description: expect.stringContaining("no text") }));
+    expect(paste).not.toHaveBeenCalled();
+    expect(savePastedImage).not.toHaveBeenCalled();
+  });
+
+  it("says there is nothing to paste, and logs why, when the clipboard cannot be read", async () => {
+    const read = vi.fn(async () => {
+      throw new DOMException("Read permission denied", "NotAllowedError");
+    });
+    takeOverPaste(event(clipboard()), vi.fn(), read);
+    await vi.waitFor(() => expect(toast).toHaveBeenCalledWith("Nothing to paste", expect.anything()));
+    expect(console.warn).toHaveBeenCalledWith("image paste: the clipboard could not be read", expect.any(DOMException));
+  });
+
+  it("logs a failed save as well as saying so", async () => {
+    vi.mocked(savePastedImage).mockRejectedValue(new Error("disk full"));
+    takeOverPaste(event(clipboard({ files: [image()] })), vi.fn());
+    await vi.waitFor(() => expect(toast.error).toHaveBeenCalled());
+    expect(console.error).toHaveBeenCalledWith("image paste failed", expect.any(Error));
+  });
+
+  it("leaves a synthetic paste without clipboard data alone", () => {
+    expect(takeOverPaste(event(null), vi.fn())).toBe(false);
+  });
+});
+
+describe("the clipboard read again after the event", () => {
+  it("gives its first image an agent reads", async () => {
+    const read = vi.fn(async () => [
+      { types: ["text/plain"], getType: async () => new Blob(["x"]) },
+      { types: ["image/jpeg"], getType: async (type: string) => new Blob([new Uint8Array([9])], { type }) },
+    ]);
+    expect((await clipboardImage(read))?.extension).toBe("jpg");
+  });
+
+  it("gives nothing for text alone, or an empty clipboard", async () => {
+    expect(await clipboardImage(vi.fn(async () => [{ types: ["text/plain"], getType: async () => new Blob(["x"]) }]))).toBeNull();
+    expect(await clipboardImage(vi.fn(async () => []))).toBeNull();
   });
 });

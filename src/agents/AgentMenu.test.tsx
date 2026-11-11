@@ -375,3 +375,15 @@ it("opens on the first agent, not on Change…: Enter launches it rather than op
   expect(document.activeElement?.textContent).toContain("Claude");
   expect(pickDirectory).not.toHaveBeenCalled();
 });
+
+it("grows from its trigger when clicked, but shows at once when a request (the palette, a shortcut) opens it", async () => {
+  const content = () => document.body.querySelector('[data-slot="popover-content"]');
+  await act(async () => root.render(<AgentMenu answersRequests trigger={() => <button type="button">open</button>} />));
+  await act(async () => requestUi({ kind: "agentMenu", view: "agents" }));
+  expect(content()?.hasAttribute("data-instant")).toBe(true);
+  // Closed, then opened by its trigger: the popover's own entrance plays again.
+  await act(async () => document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+  await act(async () => host.querySelector("button")!.click());
+  expect(content()).not.toBeNull();
+  expect(content()!.hasAttribute("data-instant")).toBe(false);
+});

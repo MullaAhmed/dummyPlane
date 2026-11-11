@@ -90,7 +90,7 @@ describe("mentionAt", () => {
 describe("mentionParts / partTargets", () => {
   it("completes the last name of a slashed mention, the others already typed", () => {
     expect(mentionParts("cyborg/de")).toEqual({ typed: ["cyborg"], query: "de" });
-    expect(mentionParts("zeu")).toEqual({ typed: [], query: "zeu" });
+    expect(mentionParts("hul")).toEqual({ typed: [], query: "hul" });
     expect(mentionParts("cyborg//")).toEqual({ typed: ["cyborg"], query: "" });
   });
 
@@ -143,7 +143,7 @@ describe("extractMentions", () => {
     expect(extractMentions("  garde  ces  espaces  ", options).text).toBe("garde  ces  espaces");
   });
 
-  it("reads several targets joined by slashes: @hulk/hulk/ironmán", () => {
+  it("reads several targets joined by slashes: @cyborg/hulk/ironmán", () => {
     expect(extractMentions("@cyborg/hulk /effort high", options)).toEqual({
       targets: [
         { kind: "agent", id: "b" },

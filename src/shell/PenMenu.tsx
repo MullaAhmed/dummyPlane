@@ -13,13 +13,14 @@ import { shellMessages } from "./messages";
 
 /**
  * A swatch: a 24 px dot filled by its inline colour. The chosen one carries a
- * ring in the accent, the others a hairline ring on hover; no scale but the press.
+ * ring in the accent, the others a hairline ring on hover; no scale but the press. The rings never
+ * fade: a ring is how focus shows, and focus answers the keyboard at once.
  */
 const SWATCH =
-  "size-6 rounded-full min-w-0 p-0 ring-offset-2 ring-offset-dp-surface hover:ring-2 hover:ring-dp-line data-[state=on]:ring-2 data-[state=on]:ring-dp-accent transition-[box-shadow,scale] duration-(--dp-dur-fast) ease-(--dp-ease-out) active:scale-[0.97] focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none";
+  "size-6 rounded-full min-w-0 p-0 ring-offset-2 ring-offset-dp-surface hover:ring-2 hover:ring-dp-line data-[state=on]:ring-2 data-[state=on]:ring-dp-accent transition-[scale] duration-(--dp-dur-fast) ease-(--dp-ease-out) active:scale-[0.97] focus-visible:ring-2 focus-visible:ring-dp-accent/70 motion-reduce:transition-none";
 /** A width: a 32 px square, the chosen one on the accent's soft surface. */
 const WIDTH =
-  "size-8 min-w-0 rounded-md border border-transparent bg-dp-card p-0 hover:bg-dp-hover data-[state=on]:border-dp-accent data-[state=on]:bg-dp-accent-soft transition-[background-color,border-color,scale] duration-(--dp-dur-fast) ease-(--dp-ease-out) active:scale-[0.97] focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none";
+  "size-8 min-w-0 rounded-md border border-transparent bg-dp-card p-0 hover:bg-dp-hover data-[state=on]:border-dp-accent data-[state=on]:bg-dp-accent-soft transition-[background-color,border-color,scale] duration-(--dp-dur-fast) ease-(--dp-ease-out) active:scale-[0.97] focus-visible:ring-2 focus-visible:ring-dp-accent/70 motion-reduce:transition-none";
 
 /** Pen tool with its color and width menu (spec habillage §5.3). */
 export function PenMenu({ active }: { active: boolean }) {
@@ -84,7 +85,7 @@ export function PenMenu({ active }: { active: boolean }) {
             ))}
             {/* No shadcn colour picker: the native one, behind a swatch of the same size. */}
             <Hint label={t.custom}>
-              <label className="relative grid size-6 cursor-pointer place-items-center overflow-hidden rounded-full border border-dp-line text-dp-text-2 transition-[color,background-color,scale] duration-(--dp-dur-fast) ease-(--dp-ease-out) hover:bg-dp-hover hover:text-dp-text active:scale-[0.97] has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-dp-accent/50 motion-reduce:transition-none">
+              <label className="relative grid size-6 cursor-pointer place-items-center overflow-hidden rounded-full border border-dp-line text-dp-text-2 transition-[color,background-color,scale] duration-(--dp-dur-fast) ease-(--dp-ease-out) hover:bg-dp-hover hover:text-dp-text active:scale-[0.97] has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-dp-accent/70 motion-reduce:transition-none">
                 <Pipette aria-hidden className="size-3.5" />
                 <input
                   type="color"

@@ -1,33 +1,38 @@
 import { useLayoutEffect, useRef, type CSSProperties } from "react";
 import { Bot, X } from "lucide-react";
-import { useTheme } from "@/app/theme";
+import { usePalette } from "@/app/theme";
 import { useCanvas } from "@/canvas/canvasStore";
 import { removeNode } from "@/agents/terminals";
 import { useMessages } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { nodeNameOf, useNodes } from "@/store/nodes";
-import { HeaderButton, NodeHeader } from "@/nodes/terminal/NodeHeader";
+import { HeaderButton, NodeHeader, NodeHeaderEnd, NodeTitle } from "@/nodes/terminal/NodeHeader";
 import { frameStyle, NODE_FRAME } from "@/nodes/terminal/frame";
 import { STATUS_TEXT } from "@/nodes/terminal/StatusPill";
 import { StatusDot } from "@/nodes/terminal/StatusDot";
+import { terminalThemeFor, type TerminalTheme } from "@/nodes/terminal/terminalTheme";
 import type { SubagentLine } from "./ipc";
 import { subagentMessages } from "./messages";
 import { subagentNodesStore, useSubagentEntry, useSubagentNode } from "./store";
-import { parentLabel, subagentTitle } from "./title";
+import { parentLabel, subagentAbout, subagentDetail, subagentTitle, subagentType } from "./title";
 
 /**
- * Terminal ink, from the palette's tokens: terminals stay dark in every
- * palette, so a light palette writes them with its light head colour.
+ * Terminal ink: the palette's terminal theme, the one its xterms draw with, so
+ * a subagent's transcript reads like the terminal it sits beside: the text in
+ * its light color, the prompt and results in its dim text, errors in its red,
+ * the report in its green. Done, its text steps back to the dim ink (4.5:1 or
+ * more on the body in every palette): no opacity nor grayscale over the node,
+ * which took its text under 3:1 (an opacity shows the canvas through).
  */
-function inks(light: boolean): CSSProperties {
-  const fg = light ? "var(--dp-terminal-head)" : "var(--dp-text)";
+function inks(theme: TerminalTheme, done: boolean): CSSProperties {
+  const fg = done ? theme.brightBlack : theme.foreground;
   return {
     "--sa-fg": fg,
-    "--sa-dim": `color-mix(in srgb, ${fg} 58%, var(--dp-terminal))`,
-    // The ❯ and ● markers in the terminal's own ink at full strength: the accent (the palette's ink) can be the body's own hue (calm).
+    "--sa-dim": theme.brightBlack,
+    // The ❯ and ● markers in the terminal's own ink: the accent (the palette's ink) can be the body's own hue (calm).
     "--sa-tool": fg,
-    "--sa-error": `color-mix(in srgb, var(--dp-danger) 65%, ${fg})`,
-    "--sa-ok": `color-mix(in srgb, var(--dp-ok) 60%, ${fg})`,
+    "--sa-error": theme.red,
+    "--sa-ok": theme.green,
   } as CSSProperties;
 }
 
@@ -71,7 +76,9 @@ function Line({ line }: { line: SubagentLine }) {
 /**
  * A subagent of a Claude session (its Agent tool), shown as a read-only
  * terminal: it has no process of its own, it runs inside its parent's Claude.
- * Its lines come from its transcript; it turns grey when it is done.
+ * Its lines come from its transcript; its text steps back to the dim ink when
+ * it is done. Its header says its type over what it was asked, as a spawned
+ * terminal says its name over its task.
  */
 export function SubagentNode({ nodeId }: { nodeId: string }) {
   const t = useMessages(subagentMessages);
@@ -84,7 +91,7 @@ export function SubagentNode({ nodeId }: { nodeId: string }) {
     const frameId = s.api?.getSceneElements().find((e) => e.id === nodeId)?.frameId;
     return !!frameId && s.frames.some((f) => f.id === frameId && f.group?.folded);
   });
-  const light = useTheme() === "light";
+  const palette = usePalette();
   const scrollRef = useRef<HTMLDivElement>(null);
   const stuck = useRef(true);
   const lines = entry?.lines;
@@ -102,30 +109,46 @@ export function SubagentNode({ nodeId }: { nodeId: string }) {
     removeNode(nodeId);
   };
   const title = entry ? subagentTitle(entry) : t.ended;
+  const about = entry ? subagentAbout(entry) : "";
+  const from = entry && <span className="max-w-28 shrink-0 truncate text-dp-text-3">{t.from(parentLabel(parent, terminalName, t.terminal))}</span>;
 
   return (
     <div
       data-subagent={entry?.agentId ?? ""}
       data-state={done ? "done" : "running"}
-      className={cn(NODE_FRAME, "bg-dp-terminal font-mono transition-[filter,opacity] duration-(--dp-dur) ease-(--dp-ease-out) motion-reduce:transition-none")}
-      style={{
-        ...frameStyle(selected, false),
-        ...inks(light),
-        ...(done ? { filter: "grayscale(1)", opacity: 0.62 } : {}),
-      }}
+      className={cn(NODE_FRAME, "bg-dp-terminal font-mono")}
+      style={{ ...frameStyle(selected, false), ...inks(terminalThemeFor(palette), done) }}
     >
-      <NodeHeader title={title} className="font-sans text-dp-text">
+      {/* The task line's tooltip says it all: no native title beside it. */}
+      <NodeHeader title={about ? undefined : title} className="font-sans text-dp-text">
         <Bot aria-hidden className="size-4 shrink-0 text-dp-text-2" />
-        {entry && <span className="max-w-28 shrink-0 truncate text-dp-text-3">{t.from(parentLabel(parent, terminalName, t.terminal))}</span>}
-        <span className="min-w-0 flex-1 truncate text-(length:--text-ui) font-medium">{title}</span>
-        {/* The agents' signature: its dot and a quiet word, as in a terminal's header. */}
-        <span className={STATUS_TEXT}>
-          <StatusDot state={done ? "done" : "working"} />
-          {done ? t.done : t.running}
-        </span>
-        <HeaderButton label={t.close} onClick={close}>
-          <X />
-        </HeaderButton>
+        {entry && about ? (
+          <NodeTitle
+            name={
+              <span className="flex min-w-0 items-baseline gap-2">
+                {from}
+                <span className="min-w-0 truncate text-(length:--text-ui) font-medium">{subagentType(entry)}</span>
+              </span>
+            }
+            line={about}
+            detail={subagentDetail(entry)}
+          />
+        ) : (
+          <>
+            {from}
+            <span className="min-w-0 truncate text-(length:--text-ui) font-medium">{title}</span>
+          </>
+        )}
+        <NodeHeaderEnd>
+          {/* The agents' signature: its dot and a quiet word, as in a terminal's header. */}
+          <span className={STATUS_TEXT}>
+            <StatusDot state={done ? "done" : "working"} />
+            {done ? t.done : t.running}
+          </span>
+          <HeaderButton label={t.close} onClick={close}>
+            <X />
+          </HeaderButton>
+        </NodeHeaderEnd>
       </NodeHeader>
       <div
         ref={scrollRef}

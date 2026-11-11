@@ -40,7 +40,7 @@ export const shellMessages = defineMessages(
       confirmMany: "Close the agents",
     },
     closeGroup: {
-      title: (name: string | undefined) => `Close the group ${name}?`,
+      title: (name: string | undefined) => (name ? `Close the group ${name}?` : "Close this group?"),
       description: (names: string[]) => `These agents are still running; closing the group ends their session: ${names.join(", ")}.`,
       cancel: "Cancel",
       confirm: "Close the group",
@@ -76,6 +76,7 @@ export const shellMessages = defineMessages(
       help: "Help",
       nativeNotifications: "Windows notifications",
       followWaiting: "Go to agents that ask",
+      autoArrange: "Auto-arrange terminals",
       subagentTerminals: "Sub-agents as terminals",
       maxSpawned: "Sub-agents at once",
       exportScene: "Export the scene…",

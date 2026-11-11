@@ -13,16 +13,21 @@ import {
   isWire,
   linkedAgents,
   linkTargetAt,
+  missingSpawnWires,
+  staleWireBindings,
+  withSpawnWires,
   fleetAt,
   fleetLinks,
   fleetsOf,
   fleetTargets,
+  orphanReason,
   orphanWires,
   outdatedWires,
   rerouteWires,
   revivableWires,
   unmarkedWires,
   wireColor,
+  wireKindOf,
   withAgentLink,
   withWire,
 } from "./wires";
@@ -426,6 +431,26 @@ describe("orphanWires (plan B3)", () => {
     const ungrouped = wired.map((e) => (e.id === frame.id ? ({ ...e, customData: undefined } as ExcalidrawElement) : e));
     expect(orphanWires(ungrouped)).toEqual([wired[wired.length - 1].id]);
   });
+
+  it("gives, for the log, a fleet wire's kind and an end that is no longer something a wire joins", () => {
+    const wired = withWire(base, fleet.id, frame.id);
+    const wire = wired[wired.length - 1];
+    const ungrouped = wired.map((e) => (e.id === frame.id ? ({ ...e, customData: undefined } as ExcalidrawElement) : e));
+    expect(orphanReason(wire, new Map(ungrouped.map((e) => [e.id, e])))).toBe(
+      `wire ${wire.id} (fleet) deleted as orphaned: start ${fleet.id} ok; end ${frame.id} not a valid end (frame); listed by ${fleet.id}, ${frame.id}`,
+    );
+    // The fleet deleted: still a fleet's wire.
+    const fleetGone = withoutIds(wired, fleet.id);
+    expect(wireKindOf(wire, new Map(fleetGone.map((e) => [e.id, e])))).toBe("fleet");
+  });
+
+  it("calls a wire between two agents that is no spawn wire a link", () => {
+    const peer = createNodeElement("terminal", { x: 1200, y: 900 }) as unknown as ExcalidrawElement;
+    const linked = withAgentLink([lone, peer], lone.id, peer.id);
+    const wire = linked[linked.length - 1];
+    const byId = new Map(withoutIds(linked, peer.id).map((e) => [e.id, e]));
+    expect(orphanReason(wire, byId)).toBe(`wire ${wire.id} (link) deleted as orphaned: start ${lone.id} ok; end ${peer.id} deleted; listed by ${lone.id}`);
+  });
 });
 
 describe("revivableWires (plan B3 undo)", () => {
@@ -443,6 +468,17 @@ describe("revivableWires (plan B3 undo)", () => {
     // Unbound again (the end came back, not the binding): not yet.
     const unbound = { ...dropped, endBinding: null } as ExcalidrawElement;
     expect(revivableWires([...wired.slice(0, -1), unbound])).toEqual([]);
+  });
+
+  it("brings none back between two ends a live arrow joins already (a spawn wire re-created meanwhile)", () => {
+    const child = createNodeElement("terminal", { x: 1200, y: 900 }) as unknown as ExcalidrawElement;
+    const first = withWire([lone, child], lone.id, child.id, "calm", true);
+    const old = first[first.length - 1];
+    const dropped = { ...old, isDeleted: true, customData: { dummyplane: { kind: "wire", spawn: true, orphaned: true } } } as ExcalidrawElement;
+    // The fresh wire the upkeep made, the old one deleted beside it with both bindings back (an undo).
+    const fresh = createWire(lone, child, "calm", true);
+    expect(revivableWires([lone, child, dropped, fresh])).toEqual([]);
+    expect(revivableWires([lone, child, dropped])).toEqual([old.id]);
   });
 });
 
@@ -544,6 +580,28 @@ describe("spawn wires (spawn_agent)", () => {
     expect(unmarkedWires(elements)).toEqual([]);
   });
 
+  it("says, when it goes, that it is a spawn wire and which end failed, and why", () => {
+    const { elements, wire } = spawned();
+    const byId = (scene: readonly ExcalidrawElement[]) => new Map(scene.map((e) => [e.id, e]));
+    const closed = withoutIds(elements, child.id);
+    expect(orphanReason(wire, byId(closed))).toBe(`wire ${wire.id} (spawn) deleted as orphaned: start ${lone.id} ok; end ${child.id} deleted; listed by ${lone.id}`);
+    const gone = elements.filter((e) => e.id !== lone.id);
+    expect(orphanReason(wire, byId(gone))).toBe(`wire ${wire.id} (spawn) deleted as orphaned: start ${lone.id} missing; end ${child.id} ok; listed by ${child.id}`);
+    // Excalidraw unbinding the child's end takes the wire off the child's list too: only the parent still lists it.
+    const unbound = { ...wire, endBinding: null } as ExcalidrawElement;
+    const unlisted = elements.map((e) => (e.id === child.id ? ({ ...e, boundElements: [] } as ExcalidrawElement) : e.id === wire.id ? unbound : e));
+    expect(orphanReason(unbound, byId(unlisted))).toBe(`wire ${wire.id} (spawn) deleted as orphaned: start ${lone.id} ok; end unbound; listed by ${lone.id}`);
+  });
+
+  it("adds what the canvas was doing when it went: the selection, a drag and the tool", () => {
+    const { elements, wire } = spawned();
+    const byId = new Map(withoutIds(elements, child.id).map((e) => [e.id, e]));
+    expect(orphanReason(wire, byId, { selectedIds: [lone.id, wire.id, frame.id], dragging: true, tool: "selection" })).toBe(
+      `wire ${wire.id} (spawn) deleted as orphaned: start ${lone.id} ok; end ${child.id} deleted; listed by ${lone.id}; selection 3 (wire yes, frame yes), dragging yes, tool selection`,
+    );
+    expect(orphanReason(wire, byId, { selectedIds: [], dragging: false, tool: "eraser" })).toMatch(/; selection 0 \(wire no, frame no\), dragging no, tool eraser$/);
+  });
+
   it("keeps its mark and its color when a minimized end reroutes it", () => {
     const { elements, wire } = spawned();
     const shrunk = elements.map((e) => (e.id === child.id ? ({ ...e, height: 68 } as ExcalidrawElement) : e));
@@ -551,6 +609,65 @@ describe("spawn wires (spawn_agent)", () => {
     expect(rerouted.version).toBe(wire.version + 1);
     expect(isSpawnWire(rerouted)).toBe(true);
     expect(rerouted.strokeColor).toBe(wire.strokeColor);
+  });
+});
+
+describe("missing spawn wires (a spawn wire shows the child's spawnedBy)", () => {
+  /** `lone` spawned `child`; `other` is nobody's. */
+  const child = createNodeElement("terminal", { x: 1200, y: 900 }) as unknown as ExcalidrawElement;
+  const other = createNodeElement("terminal", { x: 1200, y: 2000 }) as unknown as ExcalidrawElement;
+  const spawnerOf = (id: string) => (id === child.id ? lone.id : undefined);
+  const scene = [...base, child, other];
+  const arrows = (elements: readonly ExcalidrawElement[]) => elements.filter((e) => e.type === "arrow" && !e.isDeleted) as ExcalidrawArrowElement[];
+  const deleted = (elements: readonly ExcalidrawElement[], id: string) => elements.map((e) => (e.id === id ? ({ ...e, isDeleted: true } as ExcalidrawElement) : e));
+
+  it("finds a sub-agent and its live spawner with no wire between them, and gives them one", () => {
+    expect(missingSpawnWires(scene, spawnerOf)).toEqual([{ parentId: lone.id, childId: child.id }]);
+    const { elements, added } = withSpawnWires(scene, spawnerOf, "calm");
+    expect(added).toEqual([{ parentId: lone.id, childId: child.id }]);
+    const [wire] = arrows(elements);
+    expect(wire).toMatchObject({ startBinding: { elementId: lone.id }, endBinding: { elementId: child.id }, strokeColor: wireColor("calm") });
+    expect(isSpawnWire(wire)).toBe(true);
+    expect(elements.find((e) => e.id === lone.id)!.boundElements).toEqual([{ id: wire.id, type: "arrow" }]);
+    expect(elements.find((e) => e.id === child.id)!.boundElements).toEqual([{ id: wire.id, type: "arrow" }]);
+  });
+
+  it("keeps the wire already there: a spawn wire, or a + Link either way round", () => {
+    expect(missingSpawnWires(withWire(scene, lone.id, child.id, "calm", true), spawnerOf)).toEqual([]);
+    expect(missingSpawnWires(withAgentLink(scene, child.id, lone.id), spawnerOf)).toEqual([]);
+    expect(missingSpawnWires(withAgentLink(scene, lone.id, child.id), spawnerOf)).toEqual([]);
+  });
+
+  it("gives none when the spawner is closed or in another workspace, nor to a closed sub-agent", () => {
+    expect(missingSpawnWires(deleted(scene, lone.id), spawnerOf)).toEqual([]);
+    expect(missingSpawnWires(scene.filter((e) => e.id !== lone.id), spawnerOf)).toEqual([]);
+    expect(missingSpawnWires(deleted(scene, child.id), spawnerOf)).toEqual([]);
+    expect(missingSpawnWires(scene, () => undefined)).toEqual([]);
+  });
+
+  it("replaces a deleted wire, and one with an end unbound", () => {
+    const wired = withWire(scene, lone.id, child.id, "calm", true);
+    const wire = wired[wired.length - 1];
+    expect(missingSpawnWires(deleted(wired, wire.id), spawnerOf)).toEqual([{ parentId: lone.id, childId: child.id }]);
+    const unbound = wired.map((e) => (e.id === wire.id ? ({ ...e, endBinding: null } as ExcalidrawElement) : e));
+    expect(missingSpawnWires(unbound, spawnerOf)).toEqual([{ parentId: lone.id, childId: child.id }]);
+  });
+
+  it("adds no second wire on a second pass", () => {
+    const once = withSpawnWires(scene, spawnerOf, "calm").elements;
+    const twice = withSpawnWires(once, spawnerOf, "calm");
+    expect(twice.added).toEqual([]);
+    expect(twice.elements).toBe(once);
+    expect(arrows(twice.elements)).toHaveLength(1);
+  });
+
+  it("finds the live elements that still list a deleted wire", () => {
+    const wired = withWire(scene, lone.id, child.id, "calm", true);
+    const wire = wired[wired.length - 1];
+    expect(staleWireBindings(wired)).toEqual([]);
+    expect(staleWireBindings(deleted(wired, wire.id))).toEqual([lone.id, child.id]);
+    // A deleted end is not live: only the other one is stale.
+    expect(staleWireBindings(deleted(deleted(wired, wire.id), child.id))).toEqual([lone.id]);
   });
 });
 

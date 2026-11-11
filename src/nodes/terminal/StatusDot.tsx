@@ -11,12 +11,17 @@ export type DotState = "working" | "waiting" | "idle" | "done" | "stopped" | "er
  * carries the state as much as colour does, so states stay apart in every
  * palette (in calm the ink, the ok green and the text are all greens):
  * solid while the process lives, a ring once it rests or ended, a square on
- * error. Only a waiting agent's dot moves, a slow breath, and never with
- * reduced motion.
+ * error, and a solid dot inside a ring while it waits for the user: the state
+ * the product most needs to surface reads without its colour, or its motion.
+ * Only a waiting agent's dot moves, a slow breath of its opacity; under
+ * reduced motion a slower, shallower one (dp-breath, index.css), nothing else.
+ * Its ring is an outline: off the layout, so the dot keeps its 8px place, and
+ * with a clear gap that shows whatever ground it sits on.
  */
 const LOOK: Record<DotState, string> = {
   working: "rounded-full bg-dp-accent",
-  waiting: "rounded-full bg-dp-wait animate-pulse motion-reduce:animate-none",
+  waiting:
+    "rounded-full bg-dp-wait outline-[1.5px] outline-offset-1 outline-dp-wait motion-safe:animate-pulse motion-reduce:animate-[dp-breath_3s_ease-in-out_infinite]",
   idle: "rounded-full border-[1.5px] border-dp-text-2",
   done: "rounded-full border-[1.5px] border-dp-ok",
   stopped: "rounded-full border-[1.5px] border-dp-text-3 opacity-60",

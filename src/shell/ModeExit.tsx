@@ -8,6 +8,7 @@ import { TOP_ROW_HEIGHT } from "./layout";
 /**
  * Zen (Alt+Z) and reading (Alt+R) hide the tools: a small dense-glass button
  * under the bars, at the right, says where you are and leaves (spec identité §5.10).
+ * It is there at once: a shortcut put it there, and the keyboard is never answered with a fade.
  */
 export function ModeExit() {
   const t = useMessages(shellMessages).modeExit;
@@ -19,7 +20,7 @@ export function ModeExit() {
       variant="ghost"
       onClick={leave}
       style={{ top: TOP_ROW_HEIGHT + 12 }}
-      className="dp-glass-strong absolute right-3 z-30 h-8 gap-2 rounded-lg px-3 text-xs font-normal text-dp-text-2 transition-[color,background-color,opacity,scale] starting:opacity-0 hover:bg-dp-hover hover:text-dp-text"
+      className="dp-glass-strong absolute right-3 z-30 h-8 gap-2 rounded-lg px-3 text-xs font-normal text-dp-text-2 transition-[color,background-color,scale] hover:bg-dp-hover hover:text-dp-text"
     >
       <X className="text-dp-text-3" />
       {mode === "zen" ? t.zen : t.reading}

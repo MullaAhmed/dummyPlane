@@ -5,12 +5,17 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { mockIPC } from "@tauri-apps/api/mocks";
+import { toast } from "sonner";
 import { accountsStore } from "@/accounts/store";
 import type { ClaudeExtensions, ExtensionItem } from "@/ipc/claudeExtensions";
 import { agentsStore } from "@/agents/agentsStore";
 import type { FleetPayload, TerminalPayload } from "@/nodes/types";
 import { nodesStore } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
+import { agentActivityStore } from "@/store/agentActivity";
+import type { SessionUsage } from "@/usage/usage";
+import { markLaunch, usageStore } from "@/usage/usageStore";
+import { forgetLiveTitle, setLiveTitle } from "@/nodes/terminal/liveTitle";
 import { canvasStore, EMPTY_VIEW } from "./canvasStore";
 import { SelectionPanel } from "./SelectionPanel";
 
@@ -35,6 +40,12 @@ const { resumeTerminal } = vi.hoisted(() => ({ resumeTerminal: vi.fn() }));
 vi.mock("@/nodes/terminal/registry", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/nodes/terminal/registry")>()),
   resumeTerminal,
+}));
+// Remote Control's flow types into Claude's terminal; here, only what is asked of it.
+const { setRemoteControl } = vi.hoisted(() => ({ setRemoteControl: vi.fn(async () => null) }));
+vi.mock("@/agents/remoteControl", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/agents/remoteControl")>()),
+  setRemoteControl,
 }));
 // Watched, not replaced: a running terminal still keeps the choice it started with.
 const { noteChoiceChange } = vi.hoisted(() => ({ noteChoiceChange: vi.fn() }));
@@ -78,6 +89,7 @@ beforeEach(() => {
   open.mockReset();
   resumeTerminal.mockClear();
   noteChoiceChange.mockClear();
+  setRemoteControl.mockClear();
   host = document.createElement("div");
   document.body.append(host);
   root = createRoot(host);
@@ -90,6 +102,9 @@ afterEach(async () => {
   nodesStore.setState({ nodes: {} });
   accountsStore.setState({ profiles: [], active: null, loaded: false, unread: false, open: false });
   terminalStatusStore.setState({ statuses: {} });
+  agentActivityStore.setState({ activities: {} });
+  usageStore.setState({ sessions: {}, launchedAt: {} });
+  forgetLiveTitle("t1");
 });
 
 function mount(api: Partial<ExcalidrawImperativeAPI>, elements: ExcalidrawElement[], mode: "reading" | null = null) {
@@ -275,6 +290,25 @@ const terminal = (overrides: Partial<TerminalPayload> = {}): TerminalPayload => 
   ...overrides,
 });
 
+/** What t1's Claude reported in its status line (spec maj §6). */
+const reported = (patch: Partial<SessionUsage> = {}): SessionUsage => ({
+  sessionId: "s1",
+  nodeId: "t1",
+  model: { id: "claude-sonnet-5-5", name: "Sonnet 5.5" },
+  effort: null,
+  costUsd: 0,
+  apiMs: 0,
+  wallMs: 0,
+  linesAdded: 0,
+  linesRemoved: 0,
+  inputTokens: 67_000,
+  outputTokens: 785,
+  contextPercent: 7,
+  cache: null,
+  at: 1,
+  ...patch,
+});
+
 /** Selects the terminal and, unless told not to, opens its panel from its Edit tab, as most tests need. */
 async function mountTerminal(payload: TerminalPayload, selectedIds = ["t1"], mode: "reading" | null = null, open = true) {
   nodesStore.setState({
@@ -294,6 +328,36 @@ async function mountTerminal(payload: TerminalPayload, selectedIds = ["t1"], mod
 const editTab = () => host.querySelector<HTMLButtonElement>('button[aria-label^="Edit "][aria-expanded="false"]');
 
 const field = (label: string) => host.querySelector<HTMLInputElement>(`input[aria-label="${label}"]`);
+const select = (label: string) => host.querySelector<HTMLButtonElement>(`button[role='combobox'][aria-label="${label}"]`);
+/** The options a select offers, opened with the keyboard as a user does; closed again with Escape. */
+async function optionsOf(label: string): Promise<string[]> {
+  await act(async () => {
+    select(label)!.focus();
+    select(label)!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+  });
+  const options = [...document.body.querySelectorAll<HTMLElement>("[role='option']")].map((o) => o.textContent ?? "");
+  await act(async () => document.activeElement?.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })));
+  return options;
+}
+/** Opens a select with the keyboard and picks an option by its label, as a user does. */
+async function pick(label: string, option: string) {
+  // Radix scrolls the chosen option into view; happy-dom has no layout to do it with.
+  const scrollIntoView = Element.prototype.scrollIntoView;
+  Element.prototype.scrollIntoView = () => undefined;
+  try {
+    await act(async () => {
+      select(label)!.focus();
+      select(label)!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+    });
+    const found = [...document.body.querySelectorAll<HTMLElement>("[role='option']")].find((o) => o.textContent === option)!;
+    await act(async () => {
+      found.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, cancelable: true, pointerType: "mouse", button: 0 }));
+      found.click();
+    });
+  } finally {
+    Element.prototype.scrollIntoView = scrollIntoView;
+  }
+}
 const payloadOf = () => (nodesStore.getState().nodes.t1 as { payload: TerminalPayload }).payload;
 
 /** Types into a field and leaves it, as a user does. */
@@ -305,7 +369,7 @@ async function typeInto(input: HTMLInputElement, value: string) {
   });
 }
 
-it("shows a short Edit section for a terminal selected alone: Rename, Copy and Delete, no colours", async () => {
+it("shows a terminal selected alone its General page: its name, Copy and Delete beside it, no colours", async () => {
   await mountTerminal(terminal());
   expect(host.querySelector("section[aria-label='Edit']")).not.toBeNull();
   expect(host.textContent).toContain("Edit Batman");
@@ -314,18 +378,19 @@ it("shows a short Edit section for a terminal selected alone: Rename, Copy and D
   expect(field("Command")).toBeNull();
   expect(host.querySelector("button[aria-label^='Stroke: ']")).toBeNull();
   expect(button("Duplicate")).toBeNull();
-  expect(button("Rename")).not.toBeNull();
-  expect(button("Copy")).not.toBeNull();
-  expect(button("Delete")).not.toBeNull();
+  // No row of actions on top: the Name field renames, two small buttons beside it copy and delete.
+  expect(button("Rename")).toBeNull();
+  expect(button("Copy the terminal")).not.toBeNull();
+  expect(button("Delete the terminal")).not.toBeNull();
+  // Every label is the name of its control.
+  for (const label of host.querySelectorAll("label[for]")) expect(document.getElementById(label.getAttribute("for")!)).not.toBeNull();
 });
 
-it("renames, copies and deletes the terminal from its actions", async () => {
+it("copies and deletes the terminal from the buttons beside its name", async () => {
   await mountTerminal(terminal());
-  await act(async () => button("Rename")!.click());
-  expect(document.activeElement).toBe(field("Name"));
-  await act(async () => button("Copy")!.click());
+  await act(async () => button("Copy the terminal")!.click());
   expect(duplicateTerminal).toHaveBeenCalledWith("w", "t1");
-  await act(async () => button("Delete")!.click());
+  await act(async () => button("Delete the terminal")!.click());
   expect(requestClose).toHaveBeenCalledWith("t1");
 });
 
@@ -386,8 +451,9 @@ it("shows the folder as a path, whole on hover, its end in view, and copies it",
   // Cut from the start; the path itself stays left to right, its leading "/" included.
   expect(folder.style.direction).toBe("rtl");
   expect(folder.querySelector("bdi")).not.toBeNull();
-  // The folder, shell and title wait for the next launch, and the panel says so.
-  expect(host.textContent).toContain("Folder, shell and title apply at the next launch");
+  // The folder waits for the next launch: its group says so, once, and no note repeats it.
+  expect(host.querySelector("[role='group'] > .dp-label")?.textContent).toBe("Next launch");
+  expect(host.textContent).not.toContain("apply at the next launch");
   const writeText = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue(undefined);
   await act(async () => button("Copy the path")!.click());
   expect(writeText).toHaveBeenCalledWith("/home/ada/work/api");
@@ -397,18 +463,34 @@ it("shows the folder as a path, whole on hover, its end in view, and copies it",
 it("edits the command of a custom agent only", async () => {
   await mountTerminal(terminal({ agent: "custom", command: "npm run dev" }));
   expect(field("Command")!.value).toBe("npm run dev");
-  expect(host.textContent).toContain("Command, folder, shell and title apply at the next launch");
   await typeInto(field("Command")!, "npm test");
   expect(payloadOf().command).toBe("npm test");
 });
 
-it("lets a model a mission chose go back to the default, and says Default when none is chosen", async () => {
-  await mountTerminal(terminal({ model: "claude-haiku-5-5" }));
-  expect(host.textContent).toContain("Model");
-  await act(async () => [...host.querySelectorAll("button")].find((b) => b.textContent === "Use default")!.click());
+it("picks the model of the next launch, Claude's default included, and keeps a model a mission chose on offer", async () => {
+  await mountTerminal(terminal({ model: "claude-fable-5-1" }));
+  expect(select("Model")!.textContent).toBe("Fable 5.1");
+  expect(await optionsOf("Model")).toEqual(["Claude's default", "Fable 5.1", "Haiku 5.5", "Sonnet 5.5", "Opus 5.5", "Fable 5.2"]);
+  await pick("Model", "Opus 5.5");
+  expect(payloadOf().model).toBe("claude-opus-5-5");
+  await pick("Model", "Claude's default");
   expect(payloadOf().model).toBeUndefined();
-  expect(host.textContent).toContain("Default");
-  expect([...host.querySelectorAll("button")].find((b) => b.textContent === "Use default")).toBeUndefined();
+  // Never a bare "Default": no model given, Claude picks.
+  expect(select("Model")!.textContent).toBe("Claude's default");
+});
+
+it("says which model the running session really uses, from its status line, and offers to restart on another", async () => {
+  terminalStatusStore.getState().set("t1", { state: "running" });
+  await mountTerminal(terminal());
+  expect(host.querySelector("[data-running-model]")).toBeNull();
+  await act(async () => usageStore.setState({ sessions: { s1: reported({ model: { id: "claude-opus-5-5", name: "Opus 5.5" }, effort: "high" }) } }));
+  expect(host.querySelector("[data-running-model]")?.textContent).toBe("Running Opus 5.5, high effort");
+  expect(restartNow()).toBeUndefined();
+  await pick("Model", "Haiku 5.5");
+  expect(host.textContent).toContain("Running with the old launch settings");
+  // Not running: what it last reported is no longer what it uses.
+  await act(async () => terminalStatusStore.getState().set("t1", { state: "stopped" }));
+  expect(host.querySelector("[data-running-model]")).toBeNull();
 });
 
 it("starts on a small Edit tab beside the terminal, in the panel's place, and opens the panel there on a click", async () => {
@@ -813,15 +895,16 @@ it("gives a selected Fleet the Edit tab, named after it, and opens its panel fro
   await act(async () => editTab()!.click());
   expect(host.textContent).toContain("Edit Fleet");
   expect(field("Name")!.value).toBe("Fleet");
-  // Its session's folder and model, shown; no copy of a fleet, no title of its own (it is its name).
+  // Its session's folder and model, shown; no copy of a fleet, no session name of its own (it is its name),
+  // and neither permissions nor an account: a fleet is the manager, its own rules come with its role.
   expect(host.querySelector("[data-folder]")?.textContent).toBe("D:/work/api");
-  expect(host.textContent).toContain("Model");
-  expect(host.textContent).toContain("Default");
-  expect(button("Rename")).not.toBeNull();
-  expect(button("Delete")).not.toBeNull();
-  expect(button("Copy")).toBeNull();
-  expect(field("Title")).toBeNull();
-  expect(host.textContent).toContain("The shell applies at the next launch");
+  expect(select("Model")!.textContent).toBe("Claude's default");
+  expect(select("Shell")).not.toBeNull();
+  expect(select("Permissions")).toBeNull();
+  expect(button("Delete the fleet")).not.toBeNull();
+  expect(button("Copy the terminal")).toBeNull();
+  expect(field("Session name")).toBeNull();
+  expect(host.textContent).toContain("Next launch");
   // Said in the fleet's words, never the code's.
   expect(host.textContent?.toLowerCase()).not.toContain("orchestrator");
   expect(tabs().map((b) => b.textContent)).toEqual(["General", "Skills", "Plugins", "MCP", "Subagents"]);
@@ -829,15 +912,13 @@ it("gives a selected Fleet the Edit tab, named after it, and opens its panel fro
 
 it("renames a fleet on its node and deletes it with its own request", async () => {
   await mountFleet();
-  await act(async () => button("Rename")!.click());
-  expect(document.activeElement).toBe(field("Name"));
   await typeInto(field("Name")!, "  Atlas ");
   expect(fleetOf().name).toBe("Atlas");
   // Its session keeps the name it had: only the node was renamed.
   expect(fleetOf().session?.name).toBe("Fleet");
   await typeInto(field("Name")!, "   ");
   expect(fleetOf().name).toBe("Atlas");
-  await act(async () => button("Delete")!.click());
+  await act(async () => button("Delete the fleet")!.click());
   expect(requestCloseFleet).toHaveBeenCalledWith("f1");
   expect(requestClose).not.toHaveBeenCalled();
 });
@@ -854,7 +935,8 @@ it("keeps a fleet in its project: its folder has no Change button, and says why"
 
 it("sends a fleet's model back to the default on its session, not on the node", async () => {
   await mountFleet({ name: "Fleet", session: fleetSession({ model: "claude-haiku-5-5" }) });
-  await act(async () => [...host.querySelectorAll("button")].find((b) => b.textContent === "Use default")!.click());
+  expect(select("Model")!.textContent).toBe("Haiku 5.5");
+  await pick("Model", "Claude's default");
   expect(fleetOf().session?.model).toBeUndefined();
   expect("model" in fleetOf()).toBe(false);
   expect(fleetOf().name).toBe("Fleet");
@@ -911,7 +993,8 @@ it("renames and deletes a fleet that has no session yet, with nothing else to ed
   expect(host.textContent).not.toContain("Skills, plugins and MCP servers can be chosen");
   await typeInto(field("Name")!, "Atlas");
   expect(fleetOf().name).toBe("Atlas");
-  await act(async () => button("Delete")!.click());
+  expect(host.textContent).not.toContain("Next launch");
+  await act(async () => button("Delete the fleet")!.click());
   expect(requestCloseFleet).toHaveBeenCalledWith("f1");
   await settle();
   expect(listCalls).toEqual([]);
@@ -946,23 +1029,28 @@ it("changes a terminal's folder with the native picker, from where it is now", a
   expect(payloadOf()).toMatchObject({ model: "claude-haiku-5-5", permission: "edits", name: "Batman", title: "Batman · api" });
 });
 
-it("starts a new conversation for a Claude terminal in a new folder, and says so", async () => {
+it("starts a new conversation for a Claude terminal in a new folder, and says so when it moves", async () => {
+  const info = vi.spyOn(toast, "info");
   await mountTerminal(terminal({ claudeSessionId: "old-conversation", steps: [{ title: "Plan", state: "fait" }] }));
-  // Said before the choice, under the path.
-  expect(host.textContent).toContain("New folder, new conversation: Claude keeps each conversation with its folder");
+  // Not a standing note under the path: said once, when it happens.
+  expect(host.textContent).not.toContain("New folder, new conversation");
   await pickFolder("D:/work/web");
   const { claudeSessionId, steps } = payloadOf();
   expect(claudeSessionId).toMatch(/^[0-9a-f-]{36}$/);
   expect(claudeSessionId).not.toBe("old-conversation");
   expect(steps).toBeUndefined();
+  expect(info).toHaveBeenCalledWith("New folder, new conversation: Claude keeps each conversation with its folder");
+  info.mockRestore();
 });
 
 it("moves another agent without a conversation, and has nothing to say about one", async () => {
+  const info = vi.spyOn(toast, "info");
   await mountTerminal(terminal({ agent: "codex" }));
-  expect(host.textContent).not.toContain("New folder, new conversation");
   await pickFolder("D:/work/web");
   expect(payloadOf().cwd).toBe("D:/work/web");
   expect("claudeSessionId" in payloadOf()).toBe(false);
+  expect(info).not.toHaveBeenCalled();
+  info.mockRestore();
 });
 
 it("keeps the conversation when the folder picked is the one it is in, whatever the slashes or the case", async () => {
@@ -1007,14 +1095,29 @@ it("keeps the folder of an agent whose mission is running in its worktree, and f
   expect(changeButton()).not.toBeNull();
 });
 
-it("sets the title of a terminal, a blank one keeping the stored title", async () => {
+it("sets the name a new Claude conversation gets, a blank one keeping the stored name, and says what it is", async () => {
   await mountTerminal(terminal());
-  expect(field("Title")!.value).toBe("Batman · api");
-  await typeInto(field("Title")!, "  Review of api ");
+  expect(field("Session name")!.value).toBe("Batman · api");
+  expect(host.textContent).toContain("Claude's name for a new conversation");
+  await typeInto(field("Session name")!, "  Review of api ");
   expect(payloadOf().title).toBe("Review of api");
-  await typeInto(field("Title")!, "   ");
+  await typeInto(field("Session name")!, "   ");
   expect(payloadOf().title).toBe("Review of api");
-  expect(field("Title")!.value).toBe("Review of api");
+  expect(field("Session name")!.value).toBe("Review of api");
+  // Another agent is never given it: no field pretends it is.
+  await mountTerminal(terminal({ agent: "codex" }));
+  expect(field("Session name")).toBeNull();
+  expect(field("Title")).toBeNull();
+});
+
+it("shows the title the running program gives its terminal, not the stored one, and nothing while none is set", async () => {
+  terminalStatusStore.getState().set("t1", { state: "running" });
+  await mountTerminal(terminal());
+  expect(host.querySelector("[data-live-title]")).toBeNull();
+  await act(async () => setLiveTitle("t1", "✳ Fix the login"));
+  expect(host.querySelector("[data-live-title]")?.textContent).toBe("✳ Fix the login");
+  await act(async () => terminalStatusStore.getState().set("t1", { state: "stopped" }));
+  expect(host.querySelector("[data-live-title]")).toBeNull();
 });
 
 it("shows the shell a terminal will start with, among the ones the machine has", async () => {
@@ -1026,18 +1129,7 @@ it("shows the shell a terminal will start with, among the ones the machine has",
 });
 
 /** Opens the Shell dropdown with the keyboard and picks a shell by its label, as a user does. */
-async function pickShell(label: string) {
-  const trigger = host.querySelector<HTMLElement>("button[role='combobox'][aria-label='Shell']")!;
-  await act(async () => {
-    trigger.focus();
-    trigger.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
-  });
-  const option = [...document.body.querySelectorAll<HTMLElement>("[role='option']")].find((o) => o.textContent === label)!;
-  await act(async () => {
-    option.dispatchEvent(new PointerEvent("pointerup", { bubbles: true, cancelable: true, pointerType: "mouse", button: 0 }));
-    option.click();
-  });
-}
+const pickShell = (label: string) => pick("Shell", label);
 
 it("picks the shell of the next launch, on a terminal and on a fleet's session", async () => {
   // Radix scrolls the chosen option into view; happy-dom has no layout to do it with.
@@ -1058,13 +1150,120 @@ it("picks the shell of the next launch, on a terminal and on a fleet's session",
   }
 });
 
-it("offers a restart when the title of a running terminal changes", async () => {
+it("offers no restart for a session name: a restart resumes the conversation, which keeps its own", async () => {
   terminalStatusStore.getState().set("t1", { state: "running" });
   await mountTerminal(terminal());
-  expect(host.textContent).not.toContain("Running with the old launch settings");
-  await typeInto(field("Title")!, "Review of api");
-  expect(host.textContent).toContain("Running with the old launch settings");
-  // Back to what it started with: nothing to restart.
-  await typeInto(field("Title")!, "Batman · api");
+  await typeInto(field("Session name")!, "Review of api");
+  expect(payloadOf().title).toBe("Review of api");
   expect(restartNow()).toBeUndefined();
+  expect(host.textContent).not.toContain("Running with the old launch settings");
+});
+
+const statusGroup = () => host.querySelector<HTMLElement>("[role='group'][aria-label='Status']")!;
+
+it("says where the agent stands now: its dot and word, the step under way, its last report and what it spent", async () => {
+  terminalStatusStore.getState().set("t1", { state: "running" });
+  agentActivityStore.setState({ activities: { t1: { activity: "working", since: Date.now() } } });
+  usageStore.setState({ sessions: { s1: reported() } });
+  const steps = [
+    { title: "Plan", state: "fait" as const },
+    { title: "Build", state: "en_cours" as const },
+    { title: "Ship", state: "a_venir" as const },
+  ];
+  await mountTerminal(terminal({ steps, lastReport: { status: "blocked", summary: "Waiting for the API key" } }));
+  // The same dot and word as its header's.
+  expect(statusGroup().querySelector("[data-status='working']")).not.toBeNull();
+  expect(statusGroup().textContent).toContain("Working");
+  expect(host.querySelector("[data-step]")?.textContent).toBe("Step 2 of 3: Build");
+  expect(host.querySelector("[data-report-summary]")?.textContent).toBe("Last report · Waiting for the API key");
+  expect(statusGroup().textContent).toContain("67.8 k tokens · 7 % context");
+});
+
+it("counts the steps done once none is under way, and shows no spending for a stopped agent", async () => {
+  usageStore.setState({ sessions: { s1: reported() } });
+  await mountTerminal(terminal({ steps: [{ title: "Plan", state: "fait" }, { title: "Ship", state: "a_venir" }] }));
+  expect(host.querySelector("[data-step]")?.textContent).toBe("1 of 2 steps done");
+  expect(statusGroup().textContent).toContain("Stopped");
+  expect(statusGroup().textContent).not.toContain("tokens");
+  expect(host.querySelector("[data-report-summary]")).toBeNull();
+});
+
+it("picks what Claude may do unasked at the next launch, and says what it opens", async () => {
+  terminalStatusStore.getState().set("t1", { state: "running" });
+  await mountTerminal(terminal());
+  // None given: Claude as the user set it up, nothing to say.
+  expect(select("Permissions")!.textContent).toBe("Claude's settings");
+  expect(await optionsOf("Permissions")).toEqual(["Claude's settings", "Ask first", "Files unasked", "Files and commands unasked"]);
+  expect(host.textContent).not.toContain("git push blocked");
+  await pick("Permissions", "Files and commands unasked");
+  expect(payloadOf().permission).toBe("work");
+  expect(host.textContent).toContain("Commands, the network and this PC's logged-in accounts are open to it · git push blocked");
+  expect(restartNow()).toBeDefined();
+  await pick("Permissions", "Files unasked");
+  expect(payloadOf().permission).toBe("edits");
+  expect(host.textContent).toContain("Asks before a command · git push blocked");
+  // And back: none given again, the push block gone with it, and nothing left to restart.
+  await pick("Permissions", "Claude's settings");
+  expect("permission" in payloadOf() ? payloadOf().permission : undefined).toBeUndefined();
+  expect(host.textContent).not.toContain("git push blocked");
+  expect(restartNow()).toBeUndefined();
+  // Another agent has no such setting.
+  await mountTerminal(terminal({ agent: "codex" }));
+  expect(select("Permissions")).toBeNull();
+  expect(select("Model")).toBeNull();
+});
+
+it("picks the account of the next launch, with a new conversation, once there are profiles to pick from", async () => {
+  await mountTerminal(terminal({ claudeSessionId: "old-conversation" }));
+  expect(select("Account")).toBeNull();
+  const info = vi.spyOn(toast, "info");
+  await act(async () => accountsStore.setState({ profiles: [{ id: "work", name: "Work", configDir: "C:/claude-work" }], loaded: true }));
+  expect(select("Account")!.textContent).toBe("Default");
+  await pick("Account", "Work");
+  expect(payloadOf().accountId).toBe("work");
+  expect(payloadOf().claudeSessionId).not.toBe("old-conversation");
+  expect(info).toHaveBeenCalledWith("New account, new conversation: Claude keeps each conversation with its account");
+  await pick("Account", "Default");
+  expect(payloadOf().accountId).toBeUndefined();
+  info.mockRestore();
+});
+
+it("keeps the account and the permissions of an agent whose mission is running: they are its mission's", async () => {
+  accountsStore.setState({ profiles: [{ id: "work", name: "Work", configDir: "C:/claude-work" }], loaded: true });
+  await mountTerminal(terminal({ cwd: "D:/wt/batman", permission: "edits" }));
+  await inMission("en_cours");
+  expect(select("Account")!.disabled).toBe(true);
+  expect(select("Permissions")!.disabled).toBe(true);
+  await inMission("terminee");
+  expect(select("Permissions")!.disabled).toBe(false);
+});
+
+it("says nothing of what an earlier run reported once the terminal starts Claude again", async () => {
+  usageStore.setState({ sessions: { s1: reported({ model: { id: "claude-opus-5-5", name: "Opus 5.5" }, at: 10 }) } });
+  terminalStatusStore.getState().set("t1", { state: "running" });
+  await act(async () => markLaunch("t1", 20));
+  await mountTerminal(terminal());
+  expect(host.querySelector("[data-running-model]")).toBeNull();
+  expect(statusGroup().textContent).not.toContain("tokens");
+  // Its own first status line.
+  await act(async () => usageStore.setState({ sessions: { ...usageStore.getState().sessions, s2: reported({ sessionId: "s2", at: 30 }) } }));
+  expect(host.querySelector("[data-running-model]")?.textContent).toBe("Running Sonnet 5.5");
+  expect(statusGroup().textContent).toContain("67.8 k tokens");
+});
+
+it("turns Remote Control on and off from its box, the same switch as the header's phone", async () => {
+  await mountTerminal(terminal());
+  const box = () => host.querySelector<HTMLButtonElement>("button[role='checkbox'][aria-label='Remote Control']")!;
+  expect(box().getAttribute("aria-checked")).toBe("false");
+  await act(async () => box().click());
+  expect(setRemoteControl).toHaveBeenCalledWith("t1", true);
+  await act(async () => nodesStore.getState().update("t1", { remoteControl: true }));
+  expect(box().getAttribute("aria-checked")).toBe("true");
+  // A stopped session gets it when it starts.
+  expect(host.textContent).toContain("At next start");
+  await act(async () => box().click());
+  expect(setRemoteControl).toHaveBeenLastCalledWith("t1", false);
+  // Only Claude has it.
+  await mountTerminal(terminal({ agent: "codex" }));
+  expect(host.querySelector("button[aria-label='Remote Control']")).toBeNull();
 });

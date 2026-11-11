@@ -1,6 +1,7 @@
 import { releaseToCanvas } from "@/canvas/canvasFocus";
 import { canvasStore } from "@/canvas/canvasStore";
 import { clientOf } from "@/agents/placement";
+import { arrangeWorkspace } from "@/agents/arrangeCanvas";
 import { groupingOf, groupSelection } from "@/agents/selectionGroup";
 import type { Point } from "@/agents/terminals";
 import { CANVAS_KEYS, copyCanvasSelection, openNativeMenuAt, pasteOnCanvasAt, pressCanvasKey, startTextAt } from "@/radial/bridges";
@@ -124,4 +125,12 @@ export const SCENE: readonly Command[] = [
   command("scene.export", { section: scene, available: inProject, run: () => exportCurrentScene() }),
   command("scene.import", { section: scene, available: inProject, run: () => importIntoScene() }),
   command("scene.png", { section: scene, available: inProject, run: () => exportCurrentPng() }),
+  // The selection when it holds two blocks or more (or one group: tidied inside), else the whole canvas; one undo takes it back.
+  command("scene.arrange", {
+    section: scene,
+    available: inProject,
+    run: (ctx) => {
+      if (ctx.workspaceId) arrangeWorkspace(ctx.workspaceId, { only: selectionOf(ctx), undoable: true });
+    },
+  }),
 ];

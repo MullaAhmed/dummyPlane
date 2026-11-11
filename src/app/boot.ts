@@ -22,6 +22,7 @@ import { projectsStore, setForgetWorkspaces } from "@/store/projects";
 import { saveBeforeClose } from "./close";
 import { forgetWorkspaces } from "./forget";
 import { loadThemeSettings } from "./theme";
+import { loadAutoArrange } from "./autoArrangeSetting";
 import { loadFollowWaiting } from "./followWaitingSetting";
 import { loadNativeNotifications } from "./nativeNotifications";
 import { loadSubagentSettings } from "./subagentSettings";
@@ -41,6 +42,7 @@ export function boot(): Promise<void> {
     await loadUpdateSettings();
     await loadNativeNotifications();
     await loadFollowWaiting();
+    await loadAutoArrange();
     await loadSubagentSettings();
     await loadAgentsPanel();
     await onPtyExit(({ nodeId, exitCode }) => {

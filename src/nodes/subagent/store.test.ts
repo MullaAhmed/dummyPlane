@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createSubagentsStore, entryOfElement, MAX_LINES } from "./store";
-import { parentLabel, subagentTitle } from "./title";
+import { parentLabel, subagentAbout, subagentDetail, subagentTitle } from "./title";
 
 const info = { nodeId: "n1", agentId: "a1", agentType: "Explore", state: "running" as const };
 
@@ -46,6 +46,13 @@ describe("subagentTitle", () => {
     expect(subagentTitle({ agentType: "Explore", description: "Find hooks", prompt: "long prompt" })).toBe("Explore · Find hooks");
     expect(subagentTitle({ agentType: "Plan", prompt: "Plan the work\nin detail" })).toBe("Plan · Plan the work");
     expect(subagentTitle({ agentType: "" })).toBe("subagent");
+  });
+
+  it("says a prompt's line as a task when no description was given, and both in its tooltip", () => {
+    expect(subagentAbout({ prompt: "You are a code explorer. Find where `SubagentStart` hooks are registered." })).toBe("Find where SubagentStart hooks are registered");
+    expect(subagentAbout({ description: "  Find hooks ", prompt: "long prompt" })).toBe("Find hooks");
+    expect(subagentDetail({ description: "Find hooks", prompt: "Find where hooks are registered" })).toBe("Find hooks\nFind where hooks are registered");
+    expect(subagentDetail({ description: "Find hooks" })).toBe("Find hooks");
   });
 
   it("names its parent: the subagent that spawned it, else its terminal", () => {

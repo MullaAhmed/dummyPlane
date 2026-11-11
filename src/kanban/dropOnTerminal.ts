@@ -6,17 +6,20 @@ import { sceneOf } from "@/agents/placement";
 import { messages } from "@/i18n";
 import { nodesStore, terminalOf } from "@/store/nodes";
 import { isRunning } from "@/store/terminalStatus";
+import { KANBAN_CARD_MIME } from "@/nodes/kanban/drag";
 import { cardText } from "./board";
 import { kanbanMessages } from "./messages";
 
-// WebView2 may end a drag with clientX/clientY at 0: the last dragover is where it was dropped.
+// WebView2 may report a drop at clientX/clientY 0: the last dragover is where it was dropped.
 let lastDragPoint: { x: number; y: number } | null = null;
 let dragging: { nodeId: string; cardId: string } | null = null;
-let dropped = false;
 let tracking = false;
 
 /** Outside every board: there, a card is ours to drop, not Excalidraw's (it would make a text element of it). */
 const outsideBoards = (event: Event) => !(event.target instanceof Element && event.target.closest("[data-kanban]"));
+
+/** A drag that carries one of our cards: a tab, a file from the OS or a scene element is none of ours. */
+const carriesCard = (event: DragEvent) => !!dragging && !!event.dataTransfer?.types.includes(KANBAN_CARD_MIME);
 
 function trackDragPoint() {
   if (tracking || typeof window === "undefined") return;
@@ -24,8 +27,9 @@ function trackDragPoint() {
   window.addEventListener(
     "dragover",
     (event) => {
+      if (!carriesCard(event)) return;
       lastDragPoint = { x: event.clientX, y: event.clientY };
-      if (!dragging || !outsideBoards(event)) return;
+      if (!outsideBoards(event)) return;
       event.stopPropagation();
       if (terminalAtClient(lastDragPoint)) {
         event.preventDefault();
@@ -34,15 +38,19 @@ function trackDragPoint() {
     },
     true,
   );
+  // The one place a card is sent: a drop the terminal under it accepted. A drag cancelled
+  // with Escape, or let go anywhere else, ends with no drop, and sends nothing.
   window.addEventListener(
     "drop",
     (event) => {
-      if (!dragging || !outsideBoards(event)) return;
+      if (!carriesCard(event) || !outsideBoards(event)) return;
       event.preventDefault();
       event.stopPropagation();
-      dropped = true;
-      const terminalId = terminalAtClient({ x: event.clientX, y: event.clientY });
-      if (terminalId) void sendCardToTerminal(dragging.nodeId, dragging.cardId, terminalId);
+      const card = dragging!;
+      const point = event.clientX || event.clientY ? { x: event.clientX, y: event.clientY } : (lastDragPoint ?? { x: 0, y: 0 });
+      endCardDrag();
+      const terminalId = terminalAtClient(point);
+      if (terminalId) void sendCardToTerminal(card.nodeId, card.cardId, terminalId);
     },
     true,
   );
@@ -52,8 +60,16 @@ function trackDragPoint() {
 export function startCardDrag(nodeId?: string, cardId?: string) {
   trackDragPoint();
   lastDragPoint = null;
-  dropped = false;
   dragging = nodeId && cardId ? { nodeId, cardId } : null;
+}
+
+/**
+ * Called on every card's dragend, whatever became of it (dropped on a terminal, moved
+ * between columns, cancelled): the gesture is over and nothing of it stays armed.
+ */
+export function endCardDrag() {
+  dragging = null;
+  lastDragPoint = null;
 }
 
 /** The terminal node under a window point, if any. */
@@ -91,15 +107,4 @@ export async function sendCardToTerminal(nodeId: string, cardId: string, termina
   else if (waiting.length > 0) toast.error(t.waiting(name));
   else toast.error(t.notRunning(name));
   return sent > 0;
-}
-
-/** A card dropped outside its board: on a terminal, its text goes to the agent. */
-export function dropCardOutside(nodeId: string, cardId: string, clientX: number, clientY: number) {
-  dragging = null;
-  // Already sent by the drop listener.
-  if (dropped) return;
-  const point = lastDragPoint ?? { x: clientX, y: clientY };
-  lastDragPoint = null;
-  const terminalId = terminalAtClient(point);
-  if (terminalId) void sendCardToTerminal(nodeId, cardId, terminalId);
 }

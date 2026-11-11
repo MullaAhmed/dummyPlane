@@ -49,7 +49,7 @@ export function ProjectCard({ project }: { project: Project }) {
       onClick={openProject}
       onKeyDown={(e) => e.key === "Enter" && openProject()}
       className={cn(
-        "dp-glass-strong group rounded-xl p-5 transition-[color,background-color,border-color] duration-(--dp-dur-fast) ease-(--dp-ease-out) motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50",
+        "dp-glass-strong group rounded-xl p-5 transition-[color,background-color,border-color] duration-(--dp-dur-fast) ease-(--dp-ease-out) motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/70",
         openable && "cursor-pointer hover:bg-dp-hover",
       )}
     >

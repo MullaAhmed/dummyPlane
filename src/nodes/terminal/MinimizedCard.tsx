@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Maximize2 } from "lucide-react";
 import { agentInk, AGENTS, INDIGO } from "@/agents/catalog";
+import { spawnedTask } from "@/agents/taskSummary";
 import { memberOf } from "@/mission/store";
 import type { TerminalPayload } from "@/nodes/types";
 import type { AgentActivity } from "@/store/agentActivity";
@@ -16,12 +17,16 @@ function firstLine(text: string): string {
   return text.split(/\r?\n/).map((line) => line.trim()).find(Boolean) ?? "";
 }
 
-/** What the card says under the name: its last report, else its mission task, else the step under way, else its title. */
+/**
+ * What the card says under the name: its last report, else its mission task,
+ * else the step under way, else what it was asked when it was spawned (said in
+ * a line, as in its header), else its title.
+ */
 export function cardLine(payload: TerminalPayload, task?: string): string {
   if (payload.lastReport?.summary) return firstLine(payload.lastReport.summary);
   if (task) return firstLine(task);
   const step = payload.steps?.find((s) => s.state === "en_cours")?.title;
-  return step ?? firstLine(payload.title);
+  return step ?? spawnedTask(payload)?.line ?? firstLine(payload.title);
 }
 
 /**
@@ -38,6 +43,9 @@ export function MinimizedCard(props: { nodeId: string; payload: TerminalPayload;
   const meta = AGENTS[payload.agent];
   const report = payload.lastReport;
   const line = cardLine(payload, task);
+  // A sub-agent's line says its task: its title says the excerpt, as its header's tooltip does.
+  const spawned = spawnedTask(payload);
+  const lineTitle = report?.summary ?? (spawned && line === spawned.line ? spawned.detail : line);
 
   // Minimized while its scene was not on screen: its element takes the card's height now.
   useEffect(() => {
@@ -75,7 +83,7 @@ export function MinimizedCard(props: { nodeId: string; payload: TerminalPayload;
       </div>
       {/* Under the name: the 16px icon and its 8px gap. */}
       {line && (
-        <p title={report?.summary ?? line} className="truncate pl-6 text-xs leading-5 text-dp-text-2">
+        <p title={lineTitle} className="truncate pl-6 text-xs leading-5 text-dp-text-2">
           {line}
         </p>
       )}

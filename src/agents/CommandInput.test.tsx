@@ -6,12 +6,14 @@ import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { agentActivityStore } from "@/store/agentActivity";
 import { nodesStore } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
+import { savePastedImage } from "@/ipc/pastedImages";
 import { sendCommand } from "./broadcast";
 import { historyStore } from "./history";
 import { CommandInput } from "./CommandInput";
 import type { TargetAgent } from "./targets";
 
 vi.mock("./broadcast", () => ({ sendCommand: vi.fn(() => Promise.resolve()) }));
+vi.mock("@/ipc/pastedImages", () => ({ savePastedImage: vi.fn() }));
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -445,4 +447,35 @@ it("ties the field to its list: the highlighted line is the active one, and the 
   expect(field().getAttribute("aria-activedescendant")).toBe(rows()[2].id);
   await press("Escape");
   expect(field().hasAttribute("aria-controls")).toBe(false);
+});
+
+/** A paste as WebView2 hands it to the field: its plain text, and its files (a screenshot is one image/png file). */
+function pasteEvent({ text = "", files = [] as File[] } = {}) {
+  const items = [
+    ...(text ? [{ kind: "string", type: "text/plain", getAsFile: () => null }] : []),
+    ...files.map((file) => ({ kind: "file", type: file.type, getAsFile: () => file })),
+  ];
+  const event = new Event("paste", { bubbles: true, cancelable: true });
+  Object.defineProperty(event, "clipboardData", { value: { getData: (type: string) => (type === "text/plain" ? text : ""), items, types: [] } });
+  return event;
+}
+
+it("pastes an image as its saved file's path, at the caret, like a terminal (image paste)", async () => {
+  vi.mocked(savePastedImage).mockResolvedValue(String.raw`C:\cache\paste-1.png`);
+  await type("@cyborg look at this");
+  await act(async () => field().setSelectionRange(16, 16));
+  const paste = pasteEvent({ files: [new File([new Uint8Array([137, 80])], "image.png", { type: "image/png" })] });
+  await act(async () => void field().dispatchEvent(paste));
+  expect(paste.defaultPrevented).toBe(true);
+  await vi.waitFor(() => expect(field().value).toBe(String.raw`@cyborg look at C:\cache\paste-1.png this`));
+  expect(savePastedImage).toHaveBeenCalledWith(new Uint8Array([137, 80]), "png");
+  await press("Enter");
+  expect(sendCommand).toHaveBeenCalledWith(["b"], String.raw`look at C:\cache\paste-1.png this`);
+});
+
+it("leaves a pasted text to the field (image paste)", async () => {
+  const paste = pasteEvent({ text: "hello", files: [new File(["x"], "image.png", { type: "image/png" })] });
+  await act(async () => void field().dispatchEvent(paste));
+  expect(paste.defaultPrevented).toBe(false);
+  expect(savePastedImage).not.toHaveBeenCalled();
 });

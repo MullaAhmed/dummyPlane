@@ -2,21 +2,40 @@ import { createStore, useStore } from "zustand";
 import type { TerminalPayload } from "@/nodes/types";
 import { isRunning, terminalStatusStore } from "@/store/terminalStatus";
 
-/** What a launch reads from a terminal's payload: a running terminal keeps the values it started with. */
+/**
+ * What a launch reads from a terminal's payload: a running terminal keeps the values it started with.
+ * Not the title: Claude gets it only when a new conversation starts (`-n`), and "Restart now" resumes the
+ * one it has; the other agents never get it. A title changed while it runs is no reason to restart.
+ */
 export interface LaunchSettings {
   cwd: string;
   shell: string;
-  title: string;
   /** Only a Custom terminal runs its command; the others ignore it. */
   command: string;
+  /** Claude only, like the next two: its `--model`, "" for Claude's own default. */
+  model: string;
+  /**
+   * `--permission-mode`, "" for none. Not the same launch as "ask": any permission given also blocks
+   * `git push` in the session's settings (`apply_permission`), none leaves Claude as the user set it up.
+   */
+  permission: string;
+  /** The profile whose folder it starts with, "" for the default account. */
+  accountId: string;
 }
 
-export const launchSettingsOf = (payload: TerminalPayload): LaunchSettings => ({
-  cwd: payload.cwd,
-  shell: payload.shell,
-  title: payload.title,
-  command: payload.agent === "custom" ? payload.command : "",
-});
+export const launchSettingsOf = (payload: TerminalPayload): LaunchSettings => {
+  const claude = payload.agent === "claude";
+  return {
+    cwd: payload.cwd,
+    shell: payload.shell,
+    command: payload.agent === "custom" ? payload.command : "",
+    model: claude ? (payload.model ?? "") : "",
+    permission: claude ? (payload.permission ?? "") : "",
+    accountId: claude ? (payload.accountId ?? "") : "",
+  };
+};
+
+const KEYS = ["cwd", "shell", "command", "model", "permission", "accountId"] as const satisfies readonly (keyof LaunchSettings)[];
 
 /**
  * The launch settings a running terminal started with, noted when they first
@@ -36,7 +55,7 @@ function forgetStopped() {
   });
 }
 
-/** Before the folder, shell, title or command of a terminal changes: a running one keeps what it started with. */
+/** Before a launch setting of a terminal changes (its folder, shell, command, model, permission or account): a running one keeps what it started with. */
 export function noteLaunchChange(nodeId: string, before: TerminalPayload) {
   if (!isRunning(nodeId) || nodeId in startedStore.getState()) return;
   forgetStopped();
@@ -55,6 +74,6 @@ export function useLaunchRestartPending(nodeId: string, current: TerminalPayload
     const started = s[nodeId];
     if (!started || !current) return false;
     const now = launchSettingsOf(current);
-    return started.cwd !== now.cwd || started.shell !== now.shell || started.title !== now.title || started.command !== now.command;
+    return KEYS.some((key) => started[key] !== now[key]);
   });
 }

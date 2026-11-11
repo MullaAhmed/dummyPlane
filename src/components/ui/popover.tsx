@@ -23,7 +23,7 @@ function PopoverContent({
         align={align}
         sideOffset={sideOffset}
         className={cn(
-          "z-50 rounded-xl border border-dp-line bg-dp-surface-2 p-3 text-dp-text shadow-dp outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0",
+          "z-50 p-3 text-dp-text outline-none origin-(--radix-popover-content-transform-origin) duration-(--dp-dur) ease-(--dp-ease-out) data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 data-closed:duration-(--dp-dur-fast)",
           className,
         )}
         {...props}

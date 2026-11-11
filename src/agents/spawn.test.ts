@@ -9,7 +9,7 @@ import { ptySendText } from "@/ipc/pty";
 import { notify } from "@/mission/events";
 import { whenReady } from "@/mission/ready";
 import { workspaceCanvas } from "@/mission/store";
-import type { TerminalPayload } from "@/nodes/types";
+import { MAX_STORED_TASK, type TerminalPayload } from "@/nodes/types";
 import { nodesStore, terminalOf } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
 import { nameForNewAgent } from "./naming";
@@ -213,5 +213,22 @@ describe("spawn_agent", () => {
     expect(title.length).toBeLessThanOrEqual(60);
     expect(title.startsWith("Refactor the very long module")).toBe(true);
     expect(title).not.toContain("\n");
+  });
+
+  it("says a brief in a line for its title, and keeps the task's start for the line under its name", async () => {
+    const task = `You are fixing a readability problem in dummyPlane (Tauri 2 + React 19).\n\n## Setup\n1. Run \`pnpm i\`.\n\n${"More. ".repeat(500)}`;
+    await spawnAgent("batman", { task });
+    const payload = vi.mocked(addTerminal).mock.calls[0][1];
+    expect(payload.title).toBe("Fixing a readability problem in dummyPlane");
+    expect(payload.task).toBe(task.slice(0, MAX_STORED_TASK));
+    // Its payload keeps the start only; the whole task still goes to the sub-agent.
+    expect(payload.task!.length).toBeLessThan(task.length);
+    await vi.waitFor(() => expect(ptySendText).toHaveBeenCalled());
+    expect(vi.mocked(ptySendText).mock.calls[0][1]).toContain(task.trim());
+  });
+
+  it("keeps the spawner's own title over its task", async () => {
+    await spawnAgent("batman", { task: "You are a reviewer. Review the login diff.", title: "Login review" });
+    expect(vi.mocked(addTerminal).mock.calls[0][1]).toMatchObject({ title: "Login review", task: "You are a reviewer. Review the login diff." });
   });
 });

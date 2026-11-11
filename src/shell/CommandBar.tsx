@@ -60,6 +60,8 @@ export function CommandBar() {
   const nothingSelected = selectedIds.length === 0;
   const fallback = useMemo(() => (nothingSelected && active !== null ? [active] : selected), [nothingSelected, selected, active]);
   const activeName = nothingSelected && active !== null ? agents.find((a) => a.id === active)?.name : undefined;
+  // The active terminal shows as its `@` chip, as if typed (it is what Enter reaches without one).
+  const autoTarget = useMemo(() => (activeName && active !== null ? ({ kind: "agent", id: active } as const) : null), [activeName, active]);
 
   return (
     // A panel round enough (rounded-xl, 16) to hold Send's 8px corner 8px in from its own (16 = 8 + 8).
@@ -73,6 +75,7 @@ export function CommandBar() {
         placeholder={activeName ? t.placeholderTo(activeName) : t.placeholder}
         emptyHint={t.emptyHint}
         sendsTo={activeName}
+        autoTarget={autoTarget}
       />
     </div>
   );

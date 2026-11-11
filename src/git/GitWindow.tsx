@@ -177,7 +177,7 @@ function PushButton({ repo, pushing, onPush }: { repo: RepoState; pushing: boole
   // A disabled button takes no pointer and no focus: the span around it tells why, on hover and on Tab.
   return (
     <Hint label={why} side="bottom">
-      <span tabIndex={0} className="rounded-md focus-visible:ring-2 focus-visible:ring-dp-accent/50 focus-visible:outline-none">
+      <span tabIndex={0} className="rounded-md focus-visible:ring-2 focus-visible:ring-dp-accent/70 focus-visible:outline-none">
         {button}
       </span>
     </Hint>
@@ -264,7 +264,7 @@ function ChangesTab(props: {
                 key={file.path}
                 data-git-file={file.path}
                 className={cn(
-                  "group flex h-7 items-center gap-2 px-3 text-xs text-dp-text-2 transition-colors duration-(--dp-dur-fast) ease-(--dp-ease-out) hover:bg-dp-hover motion-reduce:transition-none",
+                  "group flex h-7 items-center gap-2 px-3 text-xs text-dp-text-2 hover:bg-dp-hover",
                   current && "bg-dp-accent-soft text-dp-text hover:bg-dp-accent-soft",
                 )}
               >
@@ -275,7 +275,7 @@ function ChangesTab(props: {
                   title={`${file.oldPath ? `${file.oldPath} → ` : ""}${file.path} · ${words.status[file.status]}`}
                   aria-current={current}
                   onClick={() => setSelectedPath(file.path)}
-                  className="flex h-full min-w-0 flex-1 items-center gap-2 rounded-sm text-left focus-visible:ring-2 focus-visible:ring-dp-accent/50 focus-visible:outline-none"
+                  className="flex h-full min-w-0 flex-1 items-center gap-2 rounded-sm text-left focus-visible:ring-2 focus-visible:ring-dp-accent/70 focus-visible:outline-none"
                 >
                   <span className={cn("w-3 shrink-0 font-mono font-medium", status.tone)}>{status.letter}</span>
                   <span className="min-w-0 flex-1 truncate" style={{ direction: "rtl", textAlign: "left" }}>

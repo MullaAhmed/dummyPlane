@@ -46,7 +46,7 @@ describe("the rings (spec menu radial §4)", () => {
   });
 
   it("names each ring's positions as the spec does, clockwise from the top", () => {
-    expect(labels("canvas")).toEqual(["Launch Claude", "Launch Shell", "New terminal in folder…", "Fleet", "Paste", "Text", "Other agent…", "Overview"]);
+    expect(labels("canvas")).toEqual(["Launch Claude", "Launch Shell", "New terminal in folder…", "Fleet", "Paste", "Arrange terminals", "Other agent…", "Overview"]);
     expect(labels("terminal")).toEqual(["Copy", "Paste", "Rename", "Restart", "Close", "Duplicate", "Pause", "Stop the process"]);
     expect(labels("group")).toEqual(["Add an agent…", "Rename the group", "Link a fleet", "Pause group", "Close the group", "Ungroup", "Resume group", "Zoom to group"]);
     expect(labels("fleet")).toEqual(["Write an instruction", "Rename", "Delete", "Link", "Paste"]);
@@ -73,7 +73,7 @@ describe("the wedges' short names", () => {
   const shorts = (kind: keyof typeof RINGS) => RINGS[kind].map((slot) => lineOf(slot, ctx)!.short);
 
   it("names each wedge in a word or two, clockwise from the top", () => {
-    expect(shorts("canvas")).toEqual(["Claude", "Shell", "In folder", "Fleet", "Paste", "Text", "Other agent", "Overview"]);
+    expect(shorts("canvas")).toEqual(["Claude", "Shell", "In folder", "Fleet", "Paste", "Arrange", "Other agent", "Overview"]);
     expect(shorts("terminal")).toEqual(["Copy", "Paste", "Rename", "Restart", "Close", "Duplicate", "Pause", "Stop"]);
     expect(shorts("group")).toEqual(["Add agent", "Rename", "Link fleet", "Pause", "Close", "Ungroup", "Resume", "Zoom"]);
     expect(shorts("fleet")).toEqual(["Write", "Rename", "Delete", "Link", "Paste"]);

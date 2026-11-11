@@ -121,6 +121,8 @@ export function arrive(nodeId: string): boolean {
   generation += 1;
   arriving = nodeId;
   focusSoon(() => focusNodeInput(nodeId, kind), generation);
+  // A fleet takes only the view and the keyboard of an arrival, not its flash (spec fenêtre §7, the palette's
+  // Fleets row: "vue comme l'arrivée (§6.4, point 1)").
   if (kind === "terminal") signalArrival(nodeId);
   return true;
 }

@@ -27,10 +27,26 @@ export const canvasMessages = defineMessages(
       thisTerminal: "this terminal",
       thisFleet: "this fleet",
       foldPanel: "Fold the panel",
-      rename: "Rename",
-      copy: "Copy",
+      // Icon buttons beside the Name field: their names say what they act on.
+      copyTerminal: "Copy the terminal",
+      deleteTerminal: "Delete the terminal",
+      deleteFleet: "Delete the fleet",
       copyFailed: (error: string) => `Could not copy the terminal: ${error}`,
       name: "Name",
+      /** What the agent is doing now, at the top of the General page. */
+      status: "Status",
+      step: (index: number, total: number, title: string) => `Step ${index} of ${total}: ${title}`,
+      stepsDone: (done: number, total: number) => `${done} of ${total} steps done`,
+      lastReport: "Last report",
+      tokens: (count: string) => `${count} tokens`,
+      context: (percent: number) => `${percent} % context`,
+      // The title the program running in the terminal sets now (Claude Code its own, a shell its path).
+      liveTitle: "Title",
+      // The stored title: Claude gets it with `-n` only when a new conversation starts; a resumed one keeps its name.
+      sessionName: "Session name",
+      sessionNameHint: "Claude's name for a new conversation",
+      // Over the settings read when the terminal next starts: said once, here.
+      nextLaunch: "Next launch",
       folder: "Folder",
       copyPath: "Copy the path",
       pathCopied: "Path copied",
@@ -42,18 +58,33 @@ export const canvasMessages = defineMessages(
       // Under the folder of a fleet or of a mission's agent, which cannot be moved.
       folderFleet: "A fleet stays in the project: its missions branch from it",
       folderMission: "Fixed while its mission runs: this agent works in its own worktree",
-      // Claude keeps a conversation with the folder it started in (it cannot resume one from another folder).
+      // Claude keeps a conversation with the folder it started in (it cannot resume one from another folder): said when it moves.
       folderNewConversation: "New folder, new conversation: Claude keeps each conversation with its folder",
+      // The same with a profile: its conversations live in the profile's folder.
+      accountNewConversation: "New account, new conversation: Claude keeps each conversation with its account",
       command: "Command",
       shell: "Shell",
-      title: "Title",
       model: "Model",
-      defaultModel: "Default",
-      useDefaultModel: "Use default",
-      // The fields above are read when the terminal starts: the command only for a Custom one, a fleet's title is its name.
-      nextLaunch: "Folder, shell and title apply at the next launch",
-      nextLaunchCustom: "Command, folder, shell and title apply at the next launch",
-      nextLaunchFleet: "The shell applies at the next launch",
+      // No `--model`: Claude picks, from the profile's settings or its own default. Never a bare "Default".
+      claudeDefault: "Claude's default",
+      // Under the model chosen, while the session runs: what its status line says it uses now, maybe after /model.
+      runningModel: (model: string) => `Running ${model}`,
+      runningModelEffort: (model: string, effort: string) => `Running ${model}, ${effort} effort`,
+      permission: "Permissions",
+      // No `--permission-mode`: Claude asks as the user's own settings say.
+      claudeSettings: "Claude's settings",
+      // As a mission words them: files are edits, commands are Bash (and the web, subagents); the rest is refused unasked.
+      permissions: { ask: "Ask first", edits: "Files unasked", work: "Files and commands unasked" },
+      // Under the choice; any permission given also blocks git push in the session (not a security boundary).
+      permissionHelp: {
+        ask: "Asks before each edit and command · git push blocked",
+        edits: "Asks before a command · git push blocked",
+        work: "Commands, the network and this PC's logged-in accounts are open to it · git push blocked",
+      },
+      account: "Account",
+      remoteControl: "Remote Control",
+      // Beside its box: where Remote Control stands; it applies to a running session at once.
+      remoteStates: { on: "On", connecting: "Connecting…", pending: "At the end of its turn", requested: "Requested", nextStart: "At next start" },
       // Beside "Restart now": the running session still has the settings it started with.
       launchChanged: "Running with the old launch settings",
       tabs: { general: "General", skills: "Skills", plugins: "Plugins", mcp: "MCP", agents: "Subagents" },

@@ -21,7 +21,7 @@ export function PanelAction({ icon, label, onClick, danger = false }: { icon: Re
       className={cn(
         // No side padding: two or three of them share a drawing panel's 200 px, "Duplicate" and its icon included.
         "flex-1 gap-1.5 rounded-md px-0 text-xs font-normal text-dp-text-2 hover:text-dp-text",
-        danger && "hover:bg-dp-danger/10 hover:text-dp-danger focus-visible:ring-dp-danger/40",
+        danger && "hover:bg-dp-danger/10 hover:text-dp-danger focus-visible:ring-dp-danger",
       )}
     >
       {icon}

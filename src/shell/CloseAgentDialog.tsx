@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -16,6 +16,7 @@ import { useActivity } from "@/store/agentActivity";
 import { nodeNameOf, useNodes } from "@/store/nodes";
 import { isRunning } from "@/store/terminalStatus";
 import { uiStore, useUi, type ClosingAgents } from "@/store/ui";
+import { useExitSnapshot } from "@/lib/useExitSnapshot";
 import { QuietButton } from "./buttons";
 import { shellMessages } from "./messages";
 
@@ -28,11 +29,19 @@ import { shellMessages } from "./messages";
  */
 export function CloseAgentDialog() {
   const closing = useUi((s) => s.closing);
-  // Keyed by the closing: each request starts with "Also close" ticked.
-  return <CloseAgentContent key={closing ? closing.agents.join() : ""} closing={closing} />;
+  // The last request stays mounted while the dialog animates out: a key turning "" would cut its exit.
+  const last = useRef<ClosingAgents | null>(null);
+  const shown = useRef(false);
+  const requests = useRef(0);
+  // A new request: the dialog opens, or another closing replaces the one it shows.
+  if (closing && (!shown.current || closing !== last.current)) requests.current += 1;
+  shown.current = closing !== null;
+  if (closing) last.current = closing;
+  // Keyed by the request: each one starts with "Also close" ticked, the same agents asked twice included.
+  return <CloseAgentContent key={requests.current} closing={closing ?? last.current} open={closing !== null} />;
 }
 
-function CloseAgentContent({ closing }: { closing: ClosingAgents | null }) {
+function CloseAgentContent({ closing, open }: { closing: ClosingAgents | null; open: boolean }) {
   const all = useMessages(shellMessages);
   const t = all.closeAgent;
   const alsoId = useId();
@@ -60,19 +69,26 @@ function CloseAgentContent({ closing }: { closing: ClosingAgents | null }) {
         : fleet
           ? state ? t[`fleet${state}`](name) : t.fleet(name)
           : state ? t[`agent${state}`](name) : t.agent(name);
+  // The agents are gone once closed: the exit keeps the words the dialog asked with.
+  const shown = useExitSnapshot(open, {
+    title: one ? t.titleOne(name) : t.titleMany(names.length),
+    description,
+    childNames: children.map((id) => nodeNameOf(nodes[id]) || all.fallbackAgent),
+    confirmLabel: fleet ? t.confirmFleet : one ? t.confirmOne : t.confirmMany,
+  });
   const confirm = () => {
-    if (!closing) return;
+    if (!closing || !open) return;
     const leaving = withChildren ? [...closing.remove, ...children] : closing.remove;
     // The canvas reflows the trees of the spawned agents that leave.
     removeNodes(leaving);
   };
 
   return (
-    <Dialog open={closing !== null} onOpenChange={(open) => !open && close()}>
+    <Dialog open={open} onOpenChange={(next) => !next && close()}>
       <DialogContent showCloseButton={false}>
         <DialogHeader>
-          <DialogTitle>{one ? t.titleOne(name) : t.titleMany(names.length)}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
+          <DialogTitle>{shown.title}</DialogTitle>
+          <DialogDescription>{shown.description}</DialogDescription>
         </DialogHeader>
         {children.length > 0 && (
           <div className="flex items-start gap-2">
@@ -83,7 +99,7 @@ function CloseAgentContent({ closing }: { closing: ClosingAgents | null }) {
               onCheckedChange={(checked) => setWithChildren(checked === true)}
             />
             <Label htmlFor={alsoId} className="block text-sm font-normal leading-5 text-dp-text-2">
-              {t.alsoChildren(children.map((id) => nodeNameOf(nodes[id]) || all.fallbackAgent))}
+              {t.alsoChildren(shown.childNames)}
             </Label>
           </div>
         )}
@@ -97,7 +113,7 @@ function CloseAgentContent({ closing }: { closing: ClosingAgents | null }) {
               close();
             }}
           >
-            {fleet ? t.confirmFleet : one ? t.confirmOne : t.confirmMany}
+            {shown.confirmLabel}
           </Button>
         </DialogFooter>
       </DialogContent>

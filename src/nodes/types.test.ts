@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readFilePayload, readFleetPayload, readTerminalPayload } from "./types";
+import { MAX_STORED_TASK, readFilePayload, readFleetPayload, readTerminalPayload } from "./types";
 
 describe("readTerminalPayload", () => {
   it("reads a payload saved before agents and names existed", () => {
@@ -32,6 +32,14 @@ describe("readTerminalPayload", () => {
     expect(readTerminalPayload({ ...batman, inputOpen: true })?.inputOpen).toBe(true);
     expect(readTerminalPayload({ ...batman, inputOpen: false })).toEqual(batman);
     expect(readTerminalPayload({ ...batman, inputOpen: "yes" })).toEqual(batman);
+  });
+
+  it("keeps a sub-agent's task across a restart, its start only, and no empty one", () => {
+    const robin = { title: "Tests", name: "Robin", agent: "claude", cwd: "C:/code", shell: "default", command: "", spawnedBy: "batman", task: "Write the tests" };
+    expect(readTerminalPayload(robin)).toEqual(robin);
+    expect(readTerminalPayload({ ...robin, task: "x".repeat(MAX_STORED_TASK + 50) })?.task).toHaveLength(MAX_STORED_TASK);
+    expect(readTerminalPayload({ ...robin, task: "  " })?.task).toBeUndefined();
+    expect(readTerminalPayload({ ...robin, task: 42 })?.task).toBeUndefined();
   });
 
   it("rejects what cannot be launched", () => {

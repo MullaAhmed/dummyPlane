@@ -125,7 +125,7 @@ export function installRadial(win: Window): () => void {
     const count = RINGS[ring.kind].length;
     const turn = TURNS[event.key];
     if (event.key === "Escape") closeRadial();
-    else if (turn) updateRadial({ hovered: ring.hovered === null ? (turn > 0 ? 0 : count - 1) : (ring.hovered + turn + count) % count });
+    else if (turn) updateRadial({ hovered: ring.hovered === null ? (turn > 0 ? 0 : count - 1) : (ring.hovered + turn + count) % count, keyboard: true });
     else if (event.key === "Enter" && ring.hovered !== null) {
       // A greyed one does nothing, and the Enter goes nowhere else either.
       const slot = RINGS[ring.kind][ring.hovered];
@@ -137,10 +137,20 @@ export function installRadial(win: Window): () => void {
   const onWheel = () => {
     if (radialStore.getState().ring) closeRadial();
   };
+  // A gesture the system took away (a pointercancel, the window losing focus mid-press) never sees its
+  // pointerup: the ring stays open, as after a click, instead of waiting on a press that has ended.
+  const onCancel = (event: Event) => {
+    // An element's blur reaches this capture listener too: only the window's own (no node) counts.
+    if (event.type === "blur" && event.target instanceof Node) return;
+    const { ring } = radialStore.getState();
+    if (ring?.pressed || ring?.sliding) updateRadial({ pressed: false, sliding: false });
+  };
   const listeners: [string, EventListener][] = [
     ["pointerdown", onPointerDown as EventListener],
     ["pointermove", onPointerMove as EventListener],
     ["pointerup", onPointerUp as EventListener],
+    ["pointercancel", onCancel],
+    ["blur", onCancel],
     ["contextmenu", onContextMenu as EventListener],
     ["keydown", onKeyDown as EventListener],
     ["wheel", onWheel],

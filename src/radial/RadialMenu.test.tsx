@@ -194,3 +194,27 @@ it("closes on its ×, and when the workspace changes or a dialog opens (spec men
   expect(radialStore.getState().ring).toBeNull();
   uiStore.getState().setClosing(null);
 });
+
+it("opens at once, and moves its wedges with no easing while the keyboard turns it; the pointer brings the easing back", async () => {
+  await open();
+  const wheel = () => document.querySelector<HTMLElement>("[data-radial]")!;
+  // No entrance: opened tens of times a day, and the wedge under a sliding pointer must not move.
+  expect(wheel().className).not.toMatch(/dp-radial-in|animate/);
+  expect(wheel().hasAttribute("data-keyboard")).toBe(false);
+  await act(async () => buttons()[2].focus());
+  expect(wheel().hasAttribute("data-keyboard")).toBe(true);
+  for (const button of buttons()) expect(button.className).toContain("[[data-keyboard]_&]:transition-none");
+  await pointer(hit(), "pointermove", 300 + 100, 300);
+  expect(wheel().hasAttribute("data-keyboard")).toBe(false);
+});
+
+it("lets go of a press the window lost: no wedge stays sunk", async () => {
+  await open();
+  // « Rename », at the right: one that runs (Copy, at the top, has nothing to copy).
+  await pointer(hit(), "pointermove", 300 + 100, 300);
+  await pointer(hit(), "pointerdown", 300 + 100, 300);
+  const sunk = () => buttons().filter((b) => b.className.split(/\s+/).includes("scale-[0.97]"));
+  expect(sunk()).toHaveLength(1);
+  await act(async () => window.dispatchEvent(new Event("blur")));
+  expect(sunk()).toHaveLength(0);
+});

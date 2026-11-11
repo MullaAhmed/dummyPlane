@@ -12,18 +12,11 @@ import { formatDuration } from "@/lib/format";
 import { useNow } from "@/lib/useNow";
 import { sessionOf, useNodes } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
-import { currentLimit, formatUsd, limitTone, liveCacheSessions, totals, type Limit, type Limits } from "@/usage/usage";
+import { currentLimit, formatTokens, formatUsd, limitTone, liveCacheSessions, totals, type Limit, type Limits } from "@/usage/usage";
 import { useUsage } from "@/usage/usageStore";
 import { HintedButton } from "./buttons";
 import { shellMessages } from "./messages";
 import { TokensView } from "./TokensView";
-
-/** "67.8 k", "1.2 M" tokens. */
-function formatTokens(count: number): string {
-  if (count >= 1_000_000) return `${formatDecimal(count / 1_000_000, 1)} M`;
-  if (count >= 1_000) return `${formatDecimal(count / 1_000, 1)} k`;
-  return String(count);
-}
 
 function Bar({ limit, wide = false }: { limit: Limit; wide?: boolean }) {
   const tone = limitTone(limit.usedPercent);

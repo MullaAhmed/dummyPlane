@@ -116,7 +116,8 @@ function WorkspaceTab(props: { workspace: Workspace; projectFolder: string; acti
           </span>
         }
         variant="ghost"
-        className="h-auto gap-0 self-stretch rounded-md px-0 text-(length:--text-ui) font-normal text-inherit hover:bg-transparent hover:text-inherit active:scale-[0.98]"
+        // No press scale: a tab selects like a browser tab, inside a frame that does not move.
+        className="h-auto gap-0 self-stretch rounded-md px-0 text-(length:--text-ui) font-normal text-inherit hover:bg-transparent hover:text-inherit active:scale-100"
         onClick={() => workspacesStore.getState().select(workspace.id)}
         onDoubleClick={() => setEditing(true)}
         // Alt+←/→: the keyboard's way to reorder (the drag's alternative).
@@ -148,7 +149,7 @@ function WorkspaceTab(props: { workspace: Workspace; projectFolder: string; acti
         <IconButton
           label={t.deleteWorkspace}
           onClick={() => void removeWorkspace(workspace, running).catch(fail("deleteFailed"))}
-          className="ml-1 size-6 opacity-0 transition-[color,background-color,opacity,transform] group-hover:opacity-100 focus-visible:opacity-100 [&_svg:not([class*='size-'])]:size-3.5"
+          className="ml-1 size-6 opacity-0 transition-[color,background-color,opacity,scale] group-hover:opacity-100 focus-visible:opacity-100 focus-visible:transition-none [&_svg:not([class*='size-'])]:size-3.5"
         >
           <X />
         </IconButton>

@@ -15,9 +15,10 @@ import { watchDevicePixelRatio } from "./dprWatch";
 import { BASE_FONT_SIZE, canvasMeasure, fontFor, gridFor, renderZoom, type FontMeasure } from "./crisp";
 import { bufferText } from "./bufferText";
 import { freshScreen, textSince } from "./freshScreen";
-import { onTerminalPaste, pasteImage, pastedImage } from "./imagePaste";
+import { pasteImage, pastedImage, takeOverPaste } from "./imagePaste";
 import { keyAction, NEWLINE_SEQUENCE } from "./keys";
 import { newConversation, type LaunchMode } from "./launch";
+import { forgetLiveTitle, setLiveTitle } from "./liveTitle";
 import { onNewWork } from "./minimize";
 import { isTypingKey, startsNewConversation, startsOnKeystroke } from "./pill";
 import { acceptsInput, reattachSession, relaunchSession, restoreSession, startSession, type SessionState } from "./session";
@@ -106,9 +107,10 @@ function create(nodeId: string): Entry {
     return false;
   });
   // Capture phase on xterm's container: runs before xterm's own paste listener,
-  // which reads text only. The terminal is looked up again once the image is
-  // saved: it may have been closed meanwhile.
-  screen.addEventListener("paste", (event) => onTerminalPaste(event, (text) => pasteIntoTerminal(nodeId, text)), {
+  // which reads text only and would send an empty paste for an image. The
+  // terminal is looked up again once the image is saved: it may have been
+  // closed meanwhile.
+  screen.addEventListener("paste", (event) => takeOverPaste(event, (text) => pasteIntoTerminal(nodeId, text)), {
     capture: true,
   });
   term.onData((data) => {
@@ -128,6 +130,9 @@ function create(nodeId: string): Entry {
   term.onResize(({ cols, rows }) => {
     if (isRunning(nodeId)) void ptyResize(nodeId, cols, rows).catch(() => undefined);
   });
+  // What the program running in it calls it now (the edit panel shows it). A re-attach replays the live
+  // process's own output, whose titles are its own; a stopped terminal's restored screen is ignored (setLiveTitle).
+  term.onTitleChange((title) => setLiveTitle(nodeId, title));
   entries.set(nodeId, entry);
   return entry;
 }
@@ -349,4 +354,5 @@ export function disposeTerminal(nodeId: string) {
   entries.delete(nodeId);
   autostart.cancel(nodeId);
   terminalStatusStore.getState().remove(nodeId);
+  forgetLiveTitle(nodeId);
 }

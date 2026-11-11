@@ -1,6 +1,8 @@
 import { useId, type ReactElement, type ReactNode } from "react";
-import { Bell, CircleArrowDown, Download, FileText, Gauge, ImageDown, Info, LifeBuoy, LocateFixed, RefreshCw, SquareTerminal, Upload } from "lucide-react";
+import { Bell, CircleArrowDown, Download, FileText, Gauge, ImageDown, Info, LayoutGrid, LifeBuoy, LocateFixed, RefreshCw, SquareTerminal, Upload } from "lucide-react";
+import { arrangeWorkspace } from "@/agents/arrangeCanvas";
 import { showAbout } from "@/app/about";
+import { setAutoArrange, useAutoArrange } from "@/app/autoArrangeSetting";
 import { setFollowWaiting, useFollowWaiting } from "@/app/followWaitingSetting";
 import { openLogDir } from "@/app/logs";
 import { setNativeNotifications, useNativeNotifications } from "@/app/nativeNotifications";
@@ -23,6 +25,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useMessages } from "@/i18n";
+import { workspacesStore } from "@/store/workspaces";
 import { cn } from "@/lib/utils";
 import { shellMessages } from "./messages";
 import { showTroubleshooting } from "./troubleshoot";
@@ -43,6 +46,12 @@ const ICON = "text-dp-text-2";
 const LABEL = "px-2 pb-1 pt-1";
 /** A hairline with room on both sides: the groups read apart. */
 const SEPARATOR = "-mx-1 my-2";
+
+/** Auto-arrange turned on: the canvas on screen is arranged at once, one step an undo takes back. */
+function arrangeShown() {
+  const workspaceId = workspacesStore.getState().activeId;
+  if (workspaceId) arrangeWorkspace(workspaceId, { undoable: true });
+}
 
 /** A setting changes in place: the menu stays open on its new state, where an action closes it. */
 const stayOpen = (event: Event) => event.preventDefault();
@@ -89,6 +98,7 @@ export function SettingsMenu({
   const autoUpdates = useUpdates((s) => s.auto);
   const nativeNotifications = useNativeNotifications();
   const followWaiting = useFollowWaiting();
+  const autoArrange = useAutoArrange();
   const subagentTerminals = useSubagentSettings((s) => s.terminals);
   const maxSpawned = useSubagentSettings((s) => s.maxSpawned);
   return (
@@ -161,6 +171,14 @@ export function SettingsMenu({
             onSelect={stayOpen}
           >
             <LocateFixed className={ICON} /> {t.followWaiting}
+          </DropdownMenuCheckboxItem>
+          <DropdownMenuCheckboxItem
+            className={CHOICE}
+            checked={autoArrange}
+            onCheckedChange={(on) => void setAutoArrange(on === true, arrangeShown)}
+            onSelect={stayOpen}
+          >
+            <LayoutGrid className={ICON} /> {t.autoArrange}
           </DropdownMenuCheckboxItem>
         </Section>
         <DropdownMenuSeparator className={SEPARATOR} />

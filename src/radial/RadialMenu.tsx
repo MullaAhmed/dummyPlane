@@ -41,7 +41,10 @@ function slotUnder(event: { clientX: number; clientY: number }): number | null {
 /** With the mouse, after a click: the wedge pointed at follows the pointer. A slide's is install.ts's. */
 function follow(event: PointerEvent) {
   const { ring } = radialStore.getState();
-  if (!ring || ring.pressed) return;
+  if (!ring) return;
+  // The pointer takes the wheel back from the keyboard: the wedges ease again.
+  if (ring.keyboard) updateRadial({ keyboard: false });
+  if (ring.pressed) return;
   const hovered = slotUnder(event);
   if (hovered !== ring.hovered) updateRadial({ hovered });
 }
@@ -78,14 +81,15 @@ function Wedge({ slot, count, line, pointed, pressed }: WedgeProps) {
       aria-disabled={!line.enabled}
       aria-description={line.reason ?? undefined}
       className={cn(
-        "group pointer-events-none absolute outline-none transition-[translate,scale] duration-(--dp-dur-fast) ease-(--dp-ease-out) motion-reduce:transition-none",
+        "group pointer-events-none absolute outline-none transition-[translate,scale] duration-(--dp-dur-fast) ease-(--dp-ease-out) motion-reduce:transition-none [[data-keyboard]_&]:transition-none",
         // Pressed, it sinks back toward the hub: with the mouse (the hit circle tells), or held from the keyboard.
         pressed && lit && "scale-[0.97]",
         line.enabled && "active:scale-[0.97]",
       )}
       style={{ left: -BOX, top: -BOX, width: 2 * BOX, height: 2 * BOX, translate: lit ? `${pop.x}px ${pop.y}px` : undefined }}
       onPointerDown={keepKeyboard}
-      onFocus={() => updateRadial({ hovered: slot })}
+      // Only the keyboard focuses a wedge (the pointer's press keeps the focus where it was).
+      onFocus={() => updateRadial({ hovered: slot, keyboard: true })}
       onBlur={() => radialStore.getState().ring?.hovered === slot && updateRadial({ hovered: null })}
       onClick={() => line.enabled && chooseSlot(slot)}
     >
@@ -93,7 +97,7 @@ function Wedge({ slot, count, line, pointed, pressed }: WedgeProps) {
         <path
           d={wedgePath(slot, count)}
           className={cn(
-            "stroke-1 transition-[fill,stroke] duration-(--dp-dur-fast) ease-(--dp-ease-out) group-focus-visible:stroke-2 group-focus-visible:stroke-dp-accent motion-reduce:transition-none",
+            "stroke-1 transition-[fill,stroke] duration-(--dp-dur-fast) ease-(--dp-ease-out) group-focus-visible:stroke-2 group-focus-visible:stroke-dp-accent motion-reduce:transition-none [[data-keyboard]_&]:transition-none",
             !pointed && "fill-dp-surface stroke-dp-line",
             // Its hairline in the ink written on it: the ground's color, unseen on the canvas, but the edge that keeps
             // its shape over a terminal, whose color the accent nearly is in the light palette.
@@ -105,7 +109,7 @@ function Wedge({ slot, count, line, pointed, pressed }: WedgeProps) {
       </svg>
       <span
         className={cn(
-          "absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1 transition-colors duration-(--dp-dur-fast) ease-(--dp-ease-out) motion-reduce:transition-none",
+          "absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1 transition-colors duration-(--dp-dur-fast) ease-(--dp-ease-out) motion-reduce:transition-none [[data-keyboard]_&]:transition-none",
           lit ? "text-dp-on-accent" : "text-dp-text",
           !line.enabled && "opacity-50",
         )}
@@ -125,6 +129,12 @@ export function RadialMenu() {
   const t = useMessages(radialMessages);
   const [pressed, setPressed] = useState<number | null>(null);
   useEffect(closeOnLeave, []);
+  // A press the window lost (alt-tab mid-click) never sees its pointerup: the wedge does not stay sunk.
+  useEffect(() => {
+    const release = () => setPressed(null);
+    window.addEventListener("blur", release);
+    return () => window.removeEventListener("blur", release);
+  }, []);
   if (!ring) return null;
   const lines = RINGS[ring.kind].map((slot) => lineOf(slot, ring.context));
   const pointed = ring.hovered !== null ? lines[ring.hovered] : null;
@@ -136,9 +146,12 @@ export function RadialMenu() {
     else if (lines[slot]?.enabled) chooseSlot(slot);
   };
   return (
+    // It opens at once, where the right click was: opened tens of times a day, and the wedge under a
+    // sliding pointer must not move while the wheel grows.
     <div
       data-radial
-      className="dp-radial dp-radial-in pointer-events-none fixed z-[45]"
+      data-keyboard={ring.keyboard || undefined}
+      className="dp-radial pointer-events-none fixed z-[45]"
       style={{ left: ring.center.x, top: ring.center.y }}
       onPointerMove={follow}
       onPointerLeave={() => {
@@ -160,6 +173,7 @@ export function RadialMenu() {
           if (event.button === 0) setPressed(slotUnder(event));
         }}
         onPointerUp={() => setPressed(null)}
+        onPointerCancel={() => setPressed(null)}
         onClick={choose}
       />
       <button
@@ -168,7 +182,7 @@ export function RadialMenu() {
         aria-label={t.closeMenu}
         onPointerDown={keepKeyboard}
         onClick={closeRadial}
-        className="pointer-events-auto absolute grid -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border border-dp-line bg-dp-surface text-dp-text-2 transition-[color,background-color,scale] duration-(--dp-dur-fast) ease-(--dp-ease-out) hover:bg-dp-card hover:text-dp-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 focus-visible:ring-inset active:scale-[0.97] motion-reduce:transition-none"
+        className="pointer-events-auto absolute grid -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border border-dp-line bg-dp-surface text-dp-text-2 transition-[color,background-color,scale] duration-(--dp-dur-fast) ease-(--dp-ease-out) hover:bg-dp-card hover:text-dp-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/70 focus-visible:ring-inset active:scale-[0.97] motion-reduce:transition-none"
         style={{ left: 0, top: 0, width: 2 * HUB_RADIUS, height: 2 * HUB_RADIUS }}
       >
         {pointed ? (

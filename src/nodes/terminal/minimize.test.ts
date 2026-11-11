@@ -16,6 +16,7 @@ import {
   installMinimizing,
   isMinimized,
   MINIMIZED_HEIGHT,
+  MINIMIZED_WIDTH,
   minimizeTerminal,
   onAgentReported,
   onNewWork,
@@ -52,6 +53,8 @@ const api = {
 
 const payload = () => terminalOf(nodesStore.getState().nodes.batman);
 const heightOnScreen = () => scene.find((e) => e.id === "batman")?.height;
+const widthOnScreen = () => scene.find((e) => e.id === "batman")?.width;
+const CARD = { width: MINIMIZED_WIDTH, height: MINIMIZED_HEIGHT };
 
 beforeEach(async () => {
   mockIPC(() => undefined);
@@ -73,22 +76,37 @@ afterEach(() => {
 });
 
 describe("minimizing and expanding a terminal of the workspace on screen", () => {
-  it("shrinks its element to the card outside the undo history, then gives it its height back", () => {
+  it("shrinks its element to a small card from its corner, outside the undo history, then gives it its size back", () => {
+    const { x, y } = scene[0];
     expect(minimizeTerminal("batman")).toBe(true);
     expect(updateScene).toHaveBeenCalledTimes(1);
     expect(updateScene.mock.calls[0][0]).toEqual({ elements: scene, captureUpdate: "NEVER" });
     expect(heightOnScreen()).toBe(MINIMIZED_HEIGHT);
+    // A tab, not a strip as wide as the terminal; its top-left corner stays where it was.
+    expect(widthOnScreen()).toBe(MINIMIZED_WIDTH);
+    expect(scene[0]).toMatchObject({ x, y });
     expect(scene[0].version).toBe(2);
-    expect(payload()).toMatchObject({ minimized: true, expandedHeight: 600 });
+    expect(payload()).toMatchObject({ minimized: true, expandedHeight: 600, expandedWidth: NODE_SIZE.terminal.width });
     expect(isMinimized("batman")).toBe(true);
 
     expect(expandTerminal("batman")).toBe(true);
     expect(updateScene).toHaveBeenCalledTimes(2);
     expect(updateScene.mock.calls[1][0]).toEqual({ elements: scene, captureUpdate: "NEVER" });
     expect(heightOnScreen()).toBe(600);
+    expect(widthOnScreen()).toBe(NODE_SIZE.terminal.width);
     expect(payload()?.minimized).toBeUndefined();
     expect(payload()?.expandedHeight).toBeUndefined();
+    expect(payload()?.expandedWidth).toBeUndefined();
     expect(isMinimized("batman")).toBe(false);
+  });
+
+  it("gives a widened terminal its own width back", () => {
+    scene = [{ ...element(), width: 1000 } as ExcalidrawElement];
+    minimizeTerminal("batman");
+    expect(widthOnScreen()).toBe(MINIMIZED_WIDTH);
+    expect(payload()?.expandedWidth).toBe(1000);
+    expandTerminal("batman");
+    expect(widthOnScreen()).toBe(1000);
   });
 
   it("keeps the first height when minimized twice", () => {
@@ -111,19 +129,31 @@ describe("minimizing and expanding a terminal of the workspace on screen", () =>
     expect(updateScene).not.toHaveBeenCalled();
   });
 
-  it("expands to a new terminal's height when it kept none", async () => {
-    scene = [element(MINIMIZED_HEIGHT)];
+  it("expands to a new terminal's size when it kept none", async () => {
+    scene = [{ ...element(MINIMIZED_HEIGHT), width: MINIMIZED_WIDTH } as ExcalidrawElement];
     await nodesStore.getState().create("batman", { workspaceId: "w1", kind: "terminal", payload: { ...terminal, minimized: true } });
     expect(expandTerminal("batman")).toBe(true);
     expect(heightOnScreen()).toBe(NODE_SIZE.terminal.height);
+    expect(widthOnScreen()).toBe(NODE_SIZE.terminal.width);
   });
 
-  it("keeps no height to give back from an element already at the card's height", () => {
-    scene = [element(MINIMIZED_HEIGHT)];
+  it("keeps no size to give back from an element already at the card's size", () => {
+    scene = [{ ...element(MINIMIZED_HEIGHT), width: MINIMIZED_WIDTH } as ExcalidrawElement];
     expect(minimizeTerminal("batman")).toBe(true);
     expect(payload()?.minimized).toBe(true);
     expect(payload()?.expandedHeight).toBeUndefined();
+    expect(payload()?.expandedWidth).toBeUndefined();
     expect(updateScene).not.toHaveBeenCalled();
+  });
+
+  it("narrows a card left from before cards were narrow (a strip as wide as the terminal) once it is shown", async () => {
+    scene = [element(MINIMIZED_HEIGHT)];
+    await nodesStore.getState().create("batman", { workspaceId: "w1", kind: "terminal", payload: { ...terminal, minimized: true, expandedHeight: 520 } });
+    settleMinimizedSize("batman");
+    expect(widthOnScreen()).toBe(MINIMIZED_WIDTH);
+    expect(payload()).toMatchObject({ expandedHeight: 520, expandedWidth: NODE_SIZE.terminal.width });
+    expandTerminal("batman");
+    expect([widthOnScreen(), heightOnScreen()]).toEqual([NODE_SIZE.terminal.width, 520]);
   });
 
   it("toggles between the card and the full terminal", () => {
@@ -209,8 +239,8 @@ describe("resizedScene", () => {
 
   it("routes the wires bound to the node again, and leaves the rest as it was", () => {
     const elements = [chef, batman, shazam, wire, toShazam];
-    const next = resizedScene(elements, "batman", MINIMIZED_HEIGHT);
-    expect(next[1]).toMatchObject({ id: "batman", x: batman.x, y: batman.y, width: batman.width, height: MINIMIZED_HEIGHT, version: batman.version + 1 });
+    const next = resizedScene(elements, "batman", CARD);
+    expect(next[1]).toMatchObject({ id: "batman", x: batman.x, y: batman.y, width: MINIMIZED_WIDTH, height: MINIMIZED_HEIGHT, version: batman.version + 1 });
     const rerouted = next[3] as ExcalidrawArrowElement;
     expect(rerouted.id).toBe(wire.id);
     expect(rerouted.version).toBe(wire.version + 1);
@@ -223,12 +253,12 @@ describe("resizedScene", () => {
     expect(next[4]).toBe(toShazam);
   });
 
-  it("returns the scene itself when the node is already at that height, gone or deleted", () => {
+  it("returns the scene itself when the node is already at that size, gone or deleted", () => {
     const elements = [chef, batman, wire];
-    expect(resizedScene(elements, "batman", batman.height)).toBe(elements);
-    expect(resizedScene(elements, "nobody", MINIMIZED_HEIGHT)).toBe(elements);
+    expect(resizedScene(elements, "batman", { width: batman.width, height: batman.height })).toBe(elements);
+    expect(resizedScene(elements, "nobody", CARD)).toBe(elements);
     const deleted = [chef, { ...batman, isDeleted: true }, wire];
-    expect(resizedScene(deleted, "batman", MINIMIZED_HEIGHT)).toBe(deleted);
+    expect(resizedScene(deleted, "batman", CARD)).toBe(deleted);
   });
 });
 

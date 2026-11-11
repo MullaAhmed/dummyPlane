@@ -2,7 +2,7 @@
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { expect, it, vi } from "vitest";
-import { signalArrival } from "@/canvas/arrivalSignal";
+import { ARRIVAL_FLASH_MS, signalArrival } from "@/canvas/arrivalSignal";
 import { readSource } from "@/theme/cssBlocks";
 import { ArrivalFlash } from "./ArrivalFlash";
 
@@ -38,7 +38,7 @@ it("flashes the border of the terminal that arrives, anew on each arrival (spec 
   host.remove();
 });
 
-it("plays once: the ring is gone after 600 ms, so scrolling back or returning to the tab does not replay it", async () => {
+it("plays once: the ring is gone after 300 ms, so scrolling back or returning to the tab does not replay it", async () => {
   vi.useFakeTimers();
   try {
     const host = document.createElement("div");
@@ -47,15 +47,15 @@ it("plays once: the ring is gone after 600 ms, so scrolling back or returning to
     await act(async () => root.render(<ArrivalFlash nodeId="ada" />));
     await act(async () => signalArrival("ada"));
     expect(host.querySelector("[data-arrival]")).not.toBeNull();
-    await act(async () => vi.advanceTimersByTime(599));
+    await act(async () => vi.advanceTimersByTime(299));
     expect(host.querySelector("[data-arrival]")).not.toBeNull();
     await act(async () => vi.advanceTimersByTime(1));
     expect(host.querySelector("[data-arrival]")).toBeNull();
-    // A new arrival in the meantime keeps its own full 600 ms.
+    // A new arrival in the meantime keeps its own full 300 ms.
     await act(async () => signalArrival("ada"));
-    await act(async () => vi.advanceTimersByTime(400));
+    await act(async () => vi.advanceTimersByTime(200));
     await act(async () => signalArrival("ada"));
-    await act(async () => vi.advanceTimersByTime(400));
+    await act(async () => vi.advanceTimersByTime(200));
     expect(host.querySelector("[data-arrival]")).not.toBeNull();
     await act(async () => root.unmount());
     host.remove();
@@ -64,8 +64,14 @@ it("plays once: the ring is gone after 600 ms, so scrolling back or returning to
   }
 });
 
-it("fades the accent back in 600 ms, inside every terminal", () => {
-  expect(readSource("index.css")).toMatch(/@keyframes dp-arrival \{[^}]*var\(--dp-accent\)/);
-  expect(readSource("index.css")).toMatch(/\.dp-arrival \{[^}]*dp-arrival 600ms/);
+it("draws the ring at once and fades only its opacity, within 300 ms, inside every terminal", () => {
+  const css = readSource("index.css");
+  // The ring is static: never a box-shadow keyframe, which repaints every frame.
+  expect(css).toMatch(/\.dp-arrival \{\s*box-shadow: inset 0 0 0 1px var\(--dp-accent\), inset 0 0 0 3px var\(--dp-on-accent\);/);
+  expect(css).toMatch(/@keyframes dp-arrival-fade \{\s*to \{\s*opacity: 0;\s*\}\s*\}/);
+  expect(css).toMatch(/\.dp-arrival \{[^}]*animation: dp-arrival-fade var\(--dp-dur\) var\(--dp-ease-out\) 100ms forwards;/);
+  expect(css).not.toMatch(/@keyframes dp-arrival \{/);
+  // The hold and the fade fit the flash's length.
+  expect(ARRIVAL_FLASH_MS).toBe(100 + 200);
   expect(readSource("nodes/terminal/TerminalNode.tsx")).toContain("<ArrivalFlash nodeId={nodeId} />");
 });

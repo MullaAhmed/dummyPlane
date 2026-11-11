@@ -164,7 +164,7 @@ export function ComposeGroup({
               <ToggleGroupItem
                 key={id}
                 value={id}
-                className="h-7 min-w-0 gap-2 rounded-md border border-dp-line px-2.5 text-xs font-normal text-dp-text-2 transition-[background-color,border-color,color,scale] duration-150 ease-out hover:bg-dp-hover hover:text-dp-text focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] motion-reduce:transition-none data-[state=on]:font-medium data-[state=on]:text-dp-on-role"
+                className="h-7 min-w-0 gap-2 rounded-md border border-dp-line px-2.5 text-xs font-normal text-dp-text-2 transition-[background-color,border-color,color,scale] duration-(--dp-dur-fast) ease-(--dp-ease-out) hover:bg-dp-hover hover:text-dp-text focus-visible:ring-2 focus-visible:ring-dp-accent/70 active:scale-[0.97] motion-reduce:transition-none data-[state=on]:font-medium data-[state=on]:text-dp-on-role"
                 // The chosen role is filled with its own colour: inline, so it outranks the hover.
                 style={active ? { backgroundColor: ROLES[id].color, borderColor: ROLES[id].color } : undefined}
               >

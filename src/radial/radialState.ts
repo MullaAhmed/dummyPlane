@@ -16,6 +16,8 @@ export interface RadialOpen {
   sliding: boolean;
   /** The slot pointed at: by the pointer's place on the wheel, the slide, or the arrows. */
   hovered: number | null;
+  /** The keyboard turns the wheel (the arrows, Tab): the wedges move at once, never eased. The pointer's next move clears it. */
+  keyboard?: boolean;
 }
 
 export const radialStore = createStore<{ ring: RadialOpen | null }>()(() => ({ ring: null }));

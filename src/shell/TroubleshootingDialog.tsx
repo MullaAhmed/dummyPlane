@@ -91,7 +91,7 @@ export function TroubleshootingDialog() {
         )}
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={() => void recheck()} disabled={checking} className={secondaryButton}>
-            <RefreshCw className={checking ? "animate-spin" : undefined} /> {t.checkAgain}
+            <RefreshCw className={checking ? "motion-safe:animate-spin" : undefined} /> {t.checkAgain}
           </Button>
           <Button variant="outline" onClick={copy} disabled={!d} className={secondaryButton}>
             <Copy /> {t.copy}

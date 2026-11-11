@@ -7,7 +7,8 @@ import { activeWires, pathData } from "./wirePaths";
  * to the agent or back, then fades (index.css, `.dp-wire-pulse`). The wires
  * are one of the screen's moments, so colour and motion live here, but no
  * glow or blur. Nothing is mounted while the wires are quiet, so no animation
- * runs then.
+ * runs then. With reduced motion the light does not run: the wire is lit for
+ * the message's length and fades, its opacity alone.
  */
 export function WireActivity() {
   const pulses = useWireActivity((s) => s.pulses);
@@ -36,6 +37,8 @@ function ActiveWires({ pulses }: { pulses: Record<string, WirePulse> }) {
           return (
             // Keyed by its time: a newer message starts the animation again.
             <g key={`${wire.id}:${at}`} data-wire={wire.id} data-direction={direction} className="dp-wire-pulse">
+              {/* Hidden unless motion is reduced: then the wire is lit and fades, and no light runs. */}
+              <path d={d} className="dp-wire-glow" />
               <path d={d} className="dp-wire-packet" pathLength={1} />
               <path d={d} className="dp-wire-packet dp-wire-packet--late" pathLength={1} />
             </g>

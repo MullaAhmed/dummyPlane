@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { co2Grams, currentLimit, limitTone, liveCacheSessions, mergeLimits, readStatus, totals, formatUsd, type Limits, type SessionUsage } from "./usage";
+import { co2Grams, currentLimit, formatTokens, limitTone, liveCacheSessions, mergeLimits, nodeSession, readStatus, totals, formatUsd, type Limits, type SessionUsage } from "./usage";
 
 /** A status line's JSON as Claude Code 2.1.304 sent it in dummyPlane, after one answer. */
 const STATUS = {
@@ -19,6 +19,7 @@ describe("readStatus (spec maj §6)", () => {
       sessionId: "s1",
       nodeId: "batman",
       model: { id: "claude-haiku-5-5", name: "Haiku 5.5" },
+      effort: "medium",
       costUsd: 0.00738418,
       apiMs: 1588,
       wallMs: 26007,
@@ -55,6 +56,7 @@ describe("totals", () => {
     sessionId: id,
     nodeId: id,
     model: { id: model, name },
+    effort: null,
     costUsd: cost,
     apiMs: 1000,
     wallMs: 60_000,
@@ -124,7 +126,7 @@ it("writes costs the English way", () => {
 });
 
 it("names a session without a model", () => {
-  const unknown: SessionUsage = { sessionId: "a", nodeId: "n", model: null, costUsd: 1, apiMs: 0, wallMs: 0, linesAdded: 0, linesRemoved: 0, inputTokens: 1, outputTokens: 1, contextPercent: null, cache: null, at: 0 };
+  const unknown: SessionUsage = { sessionId: "a", nodeId: "n", model: null, effort: null, costUsd: 1, apiMs: 0, wallMs: 0, linesAdded: 0, linesRemoved: 0, inputTokens: 1, outputTokens: 1, contextPercent: null, cache: null, at: 0 };
   expect(totals([unknown]).byModel[0].name).toBe("Unknown model");
 });
 
@@ -136,6 +138,20 @@ describe("the prompt cache section (backlog 27 oct)", () => {
     const list = [cached("s1", "hulk", 1), cached("s2", "hulk", 3), cached("s3", "gone", 2), { ...cached("s4", "cyclops", 2), cache: null } as SessionUsage];
     expect(liveCacheSessions(list, new Set(["hulk", "cyclops"])).map((s) => s.sessionId)).toEqual(["s2"]);
   });
+});
+
+it("finds what a terminal's Claude reported last, whichever conversation it was, and nothing for another terminal", () => {
+  const report = (sessionId: string, nodeId: string, at: number) => ({ sessionId, nodeId, at }) as unknown as SessionUsage;
+  const sessions = { s1: report("s1", "batman", 10), s2: report("s2", "batman", 30), s3: report("s3", "cyborg", 50) };
+  expect(nodeSession(sessions, "batman")?.sessionId).toBe("s2");
+  expect(nodeSession(sessions, "aquaman")).toBeUndefined();
+  // Started again at 40: what it reported before is an earlier run's.
+  expect(nodeSession(sessions, "batman", 40)).toBeUndefined();
+  expect(nodeSession(sessions, "batman", 20)?.sessionId).toBe("s2");
+});
+
+it("writes token counts short", () => {
+  expect([formatTokens(950), formatTokens(67_785), formatTokens(1_250_000)]).toEqual(["950", "67.8 k", "1.3 M"]);
 });
 
 it("reads a model's own limit alone, without the session or week windows (backlog 27 oct)", () => {

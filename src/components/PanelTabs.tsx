@@ -22,7 +22,7 @@ type Look = "soft" | "line";
 const LookOf = createContext<Look>("soft");
 
 const SOFT =
-  "h-7 flex-none rounded-md border-transparent px-2.5 py-0 text-xs font-normal text-dp-text-2 transition-[background-color,color,scale] duration-(--dp-dur-fast) ease-(--dp-ease-out) motion-reduce:transition-none hover:bg-dp-hover hover:text-dp-text active:scale-[0.97] focus-visible:border-transparent focus-visible:ring-2 focus-visible:ring-dp-accent/50 focus-visible:outline-none";
+  "h-7 flex-none rounded-md border-transparent px-2.5 py-0 text-xs font-normal text-dp-text-2 transition-[background-color,color,scale] duration-(--dp-dur-fast) ease-(--dp-ease-out) motion-reduce:transition-none hover:bg-dp-hover hover:text-dp-text active:scale-[0.97] focus-visible:border-transparent focus-visible:ring-2 focus-visible:ring-dp-accent/70 focus-visible:outline-none";
 
 /**
  * As wide as its label, no side padding: the first label starts on the panel's edge, under its
@@ -30,7 +30,7 @@ const SOFT =
  * focus ring stands 2 px off the label.
  */
 const LINE =
-  "h-8 flex-none rounded-sm border-transparent px-0 py-0 text-(length:--text-ui) font-normal text-dp-text-2 transition-[color] duration-(--dp-dur-fast) ease-(--dp-ease-out) motion-reduce:transition-none hover:text-dp-text focus-visible:border-transparent focus-visible:ring-2 focus-visible:ring-dp-accent/50 focus-visible:ring-offset-2 focus-visible:ring-offset-dp-surface focus-visible:outline-none dark:text-dp-text-2 dark:hover:text-dp-text data-active:bg-transparent data-active:text-dp-text dark:data-active:border-transparent dark:data-active:bg-transparent dark:data-active:text-dp-text after:bg-dp-accent after:duration-(--dp-dur-fast) after:ease-(--dp-ease-out) motion-reduce:after:transition-none group-data-horizontal/tabs:after:-bottom-px";
+  "h-8 flex-none rounded-sm border-transparent px-0 py-0 text-(length:--text-ui) font-normal text-dp-text-2 transition-[color] duration-(--dp-dur-fast) ease-(--dp-ease-out) motion-reduce:transition-none hover:text-dp-text focus-visible:border-transparent focus-visible:ring-2 focus-visible:ring-dp-accent/70 focus-visible:ring-offset-2 focus-visible:ring-offset-dp-surface focus-visible:outline-none dark:text-dp-text-2 dark:hover:text-dp-text data-active:bg-transparent data-active:text-dp-text dark:data-active:border-transparent dark:data-active:bg-transparent dark:data-active:text-dp-text after:bg-dp-accent after:duration-(--dp-dur-fast) after:ease-(--dp-ease-out) motion-reduce:after:transition-none group-data-horizontal/tabs:after:-bottom-px";
 
 export function PanelTabs({ onValueChange, className, ...props }: ComponentProps<typeof Tabs>) {
   return (
@@ -80,7 +80,7 @@ export function PanelTabsTrigger({ value, onClick, className, ...props }: Compon
 
 /** A view's page: it fills what the bar leaves. Radix makes it a tab stop, so it shows its focus. */
 export function PanelTabsContent({ className, ...props }: ComponentProps<typeof TabsContent>) {
-  return <TabsContent className={cn("flex min-h-0 flex-col focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-dp-accent/50", className)} {...props} />;
+  return <TabsContent className={cn("flex min-h-0 flex-col focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-dp-accent/70", className)} {...props} />;
 }
 
 /** A choice in a panel's bar beside the tabs (a single-choice ToggleGroup), drawn like them. */

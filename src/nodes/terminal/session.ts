@@ -4,7 +4,7 @@ import type { TerminalPayload } from "@/nodes/types";
 import { nodesStore } from "@/store/nodes";
 import { isRunning, terminalStatusStore, waitForExit } from "@/store/terminalStatus";
 import { accountsStore, loadAccounts } from "@/accounts/store";
-import { markResumedLaunch } from "@/usage/usageStore";
+import { markLaunch, markResumedLaunch } from "@/usage/usageStore";
 import { buildSpawnSpec, type LaunchMode } from "./launch";
 import { accountsMessages } from "@/accounts/messages";
 import { messages } from "@/i18n";
@@ -65,6 +65,8 @@ export async function startSession(nodeId: string, term: TermSink, payload: Term
     const spec = buildSpawnSpec(withConversationId(nodeId, await withAccount(nodeId, payload, mode)), mode);
     // A resumed conversation brings its earlier spending: the usage counts this launch's only.
     if (payload.agent === "claude" && mode !== "new") markResumedLaunch(nodeId);
+    // What the previous run reported (its model, its tokens) no longer stands.
+    if (payload.agent === "claude") markLaunch(nodeId);
     await ptySpawn(nodeId, spec, term.cols, term.rows, (bytes) => term.write(bytes));
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

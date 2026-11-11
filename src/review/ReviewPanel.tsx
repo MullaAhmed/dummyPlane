@@ -24,9 +24,12 @@ const MAX_FILES = 400;
 /** The panel's own toasts show at the top: the default corner is where "Send" is. */
 const TOAST_AWAY = { position: "top-center" } as const;
 
-/** A row of a file list: the whole width, a hover step, the file being read in the accent's tint. */
+/**
+ * A row of a file list: the whole width, a hover step, the file being read in the accent's tint.
+ * The fill snaps: a fade on rows the pointer sweeps leaves a trail of half-lit ones.
+ */
 const ROW =
-  "flex h-7 w-full items-center gap-2 px-3 text-left text-xs text-dp-text-2 transition-colors duration-(--dp-dur-fast) ease-(--dp-ease-out) hover:bg-dp-hover hover:text-dp-text motion-reduce:transition-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 focus-visible:outline-none focus-visible:ring-inset";
+  "flex h-7 w-full items-center gap-2 px-3 text-left text-xs text-dp-text-2 hover:bg-dp-hover hover:text-dp-text focus-visible:ring-2 focus-visible:ring-dp-accent/70 focus-visible:outline-none focus-visible:ring-inset";
 const ROW_ON = "bg-dp-accent-soft text-dp-text hover:bg-dp-accent-soft";
 
 /** A field of the panel: shadcn's Input at the panel's density. */

@@ -121,7 +121,8 @@
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    /* The browser's own focus outline, where a control draws none: the accent at /70, like every ring. */
+    @apply border-border outline-ring/70;
   }
   body {
     @apply bg-background text-foreground;
@@ -208,25 +209,66 @@
   box-shadow: var(--dp-shadow);
 }
 
-/* Arrival on a terminal: the selection frame's ink-and-paper pair, then fades back (spec fenêtre §6.4).
-   The paper line keeps it visible where the ink is as dark as the terminal body (calm). */
-@keyframes dp-arrival {
-  from {
-    box-shadow: inset 0 0 0 1px var(--dp-accent), inset 0 0 0 3px var(--dp-on-accent);
+/* A menu or popover the keyboard opened (the palette, a shortcut) is there at once: never animate a
+   keyboard-initiated action. Outside any layer, so it wins over tw-animate's utilities; with no
+   animation, Radix unmounts it at once on close too. */
+[data-instant] {
+  animation: none !important;
+}
+
+/* Reduced motion in the overlays (menus, selects, popovers, dialogs, tooltips): they still fade, but
+   neither zoom nor slide. tw-animate-css has no reduced-motion rule of its own; outside any layer,
+   this one wins over its utilities. Toasts fade where sonner would drop every transition. */
+@media (prefers-reduced-motion: reduce) {
+  [data-slot$="-content"] {
+    --tw-enter-scale: 1;
+    --tw-exit-scale: 1;
+    --tw-enter-translate-x: 0;
+    --tw-enter-translate-y: 0;
+    --tw-exit-translate-x: 0;
+    --tw-exit-translate-y: 0;
   }
+
+  [data-sonner-toaster] [data-sonner-toast] {
+    transition: opacity var(--dp-dur) var(--dp-ease-out) !important;
+  }
+}
+
+/* Arrival on a terminal (Ctrl+Tab, Ctrl+P; spec fenêtre §6.4): the selection frame's ink-and-paper pair,
+   drawn at once (it answers the keyboard), held a beat, then faded on its opacity alone; the ring itself
+   never animates. 100 ms + --dp-dur = ARRIVAL_FLASH_MS (arrivalSignal.ts). The paper line keeps it
+   visible where the ink is as dark as the terminal body (calm). */
+@keyframes dp-arrival-fade {
   to {
-    box-shadow: inset 0 0 0 1px transparent, inset 0 0 0 3px transparent;
+    opacity: 0;
   }
 }
 
 .dp-arrival {
-  animation: dp-arrival 600ms var(--dp-ease-out) forwards;
+  box-shadow: inset 0 0 0 1px var(--dp-accent), inset 0 0 0 3px var(--dp-on-accent);
+  animation: dp-arrival-fade var(--dp-dur) var(--dp-ease-out) 100ms forwards;
 }
 
-/* Reduced motion keeps the colour cue, drops its length. */
+/* Reduced motion keeps the cue: an opacity fade moves nothing, it only drops the hold. */
 @media (prefers-reduced-motion: reduce) {
   .dp-arrival {
-    animation-duration: var(--dp-dur-fast);
+    animation-delay: 0ms;
+  }
+}
+
+/* The waiting dot's breath under reduced motion (StatusDot): slower and shallower than animate-pulse,
+   its opacity alone, so the one state that asks for the user still says so. */
+@keyframes dp-breath {
+  50% {
+    opacity: 0.7;
+  }
+}
+
+/* The editor's line reached by Go to line, fading back once its moment is over (CodeEditor.tsx,
+   .cm-dp-flash-out): from the flash's tint to whatever the line's own background is. */
+@keyframes dp-flash-out {
+  from {
+    background-color: var(--dp-accent-soft);
   }
 }
 
@@ -236,44 +278,42 @@
   filter: drop-shadow(var(--dp-float-shadow));
 }
 
-/* The radial menu opens from its center (spec menu radial §5.1). */
-@keyframes dp-radial-in {
-  from {
-    opacity: 0;
-    transform: scale(0.85);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-.dp-radial-in {
-  animation: dp-radial-in var(--dp-dur-fast) var(--dp-ease-out);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .dp-radial-in {
-    animation: none;
-  }
-}
-
 /* A message on a wire (WireActivity): a light runs along it the way the message goes, then fades.
    The wire itself no longer glows: its glow path (.dp-wire-glow) is only drawn, as the plain lit
    wire, when motion is reduced. */
 
-/* The path is one unit long (pathLength="1"): a short dash runs from before its start to past its end. */
-@keyframes dp-wire-packet {
+/* The path is one unit long (pathLength="1"): a short dash runs from before its start to past its end,
+   at one speed (linear: constant motion along a path), while its opacity holds, then eases out. */
+@keyframes dp-wire-travel {
   from {
     stroke-dashoffset: 0.1;
+  }
+  to {
+    stroke-dashoffset: -1;
+  }
+}
+
+@keyframes dp-wire-fade {
+  from {
     opacity: 1;
   }
   75% {
     opacity: 1;
   }
   to {
-    stroke-dashoffset: -1;
     opacity: 0;
+  }
+}
+
+/* Reduced motion: the wire is lit for the message's length (WIRE_PULSE_MS, wireActivity.ts) and fades. */
+@keyframes dp-wire-glow {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  15%,
+  70% {
+    opacity: 1;
   }
 }
 
@@ -292,7 +332,9 @@
   stroke-width: 4;
   stroke-dasharray: 0.1 1.1;
   stroke-dashoffset: 0.1;
-  animation: dp-wire-packet 1100ms var(--dp-ease-out) both;
+  animation:
+    dp-wire-travel 1100ms linear both,
+    dp-wire-fade 1100ms var(--dp-ease-out) both;
 }
 
 .dp-wire-packet--late {
@@ -305,6 +347,7 @@
   .dp-wire-glow {
     display: inline;
     stroke-width: 3;
+    animation: dp-wire-glow 1500ms var(--dp-ease-out) both;
   }
 
   .dp-wire-packet {

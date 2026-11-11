@@ -32,7 +32,7 @@ import {
 } from "@/kanban/board";
 import { kanbanWidth } from "@/kanban/width";
 import { canvasStore, useCanvas } from "@/canvas/canvasStore";
-import { dropCardOutside, startCardDrag } from "@/kanban/dropOnTerminal";
+import { endCardDrag, startCardDrag } from "@/kanban/dropOnTerminal";
 import { createIssueForCard, detectRepo, linkBoard, moveCardWithGithub, parseProject, syncBoard } from "@/kanban/github";
 import { useNativeKeyDown } from "@/lib/useNativeKeyDown";
 import { AccentButton, Hint, HintedButton, IconButton, QuietButton } from "@/shell/buttons";
@@ -67,7 +67,7 @@ function Tag({ hint, ...props }: ComponentProps<"span"> & { hint?: string }) {
 
 /** A choice of the card dialog: a hairline, filled with the soft ink once chosen. The due dates and the priorities share it. */
 const CHOICE =
-  "h-7 min-w-0 gap-1.5 rounded-md border border-dp-line px-2 text-xs font-normal text-dp-text-2 transition-[color,background-color,border-color,scale] duration-(--dp-dur-fast) ease-(--dp-ease-out) motion-reduce:transition-none hover:bg-dp-hover hover:text-dp-text focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] data-[state=on]:border-dp-accent data-[state=on]:bg-dp-accent-soft data-[state=on]:text-dp-text";
+  "h-7 min-w-0 gap-1.5 rounded-md border border-dp-line px-2 text-xs font-normal text-dp-text-2 transition-[color,background-color,border-color,scale] duration-(--dp-dur-fast) ease-(--dp-ease-out) motion-reduce:transition-none hover:bg-dp-hover hover:text-dp-text focus-visible:ring-2 focus-visible:ring-dp-accent/70 active:scale-[0.97] data-[state=on]:border-dp-accent data-[state=on]:bg-dp-accent-soft data-[state=on]:text-dp-text";
 
 /** Where a dragged card would land. */
 interface DropSpot {
@@ -156,10 +156,11 @@ export function KanbanNode({ nodeId }: { nodeId: string }) {
     setDragged(card.id);
   };
 
-  const onCardDragEnd = (e: DragEvent, cardId: string) => {
+  // Every drag ends here, dropped, moved or cancelled: only a drop on a terminal sends the card.
+  const onCardDragEnd = () => {
     setDragged(null);
     setSpot(null);
-    if (e.dataTransfer.dropEffect === "none") dropCardOutside(nodeId, cardId, e.clientX, e.clientY);
+    endCardDrag();
   };
 
   /** The index among the column's cards, the dragged one left out, above which the pointer is. */
@@ -207,7 +208,7 @@ export function KanbanNode({ nodeId }: { nodeId: string }) {
         {board.github && (
           <Button size="sm" variant="ghost" className="gap-1 px-2 text-xs font-normal" disabled={syncing} onClick={() => void sync()}>
             {/* Turns while the sync is under way: it is live. */}
-            <RefreshCw className={cn("size-3.5", syncing && "animate-spin motion-reduce:animate-none")} />
+            <RefreshCw className={cn("size-3.5", syncing && "motion-safe:animate-spin")} />
             {syncing ? t.github.syncing : t.github.sync}
           </Button>
         )}
@@ -426,7 +427,7 @@ interface ColumnViewProps {
   dragged: string | null;
   spot: number | null;
   onCardDragStart: (e: DragEvent, card: KanbanCard) => void;
-  onCardDragEnd: (e: DragEvent, cardId: string) => void;
+  onCardDragEnd: () => void;
   onDragOver: (e: DragEvent<HTMLElement>) => void;
   onDragLeave: (e: DragEvent<HTMLElement>) => void;
   onDrop: (e: DragEvent<HTMLElement>) => void;
@@ -437,9 +438,11 @@ function ColumnView(props: ColumnViewProps) {
   const shown = cards.filter((c) => c.id !== dragged);
   const indicator = <div className="h-0.5 shrink-0 rounded-full bg-dp-accent" />;
   return (
+    // The column a card would land in is tinted, with no fade: it follows the pointer.
     <section
       data-column-id={column.id}
-      className="flex w-60 shrink-0 flex-col rounded-lg bg-dp-surface"
+      data-drop-target={spot !== null || undefined}
+      className="flex w-60 shrink-0 flex-col rounded-lg bg-dp-surface data-drop-target:bg-dp-hover"
       onDragOver={props.onDragOver}
       onDragLeave={props.onDragLeave}
       onDrop={props.onDrop}
@@ -490,7 +493,7 @@ function ColumnView(props: ColumnViewProps) {
                 dragging={card.id === dragged}
                 onOpen={() => props.onOpenCard(card.id)}
                 onDragStart={(e) => props.onCardDragStart(e, card)}
-                onDragEnd={(e) => props.onCardDragEnd(e, card.id)}
+                onDragEnd={props.onCardDragEnd}
               />
             </div>
           );
@@ -523,7 +526,7 @@ function CardView({
   dragging: boolean;
   onOpen: () => void;
   onDragStart: (e: DragEvent) => void;
-  onDragEnd: (e: DragEvent) => void;
+  onDragEnd: () => void;
 }) {
   const overdue = card.due !== undefined && dueState(card.due) === "overdue";
   return (
@@ -536,7 +539,7 @@ function CardView({
       onDragEnd={onDragEnd}
       onClick={onOpen}
       className={cn(
-        "relative shrink-0 cursor-grab overflow-hidden rounded-md border border-dp-line bg-dp-card px-3 py-2 text-left text-dp-text shadow-dp transition-[border-color,opacity] duration-(--dp-dur-fast) ease-(--dp-ease-out) hover:border-dp-text-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 motion-reduce:transition-none",
+        "relative shrink-0 cursor-grab overflow-hidden active:cursor-grabbing rounded-md border border-dp-line bg-dp-card px-3 py-2 text-left text-dp-text shadow-dp transition-[border-color,opacity] duration-(--dp-dur-fast) ease-(--dp-ease-out) hover:border-dp-text-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/70 motion-reduce:transition-none",
         dragging && "opacity-40",
       )}
     >

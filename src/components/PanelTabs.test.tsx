@@ -39,7 +39,7 @@ const classes = (el: Element) => [...el.classList];
 it("draws soft tabs on the control scale, tinting on hover with --dp-hover and keeping the chosen tab's tint under the pointer", async () => {
   await mount("soft");
   for (const name of ["One", "Two"]) {
-    expect(classes(tab(name))).toEqual(expect.arrayContaining(["h-7", "hover:bg-dp-hover", "focus-visible:ring-2", "focus-visible:ring-dp-accent/50", "active:scale-[0.97]"]));
+    expect(classes(tab(name))).toEqual(expect.arrayContaining(["h-7", "hover:bg-dp-hover", "focus-visible:ring-2", "focus-visible:ring-dp-accent/70", "active:scale-[0.97]"]));
   }
   expect(tab("One").dataset.state).toBe("active");
   expect(classes(tab("One"))).toEqual(expect.arrayContaining(["data-active:bg-dp-accent-soft", "data-active:hover:bg-dp-accent-soft"]));
@@ -58,7 +58,7 @@ it("draws line tabs on a hairline, the chosen one underlined in the accent, as w
   await mount("line");
   expect(classes(document.body.querySelector('[role="tablist"]')!)).toEqual(expect.arrayContaining(["border-b", "border-dp-line"]));
   expect(classes(tab("One"))).toEqual(
-    expect.arrayContaining(["h-8", "px-0", "after:bg-dp-accent", "after:duration-(--dp-dur-fast)", "after:ease-(--dp-ease-out)", "focus-visible:ring-2", "focus-visible:ring-dp-accent/50", "hover:text-dp-text", "transition-[color]"]),
+    expect.arrayContaining(["h-8", "px-0", "after:bg-dp-accent", "after:duration-(--dp-dur-fast)", "after:ease-(--dp-ease-out)", "focus-visible:ring-2", "focus-visible:ring-dp-accent/70", "hover:text-dp-text", "transition-[color]"]),
   );
   expect(classes(tab("One")).join(" ")).not.toContain("transition-all");
 });
@@ -84,6 +84,6 @@ it("draws a panel's single-choice items like soft tabs", async () => {
   const items = [...document.body.querySelectorAll("button")];
   expect(items).toHaveLength(2);
   for (const item of items) {
-    expect(classes(item)).toEqual(expect.arrayContaining(["h-7", "hover:bg-dp-hover", "focus-visible:ring-2", "focus-visible:ring-dp-accent/50", "duration-(--dp-dur-fast)", "data-[state=on]:bg-dp-accent-soft"]));
+    expect(classes(item)).toEqual(expect.arrayContaining(["h-7", "hover:bg-dp-hover", "focus-visible:ring-2", "focus-visible:ring-dp-accent/70", "duration-(--dp-dur-fast)", "data-[state=on]:bg-dp-accent-soft"]));
   }
 });

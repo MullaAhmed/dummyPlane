@@ -55,30 +55,39 @@ export function AgentRow(props: { id: string; onOpen?: () => void; trailing?: Re
           </span>
         </Hint>
       )}
-      <StatusPill status={status} activity={activity} indigo={meta.tint === INDIGO} report={payload.lastReport?.status} />
-      {trailing}
-      <span className="hidden items-center gap-0.5 group-hover:flex group-focus-within:flex">
-        {showCenter && (
-          <HeaderButton label={t.center(name)} onClick={() => focusNode(id)}>
-            <Crosshair />
+      {/* The status and the actions share one cell, as wide as the wider of the two: the pointer swaps them
+          with a fade, the keyboard at once, and the name beside them never moves. */}
+      <span className="grid shrink-0 items-center justify-items-end">
+        <span className="flex items-center gap-2 transition-[opacity] duration-(--dp-dur-fast) ease-(--dp-ease-out) [grid-area:1/1] group-hover:opacity-0 group-focus-within:opacity-0 group-focus-within:transition-none">
+          <StatusPill status={status} activity={activity} indigo={meta.tint === INDIGO} report={payload.lastReport?.status} />
+          {trailing}
+        </span>
+        <span
+          data-row-actions
+          className="flex items-center gap-0.5 opacity-0 transition-[opacity] duration-(--dp-dur-fast) ease-(--dp-ease-out) [grid-area:1/1] group-hover:opacity-100 group-focus-within:opacity-100 group-focus-within:transition-none"
+        >
+          {showCenter && (
+            <HeaderButton label={t.center(name)} onClick={() => focusNode(id)}>
+              <Crosshair />
+            </HeaderButton>
+          )}
+          <HeaderButton label={t.review(name)} onClick={() => openReview(id)}>
+            <FileDiff />
           </HeaderButton>
-        )}
-        <HeaderButton label={t.review(name)} onClick={() => openReview(id)}>
-          <FileDiff />
-        </HeaderButton>
-        {canPause(facts) && (
-          <HeaderButton label={t.pause(name)} onClick={() => void pauseAgents([id])}>
-            <Pause />
+          {canPause(facts) && (
+            <HeaderButton label={t.pause(name)} onClick={() => void pauseAgents([id])}>
+              <Pause />
+            </HeaderButton>
+          )}
+          {canResume(facts) && (
+            <HeaderButton label={t.resume(name)} onClick={() => void resumeAgent(id)}>
+              <Play />
+            </HeaderButton>
+          )}
+          <HeaderButton label={t.close(name)} onClick={() => requestClose(id)}>
+            <X />
           </HeaderButton>
-        )}
-        {canResume(facts) && (
-          <HeaderButton label={t.resume(name)} onClick={() => void resumeAgent(id)}>
-            <Play />
-          </HeaderButton>
-        )}
-        <HeaderButton label={t.close(name)} onClick={() => requestClose(id)}>
-          <X />
-        </HeaderButton>
+        </span>
       </span>
     </div>
   );

@@ -14,6 +14,7 @@ import { closeGroup } from "@/agents/groups";
 import { livingAgents } from "@/agents/groupSummary";
 import { nodeNameOf, useNodes } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
+import { useExitSnapshot } from "@/lib/useExitSnapshot";
 import { uiStore, useUi } from "@/store/ui";
 import { QuietButton } from "./buttons";
 import { shellMessages } from "./messages";
@@ -29,14 +30,17 @@ export function CloseGroupDialog() {
   const living = group
     ? livingAgents(group.memberIds, (id) => nodeNameOf(nodes[id]) || all.fallbackAgent, (id) => statuses[id]?.state === "running")
     : [];
+  const open = groupId !== null;
+  // The group is gone once closed: its exit keeps the question it asked.
+  const shown = useExitSnapshot(open, { title: t.title(group?.name), description: t.description(living) });
   const close = () => uiStore.getState().setClosingGroup(null);
 
   return (
-    <Dialog open={groupId !== null} onOpenChange={(open) => !open && close()}>
+    <Dialog open={open} onOpenChange={(next) => !next && close()}>
       <DialogContent showCloseButton={false}>
         <DialogHeader>
-          <DialogTitle>{t.title(group?.name)}</DialogTitle>
-          <DialogDescription>{t.description(living)}</DialogDescription>
+          <DialogTitle>{shown.title}</DialogTitle>
+          <DialogDescription>{shown.description}</DialogDescription>
         </DialogHeader>
         <DialogFooter>
           <QuietButton onClick={close}>{t.cancel}</QuietButton>

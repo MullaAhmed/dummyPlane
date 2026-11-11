@@ -34,6 +34,8 @@ import { SpecialityMenu } from "./SpecialityMenu";
 export function GroupMenu({ groupId, trigger, answersRequests = false }: { groupId: string; trigger?: ReactElement; answersRequests?: boolean }) {
   const t = useMessages(agentsMessages);
   const [open, setOpen] = useState(false);
+  // Opened by the palette, not by its trigger: it shows at once (never animate what the keyboard asked for).
+  const [instant, setInstant] = useState(false);
   const agents = useAgents((s) => s.agents);
   const speciality = useCanvas((s) => s.frames.find((f) => f.id === groupId)?.group?.speciality);
   const pantheon = useCanvas((s) => s.frames.find((f) => f.id === groupId)?.group?.pantheon);
@@ -44,13 +46,20 @@ export function GroupMenu({ groupId, trigger, answersRequests = false }: { group
     "groupMenu",
     (request) => {
       if (request.id !== groupId) return false;
+      setInstant(true);
       setOpen(true);
       return true;
     },
     answersRequests,
   );
   return (
-    <DropdownMenu open={open} onOpenChange={setOpen}>
+    <DropdownMenu
+      open={open}
+      onOpenChange={(next) => {
+        if (next) setInstant(false);
+        setOpen(next);
+      }}
+    >
       <DropdownMenuTrigger asChild>
         {trigger ?? (
           <Button
@@ -67,7 +76,7 @@ export function GroupMenu({ groupId, trigger, answersRequests = false }: { group
         )}
       </DropdownMenuTrigger>
       {/* Focus must not come back to the trigger: it would close Excalidraw's name editor. */}
-      <DropdownMenuContent align="start" className="w-48" onCloseAutoFocus={(e) => e.preventDefault()}>
+      <DropdownMenuContent align="start" className="w-48" data-instant={instant ? "" : undefined} onCloseAutoFocus={(e) => e.preventDefault()}>
         {/* After the menu has closed, so its focus handling leaves the name field alone. */}
         <DropdownMenuItem onSelect={() => requestAnimationFrame(() => uiStore.getState().setRenamingGroup(groupId))}>
           {t.groupMenu.rename}

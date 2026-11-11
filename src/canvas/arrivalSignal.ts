@@ -9,10 +9,13 @@ interface ArrivalState {
 
 export const arrivalStore = createStore<ArrivalState>()(() => ({ nodeId: null, seq: 0 }));
 
-/** The flash's length; past it the ring is removed, or showing the terminal again would replay it. */
-export const ARRIVAL_FLASH_MS = 600;
+/**
+ * The flash's length: a 100 ms hold and a --dp-dur fade (index.css, .dp-arrival), under the 300 ms
+ * UI motion stays within. Past it the ring is removed, or showing the terminal again would replay it.
+ */
+export const ARRIVAL_FLASH_MS = 300;
 
-/** The arriving terminal's border takes the accent, then fades back (spec fenêtre §6.4), once. */
+/** The arriving terminal's border takes the accent at once, then fades back (spec fenêtre §6.4), once. */
 export function signalArrival(nodeId: string) {
   const seq = arrivalStore.getState().seq + 1;
   arrivalStore.setState({ nodeId, seq });

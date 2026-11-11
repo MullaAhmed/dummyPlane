@@ -67,6 +67,13 @@ Terminals:
 
 - `--dp-terminal`, `--dp-terminal-head`: terminal body and header.
 
+Terminals stay dark in every palette. What xterm draws inside them is `src/nodes/terminal/terminalTheme.ts`, one full theme per palette (no xterm default left):
+
+- Text, cursor and selected text: the palette's light colour (calm's cream, the off-white of the other two). `white` and `brightBlack` (dim text) are that colour a step and two steps toward the terminal's body; `black` is the body a step lighter.
+- The six hues are tuned per palette in OKLCH (calm earthy and low in chroma, electric vivid, expressive matched to its status colours). Red, green and yellow sit within 10° of the hue of the palette's `danger`, `ok` and `wait`.
+- Every ANSI colour but `black` reads at 4.5:1 at least on the body, `brightBlack` included, and the selected text at 4.5:1 on the selection. `terminalTheme.test.ts` checks it, with the hue bands and the gaps that keep the six apart.
+- A palette switch recolours every open terminal at once. A subagent's transcript (`SubagentNode`) uses the same theme.
+
 ## Contrast
 
 Text tokens meet WCAG AA on `surface`, `card` and `canvas`.
@@ -131,11 +138,20 @@ Rules:
 - Use transitions for interactive state. Keyframes only for one-shot effects.
 - List transitioned properties. Never use `transition-all`.
 - Under `prefers-reduced-motion`, drop movement. Keep colour and opacity cues.
+- Exits are quicker than entries: overlays enter in `--dp-dur` and leave with `data-closed:duration-(--dp-dur-fast)`.
+- What the keyboard opens appears at once. A menu or popover a request opened (the palette, a shortcut) carries `data-instant`, which runs no animation; the radial ring opens with none; its wedges stop easing while the arrows turn it (`data-keyboard`).
+- Rows the pointer sweeps (file lists, diff lines, the tree) and selections the arrows move (the palette) snap: no transition on them.
+- Tooltips share the app's one provider: after the first hint, its neighbours open at once and unanimated.
+- Reduced motion, in `index.css`: overlays (every `[data-slot$="-content"]`) fade with no zoom or slide, toasts fade, the waiting dot breathes slower and shallower, a wire is lit for the message's length instead of a light running along it, and a control's press stops (`motion-reduce:active:scale-100`) while its colour still eases.
+- The waiting dot is a dot inside a thin ring (an outline, off the layout): the one state that asks for the user reads without its colour or its motion.
 
 ## Interaction
 
 - Hover: subtle fill from `--dp-hover`. Never change layout.
-- Focus: `focus-visible:ring-2 ring-dp-accent/50`. Show on keyboard focus only.
+- Focus: `focus-visible:ring-2 focus-visible:ring-dp-accent/70`, at least 3:1 on the canvas, the surfaces and the cards in every palette (`/50` fell to 2.6:1). Show on keyboard focus only, at once: never name `box-shadow` in a transition list, or the ring fades in.
+- Destructive focus: `focus-visible:ring-dp-danger`, the full colour (`/20` was 1.3:1).
+- Menu and select rows: the pointer gets the `--dp-hover` fill; the keyboard also gets `focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-dp-accent/70`, since a 6% fill is 1.1:1. No transition on either.
+- Tests: `src/theme/focus.test.ts` computes these ratios from `tokens.css` and reads the alphas from the components.
 - Press: buttons scale to `0.97` on `:active`. Ease it on `scale`, not `transform` (see Node chrome).
 - Disabled: `opacity-50` and `pointer-events-none`.
 - Touch: hover styles are not gated behind `(hover: hover) and (pointer: fine)` today (a desktop app, mouse first). Gate any new hover-only effect that a touch screen could stick on.
@@ -154,12 +170,13 @@ A terminal and a fleet share one header, `NodeHeader` in `src/nodes/terminal`, b
 
 - One 36px row (`h-9`) on the terminal's head colour (`bg-dp-terminal-head`), a hairline below.
 - The name is 13px (`text-(length:--text-ui)`), medium weight. It gives way first: the end group never shrinks.
+- A sub-agent (a terminal opened by `spawn_agent`, a Claude subagent cell) stacks what it was asked under its name (`NodeTitle`): two 16px lines in the row, the task in `text-xs` and `text-dp-text-2`, one line with an ellipsis, the whole line and an excerpt of the task in a tooltip that the keyboard reaches. While the name is renamed, its field takes the row alone.
 - At the end, the quiet facts, then the actions as `icon-sm` (28px) buttons, muted until pointed at. Use `RemoteButton` and the other header buttons as they are; do not wrap them to resize them.
 - What a node needs only now and then lives in one `⋯` menu (`HeaderMenu`), not on the row.
 - Close is the last control.
 - The chips and the clock (`WIDE_ONLY`) hide when the node is narrower than 448px. The header is a size container (`@md/head`), so it is the node's width that decides, not the window's.
 
-Press rule: `active:scale-[0.97]` sets the CSS `scale` property, not `transform`. A transition list that names `transform` leaves the press snapping, so name `scale`: `transition-[color,background-color,scale]`, with `duration-(--dp-dur-fast)`, `ease-(--dp-ease-out)` and `motion-reduce:transition-none`. `Button` already does this; when a class overrides its transition list, keep `scale` in it. (`transition-transform` is fine for a rotate or a translate: it covers `translate`, `scale` and `rotate`. A bare `transition-[transform]` does not.)
+Press rule: `active:scale-[0.97]` sets the CSS `scale` property, not `transform`. A transition list that names `transform` leaves the press snapping, so name `scale`: `transition-[color,background-color,scale]`, with `duration-(--dp-dur-fast)`, `ease-(--dp-ease-out)` and, under reduced motion, `motion-reduce:transition-[color,background-color] motion-reduce:active:scale-100` (the press stops moving, the colour still eases). `Button` already does this; when a class overrides its transition list, keep `scale` in it. (`transition-transform` is fine for a rotate or a translate: it covers `translate`, `scale` and `rotate`. A bare `transition-[transform]` does not.)
 
 ## Colour rules
 

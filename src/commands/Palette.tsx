@@ -26,8 +26,9 @@ import { useGoToData } from "./useGoToData";
 // closer to their own rows than to the section above.
 const HEADING =
   "[&_[cmdk-group-heading]]:px-2.5 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:pt-3 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-dp-text-2 [&_[cmdk-group:first-child]_[cmdk-group-heading]]:pt-1";
+// No fade on a row: the selection follows the arrow keys, many times a day, and snaps.
 const ITEM =
-  "flex h-8 cursor-default items-center gap-2 rounded-md px-2.5 text-(length:--text-ui) text-dp-text-2 transition-[background-color] duration-(--dp-dur-fast) ease-(--dp-ease-out) hover:bg-dp-hover data-[selected=true]:bg-dp-accent-soft motion-reduce:transition-none";
+  "flex h-8 cursor-default items-center gap-2 rounded-md px-2.5 text-(length:--text-ui) text-dp-text-2 hover:bg-dp-hover data-[selected=true]:bg-dp-accent-soft";
 
 /** The palette (spec window §7.1), under the title bar, centered; rendered only while open. */
 export function Palette() {
@@ -103,7 +104,7 @@ function PaletteBody() {
             value={query}
             onValueChange={setPaletteQuery}
             placeholder={mode === "goTo" ? t.placeholderGoTo : t.placeholderFunctions}
-            className="h-10 w-full border-b border-dp-line bg-transparent px-3.5 text-(length:--text-ui) text-dp-text outline-none placeholder:text-dp-text-3 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-dp-accent/50"
+            className="h-10 w-full border-b border-dp-line bg-transparent px-3.5 text-(length:--text-ui) text-dp-text outline-none placeholder:text-dp-text-3 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-dp-accent/70"
           />
           {/* 4 px in, rows 10 px in: every row's text starts 14 px in, on the field's own line. */}
           <Command.List className={`max-h-[420px] overflow-y-auto p-1 ${HEADING}`}>

@@ -224,3 +224,45 @@ it("names its menu « More actions », with the same tooltip as the header's oth
   expect(tooltip()).toBeNull();
   await view.unmount();
 });
+
+it("says under a sub-agent's name what it was asked, legibly, its task in a tooltip the keyboard reaches", async () => {
+  const task = "You are fixing the header of a spawned terminal. The line under the name must be readable.\n\n## Setup\n- run `pnpm i`";
+  const robin = { ...claude, name: "Robin", title: "Header fix", spawnedBy: "batman", task };
+  const view = await mount(<TerminalHeader nodeId="robin" payload={robin} status={{ state: "running" }} />);
+  const header = view.host.querySelector("header")!;
+  const stack = header.querySelector("[data-node-title]")!;
+  // Two 16px lines in the 36px row; it gives way like the name, the end never shrinks.
+  expect(stack.className).toContain("min-w-0");
+  expect(stack.className).toContain("leading-4");
+  expect(stack.firstElementChild!.textContent).toBe("Robin");
+  const line = stack.querySelector<HTMLButtonElement>("[data-task-line]")!;
+  expect(line.tagName).toBe("BUTTON");
+  expect(line.textContent).toBe("Header fix");
+  // The secondary text role (4.5:1 or more on the head in every palette), 12px, one line with an ellipsis, no opacity.
+  expect(line.className).toContain("text-dp-text-2");
+  expect(line.className).toContain("text-xs");
+  expect(line.className).toContain("truncate");
+  expect(line.className).not.toMatch(/opacity/);
+  // Its tooltip says the title: no native one beside it.
+  expect(header.hasAttribute("title")).toBe(false);
+  await act(async () => line.focus());
+  await act(async () => new Promise((resolve) => setTimeout(resolve, 450)));
+  const tip = document.querySelector('[role="tooltip"]')?.textContent ?? "";
+  expect(tip).toContain("Header fix");
+  expect(tip).toContain("The line under the name must be readable.");
+  expect(tip).not.toContain("pnpm");
+  await view.unmount();
+});
+
+it("keeps the row to the name field while it is renamed, and to the name for a terminal nobody spawned", async () => {
+  const robin = { ...claude, name: "Robin", title: "Header fix", spawnedBy: "batman", task: "Fix the header" };
+  const view = await mount(<TerminalHeader nodeId="robin" payload={robin} status={{ state: "running" }} />);
+  await act(async () => requestUi({ kind: "renameTerminal", id: "robin" }));
+  expect(view.host.querySelector("input")).not.toBeNull();
+  expect(view.host.querySelector("[data-task-line]")).toBeNull();
+  await view.unmount();
+  const plain = await mount(<TerminalHeader nodeId="batman" payload={claude} status={{ state: "running" }} />);
+  expect(plain.host.querySelector("[data-task-line]")).toBeNull();
+  expect(plain.host.querySelector("header")!.getAttribute("title")).toBe("Batman");
+  await plain.unmount();
+});

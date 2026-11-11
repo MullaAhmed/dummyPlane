@@ -257,4 +257,27 @@ describe("choosing in the ring", () => {
     pointer(canvas(), "pointerdown", 700, 100, 0);
     expect(radialStore.getState().ring).toBeNull();
   });
+
+  it("marks the wheel as turned by the keyboard when the arrows turn it, so its wedges move at once", () => {
+    pointer(text(), "pointerdown", 300, 300);
+    pointer(text(), "pointerup", 300, 300);
+    expect(radialStore.getState().ring!.keyboard).toBeFalsy();
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight" }));
+    expect(radialStore.getState().ring).toMatchObject({ hovered: 0, keyboard: true });
+  });
+
+  it("ends a press the system took away (pointercancel, the window losing focus): the ring stays, as after a click", () => {
+    pointer(canvas(), "pointerdown", 500, 400);
+    pointer(canvas(), "pointermove", 560, 400);
+    expect(radialStore.getState().ring).toMatchObject({ pressed: true, sliding: true });
+    pointer(canvas(), "pointercancel", 560, 400);
+    expect(radialStore.getState().ring).toMatchObject({ pressed: false, sliding: false });
+    pointer(canvas(), "pointerdown", 500, 400);
+    expect(radialStore.getState().ring).toMatchObject({ pressed: true });
+    // An element's blur reaches the window's capture listener too: only the window's own counts.
+    document.getElementById("name")!.dispatchEvent(new FocusEvent("blur"));
+    expect(radialStore.getState().ring).toMatchObject({ pressed: true });
+    window.dispatchEvent(new FocusEvent("blur"));
+    expect(radialStore.getState().ring).toMatchObject({ pressed: false, sliding: false });
+  });
 });

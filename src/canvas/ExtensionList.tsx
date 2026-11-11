@@ -265,9 +265,9 @@ function ListToolbar(props: { count: string; canSelect: boolean; canUnselect: bo
  * when on, a faint ink tint and the check in ink. Its frame brightens with the
  * row's hover (HOVERED_BOX), unless the row is locked.
  */
-const QUIET_BOX =
+export const QUIET_BOX =
   "border-dp-text-3 bg-transparent transition-colors duration-(--dp-dur-fast) ease-(--dp-ease-out) motion-reduce:transition-none after:-inset-1 dark:bg-transparent data-checked:border-dp-text-3 data-checked:bg-dp-accent-soft data-checked:text-dp-text dark:data-checked:bg-dp-accent-soft";
-const HOVERED_BOX = "group-hover/row:border-dp-text-2 data-checked:group-hover/row:border-dp-text-2";
+export const HOVERED_BOX = "group-hover/row:border-dp-text-2 data-checked:group-hover/row:border-dp-text-2";
 
 /**
  * One item: its name, where it is set up (quiet mono text) and a one-line
@@ -286,7 +286,7 @@ function ExtensionRow({ item, on, locked, onToggle }: { item: ExtensionItem; on:
     <li
       data-extension={item.id}
       className={cn(
-        "group/row flex min-h-10 items-center gap-3 rounded-md px-2 py-0.5 transition-colors duration-(--dp-dur-fast) ease-(--dp-ease-out) motion-reduce:transition-none",
+        "group/row flex min-h-10 items-center gap-3 rounded-md px-2 py-0.5",
         !locked && "hover:bg-dp-hover",
       )}
     >

@@ -10,6 +10,9 @@ import { assignMissingNames } from "@/agents/naming";
 import { dismissResumeOffer, offerResumeAll } from "@/agents/ResumeAllToast";
 import { withSpawnedChildren } from "@/agents/spawnFamily";
 import { createSpawnDragWatch, reflowSpawnTreesOf } from "@/agents/spawnTree";
+import { arrangeWorkspace } from "@/agents/arrangeCanvas";
+import { createAutoArrangeWatch } from "@/agents/autoArrange";
+import { isMinimized } from "@/nodes/terminal/minimize";
 import { adoptCopies } from "@/agents/terminals";
 import { scheduleWireUpkeep } from "@/agents/wireUpkeep";
 import { fleetLinks } from "@/agents/wires";
@@ -181,6 +184,9 @@ function LoadedCanvas({ workspaceId, scene }: { workspaceId: string; scene: Load
 
   const trackActivation = useMemo(() => createActivationTracker(), []);
   const watchSpawnDrags = useMemo(() => createSpawnDragWatch(workspaceId), [workspaceId]);
+  // Auto-arrange: a node opened or closed, a terminal minimized or expanded, and the canvas tidies itself.
+  const watchLayout = useMemo(() => createAutoArrangeWatch({ isMinimized, arrange: () => arrangeWorkspace(workspaceId, { undoable: false }) }), [workspaceId]);
+  useEffect(() => () => watchLayout.dispose(), [watchLayout]);
 
   const onChange = useCallback(
     (elements: readonly ExcalidrawElement[], appState: AppState, files: BinaryFiles) => {
@@ -191,6 +197,7 @@ function LoadedCanvas({ workspaceId, scene }: { workspaceId: string; scene: Load
       // A closed spawned agent's tree closes up (flowchart layout).
       reflowSpawnTreesOf(workspaceId, verdict.dispose);
       watchSpawnDrags(elements, appState);
+      watchLayout(elements, appState);
       canvasStore.getState().setView(viewFrom(appState));
       canvasStore.getState().setDrawnSelection(drawnSelectionOf(elements, appState.selectedElementIds));
       canvasStore.getState().setFrames(framesFromScene(elements));
@@ -206,7 +213,7 @@ function LoadedCanvas({ workspaceId, scene }: { workspaceId: string; scene: Load
       // Deferred: changing the view from inside onChange would re-enter it.
       if (activated && api) requestAnimationFrame(() => showAtFullSize(api, activated));
     },
-    [sync, guardRemovals, trackActivation, watchSpawnDrags, workspaceId, api],
+    [sync, guardRemovals, trackActivation, watchSpawnDrags, watchLayout, workspaceId, api],
   );
 
   return (

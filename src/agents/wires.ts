@@ -432,6 +432,70 @@ export function withAgentLink(elements: readonly ExcalidrawElement[], fromId: st
   return addWire(elements, from, to, palette, false);
 }
 
+/** Who spawned a terminal (its payload's `spawnedBy`); null or undefined for none. */
+export type SpawnerOf = (nodeId: string) => string | null | undefined;
+
+/** A spawn wire the scene lacks: from the agent to the sub-agent it spawned. */
+export interface MissingSpawnWire {
+  parentId: string;
+  childId: string;
+}
+
+const pairOf = (a: string, b: string) => (a < b ? `${a} ${b}` : `${b} ${a}`);
+
+/**
+ * The spawn wires the scene lacks. A spawn wire shows a fact the nodes keep
+ * (the child's `spawnedBy`), so each live terminal whose spawner is a live
+ * terminal of the same scene has one, unless a live arrow bound to both already
+ * joins them, either way round: a "+ Link" is enough, and `withWire` would not
+ * add a second. A closed spawner, or one in another workspace, gets none: the
+ * child hangs from its nearest live ancestor without a wire.
+ */
+export function missingSpawnWires(elements: readonly ExcalidrawElement[], spawnerOf: SpawnerOf): MissingSpawnWire[] {
+  const terminals = new Set(elements.filter(isLiveTerminal).map((e) => e.id));
+  const joined = new Set<string>();
+  for (const element of elements) {
+    if (element.isDeleted || element.type !== "arrow") continue;
+    const { startBinding, endBinding } = element as ExcalidrawArrowElement;
+    if (startBinding && endBinding) joined.add(pairOf(startBinding.elementId, endBinding.elementId));
+  }
+  const missing: MissingSpawnWire[] = [];
+  for (const childId of terminals) {
+    const parentId = spawnerOf(childId);
+    if (!parentId || parentId === childId || !terminals.has(parentId) || joined.has(pairOf(parentId, childId))) continue;
+    missing.push({ parentId, childId });
+  }
+  return missing;
+}
+
+/** `elements` with the spawn wires `missingSpawnWires` finds, and which were added; the scene itself when none is missing. */
+export function withSpawnWires(
+  elements: readonly ExcalidrawElement[],
+  spawnerOf: SpawnerOf,
+  palette: ThemeChoice = currentPalette(),
+): { elements: readonly ExcalidrawElement[]; added: MissingSpawnWire[] } {
+  let next = elements;
+  const added: MissingSpawnWire[] = [];
+  for (const wire of missingSpawnWires(elements, spawnerOf)) {
+    const after = withWire(next, wire.parentId, wire.childId, palette, true);
+    if (after.length === next.length) continue;
+    next = after;
+    added.push(wire);
+  }
+  return { elements: next, added };
+}
+
+/**
+ * Live elements (not arrows: a wire binds to nodes and frames) that still list
+ * a deleted wire as bound to them: the upkeep deletes a wire without touching
+ * its ends (Excalidraw's own delete would take it off their lists).
+ */
+export function staleWireBindings(elements: readonly ExcalidrawElement[]): string[] {
+  const gone = new Set(elements.filter((e) => e.isDeleted && e.type === "arrow" && isWire(e)).map((e) => e.id));
+  if (gone.size === 0) return [];
+  return elements.filter((e) => !e.isDeleted && e.type !== "arrow" && e.boundElements?.some((b) => gone.has(b.id))).map((e) => e.id);
+}
+
 /** Arrows drawn by hand between a fleet and a group or terminal: they get the wire mark (spec §13). */
 export function unmarkedWires(elements: readonly ExcalidrawElement[]): string[] {
   const byId = new Map(elements.map((e) => [e.id, e]));
@@ -524,6 +588,53 @@ export function orphanWires(elements: readonly ExcalidrawElement[]): string[] {
     .map((arrow) => arrow.id);
 }
 
+/** What a wire joins: an agent to the sub-agent it spawned, a fleet to what it commands, or two agents linked by hand. */
+export type WireKind = "spawn" | "fleet" | "link";
+
+export function wireKindOf(wire: ExcalidrawElement, byId: ReadonlyMap<string, ExcalidrawElement>): WireKind {
+  if (isSpawnWire(wire)) return "spawn";
+  const { startBinding, endBinding } = wire as ExcalidrawArrowElement;
+  const atFleet = [startBinding, endBinding].some((b) => {
+    const end = b ? byId.get(b.elementId) : undefined;
+    return end !== undefined && nodeKindOf(end) === "fleet";
+  });
+  return atFleet ? "fleet" : "link";
+}
+
+/** What the canvas was doing when a wire went: the gesture that left it without an end. */
+export interface CanvasMoment {
+  selectedIds: readonly string[];
+  dragging: boolean;
+  tool: string;
+}
+
+/**
+ * Why `orphanWires` takes a wire, for the log: its kind, then each end, and
+ * what is wrong with the one that cannot hold it (unbound, missing from the
+ * scene, deleted, or not something a wire joins); the live elements that still
+ * list it as bound (an end Excalidraw unbound no longer does); and, given the
+ * moment, the selection, a drag and the tool then. One line, as text: the log
+ * file shows an object as "[object Object]".
+ */
+export function orphanReason(wire: ExcalidrawElement, byId: ReadonlyMap<string, ExcalidrawElement>, moment?: CanvasMoment): string {
+  const { startBinding, endBinding } = wire as ExcalidrawArrowElement;
+  const end = (side: "start" | "end", binding: { elementId: string } | null | undefined) => {
+    if (!binding) return `${side} unbound`;
+    const element = byId.get(binding.elementId);
+    if (!element) return `${side} ${binding.elementId} missing`;
+    if (element.isDeleted) return `${side} ${binding.elementId} deleted`;
+    if (!isWireEnd(element)) return `${side} ${binding.elementId} not a valid end (${element.type}${nodeKindOf(element) ? ` ${nodeKindOf(element)}` : ""})`;
+    return `${side} ${binding.elementId} ok`;
+  };
+  const listing = [...byId.values()].filter((e) => !e.isDeleted && e.boundElements?.some((b) => b.id === wire.id)).map((e) => e.id);
+  const reason = `wire ${wire.id} (${wireKindOf(wire, byId)}) deleted as orphaned: ${end("start", startBinding)}; ${end("end", endBinding)}; listed by ${listing.length ? listing.join(", ") : "none"}`;
+  if (!moment) return reason;
+  const selected = new Set(moment.selectedIds);
+  const frameSelected = moment.selectedIds.some((id) => byId.get(id)?.type === "frame");
+  const yes = (on: boolean) => (on ? "yes" : "no");
+  return `${reason}; selection ${selected.size} (wire ${yes(selected.has(wire.id))}, frame ${yes(frameSelected)}), dragging ${yes(moment.dragging)}, tool ${moment.tool}`;
+}
+
 /**
  * Wires `orphanWires` deleted whose two ends are back: an undo restored the
  * node (and, for Suppr, the binding) but not the wire, which was deleted
@@ -532,11 +643,18 @@ export function orphanWires(elements: readonly ExcalidrawElement[]): string[] {
  */
 export function revivableWires(elements: readonly ExcalidrawElement[]): string[] {
   const byId = new Map(elements.map((e) => [e.id, e]));
+  // Two ends a live arrow joins already (a spawn wire re-created meanwhile, a wire drawn again): no second one.
+  const joined = new Set<string>();
+  for (const e of elements) {
+    if (e.isDeleted || e.type !== "arrow") continue;
+    const { startBinding, endBinding } = e as ExcalidrawArrowElement;
+    if (startBinding && endBinding) joined.add(pairOf(startBinding.elementId, endBinding.elementId));
+  }
   return elements
     .filter((e) => e.isDeleted && e.type === "arrow" && isWire(e) && (e.customData?.dummyplane as { orphaned?: unknown }).orphaned === true)
     .filter((arrow) => {
       const { startBinding, endBinding } = arrow as ExcalidrawArrowElement;
-      return [startBinding, endBinding].every((b) => b && isWireEnd(byId.get(b.elementId)));
+      return [startBinding, endBinding].every((b) => b && isWireEnd(byId.get(b.elementId))) && !joined.has(pairOf(startBinding!.elementId, endBinding!.elementId));
     })
     .map((arrow) => arrow.id);
 }

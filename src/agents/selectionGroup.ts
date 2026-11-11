@@ -27,8 +27,10 @@ export interface Grouping {
  */
 function fullRect(terminal: ExcalidrawElement): Rect {
   const payload = terminalOf(nodesStore.getState().nodes[terminal.id]);
-  const height = payload?.minimized ? Math.max(terminal.height, payload.expandedHeight ?? NODE_SIZE.terminal.height) : terminal.height;
-  return { x: terminal.x, y: terminal.y, width: terminal.width, height };
+  if (!payload?.minimized) return { x: terminal.x, y: terminal.y, width: terminal.width, height: terminal.height };
+  const width = Math.max(terminal.width, payload.expandedWidth ?? NODE_SIZE.terminal.width);
+  const height = Math.max(terminal.height, payload.expandedHeight ?? NODE_SIZE.terminal.height);
+  return { x: terminal.x, y: terminal.y, width, height };
 }
 
 /**

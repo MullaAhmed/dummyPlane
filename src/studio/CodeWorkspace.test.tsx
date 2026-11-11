@@ -162,3 +162,14 @@ it("leaves Ctrl+S to a dialog over the workspace", async () => {
   dialog.remove();
   expect(calls.some((c) => c.cmd === "studio_write")).toBe(false);
 });
+
+it("lays the discard bar over the editor's top edge: the code under the pointer does not move down", async () => {
+  await opened();
+  await act(async () => editFile("main.ts", "changed"));
+  await click(modal().querySelector('[aria-label="Close main.ts"]'));
+  const bar = modal().querySelector<HTMLElement>('[role="alert"]')!;
+  expect(bar.className.split(/\s+/)).toEqual(expect.arrayContaining(["absolute", "inset-x-0", "top-full", "z-10"]));
+  expect(bar.parentElement!.className.split(/\s+/)).toContain("relative");
+  // Under the tab strip, outside the editor's flow.
+  expect(bar.previousElementSibling!.getAttribute("role")).toBe("tablist");
+});

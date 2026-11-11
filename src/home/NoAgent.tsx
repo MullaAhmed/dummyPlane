@@ -108,7 +108,7 @@ export function NoAgent() {
       <p className="mt-3 text-xs text-dp-text-2">{project ? t.opensIn(project.name) : t.asksFolder}</p>
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <AccentButton onClick={() => void recheck()} disabled={checking}>
-          <RefreshCw className={checking ? "animate-spin" : undefined} /> {t.recheck}
+          <RefreshCw className={checking ? "motion-safe:animate-spin" : undefined} /> {t.recheck}
         </AccentButton>
         <p className="text-xs text-dp-text-2">{t.recheckHint}</p>
       </div>

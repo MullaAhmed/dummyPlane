@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { canvasStore } from "@/canvas/canvasStore";
 import { CANVAS_KEYS, copyCanvasSelection, openNativeMenuAt, pasteOnCanvasAt, pressCanvasKey, startTextAt } from "@/radial/bridges";
+import { arrangeWorkspace } from "@/agents/arrangeCanvas";
 import { groupSelection } from "@/agents/selectionGroup";
 import { exportCurrentPng, exportCurrentScene, importIntoScene } from "@/shell/sceneActions";
 import { labelOf, sectionOf, type CommandContext } from "../command";
@@ -10,6 +11,7 @@ import { DRAWING, SCENE } from "./drawing";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
 vi.mock("@/agents/selectionGroup", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/agents/selectionGroup")>()), groupSelection: vi.fn() }));
+vi.mock("@/agents/arrangeCanvas", () => ({ arrangeWorkspace: vi.fn() }));
 vi.mock("@/shell/sceneActions", () => ({ exportCurrentScene: vi.fn(), importIntoScene: vi.fn(), exportCurrentPng: vi.fn() }));
 vi.mock("@/radial/bridges", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/radial/bridges")>()),
@@ -219,8 +221,15 @@ describe("Dessin, sur la sélection (spec menu radial §4.5)", () => {
 
 describe("Scene", () => {
   it("exports, imports and saves a PNG as the settings menu does", async () => {
-    expect(SCENE.map((c) => labelOf(c, busy))).toEqual(["Export scene…", "Import scene…", "Export as PNG…"]);
-    for (const command of SCENE) await command.run(busy);
+    expect(SCENE.map((c) => labelOf(c, busy))).toEqual(["Export scene…", "Import scene…", "Export as PNG…", "Arrange terminals"]);
+    for (const command of SCENE.slice(0, 3)) await command.run(busy);
     expect([exportCurrentScene, importIntoScene, exportCurrentPng].every((f) => vi.mocked(f).mock.calls.length === 1)).toBe(true);
+  });
+
+  it("arranges the workspace's terminals, the ring's selection or else Excalidraw's, as one undoable step", async () => {
+    const arrange = SCENE.find((c) => c.id === "scene.arrange")!;
+    await arrange.run({ ...busy, selectionIds: ["a", "b"] });
+    expect(arrangeWorkspace).toHaveBeenLastCalledWith("w1", { only: ["a", "b"], undoable: true });
+    expect(arrange.available({ ...busy, project: false })).toBe(false);
   });
 });

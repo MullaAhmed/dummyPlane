@@ -12,6 +12,8 @@ import { workspacesStore } from "@/store/workspaces";
 import { PADDING, PADDING_BOTTOM, PADDING_TOP } from "./groupLayout";
 import { PANTHEONS } from "./names";
 import { groupingOf, groupSelection } from "./selectionGroup";
+import { isSpawnWire, orphanWires, withWire } from "./wires";
+import { wirePaths } from "@/canvas/overlay/wirePaths";
 
 vi.mock("@excalidraw/excalidraw", () => ({ CaptureUpdateAction: { IMMEDIATELY: "i" }, newElementWith: (e: object, patch: object) => ({ ...e, ...patch }) }));
 
@@ -180,6 +182,23 @@ describe("grouping the selection", () => {
     const id = groupSelection(["m", "b"]);
     // 440 tall, not the card's 36.
     expect(scene.find((e) => e.id === id)!.height).toBe(440 + PADDING_TOP + PADDING_BOTTOM);
+  });
+
+  it("keeps the spawn wire between an agent and the sub-agent it spawned: live, bound to both, outside the frame", () => {
+    // spawn_agent's tree: the child GROUP_GAP right of its parent, level with its top, the wire from parent to child.
+    const spawned = withWire([terminal("parent", 0, 0), terminal("child", 816, 0)], "parent", "child", "calm", true);
+    const wire = spawned[spawned.length - 1];
+    scene = spawned;
+    // A box selection holds the wire too.
+    const id = groupSelection(["parent", "child", wire.id])!;
+    const kept = scene.find((e) => e.id === wire.id)!;
+    expect(kept).toBe(wire);
+    expect(kept).toMatchObject({ isDeleted: false, frameId: null, startBinding: { elementId: "parent" }, endBinding: { elementId: "child" } });
+    expect(isSpawnWire(kept)).toBe(true);
+    expect(framesFromScene(scene).find((f) => f.id === id)).toMatchObject({ memberIds: ["parent", "child"] });
+    // Nothing for the wire upkeep to delete: both ends are still live terminals.
+    expect(orphanWires(scene)).toEqual([]);
+    expect(wirePaths(scene).map((p) => p.id)).toEqual([wire.id]);
   });
 
   it("does nothing for less than two terminals, or a selection that cannot be grouped", () => {

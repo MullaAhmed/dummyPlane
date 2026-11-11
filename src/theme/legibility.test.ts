@@ -2,20 +2,10 @@ import { expect, it, vi } from "vitest";
 
 // Slow under the load of the full suite: this file's tests get their own timeout.
 vi.setConfig({ testTimeout: 30_000 });
+import { contrast } from "./colorMath";
 import { cssBlock, readSource, sourceFiles } from "./cssBlocks";
 
 const tokens = readSource("theme/tokens.css");
-
-// WCAG relative luminance and contrast ratio, for the opaque hex colors the palettes use.
-function luminance(hex: string): number {
-  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
-  const lin = (v: number) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
-  return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
-}
-function contrast(a: string, b: string): number {
-  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
-  return (hi + 0.05) / (lo + 0.05);
-}
 
 const PALETTES = {
   calm: ':root[data-palette="calm"]',

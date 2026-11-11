@@ -4,28 +4,38 @@ import * as React from "react"
 import { cn } from "@/lib/utils"
 import { Tooltip as TooltipPrimitive } from "radix-ui"
 
+/** How long the pointer rests on a control before its first hint opens. */
+const HINT_DELAY_MS = 400
+
+/** Whether a TooltipProvider is above: the app's one provider, set in App. */
+const HasTooltipProvider = React.createContext(false)
+
 function TooltipProvider({
   delayDuration = 0,
   ...props
 }: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
   return (
-    <TooltipPrimitive.Provider
-      data-slot="tooltip-provider"
-      delayDuration={delayDuration}
-      {...props}
-    />
+    <HasTooltipProvider.Provider value={true}>
+      <TooltipPrimitive.Provider
+        data-slot="tooltip-provider"
+        delayDuration={delayDuration}
+        {...props}
+      />
+    </HasTooltipProvider.Provider>
   )
 }
 
-/** Carries its own provider: a component rendered alone (a test, a portal) still works. */
+/**
+ * Shares the app's provider, so once one hint is open its neighbours open at once
+ * and unanimated (Radix's skip delay; `instant-open` runs no animation). Only a
+ * component rendered alone (a test) gets a provider of its own.
+ */
 function Tooltip({
   ...props
 }: React.ComponentProps<typeof TooltipPrimitive.Root>) {
-  return (
-    <TooltipProvider delayDuration={400}>
-      <TooltipPrimitive.Root data-slot="tooltip" {...props} />
-    </TooltipProvider>
-  )
+  const root = <TooltipPrimitive.Root data-slot="tooltip" {...props} />
+  if (React.useContext(HasTooltipProvider)) return root
+  return <TooltipProvider delayDuration={HINT_DELAY_MS}>{root}</TooltipProvider>
 }
 
 function TooltipTrigger({
@@ -58,4 +68,4 @@ function TooltipContent({
   )
 }
 
-export { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger }
+export { HINT_DELAY_MS, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger }

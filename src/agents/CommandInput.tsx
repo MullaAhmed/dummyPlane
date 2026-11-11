@@ -7,6 +7,7 @@ import type { SceneFrame } from "@/canvas/groups";
 import { Button } from "@/components/ui/button";
 import { useMessages } from "@/i18n";
 import { useNativeKeyDown } from "@/lib/useNativeKeyDown";
+import { takeOverPaste, withPathAt } from "@/nodes/terminal/imagePaste";
 import { sendCommand } from "./broadcast";
 import { Keycap } from "./composer/Keycap";
 import { LocalComposer } from "./composer/LocalComposer";
@@ -17,6 +18,7 @@ import { browseHistory, historyStore } from "./history";
 import { commandAt, isKnownCommand, matchCommands } from "./slashCommands";
 import {
   completedMention,
+  extractMentions,
   keptDismissal,
   matchOptions,
   mentionAt,
@@ -61,6 +63,12 @@ interface CommandInputProps {
   emptyHint: string;
   /** Who `fallback` is, when it is one agent the user did not select (the active terminal): named so Send never surprises. */
   sendsTo?: string;
+  /**
+   * The target of the moment, the active terminal: shown as a chip of its own, as if typed with `@`, and
+   * replaced when another terminal becomes active, as long as the user has not changed the chips. Removed
+   * (its ✕, Backspace), it is not sent to, until another one comes.
+   */
+  autoTarget?: Target | null;
   compact?: boolean;
   /** The field takes the keyboard when it mounts (a fleet's field opened by hand). */
   autoFocus?: boolean;
@@ -84,7 +92,7 @@ export function CommandInput(props: CommandInputProps) {
 }
 
 function CommandField(props: CommandInputProps & { deliver: RefObject<(text: string) => void> }) {
-  const { agents, groups, fallback, placeholder, emptyHint, sendsTo, compact = false, autoFocus = false, deliver } = props;
+  const { agents, groups, placeholder, emptyHint, sendsTo, autoTarget = null, compact = false, autoFocus = false, deliver } = props;
   const t = useMessages(agentsMessages).command;
   const aui = useAui();
   // The composer owns the text: typing, completing, recalling and sending all go through it.
@@ -98,12 +106,21 @@ function CommandField(props: CommandInputProps & { deliver: RefObject<(text: str
   // The field has the keyboard: how to target shows before the first word, not after it.
   const [focused, setFocused] = useState(false);
   const field = useRef<HTMLTextAreaElement>(null);
+  // The chip the field put there itself (autoTarget), and the one the user took away.
+  const placed = useRef<string | null>(null);
+  const [refused, setRefused] = useState<string | null>(null);
+  const autoKey = autoTarget ? targetKey(autoTarget) : null;
+  // A refused target of the moment is not reached without `@` either.
+  const fallback = refused !== null && autoTarget?.kind === "agent" && refused === autoKey ? props.fallback.filter((id) => id !== autoTarget.id) : props.fallback;
   const listId = useId();
   const history = useStore(historyStore, (s) => s.entries);
 
   const options = useMemo(() => targetOptions(agents, groups), [agents, groups]);
   const labels = new Map(options.map((o) => [targetKey(o.target), o.label]));
-  const chips = targets.filter((t) => labels.has(targetKey(t)));
+  const kept = targets.filter((t) => labels.has(targetKey(t)));
+  // The chip of the moment gives way to a name typed after `@`: the user said who, it was only a guess.
+  const onlyPlaced = kept.length === 1 && targetKey(kept[0]) === placed.current;
+  const chips = onlyPlaced && extractMentions(text, options).targets.length > 0 ? [] : kept;
   const mention = mentionAt(text, caret);
   const parts = mention ? mentionParts(mention.query, options) : null;
   const command = mention ? null : commandAt(text, caret);
@@ -147,6 +164,26 @@ function CommandField(props: CommandInputProps & { deliver: RefObject<(text: str
     if (autoFocus) field.current?.focus();
   }, [autoFocus]);
 
+  // Another target of the moment: its chip takes the place of the last one, unless the user chose the chips.
+  useEffect(() => {
+    setRefused(null);
+    const untouched = targets.length === 0 || (targets.length === 1 && targetKey(targets[0]) === placed.current);
+    if (!untouched) return;
+    placed.current = autoKey;
+    setTargets(autoTarget ? [autoTarget] : []);
+    // Only a new target of the moment moves the chips: `targets` is read as it stands then.
+  }, [autoKey]);
+
+  /** A chip taken away; the one of the moment is then refused until another comes. */
+  const removeChip = (target: Target) => {
+    const key = targetKey(target);
+    if (key === placed.current) {
+      placed.current = null;
+      setRefused(key);
+    }
+    setTargets(chips.filter((c) => targetKey(c) !== key));
+  };
+
   /** A change the field makes itself; what the user types reaches the composer through its Input. */
   const edit = (value: string, at: number) => {
     aui.composer.setText(value);
@@ -164,7 +201,9 @@ function CommandField(props: CommandInputProps & { deliver: RefObject<(text: str
 
   const insertTargets = (picked: readonly Target[]) => {
     if (!mention) return;
-    setTargets(uniqueTargets([...chips, ...picked]));
+    // A name picked from the list replaces the chip of the moment rather than joining it.
+    if (onlyPlaced) placed.current = null;
+    setTargets(uniqueTargets([...(onlyPlaced ? [] : chips), ...picked]));
     const next = withoutMention(text, mention.start, caret);
     edit(next.text, next.caret);
     moveCaret(next.caret);
@@ -176,6 +215,16 @@ function CommandField(props: CommandInputProps & { deliver: RefObject<(text: str
     const at = mention.start + mentionText.length;
     edit(value, at);
     moveCaret(at);
+  };
+
+  // A pasted image becomes the path of its saved file, as in a terminal (imagePaste.ts); text pastes as usual. The path
+  // goes where the caret is once the image is saved: the user may have typed meanwhile, and a closed field gets nothing.
+  const insertPath = (path: string) => {
+    const element = field.current;
+    if (!element) return;
+    const next = withPathAt(element.value, element.selectionStart, element.selectionEnd, path);
+    edit(next.text, next.caret);
+    moveCaret(next.caret);
   };
 
   const insertCommand = (name: string) => {
@@ -246,8 +295,8 @@ function CommandField(props: CommandInputProps & { deliver: RefObject<(text: str
     } else if (e.key === "ArrowDown" && browsing && !element.value.slice(element.selectionEnd).includes("\n")) {
       e.preventDefault();
       recall("down");
-    } else if (e.key === "Backspace" && element.selectionEnd === 0 && chips.length > 0) {
-      setTargets(chips.slice(0, -1));
+    } else if (e.key === "Backspace" && element.selectionEnd === 0 && element.selectionStart === 0 && chips.length > 0) {
+      removeChip(chips[chips.length - 1]);
     }
   };
   // In a fleet the field sits inside the canvas, which must not see its keys. The native
@@ -305,7 +354,7 @@ function CommandField(props: CommandInputProps & { deliver: RefObject<(text: str
             "flex min-w-0 flex-wrap items-center gap-1",
             // In a fleet the field is a control of its own, beside Send and of its radius.
             compact &&
-              "min-h-8 rounded-md bg-dp-field px-1 ring-1 ring-dp-line ring-inset transition-[box-shadow] duration-(--dp-dur-fast) ease-(--dp-ease-out) focus-within:ring-2 focus-within:ring-dp-accent/50 motion-reduce:transition-none",
+              "min-h-8 rounded-md bg-dp-field px-1 ring-1 ring-dp-line ring-inset focus-within:ring-2 focus-within:ring-dp-accent/70",
           )}
         >
           {chips.map((target) => {
@@ -323,7 +372,7 @@ function CommandField(props: CommandInputProps & { deliver: RefObject<(text: str
                   size="icon-xs"
                   aria-label={t.remove(label)}
                   onMouseDown={keepCaret}
-                  onClick={() => setTargets(chips.filter((c) => targetKey(c) !== targetKey(target)))}
+                  onClick={() => removeChip(target)}
                   className="size-4 rounded-sm text-dp-text-2 hover:bg-dp-hover hover:text-dp-text"
                 >
                   <X className="size-3" />
@@ -335,10 +384,12 @@ function CommandField(props: CommandInputProps & { deliver: RefObject<(text: str
             ref={field}
             minRows={1}
             placeholder={chips.length > 0 ? "" : placeholder}
-            // The keys are this field's (see useNativeKeyDown); the composer neither submits, cancels nor attaches by itself.
+            // The keys are this field's (see useNativeKeyDown); the composer neither submits, cancels nor attaches by itself:
+            // a send carries text only (messageText), so a pasted image goes in as its file's path instead.
             submitMode="none"
             cancelOnEscape={false}
             addAttachmentOnPaste={false}
+            onPaste={(e) => takeOverPaste(e, insertPath)}
             aria-autocomplete="list"
             aria-controls={listOpen ? listId : undefined}
             aria-activedescendant={listOpen ? `${listId}-${row}` : undefined}

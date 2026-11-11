@@ -262,7 +262,7 @@ function Swatches({ label, swatches, value, onPick }: { label: string; swatches:
               onMouseDown={keepCanvasFocus}
               // Styled on aria-checked: the tooltip's trigger takes over data-state.
               className={cn(
-                "size-6 min-w-0 rounded-full border p-0 ring-offset-2 ring-offset-dp-surface transition-[scale,box-shadow] duration-(--dp-dur-fast) ease-(--dp-ease-out) motion-reduce:transition-none active:scale-[0.97] hover:bg-transparent hover:ring-1 hover:ring-dp-text-3 focus-visible:ring-2 focus-visible:ring-dp-accent/50 aria-checked:ring-2 aria-checked:ring-dp-accent",
+                "size-6 min-w-0 rounded-full border p-0 ring-offset-2 ring-offset-dp-surface transition-[scale] duration-(--dp-dur-fast) ease-(--dp-ease-out) motion-reduce:transition-none active:scale-[0.97] hover:bg-transparent hover:ring-1 hover:ring-dp-text-3 focus-visible:ring-2 focus-visible:ring-dp-accent/70 aria-checked:ring-2 aria-checked:ring-dp-accent",
                 color === null ? "border-dashed border-dp-line focus-visible:border-dp-line" : "border-dp-line/60 focus-visible:border-dp-line/60",
               )}
               style={color === null ? undefined : { backgroundColor: color }}
@@ -303,7 +303,7 @@ function Segmented<V extends string | number>(props: {
           key={value}
           value={String(value)}
           onMouseDown={keepCanvasFocus}
-          className="h-6 min-w-0 flex-1 rounded-md px-1.5 py-0 text-xs font-normal text-dp-text-2 transition-[background-color,color,scale] duration-(--dp-dur-fast) ease-(--dp-ease-out) motion-reduce:transition-none hover:bg-dp-hover hover:text-dp-text focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] data-[state=on]:bg-dp-accent-soft data-[state=on]:text-dp-text"
+          className="h-6 min-w-0 flex-1 rounded-md px-1.5 py-0 text-xs font-normal text-dp-text-2 transition-[background-color,color,scale] duration-(--dp-dur-fast) ease-(--dp-ease-out) motion-reduce:transition-none hover:bg-dp-hover hover:text-dp-text focus-visible:ring-2 focus-visible:ring-dp-accent/70 active:scale-[0.97] data-[state=on]:bg-dp-accent-soft data-[state=on]:text-dp-text"
         >
           {text}
         </ToggleGroupItem>

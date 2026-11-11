@@ -55,3 +55,9 @@ it("starts a minimized terminal's copy open, with no report of its own", () => {
   expect(copy.expandedHeight).toBeUndefined();
   expect(copy.lastReport).toBeUndefined();
 });
+
+it("leaves a sub-agent's spawner and task behind: a copy was asked nothing", () => {
+  const copy = cloneTerminalPayload({ ...claude, spawnedBy: "batman", task: "Write the tests" }, "Superman");
+  expect(copy.spawnedBy).toBeUndefined();
+  expect(copy.task).toBeUndefined();
+});

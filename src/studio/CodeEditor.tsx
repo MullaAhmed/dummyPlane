@@ -23,32 +23,69 @@ import { languageFor, otherLanguageFor } from "./languages";
 import { studioStore, useStudio } from "./studioStore";
 import { smallestChange } from "./text";
 
-/** The line just reached by Ctrl+P `file:line` or Ctrl+G, lit for a moment; null puts it out. */
-const flash = StateEffect.define<number | null>();
+/**
+ * The line just reached by Ctrl+P `file:line` or Ctrl+G: lit at once (the keyboard asked for it), held
+ * for a moment, then faded out ("fade": the system's own "done" may ease), then put out (null).
+ */
+const flash = StateEffect.define<number | "fade" | null>();
+const LIT = Decoration.line({ class: "cm-dp-flash" });
+const FADING = Decoration.line({ class: "cm-dp-flash-out" });
 const flashLine = StateField.define({
   create: () => Decoration.none,
   update(lit, tr) {
-    for (const effect of tr.effects)
-      if (effect.is(flash)) lit = effect.value === null ? Decoration.none : Decoration.set([Decoration.line({ class: "cm-dp-flash" }).range(effect.value)]);
+    for (const effect of tr.effects) {
+      if (!effect.is(flash)) continue;
+      if (effect.value === null) lit = Decoration.none;
+      else if (effect.value !== "fade") lit = Decoration.set([LIT.range(effect.value)]);
+      else {
+        // Where the lit line is now: the text may have moved it since.
+        let at = -1;
+        lit.between(0, tr.startState.doc.length, (from) => {
+          at = from;
+        });
+        lit = at < 0 ? Decoration.none : Decoration.set([FADING.range(at)]);
+      }
+    }
     return tr.docChanged ? lit.map(tr.changes) : lit;
   },
   provide: (field) => EditorView.decorations.from(field),
 });
 const FLASH_MS = 1200;
+/** The fade's length: --dp-dur, the time the decoration stays to let it run. */
+const FADE_MS = 200;
+/** Each editor's pending flash step: a new reveal or the editor's end cancels it. */
+const flashTimers = new WeakMap<EditorView, ReturnType<typeof setTimeout>>();
+
+function stopFlash(view: EditorView) {
+  clearTimeout(flashTimers.get(view));
+  flashTimers.delete(view);
+}
 
 /** Puts the cursor at `line` (and `column`, from 1), clamped to the file, centred on screen, the line lit. */
 export function revealLine(view: EditorView, line: number, column = 1) {
   const doc = view.state.doc;
   const target = doc.line(Math.min(Math.max(1, line), doc.lines));
   const pos = Math.min(target.from + Math.max(0, column - 1), target.to);
+  stopFlash(view);
   view.dispatch({
     selection: EditorSelection.cursor(pos),
     effects: [EditorView.scrollIntoView(pos, { y: "center" }), flash.of(target.from)],
   });
   view.focus();
-  setTimeout(() => {
-    if (view.dom.isConnected) view.dispatch({ effects: flash.of(null) });
-  }, FLASH_MS);
+  flashTimers.set(
+    view,
+    setTimeout(() => {
+      if (!view.dom.isConnected) return;
+      view.dispatch({ effects: flash.of("fade") });
+      flashTimers.set(
+        view,
+        setTimeout(() => {
+          flashTimers.delete(view);
+          if (view.dom.isConnected) view.dispatch({ effects: flash.of(null) });
+        }, FADE_MS),
+      );
+    }, FLASH_MS),
+  );
 }
 
 /** The app's tokens, so the editor follows the theme; the highlighting is chosen per theme. */
@@ -79,6 +116,9 @@ function themeFor(theme: Theme): Extension {
         ".cm-tooltip": { backgroundColor: "var(--dp-surface)", border: "1px solid var(--dp-line)", borderRadius: "var(--radius-lg)" },
         ".cm-tooltip-autocomplete ul li[aria-selected]": { backgroundColor: "var(--dp-accent-soft)", color: "var(--dp-text)" },
         ".cm-dp-flash": { backgroundColor: "var(--dp-accent-soft)" },
+        // A one-shot fade from the flash back to what the line is (the active line's hover, or nothing),
+        // on a class that lives one --dp-dur: never transitions on .cm-line itself (dp-flash-out, index.css).
+        ".cm-dp-flash-out": { animation: "dp-flash-out var(--dp-dur) var(--dp-ease-out) both" },
       },
       { dark: theme === "dark" },
     ),
@@ -176,6 +216,7 @@ export function CodeEditor({ path, text, revision, theme, onChange, onSave, ref 
     });
     return () => {
       alive = false;
+      stopFlash(created);
       created.destroy();
       view.current = null;
     };

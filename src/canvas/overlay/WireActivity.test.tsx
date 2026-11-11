@@ -4,6 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { canvasStore, EMPTY_VIEW } from "@/canvas/canvasStore";
 import type { SceneFrame } from "../groups";
+import { readSource } from "@/theme/cssBlocks";
 import { clearWirePulses, signalWire, WIRE_PULSE_MS } from "../wireActivity";
 import { WireActivity } from "./WireActivity";
 
@@ -49,9 +50,9 @@ it("runs a light along the wire of a message, the way it goes, at the view's sca
   const pulse = svg.querySelector<SVGGElement>("[data-wire]")!;
   expect([pulse.dataset.wire, pulse.dataset.direction]).toEqual(["w1", "toFleet"]);
   // From the group back to the fleet, round its corner like the wire.
-  expect([...pulse.querySelectorAll("path")].map((p) => p.getAttribute("d"))).toEqual(Array(2).fill("M50 80 L50 16 Q50 0 34 0 L0 0"));
-  // The light runs on the wire; the wire itself does not glow.
-  expect(pulse.querySelector(".dp-wire-glow")).toBeNull();
+  expect([...pulse.querySelectorAll("path")].map((p) => p.getAttribute("d"))).toEqual(Array(3).fill("M50 80 L50 16 Q50 0 34 0 L0 0"));
+  // The light runs on the wire; the wire's own lit path is there for reduced motion, hidden otherwise.
+  expect(pulse.querySelector(".dp-wire-glow")!.getAttribute("d")).toBe("M50 80 L50 16 Q50 0 34 0 L0 0");
   expect(pulse.querySelector(".dp-wire-packet")!.getAttribute("pathLength")).toBe("1");
 
   await act(async () => vi.advanceTimersByTime(WIRE_PULSE_MS));
@@ -67,4 +68,19 @@ it("lights only the wires that carry a message", async () => {
 it("shows nothing for a message between agents and fleets no wire joins", async () => {
   await act(async () => signalWire("batman", "toAgent", "boss"));
   expect(host.innerHTML).toBe("");
+});
+
+it("runs the light at one speed, fades it on the house curve, and under reduced motion lights the wire for the message's length instead", () => {
+  const css = readSource("index.css");
+  const packet = /\.dp-wire-packet \{([^}]*)\}/.exec(css)![1];
+  expect(packet).toMatch(/dp-wire-travel 1100ms linear both/);
+  expect(packet).toMatch(/dp-wire-fade 1100ms var\(--dp-ease-out\) both/);
+  // The travel moves the dash alone; the fade touches the opacity alone.
+  expect(/@keyframes dp-wire-travel \{([\s\S]*?)\n\}/.exec(css)![1]).not.toMatch(/opacity/);
+  expect(/@keyframes dp-wire-fade \{([\s\S]*?)\n\}/.exec(css)![1]).not.toMatch(/stroke-dashoffset/);
+  expect(css).toMatch(/\.dp-wire-glow \{\s*display: none;\s*\}/);
+  const reduce = css.slice(css.lastIndexOf("@media (prefers-reduced-motion: reduce)"));
+  expect(reduce).toMatch(new RegExp(String.raw`\.dp-wire-glow \{[^}]*display: inline;[^}]*animation: dp-wire-glow ${WIRE_PULSE_MS}ms var\(--dp-ease-out\) both;`));
+  expect(reduce).toMatch(/\.dp-wire-packet \{\s*display: none;\s*\}/);
+  expect(/@keyframes dp-wire-glow \{([\s\S]*?)\n\}/.exec(css)![1]).not.toMatch(/transform|stroke-dashoffset/);
 });

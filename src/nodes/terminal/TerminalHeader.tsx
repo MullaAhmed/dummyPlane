@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { ChevronDown, X } from "lucide-react";
 import {
   DropdownMenu,
@@ -28,7 +28,8 @@ import type { TerminalStatus } from "@/store/terminalStatus";
 import { newConversation, switchedAgent, type LaunchMode } from "./launch";
 import { minimizeTerminal } from "./minimize";
 import { NameField } from "./NameField";
-import { HeaderButton, HeaderMenu, NodeHeader, NodeHeaderEnd, WIDE_ONLY } from "./NodeHeader";
+import { spawnedTask } from "@/agents/taskSummary";
+import { HeaderButton, HeaderMenu, NodeHeader, NodeHeaderEnd, NodeTitle, WIDE_ONLY } from "./NodeHeader";
 import { relaunchTerminal, stopTerminal } from "./registry";
 import { StatusPill } from "./StatusPill";
 import { TerminalOptionsDialog } from "./TerminalOptionsDialog";
@@ -172,9 +173,23 @@ export function TerminalHeader(props: {
   const role = useCanvas((s) => groupOf(s.frames, nodeId)?.group.role);
   const running = status.state === "running";
   const shown = payload.name || meta.label;
+  // A sub-agent says under its name what it was asked (spawn_agent); its tooltip says the rest.
+  const { spawnedBy, task, title } = payload;
+  const spawned = useMemo(() => spawnedTask({ spawnedBy, task, title }), [spawnedBy, task, title]);
+  const name = (
+    <NameField
+      value={shown}
+      editing={editing}
+      onEditingChange={setEditing}
+      onCommit={(next) => {
+        if (next) nodesStore.getState().update(nodeId, { name: next });
+      }}
+    />
+  );
 
   return (
-    <NodeHeader title={payload.title}>
+    // The task line's tooltip says the title: no native one beside it.
+    <NodeHeader title={spawned ? undefined : payload.title}>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button type="button" variant="ghost" size="sm" aria-label={t.agent} className="shrink-0 gap-0.5 rounded-md px-1">
@@ -202,14 +217,8 @@ export function TerminalHeader(props: {
         className="size-1.5 shrink-0 rounded-full"
         style={{ backgroundColor: role ? ROLES[role].color : "var(--dp-text-3)" }}
       />
-      <NameField
-        value={shown}
-        editing={editing}
-        onEditingChange={setEditing}
-        onCommit={(name) => {
-          if (name) nodesStore.getState().update(nodeId, { name });
-        }}
-      />
+      {/* Renaming, the 28px field takes the row alone: with the task line under it, it would not fit in 36px. */}
+      {spawned && !editing ? <NodeTitle name={name} line={spawned.line} detail={spawned.detail} /> : name}
       <NodeHeaderEnd>
         {showStatus && (
           <StatusPill status={status} activity={activity} indigo={meta.tint === INDIGO} report={payload.lastReport?.status} labelClassName="@max-xs/head:sr-only" />

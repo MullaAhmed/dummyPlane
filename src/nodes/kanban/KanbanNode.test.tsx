@@ -7,7 +7,7 @@ import { nodesStore } from "@/store/nodes";
 import { KanbanNode } from "./KanbanNode";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
-vi.mock("@/kanban/dropOnTerminal", () => ({ dropCardOutside: vi.fn(), startCardDrag: vi.fn() }));
+vi.mock("@/kanban/dropOnTerminal", () => ({ endCardDrag: vi.fn(), startCardDrag: vi.fn() }));
 const opened = vi.hoisted(() => vi.fn(() => Promise.resolve()));
 vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: opened }));
 const github = vi.hoisted(() => ({ syncBoard: vi.fn(() => Promise.resolve(true)) }));
@@ -113,6 +113,48 @@ it("opens a linked card's issue from its chip, and syncs a linked board (issue #
   await act(async () => button("Sync").click());
   expect(github.syncBoard).toHaveBeenCalledWith("linked");
 
+  await act(async () => root.unmount());
+  document.body.replaceChildren();
+});
+
+it("tints the column a dragged card would land in, and clears the drag on every dragend", async () => {
+  mockIPC(() => undefined);
+  const { endCardDrag } = await import("@/kanban/dropOnTerminal");
+  await nodesStore.getState().create("drag-board", {
+    workspaceId: "w1",
+    kind: "kanban",
+    payload: {
+      columns: [
+        { id: "todo", title: "To do", cardIds: ["c1"] },
+        { id: "done", title: "Done", cardIds: [] },
+      ],
+      cards: { c1: { id: "c1", title: "Drag me", notes: "", priority: "none" } },
+    },
+  });
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = createRoot(host);
+  await act(async () => root.render(<KanbanNode nodeId="drag-board" />));
+  const data: Record<string, string> = {};
+  const transfer = { types: [] as string[], setData: (k: string, v: string) => ((data[k] = v), transfer.types.push(k)), dropEffect: "none", effectAllowed: "all" };
+  const fire = (target: Element, type: string) => {
+    const event = new Event(type, { bubbles: true, cancelable: true });
+    Object.defineProperties(event, { dataTransfer: { value: transfer }, clientX: { value: 10 }, clientY: { value: 10 } });
+    target.dispatchEvent(event);
+  };
+  const card = host.querySelector('[data-card-id="c1"]')!;
+  expect(card.className).toContain("active:cursor-grabbing");
+  const column = (id: string) => host.querySelector(`[data-column-id="${id}"]`)!;
+  await act(async () => fire(card, "dragstart"));
+  await act(async () => fire(column("done"), "dragover"));
+  expect(column("done").hasAttribute("data-drop-target")).toBe(true);
+  expect(column("todo").hasAttribute("data-drop-target")).toBe(false);
+  expect(column("done").className).toContain("data-drop-target:bg-dp-hover");
+  // No fade on the tint: it follows the pointer.
+  expect(column("done").className).not.toMatch(/transition/);
+  await act(async () => fire(host.querySelector('[data-card-id="c1"]')!, "dragend"));
+  expect(column("done").hasAttribute("data-drop-target")).toBe(false);
+  expect(endCardDrag).toHaveBeenCalled();
   await act(async () => root.unmount());
   document.body.replaceChildren();
 });

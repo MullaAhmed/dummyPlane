@@ -34,18 +34,40 @@ async function render(nodeId: string) {
   return { host, root };
 }
 
-it("shows its terminal, its title and its transcript as terminal lines, and turns grey when done", async () => {
+it("shows its terminal, its type over what it was asked and its transcript as terminal lines; done, its text steps back without fading", async () => {
   const { host, root } = await render("el-1");
   const node = host.querySelector<HTMLElement>("[data-subagent='a1']")!;
   expect(node.dataset.state).toBe("running");
-  expect(node.querySelector("header")?.textContent).toContain("↳ Aquaman ›");
-  expect(node.querySelector("header")?.textContent).toContain("Explore · Find the hooks");
+  const header = node.querySelector("header")!;
+  expect(header.textContent).toContain("↳ Aquaman ›");
+  expect(header.querySelector("[data-node-title]")?.textContent).toContain("Explore");
+  // Under its type, legible: the secondary text role at 12px, reachable by the keyboard for its tooltip.
+  const line = header.querySelector<HTMLButtonElement>("[data-task-line]")!;
+  expect(line.tagName).toBe("BUTTON");
+  expect(line.textContent).toBe("Find the hooks");
+  expect(line.className).toContain("text-dp-text-2");
+  expect(line.className).toContain("text-xs");
+  // Its tooltip says it: no native title beside it.
+  expect(header.hasAttribute("title")).toBe(false);
   expect(node.textContent).toContain("Grep(SubagentStart)");
   expect(node.textContent).toContain("claude_settings.rs:31");
-  expect(node.style.filter).toBe("");
-  await act(async () => subagentNodesStore.getState().upsert({ nodeId: "n1", agentId: "a1", agentType: "Explore", state: "done" }));
+  const ink = node.style.getPropertyValue("--sa-fg");
+  await act(async () => subagentNodesStore.getState().upsert({ nodeId: "n1", agentId: "a1", agentType: "Explore", description: "Find the hooks", state: "done" }));
   expect(node.dataset.state).toBe("done");
-  expect(node.style.filter).toBe("grayscale(1)");
+  // An opacity let the canvas through and a grayscale took the text under 3:1: the text steps to the dim ink instead.
+  expect(node.style.opacity).toBe("");
+  expect(node.style.filter).toBe("");
+  expect(node.style.getPropertyValue("--sa-fg")).toBe(node.style.getPropertyValue("--sa-dim"));
+  expect(node.style.getPropertyValue("--sa-fg")).not.toBe(ink);
+  await act(async () => root.unmount());
+});
+
+it("keeps one line for a subagent asked nothing it could say", async () => {
+  const { host, root } = await render("el-2");
+  const header = host.querySelector("[data-subagent='a2'] header")!;
+  expect(header.querySelector("[data-task-line]")).toBeNull();
+  expect(header.textContent).toContain("Plan");
+  expect(header.getAttribute("title")).toBe("Plan");
   await act(async () => root.unmount());
 });
 

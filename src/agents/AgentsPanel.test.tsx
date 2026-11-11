@@ -182,5 +182,22 @@ it("gives each agent row Center and Close on hover and on keyboard focus (spec i
   const labels = [...row.querySelectorAll("button[aria-label]")].map((b) => b.getAttribute("aria-label"));
   expect(labels.some((l) => /^Center /.test(l!))).toBe(true);
   expect(labels.some((l) => /^Close /.test(l!))).toBe(true);
-  expect(row.querySelector('[class*="group-hover:flex"]')!.className).toContain("group-focus-within:flex");
+  const actions = row.querySelector<HTMLElement>("[data-row-actions]")!;
+  expect(actions.className.split(/\s+/)).toEqual(expect.arrayContaining(["opacity-0", "group-hover:opacity-100", "group-focus-within:opacity-100", "group-focus-within:transition-none"]));
+});
+
+it("swaps an agent row's status for its actions in one cell on hover: the name never moves (no display change)", () => {
+  const row = host.querySelector("[data-filter]")!.closest("aside")!.querySelector<HTMLElement>(".group.flex.items-center.gap-2")!;
+  const actions = row.querySelector<HTMLElement>("[data-row-actions]")!;
+  const status = actions.previousElementSibling as HTMLElement;
+  const cell = actions.parentElement!;
+  expect(cell.className.split(/\s+/)).toContain("grid");
+  expect(status.parentElement).toBe(cell);
+  for (const layer of [status, actions]) {
+    expect(layer.className.split(/\s+/), "both layers in the cell's one area").toContain("[grid-area:1/1]");
+    // A fade on the pointer's hover, never a display or width change.
+    expect(layer.className).not.toMatch(/\b(hidden|group-hover:flex|group-hover:hidden)\b/);
+    expect(layer.className).toContain("transition-[opacity]");
+  }
+  expect(status.className).toContain("group-hover:opacity-0");
 });

@@ -10,7 +10,7 @@ import { whenReady } from "@/mission/ready";
 import { workspaceCanvas } from "@/mission/store";
 import { newTerminalPayload } from "@/nodes/terminal/launch";
 import { freshText, quietFor } from "@/nodes/terminal/registry";
-import type { TerminalPayload } from "@/nodes/types";
+import { MAX_STORED_TASK, type TerminalPayload } from "@/nodes/types";
 import { nodesStore, terminalOf } from "@/store/nodes";
 import { isRunning } from "@/store/terminalStatus";
 import { quietly } from "./arrivals";
@@ -19,6 +19,7 @@ import { nameForNewAgent } from "./naming";
 import { sceneAccess } from "./sceneAccess";
 import { MAX_SPAWN_DEPTH, markLaunching, runningSpawned, spawnDepth } from "./spawnFamily";
 import { reflowSpawnTree } from "./spawnTree";
+import { clip, taskSummary } from "./taskSummary";
 import { addTerminal } from "./terminals";
 import { withWire } from "./wires";
 
@@ -60,20 +61,24 @@ export function spawnAgent(parentId: string, args: SpawnArgs): Promise<SpawnResu
 
 const refuse = (text: string): SpawnResult => ({ text, error: true });
 
-/** The title of the sub-agent's terminal: the one given, else the start of its task. */
+/**
+ * The title of the sub-agent's terminal, the line under its name and its Claude
+ * session's name: the one given, else its task said in a line (taskSummary),
+ * not the raw start of a brief.
+ */
 function titleOf(title: unknown, task: string): string {
   const given = typeof title === "string" ? oneLine(title) : "";
-  const text = given || oneLine(task);
-  return text.length > MAX_TITLE ? `${text.slice(0, MAX_TITLE - 1).trimEnd()}…` : text;
+  return clip(given || taskSummary(task) || oneLine(task), MAX_TITLE);
 }
 
 /** The sub-agent's terminal: its parent's folder, shell, account and mission permissions, its own conversation. */
-export function childPayload(parent: TerminalPayload, parentId: string, name: string, title: string, model?: string): TerminalPayload {
+export function childPayload(parent: TerminalPayload, parentId: string, name: string, title: string, model?: string, task?: string): TerminalPayload {
   const payload = newTerminalPayload({ title, cwd: parent.cwd, agent: "claude", command: "", shell: parent.shell, accountId: parent.accountId }, name);
   if (model) payload.model = model;
   // An unattended mission agent's rules (no git push…) bind what it delegates too.
   if (parent.permission) payload.permission = parent.permission;
   payload.spawnedBy = parentId;
+  if (task) payload.task = task.slice(0, MAX_STORED_TASK);
   return payload;
 }
 
@@ -100,7 +105,7 @@ async function spawnNow(parentId: string, args: SpawnArgs): Promise<SpawnResult>
   // Right of the parent, NODE_GAP apart; addTerminal then moves it clear of any neighbour.
   const center = { x: element.x + element.width * 1.5 + NODE_GAP, y: element.y + element.height / 2 };
   // It arrives on its own: the user may be typing, so it neither scrolls the view nor takes the keyboard.
-  const childId = await addTerminal(workspaceId, childPayload(parent, parentId, name, titleOf(args.title, task), model || undefined), center, group?.id ?? null, quietly("spawn"));
+  const childId = await addTerminal(workspaceId, childPayload(parent, parentId, name, titleOf(args.title, task), model || undefined, task), center, group?.id ?? null, quietly("spawn"));
   if (!childId) return refuse(t().failed);
   markLaunching(childId, true);
   const now = sceneAccess(workspaceId);

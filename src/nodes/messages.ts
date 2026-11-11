@@ -79,6 +79,8 @@ export const nodesMessages = defineMessages(
       close: "Close",
       duplicateFailed: (error: string) => `Could not duplicate: ${error}`,
       imagePasteFailed: "Could not paste the image",
+      nothingToPaste: "Nothing to paste",
+      nothingToPasteDetail: "The clipboard holds no text and no PNG, JPEG, GIF or WebP image",
     },
     /** Under an agent's terminal: where it stands, who commands it, and a line to message it. */
     foot: {

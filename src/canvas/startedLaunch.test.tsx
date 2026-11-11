@@ -36,8 +36,14 @@ afterEach(async () => {
 });
 
 it("reads the command only for a Custom terminal, which is the only one that runs it", () => {
-  expect(launchSettingsOf(terminal())).toEqual({ cwd: "D:/work/api", shell: "default", title: "Batman", command: "" });
+  expect(launchSettingsOf(terminal())).toEqual({ cwd: "D:/work/api", shell: "default", command: "", model: "", permission: "", accountId: "" });
   expect(launchSettingsOf(terminal({ agent: "custom" })).command).toBe("npm run dev");
+});
+
+it("reads the model, the permission and the account only for Claude, the only one that gets them", () => {
+  const chosen = { model: "claude-opus-5-5", permission: "work" as const, accountId: "work" };
+  expect(launchSettingsOf(terminal(chosen))).toMatchObject(chosen);
+  expect(launchSettingsOf(terminal({ ...chosen, agent: "codex" }))).toMatchObject({ model: "", permission: "", accountId: "" });
 });
 
 it("has nothing to restart while a terminal is stopped, whatever changes", async () => {
@@ -51,12 +57,21 @@ it("notes what a running terminal started with, and compares each launch setting
   noteLaunchChange("t1", terminal());
   await show(terminal());
   expect(seen).toBe(false);
-  for (const changed of [{ cwd: "D:/work/web" }, { shell: "pwsh" as const }, { title: "Review" }]) {
+  // "ask" given is a change too: any permission given also blocks git push in the session's settings.
+  const changes: Partial<TerminalPayload>[] = [{ cwd: "D:/work/web" }, { shell: "pwsh" }, { model: "claude-haiku-5-5" }, { permission: "edits" }, { permission: "ask" }, { accountId: "work" }];
+  for (const changed of changes) {
     await show(terminal(changed));
     expect(seen).toBe(true);
   }
   // Back to what it started with: nothing to restart.
   await show(terminal());
+  expect(seen).toBe(false);
+});
+
+it("has nothing to restart for a title: Claude gets it only when a new conversation starts, and a restart resumes", async () => {
+  terminalStatusStore.getState().set("t1", { state: "running" });
+  noteLaunchChange("t1", terminal());
+  await show(terminal({ title: "Review" }));
   expect(seen).toBe(false);
 });
 
@@ -77,7 +92,7 @@ it("forgets the note when the terminal restarts, or stops", async () => {
   expect(seen).toBe(false);
 
   noteLaunchChange("t1", terminal());
-  await show(terminal({ title: "Review" }));
+  await show(terminal({ model: "claude-opus-5-5" }));
   expect(seen).toBe(true);
   await act(async () => terminalStatusStore.getState().set("t1", { state: "stopped" }));
   expect(seen).toBe(false);

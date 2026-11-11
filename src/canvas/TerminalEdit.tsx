@@ -1,27 +1,40 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useState, type ReactNode } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
-import { Check, ChevronUp, ClipboardCopy, Copy, Pencil, RotateCw, Trash2 } from "lucide-react";
+import { Check, ChevronUp, ClipboardCopy, Copy, RotateCw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { PanelTabs, PanelTabsContent, PanelTabsList, PanelTabsTrigger } from "@/components/PanelTabs";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useMessages } from "@/i18n";
 import { cn } from "@/lib/utils";
+import { accountsMessages } from "@/accounts/messages";
+import { useAccounts } from "@/accounts/store";
 import { useAgents } from "@/agents/agentsStore";
+import { AGENTS, INDIGO } from "@/agents/catalog";
+import { remoteErrorText, useRemoteLink, type RemoteLink } from "@/agents/remoteControl";
+import { switchRemote } from "@/agents/RemoteButton";
 import { requestCloseFleet, renameFleet } from "@/fleet/fleets";
 import { duplicateTerminal, requestClose } from "@/agents/terminals";
-import type { ShellKind } from "@/ipc/pty";
-import { modelLabel } from "@/mission/router";
+import type { Permission, ShellKind } from "@/ipc/pty";
+import { MODEL_CHOICES, modelLabel } from "@/mission/router";
 import { folderChange, folderLockOf, type FolderLock } from "@/nodes/terminal/folder";
-import { SHELL_LABELS } from "@/nodes/terminal/launch";
+import { newConversation, SHELL_LABELS } from "@/nodes/terminal/launch";
+import { useLiveTitle } from "@/nodes/terminal/liveTitle";
 import { resumeTerminal } from "@/nodes/terminal/registry";
+import { StatusPill } from "@/nodes/terminal/StatusPill";
 import type { TerminalPayload } from "@/nodes/types";
+import { useActivity } from "@/store/agentActivity";
 import { nodeNameOf, nodesStore, sessionOf, updateSession, useNodes, type NodeRecord } from "@/store/nodes";
-import { ExtensionList, useClaudeExtensions, type ExtensionKind } from "./ExtensionList";
+import { useTerminalStatus } from "@/store/terminalStatus";
+import { formatTokens } from "@/usage/usage";
+import { useNodeSession } from "@/usage/usageStore";
+import { IconButton } from "@/shell/buttons";
+import { ExtensionList, QUIET_BOX, useClaudeExtensions, type ExtensionKind } from "./ExtensionList";
 import { canvasMessages } from "./messages";
-import { keepCanvasFocus, PanelAction } from "./PanelAction";
+import { keepCanvasFocus } from "./PanelAction";
 import { forgetStartedChoice } from "./startedChoice";
 import { forgetStartedLaunch, noteLaunchChange, useLaunchRestartPending } from "./startedLaunch";
 
@@ -33,9 +46,15 @@ export function selectedEditId(selectedIds: readonly string[], nodes: Record<str
 
 /** The panel's fields: as small as its actions (Input's own `md:text-sm` would win over a bare `text-xs`). */
 const FIELD = "h-7 rounded-md text-xs md:text-xs";
+/** A select of the panel: as tall and as small as its fields. */
+const CHOICE = "w-full rounded-md text-xs";
 
 type Tab = "general" | ExtensionKind;
 const KINDS: readonly ExtensionKind[] = ["skills", "plugins", "mcp", "agents"];
+
+/** Radix's Select cannot hold an empty value: the choice of no `--model`, no `--permission-mode`, or the default account. */
+const NONE = "none";
+const PERMISSIONS: readonly Permission[] = ["ask", "edits", "work"];
 
 /** Enter ends the edit and the field's blur saves it; Escape puts the stored value back first, so nothing changes. */
 const endEdit = (stored: string) => (event: React.KeyboardEvent<HTMLInputElement>) => {
@@ -58,23 +77,22 @@ const latestSession = (nodeId: string) => sessionOf(nodesStore.getState().nodes[
 
 /**
  * What a selected terminal, or a selected Fleet, lets you do without opening its
- * menu. General: rename it, copy it (a duplicate beside it; not a Fleet), delete
- * it (closing it, with the same confirmation as its header's X), change its
- * name, its folder (a Fleet's and a mission agent's stay put), its shell, its
- * title (a Fleet's is its name) and, for a custom command, the command, all read
- * at the next launch, with an offer to restart a running one now; a model a
- * mission chose can go back to the default. A Claude terminal, and a Fleet,
- * also gets its skills, plugins, MCP servers and subagents, each on or off for
- * it alone. A Fleet is edited through its Claude session (`session`, nested in
- * its node). The panel folds back to its Edit tab (SelectionPanel).
+ * menu. General, from what is true now to what its next launch reads: where it
+ * stands (its status, step, last report and spending), its name, with a copy
+ * (a duplicate beside it; not a Fleet) and a delete (its header's X, with the
+ * same confirmation), the title its program shows, Remote Control (applied at
+ * once), then under "Next launch" its model, permissions, account, folder,
+ * shell, and for Claude the name a new conversation gets, or for a custom
+ * command the command, with an offer to restart a running one. A Claude
+ * terminal, and a Fleet, also gets its skills, plugins, MCP servers and
+ * subagents, each on or off for it alone. A Fleet is edited through its Claude
+ * session (`session`, nested in its node): its model and shell only. The panel
+ * folds back to its Edit tab (SelectionPanel).
  */
 export function TerminalEdit({ nodeId, onFold }: { nodeId: string; onFold: () => void }) {
   const t = useMessages(canvasMessages).selection;
   const record = useNodes((s) => s.nodes[nodeId]);
-  const lock = useNodes((s) => folderLockOf(nodeId, s.nodes));
-  const shells = useAgents((s) => s.shells);
   const [tab, setTab] = useState<Tab>("general");
-  const nameField = useRef<HTMLInputElement>(null);
   const bodyId = useId();
   const fleet = record?.kind === "fleet";
   const session = sessionOf(record);
@@ -82,125 +100,9 @@ export function TerminalEdit({ nodeId, onFold }: { nodeId: string; onFold: () =>
   const claude = session?.agent === "claude";
   const shown: Tab = claude ? tab : "general";
   const { lists, retry } = useClaudeExtensions(session?.cwd ?? "", session?.accountId, claude && shown !== "general");
-  const restartPending = useLaunchRestartPending(nodeId, session);
   if (!record) return null;
 
-  const commitName = (input: HTMLInputElement) => {
-    const next = keepStored(input, name);
-    if (next === null) return;
-    if (fleet) renameFleet(nodeId, next);
-    else nodesStore.getState().update(nodeId, { name: next });
-  };
-  /** A setting read at the next launch: a running terminal keeps the one it started with, and offers a restart. */
-  const setLaunch = (patch: Partial<TerminalPayload>) => {
-    const current = latestSession(nodeId);
-    if (!current) return;
-    noteLaunchChange(nodeId, current);
-    updateSession(nodeId, patch);
-  };
-  const commitCommand = (value: string) => {
-    const command = value.trim();
-    if (command !== session?.command) setLaunch({ command });
-  };
-  const commitTitle = (input: HTMLInputElement) => {
-    const title = keepStored(input, session?.title ?? "");
-    if (title !== null) setLaunch({ title });
-  };
-  const rename = () => {
-    nameField.current?.focus();
-    nameField.current?.select();
-  };
-  const copy = () => {
-    if (!record.workspaceId) return;
-    duplicateTerminal(record.workspaceId, nodeId).catch((error: unknown) => toast.error(t.copyFailed(String(error))));
-  };
-  const remove = () => (fleet ? requestCloseFleet(nodeId) : requestClose(nodeId));
-  const restart = () => {
-    forgetStartedChoice(nodeId);
-    forgetStartedLaunch(nodeId);
-    resumeTerminal(nodeId);
-  };
-
-  // A field starts from the stored value again whenever the stored value changes (a rename from the header, an undo).
-  // One column at most the panel's width (grid-cols-1): an auto column would widen to the folder's whole path.
-  const general = (
-    <div className="grid grid-cols-1 gap-3">
-      <div className="flex gap-1.5">
-        <PanelAction icon={<Pencil className="size-3.5" />} label={t.rename} onClick={rename} />
-        {!fleet && <PanelAction icon={<Copy className="size-3.5" />} label={t.copy} onClick={copy} />}
-        <PanelAction icon={<Trash2 className="size-3.5" />} label={t.delete} onClick={remove} danger />
-      </div>
-      <Field label={t.name}>
-        <Input
-          ref={nameField}
-          key={`name:${name}`}
-          aria-label={t.name}
-          defaultValue={name}
-          onBlur={(e) => commitName(e.currentTarget)}
-          onKeyDown={endEdit(name)}
-          className={FIELD}
-        />
-      </Field>
-      {session && (
-        <>
-          <Field label={t.folder}>
-            <FolderField nodeId={nodeId} session={session} lock={lock} />
-          </Field>
-          {session.agent === "custom" && (
-            <Field label={t.command}>
-              <Input
-                key={`command:${session.command}`}
-                aria-label={t.command}
-                defaultValue={session.command}
-                placeholder="npm run dev"
-                onBlur={(e) => commitCommand(e.currentTarget.value)}
-                onKeyDown={endEdit(session.command)}
-                className={cn(FIELD, "font-mono")}
-              />
-            </Field>
-          )}
-          <Field label={t.shell}>
-            <ShellSelect value={session.shell} shells={shells} onChange={(shell) => setLaunch({ shell })} />
-          </Field>
-          {!fleet && (
-            <Field label={t.title}>
-              <Input
-                key={`title:${session.title}`}
-                aria-label={t.title}
-                defaultValue={session.title}
-                onBlur={(e) => commitTitle(e.currentTarget)}
-                onKeyDown={endEdit(session.title)}
-                className={FIELD}
-              />
-            </Field>
-          )}
-          {claude && (
-            <Field label={t.model}>
-              <div className="flex h-7 items-center justify-between gap-2">
-                <span className={cn("truncate text-xs", session.model ? "font-mono text-dp-text" : "text-dp-text-2")}>{session.model ? modelLabel(session.model) : t.defaultModel}</span>
-                {session.model && (
-                  <Button type="button" variant="ghost" size="sm" onMouseDown={keepCanvasFocus} onClick={() => updateSession(nodeId, { model: undefined })} className="text-xs font-normal text-dp-text-2 hover:text-dp-text">
-                    {t.useDefaultModel}
-                  </Button>
-                )}
-              </div>
-            </Field>
-          )}
-          <p className="text-xs text-dp-text-3">{fleet ? t.nextLaunchFleet : session.agent === "custom" ? t.nextLaunchCustom : t.nextLaunch}</p>
-          {restartPending && (
-            <div className="flex items-center justify-between gap-3 border-t border-dp-line pt-2">
-              <p className="min-w-0 truncate text-xs leading-7 text-dp-text-3">{t.launchChanged}</p>
-              <Button type="button" variant="secondary" size="sm" onMouseDown={keepCanvasFocus} onClick={restart} className="text-xs font-normal text-dp-text-2 hover:text-dp-text">
-                <RotateCw className="size-3.5" />
-                {t.restartNow}
-              </Button>
-            </div>
-          )}
-        </>
-      )}
-    </div>
-  );
-
+  const general = <General nodeId={nodeId} record={record} session={session} />;
   return (
     <section aria-label={t.edit} className="flex min-h-0 flex-col gap-3">
       {/* The panel's head: its title in the primary text, a step above the field labels; the chevron quiet until pointed at. */}
@@ -245,7 +147,7 @@ export function TerminalEdit({ nodeId, onFold }: { nodeId: string; onFold: () =>
             ))}
           </PanelTabs>
         ) : (
-          <div className={cn(SCROLLS, "grid grid-cols-1 gap-3")}>
+          <div className={cn(SCROLLS, "grid grid-cols-1 gap-4")}>
             {general}
             {session && <p className="text-xs text-dp-text-3">{t.claudeOnly}</p>}
           </div>
@@ -258,28 +160,269 @@ export function TerminalEdit({ nodeId, onFold }: { nodeId: string; onFold: () =>
 /** A page of the panel that scrolls when the canvas is short; its fields keep their focus rings (4 px of room). */
 const SCROLLS = "-m-1 min-h-0 overflow-y-auto p-1";
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+/**
+ * The General page, in three groups: where the agent stands now, who it is
+ * (its name, the title its program shows, Remote Control), and what its next
+ * launch reads. Each setting is one row, its label beside it.
+ */
+function General({ nodeId, record, session }: { nodeId: string; record: NodeRecord; session: TerminalPayload | undefined }) {
+  const t = useMessages(canvasMessages).selection;
+  const lock = useNodes((s) => folderLockOf(nodeId, s.nodes));
+  const shells = useAgents((s) => s.shells);
+  const profiles = useAccounts((s) => s.profiles);
+  const restartPending = useLaunchRestartPending(nodeId, session);
+  const running = useTerminalStatus(nodeId).state === "running";
+  const fleet = record.kind === "fleet";
+  const name = nodeNameOf(record);
+  const claude = session?.agent === "claude";
+  const ids = { name: useId(), title: useId(), model: useId(), permission: useId(), account: useId(), shell: useId(), command: useId(), session: useId() };
+
+  const commitName = (input: HTMLInputElement) => {
+    const next = keepStored(input, name);
+    if (next === null) return;
+    if (fleet) renameFleet(nodeId, next);
+    else nodesStore.getState().update(nodeId, { name: next });
+  };
+  /** A setting read at the next launch: a running terminal keeps the one it started with, and offers a restart. */
+  const setLaunch = (patch: Partial<TerminalPayload>) => {
+    const current = latestSession(nodeId);
+    if (!current) return;
+    noteLaunchChange(nodeId, current);
+    updateSession(nodeId, patch);
+  };
+  const commitCommand = (value: string) => {
+    const command = value.trim();
+    if (command !== session?.command) setLaunch({ command });
+  };
+  const commitTitle = (input: HTMLInputElement) => {
+    const title = keepStored(input, session?.title ?? "");
+    if (title !== null) setLaunch({ title });
+  };
+  /** Claude keeps each conversation in its profile's folder: another account starts a new one, as another folder does. */
+  const setAccount = (accountId: string | undefined) => {
+    if (accountId === latestSession(nodeId)?.accountId) return;
+    setLaunch({ accountId, ...newConversation() });
+    toast.info(t.accountNewConversation);
+  };
+  const copy = () => {
+    if (!record.workspaceId) return;
+    duplicateTerminal(record.workspaceId, nodeId).catch((error: unknown) => toast.error(t.copyFailed(String(error))));
+  };
+  const remove = () => (fleet ? requestCloseFleet(nodeId) : requestClose(nodeId));
+  const restart = () => {
+    forgetStartedChoice(nodeId);
+    forgetStartedLaunch(nodeId);
+    resumeTerminal(nodeId);
+  };
+  const account = session?.accountId && profiles.some((p) => p.id === session.accountId) ? session.accountId : NONE;
+
+  // A field starts from the stored value again whenever the stored value changes (a rename from the header, an undo).
   return (
-    <div className="grid grid-cols-1 gap-1.5">
-      <p className="dp-label">{label}</p>
-      {children}
+    <div className="grid grid-cols-1 gap-4">
+      {session && <LiveStatus nodeId={nodeId} session={session} />}
+      <Rows>
+        <Row label={t.name} htmlFor={ids.name}>
+          <div className="flex items-center gap-1">
+            <Input
+              id={ids.name}
+              key={`name:${name}`}
+              aria-label={t.name}
+              defaultValue={name}
+              onBlur={(e) => commitName(e.currentTarget)}
+              onKeyDown={endEdit(name)}
+              className={cn(FIELD, "min-w-0 flex-1")}
+            />
+            {!fleet && (
+              <IconButton label={t.copyTerminal} onMouseDown={keepCanvasFocus} onClick={copy}>
+                <Copy className="size-3.5" />
+              </IconButton>
+            )}
+            <IconButton
+              label={fleet ? t.deleteFleet : t.deleteTerminal}
+              onMouseDown={keepCanvasFocus}
+              onClick={remove}
+              className="hover:bg-dp-danger/10 hover:text-dp-danger focus-visible:ring-dp-danger"
+            >
+              <Trash2 className="size-3.5" />
+            </IconButton>
+          </div>
+        </Row>
+        {session && <LiveTitleRow nodeId={nodeId} id={ids.title} />}
+        {claude && <RemoteRow nodeId={nodeId} wanted={session.remoteControl === true} running={running} />}
+      </Rows>
+      {session && (
+        <div role="group" aria-labelledby={`${ids.model}-heading`} className="grid grid-cols-1 gap-2">
+          <p id={`${ids.model}-heading`} className="dp-label">
+            {t.nextLaunch}
+          </p>
+          <Rows>
+            {claude && (
+              <Row label={t.model} htmlFor={ids.model} note={<RunningModel nodeId={nodeId} running={running} />}>
+                <ModelSelect id={ids.model} value={session.model} onChange={(model) => setLaunch({ model })} />
+              </Row>
+            )}
+            {claude && !fleet && (
+              <Row label={t.permission} htmlFor={ids.permission} note={session.permission && t.permissionHelp[session.permission]}>
+                {/* None given: Claude as the user set it up. A mission's agent keeps its mission's choice, and its push block. */}
+                <Choice
+                  id={ids.permission}
+                  label={t.permission}
+                  value={session.permission ?? NONE}
+                  options={[{ value: NONE, label: t.claudeSettings }, ...PERMISSIONS.map((p) => ({ value: p, label: t.permissions[p] }))]}
+                  disabled={lock === "mission"}
+                  onChange={(permission) => setLaunch({ permission: permission === NONE ? undefined : (permission as Permission) })}
+                />
+              </Row>
+            )}
+            {claude && !fleet && profiles.length > 0 && (
+              <Row label={t.account} htmlFor={ids.account}>
+                <AccountSelect id={ids.account} value={account} disabled={lock === "mission"} onChange={setAccount} />
+              </Row>
+            )}
+            <Row label={t.folder} note={lock && (lock === "fleet" ? t.folderFleet : t.folderMission)}>
+              <FolderField nodeId={nodeId} session={session} lock={lock} />
+            </Row>
+            <Row label={t.shell} htmlFor={ids.shell}>
+              <ShellSelect id={ids.shell} value={session.shell} shells={shells} onChange={(shell) => setLaunch({ shell })} />
+            </Row>
+            {session.agent === "custom" && (
+              <Row label={t.command} htmlFor={ids.command}>
+                <Input
+                  id={ids.command}
+                  key={`command:${session.command}`}
+                  aria-label={t.command}
+                  defaultValue={session.command}
+                  placeholder="npm run dev"
+                  onBlur={(e) => commitCommand(e.currentTarget.value)}
+                  onKeyDown={endEdit(session.command)}
+                  className={cn(FIELD, "font-mono")}
+                />
+              </Row>
+            )}
+            {claude && !fleet && (
+              <Row label={t.sessionName} htmlFor={ids.session} note={t.sessionNameHint}>
+                <Input
+                  id={ids.session}
+                  key={`title:${session.title}`}
+                  aria-label={t.sessionName}
+                  defaultValue={session.title}
+                  onBlur={(e) => commitTitle(e.currentTarget)}
+                  onKeyDown={endEdit(session.title)}
+                  className={FIELD}
+                />
+              </Row>
+            )}
+          </Rows>
+        </div>
+      )}
+      {restartPending && (
+        <div className="flex items-center justify-between gap-3 border-t border-dp-line pt-2">
+          <p className="min-w-0 truncate text-xs leading-7 text-dp-text-3">{t.launchChanged}</p>
+          <Button type="button" variant="secondary" size="sm" onMouseDown={keepCanvasFocus} onClick={restart} className="text-xs font-normal text-dp-text-2 hover:text-dp-text">
+            <RotateCw className="size-3.5" />
+            {t.restartNow}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
 
-/** The shell of the next launch. The shells this machine has, and the one stored if it has gone. */
-function ShellSelect({ value, shells, onChange }: { value: ShellKind; shells: readonly ShellKind[]; onChange: (shell: ShellKind) => void }) {
-  const t = useMessages(canvasMessages).selection;
-  const choices = shells.includes(value) ? shells : [value, ...shells];
+/**
+ * Rows of a label and its control: one column of labels, the controls lined up beside it. The labels' column
+ * (96 px) holds the longest, "Remote Control", whole at 12 px; the controls keep about 200 px of the panel's 312.
+ */
+function Rows({ children }: { children: ReactNode }) {
+  return <div className="grid grid-cols-[6rem_minmax(0,1fr)] items-start gap-x-3 gap-y-2">{children}</div>;
+}
+
+/** One setting: its label, its control, and under the control a quiet line when there is something to know. */
+function Row({ label, htmlFor, note, children }: { label: string; htmlFor?: string; note?: ReactNode; children: ReactNode }) {
   return (
-    <Select value={value} onValueChange={(shell) => shell !== value && onChange(shell as ShellKind)}>
-      <SelectTrigger size="sm" aria-label={t.shell} className="w-full rounded-md text-xs">
+    <>
+      <label htmlFor={htmlFor} className="truncate text-xs leading-7 text-dp-text-2">
+        {label}
+      </label>
+      <div className="grid min-w-0 grid-cols-1 gap-1">
+        {children}
+        {note && <p className="text-xs leading-4 text-dp-text-3">{note}</p>}
+      </div>
+    </>
+  );
+}
+
+/**
+ * Where the agent stands now: its dot and word, the same as its header's or
+ * its foot's (the tooltip says for how long), and while Claude runs, what its
+ * status line last said it spent. Then the step under way and its last report.
+ */
+function LiveStatus({ nodeId, session }: { nodeId: string; session: TerminalPayload }) {
+  const t = useMessages(canvasMessages).selection;
+  const status = useTerminalStatus(nodeId);
+  const activity = useActivity(nodeId);
+  const usage = useNodeSession(nodeId);
+  const running = status.state === "running";
+  const steps = session.steps ?? [];
+  const current = steps.findIndex((step) => step.state === "en_cours");
+  const stepLine =
+    current >= 0 ? t.step(current + 1, steps.length, steps[current].title) : steps.length > 0 ? t.stepsDone(steps.filter((step) => step.state === "fait").length, steps.length) : null;
+  const report = session.lastReport;
+  const facts = running && usage ? [t.tokens(formatTokens(usage.inputTokens + usage.outputTokens)), usage.contextPercent !== null && t.context(Math.round(usage.contextPercent))].filter(Boolean).join(" · ") : "";
+  return (
+    <div role="group" aria-label={t.status} className="grid grid-cols-1 gap-1">
+      <div className="flex h-7 items-center justify-between gap-3">
+        <StatusPill status={status} activity={activity} indigo={AGENTS[session.agent].tint === INDIGO} report={report?.status} />
+        {facts && <span className="min-w-0 truncate text-xs text-dp-text-3 tabular-nums">{facts}</span>}
+      </div>
+      {stepLine && (
+        <p data-step className="truncate text-xs text-dp-text-2">
+          {stepLine}
+        </p>
+      )}
+      {report && (
+        <p data-report-summary title={report.summary} className="line-clamp-3 text-xs text-dp-text-2">
+          <span className="text-dp-text-3">{t.lastReport} · </span>
+          {report.summary}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** The title the program running in the terminal shows now; nothing while it shows none. */
+function LiveTitleRow({ nodeId, id }: { nodeId: string; id: string }) {
+  const t = useMessages(canvasMessages).selection;
+  const title = useLiveTitle(nodeId);
+  if (!title) return null;
+  return (
+    <Row label={t.liveTitle} htmlFor={id}>
+      <output id={id} data-live-title title={title} className="block truncate text-xs leading-7 text-dp-text">
+        {title}
+      </output>
+    </Row>
+  );
+}
+
+/** While Claude runs: the model its status line says it uses now (it may be another than the one chosen, after /model). */
+function RunningModel({ nodeId, running }: { nodeId: string; running: boolean }) {
+  const t = useMessages(canvasMessages).selection;
+  const usage = useNodeSession(nodeId);
+  if (!running || !usage?.model) return null;
+  return <span data-running-model>{usage.effort ? t.runningModelEffort(usage.model.name, usage.effort) : t.runningModel(usage.model.name)}</span>;
+}
+
+/** One of the panel's selects: its options by value and label. */
+function Choice(props: { id: string; label: string; value: string; options: readonly { value: string; label: string }[]; disabled?: boolean; onChange: (value: string) => void }) {
+  const { id, label, value, options, disabled, onChange } = props;
+  return (
+    <Select value={value} disabled={disabled} onValueChange={(next) => next !== value && onChange(next)}>
+      <SelectTrigger id={id} size="sm" aria-label={label} className={CHOICE}>
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        {choices.map((shell) => (
-          <SelectItem key={shell} value={shell}>
-            {SHELL_LABELS[shell]}
+        {options.map((option) => (
+          <SelectItem key={option.value} value={option.value}>
+            {option.label}
           </SelectItem>
         ))}
       </SelectContent>
@@ -287,11 +430,65 @@ function ShellSelect({ value, shells, onChange }: { value: ShellKind; shells: re
   );
 }
 
+/** The `--model` of the next launch: Claude's own default, or one of the current family; a stored one off the list stays offered. */
+function ModelSelect({ id, value, onChange }: { id: string; value: string | undefined; onChange: (model: string | undefined) => void }) {
+  const t = useMessages(canvasMessages).selection;
+  const known = !value || MODEL_CHOICES.some((choice) => choice.model === value);
+  const models = known ? MODEL_CHOICES : [{ model: value, modelLabel: modelLabel(value) }, ...MODEL_CHOICES];
+  const options = [{ value: NONE, label: t.claudeDefault }, ...models.map((m) => ({ value: m.model, label: m.modelLabel }))];
+  return <Choice id={id} label={t.model} value={value ?? NONE} options={options} onChange={(next) => onChange(next === NONE ? undefined : next)} />;
+}
+
+/** The Claude profile of the next launch, or the default account. */
+function AccountSelect({ id, value, disabled, onChange }: { id: string; value: string; disabled: boolean; onChange: (accountId: string | undefined) => void }) {
+  const t = useMessages(canvasMessages).selection;
+  const accounts = useMessages(accountsMessages);
+  const profiles = useAccounts((s) => s.profiles);
+  const options = [{ value: NONE, label: accounts.defaultName }, ...profiles.map((p) => ({ value: p.id, label: p.name }))];
+  return <Choice id={id} label={t.account} value={value} options={options} disabled={disabled} onChange={(next) => onChange(next === NONE ? undefined : next)} />;
+}
+
+/** The shell of the next launch. The shells this machine has, and the one stored if it has gone. */
+function ShellSelect({ id, value, shells, onChange }: { id: string; value: ShellKind; shells: readonly ShellKind[]; onChange: (shell: ShellKind) => void }) {
+  const t = useMessages(canvasMessages).selection;
+  const choices = shells.includes(value) ? shells : [value, ...shells];
+  return <Choice id={id} label={t.shell} value={value} options={choices.map((shell) => ({ value: shell, label: SHELL_LABELS[shell] }))} onChange={(shell) => onChange(shell as ShellKind)} />;
+}
+
+/** What its box says of Remote Control: its state, or nothing while it is simply off. */
+function remoteState(link: RemoteLink | undefined, wanted: boolean, running: boolean, states: { on: string; connecting: string; pending: string; requested: string; nextStart: string }): string | null {
+  if (link?.state === "on") return states.on;
+  if (link?.state === "connecting") return states.connecting;
+  if (link?.state === "pending") return states.pending;
+  if (link?.state === "error") return link.error ? remoteErrorText(link.error) : null;
+  if (wanted) return running ? states.requested : states.nextStart;
+  return null;
+}
+
+/** Remote Control of the Claude session, the same switch as its header's phone: it applies to a running session at once. */
+function RemoteRow({ nodeId, wanted, running }: { nodeId: string; wanted: boolean; running: boolean }) {
+  const t = useMessages(canvasMessages).selection;
+  const link = useRemoteLink(nodeId);
+  const id = useId();
+  const state = remoteState(link, wanted, running, t.remoteStates);
+  return (
+    <>
+      <label htmlFor={id} className="truncate text-xs leading-7 text-dp-text-2">
+        {t.remoteControl}
+      </label>
+      <div className="flex h-7 min-w-0 items-center gap-2">
+        <Checkbox id={id} aria-label={t.remoteControl} checked={wanted} onCheckedChange={(checked) => switchRemote(nodeId, checked === true)} onMouseDown={keepCanvasFocus} className={QUIET_BOX} />
+        {state && <span className={cn("min-w-0 truncate text-xs", link?.state === "error" ? "text-dp-danger" : "text-dp-text-3")}>{state}</span>}
+      </div>
+    </>
+  );
+}
+
 /**
  * The folder of a terminal: its path, a copy of it and, unless it is fixed
- * (`FolderLock`), "Change…", which picks another one for the next launch. It
- * says what a change costs a Claude terminal: its conversation stays with the
- * old folder, so a new one starts.
+ * (`FolderLock`), "Change…", which picks another one for the next launch. A
+ * Claude terminal that moves starts a new conversation (Claude keeps each one
+ * with its folder): a toast says so when it happens, not before.
  */
 function FolderField({ nodeId, session, lock }: { nodeId: string; session: TerminalPayload; lock: FolderLock | null }) {
   const t = useMessages(canvasMessages).selection;
@@ -311,15 +508,10 @@ function FolderField({ nodeId, session, lock }: { nodeId: string; session: Termi
     if (!patch) return;
     noteLaunchChange(nodeId, current);
     updateSession(nodeId, patch);
+    if (current.agent === "claude") toast.info(t.folderNewConversation);
   };
 
-  return (
-    <div className="grid grid-cols-1 gap-1.5">
-      <FolderPath cwd={session.cwd} onChange={lock ? undefined : () => void change()} />
-      {lock && <p className="text-xs text-dp-text-3">{lock === "fleet" ? t.folderFleet : t.folderMission}</p>}
-      {!lock && session.agent === "claude" && <p className="text-xs text-dp-text-3">{t.folderNewConversation}</p>}
-    </div>
-  );
+  return <FolderPath cwd={session.cwd} onChange={lock ? undefined : () => void change()} />;
 }
 
 /**

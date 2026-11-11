@@ -328,7 +328,7 @@ function Team({ mission }: { mission: Mission }) {
                 <span
                   data-finished
                   tabIndex={0}
-                  className="flex shrink-0 items-center gap-0.5 rounded-sm font-mono text-dp-text-3 tabular-nums focus-visible:ring-2 focus-visible:ring-dp-accent/50 focus-visible:outline-none"
+                  className="flex shrink-0 items-center gap-0.5 rounded-sm font-mono text-dp-text-3 tabular-nums focus-visible:ring-2 focus-visible:ring-dp-accent/70 focus-visible:outline-none"
                 >
                   <Check aria-hidden className="size-3.5" />
                   {member.done.length}

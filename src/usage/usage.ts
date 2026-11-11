@@ -28,6 +28,8 @@ export interface SessionUsage {
   sessionId: string;
   nodeId: string;
   model: { id: string; name: string } | null;
+  /** Claude's effort level now (`/effort`), when Claude Code sends it. */
+  effort: string | null;
   costUsd: number;
   apiMs: number;
   wallMs: number;
@@ -111,6 +113,7 @@ export function readStatus(raw: unknown, nodeId: string, now: number): { session
     sessionId,
     nodeId,
     model: model && text(model.id) ? { id: text(model.id)!, name: text(model.display_name) ?? text(model.id)! } : null,
+    effort: text(object(r.effort)?.level),
     costUsd: number(cost.total_cost_usd) ?? 0,
     apiMs: number(cost.total_api_duration_ms) ?? 0,
     wallMs: number(cost.total_duration_ms) ?? 0,
@@ -205,6 +208,24 @@ export function liveCacheSessions(sessions: readonly SessionUsage[], nodeIds: Re
     if (!known || s.at >= known.at) latest.set(s.nodeId, s);
   }
   return [...latest.values()];
+}
+
+/**
+ * What a terminal's Claude reported last: the latest session of the node, whatever its id (`--continue`
+ * runs under another one), and no older than `since`, its last launch: a restarted one says nothing until
+ * its own first status line. None after the app restarted either: kept in memory.
+ */
+export function nodeSession(sessions: Readonly<Record<string, SessionUsage>>, nodeId: string, since = 0): SessionUsage | undefined {
+  let latest: SessionUsage | undefined;
+  for (const s of Object.values(sessions)) if (s.nodeId === nodeId && s.at >= since && (!latest || s.at >= latest.at)) latest = s;
+  return latest;
+}
+
+/** "67.8 k", "1.2 M" tokens. */
+export function formatTokens(count: number): string {
+  if (count >= 1_000_000) return `${formatDecimal(count / 1_000_000, 1)} M`;
+  if (count >= 1_000) return `${formatDecimal(count / 1_000, 1)} k`;
+  return String(count);
 }
 
 /** "$0.0074", "$12.50". */

@@ -25,6 +25,37 @@ export function NodeHeaderEnd({ className, ...props }: ComponentProps<"div">) {
   return <div {...props} className={cn("ml-auto flex shrink-0 items-center gap-1", className)} />;
 }
 
+/**
+ * A node's name over what it was asked (a sub-agent's task), within the 36px
+ * row: two 16px lines, the name as ever, then the task on one 12px line in the
+ * secondary text role, ellipsed. Its whole line and an excerpt of the task show
+ * in a tooltip; the line is a button, so the keyboard reaches it too. It gives
+ * way like the name: the header's end never shrinks.
+ */
+export function NodeTitle(props: { name: ReactNode; line: string; detail: string }) {
+  const { name, line, detail } = props;
+  return (
+    <div data-node-title className="flex min-w-0 flex-col leading-4">
+      {name}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            data-task-line
+            className="min-w-0 truncate rounded-sm text-left text-xs text-dp-text-2 outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/70"
+          >
+            {line}
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="bottom" align="start" sideOffset={6} className="max-w-sm flex-col items-start gap-1 whitespace-pre-line">
+          <span className="font-medium">{line}</span>
+          {detail && detail !== line && <span>{detail}</span>}
+        </TooltipContent>
+      </Tooltip>
+    </div>
+  );
+}
+
 /** Shown from 28rem of header on: the chips, the clock. A narrower node keeps the room for its name. */
 export const WIDE_ONLY = "hidden @md/head:flex";
 

@@ -21,11 +21,6 @@ If you know Symvibe, dummyPlane covers the same ground (driving a fleet of CLI a
 > [!NOTE]
 > dummyPlane is an early preview, built and tested on **Windows 10/11**. Its interface is in **English**; the light and dark themes follow Windows.
 
-<picture>
-  <source media="(prefers-color-scheme: light)" srcset="docs/assets/screenshots/board-light.png">
-  <img alt="A team of three Claude Code agents on the canvas, under an architecture sketch" src="docs/assets/screenshots/board-dark.png">
-</picture>
-
 ## Contents
 
 - [Features](#features)
@@ -67,27 +62,15 @@ If you know Symvibe, dummyPlane covers the same ground (driving a fleet of CLI a
 
 **Brief the whole team.** Type `@frontend` and the question. The three agents of the group work at the same time, then come back *ready*.
 
-![The instruction box targets @frontend; three agents answer at once](docs/assets/demo/broadcast.gif)
-
 **Send a command to every agent.** After the targets, `/` lists Claude Code's commands; `/context` then runs in each session of the group.
-
-![Typing / after @frontend suggests Claude Code commands; /context runs in all three agents](docs/assets/demo/commands.gif)
 
 **Review a change and send it back.** Jump to an agent with `Ctrl+P`, open *Review changes* from `Ctrl+Shift+P`, then click a line to leave a remark. *Send to Batman* sends every remark in one message.
 
-![The go-to palette, the function palette, the review panel and a remark on a diff line](docs/assets/demo/review.gif)
-
 **Check your usage.** The meter in the title bar opens the detail: subscription limits and when they reset, cost and durations of dummyPlane's sessions, tokens per model, and each session's prompt cache.
-
-<img alt="The usage detail: session and weekly limits, cost, durations, tokens per model and prompt cache" src="docs/assets/screenshots/usage.png" width="428">
 
 ## The Fleet
 
 The fleet is a Claude Code session that acts as a team manager. Link one to a group from the group menu (*Link a fleet*) and describe the goal in its terminal. Then:
-
-![A real mission: the goal typed to the fleet, its plan with the model router, the go-ahead, two agents at work in their worktrees, then the merge](docs/assets/demo/mission.gif)
-
-*A real mission, sped up where the badge says so. The router puts both sub-tasks on Haiku, each agent works and commits on its own branch, and the fleet merges both into the mission branch.*
 
 1. **It proposes a plan.** It splits the goal into sub-tasks, each with an owner, a time budget and, optionally, a difficulty level. The plan appears in the mission panel under the fleet.
 2. **You launch the mission.** dummyPlane creates the mission branch `dummyplane/<mission>`, plus a branch and a worktree for each agent next to your repository. It then gives every agent its sub-task.

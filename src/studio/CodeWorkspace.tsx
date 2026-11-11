@@ -146,7 +146,7 @@ function FileTree({ project, active, expanded, setExpanded, onOpen }: FileTreePr
               title={node.path}
               onClick={() => (node.kind === "dir" ? setExpanded(toggle(expanded, node.path)) : onOpen(node.path))}
               className={cn(
-                "flex h-7 w-full items-center gap-1 pr-2 text-left text-sm text-dp-text-2 transition-colors duration-(--dp-dur-fast) ease-(--dp-ease-out) hover:bg-dp-hover hover:text-dp-text focus-visible:ring-2 focus-visible:ring-dp-accent/50 focus-visible:outline-none focus-visible:ring-inset motion-reduce:transition-none [&_svg]:size-4 [&_svg]:shrink-0",
+                "flex h-7 w-full items-center gap-1 pr-2 text-left text-sm text-dp-text-2 hover:bg-dp-hover hover:text-dp-text focus-visible:ring-2 focus-visible:ring-dp-accent/70 focus-visible:outline-none focus-visible:ring-inset [&_svg]:size-4 [&_svg]:shrink-0",
                 node.path === active && "bg-dp-accent-soft text-dp-text hover:bg-dp-accent-soft",
               )}
               style={{ paddingLeft: 8 + depth * 12 }}
@@ -182,14 +182,16 @@ function Tabs({ tabs, active }: { tabs: StudioTab[]; active: string | null }) {
   };
 
   return (
-    <>
+    // The bar asking about unsaved changes lies over the editor's top edge, under the tabs: the code
+    // under the pointer never moves down to make room for it.
+    <div className="relative shrink-0">
       <div role="tablist" className="flex h-10 shrink-0 items-end gap-0.5 overflow-x-auto border-b border-dp-line px-2">
         {tabs.map((tab) => (
           <TabItem key={tab.path} tab={tab} active={tab.path === active} onClose={() => close(tab)} />
         ))}
       </div>
       {pending && (
-        <div role="alert" className="flex shrink-0 flex-wrap items-center gap-2 border-b border-dp-line bg-dp-surface px-3 py-2 text-sm">
+        <div role="alert" className="absolute inset-x-0 top-full z-10 flex flex-wrap items-center gap-2 border-b border-dp-line bg-dp-surface px-3 py-2 text-sm">
           <span className="mr-auto">{t.discardTitle(baseName(pending.path))}</span>
           {/* The dialogs' footer in a bar: dismiss, destructive, primary; `sm` like the bar's other controls. */}
           <QuietButton size="sm" onClick={() => setConfirming(null)}>
@@ -218,7 +220,7 @@ function Tabs({ tabs, active }: { tabs: StudioTab[]; active: string | null }) {
           </AccentButton>
         </div>
       )}
-    </>
+    </div>
   );
 }
 

@@ -36,9 +36,23 @@ it("is one 8px dot whose shape tells the state apart, not its colour alone: soli
   expect(new Set(STATES.map((s) => looks[s])).size).toBe(STATES.length);
 });
 
-it("moves only while an agent waits for the user, and never with reduced motion", () => {
-  expect(looks.waiting).toContain("motion-reduce:animate-none");
+it("moves only while an agent waits for the user; with reduced motion, a slower and shallower breath of its opacity", () => {
+  expect(looks.waiting).toContain("motion-safe:animate-pulse");
+  expect(looks.waiting).toContain("motion-reduce:animate-[dp-breath_3s_ease-in-out_infinite]");
+  // The breath is opacity alone, and shallower than the pulse's 0.5.
+  const breath = /@keyframes dp-breath \{\s*50% \{\s*opacity: ([\d.]+);\s*\}\s*\}/.exec(readSource("index.css"));
+  expect(breath, "index.css defines dp-breath").not.toBeNull();
+  expect(Number(breath![1])).toBeGreaterThan(0.5);
   for (const state of STATES.filter((s) => s !== "waiting")) expect(looks[state], state).not.toMatch(/animate-/);
+});
+
+it("tells a waiting agent from a working one by its shape, not its colour or its motion: a dot inside a ring", () => {
+  expect(looks.waiting).toMatch(/(?<![\w-])outline-\[1\.5px\]/);
+  expect(looks.waiting).toContain("outline-offset-1");
+  expect(looks.working).not.toMatch(/outline|border/);
+  // Off the layout: the dot keeps the 8px place of every other state.
+  expect(looks.waiting).toContain("size-2");
+  expect(looks.waiting).not.toMatch(/ring-offset|border-/);
 });
 
 it("is the status of the terminal header, the minimized card and the agents panel alike", () => {

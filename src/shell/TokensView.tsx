@@ -3,19 +3,12 @@ import { ArrowLeft } from "lucide-react";
 import { loadAccounts, useAccounts } from "@/accounts/store";
 import { AGENTS } from "@/agents/catalog";
 import { useMessages } from "@/i18n";
-import { formatDecimal } from "@/i18n/format";
 import { tokenUsage, type TokenReport } from "@/ipc/tokens";
 import { sessionOf, useNodes } from "@/store/nodes";
 import { bars, byAgent, total } from "@/usage/tokens";
+import { formatTokens } from "@/usage/usage";
 import { IconButton } from "./buttons";
 import { shellMessages } from "./messages";
-
-/** "67.8 k", "1.2 M" tokens. */
-function formatTokens(count: number): string {
-  if (count >= 1_000_000) return `${formatDecimal(count / 1_000_000, 1)} M`;
-  if (count >= 1_000) return `${formatDecimal(count / 1_000, 1)} k`;
-  return String(count);
-}
 
 /**
  * The tokens Claude Code logged over 30 days (spec Tokens): a column per day

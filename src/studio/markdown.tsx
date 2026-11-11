@@ -75,7 +75,7 @@ function renderInline(text: string): ReactNode[] {
             href={href}
             target="_blank"
             rel="noreferrer noopener"
-            className="rounded-sm text-dp-accent-ink underline underline-offset-2 transition-colors duration-(--dp-dur-fast) ease-(--dp-ease-out) motion-reduce:transition-none hover:bg-dp-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50"
+            className="rounded-sm text-dp-accent-ink underline underline-offset-2 transition-colors duration-(--dp-dur-fast) ease-(--dp-ease-out) motion-reduce:transition-none hover:bg-dp-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/70"
           >
             {renderInline(m[4])}
           </a>

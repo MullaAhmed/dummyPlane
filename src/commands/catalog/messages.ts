@@ -133,6 +133,7 @@ export const catalogMessages = defineMessages({
       "scene.export": e("Export scene…", "export", "file", "scene"),
       "scene.import": e("Import scene…", "import", "file", "scene"),
       "scene.png": e("Export as PNG…", "image", "png", "export"),
+      "scene.arrange": e("Arrange terminals", "arrange", "tidy", "layout", "grid", "organize", "align", "terminals", "auto"),
 
       "project.add": e("Add a project", "project", "folder", "add"),
       "window.minimize": e("Minimize", "window", "minimize"),

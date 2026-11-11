@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
+import type { ExcalidrawArrowElement, ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { createNodeElement, NODE_SIZE } from "@/canvas/nodeElement";
 import type { TerminalPayload } from "@/nodes/types";
 import { nodesStore } from "@/store/nodes";
 import { GROUP_GAP } from "./groupLayout";
+import { isSpawnWire, orphanWires, withWire } from "./wires";
 
 vi.mock("@/ipc/db", () => ({ getSetting: vi.fn(), setSetting: vi.fn().mockResolvedValue(undefined), saveNode: vi.fn().mockResolvedValue(undefined) }));
 vi.mock("@excalidraw/excalidraw", () => ({ CaptureUpdateAction: { NEVER: "never", IMMEDIATELY: "immediately" } }));
@@ -155,6 +156,43 @@ describe("closing and undoing", () => {
     expect({ x: at(back, "a").x, y: at(back, "a").y }).toEqual({ x: W + GROUP_GAP, y: 0 });
     expect({ x: at(back, "a1").x, y: at(back, "a1").y }).toEqual({ x: 2 * (W + GROUP_GAP), y: 0 });
     expect(at(back, "b").y).toBeGreaterThan(at(back, "a").y + at(back, "a").height);
+  });
+});
+
+describe("spawn wires through a drag of the children", () => {
+  const dragging = (ids: string[], on: boolean) => ({ selectedElementIds: Object.fromEntries(ids.map((id) => [id, true as const])), selectedElementsAreBeingDragged: on });
+
+  it("keeps every wire bound at both ends when five of six children are dragged 1 px and pinned", () => {
+    // The user's tree: an agent and six sub-agents, a spawn wire to each.
+    const kids = ["k1", "k2", "k3", "k4", "k5", "k6"];
+    nodesStore.setState({ nodes: { root: record(), ...Object.fromEntries(kids.map((id) => [id, record("root")])) } });
+    let elements: ExcalidrawElement[] = [terminal("root", 0, 0), ...kids.map((id) => terminal(id))];
+    for (const id of kids) elements = withWire(elements, "root", id, "calm", true);
+    scene.elements = elements;
+    reflowSpawnTree("w", "root");
+    const laid = written().elements;
+    const wireTo = (all: readonly ExcalidrawElement[], id: string) => all.find((e) => e.type === "arrow" && (e as ExcalidrawArrowElement).endBinding?.elementId === id);
+
+    const watch = createSpawnDragWatch("w");
+    const five = kids.slice(0, 5);
+    watch(laid, dragging(five, false));
+    const moved = laid.map((e) => (five.includes(e.id) ? { ...e, y: e.y + 1, version: e.version + 1 } : e));
+    watch(moved, dragging(five, true));
+    scene.elements = moved;
+    watch(moved, dragging(five, false));
+    frames.splice(0).forEach((cb) => cb(0));
+    const after = written().elements;
+
+    expect(orphanWires(after)).toEqual([]);
+    for (const id of kids) {
+      const wire = wireTo(after, id)!;
+      expect(wire).toMatchObject({ isDeleted: false, startBinding: { elementId: "root" }, endBinding: { elementId: id } });
+      expect(isSpawnWire(wire)).toBe(true);
+      expect(at(after, id).boundElements).toEqual([{ id: wire.id, type: "arrow" }]);
+      expect(at(after, "root").boundElements).toContainEqual({ id: wire.id, type: "arrow" });
+    }
+    five.forEach((id) => expect(at(after, id).customData?.pinned).toBe(true));
+    expect(at(after, "k6").customData?.pinned).toBeUndefined();
   });
 });
 

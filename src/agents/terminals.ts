@@ -6,7 +6,8 @@ import { revealNode } from "@/canvas/arrive";
 import { canvasStore } from "@/canvas/canvasStore";
 import { groupInfoOf, groupOf, insertIntoFrame, withGroupFolded } from "@/canvas/groups";
 import { allowRemoval } from "@/canvas/removalGuard";
-import { createNodeElement, NODE_SIZE, nodeKindOf, nodeLink } from "@/canvas/nodeElement";
+import { createNodeElement, nodeKindOf, nodeLink } from "@/canvas/nodeElement";
+import { expandedSize } from "@/nodes/terminal/minimize";
 import { disposeTerminal, markForAutostart, startUnseen } from "@/nodes/terminal/registry";
 import type { TerminalPayload } from "@/nodes/types";
 import { nodesStore, terminalOf } from "@/store/nodes";
@@ -152,11 +153,11 @@ export async function adoptCopies(workspaceId: string, copies: readonly { id: st
   }
   if (refused.size) removeNodes([...refused]);
   const ids = new Set(copies.map((copy) => copy.id).filter((id) => !refused.has(id)));
-  // A minimized terminal's copy starts open: its element takes the height the card stood for.
-  const fullHeights = new Map(
+  // A minimized terminal's copy starts open: its element takes the size the card stood for.
+  const fullSizes = new Map(
     copies.flatMap(({ id, sourceId }) => {
       const source = terminalOf(nodesStore.getState().nodes[sourceId]);
-      return ids.has(id) && source?.minimized ? [[id, source.expandedHeight ?? NODE_SIZE.terminal.height] as const] : [];
+      return ids.has(id) && source?.minimized ? [[id, expandedSize(source)] as const] : [];
     }),
   );
   const scene = api.getSceneElementsIncludingDeleted();
@@ -166,8 +167,8 @@ export async function adoptCopies(workspaceId: string, copies: readonly { id: st
     .map((e) => {
       const pantheon = pantheons.get(e.id);
       if (pantheon) return newElementWith(e, { customData: { ...e.customData, dummyplane: { ...(e.customData?.dummyplane as object), pantheon } } });
-      const height = fullHeights.get(e.id);
-      return ids.has(e.id) ? newElementWith(e, { link: nodeLink(nodeKindOf(e) ?? "terminal", e.id), ...(height ? { height } : {}) }) : e;
+      const size = fullSizes.get(e.id);
+      return ids.has(e.id) ? newElementWith(e, { link: nodeLink(nodeKindOf(e) ?? "terminal", e.id), ...(size ?? {}) }) : e;
     });
   api.updateScene({ elements: alignCopies(linked, ids), captureUpdate: CaptureUpdateAction.NEVER });
 }

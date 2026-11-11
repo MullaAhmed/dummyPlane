@@ -117,15 +117,51 @@ it("does not count a selected node that is not a loaded terminal", async () => {
 
 const activate = (id: string | null) => act(async () => setActiveTerminal(id));
 
-it("sends to the active terminal with nothing selected and no @, and says to whom", async () => {
+const chipLabels = () => [...host.querySelectorAll("[data-target-chip]")].map((chip) => chip.textContent);
+const removeChip = (label: string) =>
+  act(async () => host.querySelector<HTMLButtonElement>(`[data-target-chip] button[aria-label*="${label}"]`)!.click());
+
+it("shows the active terminal as its @ chip with nothing selected, and sends to it", async () => {
   await activate("t1");
-  expect(field().placeholder).toContain("Cyborg");
+  expect(chipLabels()).toEqual(["@cyborg"]);
   await type("run tests");
   expect(sendButton().disabled).toBe(false);
-  expect(sendButton().title).toBe("Send to Cyborg");
-  expect(host.textContent).toContain("To Cyborg");
   await act(async () => sendButton().click());
   expect(sendCommand).toHaveBeenCalledWith(["t1"], "run tests");
+  // The chip stays for the next one.
+  expect(chipLabels()).toEqual(["@cyborg"]);
+});
+
+it("moves the chip to the terminal that becomes active, and takes it away when none is", async () => {
+  await activate("t1");
+  await activate("t2");
+  expect(chipLabels()).toEqual(["@deadpool"]);
+  await activate(null);
+  expect(chipLabels()).toEqual([]);
+  expect(field().placeholder).toBe("Message agents");
+});
+
+it("sends to nobody once the user removes the active terminal's chip, until another becomes active", async () => {
+  await activate("t1");
+  await removeChip("@cyborg");
+  expect(chipLabels()).toEqual([]);
+  await type("run tests");
+  expect(sendButton().disabled).toBe(true);
+  await activate("t2");
+  expect(chipLabels()).toEqual(["@deadpool"]);
+  expect(sendButton().disabled).toBe(false);
+});
+
+it("lets a typed @ name replace the active terminal's chip, and keeps the user's chips when the active terminal changes", async () => {
+  await activate("t1");
+  await type("@deadpool run tests");
+  // The guess gives way to the name typed.
+  expect(chipLabels()).toEqual([]);
+  await act(async () => sendButton().click());
+  expect(sendCommand).toHaveBeenLastCalledWith(["t2"], "run tests");
+  expect(chipLabels()).toEqual(["@deadpool"]);
+  await activate(null);
+  expect(chipLabels()).toEqual(["@deadpool"]);
 });
 
 it("keeps the generic placeholder and a grey Send when no terminal is active", async () => {

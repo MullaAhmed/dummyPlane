@@ -220,7 +220,7 @@ export default function NotesDialog({ projectId }: { projectId: string }) {
                       aria-current={hit.name === file}
                       onClick={() => open(hit.name)}
                       className={cn(
-                        "block w-full px-3 py-1.5 text-left transition-colors duration-(--dp-dur-fast) ease-(--dp-ease-out) hover:bg-dp-hover focus-visible:ring-2 focus-visible:ring-dp-accent/50 focus-visible:outline-none focus-visible:ring-inset motion-reduce:transition-none",
+                        "block w-full px-3 py-1.5 text-left hover:bg-dp-hover focus-visible:ring-2 focus-visible:ring-dp-accent/70 focus-visible:outline-none focus-visible:ring-inset",
                         hit.name === file && "bg-dp-accent-soft hover:bg-dp-accent-soft",
                       )}
                     >

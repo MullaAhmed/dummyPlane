@@ -33,10 +33,14 @@ export interface TerminalPayload {
   /** A command to run once, an install: only an explicit gesture runs it again (spec installation §7). */
   oneShot?: boolean;
   /** Node id of the terminal whose agent spawned this one (spawn_agent). */ spawnedBy?: string;
+  /** The task its spawner gave it (spawn_agent), its start only: said in a line under its name (`@/agents/taskSummary`). */
+  task?: string;
   /** Shrunk to a card: its process and screen go on (`./terminal/minimize.ts`). */
   minimized?: boolean;
   /** Its height before it was minimized, given back when it expands. */
   expandedHeight?: number;
+  /** Its width before it was minimized, given back when it expands. */
+  expandedWidth?: number;
   /** What its agent last said with `report`, shown on its card. */
   lastReport?: TerminalReport;
   /** Its message bar, folded unless the user opened it (an agent's foot). */
@@ -53,6 +57,13 @@ export interface TerminalReport {
 }
 
 const REPORT_STATUSES = new Set<string>(["done", "blocked", "failed"]);
+
+/**
+ * The most of a spawned agent's task its payload keeps: enough for its line
+ * and its tooltip, while a brief can run to pages and the payload sits in
+ * every node selector and the saved scene. The whole task is in its terminal.
+ */
+export const MAX_STORED_TASK = 2000;
 
 function readTerminalReport(raw: unknown): TerminalReport | undefined {
   if (typeof raw !== "object" || raw === null) return undefined;
@@ -205,9 +216,11 @@ export function readTerminalPayload(raw: unknown): TerminalPayload | null {
   if (r.oneShot === true) payload.oneShot = true;
   if (typeof r.accountId === "string" && r.accountId) payload.accountId = r.accountId;
   if (typeof r.spawnedBy === "string" && r.spawnedBy) payload.spawnedBy = r.spawnedBy;
+  if (typeof r.task === "string" && r.task.trim()) payload.task = r.task.slice(0, MAX_STORED_TASK);
   if (r.minimized === true) payload.minimized = true;
   if (r.inputOpen === true) payload.inputOpen = true;
   if (typeof r.expandedHeight === "number" && Number.isFinite(r.expandedHeight) && r.expandedHeight > 0) payload.expandedHeight = r.expandedHeight;
+  if (typeof r.expandedWidth === "number" && Number.isFinite(r.expandedWidth) && r.expandedWidth > 0) payload.expandedWidth = r.expandedWidth;
   if (lastReport) payload.lastReport = lastReport;
   const extensions = readExtensionChoice(r.extensions);
   if (extensions) payload.extensions = extensions;

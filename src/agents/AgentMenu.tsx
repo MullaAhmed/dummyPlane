@@ -63,6 +63,8 @@ export function AgentMenu({
   const requestedView = useRef<View | null>(null);
   const agentRows = useRef<HTMLDivElement>(null);
   const [placeAt, setPlaceAt] = useState<Point | null>(null);
+  // Opened by a request (the palette, a shortcut, the radial menu), not by its trigger: it shows at once.
+  const [instant, setInstant] = useState(false);
 
   // Another folder chosen at the top of the menu, or the menu opened again: what was typed no longer holds.
   useEffect(() => {
@@ -86,6 +88,7 @@ export function AgentMenu({
       if (open) setView(request.view);
       else requestedView.current = request.view;
       setPlaceAt(request.at ?? null);
+      setInstant(true);
       setOpen(true);
       return true;
     },
@@ -136,11 +139,19 @@ export function AgentMenu({
   };
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        // Its trigger opened it: it grows from it, as a popover does.
+        if (next) setInstant(false);
+        setOpen(next);
+      }}
+    >
       <PopoverTrigger asChild>{trigger(open)}</PopoverTrigger>
       <PopoverContent
         side={side}
         align="start"
+        data-instant={instant ? "" : undefined}
         className="w-72 p-2"
         onOpenAutoFocus={(event) => {
           // The launch folder's Change… comes first, but the first thing to reach is an agent: Enter launches it, not the picker.

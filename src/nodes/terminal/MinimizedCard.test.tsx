@@ -41,6 +41,23 @@ it("says the last report's first line, else the mission task, the step under way
   expect(cardLine(batman)).toBe("Fix the login form");
 });
 
+it("says a sub-agent's task in a line, not its brief's raw start, and its excerpt on hover", async () => {
+  // Spawned before tasks were kept: its title was the brief's first 60 characters.
+  const old = { ...batman, title: "You are fixing a readability problem in dummyPlane (Tauri…", spawnedBy: "superman" };
+  expect(cardLine(old)).toBe("Fixing a readability problem in dummyPlane");
+  const task = "You are fixing the header.\n\nThe line under the name must be readable.\n\n## Setup\n- run the tests";
+  const robin = { ...batman, title: "Header fix", spawnedBy: "superman", task, minimized: true };
+  expect(cardLine(robin)).toBe("Header fix");
+  // A step under way, a report still say more than what it was asked.
+  expect(cardLine({ ...robin, steps: [{ title: "Tests", state: "en_cours" }] })).toBe("Tests");
+  const view = await render(<MinimizedCard nodeId="robin" payload={robin} status={{ state: "running" }} />);
+  const line = view.host.querySelector<HTMLElement>("[data-minimized] p")!;
+  expect(line.textContent).toBe("Header fix");
+  expect(line.title).toBe("You are fixing the header.\nThe line under the name must be readable.");
+  expect(line.className).toContain("text-dp-text-2");
+  await view.unmount();
+});
+
 it("shows the agent, its name, its report in the functional colors and one line of summary", async () => {
   const view = await render(
     <MinimizedCard nodeId="batman" payload={{ ...batman, lastReport: { status: "done", summary: "Login fixed" } }} status={{ state: "running" }} />,

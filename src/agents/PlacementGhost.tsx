@@ -10,6 +10,7 @@ import { agentsMessages } from "./messages";
 import { freeCell } from "./groupLayout";
 import { launchAgent } from "./launchAgent";
 import { addFleet } from "@/fleet/fleets";
+import { forwardWheel } from "./linkOverlay";
 import { clientRectOf, ghostRect, sceneOf } from "./placement";
 import type { Point } from "./terminals";
 
@@ -44,6 +45,8 @@ export function PlacementGhost() {
       className="fixed inset-x-0 bottom-0 z-40 cursor-crosshair"
       style={{ top: TOP_ROW_HEIGHT }}
       onPointerMove={(e) => setPointer({ x: e.clientX, y: e.clientY })}
+      // The layer covers the canvas, not the gesture: the wheel still pans and zooms it, as in link mode.
+      onWheel={forwardWheel}
       onContextMenu={(e) => {
         e.preventDefault();
         uiStore.getState().setPlacing(null);

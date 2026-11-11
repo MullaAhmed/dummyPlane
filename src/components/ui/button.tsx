@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils"
 import { Slot } from "radix-ui"
 
 const buttonVariants = cva(
-  "group/button inline-flex shrink-0 items-center justify-center rounded-md border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-[color,background-color,scale] duration-(--dp-dur-fast) ease-(--dp-ease-out) motion-reduce:transition-none outline-none select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/50 active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-dp-danger aria-invalid:ring-2 aria-invalid:ring-dp-danger/20 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "group/button inline-flex shrink-0 items-center justify-center rounded-md border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-[color,background-color,scale] duration-(--dp-dur-fast) ease-(--dp-ease-out) motion-reduce:transition-[color,background-color] motion-reduce:active:scale-100 outline-none select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/70 active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-dp-danger aria-invalid:ring-2 aria-invalid:ring-dp-danger/20 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
@@ -16,7 +16,7 @@ const buttonVariants = cva(
         ghost:
           "text-dp-text hover:bg-dp-hover hover:text-dp-text aria-expanded:bg-dp-hover aria-expanded:text-dp-text",
         destructive:
-          "bg-dp-danger/10 text-dp-danger hover:bg-dp-danger/20 focus-visible:ring-dp-danger/20",
+          "bg-dp-danger/10 text-dp-danger hover:bg-dp-danger/20 focus-visible:ring-dp-danger",
         link: "text-dp-accent underline-offset-4 hover:underline",
       },
       size: {

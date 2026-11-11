@@ -31,7 +31,8 @@ export function remoteActions(link: RemoteLink | undefined, wanted: boolean): ("
   return [wanted ? "turnOff" : "turnOn"];
 }
 
-function run(nodeId: string, on: boolean) {
+/** Turns Remote Control on or off: now for a running session, at its next start otherwise; a failure says why in a toast. */
+export function switchRemote(nodeId: string, on: boolean) {
   void setRemoteControl(nodeId, on).then((result) => {
     if (result && "error" in result) toast.error(messages(agentsMessages).remote.error(result.error));
   });
@@ -62,7 +63,7 @@ export function RemoteButton({ nodeId, wanted, running }: { nodeId: string; want
       <DropdownMenuContent align="end">
         {remoteActions(link, wanted).map((action) => (
           // Retrying repeats what failed: a cut that failed is cut again.
-          <DropdownMenuItem key={action} onSelect={() => run(nodeId, action === "turnOn" || (action === "retry" && wanted))}>
+          <DropdownMenuItem key={action} onSelect={() => switchRemote(nodeId, action === "turnOn" || (action === "retry" && wanted))}>
             {t[action]}
           </DropdownMenuItem>
         ))}
