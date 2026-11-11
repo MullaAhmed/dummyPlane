@@ -60,7 +60,9 @@ it("the home screen speaks English", async () => {
   await act(async () => root.render(<HomeScreen />));
   expect(host.querySelector("h1")!.textContent).toBe("Projects");
   expect(host.textContent).toContain("Add a project");
-  expect(host.textContent).toContain("No projects");
+  // With no agent and no project, Getting started speaks for the empty list (it no longer says "No projects" under it).
+  expect(host.textContent).toContain("Getting started");
+  expect(host.textContent).toContain("No coding agent found");
   expect(host.textContent).toContain("Search for a project");
 });
 
