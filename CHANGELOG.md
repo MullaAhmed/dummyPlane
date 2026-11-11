@@ -5,6 +5,13 @@ All notable changes to dummyPlane are documented here. The format follows [Keep 
 ## [Unreleased]
 
 ### Added
+- **The Fleet babysits; a board and a Manager run the mission:**
+  - **At the go-ahead:** dummyPlane opens a Kanban board beside the Fleet, or reuses the one the plan came from, and a **Manager** under the board, all wired. The plan's tasks become cards.
+  - **The Manager:** a new read-only agent on the Fleet's CLI. It starts the team, reads their reports, merges, reassigns and moves the cards (*In progress*, *Done*, *Blocked*) by itself.
+  - **The team:** they open under the Manager as a tree that grows down, in rows of up to four, wired from parent to child without crossing a terminal. Arrange moves the Fleet, board, Manager and tree as one block.
+  - **The Fleet:** you keep talking to it. It adds cards (the Manager starts them as seats free up), reprioritises them and can stop the mission. It is no longer disturbed by the team: it hears only that the board is finished, or that the Manager needs you. The mission's end alerts once.
+  - **Older missions:** a mission saved before runs the old way. Overnight runs, Codex Fleets and Remote Control work with the Manager.
+- **Wires form when agents talk:** the first time one agent messages another (a message, a report, the Manager's instructions, a question passed up, a card handed on), a dashed talk wire joins them and pulses with every message. Inside a mission, the Manager and its agents reach each other without *+ Link*. A talk wire never makes an agent part of the Fleet's team.
 - **An output node:** an agent shows a result with the `show_output` tool instead of a wall of text: a report, a summary, a comparison, a table, figures or a chart. It appears beside the agent's terminal, wired to it, under the same header as terminals.
   - **How it's drawn:** [OpenUI](https://www.openui.com/) Lang, with dummyPlane's own components (cards, tables, stats, callouts, code, bar and line charts, links, buttons…) in the palette's colours.
   - **Buttons:** a button types its message into the agent that made the output, only when you click it.
