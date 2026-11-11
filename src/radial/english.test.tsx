@@ -59,8 +59,14 @@ const buttons = () => [...document.querySelectorAll<HTMLButtonElement>("[data-ra
 
 it("names the ring's buttons, their wedges, the reason and the close button", async () => {
   await open();
-  expect(buttons().map((b) => b.getAttribute("aria-label"))).toEqual(["Copy", "Paste", "Rename", "Restart", "Close", "Quick note on this terminal", "Pause", "Stop the process"]);
-  expect(buttons().map((b) => b.textContent)).toEqual(["Copy", "Paste", "Rename", "Restart", "Close", "Note", "Pause", "Stop"]);
+  expect(buttons().map((b) => b.getAttribute("aria-label"))).toEqual(["Copy", "Paste", "Rename", "Restart", "Close", "Quick note on this terminal", "Pause", "More"]);
+  expect(buttons().map((b) => b.textContent)).toEqual(["Copy", "Paste", "Rename", "Restart", "Close", "Note", "Pause", "More"]);
+  // Its arc: the group's name, its wedges' full names and short ones.
+  await act(async () => updateRadial({ arc: { middle: -2.356, count: 5 } }));
+  expect(document.querySelector("[data-radial-arc]")!.getAttribute("aria-label")).toBe("More");
+  expect([...document.querySelectorAll("[data-radial-item]")].map((b) => b.getAttribute("aria-label"))).toEqual(["Stop the process", "Duplicate", "Review changes", "Remove from group", "Arrange"]);
+  expect([...document.querySelectorAll("[data-radial-item]")].map((b) => b.textContent)).toEqual(["Stop", "Duplicate", "Review", "Leave group", "Arrange"]);
+  await act(async () => updateRadial({ arc: null }));
   await act(async () => updateRadial({ hovered: 0 }));
   expect(document.querySelector("[data-radial-hub]")!.textContent).toBe("CopyNothing selected");
   expect(document.querySelector('[aria-label="Close the menu"]')).not.toBeNull();

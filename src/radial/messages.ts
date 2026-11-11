@@ -7,6 +7,8 @@ export const radialMessages = defineMessages(
     clipboardEmpty: "The clipboard is empty",
     clipboardNoText: "No text on the clipboard",
     pasteBlocked: "Cannot paste here: a node is under this point",
+    /** The More wedge's full name, in the hub; its arc's name for assistive technology. */
+    more: "More",
     /** The name under a wedge's icon: a word or two, the room is small. The hub tells the full name. */
     short: {
       copy: "Copy",
@@ -38,6 +40,14 @@ export const radialMessages = defineMessages(
       lock: "Lock",
       unlock: "Unlock",
       more: "More",
+      review: "Review",
+      leaveGroup: "Leave group",
+      fold: "Fold",
+      unfold: "Unfold",
+      export: "Export",
+      import: "Import",
+      png: "PNG",
+      options: "Options",
     },
   },
 );

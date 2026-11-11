@@ -5,6 +5,7 @@ import { showNode } from "@/canvas/arrive";
 import { focusGroup } from "@/canvas/canvasFocus";
 import { canvasStore } from "@/canvas/canvasStore";
 import { agentsPanelStore } from "@/agents/agentsPanelState";
+import { arrangeWorkspace } from "@/agents/arrangeCanvas";
 import { pauseAgents, pauseAll, resumeAgent } from "@/agents/broadcast";
 import { leaveGroup, requestCloseGroup, setGroupFolded, ungroup } from "@/agents/groups";
 import { addFleetToGroup } from "@/fleet/fleets";
@@ -31,6 +32,7 @@ vi.mock("@/agents/broadcast", async (importOriginal) => ({
 }));
 vi.mock("@/agents/groups", () => ({ requestCloseGroup: vi.fn(), ungroup: vi.fn(), setGroupFolded: vi.fn(), groupMembers: vi.fn(() => ["batman"]), leaveGroup: vi.fn() }));
 vi.mock("@/fleet/fleets", () => ({ addFleetToGroup: vi.fn(() => Promise.resolve()) }));
+vi.mock("@/agents/arrangeCanvas", () => ({ arrangeWorkspace: vi.fn() }));
 vi.mock("@/agents/terminals", () => ({ duplicateTerminal: vi.fn(() => Promise.resolve()), requestClose: vi.fn() }));
 vi.mock("@/nodes/terminal/registry", () => ({
   relaunchTerminal: vi.fn(),
@@ -99,7 +101,8 @@ describe("Terminal · <prénom> and Groupe · <nom> (spec fenêtre §7.3)", () =
       "Rename the group",
       "Add an agent…",
       "Link a fleet",
-      "Fold or unfold the group",
+      "Arrange the group",
+      "Fold the group",
       "Ungroup",
       "Close the group",
       "Pause group",
@@ -127,6 +130,7 @@ describe("Terminal · <prénom> and Groupe · <nom> (spec fenêtre §7.3)", () =
       "group.rename",
       "group.addAgent",
       "group.linkFleet",
+      "group.arrange",
       "group.fold",
       "group.ungroup",
       "group.close",
@@ -173,9 +177,11 @@ describe("Terminal · <prénom> and Groupe · <nom> (spec fenêtre §7.3)", () =
   it("acts on the group of the moment, as its menu does", async () => {
     await find("group.linkFleet").run(ctx("batman"));
     expect(addFleetToGroup).toHaveBeenCalledWith("g1");
+    expect(labelOf(find("group.fold"), ctx("batman"))).toBe("Fold the group");
     await find("group.fold").run(ctx("batman"));
     expect(setGroupFolded).toHaveBeenLastCalledWith("g1", true);
     canvasStore.setState({ frames: [{ ...canvasStore.getState().frames[0], group: { role: "backend", pantheon: "egypt", folded: true } }] as never });
+    expect(labelOf(find("group.fold"), ctx("batman"))).toBe("Unfold the group");
     await find("group.fold").run(ctx("batman"));
     expect(setGroupFolded).toHaveBeenLastCalledWith("g1", false);
     canvasStore.setState({ frames: [{ ...canvasStore.getState().frames[0], group: { role: "backend", pantheon: "egypt" } }] as never });
@@ -189,6 +195,9 @@ describe("Terminal · <prénom> and Groupe · <nom> (spec fenêtre §7.3)", () =
     expect(pendingUiRequest()).toEqual({ kind: "groupMenu", id: "g1" });
     await find("group.rename").run(ctx("batman"));
     expect(focusGroup).toHaveBeenCalledWith("g1");
+    // Arrange inside the group alone: scene.arrange of its frame, one undo.
+    await find("group.arrange").run(ctx("batman"));
+    expect(arrangeWorkspace).toHaveBeenLastCalledWith("w1", { only: ["g1"], undoable: true });
   });
 
   it("copies the terminal's selection, greyed without one, and pastes the clipboard into it", async () => {
@@ -234,7 +243,7 @@ it("opens the review of the terminal of the moment (spec maj §5)", async () => 
 describe("a target that went between the palette and Entrée (plan F2)", () => {
   it("does nothing, without a TypeError: the group is gone", async () => {
     canvasStore.setState({ frames: [] });
-    for (const id of ["group.rename", "group.addAgent", "group.linkFleet", "group.fold", "group.ungroup", "group.close", "group.pause", "group.resume", "group.frame"]) {
+    for (const id of ["group.rename", "group.addAgent", "group.linkFleet", "group.arrange", "group.fold", "group.ungroup", "group.close", "group.pause", "group.resume", "group.frame"]) {
       await expect(Promise.resolve(find(id).run(ctx("batman")))).resolves.toBeUndefined();
     }
     expect(ungroup).not.toHaveBeenCalled();

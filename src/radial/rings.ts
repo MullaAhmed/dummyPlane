@@ -5,13 +5,19 @@ import {
   Copy,
   CopyPlus,
   Ellipsis,
+  FileDiff,
+  FileDown,
+  FileUp,
   Focus,
+  FoldVertical,
   FolderOpen,
+  ImageDown,
   LayoutGrid,
   Group,
   Link,
   Lock,
   LockOpen,
+  LogOut,
   MessageSquare,
   Network,
   Pause,
@@ -21,10 +27,12 @@ import {
   RotateCw,
   Scan,
   SendToBack,
+  SlidersHorizontal,
   Square,
   StickyNote,
   Terminal,
   Trash2,
+  UnfoldVertical,
   Ungroup,
   UserPlus,
   X,
@@ -34,6 +42,8 @@ import { selectionLocked } from "@/commands/catalog/drawing";
 import { COMMANDS } from "@/commands/registry";
 import { agentsStore } from "@/agents/agentsStore";
 import { AGENTS, defaultAgent } from "@/agents/catalog";
+import { groupHolding } from "@/agents/groupHolding";
+import { canvasStore } from "@/canvas/canvasStore";
 import { messages } from "@/i18n";
 import { radialMessages } from "./messages";
 
@@ -51,6 +61,8 @@ export interface RingSlot {
   iconOf?: (ctx: CommandContext) => Icon;
   /** Ends something: its icon in red. */
   danger?: boolean;
+  /** The context its command runs in, when not the ring's own (a node's Arrange: its group, or the whole canvas). */
+  context?: (ctx: CommandContext) => CommandContext;
 }
 
 const defaultLaunch = () => `agent.launch.${defaultAgent(agentsStore.getState().agents)}`;
@@ -74,10 +86,9 @@ function agentNameOf(id: string): string {
 }
 const resumes = (ctx: CommandContext) => COMMANDS.find((c) => c.id === "terminal.resume")?.available(ctx) ?? false;
 /**
- * Two terminals or more are selected: "Group" takes the place of "Paste" in the selection ring,
- * which is full at 8; a group's frame or members, or Excalidraw's groups of drawings: "Ungroup".
- * Paste is dead there anyway: it refuses to paste over a node (bridges.ts), and Ctrl+V and the
- * canvas ring still paste.
+ * Two terminals or more are selected: "Group" takes the place of "Paste" in the selection ring;
+ * a group's frame or members, or Excalidraw's groups of drawings: "Ungroup". Paste is dead there
+ * anyway: it refuses to paste over a node (bridges.ts), and Ctrl+V and the canvas ring still paste.
  */
 const groups = (ctx: CommandContext) => COMMANDS.find((c) => c.id === "selection.group")?.available(ctx) ?? false;
 /** "Ungroup" comes first: a group's frame or members also make Group available, greyed ("a terminal is already in a group"). */
@@ -91,10 +102,30 @@ const GROUPING: Record<Grouping, { command: string; icon: Icon }> = {
 };
 const short = () => messages(radialMessages).short;
 
+/** "Arrange" of a node's More: its group, inside its frame, when it stands in one; else the whole canvas. */
+function arrangeAround(nodeOf: (ctx: CommandContext) => string | null | undefined): RingSlot {
+  const groupOfNode = (ctx: CommandContext) => {
+    const id = nodeOf(ctx);
+    return id ? groupHolding(id) : null;
+  };
+  return {
+    command: (ctx) => (groupOfNode(ctx) ? "group.arrange" : "scene.arrange"),
+    short: "arrange",
+    icon: LayoutGrid,
+    // The canvas, whole: not whatever Excalidraw has selected elsewhere.
+    context: (ctx) => {
+      const groupId = groupOfNode(ctx);
+      return groupId ? { ...ctx, groupId } : { ...ctx, selectionIds: [] };
+    },
+  };
+}
+const folded = (ctx: CommandContext) => canvasStore.getState().frames.find((f) => f.id === ctx.groupId)?.group?.folded === true;
+
 /**
  * The five rings, positions clockwise from the top (spec menu radial §4). A
  * ring holds only real buttons: they are spread evenly around it, so a ring
- * of fewer than eight leaves no empty place.
+ * of fewer than eight leaves no empty place. Each ends with More (↖ on a ring
+ * of eight), which opens its arc of ARCS: what the ring has no room for.
  */
 export const RINGS: Record<RingKind, readonly RingSlot[]> = {
   canvas: [
@@ -110,7 +141,6 @@ export const RINGS: Record<RingKind, readonly RingSlot[]> = {
     { command: "drawing.paste", short: "paste", icon: ClipboardPaste },
     { command: "scene.arrange", short: "arrange", icon: LayoutGrid },
     { command: "agent.other", short: "otherAgent", icon: Plus },
-    { command: "canvas.overview", short: "overview", icon: Scan },
   ],
   terminal: [
     { command: "terminal.copy", short: "copy", icon: Copy },
@@ -118,7 +148,7 @@ export const RINGS: Record<RingKind, readonly RingSlot[]> = {
     { command: "terminal.rename", short: "rename", icon: Pencil },
     { command: "terminal.relaunch", short: "restart", icon: RotateCw },
     { command: "terminal.close", short: "close", icon: X, danger: true },
-    // Duplicate stays in "⋯", the palette and Ctrl+D: its place is the quick note's (src/nodes/note).
+    // Duplicate is in More, "⋯", the palette and Ctrl+D: its place is the quick note's (src/nodes/note).
     { command: "terminal.note", short: "note", icon: StickyNote },
     {
       command: (ctx) => (resumes(ctx) ? "terminal.resume" : "terminal.pause"),
@@ -126,7 +156,6 @@ export const RINGS: Record<RingKind, readonly RingSlot[]> = {
       icon: Pause,
       iconOf: (ctx) => (resumes(ctx) ? Play : Pause),
     },
-    { command: "terminal.stop", short: "stop", icon: Square },
   ],
   group: [
     { command: "group.addAgent", short: "addAgent", icon: UserPlus },
@@ -134,9 +163,8 @@ export const RINGS: Record<RingKind, readonly RingSlot[]> = {
     { command: "group.linkFleet", short: "linkFleet", icon: Network },
     { command: "group.pause", short: "pause", icon: Pause },
     { command: "group.close", short: "close", icon: X, danger: true },
-    { command: "group.ungroup", short: "ungroup", icon: Ungroup },
+    { command: "group.arrange", short: "arrange", icon: LayoutGrid },
     { command: "group.resume", short: "resume", icon: Play },
-    { command: "group.frame", short: "zoom", icon: Focus },
   ],
   fleet: [
     { command: "fleet.write", short: "write", icon: MessageSquare },
@@ -158,13 +186,59 @@ export const RINGS: Record<RingKind, readonly RingSlot[]> = {
     { command: "drawing.front", short: "toFront", icon: BringToFront },
     { command: "drawing.delete", short: "delete", icon: Trash2, danger: true },
     { command: "drawing.back", short: "toBack", icon: SendToBack },
-    { command: "drawing.lock", short: () => (selectionLocked() ? short().unlock : short().lock), icon: Lock, iconOf: () => (selectionLocked() ? LockOpen : Lock) },
-    { command: "drawing.more", short: "more", icon: Ellipsis },
+    // The selection's blocks, or inside the one group selected (scene.arrange reads the ring's selection).
+    { command: "scene.arrange", short: "arrange", icon: LayoutGrid },
   ],
 };
 
+/**
+ * Each ring's More arc, clockwise from its first wedge: what the ring has no room for. Its
+ * places are fixed too, greyed when they cannot run. Excalidraw's own full menu is the
+ * selection's last: nothing of it is lost.
+ */
+export const ARCS: Record<RingKind, readonly RingSlot[]> = {
+  canvas: [
+    { command: "canvas.overview", short: "overview", icon: Scan },
+    { command: "scene.export", short: "export", icon: FileDown },
+    { command: "scene.import", short: "import", icon: FileUp },
+    { command: "scene.png", short: "png", icon: ImageDown },
+  ],
+  terminal: [
+    { command: "terminal.stop", short: "stop", icon: Square },
+    { command: "terminal.duplicate", short: "duplicate", icon: CopyPlus },
+    { command: "terminal.review", short: "review", icon: FileDiff },
+    { command: "terminal.leaveGroup", short: "leaveGroup", icon: LogOut },
+    arrangeAround((ctx) => ctx.terminalId),
+  ],
+  group: [
+    { command: "group.ungroup", short: "ungroup", icon: Ungroup },
+    {
+      command: "group.fold",
+      short: (ctx) => (folded(ctx) ? short().unfold : short().fold),
+      icon: FoldVertical,
+      iconOf: (ctx) => (folded(ctx) ? UnfoldVertical : FoldVertical),
+    },
+    { command: "group.frame", short: "zoom", icon: Focus },
+  ],
+  fleet: [arrangeAround((ctx) => ctx.fleetId), { command: "fleet.leaveGroup", short: "leaveGroup", icon: LogOut }],
+  selection: [
+    { command: "drawing.lock", short: () => (selectionLocked() ? short().unlock : short().lock), icon: Lock, iconOf: () => (selectionLocked() ? LockOpen : Lock) },
+    { command: "drawing.more", short: "options", icon: SlidersHorizontal },
+  ],
+};
+
+/** The place of the More wedge in a ring: the last. */
+export const moreSlotOf = (kind: RingKind): number => RINGS[kind].length;
+/** The wedges a ring shows: its commands, then More. */
+export const wedgeCountOf = (kind: RingKind): number => RINGS[kind].length + 1;
+
 export interface RingLine {
-  command: Command;
+  /** Null for More, which opens the arc rather than running a command. */
+  command: Command | null;
+  /** The context it runs in: the ring's, or its slot's own. */
+  context: CommandContext;
+  /** The More wedge. */
+  more: boolean;
   /** The full name: the hub's, and the button's for assistive technology. */
   label: string;
   /** The name under the icon, in the wedge. */
@@ -177,19 +251,38 @@ export interface RingLine {
 }
 
 /** A button as it shows now: its command, name, icon, and whether it can run (spec menu radial §5.1). */
-export function lineOf(slot: RingSlot, ctx: CommandContext, commands: readonly Command[] = COMMANDS): RingLine | null {
-  const id = typeof slot.command === "function" ? slot.command(ctx) : slot.command;
+export function lineOf(slot: RingSlot, ring: CommandContext, commands: readonly Command[] = COMMANDS): RingLine | null {
+  const id = typeof slot.command === "function" ? slot.command(ring) : slot.command;
   const command = commands.find((c) => c.id === id);
   if (!command) return null;
+  const ctx = slot.context?.(ring) ?? ring;
   const available = command.available(ctx);
   const reason = available ? (command.disabled?.(ctx) ?? null) : null;
   return {
     command,
+    context: ctx,
+    more: false,
     label: labelOf(command, ctx),
-    short: typeof slot.short === "function" ? slot.short(ctx) : short()[slot.short],
-    Icon: slot.iconOf?.(ctx) ?? slot.icon,
+    short: typeof slot.short === "function" ? slot.short(ring) : short()[slot.short],
+    Icon: slot.iconOf?.(ring) ?? slot.icon,
     enabled: available && reason === null,
     reason,
     danger: slot.danger ?? false,
   };
+}
+
+/** The More wedge: always there, it opens its arc. */
+export function moreLine(ring: CommandContext): RingLine {
+  const text = messages(radialMessages);
+  return { command: null, context: ring, more: true, label: text.more, short: text.short.more, Icon: Ellipsis, enabled: true, reason: null, danger: false };
+}
+
+/** A ring's wedges as they show now, clockwise from the top: its commands, then More. */
+export function ringLines(kind: RingKind, ctx: CommandContext): (RingLine | null)[] {
+  return [...RINGS[kind].map((slot) => lineOf(slot, ctx)), moreLine(ctx)];
+}
+
+/** A ring's More arc as it shows now, clockwise. */
+export function arcLines(kind: RingKind, ctx: CommandContext): (RingLine | null)[] {
+  return ARCS[kind].map((slot) => lineOf(slot, ctx));
 }

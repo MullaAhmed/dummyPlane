@@ -1,6 +1,7 @@
 import { createStore, useStore } from "zustand";
 import type { CommandContext } from "@/commands/command";
 import type { Point } from "@/agents/terminals";
+import type { ArcLayout } from "./gesture";
 import type { RingKind } from "./rings";
 
 export interface RadialOpen {
@@ -18,6 +19,12 @@ export interface RadialOpen {
   hovered: number | null;
   /** The keyboard turns the wheel (the arrows, Tab): the wedges move at once, never eased. The pointer's next move clears it. */
   keyboard?: boolean;
+  /** The More arc, open: where it lies (gesture.ts `arcLayout`). Its wedges are the ring's ARCS. */
+  arc?: ArcLayout | null;
+  /** The arc's wedge pointed at, by the pointer, the slide or the arrows. */
+  item?: number | null;
+  /** The keyboard opened the arc: it was there at once, and stays unanimated when the pointer moves on. */
+  arcInstant?: boolean;
 }
 
 export const radialStore = createStore<{ ring: RadialOpen | null }>()(() => ({ ring: null }));

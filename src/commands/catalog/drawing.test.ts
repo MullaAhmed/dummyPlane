@@ -67,7 +67,7 @@ describe("Dessin (spec fenêtre §7.3)", () => {
       ["Send to back", "Ctrl+Shift+["],
       ["Lock", "Ctrl+Shift+L"],
       ["Delete", "Suppr"],
-      ["More…", null],
+      ["More drawing options…", null],
     ]);
   });
 

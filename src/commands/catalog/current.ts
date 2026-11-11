@@ -5,6 +5,7 @@ import { groupOf, isGroup, type SceneGroup } from "@/canvas/groups";
 import { setAgentsFilter, setAgentsPanel } from "@/agents/agentsPanelState";
 import { canPause, canResume, pauseAgents, pauseAll, resumeAgent, resumeAll, type AgentFacts } from "@/agents/broadcast";
 import { AGENTS } from "@/agents/catalog";
+import { arrangeWorkspace } from "@/agents/arrangeCanvas";
 import { groupHolding } from "@/agents/groupHolding";
 import { groupMembers, leaveGroup, requestCloseGroup, setGroupFolded, ungroup } from "@/agents/groups";
 import { addFleetToGroup } from "@/fleet/fleets";
@@ -201,7 +202,17 @@ export const CURRENT: readonly Command[] = [
       await addFleetToGroup(id);
     }),
   }),
+  // Its members laid out again inside its frame, which stays where it is (scene.arrange of the group alone). One undo.
+  command("group.arrange", {
+    section: groupSection,
+    available: hasGroup,
+    run: (ctx) => {
+      const group = groupOfCurrent(ctx);
+      if (group && ctx.workspaceId) arrangeWorkspace(ctx.workspaceId, { only: [group.id], undoable: true });
+    },
+  }),
   command("group.fold", {
+    label: (ctx) => (groupOfCurrent(ctx)?.group.folded ? catalog().unfoldGroup : catalog().foldGroup),
     section: groupSection,
     available: hasGroup,
     // Folds an unfolded group onto its label, unfolds a folded one (spec replier un groupe).

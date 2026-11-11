@@ -11,7 +11,7 @@ import { AGENTS } from "@/agents/catalog";
 import { agentActivityStore } from "@/store/agentActivity";
 import { nodesStore } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
-import { lineOf, RINGS } from "./rings";
+import { ARCS, arcLines, lineOf, moreSlotOf, ringLines, RINGS, wedgeCountOf, type RingKind, type RingSlot } from "./rings";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
 vi.mock("@/nodes/terminal/registry", async (importOriginal) => ({
@@ -20,7 +20,11 @@ vi.mock("@/nodes/terminal/registry", async (importOriginal) => ({
 }));
 
 const ctx: CommandContext = { project: true, workspaceId: "w1", terminalCount: 1, terminalId: "batman", at: { x: 0, y: 0 }, groupId: "g1", fleetId: "chef" };
-const labels = (kind: keyof typeof RINGS) => RINGS[kind].map((slot) => lineOf(slot, ctx)!.label);
+const KINDS = Object.keys(RINGS) as RingKind[];
+/** The ring's wedges as they show, More last. */
+const labels = (kind: RingKind) => ringLines(kind, ctx).map((line) => line!.label);
+const arcLabels = (kind: RingKind, context: CommandContext = ctx) => arcLines(kind, context).map((line) => line!.label);
+const idOf = (slot: RingSlot, context: CommandContext = ctx) => (typeof slot.command === "function" ? slot.command(context) : slot.command);
 
 beforeAll(async () => {
   mockIPC(() => undefined);
@@ -35,22 +39,59 @@ beforeAll(async () => {
 });
 
 describe("the rings (spec menu radial §4)", () => {
-  it("gives each ring at most 8 buttons, no empty place, each a function of the registry, never twice", () => {
-    for (const [kind, slots] of Object.entries(RINGS)) {
-      expect(slots.length, kind).toBeLessThanOrEqual(8);
-      expect(slots.every(Boolean), kind).toBe(true);
-      const ids = slots.map((slot) => (typeof slot.command === "function" ? slot.command(ctx) : slot.command));
+  it("gives each ring at most 8 wedges, More last included, no empty place, each a function of the registry, never twice with its arc", () => {
+    for (const kind of KINDS) {
+      expect(wedgeCountOf(kind), kind).toBeLessThanOrEqual(8);
+      expect(moreSlotOf(kind), kind).toBe(wedgeCountOf(kind) - 1);
+      expect(ringLines(kind, ctx).every(Boolean), kind).toBe(true);
+      expect(ringLines(kind, ctx)[moreSlotOf(kind)]).toMatchObject({ more: true, command: null, label: "More", short: "More", enabled: true });
+      const ids = [...RINGS[kind], ...ARCS[kind]].map((slot) => idOf(slot));
       expect(new Set(ids).size, kind).toBe(ids.length);
       for (const id of ids) expect(COMMANDS.some((c) => c.id === id), id).toBe(true);
     }
   });
 
-  it("names each ring's positions as the spec does, clockwise from the top", () => {
-    expect(labels("canvas")).toEqual(["Launch Claude", "Launch Shell", "New terminal in folder…", "Fleet", "Paste", "Arrange", "Other agent…", "Overview"]);
-    expect(labels("terminal")).toEqual(["Copy", "Paste", "Rename", "Restart", "Close", "Quick note on this terminal", "Pause", "Stop the process"]);
-    expect(labels("group")).toEqual(["Add an agent…", "Rename the group", "Link a fleet", "Pause group", "Close the group", "Ungroup", "Resume group", "Zoom to group"]);
-    expect(labels("fleet")).toEqual(["Write an instruction", "Rename", "Delete", "Link", "Paste", "Quick note on this Fleet"]);
-    expect(labels("selection")).toEqual(["Copy", "Paste", "Duplicate", "Bring to front", "Delete", "Send to back", "Lock", "More…"]);
+  it("names each ring's positions clockwise from the top, More last", () => {
+    expect(labels("canvas")).toEqual(["Launch Claude", "Launch Shell", "New terminal in folder…", "Fleet", "Paste", "Arrange", "Other agent…", "More"]);
+    expect(labels("terminal")).toEqual(["Copy", "Paste", "Rename", "Restart", "Close", "Quick note on this terminal", "Pause", "More"]);
+    expect(labels("group")).toEqual(["Add an agent…", "Rename the group", "Link a fleet", "Pause group", "Close the group", "Arrange the group", "Resume group", "More"]);
+    expect(labels("fleet")).toEqual(["Write an instruction", "Rename", "Delete", "Link", "Paste", "Quick note on this Fleet", "More"]);
+    expect(labels("selection")).toEqual(["Copy", "Paste", "Duplicate", "Bring to front", "Delete", "Send to back", "Arrange", "More"]);
+  });
+
+  it("puts what the ring has no room for in its More arc, clockwise", () => {
+    expect(arcLabels("canvas")).toEqual(["Overview", "Export scene…", "Import scene…", "Export as PNG…"]);
+    expect(arcLabels("terminal")).toEqual(["Stop the process", "Duplicate", "Review changes", "Remove from group", "Arrange the group"]);
+    expect(arcLabels("group")).toEqual(["Ungroup", "Fold the group", "Zoom to group"]);
+    expect(arcLabels("fleet")).toEqual(["Arrange", "Remove from group"]);
+    // Excalidraw's own full menu last: nothing of it is lost.
+    expect(arcLabels("selection")).toEqual(["Lock", "More drawing options…"]);
+  });
+
+  it("keeps every function the rings had before their arcs, on the ring or in its arc", () => {
+    const before: Record<RingKind, string[]> = {
+      canvas: ["agent.launch.claude", "agent.launch.shell", "agent.inFolder", "agent.fleet", "drawing.paste", "scene.arrange", "agent.other", "canvas.overview"],
+      terminal: ["terminal.copy", "terminal.paste", "terminal.rename", "terminal.relaunch", "terminal.close", "terminal.note", "terminal.pause", "terminal.stop"],
+      group: ["group.addAgent", "group.rename", "group.linkFleet", "group.pause", "group.close", "group.ungroup", "group.resume", "group.frame"],
+      fleet: ["fleet.write", "fleet.rename", "fleet.remove", "fleet.link", "fleet.paste", "fleet.note"],
+      selection: ["drawing.copy", "drawing.paste", "drawing.duplicate", "drawing.front", "drawing.delete", "drawing.back", "drawing.lock", "drawing.more"],
+    };
+    for (const kind of KINDS) {
+      const reach = [...RINGS[kind], ...ARCS[kind]].map((slot) => idOf(slot));
+      for (const id of before[kind]) expect(reach, `${kind}: ${id}`).toContain(id);
+    }
+  });
+
+  it("arranges a node's group from its More, or else the whole canvas, never Excalidraw's selection elsewhere", () => {
+    const arrange = (kind: RingKind, context: CommandContext) => lineOf(ARCS[kind].find((slot) => slot.short === "arrange")!, context)!;
+    // Batman stands in g1: its group, inside the frame.
+    expect([arrange("terminal", ctx).command!.id, arrange("terminal", ctx).context.groupId]).toEqual(["group.arrange", "g1"]);
+    // A terminal in no group, the Fleet in none: the canvas, whole.
+    const loose = { ...ctx, terminalId: "nobody", groupId: undefined };
+    expect([arrange("terminal", loose).command!.id, arrange("terminal", loose).context.selectionIds]).toEqual(["scene.arrange", []]);
+    expect([arrange("fleet", ctx).command!.id, arrange("fleet", ctx).context.selectionIds]).toEqual(["scene.arrange", []]);
+    // The ring's own context is left as it was.
+    expect(ctx.selectionIds).toBeUndefined();
   });
 
   it("puts the default agent at the top of the canvas ring, with its icon", () => {
@@ -63,26 +104,35 @@ describe("the rings (spec menu radial §4)", () => {
   it("greys what cannot run, with its reason, and marks what ends something", () => {
     const copy = lineOf(RINGS.terminal[0]!, ctx)!;
     expect([copy.enabled, copy.reason]).toEqual([false, "nothing selected"]);
-    const stop = lineOf(RINGS.terminal[7]!, ctx)!;
-    expect([stop.enabled, stop.reason]).toEqual([false, null]);
+    const stop = lineOf(ARCS.terminal[0]!, ctx)!;
+    expect([stop.label, stop.enabled, stop.reason]).toEqual(["Stop the process", false, null]);
     expect(lineOf(RINGS.terminal[4]!, ctx)!.danger).toBe(true);
   });
 });
 
 describe("the wedges' short names", () => {
-  const shorts = (kind: keyof typeof RINGS) => RINGS[kind].map((slot) => lineOf(slot, ctx)!.short);
+  const shorts = (kind: RingKind) => ringLines(kind, ctx).map((line) => line!.short);
+  const arcShorts = (kind: RingKind) => arcLines(kind, ctx).map((line) => line!.short);
 
   it("names each wedge in a word or two, clockwise from the top", () => {
-    expect(shorts("canvas")).toEqual(["Claude", "Shell", "In folder", "Fleet", "Paste", "Arrange", "Other agent", "Overview"]);
-    expect(shorts("terminal")).toEqual(["Copy", "Paste", "Rename", "Restart", "Close", "Note", "Pause", "Stop"]);
-    expect(shorts("group")).toEqual(["Add agent", "Rename", "Link fleet", "Pause", "Close", "Ungroup", "Resume", "Zoom"]);
-    expect(shorts("fleet")).toEqual(["Write", "Rename", "Delete", "Link", "Paste", "Note"]);
-    expect(shorts("selection")).toEqual(["Copy", "Paste", "Duplicate", "To front", "Delete", "To back", "Lock", "More"]);
+    expect(shorts("canvas")).toEqual(["Claude", "Shell", "In folder", "Fleet", "Paste", "Arrange", "Other agent", "More"]);
+    expect(shorts("terminal")).toEqual(["Copy", "Paste", "Rename", "Restart", "Close", "Note", "Pause", "More"]);
+    expect(shorts("group")).toEqual(["Add agent", "Rename", "Link fleet", "Pause", "Close", "Arrange", "Resume", "More"]);
+    expect(shorts("fleet")).toEqual(["Write", "Rename", "Delete", "Link", "Paste", "Note", "More"]);
+    expect(shorts("selection")).toEqual(["Copy", "Paste", "Duplicate", "To front", "Delete", "To back", "Arrange", "More"]);
+  });
+
+  it("names each wedge of the arcs the same way", () => {
+    expect(arcShorts("canvas")).toEqual(["Overview", "Export", "Import", "PNG"]);
+    expect(arcShorts("terminal")).toEqual(["Stop", "Duplicate", "Review", "Leave group", "Arrange"]);
+    expect(arcShorts("group")).toEqual(["Ungroup", "Fold", "Zoom"]);
+    expect(arcShorts("fleet")).toEqual(["Arrange", "Leave group"]);
+    expect(arcShorts("selection")).toEqual(["Lock", "Options"]);
   });
 
   it("keeps every name short enough for its wedge: at most 11 letters, no ellipsis", () => {
-    for (const kind of Object.keys(RINGS) as (keyof typeof RINGS)[]) {
-      for (const name of shorts(kind)) {
+    for (const kind of KINDS) {
+      for (const name of [...shorts(kind), ...arcShorts(kind)]) {
         expect(name.length, name).toBeLessThanOrEqual(11);
         expect(name, name).not.toMatch(/…|\.\.\./);
       }
@@ -100,6 +150,15 @@ describe("the wedges' short names", () => {
     agentsStore.setState({ agents: [{ id: "claude", available: true }] } as never);
   });
 
+  it("follows the moment: Fold or Unfold", () => {
+    const fold = () => lineOf(ARCS.group[1]!, ctx)!;
+    expect([fold().label, fold().short]).toEqual(["Fold the group", "Fold"]);
+    const frames = canvasStore.getState().frames;
+    canvasStore.setState({ frames: [{ ...frames[0], group: { role: "backend", pantheon: "egypt", folded: true } }] });
+    expect([fold().label, fold().short]).toEqual(["Unfold the group", "Unfold"]);
+    canvasStore.setState({ frames });
+  });
+
   it("follows the moment: Pause or Resume, Lock or Unlock", () => {
     terminalStatusStore.getState().set("batman", { state: "running" });
     expect(lineOf(RINGS.terminal[6]!, ctx)!.short).toBe("Resume");
@@ -107,7 +166,7 @@ describe("the wedges' short names", () => {
     expect(lineOf(RINGS.terminal[6]!, ctx)!.short).toBe("Pause");
     agentActivityStore.setState({ activities: {} } as never);
     terminalStatusStore.getState().set("batman", { state: "stopped" });
-    const lock = () => lineOf(RINGS.selection[6]!, ctx)!;
+    const lock = () => lineOf(ARCS.selection[0]!, ctx)!;
     const api = (locked: boolean) =>
       ({ getSceneElements: () => [{ id: "r1", locked }], getAppState: () => ({ selectedElementIds: { r1: true } }) }) as unknown as ExcalidrawImperativeAPI;
     canvasStore.setState({ api: api(false) });
@@ -126,11 +185,11 @@ describe("the selection ring with terminals selected", () => {
   const second = (context: CommandContext = ctx) => lineOf(RINGS.selection[1]!, context)!;
   afterAll(() => canvasStore.setState({ api: null }));
 
-  it("offers Group in Paste's place, still 8 buttons", () => {
+  it("offers Group in Paste's place, still 8 wedges", () => {
     selecting({ a: true, b: true });
-    expect(RINGS.selection).toHaveLength(8);
+    expect(wedgeCountOf("selection")).toBe(8);
     expect([second().label, second().short, second().Icon, second().enabled]).toEqual(["Group selection", "Group", Group, true]);
-    expect(labels("selection")).toEqual(["Copy", "Group selection", "Duplicate", "Bring to front", "Delete", "Send to back", "Lock", "More…"]);
+    expect(labels("selection")).toEqual(["Copy", "Group selection", "Duplicate", "Bring to front", "Delete", "Send to back", "Arrange", "More"]);
   });
 
   it("keeps Paste with a drawing, or a single terminal, selected", () => {

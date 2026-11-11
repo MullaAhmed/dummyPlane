@@ -11,6 +11,9 @@ import { workspacesStore } from "@/store/workspaces";
 import { openNativeMenuAt } from "./bridges";
 import { installRadial } from "./install";
 import { radialStore } from "./radialState";
+import { ARC_INTENT_MS } from "./arc";
+import { arcAngle } from "./gesture";
+import { reviewStore } from "@/review/reviewStore";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
 vi.mock("@/agents/terminals", async (importOriginal) => ({
@@ -279,5 +282,94 @@ describe("choosing in the ring", () => {
     expect(radialStore.getState().ring).toMatchObject({ pressed: true });
     window.dispatchEvent(new FocusEvent("blur"));
     expect(radialStore.getState().ring).toMatchObject({ pressed: false, sliding: false });
+  });
+});
+
+describe("the More arc, from the keyboard and by a slide", () => {
+  /** A point `radius` from the terminal ring's center (300, 300), toward `degrees` (0 at the right, clockwise). */
+  const toward = (degrees: number, radius: number) => ({ x: 300 + radius * Math.cos((degrees * Math.PI) / 180), y: 300 + radius * Math.sin((degrees * Math.PI) / 180) });
+  const key = (name: string) => {
+    const event = new KeyboardEvent("keydown", { key: name, bubbles: true, cancelable: true });
+    text().dispatchEvent(event);
+    return event;
+  };
+  const ring = () => radialStore.getState().ring!;
+  const openByClick = () => {
+    pointer(text(), "pointerdown", 300, 300);
+    pointer(text(), "pointerup", 300, 300);
+  };
+  afterEach(() => vi.useRealTimers());
+
+  it("opens on Enter on More, its first wedge pointed; the arrows move along it, Left or Escape go back to the ring", () => {
+    openByClick();
+    key("ArrowLeft");
+    expect(ring().hovered).toBe(7);
+    expect(key("Enter").defaultPrevented).toBe(true);
+    expect([ring().arc?.count, ring().item, ring().keyboard]).toEqual([5, 0, true]);
+    key("ArrowRight");
+    key("ArrowDown");
+    expect(ring().item).toBe(2);
+    key("ArrowUp");
+    expect(ring().item).toBe(1);
+    key("ArrowUp");
+    key("ArrowUp");
+    // Round from the first to the last.
+    expect(ring().item).toBe(4);
+    key("ArrowLeft");
+    expect([ring().arc, ring().item, ring().hovered]).toEqual([null, null, 7]);
+    key("Enter");
+    expect(key("Escape").defaultPrevented).toBe(true);
+    expect([ring().arc, ring().hovered]).toEqual([null, 7]);
+    key("Escape");
+    expect(radialStore.getState().ring).toBeNull();
+  });
+
+  it("runs the arc's wedge on Enter, once the menu has gone; a greyed one keeps the Enter and does nothing", async () => {
+    openByClick();
+    key("ArrowLeft");
+    key("Enter");
+    // « Stop the process »: nothing runs.
+    expect(key("Enter").defaultPrevented).toBe(true);
+    expect(radialStore.getState().ring).not.toBeNull();
+    key("ArrowRight");
+    key("ArrowRight");
+    key("Enter");
+    expect(radialStore.getState().ring).toBeNull();
+    await nextFrame();
+    expect(reviewStore.getState().nodeId).toBe("batman");
+  });
+
+  it("opens under a slide that rests on More, then runs the wedge the slide is released on", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    pointer(text(), "pointerdown", 300, 300);
+    const more = toward(-135, 100);
+    pointer(text(), "pointermove", more.x, more.y);
+    expect([ring().hovered, ring().arc ?? null]).toEqual([7, null]);
+    vi.advanceTimersByTime(ARC_INTENT_MS);
+    const arc = ring().arc!;
+    expect(arc.count).toBe(5);
+    // On to « Review changes », across the ring's slack.
+    const review = toward((arcAngle(arc, 2) * 180) / Math.PI, 190);
+    pointer(text(), "pointermove", review.x, review.y);
+    expect([ring().item, ring().hovered]).toEqual([2, 7]);
+    pointer(text(), "pointerup", review.x, review.y);
+    expect(radialStore.getState().ring).toBeNull();
+    vi.useRealTimers();
+    await nextFrame();
+    expect(reviewStore.getState().nodeId).toBe("batman");
+  });
+
+  it("opens at once when a slide is released on More, and stays for a click; released on nothing, it closes", () => {
+    pointer(text(), "pointerdown", 300, 300);
+    const more = toward(-135, 100);
+    pointer(text(), "pointermove", more.x, more.y);
+    pointer(text(), "pointerup", more.x, more.y);
+    expect(ring()).toMatchObject({ pressed: false, sliding: false, hovered: 7 });
+    expect(ring().arc).not.toBeNull();
+    // A new slide, released past the arc and the ring: nothing chosen, the ring closes.
+    pointer(text(), "pointerdown", 300, 300);
+    pointer(text(), "pointermove", 300, 300 + 260);
+    pointer(text(), "pointerup", 300, 300 + 260);
+    expect(radialStore.getState().ring).toBeNull();
   });
 });

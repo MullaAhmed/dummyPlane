@@ -1,5 +1,18 @@
 import { describe, expect, it } from "vitest";
 import {
+  ARC_HIT,
+  ARC_INNER,
+  ARC_OUTER,
+  ARC_STEP,
+  arcAngle,
+  arcItemAt,
+  arcLayout,
+  arcPosition,
+  arcWedgePath,
+  pointingAt,
+  POP,
+  slidePointing,
+  type ArcLayout,
   DEAD_ZONE,
   HIT_RADIUS,
   HUB_RADIUS,
@@ -131,5 +144,84 @@ describe("the wheel's geometry (spec menu radial §5)", () => {
     expect(ringCenter({ x: 500, y: 400 }, window)).toEqual({ x: 500, y: 400 });
     expect(ringCenter({ x: 10, y: 10 }, window)).toEqual({ x: 152, y: 152 });
     expect(ringCenter({ x: 995, y: 795 }, window)).toEqual({ x: 848, y: 648 });
+  });
+});
+
+describe("the More arc's geometry (nested More)", () => {
+  const window = { width: 1440, height: 900 };
+  const degrees = (radians: number) => Math.round((radians * 180) / Math.PI);
+  /** How far the arc turned from More's direction (↖, -135°), in degrees, within a half turn either way. */
+  const turnOf = (arc: ArcLayout) => ((((degrees(arc.middle) + 135) % 360) + 540) % 360) - 180;
+  const at = (center: { x: number; y: number }, angle: number, radius: number) => ({ x: center.x + radius * Math.cos(angle), y: center.y + radius * Math.sin(angle) });
+  /** Every corner of every wedge of the arc, inside the window by 8 px. */
+  const whole = (center: { x: number; y: number }, arc: ArcLayout) =>
+    Array.from({ length: arc.count }, (_, i) => i).every((i) =>
+      points(arcWedgePath(arc, i)).every((p) => center.x + p.x >= 8 && center.x + p.x <= window.width - 8 && center.y + p.y >= 8 && center.y + p.y <= window.height - 8),
+    );
+
+  it("lies outside the ring, past the pointed wedge's pop and a gap, as wide as its band: it never reaches in toward the hub", () => {
+    expect(ARC_INNER).toBe(OUTER_RADIUS + POP + WEDGE_GAP);
+    expect(ARC_OUTER - ARC_INNER).toBe(OUTER_RADIUS - INNER_RADIUS);
+    const arc = { middle: -Math.PI / 2, count: 3 };
+    for (let i = 0; i < 3; i++) {
+      for (const p of points(arcWedgePath(arc, i))) expect(Math.hypot(p.x, p.y)).toBeGreaterThanOrEqual(ARC_INNER - 0.01);
+    }
+  });
+
+  it("fans out from the More wedge along the ring's curve, centred on it, clockwise, one step apart", () => {
+    const arc = arcLayout({ x: 720, y: 450 }, 7, 8, 5, window);
+    expect(degrees(arc.middle)).toBe(-135);
+    expect([0, 1, 2, 3, 4].map((i) => degrees(arcAngle(arc, i)))).toEqual([-191, -163, -135, -107, -79]);
+    expect(degrees(ARC_STEP)).toBe(28);
+    // Its labels sit half way across its band, as the ring's do.
+    const label = arcPosition({ middle: 0, count: 1 }, 0);
+    expect(label).toEqual({ x: Math.round(ARC_INNER + (ARC_OUTER - ARC_INNER) / 2), y: 0 });
+  });
+
+  it("turns along the curve, the least it can, when the window's edge cuts it, still touching the More wedge (shift)", () => {
+    // The ring as near the top as it goes: centred on ↖, the arc would run past the top.
+    const center = { x: 720, y: 152 };
+    expect(whole(center, { middle: (-135 * Math.PI) / 180, count: 5 })).toBe(false);
+    const arc = arcLayout(center, 7, 8, 5, window);
+    expect(whole(center, arc)).toBe(true);
+    const turned = turnOf(arc);
+    expect(Math.abs(turned)).toBeGreaterThan(0);
+    // Its end still meets the More wedge (45° wide on a ring of 8).
+    expect(Math.abs(turned)).toBeLessThanOrEqual((5 * 28) / 2 + 45 / 2);
+  });
+
+  it("goes round to the side with room in a corner where no turn still spanning More fits (flip)", () => {
+    const center = { x: 152, y: 152 };
+    const arc = arcLayout(center, 7, 8, 5, window);
+    expect(whole(center, arc)).toBe(true);
+    expect(Math.abs(turnOf(arc))).toBeGreaterThan((5 * 28) / 2 + 45 / 2);
+  });
+
+  it("stays centred on More when nowhere fits (a window smaller than the arc)", () => {
+    expect(degrees(arcLayout({ x: 100, y: 100 }, 7, 8, 5, { width: 200, height: 200 }).middle)).toBe(-135);
+  });
+
+  it("points at the arc's wedge in its direction, from the ring's rim out to the slack past the arc", () => {
+    const center = { x: 500, y: 500 };
+    const arc = { middle: -Math.PI / 2, count: 3 };
+    expect(arcItemAt(center, at(center, -Math.PI / 2, 190), arc)).toBe(1);
+    expect(arcItemAt(center, at(center, -Math.PI / 2 - ARC_STEP, 150), arc)).toBe(0);
+    expect(arcItemAt(center, at(center, -Math.PI / 2 + ARC_STEP, ARC_HIT - 1), arc)).toBe(2);
+    // Past its ends, inside the ring, past the slack: none.
+    expect(arcItemAt(center, at(center, -Math.PI / 2 + 2 * ARC_STEP, 190), arc)).toBeNull();
+    expect(arcItemAt(center, at(center, -Math.PI / 2, OUTER_RADIUS - 1), arc)).toBeNull();
+    expect(arcItemAt(center, at(center, -Math.PI / 2, ARC_HIT + 1), arc)).toBeNull();
+  });
+
+  it("leaves the ring's slack to the arc while it is open: past the rim, a neighbour of More is no longer pointed at", () => {
+    const center = { x: 500, y: 500 };
+    const arc = { middle: (-135 * Math.PI) / 180, count: 2 };
+    const pastPause = at(center, Math.PI, 150);
+    expect(pointingAt(center, pastPause, 8, null)).toEqual({ slot: 6, item: null });
+    expect(pointingAt(center, pastPause, 8, arc)).toEqual({ slot: null, item: null });
+    // On the ring itself, the ring's wedges still answer.
+    expect(pointingAt(center, at(center, Math.PI, 100), 8, arc)).toEqual({ slot: 6, item: null });
+    // A slide's jitter near the press points at nothing.
+    expect(slidePointing(center, center, at(center, -Math.PI / 2, 10), 8, arc)).toEqual({ slot: null, item: null });
   });
 });
