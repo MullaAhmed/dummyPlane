@@ -51,6 +51,18 @@ describe("agent activity store", () => {
     expect(state().activities.w.activity).toBe("waiting");
   });
 
+  it("takes the agent leaving its shell, then coming back, with no change of activity", () => {
+    // Rust dates each flip anew (`flipped`): an idle Claude quit with Ctrl+D stays idle.
+    state().apply({ nodeId: "l", activity: "idle", since: 100 });
+    state().apply({ nodeId: "l", activity: "idle", since: 200, left: true });
+    expect(state().activities.l).toEqual({ activity: "idle", since: 200, left: true });
+    state().apply({ nodeId: "l", activity: "idle", since: 300 });
+    expect(state().activities.l.left).toBeUndefined();
+    // Its snapshot after a reload keeps it.
+    state().load([{ nodeId: "l", activity: "working", since: 400, left: true }]);
+    expect(state().activities.l.left).toBe(true);
+  });
+
   it("forgets a terminal whose process exited", () => {
     state().apply({ nodeId: "a", activity: "idle", since: 1 });
     state().remove("a");

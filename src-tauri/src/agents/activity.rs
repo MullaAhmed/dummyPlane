@@ -146,7 +146,8 @@ impl Tracker {
         node.answered = None;
         let leaves = node.left.is_none();
         node.left.get_or_insert(now);
-        set(node_id, node, Activity::Idle, now).or_else(|| leaves.then(|| change_of(node_id, node)))
+        set(node_id, node, Activity::Idle, now)
+            .or_else(|| leaves.then(|| flipped(node_id, node, now)))
     }
 
     /// Claude's status line spoke (it does as Claude starts): a Claude runs in
@@ -158,7 +159,7 @@ impl Tracker {
             return None;
         }
         node.left = None;
-        Some(change_of(node_id, node))
+        Some(flipped(node_id, node, now))
     }
 
     pub fn hook(
@@ -184,7 +185,7 @@ impl Tracker {
             return Some(change_of(node_id, node));
         }
         node.message = message;
-        set(node_id, node, activity, now).or_else(|| back.then(|| change_of(node_id, node)))
+        set(node_id, node, activity, now).or_else(|| back.then(|| flipped(node_id, node, now)))
     }
 
     /// Working terminals that went quiet become idle: after 1.5 s without
@@ -242,6 +243,14 @@ fn change_of(node_id: &str, node: &Node) -> Change {
         left: node.left.is_some(),
         ..change(node_id, node.activity, node.since)
     }
+}
+
+/// The agent left or came back while the activity stayed: a transition all the
+/// same, dated now. Its old date, converted to the wall clock again, could fall
+/// a few ms before the one the interface holds, which would drop it.
+fn flipped(node_id: &str, node: &mut Node, now: Instant) -> Change {
+    node.since = now;
+    change_of(node_id, node)
 }
 
 fn set(node_id: &str, node: &mut Node, activity: Activity, now: Instant) -> Option<Change> {
@@ -406,9 +415,10 @@ pub fn gemini_activity(event: &str, notification_type: Option<&str>) -> Option<A
     }
 }
 
-/// `SessionEnd`, except `/clear`, which goes on in the same process.
+/// `SessionEnd`, except `/clear` and a conversation picked with `/resume`,
+/// which go on in the same process: its terminal keeps its agent.
 pub fn claude_session_ended(event: &str, reason: Option<&str>) -> bool {
-    event == "SessionEnd" && reason != Some("clear")
+    event == "SessionEnd" && !matches!(reason, Some("clear" | "resume"))
 }
 
 /// What xterm sends on its own (focus changes, mouse reports) is not the
@@ -942,6 +952,8 @@ mod tests {
         let left = tracker.session_end("a", t0 + ms(100)).unwrap();
         assert_eq!(left.activity, Activity::Idle);
         assert!(left.left);
+        // Dated now: the interface drops a change older than the one it holds.
+        assert_eq!(left.since, t0 + ms(100));
         assert!(tracker.snapshot()[0].left);
         assert_eq!(tracker.session_end("a", t0 + ms(200)), None);
         // The shell's own work keeps saying so.
@@ -961,6 +973,7 @@ mod tests {
             .hook("a", HookSource::Claude, Activity::Idle, t0 + ms(5000), None)
             .unwrap();
         assert_eq!((back.activity, back.left), (Activity::Idle, false));
+        assert_eq!(back.since, t0 + ms(5000));
         assert!(!tracker.snapshot()[0].left);
         assert_eq!(
             tracker.hook("a", HookSource::Claude, Activity::Idle, t0 + ms(6000), None),
@@ -980,6 +993,7 @@ mod tests {
         assert!(tracker.snapshot()[0].left);
         let back = tracker.status("a", t0 + STATUS_AFTER_END).unwrap();
         assert!(!back.left);
+        assert_eq!(back.since, t0 + STATUS_AFTER_END);
         assert_eq!(tracker.status("a", t0 + ms(9000)), None);
         assert_eq!(tracker.status("zzz", t0), None);
         // A restarted process starts with its agent.
@@ -995,6 +1009,8 @@ mod tests {
         ));
         assert!(claude_session_ended("SessionEnd", None));
         assert!(!claude_session_ended("SessionEnd", Some("clear")));
+        // Claude Code's reason for a conversation switched by `/resume` inside the session.
+        assert!(!claude_session_ended("SessionEnd", Some("resume")));
         assert!(!claude_session_ended("Stop", None));
     }
 
