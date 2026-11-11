@@ -5,7 +5,7 @@ import { cachedElements } from "@/canvas/sceneCache";
 import { AGENTS } from "@/agents/catalog";
 import { linkedAgents, NO_LINKS, fleetLinks } from "@/agents/wires";
 import { agentActivityStore } from "@/store/agentActivity";
-import { nodesStore, terminalOf, type NodeRecord } from "@/store/nodes";
+import { isManagerNode, nodesStore, terminalOf, type NodeRecord } from "@/store/nodes";
 import { isRunning } from "@/store/terminalStatus";
 import { workspacesStore } from "@/store/workspaces";
 import { budgetOf, NEW_MISSION, spentMin, type Member, type Mission, type ReportStatus } from "./mission";
@@ -13,6 +13,36 @@ import { budgetOf, NEW_MISSION, spentMin, type Member, type Mission, type Report
 /** A fleet's mission — a fresh one until it has its own; undefined for any other node. */
 export function missionOf(record: NodeRecord | undefined): Mission | undefined {
   return record?.kind === "fleet" ? (record.payload.mission ?? NEW_MISSION) : undefined;
+}
+
+/**
+ * Who runs a Fleet's mission and hears its team: its Manager once the go-ahead made one (`./manager`), else the
+ * Fleet itself (a mission not launched yet, or launched before Managers existed: the old way). A team line is
+ * typed into the runner, never into a Fleet whose mission a Manager runs.
+ */
+export function missionRunner(fleetId: string): string {
+  return missionOf(nodesStore.getState().nodes[fleetId])?.manager ?? fleetId;
+}
+
+/** The Fleet whose mission a Manager runs; undefined for any other node. */
+export function managedFleet(managerId: string): string | undefined {
+  const fleetId = terminalOf(nodesStore.getState().nodes[managerId])?.fleet;
+  return fleetId && isManagerNode(managerId) && missionOf(nodesStore.getState().nodes[fleetId])?.manager === managerId ? fleetId : undefined;
+}
+
+/**
+ * The agents of a running mission its Manager runs reach each other with no wire drawn by hand: the Manager
+ * its team, an agent the Manager and its teammates (siblings). The first message draws the wire (`@/agents/talkWires`).
+ */
+export function missionPeers(nodeId: string): string[] {
+  for (const record of Object.values(nodesStore.getState().nodes)) {
+    const mission = missionOf(record);
+    if (mission?.state !== "en_cours" || !mission.manager) continue;
+    const team = [...new Set(mission.members.filter((m) => !m.handedTo && m.nodeId).map((m) => m.nodeId))];
+    if (nodeId === mission.manager) return team;
+    if (team.includes(nodeId)) return [mission.manager, ...team.filter((id) => id !== nodeId)];
+  }
+  return [];
 }
 
 export function setMission(fleetId: string, patch: Partial<Mission>) {
@@ -57,6 +87,14 @@ export function releaseTeamPermission(fleetId: string) {
   releaseSpawnedPermission(fleetId, mission.permission);
 }
 
+/** A Manager's night permission, its team's sub-agents' too (`spawnedUnder` it): they go with the night. */
+function releaseManagerPermission(managerId: string | undefined, permission: Mission["permission"]) {
+  if (!managerId || !permission) return;
+  for (const id of [managerId, ...spawnedUnder(managerId)]) {
+    if (terminalOf(nodesStore.getState().nodes[id])?.permission === permission) nodesStore.getState().update(id, { permission: undefined });
+  }
+}
+
 /** The terminals whose spawn_agent chain leads up to `fleetId`: its sub-agents and theirs, closed ones included. */
 export function spawnedUnder(fleetId: string): string[] {
   const nodes = nodesStore.getState().nodes;
@@ -80,6 +118,8 @@ export function releaseSpawnedPermission(fleetId: string, permission: Mission["p
   for (const id of spawnedUnder(fleetId)) {
     if (terminalOf(nodesStore.getState().nodes[id])?.permission === permission) nodesStore.getState().update(id, { permission: undefined });
   }
+  // The Manager it made, and the sub-agents of its team, got the same night.
+  releaseManagerPermission(missionOf(nodesStore.getState().nodes[fleetId])?.manager, permission);
 }
 
 /**
@@ -127,6 +167,8 @@ export function linkedTeamAgents(fleetId: string): { nodeId: string; name: strin
     // An agent already working for another running mission is not free to be enrolled in this one.
     const elsewhere = memberOf(nodeId);
     if (elsewhere && elsewhere.fleetId !== fleetId) return [];
+    // A mission's Manager runs a board: it is never a plan's agent.
+    if (isManagerNode(nodeId)) return [];
     const payload = terminalOf(nodes[nodeId]);
     return payload && FLEET_CAPABLE.includes(payload.agent) ? [{ nodeId, name: payload.name || AGENTS[payload.agent].label }] : [];
   });

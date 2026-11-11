@@ -1,11 +1,12 @@
 import type { KanbanAgentStatus, KanbanColumn, KanbanPayload, KanbanPriority } from "@/nodes/types";
-import { addColumn, columnOf, updateCard, type NewId } from "./board";
+import { addCard, addColumn, columnOf, updateCard, type NewId } from "./board";
 import { doneColumn } from "./githubSync";
 
 // Pure Kanban <-> fleet logic: a column handed to a fleet, the request
 // typed in its terminal, what its `board` tool reads, and where a mission's cards go. No IO here.
 
 const IN_PROGRESS_TITLES = ["en cours", "in progress", "doing", "wip"];
+const BLOCKED_TITLES = ["blocked", "bloqué", "bloque", "stuck"];
 /** Notes longer than this are cut in the request: the `board` tool gives them whole. */
 const MAX_NOTES = 280;
 
@@ -24,6 +25,61 @@ export const linkedTo = (board: KanbanPayload, fleetId: string) => board.orchest
 /** Column titled like "En cours" / "In progress", if any. */
 export function inProgressColumn(board: KanbanPayload): KanbanColumn | undefined {
   return board.columns.find((c) => IN_PROGRESS_TITLES.includes(normalize(c.title)));
+}
+
+/** Column titled like "Blocked", if any. */
+export function blockedColumn(board: KanbanPayload): KanbanColumn | undefined {
+  return board.columns.find((c) => BLOCKED_TITLES.includes(normalize(c.title)));
+}
+
+/**
+ * The column a mission's new cards go to, its "to do": the column the board was handed to the fleet with
+ * ("Plan with the fleet"), else the first one. Undefined on a board without columns.
+ */
+export function todoColumnOf(board: KanbanPayload, fleetId: string): KanbanColumn | undefined {
+  const linked = linkedTo(board, fleetId) ? board.columns.find((c) => c.id === board.orchestrator?.columnId) : undefined;
+  return linked ?? board.columns[0];
+}
+
+/** A task as the board holds it: its title, its brief, and the card it handles once it has one. */
+export interface CardTask {
+  title: string;
+  brief: string;
+  card?: string;
+}
+
+/**
+ * The tasks of a mission as cards of `columnId`: each task without a card on this board gets one (its title,
+ * its brief as notes), at the end of the column, in order. The board and the tasks, each with its card.
+ */
+export function withTaskCards<T extends CardTask>(board: KanbanPayload, columnId: string, tasks: readonly T[], newId?: NewId): { board: KanbanPayload; tasks: T[] } {
+  if (!board.columns.some((c) => c.id === columnId)) return { board, tasks: [...tasks] };
+  let next = board;
+  const carded = tasks.map((task) => {
+    if (task.card && next.cards[task.card]) return task;
+    const before = new Set(Object.keys(next.cards));
+    next = addCard(next, columnId, { title: task.title, notes: oneLine(task.brief), priority: "none" }, newId);
+    const card = Object.keys(next.cards).find((id) => !before.has(id));
+    return card ? { ...task, card } : task;
+  });
+  return { board: next, tasks: carded };
+}
+
+/** The board with a "Blocked" column: the existing one, else a new one titled `title`, placed before the done column. */
+export function withBlockedColumn(board: KanbanPayload, title: string, newId?: NewId): { board: KanbanPayload; columnId: string } {
+  const existing = blockedColumn(board);
+  return existing ? { board, columnId: existing.id } : beforeDone(board, title, newId);
+}
+
+/** A new column titled `title`, placed before the done column (at the end without one). */
+function beforeDone(board: KanbanPayload, title: string, newId?: NewId): { board: KanbanPayload; columnId: string } {
+  const done = doneColumn(board);
+  const added = addColumn(board, title, newId);
+  const column = added.columns[added.columns.length - 1];
+  if (!done) return { board: added, columnId: column.id };
+  const columns = added.columns.filter((c) => c.id !== column.id);
+  columns.splice(columns.findIndex((c) => c.id === done.id), 0, column);
+  return { board: { ...added, columns }, columnId: column.id };
 }
 
 /** The board with an "in progress" column: the existing one, else a new one titled `title`, placed before the done column. */

@@ -98,6 +98,9 @@ export const nodesMessages = defineMessages(
     },
     fleet: {
       defaultName: "Fleet",
+      /** A mission's Manager terminal (`@/mission/manager`): its name, and its title with the mission's. */
+      managerName: "Manager",
+      managerTitle: (mission: string) => `Manager · ${mission}`,
       notFound: "Fleet not found",
       clockTitle: "Time spent / overall budget",
       menu: "Fleet menu",

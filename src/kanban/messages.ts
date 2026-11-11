@@ -12,6 +12,8 @@ export const kanbanMessages = defineMessages({
   placeFailed: (error: string) => `Could not create the Kanban: ${error}`,
   agent: "the agent",
   inProgress: "In progress",
+  /** The column a mission's card goes to when its agent reports blocked or failed (its chip tells which). */
+  blocked: "Blocked",
   plan: {
     // The cards come last: nothing of ours follows what a stranger may have written.
     request: (column: string, count: number, cards: string) =>

@@ -9,7 +9,8 @@ import type { KanbanAgentStatus, KanbanPayload } from "@/nodes/types";
 import { nodesStore } from "@/store/nodes";
 import { moveCardWithGithub } from "./github";
 import { kanbanMessages } from "./messages";
-import { doneTarget, flagCard, linkedTo, linkFleet, planRequest, setCardAgent, startCard } from "./missionLink";
+import { columnOf } from "./board";
+import { doneTarget, flagCard, linkedTo, linkFleet, planRequest, setCardAgent, startCard, todoColumnOf, withBlockedColumn, withTaskCards, type CardTask } from "./missionLink";
 
 // The Kanban node's fleet wiring: "Plan with the fleet", and its cards following the mission.
 
@@ -105,14 +106,60 @@ export async function finishMissionCard(fleetId: string, plan: readonly SubTask[
   if (target) await moveCardWithGithub(found.boardId, found.card, target, undefined, missionFolder(fleetId));
 }
 
-/** A member reported blocked or failed: its card stays "In progress", its chip on alert. */
-export function flagMissionCard(fleetId: string, plan: readonly SubTask[] | undefined, task: string, status: KanbanAgentStatus) {
+/**
+ * A member reported blocked or failed: its chip on alert. On a board a Manager runs, the card goes to the
+ * "Blocked" column (made before the done column if the board has none); on a mission run the old way it
+ * stays "In progress".
+ */
+export async function flagMissionCard(fleetId: string, plan: readonly SubTask[] | undefined, task: string, status: KanbanAgentStatus) {
   const found = taskCard(fleetId, plan, task);
-  if (found) saveCards(found.boardId, found.board, flagCard(found.board, found.card, status));
+  if (!found) return;
+  const flagged = flagCard(found.board, found.card, status);
+  if (!missionOf(nodesStore.getState().nodes[fleetId])?.manager) {
+    saveCards(found.boardId, found.board, flagged);
+    return;
+  }
+  const placed = withBlockedColumn(flagged, t().blocked);
+  nodesStore.getState().update(found.boardId, { columns: placed.board.columns, cards: placed.board.cards });
+  if (columnOf(placed.board, found.card)?.id !== placed.columnId) await moveCardWithGithub(found.boardId, found.card, placed.columnId, undefined, missionFolder(fleetId));
 }
 
-/** `reassign`: the card's chip names the agent it went to. */
-export function reassignMissionCard(fleetId: string, plan: readonly SubTask[] | undefined, task: string, agent: string) {
+/** `reassign`: the card's chip names the agent it went to; on a board a Manager runs, it is "In progress" again. */
+export async function reassignMissionCard(fleetId: string, plan: readonly SubTask[] | undefined, task: string, agent: string) {
   const found = taskCard(fleetId, plan, task);
-  if (found) saveCards(found.boardId, found.board, setCardAgent(found.board, found.card, agent));
+  if (!found) return;
+  if (!missionOf(nodesStore.getState().nodes[fleetId])?.manager) {
+    saveCards(found.boardId, found.board, setCardAgent(found.board, found.card, agent));
+    return;
+  }
+  const started = startCard(found.board, found.card, agent, t().inProgress);
+  if (!started) return;
+  nodesStore.getState().update(found.boardId, { columns: started.board.columns, cards: started.board.cards });
+  if (columnOf(started.board, found.card)?.id !== started.columnId) await moveCardWithGithub(found.boardId, found.card, started.columnId, undefined, missionFolder(fleetId));
+}
+
+/** The board a Manager runs the fleet's mission on, if it is still there. */
+export function missionBoard(fleetId: string): { nodeId: string; board: KanbanPayload } | null {
+  const boardId = missionOf(nodesStore.getState().nodes[fleetId])?.board;
+  const board = boardId ? boardOf(boardId) : null;
+  return boardId && board ? { nodeId: boardId, board } : null;
+}
+
+/**
+ * Tasks added to a mission a Manager runs: each one without a card gets one in the board's to-do column
+ * (`todoColumnOf`). The tasks with their cards; as they were without a board.
+ */
+export function addTaskCards<T extends CardTask>(fleetId: string, tasks: readonly T[]): T[] {
+  const found = missionBoard(fleetId);
+  const column = found ? todoColumnOf(found.board, fleetId) : undefined;
+  if (!found || !column) return [...tasks];
+  const carded = withTaskCards(found.board, column.id, tasks);
+  if (carded.board !== found.board) nodesStore.getState().update(found.nodeId, { columns: carded.board.columns, cards: carded.board.cards });
+  return carded.tasks;
+}
+
+/** `move_card`: a card of the mission's board to a column; its GitHub issue follows like any move. */
+export async function moveMissionCard(fleetId: string, cardId: string, columnId: string): Promise<void> {
+  const found = missionBoard(fleetId);
+  if (found?.board.cards[cardId]) await moveCardWithGithub(found.nodeId, cardId, columnId, undefined, missionFolder(fleetId));
 }
