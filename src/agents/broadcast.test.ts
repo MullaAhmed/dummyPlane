@@ -61,7 +61,7 @@ describe("sendToAgents", () => {
     expect(calls).toEqual([{ cmd: "pty_send_text", nodeId: "batman", text: "lance les tests" }]);
   });
 
-  it("pastes a message's images alone before its text to Claude Code and Codex, and writes them in it for the others (attachments)", async () => {
+  it("pastes a message's images alone before its text to Claude Code and Codex, writes them in it for other agents, and leaves them out for a shell (attachments)", async () => {
     await agent("batman", "claude", "running", "idle");
     await agent("flash", "codex", "running", "idle");
     await agent("storm", "gemini", "running", "idle");
@@ -72,7 +72,7 @@ describe("sendToAgents", () => {
       { cmd: "pty_send_text", nodeId: "batman", text: "what is wrong here?", images },
       { cmd: "pty_send_text", nodeId: "flash", text: "what is wrong here?", images },
       { cmd: "pty_send_text", nodeId: "storm", text: String.raw`C:\cache\paste-1.png "C:\Users\Jane Doe\paste-2.png" what is wrong here?` },
-      { cmd: "pty_send_text", nodeId: "robin", text: String.raw`C:\cache\paste-1.png "C:\Users\Jane Doe\paste-2.png" what is wrong here?` },
+      { cmd: "pty_send_text", nodeId: "robin", text: "what is wrong here?" },
     ]);
   });
 

@@ -140,11 +140,12 @@ export async function sendToAgents(
 
 /**
  * Types `text` and the paths of its `images` into a terminal. An agent that attaches an image path pasted alone
- * (Claude Code, Codex) gets each pasted so before the text, as `[Image #N]`; any other terminal gets them written
- * before the text, as the field once sent them, for its agent to read.
+ * (Claude Code, Codex) gets each pasted so before the text, as `[Image #N]`; another agent gets them written
+ * before the text, as the field once sent them, for it to read. A plain shell gets the text alone: a path the
+ * field never showed would run before the command, and open the image.
  */
 function typeInto(id: string, agent: AgentId, text: string, images: readonly string[]): Promise<void> {
-  if (images.length === 0) return ptySendText(id, text);
+  if (images.length === 0 || agent === "shell") return ptySendText(id, text);
   if (ATTACHES_PASTED_IMAGES.has(agent)) return ptySendText(id, text, images);
   return ptySendText(id, [...images, text].join(" "));
 }

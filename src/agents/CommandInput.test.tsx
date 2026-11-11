@@ -516,7 +516,7 @@ it("sends the images with the text, then clears them like the text (attachments)
   // The next message carries none.
   await type("and now?");
   await press("Enter");
-  expect(vi.mocked(sendCommand).mock.calls.at(-1)).toEqual([["b"], "and now?"]);
+  expect(vi.mocked(sendCommand).mock.calls.slice(-1)[0]).toEqual([["b"], "and now?"]);
 });
 
 it("waits for an image still being saved, rather than sending without it (attachments)", async () => {
