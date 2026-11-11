@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type Ref } from "react";
 import { CaptureUpdateAction, Excalidraw, getSceneVersion, newElementWith } from "@excalidraw/excalidraw";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { AppState, BinaryFiles, ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import "@excalidraw/excalidraw/index.css";
 import { toast } from "sonner";
 import { usePalette, useTheme } from "@/app/theme";
+import { Button } from "@/components/ui/button";
 import { completeArrival } from "@/commands/pendingArrival";
 import { assignMissingNames } from "@/agents/naming";
 import { dismissResumeOffer, offerResumeAll } from "@/agents/ResumeAllToast";
@@ -51,10 +52,15 @@ import { canvasMessages } from "./messages";
 
 const reportSaveError = (error: unknown) => toast.error(messages(canvasMessages).saveFailed(String(error)));
 
-/** One Excalidraw instance per workspace; remounted (via `key`) when switching. */
+/**
+ * One Excalidraw instance per workspace; remounted (via `key`) when switching. A scene that
+ * failed to load says why and offers to try again (a failed read is not kept: loadScene reads anew).
+ */
 export function Canvas({ workspaceId }: { workspaceId: string }) {
   const [scene, setScene] = useState<LoadedScene | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  const status = useRef<HTMLDivElement>(null);
   const t = useMessages(canvasMessages);
 
   useEffect(() => {
@@ -66,15 +72,37 @@ export function Canvas({ workspaceId }: { workspaceId: string }) {
     return () => {
       alive = false;
     };
-  }, [workspaceId]);
+  }, [workspaceId, attempt]);
 
-  if (error) return <Centered>{t.loadFailed(error)}</Centered>;
-  if (!scene) return <Centered>{t.loading}</Centered>;
+  const retry = () => {
+    // The button goes with the error: the keyboard on it stays on the status that says "Loading…", not on the page's body.
+    if (status.current?.contains(document.activeElement)) status.current.focus({ preventScroll: true });
+    setError(null);
+    setAttempt((n) => n + 1);
+  };
+
+  if (error)
+    return (
+      <Centered ref={status}>
+        <div className="grid justify-items-center gap-3">
+          <p>{t.loadFailed(error)}</p>
+          <Button type="button" variant="secondary" size="sm" onClick={retry}>
+            {t.retryLoad}
+          </Button>
+        </div>
+      </Centered>
+    );
+  if (!scene) return <Centered ref={status}>{t.loading}</Centered>;
   return <LoadedCanvas workspaceId={workspaceId} scene={scene} />;
 }
 
-function Centered({ children }: { children: ReactNode }) {
-  return <div className="absolute inset-0 grid place-items-center text-sm text-dp-text-2">{children}</div>;
+/** The canvas's place while it has no scene: the words said to screen readers too, and a place for the keyboard to wait. */
+function Centered({ ref, children }: { ref?: Ref<HTMLDivElement>; children: ReactNode }) {
+  return (
+    <div ref={ref} role="status" tabIndex={-1} className="absolute inset-0 grid place-items-center text-sm text-dp-text-2 outline-none">
+      {children}
+    </div>
+  );
 }
 
 function LoadedCanvas({ workspaceId, scene }: { workspaceId: string; scene: LoadedScene }) {
