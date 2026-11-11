@@ -15,16 +15,21 @@ export const CHECK_EVERY_MS = 6 * 60 * 60_000;
 export const CHECK_TIMEOUT_MS = 30_000;
 const AUTO_KEY = "updates.auto";
 
+/** Where an install stands: the download, with its share once its size is known, then the installer. */
+export type UpdateStep = { kind: "downloading"; share: number | null } | { kind: "installing" };
+
 export interface UpdatesState {
   /** "Check for updates automatically": the only request dummyPlane makes on its own. */
   auto: boolean;
   available: { version: string; notes: string } | null;
   /** 0 to 1 while the new version downloads. */
   progress: number | null;
+  /** What the dialog says while an update installs: never a 0% that is only an unknown size, nor 100% once installing. */
+  step: UpdateStep | null;
   dialogOpen: boolean;
 }
 
-export const updatesStore = createStore<UpdatesState>()(() => ({ auto: true, available: null, progress: null, dialogOpen: false }));
+export const updatesStore = createStore<UpdatesState>()(() => ({ auto: true, available: null, progress: null, step: null, dialogOpen: false }));
 export const useUpdates = <T>(selector: (state: UpdatesState) => T) => useStore(updatesStore, selector);
 
 /** The update found by the last check, downloaded and installed by `installUpdate`. */
@@ -77,16 +82,21 @@ export async function installUpdate() {
   let total = 0;
   let received = 0;
   installing = update;
-  updatesStore.setState({ progress: 0 });
+  updatesStore.setState({ progress: 0, step: { kind: "downloading", share: null } });
   try {
     await update.download((event: DownloadEvent) => {
       if (event.event === "Started") total = event.data.contentLength ?? 0;
       if (event.event === "Progress") received += event.data.chunkLength;
-      updatesStore.setState({ progress: event.event === "Finished" ? 1 : total > 0 ? Math.min(1, received / total) : 0 });
+      const share = total > 0 ? Math.min(1, received / total) : null;
+      updatesStore.setState({
+        progress: event.event === "Finished" ? 1 : (share ?? 0),
+        // Without a size there is no figure to give: "Downloading…", then "Installing…" once the download is done.
+        step: event.event === "Finished" ? { kind: "installing" } : { kind: "downloading", share },
+      });
     });
     // The installer closes dummyPlane: changes only the user can decide on stop it here, agents untouched.
     if (hasUnsavedWork()) {
-      updatesStore.setState({ progress: null });
+      updatesStore.setState({ progress: null, step: null });
       toast.warning(messages(appMessages).updateWaitsForSave);
       return;
     }

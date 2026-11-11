@@ -155,7 +155,11 @@ export const shellMessages = defineMessages(
       willClose: "dummyPlane will close during the installation, then restart",
       later: "Later",
       install: "Install and restart",
-      downloading: (percent: number) => `Downloading… ${percent}%`,
+      downloading: (percent: number | null) => (percent === null ? "Downloading…" : `Downloading… ${percent}%`),
+      installing: "Installing…",
+      /** Read out once per stage, not at every percent. */
+      downloadingStatus: "Downloading the update",
+      installingStatus: "Installing the update: dummyPlane will restart",
       failed: "The update failed",
     },
     window: {
