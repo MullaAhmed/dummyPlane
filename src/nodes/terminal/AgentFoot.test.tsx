@@ -141,7 +141,7 @@ describe("Link from the agent's end", () => {
     expect(linkButton()!.hasAttribute("title")).toBe(false);
     await act(async () => linkButton()!.focus());
     await later();
-    expect(tooltip()).toBe("Link this agent to another agent or to a fleet");
+    expect(tooltip()).toBe("Link this agent to another agent, a fleet or a Kanban board");
     const button = linkButton();
     await act(async () => linkButton()!.click());
     await later();

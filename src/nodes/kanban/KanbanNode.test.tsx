@@ -8,6 +8,7 @@ import { canvasStore } from "@/canvas/canvasStore";
 import { createNodeElement } from "@/canvas/nodeElement";
 import { sendCardToTerminal } from "@/kanban/dropOnTerminal";
 import { nodesStore } from "@/store/nodes";
+import { uiStore } from "@/store/ui";
 import { blend, contrast } from "@/theme/colorMath";
 import { cssBlock, readSource } from "@/theme/cssBlocks";
 import { KanbanNode } from "./KanbanNode";
@@ -475,6 +476,30 @@ it("checks the GitHub link when a field is left or on Link, not at the first key
   expect(github.syncBoard).not.toHaveBeenCalledWith("link-board");
 
   await act(async () => button("Cancel").click());
+  await act(async () => root.unmount());
+  document.body.replaceChildren();
+});
+
+it("starts the link mode from its menu: a click on an agent or a Fleet then wires it to the board", async () => {
+  mockIPC(() => undefined);
+  await nodesStore.getState().create("link-agent-board", {
+    workspaceId: "w1",
+    kind: "kanban",
+    payload: { columns: [{ id: "todo", title: "To do", cardIds: [] }], cards: {} },
+  });
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = createRoot(host);
+  await act(async () => root.render(<KanbanNode nodeId="link-agent-board" />));
+  await act(async () => press(host.querySelector('button[aria-label="Board menu"]')!, "Enter"));
+  const items = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].map((i) => i.textContent);
+  // First, before the GitHub link's entries, which stay as they were.
+  expect(items.slice(0, 2)).toEqual(["Link an agent…", "Link to GitHub…"]);
+  const link = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((i) => i.textContent === "Link an agent…")!;
+  expect(uiStore.getState().linking).toBeNull();
+  await act(async () => link.click());
+  expect(uiStore.getState().linking).toBe("link-agent-board");
+  uiStore.setState({ linking: null });
   await act(async () => root.unmount());
   document.body.replaceChildren();
 });

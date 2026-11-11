@@ -47,6 +47,7 @@ import { createIssueForCard, detectRepo, linkBoard, moveCardWithGithub, parsePro
 import { useNativeKeyDown } from "@/lib/useNativeKeyDown";
 import { AccentButton, Hint, IconButton, QuietButton } from "@/shell/buttons";
 import { nodesStore, terminalOf, useNodes } from "@/store/nodes";
+import { uiStore } from "@/store/ui";
 import { KANBAN_PRIORITIES, type KanbanBoardLink, type KanbanCard, type KanbanColumn, type KanbanPayload, type KanbanPriority } from "@/nodes/types";
 import { KANBAN_CARD_MIME } from "./drag";
 import { kanbanNodeMessages } from "./messages";
@@ -322,7 +323,11 @@ export function KanbanNode({ nodeId }: { nodeId: string }) {
               <MoreHorizontal />
             </IconButton>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
+          {/* The menu does not hand the keyboard back to its button while the link mode runs: the mode's list has it. */}
+          <DropdownMenuContent align="end" className="w-56" onCloseAutoFocus={(e) => uiStore.getState().linking === nodeId && e.preventDefault()}>
+            {/* The link mode (agents/LinkMode.tsx), started from the board: a click on an agent or a Fleet wires it here. */}
+            <DropdownMenuItem onSelect={() => uiStore.getState().setLinking(nodeId)}>{t.linkAgent}</DropdownMenuItem>
+            <DropdownMenuSeparator />
             <DropdownMenuItem onSelect={() => setLinking(true)}>{board.github ? t.github.editLink : t.github.link}</DropdownMenuItem>
             {board.github && (
               <>

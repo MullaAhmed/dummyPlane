@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { mockIPC } from "@tauri-apps/api/mocks";
 import { canvasStore, EMPTY_VIEW } from "@/canvas/canvasStore";
@@ -9,12 +9,15 @@ import { createNodeElement } from "@/canvas/nodeElement";
 import { nodesStore } from "@/store/nodes";
 import { uiStore } from "@/store/ui";
 import { linkAgents } from "./agentLinks";
+import { linkAgentToBoard } from "./boardLinks";
 import { LinkMode } from "./LinkMode";
+import { withBoardLink } from "./wires";
 import { linkFleet } from "@/fleet/fleets";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
 vi.mock("@/fleet/fleets", () => ({ linkFleet: vi.fn() }));
 vi.mock("./agentLinks", async (importOriginal) => ({ ...(await importOriginal<typeof import("./agentLinks")>()), linkAgents: vi.fn() }));
+vi.mock("./boardLinks", async (importOriginal) => ({ ...(await importOriginal<typeof import("./boardLinks")>()), linkAgentToBoard: vi.fn() }));
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -61,7 +64,7 @@ it("runs the other way from an agent's foot: a click on a fleet wires the agent 
     canvasStore.setState({ api: { getSceneElements: () => [atlas, batman] } as never, view: EMPTY_VIEW, frames: [], links: { atlas: { nodeIds: [], groupIds: [] } } });
     uiStore.setState({ linking: "batman" });
   });
-  expect(document.body.textContent).toContain("Click another agent or a fleet to link this agent");
+  expect(document.body.textContent).toContain("Click another agent, a fleet or a board to link this agent");
   const layer = host.ownerDocument.querySelector<HTMLElement>(".cursor-crosshair")!;
   // A click on the agent itself designates nothing from its end: it ends the mode without a wire.
   await act(async () => layer.dispatchEvent(new MouseEvent("click", { bubbles: true, clientX: batman.x + 10, clientY: batman.y + 10 })));
@@ -155,7 +158,7 @@ const at = (kind: "terminal" | "fleet", id: string, x: number, y: number) => ({ 
 
 it("takes no focus and shows no list when nothing on the canvas can be linked", () => {
   expect(listbox()).toBeNull();
-  expect(document.body.textContent).toContain("Click a group or an agent to link");
+  expect(document.body.textContent).toContain("Click a group, an agent or a board to link");
 });
 
 it("links two agents from the keyboard: the list takes the focus, the arrows and Tab walk the targets outlined on the canvas, Enter links (P1-9)", async () => {
@@ -273,4 +276,129 @@ it("ends on Escape even from a Link button whose foot keeps every key from bubbl
   button.focus();
   await act(async () => void button.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })));
   expect(uiStore.getState().linking).toBeNull();
+});
+
+describe("Kanban boards in the link mode", () => {
+  const board = (id: string, x: number, y: number) => ({ ...createNodeElement("kanban", { x, y }), id }) as unknown as ExcalidrawElement;
+  const click = async (target: ExcalidrawElement) => {
+    const layer = host.ownerDocument.querySelector<HTMLElement>(".cursor-crosshair")!;
+    await act(async () => layer.dispatchEvent(new MouseEvent("click", { bubbles: true, clientX: target.x + 10, clientY: target.y + 10 })));
+  };
+  const show = async (scene: ExcalidrawElement[], linking: string) => {
+    await act(async () => {
+      uiStore.setState({ linking: null });
+      canvasStore.setState({ api: { getSceneElements: () => scene } as never, view: EMPTY_VIEW, frames: [], links: {} });
+    });
+    await act(async () => uiStore.setState({ linking }));
+  };
+  const hint = () => document.querySelector("[data-link-targets] p")!.textContent;
+
+  beforeEach(async () => {
+    mockIPC(() => undefined);
+    Object.defineProperty(document, "elementsFromPoint", { value: () => [], configurable: true });
+    vi.mocked(linkFleet).mockClear();
+    vi.mocked(linkAgents).mockClear();
+    vi.mocked(linkAgentToBoard).mockClear();
+    await terminal("batman", "claude");
+    await terminal("cyborg", "claude");
+    await terminal("sh", "shell");
+    await nodesStore.getState().create("boss", { workspaceId: "w1", kind: "terminal", payload: { title: "Boss", name: "Boss", agent: "claude", cwd: "C:/code", shell: "default", command: "", role: "manager", fleet: "atlas" } });
+    await nodesStore.getState().create("atlas", { workspaceId: "w1", kind: "fleet", payload: { name: "Atlas" } });
+    await nodesStore.getState().create("tasks", { workspaceId: "w1", kind: "kanban", payload: { columns: [{ id: "todo", title: "To do", cardIds: ["c1", "c2"] }], cards: { c1: { id: "c1", title: "A", notes: "", priority: "none" }, c2: { id: "c2", title: "B", notes: "", priority: "none" } } } });
+    await nodesStore.getState().create("synced", { workspaceId: "w1", kind: "kanban", payload: { columns: [], cards: {}, github: { repo: "o/r" } as never } });
+  });
+  afterEach(async () => {
+    await act(async () => canvasStore.setState({ api: null, links: {} }));
+  });
+
+  it("wires an agent to the board it clicks from its own end, and ends the mode", async () => {
+    const batman = at("terminal", "batman", 400, 400);
+    const tasks = board("tasks", 2400, 400);
+    await show([batman, tasks], "batman");
+    expect(hint()).toContain("a board to link this agent");
+    expect(options().map((o) => o.textContent)).toEqual(["Kanban board · 2 cardsBoard"]);
+    await click(tasks);
+    expect(linkAgentToBoard).toHaveBeenCalledWith("batman", "tasks");
+    expect(linkAgents).not.toHaveBeenCalled();
+    expect(linkFleet).not.toHaveBeenCalled();
+    expect(uiStore.getState().linking).toBeNull();
+  });
+
+  it("wires an agent to a board picked in the list, a board it is already wired to marked", async () => {
+    const batman = at("terminal", "batman", 400, 400);
+    await show([batman, board("tasks", 2400, 400), board("synced", 2400, 2000)], "batman");
+    expect(options().map((o) => o.textContent)).toEqual(["Kanban board · 2 cardsBoard", "Kanban board · o/rBoard"]);
+    await press(listbox()!, "ArrowDown");
+    await press(listbox()!, "Enter");
+    expect(linkAgentToBoard).toHaveBeenCalledWith("batman", "tasks");
+    expect(uiStore.getState().linking).toBeNull();
+  });
+
+  it("gives a plain shell, or a mission's Manager, no board to click: nothing a wire would give them", async () => {
+    const tasks = board("tasks", 2400, 400);
+    for (const id of ["sh", "boss"]) {
+      await show([at("terminal", id, 400, 400), tasks], id);
+      expect(options().filter((o) => o.textContent?.endsWith("Board"))).toEqual([]);
+      await click(tasks);
+      expect(linkAgentToBoard).not.toHaveBeenCalled();
+      expect(uiStore.getState().linking).toBeNull();
+    }
+  });
+
+  it("wires a fleet to each board clicked and stays on, as it does for a group", async () => {
+    const atlas = at("fleet", "atlas", 400, 400);
+    const tasks = board("tasks", 2400, 400);
+    await show([atlas, tasks], "atlas");
+    expect(hint()).toContain("an agent or a board to link");
+    expect(options().map((o) => o.textContent)).toEqual(["Kanban board · 2 cardsBoard"]);
+    await click(tasks);
+    expect(linkAgentToBoard).toHaveBeenCalledWith("atlas", "tasks");
+    expect(linkFleet).not.toHaveBeenCalled();
+    expect(uiStore.getState().linking).toBe("atlas");
+  });
+
+  it("starts from a board: it lists the agents that take instructions and the fleets, and a click wires one to it", async () => {
+    const tasks = board("tasks", 400, 400);
+    const batman = at("terminal", "batman", 2400, 400);
+    await show([tasks, batman, at("terminal", "sh", 2400, 1600), at("terminal", "boss", 2400, 2800), at("fleet", "atlas", 400, 2800), board("synced", 4400, 400)], "tasks");
+    expect(hint()).toContain("link it to this board");
+    // Not the other board, a plain shell or the Manager.
+    expect(options().map((o) => o.textContent)).toEqual(["BatmanAgent", "AtlasFleet"]);
+    await click(batman);
+    expect(linkAgentToBoard).toHaveBeenCalledWith("batman", "tasks");
+    expect(linkAgents).not.toHaveBeenCalled();
+    expect(linkFleet).not.toHaveBeenCalled();
+    expect(uiStore.getState().linking).toBeNull();
+  });
+
+  it("wires a fleet clicked from a board, and takes a click on a shell, a Manager or the void for none", async () => {
+    const tasks = board("tasks", 400, 400);
+    const atlas = at("fleet", "atlas", 2400, 400);
+    const scene = [tasks, atlas, at("terminal", "sh", 2400, 1600), at("terminal", "boss", 2400, 2800)];
+    await show(scene, "tasks");
+    await click(scene[2]);
+    expect(linkAgentToBoard).not.toHaveBeenCalled();
+    expect(uiStore.getState().linking).toBeNull();
+    await show(scene, "tasks");
+    await click(scene[3]);
+    expect(linkAgentToBoard).not.toHaveBeenCalled();
+    await show(scene, "tasks");
+    await click(atlas);
+    expect(linkAgentToBoard).toHaveBeenCalledWith("atlas", "tasks");
+    expect(uiStore.getState().linking).toBeNull();
+  });
+
+  it("marks an agent already wired to the board, and wires nothing for it from the list", async () => {
+    const tasks = board("tasks", 400, 400);
+    const batman = at("terminal", "batman", 2400, 400);
+    // The wire the user drew, as the scene holds it: bound to both ends.
+    const wire = withBoardLink([tasks, batman], "batman", "tasks").find((e) => e.type === "arrow")!;
+    await show([tasks, batman, wire], "tasks");
+    expect(options().map((o) => o.textContent)).toEqual(["BatmanLinked"]);
+    expect(options()[0].getAttribute("aria-disabled")).toBe("true");
+    await press(listbox()!, "ArrowDown");
+    await press(listbox()!, "Enter");
+    expect(linkAgentToBoard).not.toHaveBeenCalled();
+    expect(uiStore.getState().linking).toBe("tasks");
+  });
 });
