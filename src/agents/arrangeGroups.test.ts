@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { NODE_SIZE, toStoredKind, type NodeKind } from "@/canvas/nodeElement";
+import { nodesStore } from "@/store/nodes";
 import { arrangedElements, type ArrangeInput } from "./arrange";
 import { boxOf } from "./arrangeDrawings";
 import { anchorsOf } from "./attachments";
@@ -321,6 +322,22 @@ describe("Arrange and attached items", () => {
     const result = arrangedElements(input(elements));
     expect(at(result, "b")).toMatchObject({ x: W + GROUP_GAP, y: 0 });
     expect(offset(result, "b", "c")).toEqual({ x: 0, y: H + ROW_GAP });
+  });
+
+  it("moves an agent's output (show_output) with the agent, its source read from the node's payload", () => {
+    nodesStore.setState({ nodes: { o: { workspaceId: "w", kind: "output", payload: { title: "", source: "b", ui: "", updatedAt: 0 } } } });
+    const elements = [node("a", "terminal", 0, 0), node("b", "terminal", 3000, 3000), node("o", "output", 3000, 3000 + H + ROW_GAP)];
+    expect(anchorsOf(elements)(elements[2])).toBe("b");
+    const result = arrangedElements(input(elements));
+    expect(at(result, "b")).toMatchObject({ x: W + GROUP_GAP, y: 0 });
+    expect(offset(result, "b", "o")).toEqual({ x: 0, y: H + ROW_GAP });
+    nodesStore.setState({ nodes: {} });
+  });
+
+  it("takes a quick note's host from its link", () => {
+    const note = node("n", "note", 0, 0, { customData: { kind: "note", note: { of: "t", x: "right", dx: 16, y: "top", dy: 0 } } });
+    const elements = [node("t", "terminal", 0, 0), note];
+    expect(anchorsOf(elements)(note)).toBe("t");
   });
 
   it("takes an item's anchor from the rule given, and none from a rule naming a missing element or itself", () => {

@@ -1,4 +1,6 @@
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
+import { nodeKindOf } from "@/canvas/nodeElement";
+import { nodesStore } from "@/store/nodes";
 
 /**
  * Items attached to an anchor: a quick note beside its terminal, the output an
@@ -29,8 +31,25 @@ export const markedAnchor: AnchorRule = (element) => {
   return typeof id === "string" ? id : null;
 };
 
-/** Every rule; the first that names a live element wins. Quick notes and output nodes add theirs here. */
-export const ANCHOR_RULES: readonly AnchorRule[] = [markedAnchor];
+/** What an agent showed with show_output (src/nodes/output): attached to that agent, its payload's source. */
+export const outputSource: AnchorRule = (element) => {
+  if (nodeKindOf(element) !== "output") return null;
+  const record = nodesStore.getState().nodes[element.id];
+  return record?.kind === "output" ? record.payload.source : null;
+};
+
+/**
+ * A quick note (src/nodes/note): attached to the terminal or Fleet it stands
+ * beside, its host, whose id its element keeps in `customData.note.of`.
+ */
+export const noteHost: AnchorRule = (element) => {
+  if (nodeKindOf(element) !== "note") return null;
+  const of = (element.customData?.note as { of?: unknown } | undefined)?.of;
+  return typeof of === "string" ? of : null;
+};
+
+/** Every rule; the first that names a live element wins. */
+export const ANCHOR_RULES: readonly AnchorRule[] = [markedAnchor, outputSource, noteHost];
 
 /**
  * For Arrange: the anchor of each element of `elements`, by `rules`. Only a
