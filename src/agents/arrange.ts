@@ -2,6 +2,7 @@ import type { ExcalidrawArrowElement, ExcalidrawElement } from "@excalidraw/exca
 import { groupInfoOf, type Rect } from "@/canvas/groups";
 import { nodeKindOf } from "@/canvas/nodeElement";
 import { boxOf, containerOf, endsOf, followedArrow } from "./arrangeDrawings";
+import type { Attachment } from "./attachments";
 import { COLUMN_GAP, GROUP_GAP, MAX_ROWS, NODE_GAP, PADDING, PADDING_BOTTOM, PADDING_TOP, ROW_GAP } from "./groupLayout";
 import type { ParentOf } from "./spawnLayout";
 import type { Point } from "./terminals";
@@ -37,7 +38,7 @@ export interface ArrangeInput {
   /** Whether a node is a minimized terminal (a tab). */
   isMinimized: (nodeId: string) => boolean;
   /** The element an item is attached to, which it moves with (./attachments.ts); none when absent. */
-  attachedTo?: (element: ExcalidrawElement) => string | null | undefined;
+  attachedTo?: (element: ExcalidrawElement) => string | Attachment | null | undefined;
   /**
    * A selection to arrange instead of the whole canvas: nodes, frames and what a group holds (drawings outside groups are ignored).
    * One group, or members of one group: that group is tidied inside. Fewer than two blocks: the whole canvas.
@@ -234,7 +235,7 @@ interface GroupScene {
   nodeIds: ReadonlySet<string>;
   isMinimized: (nodeId: string) => boolean;
   liveParent: (nodeId: string) => string | null;
-  anchorOf: (element: ExcalidrawElement) => string | null;
+  attachmentOf: (element: ExcalidrawElement) => Attachment | null;
   /** Whether an element lies in no frame. */
   loose: (element: ExcalidrawElement) => boolean;
   aspect: number;
@@ -259,19 +260,29 @@ interface Piece {
  * that hold a node not minimized take the group's grid: top to bottom, a new
  * column to the right after MAX_ROWS, each column as wide as its widest piece.
  * The drawings go in rows under it, as wide as it; the tabs in rows under them.
- * What is attached to a member but lies outside the frame stays outside, and
- * moves with the side of the frame it stands by.
+ * What is attached to a member but lies outside the frame never becomes a
+ * member: it stays outside and moves with the side of the frame it stands by,
+ * or, kept `beside` its anchor (a quick note), it is laid out with it.
  */
 function tidyGroup(frame: ExcalidrawElement, members: readonly ExcalidrawElement[], scene: GroupScene): { targets: Map<string, Rect>; followers: Set<string> } | null {
-  const { byId, nodeIds, isMinimized, liveParent, anchorOf } = scene;
+  const { byId, nodeIds, isMinimized, liveParent, attachmentOf } = scene;
+  const anchorOf = (e: ExcalidrawElement) => attachmentOf(e)?.anchor ?? null;
   // Wires are routed again between their ends once these stand where they go.
-  const own = members.filter((m) => !isWire(m));
-  if (own.length === 0) return null;
-  const inGroup = new Set(own.map((m) => m.id));
+  const kept = members.filter((m) => !isWire(m));
+  if (kept.length === 0) return null;
+  const inGroup = new Set(kept.map((m) => m.id));
   for (const id of nodeIds) {
     const parent = liveParent(id);
     if (parent && inGroup.has(id) !== inGroup.has(parent)) return null;
   }
+  // Outside the frame, kept beside a member: laid out with it, the grid making room for it, still no member of the frame.
+  const besides = scene.live.filter((e) => {
+    if (inGroup.has(e.id) || e.id === frame.id || e.type === "frame" || !scene.loose(e)) return false;
+    const attachment = attachmentOf(e);
+    return attachment?.beside === true && inGroup.has(attachment.anchor);
+  });
+  const own = [...kept, ...besides];
+  const ownIds = new Set(own.map((m) => m.id));
 
   // Arrows bound at both ends (outside an Excalidraw group): placed with their ends when one piece holds both, else following them.
   const links = own.filter((m) => {
@@ -326,7 +337,8 @@ function tidyGroup(frame: ExcalidrawElement, members: readonly ExcalidrawElement
     grouped.set(root, [...(grouped.get(root) ?? []), m]);
   }
   const all: Piece[] = [...grouped.values()].map((elements) => ({ elements, box: boundsOf(elements.map(boxOf)) }));
-  const nodesOf = (p: Piece) => p.elements.filter((e) => nodeIds.has(e.id));
+  // Its nodes, not counting what is attached to another of them (a note beside a minimized terminal is a tab's).
+  const nodesOf = (p: Piece) => hostsIn(p.elements, nodeIds, anchorOf);
   const boxOfPiece = (p: Piece) => p.box;
   // The grid fills column by column: read back that way, a tidy group stays as it is.
   const grid = columnOrder(
@@ -398,9 +410,9 @@ function tidyGroup(frame: ExcalidrawElement, members: readonly ExcalidrawElement
   const fitted = { x: frame.x, y: frame.y, width: 2 * PADDING + width, height: PADDING_TOP + (bottom - top) + PADDING_BOTTOM };
   targets.set(frame.id, fitted);
 
-  // Attached to a member but outside the frame: it stays outside, moved with the side of the frame it stands by.
+  // Attached to a member but outside the frame (not kept beside it): it stays outside, moved with the side of the frame it stands by.
   for (const e of scene.live) {
-    if (inGroup.has(e.id) || e.id === frame.id || e.type === "frame" || !scene.loose(e)) continue;
+    if (ownIds.has(e.id) || e.id === frame.id || e.type === "frame" || !scene.loose(e)) continue;
     const anchor = anchorOf(e);
     if (!anchor || !inGroup.has(anchor)) continue;
     const box = boxOf(e);
@@ -409,6 +421,12 @@ function tidyGroup(frame: ExcalidrawElement, members: readonly ExcalidrawElement
     if (dx !== 0 || dy !== 0) targets.set(e.id, { ...rectOf(e), x: e.x + dx, y: e.y + dy });
   }
   return { targets, followers };
+}
+
+/** The nodes of `elements` that are not attached to another of them: those that make it a grid's piece or a tab. */
+function hostsIn(elements: readonly ExcalidrawElement[], nodeIds: ReadonlySet<string>, anchorOf: (e: ExcalidrawElement) => string | null): ExcalidrawElement[] {
+  const ids = new Set(elements.map((e) => e.id));
+  return elements.filter((e) => nodeIds.has(e.id) && !ids.has(anchorOf(e) ?? ""));
 }
 
 const random = () => Math.floor(Math.random() * 2 ** 31);
@@ -436,10 +454,12 @@ export function arrangedElements(input: ArrangeInput): { elements: ExcalidrawEle
   const nodeIds = new Set(nodes.map((n) => n.id));
   const inFrame = (e: ExcalidrawElement) => (e.frameId && frameIds.has(e.frameId) ? e.frameId : null);
   const liveParent = (nodeId: string) => liveParentOf(nodeId, parentOf, nodeIds);
-  const anchorOf = (e: ExcalidrawElement) => {
-    const id = input.attachedTo?.(e);
-    return id && id !== e.id && byId.has(id) ? id : null;
+  const attachmentOf = (e: ExcalidrawElement): Attachment | null => {
+    const found = input.attachedTo?.(e);
+    const attachment = typeof found === "string" ? { anchor: found } : found;
+    return attachment && attachment.anchor !== e.id && byId.has(attachment.anchor) ? attachment : null;
   };
+  const anchorOf = (e: ExcalidrawElement) => attachmentOf(e)?.anchor ?? null;
   const hostOf = hostsOf(frames);
   /** The group an element is laid out in: its frame's, or the one around its frame drawn by hand. */
   const groupFrameOf = (e: ExcalidrawElement): string | null => {
@@ -505,7 +525,7 @@ export function arrangedElements(input: ArrangeInput): { elements: ExcalidrawEle
   const followers = new Set<string>();
 
   // Inside each group in scope: every member laid out again. Not a folded group (its terminals are hidden).
-  const groupScene: GroupScene = { live, byId, nodeIds, isMinimized, liveParent, anchorOf, loose: (e) => inFrame(e) === null, aspect };
+  const groupScene: GroupScene = { live, byId, nodeIds, isMinimized, liveParent, attachmentOf, loose: (e) => inFrame(e) === null, aspect };
   const tidyFrames = insideOne ? [byId.get(insideOne)!] : frames.filter((f) => scope.has(unitOf(f.id)));
   for (const frame of tidyFrames) {
     const info = groupInfoOf(frame);
@@ -535,8 +555,8 @@ export function arrangedElements(input: ArrangeInput): { elements: ExcalidrawEle
         const ids = new Set(members.map((m) => m.id));
         const held = new Set(members.filter((m) => frameIds.has(m.id)).map((m) => m.id));
         for (const e of live) if (e.frameId && held.has(e.frameId)) ids.add(e.id);
-        const unitNodes = members.filter((m) => nodeIds.has(m.id));
-        const lone = members.length === 1 && unitNodes.length === 1;
+        const unitNodes = hostsIn(members, nodeIds, anchorOf);
+        const lone = members.length === 1 && nodeIds.has(members[0].id);
         const tab = held.size === 0 && unitNodes.length > 0 && unitNodes.every((n) => isMinimized(n.id));
         return { ids, rect: boundsOf(members.map(boxNow)), compound: !lone, tab };
       });

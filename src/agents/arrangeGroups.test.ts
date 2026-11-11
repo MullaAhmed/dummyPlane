@@ -327,7 +327,7 @@ describe("Arrange and attached items", () => {
   it("moves an agent's output (show_output) with the agent, its source read from the node's payload", () => {
     nodesStore.setState({ nodes: { o: { workspaceId: "w", kind: "output", payload: { title: "", source: "b", ui: "", updatedAt: 0 } } } });
     const elements = [node("a", "terminal", 0, 0), node("b", "terminal", 3000, 3000), node("o", "output", 3000, 3000 + H + ROW_GAP)];
-    expect(anchorsOf(elements)(elements[2])).toBe("b");
+    expect(anchorsOf(elements)(elements[2])).toEqual({ anchor: "b" });
     const result = arrangedElements(input(elements));
     expect(at(result, "b")).toMatchObject({ x: W + GROUP_GAP, y: 0 });
     expect(offset(result, "b", "o")).toEqual({ x: 0, y: H + ROW_GAP });
@@ -337,16 +337,65 @@ describe("Arrange and attached items", () => {
   it("takes a quick note's host from its link", () => {
     const note = node("n", "note", 0, 0, { customData: { kind: "note", note: { of: "t", x: "right", dx: 16, y: "top", dy: 0 } } });
     const elements = [node("t", "terminal", 0, 0), note];
-    expect(anchorsOf(elements)(note)).toBe("t");
+    expect(anchorsOf(elements)(note)).toEqual({ anchor: "t", beside: true });
+  });
+
+  /** A quick note beside `host`, as src/nodes/note writes it: no frame, its host named in its link. */
+  const quickNote = (id: string, host: string, x: number, y: number) =>
+    node(id, "note", x, y, { customData: { kind: "note", note: { of: host, x: "right", dx: 16, y: "top", dy: 0 } } });
+
+  it("keeps a quick note beside its host in a group, the grid making room for it, no member of the frame", () => {
+    const g = group("g", 0, 0, 3000, 2000);
+    const elements = [node("u", "terminal", 40, 60, { frameId: "g" }), node("t", "terminal", 900, 1000, { frameId: "g" }), g, quickNote("n", "t", 900 + W + 16, 1000)];
+    const result = arrangedElements(input(elements));
+    expect(at(result, "t")).toMatchObject({ x: PADDING, y: PADDING_TOP + H + ROW_GAP });
+    expect(offset(result, "t", "n")).toEqual({ x: W + 16, y: 0 });
+    expect(at(result, "g").width).toBe(2 * PADDING + W + 16 + NODE_SIZE.note.width);
+    expect(get(result, "n").frameId).toBeNull();
+    expect(overlap(boxOf(get(result, "n")), boxOf(get(result, "u")))).toBe(0);
+  });
+
+  it("gathers a minimized terminal and its quick note with the tabs", () => {
+    const elements = [node("a", "terminal", 0, 0), node("m", "terminal", 3000, 3000, { width: 280, height: 68 }), quickNote("n", "m", 3000 + 280 + 16, 3000)];
+    const result = arrangedElements(input(elements, { isMinimized: (id) => id === "m" }));
+    expect(at(result, "m")).toMatchObject({ x: 0, y: H + ROW_GAP });
+    expect(offset(result, "m", "n")).toEqual({ x: 280 + 16, y: 0 });
+  });
+
+  it("lays a group out the same when it also moves on the canvas: labels, followed arrows and attached items included", () => {
+    const messy = () => [
+      node("t", "terminal", 3900, 700, { frameId: "g" }),
+      rect("r", 3100, 100, 120, 80, { frameId: "g", boundElements: [{ id: "l", type: "text" }] }),
+      label("l", "r", 3110, 125, { frameId: "g" }),
+      // From r's right side to t's left side.
+      arrow("a", 3220, 140, 680, 780, "r", "t", { frameId: "g", boundElements: [{ id: "al", type: "text" }] }),
+      label("al", "a", 3500, 500, { frameId: "g" }),
+      rect("n", 3900 + W + COLUMN_GAP, 700, 200, 150, { frameId: "g", ...attached("t") }),
+      group("g", 3000, 0, 2500, 1500),
+      node("o", "file", 5600, 300, attachedNode("file", "t")),
+    ];
+    const alone = arrangedElements(input(messy()));
+    const moved = arrangedElements(input([node("first", "terminal", 0, 0), ...messy()]));
+    const fromCorner = (result: Result, id: string) => {
+      const e = get(result, id) as unknown as { x: number; y: number; width: number; height: number; points?: unknown };
+      const frame = get(result, "g");
+      return { x: e.x - frame.x, y: e.y - frame.y, width: e.width, height: e.height, points: e.points };
+    };
+    // The group went somewhere else on the canvas...
+    expect({ x: get(moved, "g").x, y: get(moved, "g").y }).not.toEqual({ x: 3000, y: 0 });
+    expect(fromCorner(moved, "g")).toEqual(fromCorner(alone, "g"));
+    // ...and everything in it, or with it, stands where the group alone puts it.
+    for (const id of ["t", "r", "l", "a", "al", "n", "o"]) expect(fromCorner(moved, id)).toEqual(fromCorner(alone, id));
+    expect(arrangedElements(input(moved!.elements))).toBeNull();
   });
 
   it("takes an item's anchor from the rule given, and none from a rule naming a missing element or itself", () => {
     const elements = [node("a", "terminal", 0, 0), rect("x", 100, 100, 10, 10, attached("a")), rect("y", 0, 0, 1, 1, attached("gone")), rect("z", 0, 0, 1, 1, attached("z"))];
     const anchorOf = anchorsOf(elements);
-    expect(anchorOf(elements[1])).toBe("a");
+    expect(anchorOf(elements[1])).toEqual({ anchor: "a" });
     expect(anchorOf(elements[2])).toBeNull();
     expect(anchorOf(elements[3])).toBeNull();
-    expect(anchorsOf(elements, [() => "a"])(elements[2])).toBe("a");
+    expect(anchorsOf(elements, [() => "a"])(elements[2])).toEqual({ anchor: "a" });
   });
 });
 
