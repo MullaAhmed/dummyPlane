@@ -31,7 +31,7 @@ const titles = (id: string, column: string) => {
 };
 
 const element = (kind: NodeKind, id: string, x: number) => ({ ...createNodeElement(kind, { x, y: 0 }), id }) as unknown as ExcalidrawElement;
-const nodes = [element("terminal", "batman", 0), element("terminal", "cyborg", 1200), element("terminal", "boss", 2400), element("fleet", "chef", 3600), element("kanban", "b1", 4800), element("kanban", "b2", 7000)];
+const nodes = [element("terminal", "batman", 0), element("terminal", "cyborg", 1200), element("terminal", "boss", 2400), element("fleet", "chef", 3600), element("kanban", "b1", 4800), element("kanban", "b2", 7000), element("terminal", "blank", 9200)];
 let scene: readonly ExcalidrawElement[] = nodes;
 const wire = (agent: string, board: string) => (scene = withBoardLink(scene, agent, board));
 
@@ -56,6 +56,7 @@ beforeAll(async () => {
     nodesStore.getState().create(id, { workspaceId: "w1", kind: "terminal", payload: { title: "", name: id, agent: "claude", cwd: `C:/code/${id}`, shell: "default", command: "", ...extra } });
   await terminal("batman");
   await terminal("cyborg");
+  await terminal("blank", { cwd: "  " });
   await terminal("boss", { role: "manager", fleet: "chef" });
   await nodesStore.getState().create("chef", { workspaceId: "w1", kind: "fleet", payload: { name: "Chef" } });
   await nodesStore.getState().create("b1", { workspaceId: "w1", kind: "kanban", payload: freshBoard() });
@@ -128,8 +129,17 @@ describe("the tools of an agent wired to a board", () => {
     expect(JSON.parse(textOf(await call("chef", "linked_boards"))).boards).toMatchObject([{ board: "b2", editable: true }]);
     expect(textOf(await call("chef", "add_board_card", { title: "Plan the night" }))).toContain('"Plan the night" added to To do');
     expect(titles("b2", "todo")).toEqual(["Docs", "Login", "Plan the night"]);
-    // The Fleet's own board tool is the mission's, and still reads only the boards handed to it.
-    expect(textOf(await call("chef", "board"))).toContain("No Kanban board is linked to you");
+    // The Fleet's own board tool is the mission's, and still reads only the boards handed to it: it points to the other.
+    const handed = textOf(await call("chef", "board"));
+    expect(handed).toContain("No Kanban board is linked to you");
+    expect(handed).toContain("read with linked_boards");
+  });
+
+  it("send no Manager to a tool it lacks: its board answer does not name linked_boards", async () => {
+    nodesStore.getState().update("chef", { mission: mission("en_cours", "missing") });
+    const answered = textOf(await call("boss", "board"));
+    expect(answered).toContain("No Kanban board is linked to you");
+    expect(answered).not.toContain("linked_boards");
   });
 
   it("add a card at the end of a column, the first by default, by the column's id or title", async () => {
@@ -181,6 +191,16 @@ describe("the tools of an agent wired to a board", () => {
     expect(titles("b1", "done")).toEqual(["Login"]);
     // A move runs where `gh` runs for the agent's own folder, so a linked issue follows.
     expect(moveCardWithGithub).toHaveBeenLastCalledWith("b1", "c2", "done", undefined, "C:/code/batman");
+  });
+
+  it("run `gh` nowhere in particular, not in an empty folder, when the agent has none", async () => {
+    wire("blank", "b1");
+    expect(textOf(await call("blank", "move_board_card", { card: "c1", column: "done" }))).toBe('"Docs" moved to Done.');
+    expect(moveCardWithGithub).toHaveBeenLastCalledWith("b1", "c1", "done", undefined, undefined);
+    // A Fleet has no folder of its own either.
+    wire("chef", "b2");
+    await call("chef", "move_board_card", { card: "c2", column: "done" });
+    expect(moveCardWithGithub).toHaveBeenLastCalledWith("b2", "c2", "done", undefined, undefined);
   });
 
   it("find the card among several wired boards, and ask for its id when a title is shared", async () => {

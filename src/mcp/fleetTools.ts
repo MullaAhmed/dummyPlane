@@ -455,9 +455,10 @@ function describeMissionBoard(fleetId: string): ToolResult {
 }
 
 /** `board`: the Kanban boards handed to this fleet. */
-function describeBoards(fleetId: string): ToolResult {
+function describeBoards(fleetId: string, pointToWired = false): ToolResult {
   const boards = linkedBoards(fleetId);
-  if (boards.length === 0) return said(t().fleet.noBoard);
+  // The Fleet is told where the boards wired to it are read; its Manager has no such tool.
+  if (boards.length === 0) return said(t().fleet.noBoard + (pointToWired ? t().fleet.noBoardWired : ""));
   return json({ note: t().fleet.boardNote, boards: boards.map(({ nodeId, board }) => boardView(nodeId, board)) });
 }
 
@@ -658,7 +659,7 @@ export async function fleetTool(fleetId: string, name: string, args: Record<stri
     case "remote_control":
       return remote(fleetId, mission, args);
     case "board":
-      return describeBoards(fleetId);
+      return describeBoards(fleetId, true);
     case "prioritize":
       return prioritize(fleetId, mission, args);
     case "stop_mission":

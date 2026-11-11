@@ -92,9 +92,13 @@ function candidatesFor(linking: string, origin: Origin, elements: readonly Excal
   return list.sort((a, b) => a.rect.y - b.rect.y || a.rect.x - b.rect.x);
 }
 
-/** The Link button of the node that is linking: where the keyboard goes back when the mode ends from the list. */
+/**
+ * The Link button of the node that is linking: where the keyboard goes back when the mode ends from the list. A board
+ * starts it from its menu, which has no "Link" of its own to go back to: the menu's button.
+ */
 function linkToggleOf(id: string): HTMLElement | null {
-  return [...document.querySelectorAll<HTMLElement>("[data-link-toggle]")].find((b) => b.dataset.linkToggle === id) ?? null;
+  const toggle = [...document.querySelectorAll<HTMLElement>("[data-link-toggle]")].find((b) => b.dataset.linkToggle === id);
+  return toggle ?? [...document.querySelectorAll<HTMLElement>("[data-board-menu]")].find((b) => b.dataset.boardMenu === id) ?? null;
 }
 
 /**

@@ -498,6 +498,8 @@ it("starts the link mode from its menu: a click on an agent or a Fleet then wire
   const link = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((i) => i.textContent === "Link an agent…")!;
   expect(uiStore.getState().linking).toBeNull();
   await act(async () => link.click());
+  // The mode starts as the menu closes, so that its list can take the keyboard the menu held.
+  await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
   expect(uiStore.getState().linking).toBe("link-agent-board");
   uiStore.setState({ linking: null });
   await act(async () => root.unmount());

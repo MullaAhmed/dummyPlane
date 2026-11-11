@@ -137,8 +137,10 @@ async function moveBoardCard(nodeId: string, args: Record<string, unknown>): Pro
   const wantedColumn = typeof args.column === "string" ? args.column.trim() : "";
   const column = columnNamed(found.board.board.columns, wantedColumn);
   if (!column) return refused(t().fleet.columnUnknown(wantedColumn, found.board.board.columns.map((c) => c.title).join(", ")));
-  // Where `gh` runs for a linked issue: the agent's own folder (a Fleet has none: the project on screen).
-  await moveCardWithGithub(found.board.nodeId, card.id, column.id, undefined, terminalOf(nodesStore.getState().nodes[nodeId])?.cwd);
+  // Where `gh` runs for a linked issue: the agent's own folder (a Fleet has none: the project on screen). Never an empty
+  // one, which would stand for a folder and keep the issue where it was.
+  const folder = terminalOf(nodesStore.getState().nodes[nodeId])?.cwd.trim() || undefined;
+  await moveCardWithGithub(found.board.nodeId, card.id, column.id, undefined, folder);
   talk(nodeId, found.board.nodeId);
   return said(t().fleet.cardMoved(card.title, column.title));
 }
