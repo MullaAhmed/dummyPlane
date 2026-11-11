@@ -3,6 +3,8 @@ import type { ExcalidrawElement, NonDeletedExcalidrawElement } from "@excalidraw
 import type { AppState } from "@excalidraw/excalidraw/types";
 import { toast } from "sonner";
 import { sceneAccess } from "@/agents/sceneAccess";
+import { spawnTreeOf } from "@/agents/spawnLayout";
+import { reflowSpawnTree, spawnedBy } from "@/agents/spawnTree";
 import { revealNode } from "@/canvas/arrive";
 import { canvasStore } from "@/canvas/canvasStore";
 import type { Rect } from "@/canvas/groups";
@@ -10,7 +12,7 @@ import { createNodeElement, nodeKindOf } from "@/canvas/nodeElement";
 import { allowRemoval } from "@/canvas/removalGuard";
 import { messages } from "@/i18n";
 import { nodesStore } from "@/store/nodes";
-import { emptyNotesOf, linkFor, NOTE_HOSTS, noteChanges, notesOutOfGroups, relinkNotes, settleNotes, withNoteLink, type NoteLink } from "./link";
+import { emptyNotesOf, linkFor, NOTE_HOSTS, noteChanges, notesByHost, notesOutOfGroups, relinkNotes, settleNotes, withNoteLink, type NoteLink } from "./link";
 import { noteMessages } from "./messages";
 import { newNoteRect } from "./placement";
 
@@ -33,8 +35,11 @@ const random = () => Math.floor(Math.random() * 2 ** 31);
 /**
  * A new, empty note beside the terminal or the Fleet `hostId`, in one undo
  * step: right of it, under the notes it already has, clear of every other
- * node and group (src/nodes/note/placement.ts). On screen, it comes into view
- * and takes the keyboard. Its id, or null when the host is not on a canvas.
+ * node and group (src/nodes/note/placement.ts). Beside an agent of a spawn
+ * tree (spawn_agent), it takes its place right of the agent and the tree is
+ * laid out again around it, the agent's sub-agents moving right. On screen, it
+ * comes into view and takes the keyboard. Its id, or null when the host is not
+ * on a canvas.
  */
 export async function addNote(hostId: string): Promise<string | null> {
   const record = nodesStore.getState().nodes[hostId];
@@ -47,7 +52,12 @@ export async function addNote(hostId: string): Promise<string | null> {
   const elements = scene?.elements() ?? [];
   const host = elements.find((e) => e.id === hostId && !e.isDeleted);
   if (!scene || !host) return null;
-  const rect = newNoteRect(elements, host, element);
+  // The rest of the host's spawn tree, and its notes, make way: laid out again below, they are not in the way.
+  const tree = host.frameId ? null : spawnTreeOf(elements, spawnedBy, hostId);
+  const others = tree && tree.ids.size > 1 ? [...tree.ids].filter((id) => id !== hostId) : [];
+  const byHost = notesByHost(elements);
+  const ignore = new Set([...others, ...others.flatMap((id) => (byHost.get(id) ?? []).map((n) => n.id))]);
+  const rect = newNoteRect(elements, host, element, ignore);
   const note = {
     ...element,
     x: rect.x,
@@ -57,6 +67,7 @@ export async function addNote(hostId: string): Promise<string | null> {
     versionNonce: random(),
   };
   scene.write([...elements, note]);
+  if (others.length > 0) reflowSpawnTree(record.workspaceId, hostId);
   if (scene.shown) {
     revealNode(note.id);
     focusNote(note.id);

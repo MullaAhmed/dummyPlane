@@ -6,7 +6,7 @@ import { GROUP_GAP } from "@/agents/groupLayout";
 import { layoutSpawnTree, type ParentOf } from "@/agents/spawnLayout";
 import { createGroupFrame, type Rect } from "@/canvas/groups";
 import { createNodeElement, NODE_SIZE } from "@/canvas/nodeElement";
-import { linkFor, NOTE_GAP, withNoteLink } from "./link";
+import { linkFor, NOTE_GAP, notesOutOfGroups, withNoteLink } from "./link";
 import { newNoteRect } from "./placement";
 
 /**
@@ -128,6 +128,18 @@ describe("the spawn tree's flowchart", () => {
     expect(pos(out, "on")).toEqual({ x: W + NOTE_GAP, y: 2000 });
     expectNoOverlap(out);
   });
+});
+
+it("lays out a spawn tree inside a group without creeping: its notes stand outside the frame", () => {
+  const frame = createGroupFrame({ x: 0, y: 0, width: 2 * 32 + W, height: 48 + H + 56 }, "Olympus", { role: "general", pantheon: "greek" }) as ExcalidrawElement;
+  const root = terminal("root", 32, 48, { frameId: frame.id });
+  const child = terminal("a", 5000, 5000, { frameId: frame.id });
+  const note = noteBeside("rn", root, frame.width + NOTE_GAP, 48);
+  const first = layoutSpawnTree([frame, root, child, note], parents({ a: "root" }), "a")!;
+  // The group grew around its members; the note moved past it, kept there.
+  const settled = [...notesOutOfGroups(first)];
+  expect(layoutSpawnTree(settled, parents({ a: "root" }), "a")).toBeNull();
+  expect(pos(settled, "a")).toEqual({ x: 32 + W + GROUP_GAP, y: 48 });
 });
 
 it("Auto-arrange leaves the canvas as it is when a note opens or closes", () => {

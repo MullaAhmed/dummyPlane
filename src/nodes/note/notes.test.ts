@@ -106,6 +106,17 @@ describe("addNote", () => {
     expect(last(canvas.updates)?.appState?.activeEmbeddable).toMatchObject({ element: { id }, state: "active" });
   });
 
+  it("beside an agent with sub-agents, takes its place right of it and lays the tree out again around it", async () => {
+    await nodesStore.getState().create("robin", { workspaceId: "w1", kind: "terminal", payload: { ...claude, name: "Robin", spawnedBy: "batman" } });
+    const canvas = fakeCanvas([terminal("batman"), terminal("robin", W + 96, 0)]);
+    const id = (await addNote("batman"))!;
+    const at = (nodeId: string) => canvas.elements().find((e) => e.id === nodeId)!;
+    expect({ x: at(id).x, y: at(id).y }).toEqual({ x: W + NOTE_GAP, y: 0 });
+    // The sub-agent's column moved past the note.
+    expect(at("robin").x).toBeGreaterThanOrEqual(at(id).x + NODE_SIZE.note.width);
+    expect(at("robin").y).toBe(0);
+  });
+
   it("adds nothing beside a node that cannot have notes, or a terminal not on the canvas", async () => {
     await nodesStore.getState().create("board", { workspaceId: "w1", kind: "kanban", payload: { columns: [], cards: {} } });
     fakeCanvas([]);

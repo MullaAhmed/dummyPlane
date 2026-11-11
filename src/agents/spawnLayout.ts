@@ -133,9 +133,10 @@ export function layoutSpawnTree(elements: readonly ExcalidrawElement[], parentOf
   const subRoots = [tree.rootId, ...[...tree.ids].filter((id) => id !== tree.rootId && isPinned(node(id)))];
   const isSubRoot = new Set(subRoots);
   const unpinned = Object.fromEntries(Object.entries(tree.children).map(([id, kids]) => [id, kids.filter((kid) => !isSubRoot.has(kid))]));
-  // Each node with its notes: the box the flowchart places, and where the node sits in it.
+  // Each node with its notes: the box the flowchart places, and where the node sits in it. A node in a
+  // group lays out bare: its notes stand outside the frame, which grows around its members, not them.
   const notes = notesByHost(elements);
-  const prints = new Map([...tree.ids].map((id) => [id, footprint(node(id), notes.get(id) ?? [])]));
+  const prints = new Map([...tree.ids].map((id) => [id, footprint(node(id), node(id).frameId ? [] : (notes.get(id) ?? []))]));
   const printOf = (id: string) => prints.get(id)!;
   const sizes: Record<string, Size> = Object.fromEntries([...tree.ids].map((id) => [id, { width: printOf(id).rect.width, height: printOf(id).rect.height }]));
 

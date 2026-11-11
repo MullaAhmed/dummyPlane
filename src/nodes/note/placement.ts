@@ -13,9 +13,9 @@ function overlaps(a: Rect, b: Rect): boolean {
  * and the frieze of steps under a terminal or a Fleet. A group's frame counts
  * too: a note never goes inside one (Excalidraw would clip it to the frame).
  */
-function obstaclesOf(elements: readonly ExcalidrawElement[]): Rect[] {
+function obstaclesOf(elements: readonly ExcalidrawElement[], ignore: ReadonlySet<string>): Rect[] {
   return elements
-    .filter((e) => !e.isDeleted && (nodeKindOf(e) !== null || e.type === "frame"))
+    .filter((e) => !e.isDeleted && !ignore.has(e.id) && (nodeKindOf(e) !== null || e.type === "frame"))
     .map((e) => {
       const kind = nodeKindOf(e);
       const frieze = kind === "terminal" || kind === "fleet" ? TIMELINE_ROOM : 0;
@@ -28,14 +28,20 @@ function obstaclesOf(elements: readonly ExcalidrawElement[]): Rect[] {
  * with the host's, or under the last of the host's notes already in that
  * column, so a host's notes stack. When that covers something (another node, a
  * group's frame), the nearest free spot instead: right of or under an
- * obstacle's edge, left or above costing double, so it stays close.
+ * obstacle's edge, left or above costing double, so it stays close. What
+ * `ignore` names is not in the way: a layout moves it afterwards.
  */
-export function newNoteRect(elements: readonly ExcalidrawElement[], host: Rect & { id: string }, size: { width: number; height: number }): Rect {
+export function newNoteRect(
+  elements: readonly ExcalidrawElement[],
+  host: Rect & { id: string },
+  size: { width: number; height: number },
+  ignore: ReadonlySet<string> = new Set(),
+): Rect {
   const right = host.x + host.width;
   const column = notesOf(elements, host.id).filter((n) => n.x >= right);
   const top = column.length > 0 ? Math.max(...column.map((n) => n.y + n.height)) + NOTE_GAP : host.y;
   const wanted: Rect = { x: right + NOTE_GAP, y: top, width: size.width, height: size.height };
-  const obstacles = obstaclesOf(elements);
+  const obstacles = obstaclesOf(elements, ignore);
   const isFree = (r: Rect) => obstacles.every((o) => !overlaps(r, o));
   if (isFree(wanted)) return wanted;
   const xs = [wanted.x, ...obstacles.flatMap((o) => [o.x + o.width, o.x - size.width])];

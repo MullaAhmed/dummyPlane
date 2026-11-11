@@ -1,8 +1,9 @@
 import { useEffect, useRef } from "react";
 import { StickyNote, X } from "lucide-react";
 import { AGENTS } from "@/agents/catalog";
-import { useCanvas } from "@/canvas/canvasStore";
+import { canvasStore, useCanvas } from "@/canvas/canvasStore";
 import { useMessages } from "@/i18n";
+import { useNativeKeyDown } from "@/lib/useNativeKeyDown";
 import { MAX_NOTE_TEXT } from "@/nodes/types";
 import { Hint } from "@/shell/buttons";
 import { nodesStore, useNodes, type NodeRecord } from "@/store/nodes";
@@ -36,6 +37,14 @@ export function NoteNode({ nodeId }: { nodeId: string }) {
   // Its host's group folded: the note goes off the screen with it, as the group's terminals do.
   const hidden = useCanvas((s) => hostId !== undefined && s.frames.some((f) => f.group?.folded && f.memberIds.includes(hostId)));
   const field = useRef<HTMLTextAreaElement>(null);
+
+  // Its keys are its own, as a name being edited keeps its (useNativeKeyDown): Excalidraw would take Delete or
+  // Ctrl+Z for the note itself. Escape leaves the note: the note let go and unselected, so no key acts on it.
+  useNativeKeyDown(field, (event) => {
+    if (event.key !== "Escape" || event.isComposing) return;
+    field.current?.blur();
+    canvasStore.getState().api?.updateScene({ appState: { activeEmbeddable: null, selectedElementIds: {}, selectedGroupIds: {} } });
+  });
 
   // The wheel scrolls a long note's text, not the canvas (Excalidraw listens below React's root); a short one lets the canvas pan.
   useEffect(() => {
@@ -79,10 +88,6 @@ export function NoteNode({ nodeId }: { nodeId: string }) {
         maxLength={MAX_NOTE_TEXT}
         spellCheck
         onChange={(event) => nodesStore.getState().update(nodeId, { text: event.target.value })}
-        onKeyDown={(event) => {
-          // Escape leaves the note: the keys go back to the canvas.
-          if (event.key === "Escape") event.currentTarget.blur();
-        }}
         className="min-h-0 flex-1 resize-none bg-transparent px-3 py-2 text-(length:--text-ui) leading-5 text-dp-text outline-none placeholder:text-dp-text-3 focus-visible:ring-2 focus-visible:ring-dp-accent/70 focus-visible:ring-inset"
       />
     </div>

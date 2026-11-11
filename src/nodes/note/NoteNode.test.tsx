@@ -84,3 +84,25 @@ it("draws on the panels' surface with their inks, never on a terminal's", async 
   expect(view.host.innerHTML).not.toMatch(/dp-terminal/);
   await view.unmount();
 });
+
+it("keeps its keys from the canvas: Delete, Backspace or Ctrl+Z act on the text, not on the note", async () => {
+  const updateScene = vi.fn();
+  canvasStore.setState({ api: { updateScene } as never });
+  const view = await mount();
+  // What Excalidraw hears, on its container above the node: no key of the note may get there.
+  const canvas = vi.fn();
+  view.host.addEventListener("keydown", canvas);
+  const field = view.host.querySelector("textarea")!;
+  field.focus();
+  for (const init of [{ key: "a" }, { key: "Backspace" }, { key: "Delete" }, { key: "z", ctrlKey: true }]) {
+    await act(async () => void field.dispatchEvent(new KeyboardEvent("keydown", { ...init, bubbles: true, cancelable: true })));
+  }
+  expect(canvas).not.toHaveBeenCalled();
+  // Escape leaves it: the note let go and unselected, the keyboard out of it.
+  await act(async () => void field.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })));
+  expect(canvas).not.toHaveBeenCalled();
+  expect(document.activeElement).not.toBe(field);
+  expect(updateScene).toHaveBeenCalledWith({ appState: { activeEmbeddable: null, selectedElementIds: {}, selectedGroupIds: {} } });
+  canvasStore.setState({ api: null });
+  await view.unmount();
+});
