@@ -22,7 +22,7 @@ import { terminalStatusStore } from "@/store/terminalStatus";
 import { openReview } from "@/review/reviewStore";
 import { uiStore, useUi } from "@/store/ui";
 import { cleanMission, launchMission } from "./launch";
-import { budgetBar, budgetOf, MAX_AGENTS, memberTime, nightMin, remainingGlobal, type Mission, type MissionState } from "./mission";
+import { budgetBar, budgetOf, MAX_AGENTS, memberTime, nightMin, remainingGlobal, type Mission, type MissionState, type Report } from "./mission";
 import { missionMessages } from "./messages";
 import { morningShown } from "./morning";
 import { NightSummary } from "./NightSummary";
@@ -78,7 +78,9 @@ function MissionView({ nodeId, mission }: { nodeId: string; mission: Mission }) 
       <header ref={header} className="shrink-0">
         <StatusLine
           dot={mission.error ? "error" : MISSION_DOT[mission.state]}
-          label={t.state[mission.state]}
+          // The words agree with the red dot, which a screen reader does not hear.
+          label={mission.error ? t.stateError : t.state[mission.state]}
+          title={mission.error}
           facts={[mission.name, mission.state === "redaction" && t.writeTask]}
           end={
             <>
@@ -181,14 +183,16 @@ function SettingsGrid({ id, nodeId, mission, night }: { id: string; nodeId: stri
     <div id={id} className="grid grid-cols-[auto_1fr] items-center gap-x-4 gap-y-1 pt-1">
       {!night && (
         <>
-          <label htmlFor={agents}>{t.maxAgents}</label>
+          {/* Named by its visible label (WCAG 2.5.3 label in name); the long phrasing is the label's hint. */}
+          <Hint label={t.maxAgentsHint} side="bottom">
+            <label htmlFor={agents}>{t.maxAgents}</label>
+          </Hint>
           <div className="flex h-7 items-center">
             <Input
               id={agents}
               type="number"
               min={1}
               max={MAX_AGENTS}
-              aria-label={t.maxAgentsLabel}
               value={mission.maxAgents}
               onChange={(e) => {
                 const count = Math.round(Number(e.target.value));
@@ -362,16 +366,39 @@ function Team({ mission }: { mission: Mission }) {
             >
               {t.diff}
             </HintedButton>
-            {member.report && (
-              <span title={member.report.summary} className={cn("shrink-0", member.report.status === "termine" ? "text-dp-text" : "text-dp-danger")}>
-                {t.report[member.report.status]}
-                {member.merged ? t.merged : ""}
-              </span>
-            )}
+            {member.report && <ReportWord report={member.report} merged={member.merged === true} />}
           </li>
         );
       })}
     </ul>
+  );
+}
+
+/**
+ * "done", "blocked": the agent's report in a word. Its summary, the agent's own account, is the word's hint, and
+ * the word a tab stop, so the hint reaches the keyboard as well (as the finished count's does).
+ */
+function ReportWord({ report, merged }: { report: Report; merged: boolean }) {
+  const t = useMessages(missionMessages);
+  const word = (
+    <span
+      data-report={report.status}
+      tabIndex={report.summary.trim() ? 0 : undefined}
+      className={cn(
+        "shrink-0 rounded-sm focus-visible:ring-2 focus-visible:ring-dp-accent/70 focus-visible:outline-none",
+        report.status === "termine" ? "text-dp-text" : "text-dp-danger",
+      )}
+    >
+      {t.report[report.status]}
+      {merged ? t.merged : ""}
+    </span>
+  );
+  return report.summary.trim() ? (
+    <Hint label={report.summary} side="bottom">
+      {word}
+    </Hint>
+  ) : (
+    word
   );
 }
 

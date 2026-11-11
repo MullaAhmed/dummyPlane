@@ -9,6 +9,8 @@ export const missionMessages = defineMessages({
       en_cours: "In progress",
       terminee: "Finished",
     },
+    // Instead of the state, beside the red dot: the words agree with it; the error itself is the line's hint and the alert below.
+    stateError: "Stopped on an error",
     report: { termine: "done", bloque: "blocked", echec: "failed" },
     agent: { travaille: "working", attend: "waiting", inactif: "idle", arrêté: "stopped" },
     level: { faible: "low", moyen: "medium", eleve: "high", extreme: "extreme" },
@@ -19,7 +21,7 @@ export const missionMessages = defineMessages({
       agents === null ? (router ? "model router" : "no model router") : [`up to ${plural(agents, "agent", "agents")} at once`, ...(router ? ["model router"] : [])].join(" · "),
     min: "min",
     maxAgents: "Max active agents",
-    maxAgentsLabel: "Maximum number of agents working at once",
+    maxAgentsHint: "The most agents working at once",
     routerLabel: "Model router",
     routerTitle: "Each agent takes the model of its sub-task's level: low Haiku 5.5, medium Sonnet 5.5, high Opus 5.5, extreme Fable 5.1",
     linked: (count: number) => plural(count, "agent linked", "agents linked"),
