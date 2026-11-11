@@ -61,3 +61,13 @@ Releases are not code-signed, so Windows SmartScreen warns on first launch. Once
 - after approval, a signing step goes into `release.yml` between the build and the upload, and the release notes stop mentioning SmartScreen.
 
 Azure Artifact Signing may not be open to individual developers in your country; check before relying on it.
+
+## macOS (experimental)
+
+The Release workflow builds an Apple Silicon `.dmg` (on `macos-latest`) after the Windows installer, into the same draft release. The platforms build one after the other, and a last job rewrites `latest.json` once both have added their files.
+
+- **Unsigned.** `src-tauri/tauri.macos.conf.json` signs ad hoc (`signingIdentity` set to `-`): the app runs, but Gatekeeper blocks the first launch, and the README says how to open it. There is no Apple Developer ID yet. Signing and notarizing later means adding Apple secrets (a certificate, its password, the signing identity, an Apple ID with an app-specific password, and the team ID, as in Tauri's macOS signing guide) to the macOS build step.
+- **Update files.** The updater reads the `.app.tar.gz` and its `.sig`, signed with the same update key as Windows. Updates on macOS are untested: before telling anyone they work, install one version, publish the next, and use *Check for updates*.
+- **Apple Silicon only.** Intel Macs need a second matrix entry (`--target x86_64-apple-darwin`) or a universal build.
+- **CI.** The macOS job of `ci.yml` is marked `experimental`: its failures show but do not fail the run. Remove `continue-on-error` once it has been green for a while.
+- **Before publishing a draft that has a macOS file,** install the `.dmg` on a real Mac and check that terminals start, that your agents are found, and that the title bar's buttons work.

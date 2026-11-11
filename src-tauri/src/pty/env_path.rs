@@ -1,5 +1,6 @@
-//! Windows' PATH, re-read from the registry: an agent installed while dummyPlane
-//! runs is on the PATH of new terminals, not of this process.
+//! The PATH terminals start with, re-read: on Windows from the registry, so an
+//! agent installed while dummyPlane runs is found; on macOS from the user's
+//! login shell, because an app launched from Finder is given a bare PATH.
 
 use std::ffi::OsString;
 use std::sync::RwLock;
@@ -109,7 +110,82 @@ fn path_of(variables: &[(String, String)]) -> &str {
         .map_or("", |(_, value)| value.as_str())
 }
 
-/// Re-reads the PATH from the registry (no-op off Windows).
+/// Entries of a login shell's PATH that this process's lacks, after the
+/// process's own (colon-separated): what dummyPlane was started with still
+/// comes first.
+#[cfg(any(target_os = "macos", test))]
+pub fn merge_login_path(process: &str, login: &str) -> String {
+    let mut seen = std::collections::HashSet::new();
+    process
+        .split(':')
+        .chain(login.split(':'))
+        .map(str::trim)
+        .filter(|entry| !entry.is_empty() && seen.insert(*entry))
+        .collect::<Vec<_>>()
+        .join(":")
+}
+
+/// The text a login shell printed between two markers: its startup files may
+/// print banners around what was asked of it.
+#[cfg(any(target_os = "macos", test))]
+fn between<'a>(text: &'a str, start: &str, end: &str) -> Option<&'a str> {
+    let from = text.find(start)? + start.len();
+    let to = from + text[from..].find(end)?;
+    Some(&text[from..to])
+}
+
+#[cfg(target_os = "macos")]
+const LOGIN_SHELL_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(3);
+
+/// The PATH the user's login shell builds. A Finder-launched app is given a
+/// bare one (`/usr/bin:/bin:...`), so `claude`, `codex` or Homebrew's tools
+/// would not be found. Bounded: a slow startup file costs a few seconds, never
+/// a hang.
+#[cfg(target_os = "macos")]
+fn login_shell_path() -> Option<String> {
+    use std::io::Read;
+    use std::process::{Command, Stdio};
+    use std::time::{Duration, Instant};
+
+    const START: &str = "__DUMMYPLANE_PATH_START__";
+    const END: &str = "__DUMMYPLANE_PATH_END__";
+    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".into());
+    let script = format!("printf '%s%s%s' '{START}' \"$PATH\" '{END}'");
+    let mut child = Command::new(shell)
+        .args(["-ilc", &script])
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .ok()?;
+    let mut stdout = child.stdout.take()?;
+    let reader = std::thread::spawn(move || {
+        let mut bytes = Vec::new();
+        let _ = stdout.read_to_end(&mut bytes);
+        String::from_utf8_lossy(&bytes).into_owned()
+    });
+    let deadline = Instant::now() + LOGIN_SHELL_TIMEOUT;
+    loop {
+        match child.try_wait() {
+            Ok(Some(_)) => break,
+            Ok(None) if Instant::now() < deadline => {
+                std::thread::sleep(Duration::from_millis(20));
+            }
+            _ => {
+                // Too slow: stop it, and do not wait for a reader that a
+                // grandchild may keep blocked.
+                let _ = child.kill();
+                let _ = child.wait();
+                return None;
+            }
+        }
+    }
+    let output = reader.join().ok()?;
+    between(&output, START, END).map(str::to_owned)
+}
+
+/// Re-reads the PATH: from the registry on Windows, from the login shell on
+/// macOS (no-op elsewhere).
 pub fn refresh() {
     #[cfg(windows)]
     {
@@ -125,6 +201,14 @@ pub fn refresh() {
         let process = std::env::var("PATH").unwrap_or_default();
         let merged = merge(&machine, &user, &process);
         *REFRESHED.write().unwrap_or_else(|e| e.into_inner()) = Some(merged.into());
+    }
+    #[cfg(target_os = "macos")]
+    {
+        if let Some(login) = login_shell_path() {
+            let process = std::env::var("PATH").unwrap_or_default();
+            let merged = merge_login_path(&process, &login);
+            *REFRESHED.write().unwrap_or_else(|e| e.into_inner()) = Some(merged.into());
+        }
     }
 }
 
@@ -217,5 +301,28 @@ mod tests {
             r"C:\Program Files\x\;C:\y"
         );
         assert_eq!(merge("", "", r#""""#), "");
+    }
+
+    #[test]
+    fn a_login_shell_path_adds_what_the_process_lacks_after_its_own() {
+        // A Finder launch gives a bare PATH; the login shell knows Homebrew,
+        // nvm and ~/.local/bin.
+        assert_eq!(
+            merge_login_path(
+                "/usr/bin:/bin",
+                "/opt/homebrew/bin:/usr/bin:/Users/me/.local/bin:/bin"
+            ),
+            "/usr/bin:/bin:/opt/homebrew/bin:/Users/me/.local/bin"
+        );
+        assert_eq!(merge_login_path("/a::/b", ":/a"), "/a:/b");
+        assert_eq!(merge_login_path("", ""), "");
+    }
+
+    #[test]
+    fn what_a_login_shell_prints_around_the_path_is_ignored() {
+        let output = "Last login: today\n__S__/usr/bin:/bin__E__\nbye";
+        assert_eq!(between(output, "__S__", "__E__"), Some("/usr/bin:/bin"));
+        assert_eq!(between("no markers", "__S__", "__E__"), None);
+        assert_eq!(between("__S__ unfinished", "__S__", "__E__"), None);
     }
 }

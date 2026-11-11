@@ -14,7 +14,21 @@ concurrency:
 
 jobs:
   checks:
-    runs-on: windows-latest
+    name: checks (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    # macOS is new: its failures are shown but do not fail the run yet.
+    # Remove `experimental` once it has been green for a while.
+    continue-on-error: ${{ matrix.experimental }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: windows
+            os: windows-latest
+            experimental: false
+          - name: macos
+            os: macos-latest # Apple Silicon
+            experimental: true
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6

@@ -19,7 +19,7 @@ Everything runs on your machine. dummyPlane adds no cloud service and no telemet
 If you know Symvibe, dummyPlane covers the same ground (driving a fleet of CLI agents from an infinite canvas) as an open-source project with its own design and features.
 
 > [!NOTE]
-> dummyPlane is an early preview, built and tested on **Windows 10/11**. Its interface is in **English**; it comes in three palettes, chosen under Theme in the settings menu.
+> dummyPlane is an early preview, built and tested on **Windows 10/11**. **macOS** (Apple Silicon) builds are experimental. Its interface is in **English**; it comes in three palettes, chosen under Theme in the settings menu.
 
 ## Highlights
 
@@ -45,13 +45,15 @@ Download `dummyPlane_<version>_x64-setup.exe` from the [latest release](https://
 > [!IMPORTANT]
 > Betas are not code-signed yet. If Windows SmartScreen stops the installer, choose **More info**, then **Run anyway**.
 
+**macOS (Apple Silicon, experimental).** Download `dummyPlane_<version>_aarch64.dmg`, open it and drag dummyPlane to Applications. Terminals run your login shell, and agents are found on the `PATH` that shell builds. The app is not signed or notarized yet, so macOS blocks the first launch: right-click dummyPlane in Applications, choose **Open**, then **Open** again (or run `xattr -dr com.apple.quarantine /Applications/dummyPlane.app`). Automatic updates are untested on macOS. Intel Macs are not covered.
+
 On first launch, the home screen walks you through installing an agent, adding a project and launching an agent. Something wrong? See the [troubleshooting guide](docs/troubleshooting.md), or open **Troubleshooting** from the settings menu.
 
 **Updates.** dummyPlane looks for a new release on GitHub 10 seconds after it starts, then every 6 hours, and offers to install it. Your canvas and the terminals' history are saved first, and an update whose signature does not match is refused. This check is the only request dummyPlane makes on its own: to turn it off, untick **Check automatically** in the settings menu (the gear).
 
 ## Build from source
 
-You need [Tauri 2's Windows prerequisites](https://v2.tauri.app/start/prerequisites/) (the Microsoft C++ Build Tools and WebView2, already present on Windows 11), [Rust](https://rustup.rs/) 1.85 or newer, [Node.js](https://nodejs.org/) 22 LTS, [pnpm](https://pnpm.io/) 10, [Git](https://git-scm.com/) and at least one agent CLI.
+You need [Tauri 2's prerequisites](https://v2.tauri.app/start/prerequisites/) (on Windows, the Microsoft C++ Build Tools and WebView2, already present on Windows 11; on macOS, the Xcode Command Line Tools), [Rust](https://rustup.rs/) 1.85 or newer, [Node.js](https://nodejs.org/) 22 LTS, [pnpm](https://pnpm.io/) 10, [Git](https://git-scm.com/) and at least one agent CLI.
 
 ```powershell
 git clone https://github.com/MullaAhmed/dummyPlane.git
