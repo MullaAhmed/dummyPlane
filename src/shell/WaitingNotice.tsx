@@ -48,11 +48,8 @@ export function WaitingNotice() {
               <span aria-hidden className="size-2 shrink-0 rounded-full bg-dp-wait" />
               <span className="min-w-0 flex-1">
                 <span className="block truncate">{t.waitingNotice.question(agent.name)}</span>
-                {agent.message && (
-                  <span title={agent.message} className="block truncate text-xs text-dp-text-2">
-                    {agent.message}
-                  </span>
-                )}
+                {/* Two lines of the question, never a native title: the row's name reads it whole, and a click shows the agent. */}
+                {agent.message && <span className="line-clamp-2 block break-words text-xs text-dp-text-2">{agent.message}</span>}
               </span>
               {agent.workspaceId !== activeId && (
                 <span className="max-w-24 shrink-0 truncate font-mono text-xs text-dp-text-3">

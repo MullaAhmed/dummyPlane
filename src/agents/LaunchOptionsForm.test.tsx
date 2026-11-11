@@ -61,3 +61,10 @@ it("shows a locked folder as it is, read-only and still focusable, with the reas
   // The other fields stay as they were.
   expect([...document.body.querySelectorAll("label")].map((l) => l.textContent)).toEqual(["Folder", "Shell", "Title"]);
 });
+
+it("names Browse in the app's hint, never a native title", async () => {
+  await mount();
+  expect(browse()!.hasAttribute("title")).toBe(false);
+  await act(async () => (browse() as HTMLButtonElement).focus());
+  expect(document.querySelector('[role="tooltip"]')?.textContent).toBe("Browse");
+});

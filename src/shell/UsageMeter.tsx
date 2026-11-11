@@ -202,11 +202,15 @@ function UsageDetail({ onTokens, tokensLink }: { onTokens: () => void; tokensLin
         {fable ? (
           <LimitRow label={u.weekFable} limit={fable.limit} now={now} />
         ) : (
-          <Row label={u.weekFable}>
-            <span className="font-sans text-dp-text-3" title={u.notSentHint}>
-              {u.notSent}
-            </span>
-          </Row>
+          <div className="flex flex-col gap-0.5">
+            <Row label={u.weekFable}>
+              <span className="font-sans text-dp-text-3">{u.notSent}</span>
+            </Row>
+            {/* Why, in words anyone can reach, rather than a native title on plain text. */}
+            <p data-not-sent-why className="text-xs text-dp-text-3">
+              {u.notSentHint}
+            </p>
+          </div>
         )}
         {limits?.models
           .filter((m) => m.label !== "Fable")
@@ -221,9 +225,12 @@ function UsageDetail({ onTokens, tokensLink }: { onTokens: () => void; tokensLin
         <Row label={u.code}>
           <span className="text-dp-ok">+{sum.linesAdded}</span> <span className="text-dp-danger">−{sum.linesRemoved}</span>
         </Row>
-        <Row label={<span title={u.co2Hint}>{u.co2}</span>}>
-          {sum.co2Grams < 10 ? formatDecimal(sum.co2Grams, 1) : Math.round(sum.co2Grams)} g
-        </Row>
+        <div className="flex flex-col gap-0.5">
+          <Row label={u.co2}>{sum.co2Grams < 10 ? formatDecimal(sum.co2Grams, 1) : Math.round(sum.co2Grams)} g</Row>
+          <p data-co2-source className="text-xs text-dp-text-3">
+            {u.co2Hint}
+          </p>
+        </div>
       </Section>
       {sum.byModel.length > 0 && (
         <Section title={u.byModel}>

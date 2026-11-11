@@ -76,6 +76,8 @@ const openMenu = async () => {
   await act(async () => host.querySelector("button")!.click());
 };
 const button = (text: string) => [...document.body.querySelectorAll("button")].find((b) => b.textContent?.includes(text));
+/** What the app's hint says: the tooltip of the control that has the keyboard (or the pointer). */
+const hintShown = () => document.querySelector('[role="tooltip"]')?.textContent ?? "";
 const installButtons = () => [...document.body.querySelectorAll<HTMLButtonElement>("[data-install]")];
 
 it("offers to install the missing agents only (spec installation §4.1)", async () => {
@@ -251,13 +253,16 @@ const folderShown = () => folderBar().querySelector("[data-launch-folder-name]")
 const pickNext = (path: string | null) => vi.mocked(pickDirectory).mockResolvedValueOnce(path);
 const recentShown = () => [...document.body.querySelectorAll<HTMLElement>("[data-recent-folder]")].map((b) => b.textContent);
 
-it("shows the folder the next terminals start in at the top of the menu, its full path on hover", async () => {
+it("shows the folder the next terminals start in at the top of the menu, its full path in the app's hint", async () => {
   await inProject();
   await openMenu();
   const popover = document.body.querySelector("[data-slot='popover-content']")!;
   expect(popover.firstElementChild).toBe(folderBar());
   expect(folderShown()).toBe("api");
-  expect([...folderBar().querySelectorAll<HTMLElement>("[title]")].map((e) => e.title)).toContain("D:\\code\\api");
+  // No native title: the app's hint, which the keyboard reaches on Change….
+  expect(folderBar().querySelector("[title]")).toBeNull();
+  await act(async () => button("Change…")!.focus());
+  expect(document.querySelector('[role="tooltip"]')?.textContent).toContain("D:\\code\\api");
   expect(button("Change…")).toBeTruthy();
   expect(button("Project folder")).toBeUndefined();
 });
@@ -292,7 +297,8 @@ it("goes back to the project folder with « Project folder »", async () => {
   await openMenu();
   pickNext("D:\\work\\lib");
   await act(async () => button("Change…")!.click());
-  expect(button("Project folder")!.title).toContain("D:\\code\\api");
+  await act(async () => button("Project folder")!.focus());
+  expect(hintShown()).toContain("D:\\code\\api");
   await act(async () => button("Project folder")!.click());
   expect(folderShown()).toBe("api");
   expect(button("Project folder")).toBeUndefined();
@@ -312,7 +318,8 @@ it("lists the recent folders, and a click on one chooses it", async () => {
   await act(async () => document.body.querySelector<HTMLElement>("[data-recent-folder]")!.click());
   expect(folderShown()).toBe("one");
   expect(recentShown()).toEqual(["two"]);
-  expect(document.body.querySelector<HTMLElement>("[data-recent-folder]")!.title).toBe("D:\\work\\two");
+  await act(async () => document.body.querySelector<HTMLElement>("[data-recent-folder]")!.focus());
+  expect(hintShown()).toBe("D:\\work\\two");
 });
 
 it("saves the folder on the workspace, and the recent folders for the project", async () => {

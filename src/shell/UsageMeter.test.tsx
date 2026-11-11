@@ -101,3 +101,12 @@ it("opens the 30-day tokens from the detail, and comes back to it", async () => 
   // Back gives it to the link that opened the tokens.
   expect(document.activeElement).toBe(document.querySelector("[data-tokens-link]"));
 });
+
+it("says why the Fable week is missing and where CO₂ comes from in words, not in native titles", async () => {
+  await act(async () => usageStore.getState().apply({ nodeId: "batman", status: STATUS }, 1_000));
+  await act(async () => meter().click());
+  const detail = document.querySelector<HTMLElement>("[data-usage-detail]")!;
+  expect(detail.querySelector("[title]")).toBeNull();
+  expect(detail.querySelector("[data-not-sent-why]")!.textContent).toContain("/usage");
+  expect(detail.querySelector("[data-co2-source]")!.textContent).toContain("Estimate");
+});

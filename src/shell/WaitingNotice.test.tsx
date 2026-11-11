@@ -85,16 +85,18 @@ describe("WaitingNotice (spec notification §4)", () => {
   describe("the preview of the question (spec notification §7)", () => {
     const ask = (message?: string) => act(async () => agentActivityStore.getState().apply({ nodeId: "batman", activity: "waiting", since: 0, message }));
 
-    it("shows what the agent says it waits for, with the whole text in a tooltip", async () => {
+    it("shows what the agent says it waits for, on two lines at most, never in a native title", async () => {
       await ask("Claude needs your permission to use Bash");
       expect(rows()).toEqual(["Batman has a questionClaude needs your permission to use Bash"]);
-      expect(host.querySelector("[title]")?.getAttribute("title")).toBe("Claude needs your permission to use Bash");
+      const preview = host.querySelector("[data-waiting-notice] .line-clamp-2");
+      expect(preview?.textContent).toBe("Claude needs your permission to use Bash");
+      expect(host.querySelector("[title]")).toBeNull();
     });
 
     it("falls back to no preview", async () => {
       await ask(undefined);
       expect(rows()).toEqual(["Batman has a question"]);
-      expect(host.querySelector("[title]")).toBeNull();
+      expect(host.querySelector("[data-waiting-notice] .line-clamp-2")).toBeNull();
     });
 
     it("follows the agent: a new question replaces it, the end of the wait removes it", async () => {
@@ -110,7 +112,7 @@ describe("WaitingNotice (spec notification §4)", () => {
       await ask(hostile);
       expect(host.querySelector("img")).toBeNull();
       expect(host.querySelector("a")).toBeNull();
-      expect(host.querySelector("[title]")?.textContent).toBe(hostile);
+      expect(host.querySelector("[data-waiting-notice] .line-clamp-2")?.textContent).toBe(hostile);
     });
 
     it("never turns a message into markup in the source either", () => {
