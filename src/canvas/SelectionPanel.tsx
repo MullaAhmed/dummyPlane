@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type Ref, type RefObject } from "react";
 import { CaptureUpdateAction, mutateElement } from "@excalidraw/excalidraw";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
@@ -58,11 +58,27 @@ export function SelectionPanel() {
   }, [openFor, terminalId]);
   const open = terminalId !== null && openFor === terminalId;
   const beside = useTerminalPlace(terminalId, open ? PANEL_WIDTH : TAB_WIDTH);
+  // The tab and the panel replace each other: the keyboard on the one that goes moves to the one that comes (P2 #1).
+  const tabRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const handOff = useKeyboardHandOff(open, tabRef, panelRef);
   if ((drawn.length === 0 && !terminalId) || readOnly) return null;
-  if (terminalId && !open) return <EditTab nodeId={terminalId} place={beside} onOpen={() => setOpenFor(terminalId)} />;
+  if (terminalId && !open)
+    return (
+      <EditTab
+        ref={tabRef}
+        nodeId={terminalId}
+        place={beside}
+        onOpen={() => {
+          handOff(tabRef.current, "panel");
+          setOpenFor(terminalId);
+        }}
+      />
+    );
 
   return (
     <div
+      ref={panelRef}
       className={cn(
         "dp-glass-strong absolute z-10 rounded-lg p-3",
         // A terminal's panel (PANEL_WIDTH) keeps its title and tabs in place and scrolls the page under them;
@@ -74,10 +90,38 @@ export function SelectionPanel() {
       )}
       style={beside}
     >
-      {terminalId && <TerminalEdit nodeId={terminalId} onFold={() => setOpenFor(null)} />}
+      {terminalId && (
+        <TerminalEdit
+          nodeId={terminalId}
+          onFold={() => {
+            handOff(panelRef.current, "tab");
+            setOpenFor(null);
+          }}
+        />
+      )}
       {drawn.length > 0 && <DrawnControls drawn={drawn} />}
     </div>
   );
+}
+
+/**
+ * Where the keyboard goes when the tab opens the panel or the panel folds back to it. Only when it was
+ * on the one that goes (`from`, or in it): a press keeps the canvas's focus (keepCanvasFocus), and a
+ * panel folded by a new selection leaves it alone. Without this, it fell to the page's body. The panel
+ * gives it to its fold chevron, the control that brings the tab back, as a disclosure's button keeps it.
+ */
+function useKeyboardHandOff(open: boolean, tabRef: RefObject<HTMLButtonElement | null>, panelRef: RefObject<HTMLDivElement | null>) {
+  const pending = useRef<"tab" | "panel" | null>(null);
+  useLayoutEffect(() => {
+    const to = pending.current;
+    pending.current = null;
+    if (to === "panel" && open) panelRef.current?.querySelector<HTMLElement>("[data-fold]")?.focus({ preventScroll: true });
+    if (to === "tab" && !open) tabRef.current?.focus({ preventScroll: true });
+  }, [open, tabRef, panelRef]);
+  return (from: Element | null, to: "tab" | "panel") => {
+    const active = document.activeElement;
+    pending.current = from && active && from.contains(active) ? to : null;
+  };
 }
 
 /**
@@ -86,13 +130,14 @@ export function SelectionPanel() {
  * outline. A press keeps the keyboard where it was; a click opens the panel
  * in its place.
  */
-function EditTab({ nodeId, place, onOpen }: { nodeId: string; place: PanelPlace | undefined; onOpen: () => void }) {
+function EditTab({ ref, nodeId, place, onOpen }: { ref?: Ref<HTMLButtonElement>; nodeId: string; place: PanelPlace | undefined; onOpen: () => void }) {
   const t = useMessages(canvasMessages).selection;
   const name = useNodes((s) => nodeNameOf(s.nodes[nodeId]));
   const fleet = useNodes((s) => s.nodes[nodeId]?.kind === "fleet");
   const label = t.editTerminal(name || (fleet ? t.thisFleet : t.thisTerminal));
   return (
     <button
+      ref={ref}
       type="button"
       aria-label={label}
       aria-expanded={false}
@@ -261,8 +306,9 @@ function Swatches({ label, swatches, value, onPick }: { label: string; swatches:
               aria-label={`${label}: ${name}`}
               onMouseDown={keepCanvasFocus}
               // Styled on aria-checked: the tooltip's trigger takes over data-state.
+              variant="swatch"
               className={cn(
-                "size-6 min-w-0 rounded-full border p-0 ring-offset-2 ring-offset-dp-surface transition-[scale] duration-(--dp-dur-fast) ease-(--dp-ease-out) motion-reduce:transition-none active:scale-[0.97] hover:bg-transparent hover:ring-1 hover:ring-dp-text-3 focus-visible:ring-2 focus-visible:ring-dp-accent/70 aria-checked:ring-2 aria-checked:ring-dp-accent",
+                "border",
                 color === null ? "border-dashed border-dp-line focus-visible:border-dp-line" : "border-dp-line/60 focus-visible:border-dp-line/60",
               )}
               style={color === null ? undefined : { backgroundColor: color }}
@@ -303,7 +349,9 @@ function Segmented<V extends string | number>(props: {
           key={value}
           value={String(value)}
           onMouseDown={keepCanvasFocus}
-          className="h-6 min-w-0 flex-1 rounded-md px-1.5 py-0 text-xs font-normal text-dp-text-2 transition-[background-color,color,scale] duration-(--dp-dur-fast) ease-(--dp-ease-out) motion-reduce:transition-none hover:bg-dp-hover hover:text-dp-text focus-visible:ring-2 focus-visible:ring-dp-accent/70 active:scale-[0.97] data-[state=on]:bg-dp-accent-soft data-[state=on]:text-dp-text"
+          variant="choice"
+          size="xs"
+          className="flex-1"
         >
           {text}
         </ToggleGroupItem>

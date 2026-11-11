@@ -134,6 +134,23 @@ describe("Link from the agent's end", () => {
     expect(uiStore.getState().linking).toBeNull();
   });
 
+  it("says what it does in the app's hint, never a native title, and keeps it shut while linking (P2 #20)", async () => {
+    await show(batman, {});
+    const tooltip = () => document.querySelector('[role="tooltip"]')?.textContent ?? null;
+    const later = () => act(async () => new Promise((resolve) => setTimeout(resolve, 450)));
+    expect(linkButton()!.hasAttribute("title")).toBe(false);
+    await act(async () => linkButton()!.focus());
+    await later();
+    expect(tooltip()).toBe("Link this agent to another agent or to a fleet");
+    const button = linkButton();
+    await act(async () => linkButton()!.click());
+    await later();
+    // The same button, still focused: "Done" says it, no hint over it.
+    expect(linkButton()).toBe(button);
+    expect(linkButton()!.hasAttribute("title")).toBe(false);
+    expect(tooltip()).toBeNull();
+  });
+
   it("is always offered: two agents link without any fleet, and one already commanding it does not hide it", async () => {
     await show(batman, {});
     expect(linkButton()).not.toBeNull();

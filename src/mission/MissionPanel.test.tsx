@@ -45,6 +45,11 @@ function type(field: HTMLInputElement, value: string) {
   field.dispatchEvent(new Event("input", { bubbles: true }));
 }
 const button = (label: string) => [...host.querySelectorAll("button")].find((b) => b.textContent === label)!;
+/** "Max active agents": the field its visible label names (no aria-label overrides it). */
+function maxAgents(scope: ParentNode = host): HTMLInputElement | null {
+  const label = [...scope.querySelectorAll("label")].find((l) => l.textContent === "Max active agents");
+  return label ? document.getElementById(label.htmlFor) as HTMLInputElement | null : null;
+}
 /** The settings fold into one line of their values; a click unfolds them. */
 const settingsToggle = () => host.querySelector<HTMLButtonElement>("[data-mission-body] button[aria-expanded]")!;
 async function openSettings() {
@@ -56,7 +61,7 @@ it("sets the mission's team size before the plan, and no global budget any more 
   await openSettings();
   expect(host.querySelector('[aria-label="Global budget (minutes)"]')).toBeNull();
   expect(host.textContent).not.toContain("budget");
-  await act(async () => type(host.querySelector(`[aria-label="Maximum number of agents working at once"]`)!, "12"));
+  await act(async () => type(maxAgents()!, "12"));
   expect(missionOf(nodesStore.getState().nodes.chef)).toMatchObject({ state: "redaction", maxAgents: 8 });
 });
 
@@ -234,6 +239,9 @@ it("leads with the mission's status line: its dot, its state, and how to start i
   host.remove();
   await show({ state: "en_cours", error: "git failed", members: [] });
   expect(host.querySelector("header [data-status]")!.getAttribute("data-status")).toBe("error");
+  // Its words agree with the red dot: not "In progress" beside it (audit P2 #50).
+  expect(host.querySelector("header")!.textContent).toContain("Stopped on an error");
+  expect(host.querySelector("header")!.textContent).not.toContain("In progress");
   expect(host.querySelector("header")!.textContent).not.toContain("Overnight run…");
 });
 
@@ -241,12 +249,12 @@ it("folds its settings into one line of their values, so the terminal keeps its 
   await show();
   expect(settingsToggle().getAttribute("aria-expanded")).toBe("false");
   expect(settingsToggle().textContent).toBe("Settingsup to 4 agents at once");
-  expect(host.querySelector('[aria-label="Maximum number of agents working at once"]')).toBeNull();
+  expect(maxAgents()).toBeNull();
   await openSettings();
   expect(settingsToggle().getAttribute("aria-expanded")).toBe("true");
   const grid = document.getElementById(settingsToggle().getAttribute("aria-controls")!)!;
-  expect(grid.querySelector('[aria-label="Maximum number of agents working at once"]')).not.toBeNull();
-  await act(async () => type(grid.querySelector('[aria-label="Maximum number of agents working at once"]')!, "6"));
+  expect(maxAgents(grid)).not.toBeNull();
+  await act(async () => type(maxAgents(grid)!, "6"));
   expect(settingsToggle().textContent).toBe("Settingsup to 6 agents at once");
 });
 
@@ -255,7 +263,7 @@ it("keeps the keys typed in the mission from the canvas: Backspace there would d
   await openSettings();
   const seen = vi.fn();
   host.addEventListener("keydown", seen);
-  const targets = [host.querySelector<HTMLElement>('[aria-label="Maximum number of agents working at once"]')!, settingsToggle(), host.querySelector<HTMLElement>("[data-link-toggle]")!];
+  const targets = [maxAgents()!, settingsToggle(), host.querySelector<HTMLElement>("[data-link-toggle]")!];
   for (const target of targets) {
     await act(async () => void target.dispatchEvent(new KeyboardEvent("keydown", { key: "Backspace", bubbles: true, cancelable: true })));
   }
@@ -291,4 +299,26 @@ it("keeps the cleanup button outside the scrolling body once the mission is over
   const body = host.querySelector("[data-mission-body]")!;
   expect(body.textContent).toContain("Fini.");
   expect(body.contains(button("Clean up the mission"))).toBe(false);
+});
+
+it("names the team size by its visible label, the long phrasing in its hint (WCAG 2.5.3, audit P2 #18)", async () => {
+  await show();
+  await openSettings();
+  const field = maxAgents()!;
+  expect(field.hasAttribute("aria-label")).toBe(false);
+  expect(field.labels?.[0]?.textContent).toBe("Max active agents");
+});
+
+it("gives an agent's report summary in the app's hint, reached by the keyboard too (audit P2 #17)", async () => {
+  await show({
+    state: "en_cours",
+    name: "Auth",
+    members: [{ nodeId: "batman", name: "Batman", task: "Login", budgetMin: 20, linked: true, branch: "b", worktree: "C:/w", sentAt: 0, report: { summary: "Blocked on the API key", status: "bloque", at: 0 } }],
+  });
+  const word = host.querySelector<HTMLElement>('[data-member="Batman"] [data-report]')!;
+  expect(word.textContent).toBe("blocked");
+  expect(word.hasAttribute("title")).toBe(false);
+  expect(word.tabIndex).toBe(0);
+  await act(async () => word.focus());
+  expect(document.querySelector('[role="tooltip"]')?.textContent).toBe("Blocked on the API key");
 });

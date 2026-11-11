@@ -67,7 +67,10 @@ it("keeps one line for a subagent asked nothing it could say", async () => {
   const header = host.querySelector("[data-subagent='a2'] header")!;
   expect(header.querySelector("[data-task-line]")).toBeNull();
   expect(header.textContent).toContain("Plan");
-  expect(header.getAttribute("title")).toBe("Plan");
+  // The full name on the name itself, not on the header, where it showed over the Close hint (P2 #20).
+  expect(header.hasAttribute("title")).toBe(false);
+  expect(header.querySelector("span[title]")!.textContent).toBe("Plan");
+  expect(header.querySelector("span[title]")!.getAttribute("title")).toBe("Plan");
   await act(async () => root.unmount());
 });
 

@@ -82,7 +82,8 @@ export function OllamaPicker(props: { aiderAvailable: boolean; onBack: () => voi
               key={value}
               value={value}
               disabled={disabled}
-              className="h-8 min-w-0 flex-1 rounded-md border border-transparent bg-dp-card text-xs font-normal transition-[background-color,border-color,scale] duration-(--dp-dur-fast) ease-(--dp-ease-out) hover:bg-dp-hover focus-visible:ring-2 focus-visible:ring-dp-accent/70 active:scale-[0.97] motion-reduce:transition-none data-[state=on]:border-dp-accent data-[state=on]:bg-dp-accent-soft data-[state=on]:text-dp-text"
+              variant="choice"
+              className="flex-1 bg-dp-card"
             >
               {label}
             </ToggleGroupItem>

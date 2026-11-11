@@ -161,3 +161,17 @@ export const canvasStore = createStore<CanvasState>()((set, get) => ({
 export function useCanvas<T>(selector: (state: CanvasState) => T): T {
   return useStore(canvasStore, selector);
 }
+
+/** Where the scene sits in the canvas's box: all an overlay places itself with (the offsets are the box's own, 0). */
+export type CanvasPlace = Pick<CanvasView, "scrollX" | "scrollY" | "zoom" | "offsetLeft" | "offsetTop">;
+
+/**
+ * The view's scroll and zoom, read one by one: an overlay placed with them re-renders when they
+ * move, not when the selection, the tool or the mode does, which `view` also holds (P2 #58).
+ */
+export function useCanvasPlace(): CanvasPlace {
+  const scrollX = useCanvas((s) => s.view.scrollX);
+  const scrollY = useCanvas((s) => s.view.scrollY);
+  const zoom = useCanvas((s) => s.view.zoom);
+  return { scrollX, scrollY, zoom, offsetLeft: 0, offsetTop: 0 };
+}

@@ -14,7 +14,7 @@ import { workspacesStore } from "@/store/workspaces";
 import type { CommandContext } from "./command";
 import { goTo } from "./goToRun";
 import { openPalette, paletteStore, setPaletteQuery } from "./paletteState";
-import { Palette } from "./Palette";
+import { Palette, STATUS_SETTLE_MS } from "./Palette";
 import { recentStore } from "./recent";
 import { presetsStore } from "@/presets/store";
 import { openInCodeStudio } from "@/studio/navigate";
@@ -235,6 +235,48 @@ describe("agents in the functions list (plan F2)", () => {
     const line = items().find((i) => i.textContent?.includes("Launch Shell"));
     expect(line?.getAttribute("data-disabled")).not.toBe("true");
     expect(line?.textContent).not.toContain("introuvable");
+  });
+});
+
+describe("what a screen reader hears (WCAG 4.1.3, P2-11)", () => {
+  const status = () => document.querySelector<HTMLElement>('[role="status"]');
+  const settle = () => act(async () => vi.advanceTimersByTime(STATUS_SETTLE_MS));
+
+  it("reads out the count once the list settles, then No results, from one polite status outside the listbox", async () => {
+    vi.useFakeTimers();
+    try {
+      await act(async () => openPalette("goTo", home));
+      expect(status()!.getAttribute("aria-live")).toBe("polite");
+      expect(status()!.closest('[role="listbox"]'), "a status is not an option").toBeNull();
+      expect(status()!.className).toContain("sr-only");
+      await settle();
+      expect(status()!.textContent).toBe("2 results");
+      await act(async () => setPaletteQuery("mk"));
+      // Not at every keystroke: only once the list has rested.
+      expect(status()!.textContent).toBe("2 results");
+      await settle();
+      expect(status()!.textContent).toBe("1 result");
+      await act(async () => setPaletteQuery("zzzz"));
+      await settle();
+      expect(status()!.textContent).toBe("No results");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("says Loading while the scenes are read, never No results", async () => {
+    mockIPC(() => new Promise(() => undefined));
+    workspacesStore.setState({ workspaces: [{ id: "w9", name: "Slow", projectId: "p1", position: 0 }], activeId: "w1" } as never);
+    projectsStore.setState({ view: "project", activeId: "p1" } as never);
+    vi.useFakeTimers();
+    try {
+      await act(async () => openPalette("goTo", busy));
+      await act(async () => setPaletteQuery("zzzz"));
+      await settle();
+      expect(status()!.textContent).toBe("Loading…");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

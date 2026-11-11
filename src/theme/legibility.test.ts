@@ -88,6 +88,61 @@ it("writes the waiting count on its wait fill at 4.5:1 in every palette, with th
   expect(contrast(calm["--dp-on-role"], calm["--dp-wait"])).toBeCloseTo(2.46, 2);
 });
 
+describe("a control's own boundary reaches 3:1, where a divider's hairline does not (P2-24)", () => {
+  it("composites like the audit measured: the hairline 1.18-1.25:1 on the surface", () => {
+    for (const [palette, selector] of Object.entries(PALETTES)) {
+      const t = cssBlock(tokens, selector);
+      const ratio = contrast(over(t["--dp-surface"], t["--dp-line"]), t["--dp-surface"]);
+      expect(ratio, `${palette} line on surface`).toBeGreaterThan(1.1);
+      expect(ratio, `${palette} line on surface`).toBeLessThan(1.3);
+    }
+  });
+
+  it("draws --dp-line-strong at 3:1 or more on every ground a field sits on, the selection's tint included", () => {
+    expect(cssBlock(readSource("index.css"), "@theme inline")["--color-dp-line-strong"]).toBe("var(--dp-line-strong)");
+    for (const [palette, selector] of Object.entries(PALETTES)) {
+      const t = cssBlock(tokens, selector);
+      const grounds: Record<string, string> = { canvas: t["--dp-canvas"], surface: t["--dp-surface"], card: t["--dp-card"], head: t["--dp-terminal-head"] };
+      grounds.tint = over(t["--dp-surface"], t["--dp-accent-soft"]);
+      for (const [ground, hex] of Object.entries(grounds)) {
+        expect(contrast(over(hex, t["--dp-line-strong"]), hex), `${palette} line-strong on the ${ground}`).toBeGreaterThanOrEqual(3);
+      }
+    }
+  });
+
+  it("bounds Input, Textarea and the Select trigger with it, never with the divider's hairline", () => {
+    for (const [file, slot] of [["components/ui/input.tsx", "input"], ["components/ui/textarea.tsx", "textarea"], ["components/ui/select.tsx", "select-trigger"]]) {
+      const text = readSource(file);
+      const classes = /"([^"]*)"/.exec(text.slice(text.indexOf("className", text.indexOf(`data-slot="${slot}"`))))![1];
+      expect(classes, file).toMatch(/(?:^|\s)border-dp-line-strong(?=\s|$)/);
+      expect(classes, file).not.toMatch(/(?:^|\s)border-dp-line(?=\s|$)/);
+    }
+  });
+});
+
+describe("selected text is themed from the palette and stays readable (P2-26)", () => {
+  it("writes the ink on the selection's tint at 4.5:1 on the canvas, the surfaces, the cards and a terminal's head, the tint still seen", () => {
+    for (const [palette, selector] of Object.entries(PALETTES)) {
+      const t = cssBlock(tokens, selector);
+      for (const ground of ["--dp-canvas", "--dp-surface", "--dp-card", "--dp-terminal-head"]) {
+        const tint = over(t[ground], t["--dp-selection"]);
+        expect(contrast(t["--dp-text"], tint), `${palette} text on the selection over ${ground}`).toBeGreaterThanOrEqual(4.5);
+        // At least as visible as the selected row's tint (--dp-accent-soft).
+        expect(contrast(tint, t[ground]), `${palette} selection against ${ground}`).toBeGreaterThanOrEqual(contrast(over(t[ground], t["--dp-accent-soft"]), t[ground]));
+      }
+    }
+  });
+
+  it("paints ::selection with it, and leaves xterm, the code editor and Excalidraw their own", () => {
+    const rule = /:not\(([^)]*)\)::selection\s*\{([^}]*)\}/.exec(readSource("index.css"));
+    expect(rule, "index.css themes ::selection").not.toBeNull();
+    // A terminal's body too: its text is in the terminal theme's inks, light on calm's dark green, where the ink would vanish.
+    expect(rule![1].split(",").map((s) => s.trim()).sort()).toEqual([".bg-dp-terminal *", ".cm-editor *", ".excalidraw *", ".xterm *"]);
+    expect(rule![2]).toMatch(/background:\s*var\(--dp-selection\);/);
+    expect(rule![2]).toMatch(/color:\s*var\(--dp-text\);/);
+  });
+});
+
 describe("text on a selected row (the accent's tint) keeps 4.5:1 (P1-14)", () => {
   const index = readSource("index.css");
   /** The selection's tint over the grounds a selected row sits on: the panels and menus, the cards. */
@@ -135,7 +190,9 @@ describe("text on a selected row (the accent's tint) keeps 4.5:1 (P1-14)", () =>
   it("turns the lift on in every selected row that holds tertiary text or a danger count", () => {
     const rows: [string, string][] = [
       ["commands/Palette.tsx", "data-[selected=true]:bg-dp-accent-soft data-[selected=true]:dp-on-soft"], // palette and Go to rows
-      ["agents/AgentsPanel.tsx", "data-[state=on]:bg-dp-accent-soft data-[state=on]:text-dp-text data-[state=on]:dp-on-soft"], // the filter's count
+      ["agents/AgentsPanel.tsx", 'variant="choice"'], // the filter: the Toggle's choice look, on the tint when chosen…
+      ["components/ui/toggle.tsx", "data-[state=on]:bg-dp-accent-soft data-[state=on]:text-dp-text"],
+      ["agents/AgentsPanel.tsx", 'className="gap-1 px-2 data-[state=on]:dp-on-soft"'], // …and its count lifted there
       ["notes/NotesWorkspace.tsx", '"bg-dp-accent-soft hover:bg-dp-accent-soft dp-on-soft"'], // the note's excerpt
       ["git/GitWindow.tsx", 'current && "bg-dp-accent-soft text-dp-text hover:bg-dp-accent-soft dp-on-soft"'], // the file row
       ["git/GitWindow.tsx", 'const danger = current ? "text-dp-danger-on-soft" : "text-dp-danger";'],

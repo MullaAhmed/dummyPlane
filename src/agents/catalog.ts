@@ -27,12 +27,19 @@ export interface AgentMeta {
 
 /**
  * An agent's tint as an icon or text color: pulled toward the theme's text so
- * that light tints (Ollama, Cursor) stay visible on Ivoire and dark ones on
- * Clay (spec identity §3, "readable in both").
+ * that light tints stay visible on Ivoire and dark ones on Clay (spec identity
+ * §3, "readable in both"). The palest (PALE_TINTS) are pulled further: at 65 %
+ * Cursor's and Ollama's icons read near 2:1 on calm's light grounds, and an icon
+ * carries its agent at 3:1 (WCAG 1.4.11). catalog.test.ts measures every agent,
+ * in every palette, on every ground an icon sits on.
  */
 export function agentInk(tint: string): string {
-  return `color-mix(in srgb, ${tint} 65%, var(--dp-text))`;
+  return `color-mix(in srgb, ${tint} ${PALE_TINTS.has(tint) ? PALE_MIX : TINT_MIX}%, var(--dp-text))`;
 }
+
+/** How much of its tint an agent's ink keeps; the palest keep less. */
+const TINT_MIX = 65;
+const PALE_MIX = 40;
 
 /** `label` and `vendor` of the three agents with words of their own are read when used, so they follow the language. */
 export const AGENTS: Record<AgentId, AgentMeta> = {
@@ -73,6 +80,9 @@ export const AGENTS: Record<AgentId, AgentMeta> = {
     Icon: SquareCode,
   },
 };
+
+/** The agents whose tint is too light to read at TINT_MIX on calm's grounds (OpenCode's in the agent menu's tinted chip). */
+const PALE_TINTS = new Set((["cursor", "opencode", "ollama"] as const).map((id) => AGENTS[id].tint));
 
 export const AGENT_ORDER: AgentId[] = [...AGENT_IDS];
 

@@ -458,6 +458,27 @@ it("shows the folder as a path, whole on hover, its end in view, and copies it",
   writeText.mockRestore();
 });
 
+it("shows the whole folder path to the keyboard too, in the Copy button's hint (P2 #20)", async () => {
+  await mountTerminal(terminal({ cwd: "/home/ada/work/a-very-long-folder-name/api" }));
+  await act(async () => button("Copy the path")!.focus());
+  await act(async () => new Promise((resolve) => setTimeout(resolve, 450)));
+  const tip = document.querySelector('[role="tooltip"]');
+  expect(tip?.textContent).toContain("Copy the path");
+  expect(tip?.textContent).toContain("/home/ada/work/a-very-long-folder-name/api");
+});
+
+it("unfolds a row's cut description for the keyboard on its checkbox, to four lines at most (P2 #20)", async () => {
+  serveExtensions();
+  await mountTerminal(terminal());
+  await openTab("Skills");
+  const row = host.querySelector("[data-extension='commit']")!;
+  expect(row.className).toContain("group/row");
+  const description = [...row.querySelectorAll("span")].find((span) => span.textContent === "Write the commit message")!;
+  expect(description.className).toContain("truncate");
+  expect(description.className).toContain("group-has-[:focus-visible]/row:line-clamp-4");
+  expect(description.className).toContain("group-has-[:focus-visible]/row:whitespace-normal");
+});
+
 it("edits the command of a custom agent only", async () => {
   await mountTerminal(terminal({ agent: "custom", command: "npm run dev" }));
   expect(field("Command")!.value).toBe("npm run dev");
@@ -641,6 +662,38 @@ it("puts the tab on the terminal's left when its right has no room", async () =>
   expect(editTab()!.style.left).toBe("616px");
 });
 
+it("carries the keyboard from its tab into the panel, and back to the tab when it folds, never to the page's body (P2 #1)", async () => {
+  await mountTerminal(terminal(), ["t1"], null, false);
+  // Enter on the focused tab: the panel takes its place, and the keyboard lands on its fold chevron.
+  editTab()!.focus();
+  await act(async () => editTab()!.click());
+  const fold = button("Fold the panel")!;
+  expect(document.activeElement).toBe(fold);
+  // Folded from the keyboard: back on the tab that comes back.
+  await act(async () => fold.click());
+  expect(document.activeElement).toBe(editTab());
+});
+
+it("leaves the focus alone for a press, which keeps the canvas's, and when a new selection folds the panel", async () => {
+  await mountTerminal(terminal(), ["t1"], null, false);
+  const canvas = document.createElement("div");
+  canvas.tabIndex = -1;
+  document.body.append(canvas);
+  canvas.focus();
+  // A mouse press never focuses the tab (keepCanvasFocus): the focus stays on the canvas.
+  await act(async () => editTab()!.click());
+  expect(document.activeElement).toBe(canvas);
+  await act(async () => button("Fold the panel")!.click());
+  expect(document.activeElement).toBe(canvas);
+  // Open from the keyboard, then folded by selecting nothing: no tab to go back to, nothing moved.
+  editTab()!.focus();
+  await act(async () => editTab()!.click());
+  canvas.focus();
+  await act(async () => canvasStore.setState({ view: { ...canvasStore.getState().view, selectedIds: [] } }));
+  expect(document.activeElement).toBe(canvas);
+  canvas.remove();
+});
+
 it("folds back to its tab, and every terminal selected starts on its tab", async () => {
   await mountTerminal(terminal());
   expect(button("Fold the panel")!.getAttribute("aria-expanded")).toBe("true");
@@ -781,6 +834,10 @@ it("keeps an item the user's own settings turn off, off and disabled, and says w
   expect(document.getElementById(review.getAttribute("aria-describedby")!)?.textContent).toBe("Off in your Claude settings");
   // Said in the row itself, not only on hover.
   expect(host.querySelector("[data-extension='review']")?.textContent).toContain("Off in your Claude settings");
+  // Whole: its disabled checkbox takes no focus that could unfold a cut line, so it is never cut (P2 #20).
+  const reason = document.getElementById(review.getAttribute("aria-describedby")!)!;
+  expect(reason.className).not.toContain("truncate");
+  expect(reason.hasAttribute("title")).toBe(false);
   await act(async () => review.click());
   expect(payloadOf().extensions).toBeUndefined();
 });

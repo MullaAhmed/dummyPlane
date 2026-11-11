@@ -68,15 +68,19 @@ export function HintedButton({
  * A button of the floating rails (spec identité §5.4, §5.5): 36 × 36, the active
  * one in the accent. Its name shows as a hint on the rail's open side
  * (`hintSide`); a menu it opens passes `aria-expanded`, which keeps the hint shut.
+ * Only a real on/off (`toggle`: a canvas tool, a panel shown or hidden) says
+ * `aria-pressed`: a one-shot action or a menu would read as "toggle, not pressed".
+ * A button that shows where the user is (a workspace) passes `aria-current` instead.
  */
 export function ToolButton({
   label,
   active = false,
+  toggle = false,
   hintSide = "right",
   className,
   onFocus,
   ...props
-}: ComponentProps<"button"> & Labelled & { active?: boolean; hintSide?: HintSide }) {
+}: ComponentProps<"button"> & Labelled & { active?: boolean; toggle?: boolean; hintSide?: HintSide }) {
   return (
     <HintedButton
       hint={label}
@@ -84,7 +88,7 @@ export function ToolButton({
       variant="ghost"
       size="icon-lg"
       aria-label={label}
-      aria-pressed={active}
+      aria-pressed={toggle ? active : undefined}
       onFocus={onFocus}
       className={cn(
         "relative text-dp-text-2 hover:text-dp-text [&_svg:not([class*='size-'])]:size-4",

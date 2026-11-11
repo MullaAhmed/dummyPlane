@@ -28,6 +28,19 @@ export function removeColumn(board: KanbanPayload, columnId: string): KanbanPayl
   return { columns: board.columns.filter((c) => c.id !== columnId), cards };
 }
 
+/**
+ * Puts a removed column back at `index`, with its cards (the delete's undo). A column already on the board
+ * stays as it is, and a card placed elsewhere since stays where it is.
+ */
+export function restoreColumn(board: KanbanPayload, column: KanbanColumn, cards: Readonly<Record<string, KanbanCard>>, index: number): KanbanPayload {
+  if (board.columns.some((c) => c.id === column.id)) return board;
+  const placed = new Set(board.columns.flatMap((c) => c.cardIds));
+  const cardIds = column.cardIds.filter((id) => cards[id] !== undefined && !placed.has(id));
+  const columns = [...board.columns];
+  columns.splice(Math.max(0, Math.min(index, columns.length)), 0, { ...column, cardIds });
+  return { ...board, columns, cards: { ...board.cards, ...Object.fromEntries(cardIds.map((id) => [id, cards[id]])) } };
+}
+
 export interface CardDraft {
   title: string;
   notes: string;
@@ -61,6 +74,16 @@ export function removeCard(board: KanbanPayload, cardId: string): KanbanPayload 
   const cards = { ...board.cards };
   delete cards[cardId];
   return { columns: board.columns.map((c) => ({ ...c, cardIds: c.cardIds.filter((id) => id !== cardId) })), cards };
+}
+
+/** Puts a removed card back at `index` of its column (the delete's undo); nothing changes once the card is back or its column gone. */
+export function restoreCard(board: KanbanPayload, card: KanbanCard, columnId: string, index: number): KanbanPayload {
+  if (board.cards[card.id] || !board.columns.some((c) => c.id === columnId)) return board;
+  return {
+    ...board,
+    columns: board.columns.map((c) => (c.id === columnId ? { ...c, cardIds: [...c.cardIds.slice(0, Math.max(0, index)), card.id, ...c.cardIds.slice(Math.max(0, index))] } : c)),
+    cards: { ...board.cards, [card.id]: card },
+  };
 }
 
 /** The column holding a card, if any. */
