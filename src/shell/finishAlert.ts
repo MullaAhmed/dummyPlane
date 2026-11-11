@@ -200,8 +200,8 @@ export function installFinishAlerts(): () => void {
     for (const nodeId of new Set([...Object.keys(previous.activities), ...Object.keys(state.activities)])) {
       const now = state.activities[nodeId];
       const before = previous.activities[nodeId];
-      // Its process ended: no turn to finish.
-      if (!now) drop(nodeId);
+      // Its process ended, or its agent exited back to the shell (`left`): no turn to finish, and a shell's output is no agent's work.
+      if (!now || now.left) drop(nodeId);
       else if (now !== before && now.activity !== before?.activity) changed(nodeId, before, now);
     }
   });

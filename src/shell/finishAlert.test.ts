@@ -173,6 +173,24 @@ describe("the end of a turn", () => {
     expect(sendNotification).not.toHaveBeenCalled();
   });
 
+  it("is no finish when the agent exits back to its shell, nor is the shell's work after", async () => {
+    at("batman", "working", 1_000);
+    agentActivityStore.getState().apply({ nodeId: "batman", activity: "idle", since: 1_000 + LONG, left: true });
+    await vi.advanceTimersByTimeAsync(SETTLE_MS);
+    agentActivityStore.getState().apply({ nodeId: "batman", activity: "working", since: 100_000, left: true });
+    agentActivityStore.getState().apply({ nodeId: "batman", activity: "idle", since: 100_000 + LONG, left: true });
+    await vi.advanceTimersByTimeAsync(SETTLE_MS);
+    expect(sendNotification).not.toHaveBeenCalled();
+  });
+
+  it("is no finish when the agent exits during the idle that would end it", async () => {
+    at("batman", "working", 1_000);
+    at("batman", "idle", 1_000 + LONG);
+    agentActivityStore.getState().apply({ nodeId: "batman", activity: "idle", since: 2_000 + LONG, left: true });
+    await vi.advanceTimersByTimeAsync(SETTLE_MS);
+    expect(sendNotification).not.toHaveBeenCalled();
+  });
+
   it("is forgotten when the agent's process ends", async () => {
     at("batman", "working", 1_000);
     at("batman", "idle", 1_000 + LONG);
