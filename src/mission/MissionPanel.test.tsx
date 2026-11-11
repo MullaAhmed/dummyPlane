@@ -9,6 +9,7 @@ import { cleanMission, launchMission } from "./launch";
 import { NEW_MISSION, type Mission } from "./mission";
 import { MissionPanel } from "./MissionPanel";
 import { missionOf } from "./store";
+import { focusNode } from "@/canvas/focusNode";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
 vi.mock("./launch", () => ({
@@ -16,6 +17,7 @@ vi.mock("./launch", () => ({
   cleanMission: vi.fn(() => Promise.resolve({ removed: ["auth-batman", "auth"], kept: [] })),
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+vi.mock("@/canvas/focusNode", () => ({ focusNode: vi.fn() }));
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -352,4 +354,23 @@ it("draws each agent's summary in the morning report, whole, in a bounded scroll
   expect(summary.className).toContain("overflow-y-auto");
   expect(summary.querySelector("strong")?.textContent).toBe("done");
   expect(summary.querySelectorAll("li")).toHaveLength(2);
+});
+
+it("says who runs a mission its Manager runs, the Manager and the board a click away (spec babysitter Fleet)", async () => {
+  await nodesStore.getState().create("boss", { workspaceId: "w1", kind: "terminal", payload: { title: "Manager", name: "Manager", agent: "claude", cwd: "C:/p", shell: "default", command: "", role: "manager", fleet: "chef" } });
+  await nodesStore.getState().create("board", { workspaceId: "w1", kind: "kanban", payload: { columns: [], cards: {} } });
+  await show({ state: "en_cours", manager: "boss", board: "board", members: [{ nodeId: "robin", name: "Robin", task: "Login", budgetMin: 20, linked: false, branch: "b", worktree: "w", sentAt: 1 }] });
+  const line = host.querySelector("[data-run-by]")!;
+  expect(line.textContent).toContain("Run by Manager, on its board");
+  // Who does what: each agent's row names its task.
+  expect(host.querySelector('[data-member="Robin"]')?.textContent).toContain("Login");
+  await act(async () => button("Manager").click());
+  expect(focusNode).toHaveBeenCalledWith("boss");
+  await act(async () => button("Board").click());
+  expect(focusNode).toHaveBeenLastCalledWith("board");
+});
+
+it("says nothing of a Manager for a mission run the old way", async () => {
+  await show({ state: "en_cours", frameId: "f1", members: [] });
+  expect(host.querySelector("[data-run-by]")).toBeNull();
 });
