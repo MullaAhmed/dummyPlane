@@ -32,6 +32,7 @@ Surfaces, from back to front:
 - `--dp-hover`: hover and subtle fill.
 - `--dp-tray`: faint ink fill for trays and wells. Defined in each palette; no component reads it yet.
 - `--dp-tab-on`: fill of the active tab.
+- `--dp-selection`: selected text (`::selection`), under the ink: 28% ink in `calm` and `expressive`, 16% in `electric`, so the text keeps 4.5:1 on every ground. xterm, the code editor and Excalidraw draw their own.
 
 Every surface is opaque. There is no glass, no blur and no transparency setting. `.dp-glass` and `.dp-glass-strong` survive as class names for the rails and bars that already use them, and both draw the same raised surface: the `--dp-surface` fill, a `--dp-line` hairline and `--dp-float-shadow`.
 

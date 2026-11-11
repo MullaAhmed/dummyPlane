@@ -155,6 +155,12 @@
   :not(.excalidraw *, .xterm *)::-webkit-scrollbar-corner {
     background: transparent;
   }
+  /* Selected text: the palette's selection tint under the ink, not the system's highlight (a blue band that
+     vanishes on electric). xterm, the code editor and Excalidraw draw their own selection. */
+  :not(.excalidraw *, .xterm *, .cm-editor *)::selection {
+    background: var(--dp-selection);
+    color: var(--dp-text);
+  }
 }
 
 /* A selected row, on the selection's tint (--dp-accent-soft over a surface): its tertiary text

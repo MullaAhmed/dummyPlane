@@ -120,6 +120,28 @@ describe("a control's own boundary reaches 3:1, where a divider's hairline does 
   });
 });
 
+describe("selected text is themed from the palette and stays readable (P2-26)", () => {
+  it("writes the ink on the selection's tint at 4.5:1 on the canvas, the surfaces and the cards, the tint still seen", () => {
+    for (const [palette, selector] of Object.entries(PALETTES)) {
+      const t = cssBlock(tokens, selector);
+      for (const ground of ["--dp-canvas", "--dp-surface", "--dp-card"]) {
+        const tint = over(t[ground], t["--dp-selection"]);
+        expect(contrast(t["--dp-text"], tint), `${palette} text on the selection over ${ground}`).toBeGreaterThanOrEqual(4.5);
+        // At least as visible as the selected row's tint (--dp-accent-soft).
+        expect(contrast(tint, t[ground]), `${palette} selection against ${ground}`).toBeGreaterThanOrEqual(contrast(over(t[ground], t["--dp-accent-soft"]), t[ground]));
+      }
+    }
+  });
+
+  it("paints ::selection with it, and leaves xterm, the code editor and Excalidraw their own", () => {
+    const rule = /:not\(([^)]*)\)::selection\s*\{([^}]*)\}/.exec(readSource("index.css"));
+    expect(rule, "index.css themes ::selection").not.toBeNull();
+    expect(rule![1].split(",").map((s) => s.trim()).sort()).toEqual([".cm-editor *", ".excalidraw *", ".xterm *"]);
+    expect(rule![2]).toMatch(/background:\s*var\(--dp-selection\);/);
+    expect(rule![2]).toMatch(/color:\s*var\(--dp-text\);/);
+  });
+});
+
 describe("text on a selected row (the accent's tint) keeps 4.5:1 (P1-14)", () => {
   const index = readSource("index.css");
   /** The selection's tint over the grounds a selected row sits on: the panels and menus, the cards. */

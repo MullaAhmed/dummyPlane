@@ -67,6 +67,9 @@
   --dp-accent: #173F32;
   --dp-accent-ink: #173F32;
   --dp-accent-soft: rgba(23,63,50,0.12);
+  /* Selected text (index.css ::selection): the ink's tint under the ink, which keeps 4.5:1 on every
+     ground; electric's is lighter, its blue canvas would drop the text under 4.5:1. legibility.test.ts. */
+  --dp-selection: rgba(23,63,50,0.28);
   --dp-on-accent: #EDE3CC;
   --dp-on-role: #1F1E1D;
   /* The wait fill is dark in calm: its count is written in the cream ground (5.3:1). */
@@ -106,6 +109,9 @@
   --dp-accent: #F4F4F1;
   --dp-accent-ink: #F4F4F1;
   --dp-accent-soft: rgba(244,244,241,0.12);
+  /* Selected text (index.css ::selection): the ink's tint under the ink, which keeps 4.5:1 on every
+     ground; electric's is lighter, its blue canvas would drop the text under 4.5:1. legibility.test.ts. */
+  --dp-selection: rgba(244,244,241,0.16);
   --dp-on-accent: #263CF5;
   --dp-on-role: #1F1E1D;
   --dp-on-wait: #1F1E1D;
@@ -146,6 +152,9 @@
   --dp-accent: #F4F4F1;
   --dp-accent-ink: #F4F4F1;
   --dp-accent-soft: rgba(244,244,241,0.12);
+  /* Selected text (index.css ::selection): the ink's tint under the ink, which keeps 4.5:1 on every
+     ground; electric's is lighter, its blue canvas would drop the text under 4.5:1. legibility.test.ts. */
+  --dp-selection: rgba(244,244,241,0.28);
   --dp-on-accent: #101014;
   --dp-on-role: #1F1E1D;
   --dp-on-wait: #1F1E1D;
