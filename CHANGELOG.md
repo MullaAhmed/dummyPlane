@@ -4,6 +4,24 @@ All notable changes to dummyPlane are documented here. The format follows [Keep 
 
 ## [Unreleased]
 
+### Added (output and images)
+- **An output node:** an agent shows a result with the `show_output` tool instead of a wall of text: a report, a summary, a comparison, a table, figures or a chart. It appears beside the agent's terminal, wired to it, under the same header as terminals.
+  - **How it's drawn:** [OpenUI](https://www.openui.com/) Lang, with dummyPlane's own components (cards, tables, stats, callouts, code, bar and line charts, links, buttons…) in the palette's colours.
+  - **Buttons:** a button types its message into the agent that made the output, only when you click it.
+  - **The agent's side:** calling the tool again updates the same node, and `output_guide` gives the agent the components and an example.
+  - **Your side:** *Copy as text* copies the output, and ⋯ shows or copies its source.
+  - **Database upgrade:** it needs migration 7 on first start; dummyPlane keeps a copy of the database first (`dummyplane.v6-backup.db`).
+  - **Privacy:** OpenUI's install-time analytics are switched off and its development widget is replaced. Nothing it ships calls out from the app.
+- **Agents read dummyPlane links:** a `dummyplane://…` link you paste into an agent's terminal (a terminal, a Fleet, a sub-agent, an output, a file or a Kanban board) is read with the new `read_node` tool, without linking the two on the canvas. A sub-agent's link gives its type, its prompt and its answer.
+- **Generated text through OpenUI:** these render OpenUI Lang, and Markdown otherwise:
+  - an agent's last report in the *Edit* tab;
+  - the Fleet's mission summary;
+  - the morning report's summaries;
+  - a sub-agent's answer.
+
+  Names, step titles, status words and one-line summaries stay plain text. A report written in OpenUI Lang with errors is refused, and the agent is told which lines to fix.
+- **Pasted images are attachments:** an image pasted into the command bar or a Fleet's message line shows as a thumbnail chip, never as a file path. It can be removed with its × or Backspace. On send, Claude Code and Codex get each image as an attached image (`[Image #N]`) before the text; dummyPlane waits for the image to show before typing the rest, since Claude drops an Enter that arrives while it reads one.
+
 ### Added
 - **An agent for the Fleet:** the settings menu's *Fleet agent…* lists the CLIs, installed or not, and which can carry a Fleet; the Fleet, its team, its queue's agents and their sub-agents all run on the one chosen, and dummyPlane asks before the first Fleet when more than one installed CLI could (with a single one, it is taken). Claude Code and Codex can carry a Fleet; the others are listed with why not yet.
 - **A Fleet on Codex:** a Codex Fleet runs in Codex's read-only sandbox and never waits for a yes, with dummyPlane's tools and none of your own MCP servers, plugins or browser tools, even those a project's `.codex/config.toml` adds; it does not start if Codex still lists one, or points dummyPlane's server elsewhere. Its team and their sub-agents run Codex too, with dummyPlane's tools and their mission's permission: *Edit files* is Codex's `workspace-write` sandbox (to commit, an agent asks you, or fails), *Edit files and run commands* runs without a sandbox, since Codex's keeps `.git` read-only. dummyPlane knows when Codex's prompt is ready, answers its trust question in the worktrees it makes, and *Resume* takes the conversation Codex saved back up. Every Codex terminal now gets dummyPlane's tools and role through a profile file in Codex's folder, removed when it closes; it starts without Codex's update check, which would stop it before its task. The model router stays Claude's, and Remote Control is not offered to a Codex Fleet.
