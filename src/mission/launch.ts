@@ -365,8 +365,24 @@ export async function mergeMission(fleetId: string): Promise<string> {
   return `${m.header(mission.branch ?? "")}\n${lines.join("\n")}`;
 }
 
-/** "Clean up the mission" (spec §7.7): merged worktrees go, the branches stay; the fleet is free again. */
-export async function cleanMission(fleetId: string): Promise<Cleanup | string> {
+/** The cleanups under way, by fleet: a second caller joins the first instead of resetting the mission again behind it. */
+const cleaning = new Map<string, Promise<Cleanup | string>>();
+
+/**
+ * "Clean up the mission" (spec §7.7): merged worktrees go, the branches stay; the fleet is free again. The panel's
+ * button and the Fleet's own cleanup (`./cleanup.ts`) are this. The mission stays finished while git works: a call
+ * made in that time (a click meanwhile, the Fleet's two calls in one turn) is the one under way, never a second
+ * reset that would blank a plan drafted since the first.
+ */
+export function cleanMission(fleetId: string): Promise<Cleanup | string> {
+  const under = cleaning.get(fleetId);
+  if (under) return under;
+  const run = cleanMissionNow(fleetId).finally(() => cleaning.delete(fleetId));
+  cleaning.set(fleetId, run);
+  return run;
+}
+
+async function cleanMissionNow(fleetId: string): Promise<Cleanup | string> {
   const mission = missionOf(nodesStore.getState().nodes[fleetId]);
   if (mission?.state !== "terminee") return t().launch.notFinished;
   // A night's length is that night's absence, no setting for the next mission; the fleet's session goes back to its day.

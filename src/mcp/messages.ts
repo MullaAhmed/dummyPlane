@@ -235,8 +235,9 @@ export const agentMessages = defineMessages({
       cleanUnsaved: (items: string) => `Not cleaned up: something is unsaved (${items}). The user decides what to do with it, then cleans the mission up from the panel.`,
       cleanOpenTasks: (titles: readonly string[]) => `${plural(titles.length, "task", "tasks")} not done or never started: ${titles.map((title) => `"${title}"`).join(", ")}`,
       cleanCheckFailed: (error: string) => `Not cleaned up: dummyPlane could not check what the cleanup would leave behind (${error}). The user cleans the mission up from the panel.`,
-      cleanedUp: (name: string, kept: readonly string[], failure: string | undefined) =>
-        `Mission ${name ? `"${name}" ` : ""}cleaned up: the worktrees of its team that were merged are removed (the branches stay), its Manager is closed, and the mission starts again blank.` +
+      cleanedUp: (name: string, branch: string | undefined, kept: readonly string[], failure: string | undefined) =>
+        `Mission ${name ? `"${name}" ` : ""}cleaned up: the worktrees of its team that were merged are removed (the branches stay), its Manager (if it had one) is closed, and the mission starts again blank.` +
+        (branch ? ` Its branch ${branch} stays too: the user merges it into their own, and the next mission starts from the project's current commit.` : "") +
         (kept.length > 0 ? ` Left in place: ${kept.join(", ")}.` : "") +
         (failure ? ` Git said: ${failure} Some worktrees may be left in place.` : ""),
       cleanedSummary: (summary: string, checks: readonly string[]) =>

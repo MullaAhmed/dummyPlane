@@ -74,7 +74,8 @@ describe("clean_up_mission", () => {
     expect(cleanMission).toHaveBeenCalledOnce();
     expect(cleanMission).toHaveBeenCalledWith("chef");
     expect(textOf(result)).toBe(
-      'Mission "Auth" cleaned up: the worktrees of its team that were merged are removed (the branches stay), its Manager is closed, and the mission starts again blank. ' +
+      'Mission "Auth" cleaned up: the worktrees of its team that were merged are removed (the branches stay), its Manager (if it had one) is closed, and the mission starts again blank. ' +
+        "Its branch dummyplane/auth stays too: the user merges it into their own, and the next mission starts from the project's current commit. " +
         "Its summary is no longer in the panel: tell the user what it said, if you have not. Summary: Login and API shipped. To check by hand: Read the migration.",
     );
     // The same check the panel's cleanup would keep nothing from: the project, the mission's slug, every member.

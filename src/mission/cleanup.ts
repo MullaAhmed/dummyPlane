@@ -87,6 +87,8 @@ export async function cleanUpFinished(fleetId: string): Promise<FleetCleanup> {
   const latest = missionOf(nodesStore.getState().nodes[fleetId]);
   if (latest?.state !== "terminee") return { cleaned: false, reason: f.cleanNothing };
   const name = latest.name ?? "";
+  // Gone with the mission once it is cleaned up: the Fleet is told, the user still has to merge it.
+  const branch = latest.branch;
   const summary = (latest.summary ?? "").trim();
   const checks = latest.handChecks ?? [];
   const result = await cleanMission(fleetId);
@@ -94,7 +96,7 @@ export async function cleanUpFinished(fleetId: string): Promise<FleetCleanup> {
   const failure = typeof result === "string" ? result : undefined;
   if (failure) toastError(messages(missionMessages).cleanFailed, { error: failure });
   else toast(messages(missionMessages).cleanedByFleet(name));
-  const lines = [f.cleanedUp(name, typeof result === "string" ? [] : result.kept, failure)];
+  const lines = [f.cleanedUp(name, branch, typeof result === "string" ? [] : result.kept, failure)];
   if (summary || checks.length > 0) lines.push(f.cleanedSummary(summary.length > MAX_SUMMARY ? `${summary.slice(0, MAX_SUMMARY)}…` : summary, checks));
   return { cleaned: true, text: lines.join(" ") };
 }

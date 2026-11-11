@@ -24,7 +24,7 @@ import { whenReady } from "./ready";
 import { onFinish, type FinishSignal } from "@/agents/finishes";
 import { cleanMission, endMission, handoverText, launchMission, mergeMission, reassignTask, subTaskText, withTicketNote } from "./launch";
 import { NEW_MISSION, type Member, type Mission } from "./mission";
-import { missionOf, releaseTeamPermission, updateMember } from "./store";
+import { missionOf, releaseTeamPermission, setMission, updateMember } from "./store";
 import { setUpBoard, undoSetup } from "./manager";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
@@ -641,6 +641,28 @@ it("cleans a finished mission and frees the fleet for the next, its settings kep
   expect(await cleanMission("chef")).toEqual({ removed: ["auth-batman", "auth"], kept: [] });
   expect(missionCleanup).toHaveBeenCalledWith("C:/code/proj", "auth", ["Batman"]);
   expect(missionNow()).toEqual({ state: "redaction", maxAgents: 3, members: [] });
+});
+
+it("joins a second cleanup to the one under way: one run of git, and no reset behind a plan drafted since", async () => {
+  await setup({ state: "terminee", maxAgents: 3, project: "C:/code/proj", slug: "auth", summary: "ok", members: [member("batman", "Batman", true)] });
+  let release: (done: { removed: string[]; kept: string[] }) => void = () => undefined;
+  vi.mocked(missionCleanup).mockReturnValueOnce(new Promise((resolve) => (release = resolve)));
+  // The panel's click and the Fleet's own cleanup, while git works: the mission is still finished.
+  const first = cleanMission("chef");
+  const second = cleanMission("chef");
+  expect(missionNow().state).toBe("terminee");
+  release({ removed: ["auth-batman", "auth"], kept: [] });
+  expect(await first).toEqual({ removed: ["auth-batman", "auth"], kept: [] });
+  expect(await second).toEqual({ removed: ["auth-batman", "auth"], kept: [] });
+  expect(missionCleanup).toHaveBeenCalledOnce();
+  expect(missionNow()).toEqual({ state: "redaction", maxAgents: 3, members: [] });
+  // A plan drafted now stands: nothing is left of the first run to reset it.
+  setMission("chef", { state: "plan", name: "Next" });
+  await Promise.resolve();
+  expect(missionNow()).toMatchObject({ state: "plan", name: "Next" });
+  // Once it is done a new call is a new one: this mission is no longer finished.
+  expect(await cleanMission("chef")).toBe("The mission is not finished.");
+  expect(missionCleanup).toHaveBeenCalledOnce();
 });
 
 it("takes the mission's permission back from its agents when its fleet closes: a later restart asks as usual (backlog)", async () => {
