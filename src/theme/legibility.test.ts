@@ -4,6 +4,8 @@ import { describe, expect, it, vi } from "vitest";
 vi.setConfig({ testTimeout: 30_000 });
 import { blend, contrast } from "./colorMath";
 import { cssBlock, readSource, sourceFiles } from "./cssBlocks";
+import { BAR_TOKEN, GROUND_TOKENS, PROGRESS_TOKEN, SERIES_HUES, TEXT_TOKENS, TONES, TONE_BORDER, TONE_RULE, TONE_TEXT, TONE_TOKEN } from "@/openui/tones";
+import { SYNTAX_HUES } from "@/studio/syntaxHues";
 
 const tokens = readSource("theme/tokens.css");
 
@@ -144,5 +146,43 @@ describe("text on a selected row (the accent's tint) keeps 4.5:1 (P1-14)", () =>
     for (const [file, row] of rows) expect(readSource(file), file).toContain(row);
     // The git row writes its − count and D letter in that variable, never in danger itself.
     expect(readSource("git/GitWindow.tsx")).not.toContain('<span className="text-dp-danger">−');
+  });
+});
+
+describe("an agent's generated output (src/openui) reads in every palette", () => {
+  it("writes its text roles and its tones' inks at 4.5:1 on the output's surface and on a card", () => {
+    for (const [palette, selector] of Object.entries(PALETTES)) {
+      const t = cssBlock(tokens, selector);
+      for (const ink of [...TEXT_TOKENS, ...Object.values(TONE_TOKEN)]) {
+        for (const ground of GROUND_TOKENS) {
+          expect(contrast(t[ink], t[ground]), `${palette} ${ink} on ${ground}`).toBeGreaterThanOrEqual(4.5);
+        }
+      }
+    }
+  });
+
+  it("draws each tone's text, border and rule in that very token", () => {
+    for (const tone of TONES) {
+      const name = TONE_TOKEN[tone].slice(2);
+      expect([TONE_TEXT[tone], TONE_BORDER[tone], TONE_RULE[tone]]).toEqual([`text-${name}`, `border-${name}`, `border-l-${name}`]);
+    }
+  });
+
+  it("draws bars, progress and line series at 3:1 at least on its grounds, a graphic's floor", () => {
+    for (const [palette, selector] of Object.entries(PALETTES)) {
+      const t = cssBlock(tokens, selector);
+      const hues = SYNTAX_HUES[palette as keyof typeof SYNTAX_HUES];
+      for (const ground of GROUND_TOKENS) {
+        expect(contrast(t[BAR_TOKEN], t[ground]), `${palette} bars on ${ground}`).toBeGreaterThanOrEqual(3);
+        expect(contrast(t[PROGRESS_TOKEN], t[ground]), `${palette} progress on ${ground}`).toBeGreaterThanOrEqual(3);
+        for (const hue of SERIES_HUES) expect(contrast(hues[hue], t[ground]), `${palette} ${hue} series on ${ground}`).toBeGreaterThanOrEqual(3);
+      }
+    }
+  });
+
+  it("draws with exactly those tokens: the charts' bars and the progress fill name them", () => {
+    const sources = sourceFiles();
+    expect(sources["openui/charts.tsx"]).toContain(`fill-${BAR_TOKEN.slice(2)}`);
+    expect(sources["openui/parts.tsx"]).toContain(`bg-${PROGRESS_TOKEN.slice(2)}`);
   });
 });

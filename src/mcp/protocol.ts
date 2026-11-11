@@ -36,6 +36,9 @@ const TOOLS: Record<string, string> = {
   linked_agents: "linked_agents",
   message_agent: "message_agent",
   read_agent: "read_agent",
+  show_output: "show_output",
+  output_guide: "output_guide",
+  read_node: "read_node",
 };
 
 /** The former names, for the agent that still calls one: what it is called now. */

@@ -26,6 +26,10 @@ const TABLE_SEP = /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/;
 const INLINE =
   /`([^`]+)`|!\[([^\]]*)\]\(([^)\s]*)\)|\[([^\]]+)\]\(([^)\s]*)\)|\*\*(.+?)\*\*|__(.+?)__|\*([^*\s][^*]*?)\*|\b_([^_\s][^_]*?)_\b/g;
 
+/** A link in running text: the accent's ink, underlined, with the shared focus ring. */
+export const LINK_CLASS =
+  "rounded-sm text-dp-accent-ink underline underline-offset-2 transition-colors duration-(--dp-dur-fast) ease-(--dp-ease-out) motion-reduce:transition-none hover:bg-dp-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/70";
+
 /** Hierarchy from size, then from ink, at one weight. */
 const HEADING_CLASSES = [
   "text-lg font-medium",
@@ -46,8 +50,19 @@ export function safeHref(raw: string): string | null {
   return ["http", "https", "mailto"].includes(scheme[1]) ? href : null;
 }
 
+/**
+ * How a caller draws a link instead of a plain `<a>`: generated text opens its
+ * links through the opener, http(s) only (`@/openui/actions`). Null draws the
+ * label as plain text.
+ */
+export type LinkRenderer = (href: string, label: ReactNode[], key: number) => ReactNode | null;
+
+export interface MarkdownOptions {
+  link?: LinkRenderer;
+}
+
 /** Renders inline formatting: code, bold, italic, links, images (as text). */
-function renderInline(text: string): ReactNode[] {
+export function renderInline(text: string, options: MarkdownOptions = {}): ReactNode[] {
   const out: ReactNode[] = [];
   let last = 0;
   let key = 0;
@@ -66,25 +81,20 @@ function renderInline(text: string): ReactNode[] {
       out.push(<span key={k} className="text-dp-text-3">[{m[2] || messages(studioMessages).markdownImage}]</span>);
     } else if (m[4] !== undefined) {
       const href = safeHref(m[5]);
-      out.push(
-        href === null ? (
-          <span key={k}>{renderInline(m[4])}</span>
-        ) : (
-          <a
-            key={k}
-            href={href}
-            target="_blank"
-            rel="noreferrer noopener"
-            className="rounded-sm text-dp-accent-ink underline underline-offset-2 transition-colors duration-(--dp-dur-fast) ease-(--dp-ease-out) motion-reduce:transition-none hover:bg-dp-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/70"
-          >
-            {renderInline(m[4])}
-          </a>
-        ),
-      );
+      const label = renderInline(m[4], options);
+      const custom = href !== null && options.link ? options.link(href, label, k) : undefined;
+      if (custom !== undefined) out.push(custom ?? <span key={k}>{label}</span>);
+      else if (href === null) out.push(<span key={k}>{label}</span>);
+      else
+        out.push(
+          <a key={k} href={href} target="_blank" rel="noreferrer noopener" className={LINK_CLASS}>
+            {label}
+          </a>,
+        );
     } else if (m[6] !== undefined || m[7] !== undefined) {
-      out.push(<strong key={k}>{renderInline(m[6] ?? m[7])}</strong>);
+      out.push(<strong key={k}>{renderInline(m[6] ?? m[7], options)}</strong>);
     } else {
-      out.push(<em key={k}>{renderInline(m[8] ?? m[9])}</em>);
+      out.push(<em key={k}>{renderInline(m[8] ?? m[9], options)}</em>);
     }
   }
   if (last < text.length) out.push(text.slice(last));
@@ -104,8 +114,9 @@ function startsBlock(line: string, next: string | undefined): boolean {
   );
 }
 
-/** Renders a Markdown string as React nodes. */
-export function renderMarkdown(source: string): ReactNode {
+/** Renders a Markdown string as React nodes; `options.link` draws its links. */
+export function renderMarkdown(source: string, options: MarkdownOptions = {}): ReactNode {
+  const inline = (text: string) => renderInline(text, options);
   const lines = source.replace(/\r\n?/g, "\n").split("\n");
   const blocks: ReactNode[] = [];
   let i = 0;
@@ -130,7 +141,7 @@ export function renderMarkdown(source: string): ReactNode {
     } else if ((m = HEADING.exec(line))) {
       const level = m[1].length;
       const Tag = `h${level}` as "h1";
-      blocks.push(<Tag key={key} className={`text-dp-text ${HEADING_CLASSES[level - 1]}`}>{renderInline(m[2])}</Tag>);
+      blocks.push(<Tag key={key} className={`text-dp-text ${HEADING_CLASSES[level - 1]}`}>{inline(m[2])}</Tag>);
       i++;
     } else if (HR.test(line)) {
       blocks.push(<hr key={key} className="border-dp-line" />);
@@ -143,7 +154,7 @@ export function renderMarkdown(source: string): ReactNode {
       }
       blocks.push(
         <blockquote key={key} className="border-l-2 border-dp-line pl-3 text-dp-text-2">
-          {renderMarkdown(inner.join("\n"))}
+          {renderMarkdown(inner.join("\n"), options)}
         </blockquote>,
       );
     } else if (UL.test(line) || OL.test(line)) {
@@ -154,7 +165,7 @@ export function renderMarkdown(source: string): ReactNode {
         items.push(m[1]);
         i++;
       }
-      const children = items.map((item, n) => <li key={n}>{renderInline(item)}</li>);
+      const children = items.map((item, n) => <li key={n}>{inline(item)}</li>);
       blocks.push(
         ordered ? (
           <ol key={key} className="list-decimal pl-5">{children}</ol>
@@ -170,11 +181,11 @@ export function renderMarkdown(source: string): ReactNode {
       blocks.push(
         <table key={key} className="border-collapse text-sm">
           <thead>
-            <tr>{head.map((c, n) => <th key={n} className="border border-dp-line px-2 py-1 text-left">{renderInline(c)}</th>)}</tr>
+            <tr>{head.map((c, n) => <th key={n} className="border border-dp-line px-2 py-1 text-left">{inline(c)}</th>)}</tr>
           </thead>
           <tbody>
             {rows.map((row, r) => (
-              <tr key={r}>{row.map((c, n) => <td key={n} className="border border-dp-line px-2 py-1">{renderInline(c)}</td>)}</tr>
+              <tr key={r}>{row.map((c, n) => <td key={n} className="border border-dp-line px-2 py-1">{inline(c)}</td>)}</tr>
             ))}
           </tbody>
         </table>,
@@ -183,7 +194,7 @@ export function renderMarkdown(source: string): ReactNode {
       const para: string[] = [line];
       i++;
       while (i < lines.length && lines[i].trim() && !startsBlock(lines[i], lines[i + 1])) para.push(lines[i++]);
-      blocks.push(<p key={key}>{renderInline(para.join(" "))}</p>);
+      blocks.push(<p key={key}>{inline(para.join(" "))}</p>);
     }
   }
   return <div className="flex flex-col gap-2 text-sm text-dp-text">{blocks}</div>;

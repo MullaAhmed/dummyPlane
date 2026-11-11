@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MAX_STORED_TASK, readFilePayload, readFleetPayload, readTerminalPayload } from "./types";
+import { MAX_STORED_TASK, readFilePayload, readFleetPayload, readOutputPayload, readTerminalPayload } from "./types";
 
 describe("readTerminalPayload", () => {
   it("reads a payload saved before agents and names existed", () => {
@@ -152,5 +152,18 @@ describe("a minimized terminal (./terminal/minimize.ts)", () => {
     const reports = [null, "done", { status: "termine", summary: "x" }, { status: "done" }, { status: "done", summary: 3 }, { summary: "x" }];
     for (const lastReport of reports) expect(readTerminalPayload({ ...terminal, lastReport })).not.toHaveProperty("lastReport");
     expect(readTerminalPayload({ ...terminal, minimized: "yes", expandedHeight: -1, lastReport: "done" })).toEqual(terminal);
+  });
+});
+
+describe("readOutputPayload", () => {
+  it("reads what an agent showed, and fills what a payload lacks", () => {
+    const ui = 'root = Stack([Text("x")])';
+    expect(readOutputPayload({ title: "Tests", source: "t1", ui, updatedAt: 3 })).toEqual({ title: "Tests", source: "t1", ui, updatedAt: 3 });
+    expect(readOutputPayload({ ui })).toEqual({ title: "", source: "", ui, updatedAt: 0 });
+    expect(readOutputPayload({ title: "x", source: 3, ui, updatedAt: Number.NaN })).toEqual({ title: "x", source: "", ui, updatedAt: 0 });
+  });
+
+  it("refuses a payload without content", () => {
+    for (const raw of [null, "x", {}, { title: "T", ui: 3 }]) expect(readOutputPayload(raw)).toBeNull();
   });
 });

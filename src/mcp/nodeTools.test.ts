@@ -1,0 +1,163 @@
+// @vitest-environment happy-dom
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { mockIPC } from "@tauri-apps/api/mocks";
+import type { ExcalidrawArrowElement, ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
+import { createNodeElement, nodeKindOf } from "@/canvas/nodeElement";
+import { terminalText } from "@/nodes/terminal/registry";
+import { subagentNodesStore } from "@/nodes/subagent/store";
+import type { TerminalPayload } from "@/nodes/types";
+import { nodesStore } from "@/store/nodes";
+import { answer } from "./router";
+import { orphanWires } from "@/agents/wires";
+
+vi.mock("@excalidraw/excalidraw", () => ({ newElementWith: (e: object, patch: object) => ({ ...e, ...patch }) }));
+vi.mock("@/nodes/terminal/registry", () => ({ terminalText: vi.fn(() => "$ npm test\n3 failed") }));
+vi.mock("@/mission/events", () => ({ notify: vi.fn() }));
+
+/** The workspace's scene, as `sceneAccess` reads and writes it. */
+let scene: ExcalidrawElement[] = [];
+const write = vi.fn((elements: readonly ExcalidrawElement[]) => (scene = [...elements]));
+vi.mock("@/agents/sceneAccess", () => ({ sceneAccess: vi.fn(() => ({ shown: true, elements: () => scene, write })) }));
+
+const terminal = (name: string, extra: Partial<TerminalPayload> = {}): TerminalPayload => ({ title: name, name, agent: "claude", cwd: "C:/code", shell: "default", command: "", ...extra });
+
+async function addTerminal(id: string, name: string, at = { x: 0, y: 0 }, extra: Partial<TerminalPayload> = {}) {
+  await nodesStore.getState().create(id, { workspaceId: "w1", kind: "terminal", payload: terminal(name, extra) });
+  scene.push({ ...createNodeElement("terminal", at), id } as unknown as ExcalidrawElement);
+}
+
+const call = (nodeId: string, name: string, args: Record<string, unknown>) =>
+  answer({ callId: 1, nodeId, method: "tools/call", params: { name, arguments: args } }) as Promise<{ content: { text: string }[]; isError?: boolean }>;
+const textOf = (result: { content: { text: string }[] }) => result.content[0].text;
+
+const UI = 'root = Stack([h, t])\nh = Heading("Tests")\nt = Table(["Test", "Result"], [["saves", "ok"], ["reads", "failed"]])';
+
+beforeEach(async () => {
+  mockIPC(() => undefined);
+  vi.clearAllMocks();
+  scene = [];
+  nodesStore.setState({ nodes: {} });
+  subagentNodesStore.setState({ agents: {}, dismissed: {} });
+  await addTerminal("batman", "Batman");
+  await addTerminal("robin", "Robin", { x: 2000, y: 0 });
+});
+
+describe("show_output", () => {
+  it("answers what to fix in plain words, and shows nothing", async () => {
+    const result = await call("batman", "show_output", { title: "T", ui: 'root = Stack([Foo("x"), a])' });
+    expect(result.isError).toBe(true);
+    const text = textOf(result);
+    expect(text).toContain("Not shown: fix 2 problems");
+    expect(text).toContain('Unknown component "Foo"');
+    expect(text).toContain("Used but never defined: a.");
+    expect(text).toContain("Call output_guide");
+    expect(write).not.toHaveBeenCalled();
+    expect(Object.values(nodesStore.getState().nodes).some((n) => n.kind === "output")).toBe(false);
+    expect(textOf(await call("batman", "show_output", { title: "T", ui: "Just some text" }))).toContain("No root statement");
+  });
+
+  it("shows a new output beside its agent, clear of its neighbours, wired to it, saved with its payload", async () => {
+    const result = await call("batman", "show_output", { title: "Test\nrun", ui: UI });
+    expect(result.isError).toBeUndefined();
+    const id = /output ([\w-]+) \(/.exec(textOf(result))![1];
+    expect(textOf(result)).toContain(`dummyplane://output/${id}`);
+    const record = nodesStore.getState().nodes[id];
+    expect(record).toMatchObject({ workspaceId: "w1", kind: "output", payload: { title: "Test run", source: "batman", ui: UI } });
+    const element = scene.find((e) => e.id === id)!;
+    expect(nodeKindOf(element)).toBe("output");
+    expect(element.link).toBe(`dummyplane://output/${id}`);
+    const source = scene.find((e) => e.id === "batman")!;
+    // Right of its agent, not on top of it.
+    expect(element.x).toBeGreaterThan(source.x + source.width);
+    const wire = scene.find((e) => e.type === "arrow") as ExcalidrawArrowElement;
+    expect([wire.startBinding?.elementId, wire.endBinding?.elementId]).toEqual(["batman", id]);
+    // The wire upkeep keeps a wire to an output: it is no orphan.
+    expect(orphanWires(scene)).toEqual([]);
+  });
+
+  it("updates its own output by id or link, refuses another agent's and one that is gone", async () => {
+    const id = /output ([\w-]+) \(/.exec(textOf(await call("batman", "show_output", { title: "v1", ui: UI })))![1];
+    const outputs = () => scene.filter((e) => nodeKindOf(e) === "output");
+    const v2 = UI.replace("Tests", "Tests, again");
+    const updated = await call("batman", "show_output", { title: "v2", ui: v2, output: `dummyplane://output/${id}` });
+    expect(textOf(updated)).toBe(`Output ${id} updated (dummyplane://output/${id}).`);
+    expect(outputs()).toHaveLength(1);
+    expect(nodesStore.getState().nodes[id]).toMatchObject({ payload: { title: "v2", ui: v2 } });
+    const robin = await call("robin", "show_output", { title: "mine", ui: UI, output: id });
+    expect(robin.isError).toBe(true);
+    expect(textOf(robin)).toContain("shown by another agent");
+    scene = scene.map((e) => (e.id === id ? { ...e, isDeleted: true } : e));
+    expect(textOf(await call("batman", "show_output", { title: "v3", ui: UI, output: id }))).toContain(`No output "${id}" on the canvas`);
+    expect(textOf(await call("batman", "show_output", { title: "v3", ui: UI, output: "batman" }))).toContain('No output "batman"');
+  });
+
+  it("is an agent's tool: a fleet is refused it, and output_guide gives the whole language", async () => {
+    await nodesStore.getState().create("chef", { workspaceId: "w1", kind: "fleet", payload: { name: "Fleet" } });
+    expect(textOf(await call("chef", "show_output", { title: "T", ui: UI }))).toBe("This tool is for agents.");
+    const guide = textOf(await call("batman", "output_guide", {}));
+    expect(guide).toContain("root = Stack(");
+    expect(guide).toContain("BarChart(");
+  });
+
+  it("keeps its description short and names every component", async () => {
+    const list = (await answer({ callId: 1, nodeId: "batman", method: "tools/list", params: {} })) as { tools: { name: string; description: string }[] };
+    const show = list.tools.find((t) => t.name === "show_output")!;
+    for (const name of ["Stack", "Table", "Callout", "BarChart", "Button"]) expect(show.description).toContain(name);
+    // Every session pays for it: a few lines, the full guide behind output_guide.
+    expect(show.description.length).toBeLessThan(700);
+    expect(list.tools.find((t) => t.name === "read_node")!.description).toContain("link the user pasted");
+  });
+});
+
+describe("read_node", () => {
+  it("reads a terminal from its link, without a wire: its name, state, task and screen", async () => {
+    nodesStore.getState().update("robin", { task: "Run the tests", lastReport: { status: "failed", summary: "3 failed" } });
+    const text = textOf(await call("batman", "read_node", { link: "dummyplane://terminal/robin", lines: 20 }));
+    expect(text).toContain("Terminal Robin (Claude), stopped.");
+    expect(text).toContain("Its task: Run the tests");
+    expect(text).toContain("Its last report (failed): 3 failed");
+    expect(text).toContain("$ npm test\n3 failed");
+    expect(terminalText).toHaveBeenCalledWith("robin", 20);
+  });
+
+  it("reads a subagent's type, prompt and result, the link the user pasted in their example", async () => {
+    subagentNodesStore.getState().upsert({ nodeId: "robin", agentId: "a1", agentType: "general-purpose", description: "Check the PR", state: "done" });
+    subagentNodesStore.getState().setElement("a1", "0b6281ac-efce-4308-9d6f-353a222289c0");
+    subagentNodesStore.getState().append("a1", [
+      { kind: "prompt", text: "Check PR #12 with gh" },
+      { kind: "tool", text: "Bash(gh pr view 12)" },
+      { kind: "report", text: "The PR is fine." },
+    ]);
+    const result = await call("batman", "read_node", { link: "dummyplane://subagent/0b6281ac-efce-4308-9d6f-353a222289c0" });
+    expect(result.isError).toBeUndefined();
+    const text = textOf(result);
+    expect(text).toContain("Subagent general-purpose (done), run by Robin.");
+    expect(text).toContain("Asked: Check the PR");
+    expect(text).toContain("Its prompt:\nCheck PR #12 with gh");
+    expect(text).toContain("Its result:\nThe PR is fine.");
+    expect(text).toContain("[tool] Bash(gh pr view 12)");
+  });
+
+  it("reads an output's title and its content as text", async () => {
+    const id = /output ([\w-]+) \(/.exec(textOf(await call("robin", "show_output", { title: "Tests", ui: UI })))![1];
+    const text = textOf(await call("batman", "read_node", { link: `dummyplane://output/${id}` }));
+    expect(text).toContain('Output "Tests", shown by Robin');
+    expect(text).toContain("# Tests");
+    expect(text).toContain("| reads | failed |");
+  });
+
+  it("says why when a link reads nothing", async () => {
+    expect(textOf(await call("batman", "read_node", {}))).toContain("Give the node's link");
+    expect(textOf(await call("batman", "read_node", { link: "https://example.com" }))).toContain("is not a dummyPlane link");
+    expect(textOf(await call("batman", "read_node", { link: "dummyplane://teapot/x1" }))).toContain("is not a dummyPlane link");
+    expect(textOf(await call("batman", "read_node", { link: "dummyplane://terminal/nobody" }))).toContain("Nothing in dummyPlane answers to dummyplane://terminal/nobody");
+    expect(textOf(await call("batman", "read_node", { link: "dummyplane://subagent/gone" }))).toContain("lasts only as long as the Claude session");
+  });
+
+  it("is everyone's: a fleet reads a pasted link too", async () => {
+    await nodesStore.getState().create("chef", { workspaceId: "w1", kind: "fleet", payload: { name: "Fleet" } });
+    const result = await call("chef", "read_node", { link: "dummyplane://terminal/robin" });
+    expect(result.isError).toBeUndefined();
+    expect(textOf(result)).toContain("Terminal Robin");
+  });
+});

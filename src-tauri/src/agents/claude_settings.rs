@@ -386,6 +386,7 @@ mod tests {
 
     #[test]
     fn allows_dummyplane_s_tools_without_asking() {
+        // The rule names the server, not its tools: show_output, output_guide and read_node need no rule of their own.
         assert_eq!(
             settings_json(URL, Role::Agent)["permissions"],
             serde_json::json!({ "allow": ["mcp__dummyplane"] })

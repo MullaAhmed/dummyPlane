@@ -103,7 +103,31 @@ export interface FilePayload {
   path: string;
 }
 
-export type NodePayload = TerminalPayload | FleetPayload | KanbanPayload | FilePayload;
+/** Content of an output node: what an agent showed with show_output (`@/mcp/nodeTools`), in OpenUI Lang. */
+export interface OutputPayload {
+  title: string;
+  /** Node id of the agent's terminal that showed it: its wire's start, and where its Buttons send. */
+  source: string;
+  /** Its OpenUI Lang program (or Markdown), as the agent wrote it. */
+  ui: string;
+  /** When the agent last showed it (ms). */
+  updatedAt: number;
+}
+
+export type NodePayload = TerminalPayload | FleetPayload | KanbanPayload | FilePayload | OutputPayload;
+
+/** Reads a stored output payload; null without content. */
+export function readOutputPayload(raw: unknown): OutputPayload | null {
+  if (typeof raw !== "object" || raw === null) return null;
+  const r = raw as Record<string, unknown>;
+  if (typeof r.ui !== "string") return null;
+  return {
+    title: typeof r.title === "string" ? r.title : "",
+    source: typeof r.source === "string" ? r.source : "",
+    ui: r.ui,
+    updatedAt: typeof r.updatedAt === "number" && Number.isFinite(r.updatedAt) ? r.updatedAt : 0,
+  };
+}
 
 /** Reads a stored file payload; null without a usable path. */
 export function readFilePayload(raw: unknown): FilePayload | null {

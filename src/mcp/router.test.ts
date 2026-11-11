@@ -71,7 +71,7 @@ describe("the notes tool (spec notes §3)", () => {
 describe("the agent's tools (spec orchestrateur §4.4)", () => {
   it("lists them for any Claude session", async () => {
     const list = (await answer({ callId: 1, nodeId: "batman", method: "tools/list", params: {} })) as { tools: { name: string; inputSchema: object }[] };
-    expect(list.tools.map((t) => t.name)).toEqual(["declare_steps", "step", "report", "spawn_agent", "linked_agents", "message_agent", "read_agent", "notes"]);
+    expect(list.tools.map((t) => t.name)).toEqual(["declare_steps", "step", "report", "spawn_agent", "linked_agents", "message_agent", "read_agent", "show_output", "output_guide", "read_node", "notes"]);
     expect(list.tools.every((t) => typeof t.inputSchema === "object")).toBe(true);
   });
 
@@ -120,7 +120,7 @@ describe("the fleet's tools (spec orchestrateur §7.2)", () => {
 
   it("lists them for the fleet only, and each side refuses the other's", async () => {
     const list = (await answer({ callId: 1, nodeId: "chef", method: "tools/list", params: {} })) as { tools: { name: string }[] };
-    expect(list.tools.map((t) => t.name)).toEqual(["mission", "propose_plan", "add_tasks", "queue", "next_task", "tickets", "board", "team", "read_output", "write", "extend", "interrupt", "reassign", "merge", "finish", "remote_control", "notes"]);
+    expect(list.tools.map((t) => t.name)).toEqual(["mission", "propose_plan", "add_tasks", "queue", "next_task", "tickets", "board", "team", "read_output", "write", "extend", "interrupt", "reassign", "merge", "finish", "remote_control", "read_node", "notes"]);
     expect(textOf(await call("batman", "propose_plan", plan))).toBe("This tool is for the fleet.");
     expect(textOf(await call("chef", "report", { summary: "x", status: "done" }))).toBe("This tool is for agents.");
     expect(textOf(await call("batman", "board", {}))).toBe("This tool is for the fleet.");

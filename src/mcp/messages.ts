@@ -30,6 +30,19 @@ export const agentMessages = defineMessages({
       messageText: "The message, on one line.",
       readAgent: "The end of a linked agent's terminal, as plain text.",
       readLines: "How many lines, 50 by default.",
+      showOutput: (components: string) =>
+        "Show the user a result (report, summary, comparison, table, figures, chart) as an output node beside your terminal, instead of a wall of text. " +
+        `Written in OpenUI Lang: root = Stack([...]), then one name = Component(args) per line. Components: ${components}. ` +
+        "Call output_guide once for their arguments and an example. Answers the output's id and link, or the errors to fix.",
+      showTitle: "A short title for the output's header.",
+      showUi: "The OpenUI Lang program, whole.",
+      showOutputId: "To update an output you showed before instead of making a new one: its id (or link), as show_output gave it.",
+      outputGuide: "The guide to show_output's OpenUI Lang: its syntax, each component's arguments, an example.",
+      readNode:
+        "Read a dummyPlane node from its link: a dummyplane://… link the user pasted is read with this tool, no wire needed. " +
+        "A terminal gives the end of its screen, a subagent its type, prompt and result, an output its title and content.",
+      readLink: "The node's link (dummyplane://terminal/<id>, dummyplane://subagent/<id>, dummyplane://output/<id>…) or its id.",
+      readNodeLines: "For a terminal: how many lines, 80 by default.",
       finishCheck: "What the user will have to check by hand: it tops the morning report.",
       mission: "The mission: state, name, task, maximum number of agents working at once (max_agents) and how many are (active_agents), model router, branch, plan, the linked Claude agents available and the linked groups, with each one's group and speciality; overnight, the time the user is away (away_min) and what is left of it (left_min).",
       proposePlan: "Propose your plan: it replaces the pending plan and waits for the user's go-ahead (\"Launch the mission\" in the fleet's panel). One sub-task per agent; beyond Max active agents, sub-tasks (agent \"new\") wait in the queue and start as seats free up.",
@@ -107,6 +120,41 @@ export const agentMessages = defineMessages({
       sent: (name: string) => `Sent to ${name}. An answer, if any, will be typed into your terminal: carry on, do not wait for it.`,
       held: (name: string) => `${name} is waiting for the user's answer to a dialog: your message is typed as soon as it is answered.`,
       emptyTerminal: "(empty terminal)",
+    },
+    /** show_output and output_guide (`@/nodes/output/show`). */
+    output: {
+      untitled: "Output",
+      invalid: (errors: readonly string[]) =>
+        `Not shown: fix ${plural(errors.length, "problem", "problems")}, then call show_output again with the whole ui.\n- ${errors.join("\n- ")}\nCall output_guide for the components and the syntax.`,
+      warnings: (warnings: readonly string[]) => `Note: ${warnings.join(" ")}`,
+      gone: "Your terminal is no longer on the canvas.",
+      noCanvas: "Your workspace's canvas is not loaded: open it in dummyPlane, then try again.",
+      noSuchOutput: (id: string) => `No output "${id}" on the canvas (it was closed, or it is not an output). Call show_output without output to show a new one.`,
+      notYours: (id: string) => `Output "${id}" was shown by another agent: you can only update your own. Call show_output without output to show a new one.`,
+      shown: (id: string, link: string) => `Shown beside your terminal as output ${id} (${link}). To change it, call show_output again with output "${id}" and the whole new ui.`,
+      updated: (id: string, link: string) => `Output ${id} updated (${link}).`,
+    },
+    /** read_node (`./nodeTools.ts`). */
+    read: {
+      what: "Give the node's link (link), as dummyPlane wrote it: dummyplane://<kind>/<id>.",
+      notALink: (raw: string) => `"${raw}" is not a dummyPlane link: they look like dummyplane://terminal/<id>, dummyplane://subagent/<id> or dummyplane://output/<id>.`,
+      notFound: (link: string) => `Nothing in dummyPlane answers to ${link} now: it was closed, or it belongs to a project not opened since dummyPlane started.`,
+      subagentGone: (link: string) => `No subagent answers to ${link} now: a subagent's node lasts only as long as the Claude session that ran it.`,
+      terminal: (name: string, agent: string, state: string) => `Terminal ${name} (${agent}), ${state}.`,
+      task: (task: string) => `Its task: ${task}`,
+      report: (status: string, summary: string) => `Its last report (${status}): ${summary}`,
+      screen: (lines: number) => `The last ${lines} lines of its screen:`,
+      notShown: "Its screen is not loaded in dummyPlane yet (the terminal has not been shown since dummyPlane started).",
+      subagent: (type: string, state: string, parent: string) => `Subagent ${type} (${state}), run by ${parent}.`,
+      asked: (about: string) => `Asked: ${about}`,
+      prompt: "Its prompt:",
+      result: "Its result:",
+      noResult: "No result yet.",
+      transcript: "Its transcript (newest last):",
+      output: (title: string, from: string, updated: string) => `Output "${title}", shown by ${from}${updated ? `, updated ${updated}` : ""}. Its content, as text:`,
+      file: (path: string) => `A file node showing ${path} (relative to the project's folder). Read the file itself.`,
+      board: "A Kanban board. Its columns and cards:",
+      other: (kind: string) => `A ${kind} node: read_node reads terminals, subagents, outputs, files and boards.`,
     },
     steps: {
       tooLong: (max: number) => `Each step is a short title (${max} characters at most).`,

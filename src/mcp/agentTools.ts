@@ -72,8 +72,8 @@ export function agentTools() {
   ];
 }
 
-/** Internal names of the agents' tools (`./protocol.ts`), linked agents' included (`./linkTools.ts`). */
-export const AGENT_ONLY = new Set(["declarer_etapes", "etape", "rendre_compte", "spawn_agent", "linked_agents", "message_agent", "read_agent"]);
+/** Internal names of the agents' tools (`./protocol.ts`), linked agents' (`./linkTools.ts`) and outputs' (`./nodeTools.ts`) included. */
+export const AGENT_ONLY = new Set(["declarer_etapes", "etape", "rendre_compte", "spawn_agent", "linked_agents", "message_agent", "read_agent", "show_output", "output_guide"]);
 
 /** Who hears an agent's news over a wire: its mission's fleet, else the agent that spawned it. */
 const listenerOf = (nodeId: string) => memberOf(nodeId)?.fleetId ?? spawnedByOf(nodeId);
