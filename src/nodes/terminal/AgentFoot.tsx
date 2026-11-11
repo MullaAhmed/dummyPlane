@@ -1,12 +1,9 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useMemo, useRef } from "react";
 import { Plus } from "lucide-react";
-import type { SceneFrame } from "@/canvas/groups";
 import { useCanvas } from "@/canvas/canvasStore";
 import { Button } from "@/components/ui/button";
 import { AGENTS, INDIGO } from "@/agents/catalog";
-import { CommandInput } from "@/agents/CommandInput";
 import { takesCommands } from "@/agents/slashCommands";
-import type { TargetAgent } from "@/agents/targets";
 import { fleetsOf } from "@/agents/wires";
 import { useMessages } from "@/i18n";
 import type { AgentId } from "@/ipc/pty";
@@ -18,12 +15,9 @@ import type { AgentActivity } from "@/store/agentActivity";
 import { useNodes } from "@/store/nodes";
 import type { TerminalStatus } from "@/store/terminalStatus";
 import { uiStore, useUi } from "@/store/ui";
-import { MessageBar } from "../foot/MessageBar";
 import { StatusLine } from "../foot/StatusLine";
 import { nodesMessages } from "../messages";
-import { keepFieldWheel } from "../fleet/keepWheel";
 import { pillOf } from "./pill";
-import { focusTerminal } from "./registry";
 import { DOT_OF_TONE } from "./StatusDot";
 
 /** The terminals that get a foot: the AI agents, the ones that take instructions (not a plain shell, not a custom command). */
@@ -31,29 +25,22 @@ export function hasAgentFoot(agent: AgentId): boolean {
   return takesCommands(agent);
 }
 
-const NO_GROUPS: SceneFrame[] = [];
-
 /**
- * Under an agent's terminal, the same foot as a Fleet's: a status line (its
- * dot, where it stands and for how long, the Fleets that command it, Link),
- * then the field to message it, "Message <name>". The status lives
- * here rather than in the header: one dot per agent, beside the question it
- * may be asking at the bottom of its terminal.
+ * Under an agent's terminal, one status line: its dot, where it stands and for
+ * how long, the Fleets that command it, and Link. The status lives here rather
+ * than in the header: one dot per agent, beside the question it may be asking
+ * at the bottom of its terminal. An agent is messaged from the command bar at
+ * the bottom of the canvas (shell/CommandBar.tsx), where selecting it puts its
+ * `@` chip, not from a field of its own.
  */
 export function AgentFoot(props: { nodeId: string; payload: TerminalPayload; status: TerminalStatus; activity?: AgentActivity }) {
   const { nodeId, payload, status, activity } = props;
   const foot = useRef<HTMLElement>(null);
-  const name = payload.name || AGENTS[payload.agent].label;
-  // No key typed in the foot reaches the canvas: Backspace there would delete the node.
+  // No key typed in the foot reaches the canvas: Backspace on Link would delete the node.
   useNativeKeyDown(foot, () => undefined);
-  // The wheel over the field scrolls the field, not the canvas; the terminal's own wheel stops at its body.
-  useEffect(() => (foot.current ? keepFieldWheel(foot.current) : undefined), []);
   return (
     <footer ref={foot} data-agent-foot={nodeId} className="shrink-0 border-t border-dp-line bg-dp-terminal-head">
       <AgentStatus nodeId={nodeId} payload={payload} status={status} activity={activity} />
-      <MessageBar>
-        <AgentField nodeId={nodeId} name={name} />
-      </MessageBar>
     </footer>
   );
 }
@@ -116,13 +103,4 @@ function AgentLink({ nodeId }: { nodeId: string }) {
       {linking ? t.done : t.link}
     </Button>
   );
-}
-
-/** Sends to this agent alone, the way the command bar sends to a target; Escape gives the keyboard back to its terminal. */
-function AgentField({ nodeId, name }: { nodeId: string; name: string }) {
-  const t = useMessages(nodesMessages).foot;
-  const groupName = useCanvas((s) => s.frames.find((f) => f.group !== null && f.memberIds.includes(nodeId))?.name ?? null);
-  const agents = useMemo<TargetAgent[]>(() => [{ id: nodeId, name, groupName }], [nodeId, name, groupName]);
-  const fallback = useMemo(() => [nodeId], [nodeId]);
-  return <CommandInput compact agents={agents} groups={NO_GROUPS} fallback={fallback} placeholder={t.message(name)} emptyHint="" onEscape={() => focusTerminal(nodeId)} />;
 }

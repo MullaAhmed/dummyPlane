@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { AGENTS } from "@/agents/catalog";
 import { CommandInput } from "@/agents/CommandInput";
 import { HINT_KEY, historyStore } from "@/agents/history";
-import { activeTarget, selectionTargets, targetAgents } from "@/agents/targets";
+import { activeTarget, selectionChips, selectionTargets, targetAgents, type Target } from "@/agents/targets";
 import { useMessages } from "@/i18n";
 import { getSetting, setSetting } from "@/ipc/db";
 import { terminalOf, useNodes } from "@/store/nodes";
@@ -60,8 +60,11 @@ export function CommandBar() {
   const nothingSelected = selectedIds.length === 0;
   const fallback = useMemo(() => (nothingSelected && active !== null ? [active] : selected), [nothingSelected, selected, active]);
   const activeName = nothingSelected && active !== null ? agents.find((a) => a.id === active)?.name : undefined;
-  // The active terminal shows as its `@` chip, as if typed (it is what Enter reaches without one).
-  const autoTarget = useMemo(() => (activeName && active !== null ? ({ kind: "agent", id: active } as const) : null), [activeName, active]);
+  // Who Enter reaches without `@` shows as `@` chips, as if typed: the selected terminals and groups, else the active terminal.
+  const autoTargets = useMemo<Target[]>(
+    () => (nothingSelected ? (activeName && active !== null ? [{ kind: "agent", id: active }] : []) : selectionChips(selectedIds, frames, agents.map((a) => a.id))),
+    [nothingSelected, activeName, active, selectedIds, frames, agents],
+  );
 
   return (
     // A panel round enough (rounded-xl, 16) to hold Send's 8px corner 8px in from its own (16 = 8 + 8).
@@ -77,7 +80,8 @@ export function CommandBar() {
         label={t.placeholder}
         emptyHint={t.emptyHint}
         sendsTo={activeName}
-        autoTarget={autoTarget}
+        autoTargets={autoTargets}
+        fromSelection={!nothingSelected}
       />
     </div>
   );

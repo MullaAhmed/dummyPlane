@@ -85,7 +85,6 @@ export const nodesMessages = defineMessages(
     /** Under an agent's terminal: where it stands, who commands it, and a line to message it. */
     foot: {
       from: (names: string) => `from ${names}`,
-      message: (name: string) => `Message ${name}`,
       link: "Link",
       done: "Done",
       linkTitle: "Link this agent to another agent or to a fleet",

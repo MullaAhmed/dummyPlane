@@ -15,7 +15,7 @@ use crate::agents::extensions::{self, ClaudeExtensions, Places};
 use crate::agents::hooks_server::{self, HookHit, HookServer, HookSink};
 use crate::agents::mcp::{Pending, Tokens};
 use crate::agents::subagents::{Emit, Job, SubagentHook, SubagentSnapshot, Subagents};
-use crate::agents::{claude_settings, codex_profile, mcp_files, prompts};
+use crate::agents::{claude_settings, claude_theme, codex_profile, mcp_files, prompts};
 use crate::error::{AppError, AppResult};
 use crate::pty::shell::{
     Agent, AgentHooks, ClaudeLaunch, CodexLaunch, Role, find_git_bash, which_locate,
@@ -407,6 +407,11 @@ pub fn hooks_for(
                 (Role::Fleet, Some(places)) => extensions::servers_on(places, choice),
                 _ => serde_json::Map::new(),
             };
+            // Claude's own colours in the palette's, unless the user chose a theme of their own.
+            let theme = claude_theme::for_terminal(
+                cwd,
+                claude_settings::config_dir_for(config_dir).as_deref(),
+            );
             let settings = claude_settings::write_with(
                 &state.hooks_dir,
                 node_id,
@@ -415,6 +420,7 @@ pub fn hooks_for(
                 status.as_ref(),
                 claude_settings::Grants { permission, linear },
                 extensions.as_ref(),
+                theme,
             );
             let Ok(settings) =
                 settings.inspect_err(|err| log::error!("hooks of {node_id} not written: {err}"))

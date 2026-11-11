@@ -13,8 +13,8 @@ import { nodesMessages } from "../messages";
 
 /**
  * The foot of a Fleet: the command bar's field in its compact form, one line,
- * aimed at the agents wired to this Fleet. An agent's foot ends with the same
- * line (../terminal/AgentFoot.tsx).
+ * aimed at the agents wired to this Fleet. An agent's own foot has no field:
+ * it is messaged from the command bar (shell/CommandBar.tsx).
  */
 export function FleetInput({ nodeId }: { nodeId: string }) {
   return (
