@@ -75,6 +75,16 @@ it("shows the agent, its name, its report in the functional colors and one line 
   await view.unmount();
 });
 
+it("says « Double-click to expand » on its name, not over the whole card, where it showed over the Expand hint (P2 #20)", async () => {
+  const view = await render(<MinimizedCard nodeId="batman" payload={batman} status={{ state: "running" }} />);
+  const card = view.host.querySelector("[data-minimized]")!;
+  expect(card.hasAttribute("title")).toBe(false);
+  expect(card.querySelector('button[aria-label="Expand"]')!.hasAttribute("title")).toBe(false);
+  const name = [...card.querySelectorAll("span")].find((span) => span.textContent === "Batman")!;
+  expect(name.getAttribute("title")).toBe("Double-click to expand");
+  await view.unmount();
+});
+
 it.each([
   ["blocked", "waiting", "bg-dp-wait", "Blocked"],
   ["failed", "error", "bg-dp-danger", "Failed"],

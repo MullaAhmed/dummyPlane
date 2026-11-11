@@ -8,14 +8,17 @@ import { nodesMessages } from "@/nodes/messages";
  * The name of a node in its header; a double-click edits it (the caller can
  * also start it, the palette's "Rename"), Enter or a click elsewhere keeps it,
  * Escape cancels. `onCommit` gets the trimmed text when it changed, empty
- * included: what an empty name means is the node's to say.
+ * included: what an empty name means is the node's to say. `detail` (a
+ * terminal's own title) shows in the name's native tooltip, on the name alone:
+ * on the whole header it stacked with its buttons' hints.
  */
-export function NameField(props: { value: string; editing: boolean; onEditingChange: (editing: boolean) => void; onCommit: (name: string) => void }) {
-  const { value, editing, onEditingChange, onCommit } = props;
+export function NameField(props: { value: string; detail?: string; editing: boolean; onEditingChange: (editing: boolean) => void; onCommit: (name: string) => void }) {
+  const { value, detail, editing, onEditingChange, onCommit } = props;
   const t = useMessages(nodesMessages).header;
   if (!editing) {
+    const tip = detail && detail !== value ? `${detail}\n${t.doubleClickRename}` : t.doubleClickRename;
     return (
-      <span className="min-w-0 truncate text-(length:--text-ui) font-medium text-dp-text" onDoubleClick={() => onEditingChange(true)} title={t.doubleClickRename}>
+      <span className="min-w-0 truncate text-(length:--text-ui) font-medium text-dp-text" onDoubleClick={() => onEditingChange(true)} title={tip}>
         {value}
       </span>
     );

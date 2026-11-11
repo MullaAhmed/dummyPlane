@@ -157,6 +157,45 @@ it("gives the Fleet its own night: it never waits for a yes, and restarts on the
   expect(vi.mocked(relaunchTerminal).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(notify).mock.invocationCallOrder[0]);
 });
 
+it("waits for its checks before it can start, and says it is checking (audit P2 #46)", async () => {
+  mockIPC((cmd) => (cmd === "mission_checks" ? new Promise(() => undefined) : undefined));
+  await show({}, {});
+  expect(document.querySelector("[data-checks]")?.textContent).toContain("Checking the project…");
+  expect(button("Prepare the night").disabled).toBe(true);
+});
+
+it("blocks on checks that failed, with a retry, instead of reading them as passed (audit P2 #46)", async () => {
+  let fail = true;
+  mockIPC((cmd) => {
+    if (cmd !== "mission_checks") return undefined;
+    if (fail) return Promise.reject("gh timed out");
+    return { git: true, gh: true };
+  });
+  await show({}, {});
+  await vi.waitFor(() => expect(document.querySelector("[data-checks]")?.textContent).toContain("The project could not be checked: gh timed out"));
+  expect(document.querySelector('[data-check="blocked"]')?.getAttribute("role")).toBe("alert");
+  expect(button("Prepare the night").disabled).toBe(true);
+  fail = false;
+  await act(async () => button("Try again").click());
+  await vi.waitFor(() => expect(document.querySelector("[data-checks]")?.textContent).toContain("GitHub CLI answers"));
+  expect(document.querySelector("[data-checks]")?.textContent).not.toContain("could not be checked");
+  expect(button("Prepare the night").disabled).toBe(false);
+});
+
+it("marks an out-of-range field and says why under it (audit P2 #46)", async () => {
+  await show();
+  await act(async () => type(field("Number of agents working at once"), "9"));
+  const agents = field("Number of agents working at once");
+  expect(agents.getAttribute("aria-invalid")).toBe("true");
+  expect(document.getElementById(agents.getAttribute("aria-describedby")!)?.textContent).toBe("A whole number from 1 to 8");
+  await act(async () => type(field("Time away (hours)"), "0"));
+  const away = field("Time away (hours)");
+  expect(document.getElementById(away.getAttribute("aria-describedby")!)?.textContent).toBe("More than 0 and up to 72 hours");
+  await act(async () => type(field("Number of agents working at once"), "4"));
+  expect(field("Number of agents working at once").hasAttribute("aria-invalid")).toBe(false);
+  expect(field("Number of agents working at once").hasAttribute("aria-describedby")).toBe(false);
+});
+
 it("will not start outside a repository, and needs gh only for GitHub", async () => {
   mockIPC((cmd) => (cmd === "mission_checks" ? { git: true, gh: false } : undefined));
   await show({}, {});

@@ -71,6 +71,11 @@ function PaletteBody() {
     mode === "goTo"
       ? (filesFirst ? [...files.map(fileKey), ...goToList.flatMap((s) => s.items.map((i) => i.key))] : [...goToList.flatMap((s) => s.items.map((i) => i.key)), ...files.map(fileKey)])
       : functionList.flatMap((s) => s.items.filter((l) => l.disabled === null).map((l) => l.command.id));
+  // What a screen reader hears once the list settles: the count, No results or Loading (WCAG 4.1.3).
+  // cmdk's Empty is role="presentation", so the list alone says nothing when it is empty.
+  const rows = mode === "goTo" ? files.length + goToList.reduce((n, s) => n + s.items.length, 0) : functionList.reduce((n, s) => n + s.items.length, 0);
+  const status = goToBusy ? t.loading : rows === 0 ? t.empty : t.results(rows);
+  const announced = useSettled(status, STATUS_SETTLE_MS);
   const [chosen, setChosen] = useState("");
   // The first line is chosen when it opens and after each keystroke (spec window §7.1).
   useEffect(() => setChosen(""), [query]);
@@ -160,6 +165,10 @@ function PaletteBody() {
             {goToBusy && <div className="px-2.5 py-4 text-center text-xs text-dp-text-2">{t.loading}</div>}
             {!goToBusy && <Command.Empty className="px-2.5 py-4 text-center text-xs text-dp-text-2">{t.empty}</Command.Empty>}
           </Command.List>
+          {/* Outside the listbox: a status is not one of its options. */}
+          <span role="status" aria-live="polite" className="sr-only">
+            {announced}
+          </span>
           <footer className="border-t border-dp-line px-3.5 py-1.5 text-xs text-dp-text-3">{t.footer}</footer>
         </Command>
       </div>
@@ -168,6 +177,18 @@ function PaletteBody() {
 }
 
 const FILE_LIMIT = 30;
+/** How long the list rests before its status is read out: not at every keystroke. */
+export const STATUS_SETTLE_MS = 400;
+
+/** `value` once it has stayed the same for `ms`. */
+function useSettled(value: string, ms: number): string {
+  const [settled, setSettled] = useState("");
+  useEffect(() => {
+    const id = setTimeout(() => setSettled(value), ms);
+    return () => clearTimeout(id);
+  }, [value, ms]);
+  return settled;
+}
 const fileKey = (path: string) => `file:${path}`;
 
 /** The project's files matching the search (Ctrl+P `file:line`): one opens in the Code Studio, at its line. */

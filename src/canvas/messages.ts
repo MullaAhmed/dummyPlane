@@ -5,6 +5,7 @@ export const canvasMessages = defineMessages(
   {
     saveFailed: (error: string) => `Could not save: ${error}`,
     loadFailed: (error: string) => `Could not load this workspace: ${error}`,
+    retryLoad: "Try again",
     loading: "Loading…",
     groupNameLabel: "Group name",
     foldGroup: "Fold the group",

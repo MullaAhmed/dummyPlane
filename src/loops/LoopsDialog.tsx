@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { OptionItem, OptionList } from "@/components/OptionList";
 import { Button } from "@/components/ui/button";
@@ -40,6 +40,14 @@ const LABEL = "dp-label";
 const AROUND = "shrink-0 text-sm font-normal text-dp-text-2";
 const NUMBER = "w-24 tabular-nums";
 
+/** The `data-loop-row` of the row that stands where a deleted loop was. */
+const DELETED_ROW = "deleted";
+
+/** The rows, with the deleted loop's row back at its place. */
+function withDeleted(row: ReactNode, index: number, rows: ReactNode[]): ReactNode[] {
+  return row ? [...rows.slice(0, index), row, ...rows.slice(index)] : rows;
+}
+
 const BLANK: Form = { id: null, name: "", instruction: "", targets: [], trigger: "interval", minutes: "30", text: "", maxRuns: "", maxMinutes: "" };
 
 const number = (value: string) => (value.trim() === "" ? undefined : Number(value));
@@ -73,12 +81,19 @@ export function LoopsDialog() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<Form | null>(null);
   const [error, setError] = useState<LoopError | null>(null);
+  // The loop just deleted: its row gives way to an Undo in its place, until the dialog closes. Not a toast: the
+  // modal dialog keeps the pointer and the keyboard off everything outside it, a toast's button included.
+  const [deleted, setDeleted] = useState<{ loop: LoopDef; index: number } | null>(null);
+  // The row the keyboard goes to next: the Undo that replaced a deleted loop, or the loop taken back.
+  const [focusRow, setFocusRow] = useState<string | null>(null);
+  const list = useRef<HTMLDivElement>(null);
   const loops = useLoops((s) => s.loops);
   const runtime = useLoops((s) => s.runtime);
   const nodes = useNodes((s) => s.nodes);
   const terminals = Object.entries(nodes).filter(([, node]) => node.kind === "terminal");
   useUiRequest("loops", () => {
     setForm(null);
+    setDeleted(null);
     setOpen(true);
     void loopsStore.getState().load();
     return true;
@@ -109,6 +124,40 @@ export function LoopsDialog() {
   /** A group the error is about (no agent chosen, no end set): the error describes it. */
   const describedIf = (about: LoopError) => (error === about ? errorId : undefined);
 
+  useEffect(() => {
+    if (focusRow === null) return;
+    const row = [...(list.current?.querySelectorAll<HTMLElement>("[data-loop-row]") ?? [])].find((r) => r.dataset.loopRow === focusRow);
+    row?.querySelector("button")?.focus();
+    setFocusRow(null);
+  }, [focusRow]);
+
+  // Deleted at once, and taken back from its row: the loop's instruction, targets and limits are the user's work.
+  const remove = async (loop: LoopDef, index: number) => {
+    try {
+      await loopsStore.getState().remove(loop.id);
+    } catch (e) {
+      toast.error(messages(loopsMessages).dialog.failed(String(e)));
+      return;
+    }
+    setDeleted({ loop, index });
+    setFocusRow(DELETED_ROW);
+  };
+
+  const undo = async () => {
+    if (!deleted) return;
+    try {
+      const result = await loopsStore.getState().restore(deleted.loop, deleted.index);
+      if (result === "full") {
+        toast.error(messages(loopsMessages).dialog.full);
+        return;
+      }
+      setDeleted(null);
+      setFocusRow(deleted.loop.id);
+    } catch (e) {
+      toast.error(messages(loopsMessages).dialog.failed(String(e)));
+    }
+  };
+
   const save = async () => {
     if (!form) return;
     const checked = validateLoop({
@@ -133,49 +182,68 @@ export function LoopsDialog() {
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) setDeleted(null);
+      }}
+    >
       <DialogContent showCloseButton={false} className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{t.title}</DialogTitle>
           <DialogDescription>{t.description}</DialogDescription>
         </DialogHeader>
         {form === null ? (
-          <div className="flex flex-col gap-2">
-            {loops.length === 0 && <p className="py-4 text-center text-xs text-dp-text-2">{t.empty}</p>}
-            {loops.map((loop) => {
-              const state = runtime[loop.id];
-              const running = state?.running === true;
-              const left =
-                running && loop.maxMinutes !== undefined && state.startedAt !== null
-                  ? Math.max(0, Math.ceil(loop.maxMinutes - (Date.now() - state.startedAt) / 60_000))
-                  : null;
-              return (
-                <div key={loop.id} className="flex items-center gap-2 rounded-md bg-dp-card px-3 py-2">
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-dp-text">{loop.name}</p>
-                    <p className="truncate text-xs text-dp-text-2">
-                      {t.triggerSummary(loop.trigger)} · {t.cost(loop)}
-                    </p>
-                    <p className="font-mono text-xs text-dp-text-3 tabular-nums">
-                      {running
-                        ? `${t.round(state.runs, loop.maxRuns)}${left === null ? "" : ` · ${t.untilEnd(left)}`}`
-                        : state?.stoppedBecause
-                          ? `${t.stopped[state.stoppedBecause]} · ${t.round(state.runs, loop.maxRuns)}`
-                          : t.off}
-                    </p>
-                  </div>
-                  <Button size="sm" variant={running ? "destructive" : "default"} onClick={() => (running ? loopsStore.getState().stop(loop.id) : loopsStore.getState().start(loop.id))}>
-                    {running ? t.turnOff : t.turnOn}
-                  </Button>
-                  <Button size="sm" variant="ghost" className={ROW_BUTTON} onClick={() => setForm(formOf(loop))}>
-                    {t.edit}
-                  </Button>
-                  <Button size="sm" variant="ghost" className={ROW_REMOVE} onClick={() => void loopsStore.getState().remove(loop.id)}>
-                    {t.remove}
+          <div ref={list} className="flex flex-col gap-2">
+            {loops.length === 0 && !deleted && <p className="py-4 text-center text-xs text-dp-text-2">{t.empty}</p>}
+            {withDeleted(
+              deleted && (
+                <div key={DELETED_ROW} data-loop-row={DELETED_ROW} className="flex items-center gap-2 rounded-md border border-dashed border-dp-line px-3 py-2">
+                  <p id={`${formId}-deleted`} className="min-w-0 flex-1 truncate text-sm text-dp-text-2">
+                    {t.removed(deleted.loop.name)}
+                  </p>
+                  <Button size="sm" variant="ghost" className={ROW_BUTTON} aria-describedby={`${formId}-deleted`} onClick={() => void undo()}>
+                    {t.undo}
                   </Button>
                 </div>
-              );
-            })}
+              ),
+              deleted?.index ?? 0,
+              loops.map((loop, index) => {
+                const state = runtime[loop.id];
+                const running = state?.running === true;
+                const left =
+                  running && loop.maxMinutes !== undefined && state.startedAt !== null
+                    ? Math.max(0, Math.ceil(loop.maxMinutes - (Date.now() - state.startedAt) / 60_000))
+                    : null;
+                return (
+                  <div key={loop.id} data-loop-row={loop.id} className="flex items-center gap-2 rounded-md bg-dp-card px-3 py-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-dp-text">{loop.name}</p>
+                      <p className="truncate text-xs text-dp-text-2">
+                        {t.triggerSummary(loop.trigger)} · {t.cost(loop)}
+                      </p>
+                      <p className="font-mono text-xs text-dp-text-3 tabular-nums">
+                        {running
+                          ? `${t.round(state.runs, loop.maxRuns)}${left === null ? "" : ` · ${t.untilEnd(left)}`}`
+                          : state?.stoppedBecause
+                            ? `${t.stopped[state.stoppedBecause]} · ${t.round(state.runs, loop.maxRuns)}`
+                            : t.off}
+                      </p>
+                    </div>
+                    <Button size="sm" variant={running ? "destructive" : "default"} onClick={() => (running ? loopsStore.getState().stop(loop.id) : loopsStore.getState().start(loop.id))}>
+                      {running ? t.turnOff : t.turnOn}
+                    </Button>
+                    <Button size="sm" variant="ghost" className={ROW_BUTTON} onClick={() => setForm(formOf(loop))}>
+                      {t.edit}
+                    </Button>
+                    <Button size="sm" variant="ghost" className={ROW_REMOVE} onClick={() => void remove(loop, index)}>
+                      {t.remove}
+                    </Button>
+                  </div>
+                );
+              }),
+            )}
           </div>
         ) : (
           <div className="flex flex-col gap-4">

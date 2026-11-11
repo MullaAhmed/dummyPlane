@@ -248,9 +248,9 @@ export const agentsMessages = defineMessages({
       noCanvas: "Open a project: the install runs in a terminal on its canvas.",
     },
     placement: {
-      addToGroup: (name: string) => `Click to add it to the group ${name} · Esc to cancel`,
-      placeFleet: "Click to place the fleet · Esc to cancel",
-      placeAgent: "Click to place the agent · Esc to cancel",
+      addToGroup: (name: string) => `Click or press Enter to add it to the group ${name} · Esc to cancel`,
+      placeFleet: "Click or press Enter to place the fleet · Esc to cancel",
+      placeAgent: "Click or press Enter to place the agent · Esc to cancel",
     },
     arrival: {
       show: "Show",

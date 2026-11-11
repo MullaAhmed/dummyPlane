@@ -2,7 +2,7 @@ import { createStore } from "zustand";
 import { messages } from "@/i18n";
 import { createLoopEngine, TICK_MS, type EngineDeps, type LoopRuntime } from "./engine";
 import { loopsMessages } from "./messages";
-import { LOOPS_VERSION, readLoops, validateLoop, withLoop, withoutLoop, type LoopDef } from "./model";
+import { LOOPS_VERSION, MAX_LOOPS, readLoops, validateLoop, withLoop, withoutLoop, type LoopDef } from "./model";
 
 /** The setting that holds the loops (loops spec §3): their definitions only, never that one is on. */
 export const LOOPS_KEY = "loops.list";
@@ -26,6 +26,8 @@ export interface LoopsState {
   /** "invalid" when the loop breaks a rule (no stop condition, say), "full" when the list is. */
   save: (loop: LoopDef) => Promise<"ok" | "invalid" | "full">;
   remove: (id: string) => Promise<void>;
+  /** Puts a deleted loop back at `index`, turned off (the delete's undo); "full" when the list is. */
+  restore: (loop: LoopDef, index: number) => Promise<"ok" | "full">;
   start: (id: string) => void;
   stop: (id: string) => void;
   stopAll: () => void;
@@ -97,6 +99,18 @@ export function createLoopsStore(
         const next = withoutLoop(get().loops, id);
         set({ loops: next });
         await persist(next);
+      },
+      restore: async (loop, index) => {
+        await readList();
+        const list = get().loops;
+        // A second undo, or a loop saved again since, is already there.
+        if (list.some((l) => l.id === loop.id)) return "ok";
+        if (list.length >= MAX_LOOPS) return "full";
+        const at = Math.max(0, Math.min(index, list.length));
+        const next = [...list.slice(0, at), loop, ...list.slice(at)];
+        set({ loops: next });
+        await persist(next);
+        return "ok";
       },
       start: (id) => {
         const loop = get().loops.find((l) => l.id === id);

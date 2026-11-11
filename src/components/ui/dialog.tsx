@@ -61,8 +61,11 @@ function DialogContent({
       <DialogOverlay />
       <DialogPrimitive.Content
         data-slot="dialog-content"
+        // The header leaves the close button its corner (DialogHeader reads it).
+        data-close-button={showCloseButton ? "" : undefined}
         className={cn(
-          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-dp-surface p-4 text-sm text-dp-text ring-1 ring-dp-line duration-(--dp-dur) ease-(--dp-ease-out) data-closed:duration-(--dp-dur-fast) outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          // Never taller than the window: past it, the dialog scrolls, so its title and its buttons stay reachable.
+          "fixed top-1/2 left-1/2 z-50 grid max-h-[calc(100dvh-2rem)] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 overflow-y-auto rounded-xl bg-dp-surface p-4 text-sm text-dp-text ring-1 ring-dp-line duration-(--dp-dur) ease-(--dp-ease-out) data-closed:duration-(--dp-dur-fast) outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
           className
         )}
         {...props}
@@ -90,7 +93,8 @@ function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="dialog-header"
-      className={cn("flex flex-col gap-2", className)}
+      // Beside the close button (28 px at 8 px from the corner), a long title wraps before it, never under it.
+      className={cn("flex flex-col gap-2 in-data-close-button:pr-8", className)}
       {...props}
     />
   )
@@ -132,7 +136,7 @@ function DialogTitle({
     <DialogPrimitive.Title
       data-slot="dialog-title"
       className={cn(
-        "font-heading text-base leading-none font-medium",
+        "font-heading text-base leading-snug font-medium break-words",
         className
       )}
       {...props}

@@ -11,6 +11,9 @@ export const kanbanNodeMessages = defineMessages<{
   columnMenu: (title: string) => string;
   rename: string;
   removeColumn: string;
+  columnRemoved: (title: string, cards: number) => string;
+  cardRemoved: (title: string) => string;
+  undo: string;
   doubleClickRename: string;
   cardCount: (count: number) => string;
   newCard: string;
@@ -43,6 +46,7 @@ export const kanbanNodeMessages = defineMessages<{
     sendTo: string;
     noTerminal: string;
     moved: (column: string, position: number, count: number) => string;
+    openIssue: string;
   };
   fleet: { plan: string; create: string; linked: (name: string) => string };
   github: {
@@ -77,6 +81,10 @@ export const kanbanNodeMessages = defineMessages<{
     columnMenu: (title) => `${title} column menu`,
     rename: "Rename",
     removeColumn: "Delete the column",
+    // Said by the toast that can take the delete back.
+    columnRemoved: (title, cards) => `Column “${title}” deleted${cards === 0 ? "" : `, with its ${cards} card${cards === 1 ? "" : "s"}`}`,
+    cardRemoved: (title) => `Card “${title}” deleted`,
+    undo: "Undo",
     agentChip: (name) => `${name} is working on it`,
     agentAlert: { blocked: (name) => `${name} is blocked`, failed: (name) => `${name} failed` },
     card: {
@@ -87,6 +95,7 @@ export const kanbanNodeMessages = defineMessages<{
       sendTo: "Send to",
       noTerminal: "No terminal on this canvas",
       moved: (column, position, count) => `Moved to ${column}, ${position} of ${count}`,
+      openIssue: "Open the issue on GitHub",
     },
     fleet: { plan: "Plan with the fleet", create: "New fleet", linked: (name) => `${name} (linked)` },
     doubleClickRename: "Double-click to rename",
