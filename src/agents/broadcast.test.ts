@@ -26,7 +26,7 @@ import {
   waitingText,
 } from "./broadcast";
 
-let calls: { cmd: string; nodeId: string; text?: string }[];
+let calls: { cmd: string; nodeId: string; text?: string; images?: string[] }[];
 let dead: Set<string>;
 
 beforeEach(() => {
@@ -34,9 +34,9 @@ beforeEach(() => {
   dead = new Set();
   mockIPC((cmd, args) => {
     if (cmd !== "pty_send_text" && cmd !== "pty_interrupt") return;
-    const { nodeId, text } = args as { nodeId: string; text?: string };
+    const { nodeId, text, images } = args as { nodeId: string; text?: string; images?: string[] };
     if (dead.has(nodeId)) throw { kind: "notFound", message: "aucun terminal actif" };
-    calls.push({ cmd, nodeId, text });
+    calls.push({ cmd, nodeId, text, ...(images ? { images } : {}) });
     return cmd === "pty_interrupt" ? true : undefined;
   });
 });
@@ -58,6 +58,27 @@ describe("sendToAgents", () => {
     await agent("cyborg", "claude", "stopped");
     await agent("flash", "codex", "stopped");
     expect(await sendToAgents(["batman", "cyborg", "flash"], "lance les tests")).toEqual({ sent: 1, skipped: ["Cyborg", "Flash"], waiting: [], unsuited: [], starting: [] });
+    expect(calls).toEqual([{ cmd: "pty_send_text", nodeId: "batman", text: "lance les tests" }]);
+  });
+
+  it("pastes a message's images alone before its text to Claude Code and Codex, and writes them in it for the others (attachments)", async () => {
+    await agent("batman", "claude", "running", "idle");
+    await agent("flash", "codex", "running", "idle");
+    await agent("storm", "gemini", "running", "idle");
+    await agent("robin", "shell", "running");
+    const images = [String.raw`C:\cache\paste-1.png`, String.raw`"C:\Users\Jane Doe\paste-2.png"`];
+    expect(await sendToAgents(["batman", "flash", "storm", "robin"], "what is wrong here?", undefined, images)).toEqual({ sent: 4, skipped: [], waiting: [], unsuited: [], starting: [] });
+    expect(calls).toEqual([
+      { cmd: "pty_send_text", nodeId: "batman", text: "what is wrong here?", images },
+      { cmd: "pty_send_text", nodeId: "flash", text: "what is wrong here?", images },
+      { cmd: "pty_send_text", nodeId: "storm", text: String.raw`C:\cache\paste-1.png "C:\Users\Jane Doe\paste-2.png" what is wrong here?` },
+      { cmd: "pty_send_text", nodeId: "robin", text: String.raw`C:\cache\paste-1.png "C:\Users\Jane Doe\paste-2.png" what is wrong here?` },
+    ]);
+  });
+
+  it("sends a text without images as before: no images in the call (attachments)", async () => {
+    await agent("batman", "claude", "running", "idle");
+    await sendToAgents(["batman"], "lance les tests", undefined, []);
     expect(calls).toEqual([{ cmd: "pty_send_text", nodeId: "batman", text: "lance les tests" }]);
   });
 

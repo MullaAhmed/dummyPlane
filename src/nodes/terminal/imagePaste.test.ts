@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import { savePastedImage } from "@/ipc/pastedImages";
-import { clipboardImage, pasteImage, pastedImage, pastedPath, takeOverPaste, withPathAt } from "./imagePaste";
+import { clipboardImage, pasteImage, pastedImage, pastedPath, takeOverImage, takeOverPaste } from "./imagePaste";
 
 vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { error: vi.fn() }) }));
 vi.mock("@/ipc/pastedImages", () => ({ savePastedImage: vi.fn() }));
@@ -91,24 +91,6 @@ describe("pasting an image", () => {
   });
 });
 
-describe("the path put into a message field", () => {
-  const path = String.raw`C:\cache\paste-1.png`;
-
-  it("goes at the caret, a space after it to type on", () => {
-    expect(withPathAt("", 0, 0, path)).toEqual({ text: `${path} `, caret: path.length + 1 });
-    expect(withPathAt("look at ", 8, 8, path)).toEqual({ text: `look at ${path} `, caret: 8 + path.length + 1 });
-  });
-
-  it("is never glued to the words around it", () => {
-    expect(withPathAt("look atthis", 7, 7, path)).toEqual({ text: `look at ${path} this`, caret: 8 + path.length + 1 });
-    expect(withPathAt("look at this", 8, 8, path)).toEqual({ text: `look at ${path} this`, caret: 8 + path.length + 1 });
-  });
-
-  it("replaces the selected text", () => {
-    expect(withPathAt("see HERE now", 4, 8, path).text).toBe(`see ${path} now`);
-  });
-});
-
 describe("a paste taken over in a terminal or a message field", () => {
   const event = (data: ReturnType<typeof clipboard> | null) =>
     ({ clipboardData: data, preventDefault: vi.fn(), stopPropagation: vi.fn() }) as unknown as ClipboardEvent;
@@ -181,6 +163,18 @@ describe("a paste taken over in a terminal or a message field", () => {
 
   it("leaves a synthetic paste without clipboard data alone", () => {
     expect(takeOverPaste(event(null), vi.fn())).toBe(false);
+  });
+
+  it("hands a message field the image itself, unsaved, and leaves it text (attachments)", () => {
+    const take = vi.fn();
+    const file = image();
+    const pasted = event(clipboard({ files: [file] }));
+    expect(takeOverImage(pasted, take)).toBe(true);
+    expect(pasted.preventDefault).toHaveBeenCalled();
+    expect(take).toHaveBeenCalledWith({ file, extension: "png" });
+    expect(savePastedImage).not.toHaveBeenCalled();
+    expect(takeOverImage(event(clipboard({ text: "hello", files: [image()] })), take)).toBe(false);
+    expect(take).toHaveBeenCalledTimes(1);
   });
 });
 

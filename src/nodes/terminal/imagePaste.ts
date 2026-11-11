@@ -1,15 +1,17 @@
 import { toast } from "sonner";
 import { messages } from "@/i18n";
 import { savePastedImage, type ImageExtension } from "@/ipc/pastedImages";
+import type { AgentId } from "@/ipc/pty";
 import { nodesMessages } from "@/nodes/messages";
 
 /**
- * Pasting an image into a terminal or a message field (an agent's, a Fleet's,
- * the command bar): neither carries an image, so it is saved in the app's
- * cache and its path pasted instead. Claude Code (like Codex) reads an image
- * path pasted alone as an attached image, `[Image #N]`, and reads one written
- * in a message with its Read tool; on Windows it never reads the clipboard on
- * an empty paste, only on Alt+V.
+ * Pasting an image into a terminal or a message field (the command bar, a
+ * Fleet's): neither carries an image, so it is saved in the app's cache. A
+ * terminal gets its path pasted: Claude Code (like Codex) reads an image path
+ * pasted alone as an attached image, `[Image #N]`; on Windows it never reads
+ * the clipboard on an empty paste, only on Alt+V. A message field shows it as
+ * an attachment (agents/composer/imageAttachments.tsx), and its send pastes
+ * each path alone before the text (agents/broadcast.ts).
  */
 
 /** The image types an agent attaches from a pasted path (Claude Code's list). */
@@ -61,29 +63,29 @@ export function pastedPath(path: string): string {
   return /\s/.test(path) ? `"${path}"` : path;
 }
 
-/**
- * `value` with `path` in place of its selection `start`..`end`, a space
- * between it and a word it would touch, and one after it to type on; and
- * the caret after that space.
- */
-export function withPathAt(value: string, start: number, end: number, path: string): { text: string; caret: number } {
-  const before = value.slice(0, start);
-  const after = value.slice(end);
-  const inserted = `${before === "" || /\s$/.test(before) ? "" : " "}${path}${/^\s/.test(after) ? "" : " "}`;
-  return { text: `${before}${inserted}${after}`, caret: before.length + inserted.length };
-}
+/** The agents that attach an image path pasted alone, `[Image #N]`: the others get it written in the message. */
+export const ATTACHES_PASTED_IMAGES: ReadonlySet<AgentId> = new Set<AgentId>(["claude", "codex"]);
 
-/** Saves the image, then hands its path to `paste`; a failed save says so, in a toast and in the log, instead of doing nothing. */
-export async function pasteImage(image: PastedImage, paste: (text: string) => void): Promise<void> {
+/**
+ * Saves the image and gives its path as pasted (`pastedPath`); a failed save
+ * says so, in a toast and in the log, and gives null instead of nothing.
+ */
+export async function savedImagePath(image: PastedImage): Promise<string | null> {
   try {
-    const path = await savePastedImage(new Uint8Array(await image.file.arrayBuffer()), image.extension);
-    paste(pastedPath(path));
+    return pastedPath(await savePastedImage(new Uint8Array(await image.file.arrayBuffer()), image.extension));
   } catch (error) {
     console.error("image paste failed", error);
     toast.error(messages(nodesMessages).terminal.imagePasteFailed, {
       description: error instanceof Error ? error.message : String(error),
     });
+    return null;
   }
+}
+
+/** Saves the image, then hands its path to `paste`. */
+export async function pasteImage(image: PastedImage, paste: (text: string) => void): Promise<void> {
+  const path = await savedImagePath(image);
+  if (path !== null) paste(path);
 }
 
 /** The first image of the clipboard an agent reads, read again after the paste event; null when it has none or cannot be read. */
@@ -109,29 +111,33 @@ function describe(data: ClipboardData): string {
 
 /**
  * A paste in a terminal or a message field. Text is left to the target
- * (false): xterm or the field pastes it as before. An image is taken over:
- * saved, its path handed to `paste`. A paste with neither text nor an image
- * (the event may not expose the clipboard's image) is taken over too: the
- * clipboard is read again for an image, and the log keeps what the event
- * carried; with no image there either, a toast says there was nothing to
- * paste. The clipboard data is read here, synchronously: it is emptied once
- * the event is over.
+ * (false): xterm or the field pastes it as before. An image is taken over and
+ * handed to `take`. A paste with neither text nor an image (the event may not
+ * expose the clipboard's image) is taken over too: the clipboard is read again
+ * for an image, and the log keeps what the event carried; with no image there
+ * either, a toast says there was nothing to paste. The clipboard data is read
+ * here, synchronously: it is emptied once the event is over.
  */
-export function takeOverPaste(event: PasteEventLike, paste: (text: string) => void, read?: ClipboardRead): boolean {
+export function takeOverImage(event: PasteEventLike, take: (image: PastedImage) => void, read?: ClipboardRead): boolean {
   const data = event.clipboardData;
   if (!data || data.getData("text/plain") !== "") return false;
   event.preventDefault();
   event.stopPropagation();
   const image = pastedImage(data);
   if (image) {
-    void pasteImage(image, paste);
+    take(image);
     return true;
   }
   console.warn(`image paste: no text and no image in the paste event, reading the clipboard (${describe(data)})`);
   void clipboardImage(read).then((found) => {
-    if (found) return pasteImage(found, paste);
+    if (found) return take(found);
     const text = messages(nodesMessages).terminal;
     toast(text.nothingToPaste, { description: text.nothingToPasteDetail });
   });
   return true;
+}
+
+/** A paste in a terminal: an image taken over (`takeOverImage`) is saved, its path handed to `paste`. */
+export function takeOverPaste(event: PasteEventLike, paste: (text: string) => void, read?: ClipboardRead): boolean {
+  return takeOverImage(event, (image) => void pasteImage(image, paste), read);
 }

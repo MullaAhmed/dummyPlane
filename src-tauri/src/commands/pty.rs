@@ -181,12 +181,19 @@ pub async fn pty_write(
 }
 
 /// The command bar, the fleet and "Reprendre" type into terminals this
-/// way (spec habillage §12, §15.3). The Enter counts as the user's answer for
-/// the agent's activity.
+/// way (spec habillage §12, §15.3), the paths of the images a message carries
+/// first, each pasted alone. The Enter counts as the user's answer for the
+/// agent's activity.
 #[tauri::command]
-pub async fn pty_send_text(app: AppHandle, node_id: String, text: String) -> AppResult<()> {
+pub async fn pty_send_text(
+    app: AppHandle,
+    node_id: String,
+    text: String,
+    images: Option<Vec<String>>,
+) -> AppResult<()> {
     tauri::async_runtime::spawn_blocking(move || {
-        app.state::<PtyManager>().send_text(&node_id, &text)?;
+        let images = images.unwrap_or_default();
+        app.state::<PtyManager>().send_text(&node_id, &text, &images)?;
         agents::input(&app, &node_id, b"\r");
         Ok(())
     })

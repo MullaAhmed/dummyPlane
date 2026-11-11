@@ -158,6 +158,9 @@ export const agentsMessages = defineMessages({
       remove: (label: string) => `Remove ${label}`,
       /** The chips' list. */
       targets: "Targets",
+      /** The list of the images pasted into the field, and the name of each. */
+      images: "Images",
+      image: (n: number) => `Image ${n}`,
       /** Who the chips send to, read with the field. */
       to: (labels: readonly string[]) => `To ${labels.join(", ")}`,
       send: "Send",
