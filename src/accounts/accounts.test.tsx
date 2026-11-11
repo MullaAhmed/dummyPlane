@@ -90,3 +90,21 @@ it("lists the profiles and uses, logs in and removes them (spec comptes §6), ",
   await act(async () => root.unmount());
   host.remove();
 });
+
+it("labels the new profile's fields with visible words, not only their placeholders (P2-6)", async () => {
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = createRoot(host);
+  await act(async () => root.render(<AccountsDialog />));
+  await act(async () => accountsStore.setState({ open: true }));
+  const field = (label: string) => {
+    const tag = [...document.body.querySelectorAll("label")].find((l) => l.textContent === label)!;
+    return document.getElementById(tag.htmlFor) as HTMLInputElement;
+  };
+  expect(field("Name").placeholder).toBe("Work");
+  expect(field("Folder").placeholder).toBe(String.raw`C:\Users\me\.claude-work`);
+  // The label names the field: no aria-label hides it from voice control.
+  expect(field("Name").hasAttribute("aria-label")).toBe(false);
+  await act(async () => root.unmount());
+  host.remove();
+});
