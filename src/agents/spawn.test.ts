@@ -7,16 +7,17 @@ import { createNodeElement } from "@/canvas/nodeElement";
 import { clearWirePulses, wireActivityStore } from "@/canvas/wireActivity";
 import { ptySendText } from "@/ipc/pty";
 import { notify } from "@/mission/events";
-import { NEW_MISSION, type Mission } from "@/mission/mission";
+import { NEW_MISSION, type Member, type Mission } from "@/mission/mission";
 import { whenReady } from "@/mission/ready";
 import { workspaceCanvas } from "@/mission/store";
 import { fleetSession } from "@/nodes/terminal/launch";
 import { MAX_STORED_TASK, type TerminalPayload } from "@/nodes/types";
+import { agentActivityStore } from "@/store/agentActivity";
 import { nodesStore, terminalOf } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
 import { nameForNewAgent } from "./naming";
 import { spawnAgent } from "./spawn";
-import { markLaunching, markReported, runningSpawned } from "./spawnFamily";
+import { isLaunching, markLaunching, markReported, runningSpawned } from "./spawnFamily";
 import { reflowSpawnTree } from "./spawnTree";
 import { addTerminal } from "./terminals";
 import { isSpawnWire } from "./wires";
@@ -30,7 +31,10 @@ vi.mock("@/ipc/pty", async (importOriginal) => ({
 vi.mock("@/nodes/terminal/registry", () => ({ freshText: vi.fn(() => ""), quietFor: vi.fn(() => 0) }));
 vi.mock("@/mission/ready", () => ({ whenReady: vi.fn(() => Promise.resolve(true)) }));
 vi.mock("@/mission/events", () => ({ notify: vi.fn() }));
-vi.mock("@/mission/store", () => ({ workspaceCanvas: vi.fn(() => ({ frames: [], links: {} })) }));
+vi.mock("@/mission/store", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/mission/store")>()),
+  workspaceCanvas: vi.fn(() => ({ frames: [], links: {} })),
+}));
 // The Fleet's workspace folder; its own session started elsewhere.
 vi.mock("@/mission/folder", () => ({ missionFolder: vi.fn(() => "C:/code/project") }));
 vi.mock("./naming", () => ({ nameForNewAgent: vi.fn(() => Promise.resolve("Robin")) }));
@@ -313,6 +317,114 @@ describe("spawn_agent from a Fleet", () => {
     await nodesStore.getState().create("bare", { workspaceId: "w1", kind: "fleet", payload: { name: "Bare" } });
     scene.push({ ...createNodeElement("fleet", { x: 0, y: 0 }), id: "bare" } as unknown as ExcalidrawElement);
     expect(await spawnAgent("bare", { task: "Do it" })).toEqual({ text: expect.stringContaining("no longer on the canvas"), error: true });
+  });
+});
+
+describe("spawn_agent: another agent is already on the task", () => {
+  const ROUTER = "Write the unit tests for the router: cover the happy paths, the errors and the edge cases, and keep every test small and fast.";
+  const working = (nodeId: string) => agentActivityStore.getState().apply({ nodeId, activity: "working", since: Date.now() });
+  // The reports of earlier tests live on in `markReported`: each test here has children of its own.
+  let base = 0;
+  const kid = (n: number) => `child${base + n}`;
+  beforeEach(() => {
+    created = base = (base || 0) + 100;
+  });
+
+  it("refuses a task a sub-agent is at work on, naming it, and opens nothing", async () => {
+    expect((await spawnAgent("batman", { task: ROUTER, title: "Router tests" })).error).toBeUndefined();
+    working(kid(1));
+    // The same title said another way over a shorter brief, then the same brief under another title.
+    const byTitle = await spawnAgent("batman", { task: "Write the unit tests for the router", title: "  ROUTER tests! " });
+    const byBrief = await spawnAgent("batman", { task: ROUTER.replace("Write", "Please write"), title: "Cover the router" });
+    for (const refused of [byTitle, byBrief]) {
+      expect(refused.error).toBe(true);
+      expect(refused.text).toBe('Robin is already working on "Router tests" (working). Message or read that agent instead of starting another.');
+    }
+    expect(addTerminal).toHaveBeenCalledTimes(1);
+  });
+
+  it("lets one title over two briefs that share nothing through", async () => {
+    await spawnAgent("batman", { task: ROUTER, title: "Router tests" });
+    working(kid(1));
+    expect((await spawnAgent("batman", { task: "Measure how fast the routing table answers under load", title: "Router tests" })).error).toBeUndefined();
+  });
+
+  it("lets a different task of the same repo through", async () => {
+    await spawnAgent("batman", { task: "Recolour the banners", title: "Banners on the new palettes" });
+    working(kid(1));
+    const result = await spawnAgent("batman", { task: "Link agents to the Kanban board", title: "Agents and the board" });
+    expect(result.error).toBeUndefined();
+    expect(addTerminal).toHaveBeenCalledTimes(2);
+  });
+
+  it("counts a sub-agent still starting: two identical spawns of one turn open one", async () => {
+    vi.mocked(addTerminal).mockImplementation(async (_workspaceId, payload, center) => {
+      const id = `child${++created}`;
+      await nodesStore.getState().create(id, { workspaceId: "w1", kind: "terminal", payload });
+      scene.push({ ...createNodeElement("terminal", center), id } as unknown as ExcalidrawElement);
+      return id;
+    });
+    vi.mocked(whenReady).mockReturnValue(new Promise(() => undefined));
+    const [first, second] = await Promise.all([spawnAgent("batman", { task: ROUTER, title: "Router tests" }), spawnAgent("batman", { task: ROUTER, title: "Router tests" })]);
+    expect(first.error).toBeUndefined();
+    expect(second).toEqual({ text: expect.stringContaining("is already working on"), error: true });
+    expect(addTerminal).toHaveBeenCalledTimes(1);
+    markLaunching(kid(1), false);
+    vi.mocked(whenReady).mockResolvedValue(true);
+  });
+
+  it("holds the task until its agent reported or stopped, idle between two turns or not", async () => {
+    await spawnAgent("batman", { task: ROUTER, title: "Router tests" });
+    await vi.waitFor(() => expect(isLaunching(kid(1))).toBe(false));
+    // Its turn ended without a report: the task is not given up, as its seat is not.
+    const idle = await spawnAgent("batman", { task: ROUTER, title: "Router tests" });
+    expect(idle).toEqual({ text: expect.stringContaining('(between two turns). Message or read'), error: true });
+    markReported(kid(1));
+    expect((await spawnAgent("batman", { task: ROUTER, title: "Router tests" })).error).toBeUndefined();
+    working(kid(2));
+    terminalStatusStore.getState().set(kid(2), { state: "exited", code: 0 });
+    expect((await spawnAgent("batman", { task: ROUTER, title: "Router tests" })).error).toBeUndefined();
+  });
+
+  it("never counts the caller itself, a terminal of another workspace, or one the user opened", async () => {
+    await spawnAgent("batman", { task: ROUTER, title: "Router tests" });
+    working(kid(1));
+    // The sub-agent delegates its own task again: it is the one at work on it.
+    expect((await spawnAgent(kid(1), { task: ROUTER, title: "Router tests" })).error).toBeUndefined();
+    working(kid(2));
+    await nodesStore.getState().create("elsewhere", { workspaceId: "w2", kind: "terminal", payload: terminal("Elsewhere", { spawnedBy: "other", task: "Fix the failing build now please", title: "Build fix" }) });
+    running("elsewhere");
+    working("elsewhere");
+    expect((await spawnAgent("batman", { task: "Fix the failing build now please", title: "Build fix" })).error).toBeUndefined();
+    // A terminal the user opened has no task dummyPlane knows of, whatever its title says.
+    await addNode("batgirl", terminal("Batgirl", { title: "Unit tests for the parser" }));
+    running("batgirl");
+    working("batgirl");
+    expect((await spawnAgent("batman", { task: "Something about parsers and their tests", title: "Unit tests for the parser" })).error).toBeUndefined();
+  });
+
+  it("names a mission's agent with its time, and a Fleet's own call is checked like an agent's", async () => {
+    const member: Member = { nodeId: "thor", name: "Thor", task: "Banners on the new palettes", budgetMin: 40, linked: false, branch: "b", worktree: "w", sentAt: Date.now() - 3 * 60_000 };
+    const brief = "Recolour the README banners and badges in the Dark and Expressive palettes, then commit the images.";
+    await addNode("thor", terminal("Thor", { spawnedBy: "manager", task: "Banners on the new palettes" }));
+    running("thor");
+    working("thor");
+    await nodesStore.getState().create("fleet", {
+      workspaceId: "w1",
+      kind: "fleet",
+      payload: {
+        name: "Fleet",
+        session: fleetSession("Fleet", { cwd: "C:/code/elsewhere", shell: "pwsh" }, "claude"),
+        mission: { ...NEW_MISSION, state: "en_cours", plan: [{ title: member.task, brief, agent: "Thor", budgetMin: 40 }], members: [member] },
+      },
+    });
+    scene.push({ ...createNodeElement("fleet", { x: 0, y: 600 }), id: "fleet" } as unknown as ExcalidrawElement);
+    running("fleet");
+    const refused = await spawnAgent("batman", { task: "Banners and badges in the Dark and Expressive palettes, with the images", title: "Banners on the new palettes" });
+    expect(refused).toEqual({ text: 'Thor is already working on "Banners on the new palettes" (working, 3 of 40 min). Message or read that agent instead of starting another.', error: true });
+    // The Fleet itself is no agent of its mission's team: it is not the one at work, Thor is.
+    expect((await spawnAgent("fleet", { task: brief })).error).toBe(true);
+    expect((await spawnAgent("fleet", { task: "Look up where the router is tested", title: "Lookup" })).error).toBeUndefined();
   });
 });
 

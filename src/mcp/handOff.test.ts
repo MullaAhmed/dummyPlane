@@ -12,6 +12,7 @@ import { pumpQueue } from "@/mission/queue";
 import type { Member, Mission } from "@/mission/mission";
 import { missionOf, setFleetClosed } from "@/mission/store";
 import { terminalText } from "@/nodes/terminal/registry";
+import { agentActivityStore } from "@/store/agentActivity";
 import { nodesStore } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
 import { workspacesStore } from "@/store/workspaces";
@@ -220,6 +221,22 @@ describe("hand_off while the mission runs", () => {
     expect(textOf(twice)).toContain("is taken");
     expect(queueOf().map((task) => task.title)).toEqual(["One", "Two"]);
     expect(notify).not.toHaveBeenCalled();
+  });
+
+  it("refuses a task a mission's agent is already at work on, naming it: nothing queued, nobody told", async () => {
+    const brief = "Recolour the README banners and badges in the Dark and Expressive palettes, then commit the images.";
+    const cyborg: Member = { ...member("cyborg", "Cyborg"), task: "Banners on the new palettes", budgetMin: 40, sentAt: Date.now() - 3 * 60_000 };
+    setMission({ plan: [{ title: cyborg.task, brief, agent: "Cyborg", budgetMin: 40 }], members: [cyborg] });
+    terminalStatusStore.getState().set("cyborg", { state: "running" });
+    agentActivityStore.getState().apply({ nodeId: "cyborg", activity: "working", since: Date.now() });
+    vi.mocked(notify).mockClear();
+    const again = await call("batgirl", "hand_off", { title: "Banners on the new palettes!", brief: "Recolour the banners and badges in the Dark palette" });
+    expect(again.isError).toBe(true);
+    expect(textOf(again)).toContain('Cyborg is already working on "Banners on the new palettes" (working, 3 of 40 min). Message or read that agent instead of queueing another');
+    expect(queueOf()).toEqual([]);
+    expect(notify).not.toHaveBeenCalled();
+    // A different task of the same mission goes through.
+    expect((await call("batgirl", "hand_off", { title: "Fix the login", brief: "The login form loses the password on a bad submit" })).isError).toBeUndefined();
   });
 
   it("queues even when the Fleet's own terminal is stopped, and says it hears of it later", async () => {
