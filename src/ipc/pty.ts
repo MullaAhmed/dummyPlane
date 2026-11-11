@@ -168,8 +168,11 @@ export function onTextSent(listener: (nodeId: string) => void): () => void {
   return () => textListeners.delete(listener);
 }
 
-/** Types a command into the terminal, then Enter (spec habillage §15.3). */
-export function ptySendText(nodeId: string, text: string): Promise<void> {
+/**
+ * Types a command into the terminal, then Enter (spec habillage §15.3). `images`, paths of images the agent
+ * attaches (`[Image #N]`), are pasted first, each alone, each waited for until it shows attached.
+ */
+export function ptySendText(nodeId: string, text: string, images: readonly string[] = []): Promise<void> {
   for (const listener of textListeners) {
     try {
       listener(nodeId);
@@ -177,7 +180,7 @@ export function ptySendText(nodeId: string, text: string): Promise<void> {
       console.warn("text listener failed", error);
     }
   }
-  return queued(nodeId, () => call<void>("pty_send_text", { nodeId, text }));
+  return queued(nodeId, () => call<void>("pty_send_text", images.length > 0 ? { nodeId, text, images } : { nodeId, text }));
 }
 
 /** Interrupts the agent's turn; false for a plain shell (spec §14). */

@@ -41,6 +41,58 @@ impl PasteMode {
     }
 }
 
+const IMAGE_MARK: &[u8] = b"[Image #";
+/// A whole mark: `[Image #`, a number of at most 10 digits, `]`.
+const IMAGE_MARK_MAX: usize = IMAGE_MARK.len() + 10 + 1;
+
+/// The highest `[Image #N]` the program printed: Claude Code and Codex show an
+/// image they attached so, numbered on from the last one. A mark may be split
+/// across two reads. Only a higher number means a new image: a screen drawn
+/// again prints the old ones again.
+#[derive(Debug, Default)]
+pub struct ImageMarks {
+    highest: u32,
+    tail: Vec<u8>,
+}
+
+impl ImageMarks {
+    pub fn feed(&mut self, chunk: &[u8]) {
+        let mut data = std::mem::take(&mut self.tail);
+        data.extend_from_slice(chunk);
+        let mut from = 0;
+        while let Some(at) = find_first(&data[from..], IMAGE_MARK) {
+            let digits = from + at + IMAGE_MARK.len();
+            let count = data[digits..]
+                .iter()
+                .take_while(|b| b.is_ascii_digit())
+                .count();
+            if count > 0 && data.get(digits + count) == Some(&b']') {
+                let number = std::str::from_utf8(&data[digits..digits + count])
+                    .ok()
+                    .and_then(|n| n.parse::<u32>().ok());
+                if let Some(number) = number {
+                    self.highest = self.highest.max(number);
+                }
+            }
+            from = digits;
+        }
+        // Shorter than a whole mark: one split across reads is read whole next
+        // time; one read twice changes nothing, only the highest counts.
+        let keep = data.len().min(IMAGE_MARK_MAX - 1);
+        self.tail = data.split_off(data.len() - keep);
+    }
+
+    pub fn highest(&self) -> u32 {
+        self.highest
+    }
+}
+
+fn find_first(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+    haystack
+        .windows(needle.len())
+        .position(|window| window == needle)
+}
+
 fn find_last(haystack: &[u8], needle: &[u8]) -> Option<usize> {
     haystack
         .windows(needle.len())
@@ -112,5 +164,26 @@ mod tests {
         );
         // No escape nor control key reaches the program; tabs and lines stay.
         assert_eq!(paste_payload("a\x03b\tc\x7f", false), b"ab\tc");
+    }
+
+    #[test]
+    fn keeps_the_highest_image_mark_even_split_across_reads() {
+        let mut marks = ImageMarks::default();
+        assert_eq!(marks.highest(), 0);
+        marks.feed(b"> look \x1b[7m[Image #1]\x1b[27m ");
+        assert_eq!(marks.highest(), 1);
+        marks.feed(b"\x1b[2K> [Ima");
+        assert_eq!(marks.highest(), 1);
+        marks.feed(b"ge #1");
+        marks.feed(b"2] and more output");
+        assert_eq!(marks.highest(), 12);
+        // The screen drawn again: older marks never lower it.
+        marks.feed(b"[Image #3] [Image #12]");
+        assert_eq!(marks.highest(), 12);
+        // Not a mark: no number, no bracket, a number too large.
+        marks.feed(b"[Image #] [Image #40 [Image #99999999999]");
+        assert_eq!(marks.highest(), 12);
+        marks.feed(b"[Pasted text #20 +3 lines] [Image #13]");
+        assert_eq!(marks.highest(), 13);
     }
 }
