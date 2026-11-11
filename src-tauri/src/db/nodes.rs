@@ -21,6 +21,8 @@ pub enum NodeKind {
     Kanban,
     Git,
     File,
+    /// What an agent showed with show_output, in OpenUI Lang (migration 007).
+    Output,
 }
 
 impl NodeKind {
@@ -32,6 +34,7 @@ impl NodeKind {
             NodeKind::Kanban => "kanban",
             NodeKind::Git => "git",
             NodeKind::File => "file",
+            NodeKind::Output => "output",
         }
     }
 }
@@ -166,6 +169,31 @@ mod tests {
                 let kind: String =
                     conn.query_row("SELECT kind FROM nodes WHERE id = 'f1'", [], |r| r.get(0))?;
                 assert_eq!(kind, "file");
+                Ok(())
+            })
+            .unwrap();
+    }
+
+    #[test]
+    fn stores_output_nodes() {
+        Db::open_in_memory()
+            .unwrap()
+            .with(|conn| {
+                let w = test_workspace(conn, "A")?;
+                let output =
+                    r#"{"title":"Tests","source":"t1","ui":"root = Stack([])","updatedAt":1}"#;
+                save(conn, "o1", &w.id, NodeKind::Output, output)?;
+                let (kind, payload): (String, String) = conn.query_row(
+                    "SELECT kind, payload_json FROM nodes WHERE id = 'o1'",
+                    [],
+                    |r| Ok((r.get(0)?, r.get(1)?)),
+                )?;
+                assert_eq!(kind, "output");
+                assert_eq!(payload, output);
+                assert_eq!(
+                    serde_json::from_str::<NodeKind>(r#""output""#).unwrap(),
+                    NodeKind::Output
+                );
                 Ok(())
             })
             .unwrap();

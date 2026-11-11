@@ -11,6 +11,7 @@ import { Slider } from "@/components/ui/slider";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useMessages } from "@/i18n";
 import { cn } from "@/lib/utils";
+import { GeneratedText } from "@/openui/GeneratedText";
 import { accountsMessages } from "@/accounts/messages";
 import { loadAccounts, useAccounts } from "@/accounts/store";
 import { useAgents } from "@/agents/agentsStore";
@@ -371,10 +372,13 @@ function LiveStatus({ nodeId, session }: { nodeId: string; session: TerminalPayl
         </p>
       )}
       {report && (
-        <p data-report-summary title={report.summary} className="line-clamp-3 text-xs text-dp-text-2">
-          <span className="text-dp-text-3">{t.lastReport} · </span>
-          {report.summary}
-        </p>
+        <div data-report-summary className="flex flex-col gap-1">
+          <span className="text-xs text-dp-text-3">{t.lastReport}</span>
+          {/* The agent's own words, drawn (Markdown or OpenUI Lang), in a native scroller that stops the panel from growing. */}
+          <div className="max-h-48 overflow-y-auto">
+            <GeneratedText text={report.ui ?? report.summary} compact />
+          </div>
+        </div>
       )}
     </div>
   );

@@ -12,7 +12,13 @@ export default defineConfig(() => ({
   plugins: [react(), tailwindcss(), excalidrawThinSelection()],
   // In dev, Excalidraw is pre-bundled apart from the app's plugins: the same rewrite runs there.
   optimizeDeps: { rolldownOptions: { plugins: [excalidrawThinSelection()] } },
-  resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
+  resolve: {
+    alias: {
+      "@": fileURLToPath(new URL("./src", import.meta.url)),
+      // OpenUI's dev widget loads its code from a CDN: never in dummyPlane (src/openui/devtoolsStub.ts).
+      "@openuidev/devtools": fileURLToPath(new URL("./src/openui/devtoolsStub.ts", import.meta.url)),
+    },
+  },
   // Tauri expects a fixed port and its own Rust errors left visible.
   clearScreen: false,
   server: {

@@ -76,3 +76,14 @@ describe("nodeKindOf", () => {
     expect(nodeKindOf(unknown)).toBeNull();
   });
 });
+
+describe("an agent's output", () => {
+  it("is a node of its own kind, linked dummyplane://output/<id>, saved and read under that kind", () => {
+    const element = createNodeElement("output", { x: 0, y: 0 });
+    expect(element.link).toBe(`dummyplane://output/${element.id}`);
+    expect(isDummyPlaneLink(element.link!)).toBe(true);
+    expect(nodeKindOf(element as unknown as ExcalidrawElement)).toBe("output");
+    expect(toStoredKind("output")).toBe("output");
+    expect(fromStoredKind("output")).toBe("output");
+  });
+});

@@ -1,8 +1,8 @@
 import type { ExcalidrawElement, ExcalidrawEmbeddableElement } from "@excalidraw/excalidraw/element/types";
 
-export type NodeKind = "terminal" | "fleet" | "note" | "kanban" | "git" | "file" | "subagent";
+export type NodeKind = "terminal" | "fleet" | "note" | "kanban" | "git" | "file" | "subagent" | "output";
 
-const NODE_KINDS: readonly NodeKind[] = ["terminal", "fleet", "note", "kanban", "git", "file", "subagent"];
+const NODE_KINDS: readonly NodeKind[] = ["terminal", "fleet", "note", "kanban", "git", "file", "subagent", "output"];
 
 /**
  * Stored data: how a fleet's kind is saved, in the `nodes` table of the database (`nodes.kind`), in the
@@ -42,6 +42,8 @@ export const NODE_SIZE: Record<NodeKind, { width: number; height: number }> = {
   file: { width: 520, height: 420 },
   // A group cell: a subagent joins its terminal's grid (src/nodes/subagent).
   subagent: { width: 720, height: 440 },
+  // What an agent showed with show_output (src/nodes/output).
+  output: { width: 560, height: 520 },
 };
 
 const LINK_PATTERN = new RegExp(`^dummyplane://(${NODE_KINDS.map(toStoredKind).join("|")})/[\\w-]+$`);

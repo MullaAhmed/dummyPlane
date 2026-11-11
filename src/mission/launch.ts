@@ -269,12 +269,13 @@ export async function launchMission(fleetId: string): Promise<void> {
 }
 
 /** `finish` (spec §7.7): created agents close, linked ones go back to the project. */
-export function endMission(fleetId: string, summary: string) {
+/** `ui`: the summary as the fleet wrote it in OpenUI Lang, when it did; `summary` is then its text. */
+export function endMission(fleetId: string, summary: string, ui?: string) {
   const record = nodesStore.getState().nodes[fleetId];
   const mission = missionOf(record);
   if (!record || mission?.state !== "en_cours") return;
   // Ended first: the agents stopping now are no events.
-  setMission(fleetId, { state: "terminee", summary, endedAt: Date.now() });
+  setMission(fleetId, { state: "terminee", summary, ...(ui ? { summaryUi: ui } : {}), endedAt: Date.now() });
   for (const member of mission.members) if (member.linked && mission.project) void restartIn(member.nodeId, mission.project);
   // Those who joined a group go alone: it stays, with its own agents (spec specialised groups §4).
   const joined = mission.members.filter((m) => !m.linked && m.group).map((m) => m.nodeId);
