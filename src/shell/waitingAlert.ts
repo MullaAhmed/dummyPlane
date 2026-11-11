@@ -2,7 +2,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { onAction, sendNotification, type ActionPerformed } from "@tauri-apps/plugin-notification";
 import { nativeNotificationsStore } from "@/app/nativeNotifications";
 import { goToAgent } from "@/commands/goToRun";
-import { currentWaitingAgents } from "@/agents/waitingAgents";
+import { currentWaitingAgents, openAgent } from "@/agents/waitingAgents";
 import { messages } from "@/i18n";
 import { agentActivityStore } from "@/store/agentActivity";
 import { projectsStore } from "@/store/projects";
@@ -17,13 +17,18 @@ async function alertFor(nodeId: string) {
   sendNotification({ title: "dummyPlane", body: messages(shellMessages).waitingNotice.question(agent.name), extra: { nodeId } });
 }
 
-/** A click on the notification: back to the window, on the agent if it still waits and a canvas can show it. */
+/**
+ * A click on the notification: back to the window, on the agent if it still waits and a canvas can show it.
+ * A finish's notification (`./finishAlert`) arrives on its agent if it is still in the open project.
+ */
 async function comeBack({ actionId, notification }: ActionPerformed) {
   if (actionId !== "tap") return;
   const appWindow = getCurrentWindow();
   await appWindow.unminimize();
   await appWindow.setFocus();
-  const agent = currentWaitingAgents().find((a) => a.id === notification?.extra.nodeId);
+  const nodeId = notification?.extra.nodeId;
+  const agent =
+    notification?.extra.finished === true && typeof nodeId === "string" ? openAgent(nodeId) : currentWaitingAgents().find((a) => a.id === nodeId);
   if (agent && projectsStore.getState().view === "project") goToAgent(agent);
 }
 

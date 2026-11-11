@@ -3,6 +3,7 @@ import type { SceneData } from "@excalidraw/excalidraw/types";
 import { canvasStore } from "@/canvas/canvasStore";
 import { NODE_SIZE } from "@/canvas/nodeElement";
 import { cachedElements, editStoredScene } from "@/canvas/sceneCache";
+import { signalFinish } from "@/agents/finishes";
 import { rerouteWires } from "@/agents/wires";
 import { onTextSent } from "@/ipc/pty";
 import { settledSteps } from "@/nodes/steps";
@@ -186,6 +187,8 @@ export function onAgentReported(nodeId: string, status: unknown, summary: unknow
       lastReport: { status: reported, summary: text, ...(ui ? { ui } : {}) },
       ...(payload.steps ? { steps: settledSteps(payload.steps, reported) } : {}),
     });
+    // Before the canvas moves: the user hears it even if minimizing fails (`@/shell/finishAlert`).
+    signalFinish({ nodeId, state: reported, summary: text });
     if (reported === "done") minimizeTerminal(nodeId);
   } catch (error) {
     console.warn(`terminal ${nodeId}: report not shown`, error);

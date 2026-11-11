@@ -147,11 +147,21 @@ export function revealNode(nodeId: string): boolean {
   const api = canvasStore.getState().api;
   const element = api?.getSceneElements().find((e) => e.id === nodeId);
   if (!api || !element) return false;
-  const app = api.getAppState();
+  if (!inSight(element, api.getAppState())) api.scrollToContent(element, { animate: true, canvasOffsets: { top: TOP_ROW_HEIGHT, bottom: BOTTOM_BAR_HEIGHT } });
+  return true;
+}
+
+/** Some of the node shows in the zone utile, at the zoom the view has. */
+function inSight(element: Rect, app: { scrollX: number; scrollY: number; zoom: { value: number }; width: number; height: number }): boolean {
   const zoom = app.zoom.value;
   const left = (element.x + app.scrollX) * zoom;
   const top = (element.y + app.scrollY) * zoom;
-  const inSight = left + element.width * zoom > 0 && left < app.width && top + element.height * zoom > TOP_ROW_HEIGHT && top < app.height - BOTTOM_BAR_HEIGHT;
-  if (!inSight) api.scrollToContent(element, { animate: true, canvasOffsets: { top: TOP_ROW_HEIGHT, bottom: BOTTOM_BAR_HEIGHT } });
-  return true;
+  return left + element.width * zoom > 0 && left < app.width && top + element.height * zoom > TOP_ROW_HEIGHT && top < app.height - BOTTOM_BAR_HEIGHT;
+}
+
+/** Whether the canvas on screen shows some of the node `nodeId` (deleted or on another workspace's canvas: no). */
+export function nodeInSight(nodeId: string): boolean {
+  const api = canvasStore.getState().api;
+  const element = api?.getSceneElements().find((e) => e.id === nodeId && !e.isDeleted);
+  return api !== null && api !== undefined && element !== undefined && inSight(element, api.getAppState());
 }

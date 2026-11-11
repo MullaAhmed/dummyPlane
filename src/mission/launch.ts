@@ -2,6 +2,7 @@ import { userIsTyping } from "@/canvas/typing";
 import { signalWire } from "@/canvas/wireActivity";
 import { IN_VIEW, quietly, type Arrival } from "@/agents/arrivals";
 import { pauseAgents } from "@/agents/broadcast";
+import { signalFinish } from "@/agents/finishes";
 import { GROUP_GAP, groupGrid } from "@/agents/groupLayout";
 import { closeGroup, closeStoredGroup, launchGroup, showGroups } from "@/agents/groups";
 import { defaultLaunchOptions } from "@/agents/launchAgent";
@@ -276,6 +277,8 @@ export function endMission(fleetId: string, summary: string, ui?: string) {
   if (!record || mission?.state !== "en_cours") return;
   // Ended first: the agents stopping now are no events.
   setMission(fleetId, { state: "terminee", summary, ...(ui ? { summaryUi: ui } : {}), endedAt: Date.now() });
+  // The user hears it, if away (`@/shell/finishAlert`).
+  signalFinish({ nodeId: fleetId, state: "done", summary });
   for (const member of mission.members) if (member.linked && mission.project) void restartIn(member.nodeId, mission.project);
   // Its own sub-agents (spawn_agent) stay open, without the night's permission: a later restart asks.
   releaseSpawnedPermission(fleetId, mission.permission);

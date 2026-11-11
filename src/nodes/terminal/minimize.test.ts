@@ -6,6 +6,7 @@ import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { canvasStore } from "@/canvas/canvasStore";
 import { createNodeElement, NODE_SIZE } from "@/canvas/nodeElement";
 import { cachedElements, editStoredScene } from "@/canvas/sceneCache";
+import { onFinish, type FinishSignal } from "@/agents/finishes";
 import { createWire } from "@/agents/wires";
 import { ptySendText } from "@/ipc/pty";
 import type { TerminalPayload } from "@/nodes/types";
@@ -315,6 +316,22 @@ describe("onAgentReported", () => {
       expect(payload()?.lastReport).toBeUndefined();
       expect(states()).toEqual(["fait", "fait", "fait"]);
     });
+  });
+
+  it("says the finish, with the summary as recorded, for the user to hear it if away", () => {
+    const heard: FinishSignal[] = [];
+    const unlisten = onFinish((signal) => heard.push(signal));
+    onAgentReported("batman", "termine", "  All good  ");
+    onAgentReported("batman", "bloque", "Needs a key");
+    onAgentReported("batman", "echec", "Broke");
+    onAgentReported("batman", "termine", "  ");
+    onAgentReported("batman", "done", "Shipped");
+    unlisten();
+    expect(heard).toEqual([
+      { nodeId: "batman", state: "done", summary: "All good" },
+      { nodeId: "batman", state: "blocked", summary: "Needs a key" },
+      { nodeId: "batman", state: "failed", summary: "Broke" },
+    ]);
   });
 
   it("changes nothing for a report `report` refuses: no summary, or a status it does not know", () => {

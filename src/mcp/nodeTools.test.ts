@@ -11,6 +11,8 @@ import { terminalStatusStore } from "@/store/terminalStatus";
 import { notify } from "@/mission/events";
 import { answer } from "./router";
 import { orphanWires } from "@/agents/wires";
+import { onFinish, type FinishSignal } from "@/agents/finishes";
+import { summaryLine } from "@/shell/finishAlert";
 
 vi.mock("@excalidraw/excalidraw", () => ({ newElementWith: (e: object, patch: object) => ({ ...e, ...patch }) }));
 vi.mock("@/nodes/terminal/registry", () => ({ terminalText: vi.fn(() => "$ npm test\n3 failed") }));
@@ -200,6 +202,15 @@ describe("a report written in OpenUI Lang", () => {
     expect(line).toContain("Robin reported (done): # Tests | Test | Result |");
     expect(line).not.toContain("root =");
     terminalStatusStore.getState().remove("batman");
+  });
+
+  it("alerts a main agent's finish with its text's first line, never its program", async () => {
+    const heard: FinishSignal[] = [];
+    const unlisten = onFinish((signal) => heard.push(signal));
+    await call("batman", "report", { summary: UI, status: "done" });
+    unlisten();
+    expect(heard).toEqual([{ nodeId: "batman", state: "done", summary: "# Tests\n\n| Test | Result |\n| --- | --- |\n| saves | ok |\n| reads | failed |" }]);
+    expect(summaryLine(heard[0].summary)).toBe("Tests");
   });
 
   it("refuses a summary that starts like OpenUI Lang but cannot be drawn, before anything is recorded", async () => {

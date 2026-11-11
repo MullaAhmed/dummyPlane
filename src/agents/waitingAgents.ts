@@ -41,6 +41,17 @@ export function waitingAgents(
   return agents.sort((a, b) => a.since - b.since || a.id.localeCompare(b.id));
 }
 
+/** An agent of the open project, waiting or not: where a click on its notification arrives. */
+export type OpenAgent = Pick<WaitingAgent, "id" | "kind" | "name" | "workspaceId">;
+
+/** The terminal or fleet `nodeId` if it is in the open project, waiting or not. */
+export function openAgent(nodeId: string): OpenAgent | undefined {
+  const record = nodesStore.getState().nodes[nodeId];
+  if (record?.kind !== "terminal" && record?.kind !== "fleet") return undefined;
+  if (!workspacesStore.getState().workspaces.some((w) => w.id === record.workspaceId)) return undefined;
+  return { id: nodeId, kind: record.kind, name: nameOf(record), workspaceId: record.workspaceId };
+}
+
 /** The agents waiting in the open project, at this moment. */
 export function currentWaitingAgents(): WaitingAgent[] {
   return waitingAgents(

@@ -23,6 +23,16 @@ export const shellMessages = defineMessages(
       question: (name: string) => `${name} has a question`,
       others: (count: number) => `+ ${plural(count, "more", "more")}`,
     },
+    /** A main agent finished (`@/shell/finishAlert`): a report, a mission's end, or a turn after real work. */
+    finishAlert: {
+      title: (name: string, state: string) => `${name} · ${state}`,
+      states: { done: "Done", blocked: "Blocked", failed: "Failed", finished: "Finished" },
+      /** A turn that ended without a report: nothing it said to show. */
+      turnOver: "Ready for your next message",
+      /** A mission ended without a summary. */
+      missionOver: "Mission finished",
+      show: "Show",
+    },
     closeAgent: {
       fallbackName: "this agent",
       several: (names: string[]) => `These agents are still running; closing them ends their session: ${names.join(", ")}.`,
@@ -82,6 +92,7 @@ export const shellMessages = defineMessages(
       help: "Help",
       nativeNotifications: "Windows notifications",
       followWaiting: "Go to agents that ask",
+      finishAlerts: "Alert when an agent finishes",
       autoArrange: "Auto-arrange terminals",
       subagentTerminals: "Sub-agents as terminals",
       maxSpawned: "Sub-agents at once",

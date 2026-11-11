@@ -1,5 +1,5 @@
 import { toast } from "sonner";
-import { currentWaitingAgents, nextWaiting, type WaitingAgent } from "@/agents/waitingAgents";
+import { currentWaitingAgents, nextWaiting, type OpenAgent } from "@/agents/waitingAgents";
 import { messages } from "@/i18n";
 import { projectsStore } from "@/store/projects";
 import { workspacesStore } from "@/store/workspaces";
@@ -41,8 +41,8 @@ export function goTo(item: GoToItem) {
 
 let lastReached: string | null = null;
 
-/** A click on the notification (spec notification §5). */
-export function goToAgent(agent: WaitingAgent) {
+/** A click on the notification (spec notification §5), or on an agent's finish alert. */
+export function goToAgent(agent: OpenAgent) {
   lastReached = agent.id;
   reachTarget({ workspaceId: agent.workspaceId, kind: agent.kind, id: agent.id, label: agent.name });
 }

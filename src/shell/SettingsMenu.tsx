@@ -1,9 +1,10 @@
 import { useId, type ReactElement, type ReactNode } from "react";
-import { Bell, Bot, CircleArrowDown, Download, FileText, Gauge, ImageDown, Info, LayoutGrid, LifeBuoy, LocateFixed, RefreshCw, SquareTerminal, Upload } from "lucide-react";
+import { Bell, BellRing, Bot, CircleArrowDown, Download, FileText, Gauge, ImageDown, Info, LayoutGrid, LifeBuoy, LocateFixed, RefreshCw, SquareTerminal, Upload } from "lucide-react";
 import { arrangeWorkspace } from "@/agents/arrangeCanvas";
 import { showAbout } from "@/app/about";
 import { setAutoArrange, useAutoArrange } from "@/app/autoArrangeSetting";
 import { setFollowWaiting, useFollowWaiting } from "@/app/followWaitingSetting";
+import { setFinishAlerts, useFinishAlerts } from "@/app/finishAlertsSetting";
 import { AGENTS } from "@/agents/catalog";
 import { chooseFleetAgent, fleetAgent, useFleetAgent } from "@/fleet/fleetAgent";
 import { fleetMessages } from "@/fleet/messages";
@@ -101,6 +102,7 @@ export function SettingsMenu({
   const autoUpdates = useUpdates((s) => s.auto);
   const nativeNotifications = useNativeNotifications();
   const followWaiting = useFollowWaiting();
+  const finishAlerts = useFinishAlerts();
   const autoArrange = useAutoArrange();
   const fleetT = useMessages(fleetMessages).agent;
   // The CLI the Fleet runs on: the choice, Claude until one can carry it.
@@ -180,6 +182,14 @@ export function SettingsMenu({
             onSelect={stayOpen}
           >
             <LocateFixed className={ICON} /> {t.followWaiting}
+          </DropdownMenuCheckboxItem>
+          <DropdownMenuCheckboxItem
+            className={CHOICE}
+            checked={finishAlerts}
+            onCheckedChange={(on) => void setFinishAlerts(on === true)}
+            onSelect={stayOpen}
+          >
+            <BellRing className={ICON} /> {t.finishAlerts}
           </DropdownMenuCheckboxItem>
           <DropdownMenuCheckboxItem
             className={CHOICE}

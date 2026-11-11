@@ -85,9 +85,9 @@ describe("goTo (spec fenêtre §7.2)", () => {
   });
 
   it("goes to a waiting agent like a line of Go to", () => {
-    goToAgent({ id: "batman", kind: "terminal", name: "Batman", workspaceId: "w1", since: 0 });
+    goToAgent({ id: "batman", kind: "terminal", name: "Batman", workspaceId: "w1" });
     expect(arrive).toHaveBeenCalledWith("batman");
-    goToAgent({ id: "chef", kind: "fleet", name: "Chef", workspaceId: "w2", since: 0 });
+    goToAgent({ id: "chef", kind: "fleet", name: "Chef", workspaceId: "w2" });
     expect(select).toHaveBeenCalledWith("w2");
     completeArrival("w2");
     expect(arrive).toHaveBeenLastCalledWith("chef");
@@ -146,7 +146,7 @@ describe("goToNextWaiting (spec notification §6)", () => {
     });
     goToNextWaiting(null);
     expect(arrive).toHaveBeenLastCalledWith("a");
-    goToAgent({ id: "b", kind: "terminal", name: "B", workspaceId: "w1", since: 2 });
+    goToAgent({ id: "b", kind: "terminal", name: "B", workspaceId: "w1" });
     goToNextWaiting("b");
     expect(arrive).toHaveBeenLastCalledWith("c");
   });
@@ -157,7 +157,7 @@ describe("goToNextWaiting (spec notification §6)", () => {
     agentActivityStore.setState({
       activities: { chef: { activity: "waiting", since: 1 }, a: { activity: "waiting", since: 2 }, b: { activity: "waiting", since: 3 } },
     });
-    goToAgent({ id: "chef", kind: "fleet", name: "Chef", workspaceId: "w1", since: 1 });
+    goToAgent({ id: "chef", kind: "fleet", name: "Chef", workspaceId: "w1" });
     goToNextWaiting("b");
     expect(arrive).toHaveBeenLastCalledWith("a");
   });

@@ -24,10 +24,10 @@ const settled = () => new Promise((resolve) => setTimeout(resolve));
 const unregister = vi.fn();
 let uninstall: () => void;
 
-/** What the plugin reports for a click on the notification of `nodeId`. */
-async function click(nodeId: unknown, actionId = "tap") {
+/** What the plugin reports for a click on the notification of `nodeId`: its question, or its finish. */
+async function click(nodeId: unknown, actionId = "tap", finished = false) {
   const handler = vi.mocked(onAction).mock.calls[0][0];
-  handler({ actionId, inputValue: null, notification: { extra: { nodeId } } } as unknown as ActionPerformed);
+  handler({ actionId, inputValue: null, notification: { extra: finished ? { nodeId, finished } : { nodeId } } } as unknown as ActionPerformed);
   await settled();
 }
 
@@ -144,6 +144,19 @@ describe("a click on the Windows notification (spec notification §8)", () => {
     projectsStore.setState({ view: "home" });
     apply("batman", "waiting");
     await click("batman");
+    expect(win.setFocus).toHaveBeenCalled();
+    expect(goToAgent).not.toHaveBeenCalled();
+  });
+
+  it("arrives on an agent that finished, though it does not wait (./finishAlert)", async () => {
+    apply("batman", "working");
+    await click("batman", "tap", true);
+    expect(win.setFocus).toHaveBeenCalled();
+    expect(goToAgent).toHaveBeenCalledWith(expect.objectContaining({ id: "batman", kind: "terminal", workspaceId: "w1" }));
+  });
+
+  it("only brings the window back when the agent that finished is gone", async () => {
+    await click("gone", "tap", true);
     expect(win.setFocus).toHaveBeenCalled();
     expect(goToAgent).not.toHaveBeenCalled();
   });

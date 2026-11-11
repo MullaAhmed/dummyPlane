@@ -83,14 +83,21 @@ export function markReported(nodeId: string) {
   reported.add(nodeId);
 }
 
+/** A sub-agent created, not stopped, not reported yet. */
+function atWork(id: string): boolean {
+  if (launching.has(id)) return true;
+  const state = statusOf(id).state;
+  return !reported.has(id) && (state === "running" || state === "starting");
+}
+
 /** The sub-agents at work now, every tree and workspace together: created, not stopped, not reported yet. */
 export function runningSpawned(): number {
-  return Object.entries(nodesStore.getState().nodes).filter(([id, record]) => {
-    if (!terminalOf(record)?.spawnedBy) return false;
-    if (launching.has(id)) return true;
-    const state = statusOf(id).state;
-    return !reported.has(id) && (state === "running" || state === "starting");
-  }).length;
+  return Object.entries(nodesStore.getState().nodes).filter(([id, record]) => Boolean(terminalOf(record)?.spawnedBy) && atWork(id)).length;
+}
+
+/** Whether a sub-agent `nodeId` opened is still at work: its turn ending is a wait for their reports, not the end of its task. */
+export function hasSpawnedAtWork(nodeId: string): boolean {
+  return Object.entries(nodesStore.getState().nodes).some(([id, record]) => terminalOf(record)?.spawnedBy === nodeId && atWork(id));
 }
 
 /** A closing to confirm, with the sub-agents its agents opened that it does not take already. */
