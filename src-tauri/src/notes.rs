@@ -218,9 +218,8 @@ pub fn project_of_node(conn: &Connection, node_id: &str) -> AppResult<Project> {
             |row| row.get(0),
         )
         .optional()?;
-    let project_id = project_id.ok_or_else(|| {
-        AppError::NotFound(format!("node not found: {node_id}"))
-    })?;
+    let project_id =
+        project_id.ok_or_else(|| AppError::NotFound(format!("node not found: {node_id}")))?;
     projects::get(conn, &project_id)
 }
 

@@ -17,6 +17,10 @@ use paste::{ENTER_DELAY, paste_payload};
 use session::{OnOutput, OutputSink, Session, Started};
 use shell::SpawnPlan;
 
+/// How long an exited terminal's reader may take to reach EOF before the exit
+/// is reported anyway.
+const READER_DRAIN_TIMEOUT: Duration = Duration::from_secs(2);
+
 /// Reported once a terminal's process has exited and its output is drained.
 pub struct ExitInfo {
     /// The process that exited: a relaunched terminal has another one.
@@ -72,7 +76,9 @@ impl PtyManager {
         let history = lock(&self.histories).remove(node_id).unwrap_or_default();
         let mut sessions = lock(&self.sessions);
         if sessions.contains_key(node_id) {
-            return Err(AppError::InvalidInput(format!("terminal {node_id} is already running")));
+            return Err(AppError::InvalidInput(format!(
+                "terminal {node_id} is already running"
+            )));
         }
         let Started {
             session,
@@ -90,8 +96,21 @@ impl PtyManager {
         std::thread::spawn(move || {
             let code = child.wait().ok().map(|status| status.exit_code());
             session.close();
-            // Join so every byte reaches the sink before the exit is reported.
-            let _ = reader.join();
+            // Wait for the reader so every byte reaches the sink before the exit
+            // is reported, but not for ever: on Windows its pipe only reaches EOF
+            // once no other process holds the write end, and one spawned at the
+            // same moment can inherit it. The exit is reported all the same.
+            let deadline = Instant::now() + READER_DRAIN_TIMEOUT;
+            while !reader.is_finished() && Instant::now() < deadline {
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            if reader.is_finished() {
+                let _ = reader.join();
+            } else {
+                log::warn!(
+                    "terminal {node_id}: its output did not reach EOF in {READER_DRAIN_TIMEOUT:?}; reporting the exit anyway"
+                );
+            }
             lock(&sessions).remove(&node_id);
             on_exit(ExitInfo {
                 pid,
@@ -131,11 +150,16 @@ impl PtyManager {
             session.pastes_bracketed(),
             |bytes| session.write(bytes),
             |paste| {
-                let shown = paste_image_with(paste, IMAGE_WAIT, |bytes| session.write(bytes), || {
-                    session.images_shown()
-                })?;
+                let shown = paste_image_with(
+                    paste,
+                    IMAGE_WAIT,
+                    |bytes| session.write(bytes),
+                    || session.images_shown(),
+                )?;
                 if !shown {
-                    log::warn!("pasted image not shown attached in {node_id} after {IMAGE_WAIT:?}: sent anyway");
+                    log::warn!(
+                        "pasted image not shown attached in {node_id} after {IMAGE_WAIT:?}: sent anyway"
+                    );
                 }
                 Ok(())
             },
@@ -166,8 +190,7 @@ impl PtyManager {
     }
 
     /// Stops every terminal and waits until each exit was handled, its final
-    /// output saved: an update's installer closes dummyPlane right after (spec
-    /// première version §6.4). False if some were still exiting at `timeout`.
+    /// output saved: an update's installer closes dummyPlane right after. False if some were still exiting at `timeout`.
     pub fn stop_all(&self, timeout: Duration) -> bool {
         self.kill_all();
         let deadline = Instant::now() + timeout;
@@ -191,7 +214,9 @@ impl PtyManager {
     pub fn claim_start(&self, node_id: &str) -> AppResult<StartClaim> {
         let mut starting = lock(&self.starting);
         if self.is_running(node_id) || !starting.insert(node_id.to_string()) {
-            return Err(AppError::InvalidInput(format!("terminal {node_id} is already running")));
+            return Err(AppError::InvalidInput(format!(
+                "terminal {node_id} is already running"
+            )));
         }
         Ok(StartClaim {
             starting: self.starting.clone(),
@@ -246,9 +271,8 @@ impl PtyManager {
     }
 
     fn require(&self, node_id: &str) -> AppResult<Arc<Session>> {
-        self.get(node_id).ok_or_else(|| {
-            AppError::NotFound(format!("no active terminal for {node_id}"))
-        })
+        self.get(node_id)
+            .ok_or_else(|| AppError::NotFound(format!("no active terminal for {node_id}")))
     }
 }
 
@@ -311,10 +335,16 @@ mod send_tests {
     #[test]
     fn writes_the_paste_then_a_separate_enter() {
         let mut writes: Vec<Vec<u8>> = vec![];
-        send_text_with(&[], "lance\nles tests", true, |bytes| {
-            writes.push(bytes.to_vec());
-            Ok(())
-        }, no_image)
+        send_text_with(
+            &[],
+            "lance\nles tests",
+            true,
+            |bytes| {
+                writes.push(bytes.to_vec());
+                Ok(())
+            },
+            no_image,
+        )
         .unwrap();
         assert_eq!(
             writes,
@@ -324,10 +354,16 @@ mod send_tests {
             ]
         );
         writes.clear();
-        send_text_with(&[], "continue", false, |bytes| {
-            writes.push(bytes.to_vec());
-            Ok(())
-        }, no_image)
+        send_text_with(
+            &[],
+            "continue",
+            false,
+            |bytes| {
+                writes.push(bytes.to_vec());
+                Ok(())
+            },
+            no_image,
+        )
         .unwrap();
         assert_eq!(writes, vec![b"continue".to_vec(), b"\r".to_vec()]);
     }
@@ -335,10 +371,16 @@ mod send_tests {
     #[test]
     fn stops_before_enter_when_the_paste_fails() {
         let mut writes = 0;
-        let result = send_text_with(&[], "x", false, |_| {
-            writes += 1;
-            Err(AppError::Io(std::io::Error::other("closed")))
-        }, no_image);
+        let result = send_text_with(
+            &[],
+            "x",
+            false,
+            |_| {
+                writes += 1;
+                Err(AppError::Io(std::io::Error::other("closed")))
+            },
+            no_image,
+        );
         assert!(result.is_err());
         assert_eq!(writes, 1);
     }
@@ -368,8 +410,14 @@ mod send_tests {
         assert_eq!(
             writes.into_inner(),
             vec![
-                ("image", b"\x1b[200~C:\\cache\\paste-1.png\x1b[201~".to_vec()),
-                ("image", b"\x1b[200~\"C:\\Users\\Jane Doe\\paste-2.png\"\x1b[201~".to_vec()),
+                (
+                    "image",
+                    b"\x1b[200~C:\\cache\\paste-1.png\x1b[201~".to_vec()
+                ),
+                (
+                    "image",
+                    b"\x1b[200~\"C:\\Users\\Jane Doe\\paste-2.png\"\x1b[201~".to_vec()
+                ),
                 ("text", b"\x1b[200~what is wrong here?\x1b[201~".to_vec()),
                 ("text", b"\r".to_vec()),
             ]
@@ -379,10 +427,16 @@ mod send_tests {
     #[test]
     fn writes_no_empty_paste() {
         let mut writes: Vec<Vec<u8>> = vec![];
-        send_text_with(&[], "", true, |bytes| {
-            writes.push(bytes.to_vec());
-            Ok(())
-        }, no_image)
+        send_text_with(
+            &[],
+            "",
+            true,
+            |bytes| {
+                writes.push(bytes.to_vec());
+                Ok(())
+            },
+            no_image,
+        )
         .unwrap();
         assert_eq!(writes, vec![b"\r".to_vec()]);
     }
@@ -418,7 +472,8 @@ mod send_tests {
     #[test]
     fn sends_on_when_the_image_never_shows() {
         let started = Instant::now();
-        let attached = paste_image_with(b"paste", Duration::from_millis(60), |_| Ok(()), || 7).unwrap();
+        let attached =
+            paste_image_with(b"paste", Duration::from_millis(60), |_| Ok(()), || 7).unwrap();
         assert!(!attached);
         assert!(started.elapsed() >= Duration::from_millis(60));
         // A failed write is no wait at all.
@@ -800,7 +855,10 @@ mod windows_tests {
         assert_eq!(mgr.interrupt("k").unwrap(), Some(&b"\x03"[..]));
         assert_eq!(mgr.interrupt("l").unwrap(), None);
         assert_eq!(mgr.interrupt("nope").unwrap_err().kind(), "notFound");
-        assert_eq!(mgr.send_text("nope", "x", &[]).unwrap_err().kind(), "notFound");
+        assert_eq!(
+            mgr.send_text("nope", "x", &[]).unwrap_err().kind(),
+            "notFound"
+        );
         mgr.kill_all();
         wait_exit(&agent);
         wait_exit(&shell);

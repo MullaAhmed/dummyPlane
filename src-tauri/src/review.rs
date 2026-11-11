@@ -142,8 +142,8 @@ pub(crate) fn relative(path: &str) -> Result<&Path, String> {
 pub(crate) fn inside(root: &Path, path: &str) -> Result<PathBuf, String> {
     let rel = relative(path)?;
     let base = std::fs::canonicalize(root).map_err(|err| err.to_string())?;
-    let real = std::fs::canonicalize(base.join(rel))
-        .map_err(|_| format!("file not found: {path}"))?;
+    let real =
+        std::fs::canonicalize(base.join(rel)).map_err(|_| format!("file not found: {path}"))?;
     if !real.starts_with(&base) {
         return Err(format!("path refused: {path}"));
     }
@@ -323,7 +323,7 @@ fn changes_limited(dir: &Path, base: Option<&str>, max: usize) -> Result<Changes
 
 /// One file's unified diff against `base` (or HEAD); an untracked file against nothing.
 pub fn file_diff(dir: &Path, file: &ChangedFile, base: Option<&str>) -> Result<String, String> {
-    // The interface names the file: it must be one of the repository's (final review maj §5).
+    // The interface names the file: it must be one of the repository's.
     relative(&file.path)?;
     if let Some(old) = file.old_path.as_deref() {
         relative(old)?;

@@ -84,7 +84,13 @@ pub struct ExtensionItem {
 }
 
 impl ExtensionItem {
-    fn new(id: String, name: String, description: Option<String>, source: Source, enabled: bool) -> Self {
+    fn new(
+        id: String,
+        name: String,
+        description: Option<String>,
+        source: Source,
+        enabled: bool,
+    ) -> Self {
         ExtensionItem {
             id,
             name,
@@ -151,15 +157,24 @@ impl Places {
 
     /// User, project, then local settings: a later file wins.
     fn settings(&self) -> Vec<Value> {
-        self.scoped_settings().into_iter().map(|(_, file)| file).collect()
+        self.scoped_settings()
+            .into_iter()
+            .map(|(_, file)| file)
+            .collect()
     }
 
     /// The same files, each with the scope it sets things up for.
     fn scoped_settings(&self) -> Vec<(Source, Value)> {
         [
             (self.config.join("settings.json"), Source::User),
-            (self.cwd.join(".claude").join("settings.json"), Source::Project),
-            (self.cwd.join(".claude").join("settings.local.json"), Source::Local),
+            (
+                self.cwd.join(".claude").join("settings.json"),
+                Source::Project,
+            ),
+            (
+                self.cwd.join(".claude").join("settings.local.json"),
+                Source::Local,
+            ),
         ]
         .into_iter()
         .filter_map(|(file, source)| Some((source, read_json(&file)?)))
@@ -227,7 +242,12 @@ pub fn list(places: &Places) -> ClaudeExtensions {
 ///   which Claude names `anthropic-skills:<name>`;
 /// - each plugin's skills and commands, `<plugin>:<name>`, fixed: they follow
 ///   their plugin.
-fn skills(places: &Places, settings: &[Value], claude_json: &Value, plugins: &[Plugin]) -> Vec<ExtensionItem> {
+fn skills(
+    places: &Places,
+    settings: &[Value],
+    claude_json: &Value,
+    plugins: &[Plugin],
+) -> Vec<ExtensionItem> {
     let overrides = merged_object(settings, "skillOverrides");
     let off = |key: &str| overrides.get(key).and_then(Value::as_str) == Some("off");
     let mut seen = BTreeSet::new();
@@ -244,13 +264,19 @@ fn skills(places: &Places, settings: &[Value], claude_json: &Value, plugins: &[P
     for (folder, source) in &folders {
         for (name, description) in skill_folders(&folder.join("skills")) {
             let enabled = !off(&name);
-            push(ExtensionItem::new(name.clone(), name, description, *source, enabled), &mut items);
+            push(
+                ExtensionItem::new(name.clone(), name, description, *source, enabled),
+                &mut items,
+            );
         }
     }
     for (folder, source) in &folders {
         for (name, description) in command_files(&folder.join("commands")) {
             let enabled = !off(&name);
-            push(ExtensionItem::new(name.clone(), name, description, *source, enabled), &mut items);
+            push(
+                ExtensionItem::new(name.clone(), name, description, *source, enabled),
+                &mut items,
+            );
         }
     }
     if let Some(bucket) = synced_skills_dir(places, claude_json) {
@@ -258,7 +284,10 @@ fn skills(places: &Places, settings: &[Value], claude_json: &Value, plugins: &[P
             // Either spelling turns it off: Claude checks the namespaced name and the bare one.
             let id = format!("{SYNCED_SKILLS}:{name}");
             let enabled = !off(&id) && !off(&name);
-            push(ExtensionItem::new(id, name, description, Source::Synced, enabled), &mut items);
+            push(
+                ExtensionItem::new(id, name, description, Source::Synced, enabled),
+                &mut items,
+            );
         }
     }
     for plugin in plugins {
@@ -297,7 +326,8 @@ fn synced_skills_dir(places: &Places, claude_json: &Value) -> Option<PathBuf> {
     let user = account.get("accountUuid")?.as_str()?;
     let bucket = format!("{organization}_{user}");
     // Two ids, never a path: anything else names no folder.
-    let plain = |id: &str| !id.is_empty() && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-');
+    let plain =
+        |id: &str| !id.is_empty() && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-');
     if !plain(organization) || !plain(user) {
         return None;
     }
@@ -316,7 +346,9 @@ fn plugin_skill_paths(plugin: &Plugin, root: &Path) -> (Vec<PathBuf>, Vec<PathBu
         listed
             .into_iter()
             // Inside the plugin only.
-            .filter(|path| !Path::new(path).is_absolute() && !path.split(['/', '\\']).any(|part| part == ".."))
+            .filter(|path| {
+                !Path::new(path).is_absolute() && !path.split(['/', '\\']).any(|part| part == "..")
+            })
             .map(|path| root.join(path))
             .collect()
     };
@@ -373,7 +405,10 @@ fn command_files(path: &Path) -> Vec<(String, Option<String>)> {
             }
             let text = std::fs::read_to_string(&file).ok()?;
             let front = front_matter(&text);
-            let description = front.get("description").map(|d| short(d)).or_else(|| first_line(&text));
+            let description = front
+                .get("description")
+                .map(|d| short(d))
+                .or_else(|| first_line(&text));
             Some((name, description))
         })
         .collect();
@@ -403,7 +438,11 @@ fn agents(places: &Places, settings: &[Value], plugins: &[Plugin]) -> Vec<Extens
     // A project's subagent wins over the user's of the same name. A plugin's is
     // `<plugin>:<name>`, the name Claude lists it under, and is on only with its plugin.
     let mut folders: Vec<(PathBuf, Source, Option<&Plugin>)> = vec![
-        (places.cwd.join(".claude").join("agents"), Source::Project, None),
+        (
+            places.cwd.join(".claude").join("agents"),
+            Source::Project,
+            None,
+        ),
         (places.config.join("agents"), Source::User, None),
     ];
     folders.extend(
@@ -444,7 +483,13 @@ fn agents(places: &Places, settings: &[Value], plugins: &[Plugin]) -> Vec<Extens
                 && !denied.contains(&format!("Agent({id})"))
                 && !denied.contains(&format!("Task({id})"));
             let description = front.get("description").map(|d| short(d));
-            items.push(ExtensionItem::new(id.clone(), id, description, source, enabled));
+            items.push(ExtensionItem::new(
+                id.clone(),
+                id,
+                description,
+                source,
+                enabled,
+            ));
         }
     }
     items
@@ -507,7 +552,10 @@ fn installed_plugins(places: &Places, settings: &[(Source, Value)]) -> Vec<Plugi
                 _ => continue,
             },
         };
-        let root = install.get("installPath").and_then(Value::as_str).map(PathBuf::from);
+        let root = install
+            .get("installPath")
+            .and_then(Value::as_str)
+            .map(PathBuf::from);
         let on = enabled.get(id).and_then(Value::as_bool).unwrap_or(false);
         found.push(Plugin::at(id, root, source, on));
     }
@@ -601,7 +649,10 @@ fn plugin_servers(plugin: &Plugin) -> Map<String, Value> {
         match top.get("mcpServers") {
             Some(Value::Object(servers)) => servers.clone(),
             Some(_) => Map::new(),
-            None => top.into_iter().filter(|(_, server)| server.is_object()).collect(),
+            None => top
+                .into_iter()
+                .filter(|(_, server)| server.is_object())
+                .collect(),
         }
     };
     let mut servers = from_file(&root.join(".mcp.json"));
@@ -640,14 +691,30 @@ fn mcp_servers(
         .into_iter()
         .map(|entry| entry.item)
         .collect();
-    let taken = |items: &[ExtensionItem], id: &str| items.iter().any(|item| item.id.eq_ignore_ascii_case(id));
-    if let Some(on) = claude_json.get("claudeInChromeDefaultEnabled").and_then(Value::as_bool)
+    let taken = |items: &[ExtensionItem], id: &str| {
+        items.iter().any(|item| item.id.eq_ignore_ascii_case(id))
+    };
+    if let Some(on) = claude_json
+        .get("claudeInChromeDefaultEnabled")
+        .and_then(Value::as_bool)
         && !taken(&items, CHROME_SERVER)
     {
         let denied = denied_rules(settings).contains(&format!("mcp__{CHROME_SERVER}"));
-        items.push(ExtensionItem::new(CHROME_SERVER.into(), CHROME_SERVER.into(), None, Source::Builtin, on && !denied));
+        items.push(ExtensionItem::new(
+            CHROME_SERVER.into(),
+            CHROME_SERVER.into(),
+            None,
+            Source::Builtin,
+            on && !denied,
+        ));
     }
-    let mut own = ExtensionItem::new(OWN_SERVER.into(), OWN_SERVER.into(), None, Source::App, true);
+    let mut own = ExtensionItem::new(
+        OWN_SERVER.into(),
+        OWN_SERVER.into(),
+        None,
+        Source::App,
+        true,
+    );
     own.fixed = Some(Fixed::Own);
     items.push(own);
     items
@@ -685,7 +752,12 @@ fn mcp_entries<'a>(
         project_entry
             .and_then(|e| e.get(key))
             .and_then(Value::as_array)
-            .map(|a| a.iter().filter_map(Value::as_str).map(String::from).collect())
+            .map(|a| {
+                a.iter()
+                    .filter_map(Value::as_str)
+                    .map(String::from)
+                    .collect()
+            })
             .unwrap_or_default()
     };
     let switched_off = entry_list("disabledMcpServers");
@@ -701,8 +773,14 @@ fn mcp_entries<'a>(
 
     let project_file = read_json(&places.cwd.join(".mcp.json"));
     let scopes: [(Option<&Value>, Source); 3] = [
-        (project_entry.and_then(|e| e.get("mcpServers")), Source::Local),
-        (project_file.as_ref().and_then(|f| f.get("mcpServers")), Source::Project),
+        (
+            project_entry.and_then(|e| e.get("mcpServers")),
+            Source::Local,
+        ),
+        (
+            project_file.as_ref().and_then(|f| f.get("mcpServers")),
+            Source::Project,
+        ),
         (claude_json.get("mcpServers"), Source::User),
     ];
     // Local wins over project, project over user: one server per name.
@@ -720,7 +798,13 @@ fn mcp_entries<'a>(
                 && (source != Source::Project
                     || (!rejected.contains(name) && (approve_all || approved.contains(name))));
             items.push(McpEntry {
-                item: ExtensionItem::new(name.clone(), name.clone(), Some(server_summary(server)), source, enabled),
+                item: ExtensionItem::new(
+                    name.clone(),
+                    name.clone(),
+                    Some(server_summary(server)),
+                    source,
+                    enabled,
+                ),
                 server: server.clone(),
                 plugin: None,
             });
@@ -745,7 +829,13 @@ fn mcp_entries<'a>(
                 || switched_off.contains(&format!("plugin:{}:{name}", plugin.name));
             let description = Some(format!("{} · {}", plugin.name, server_summary(&server)));
             items.push(McpEntry {
-                item: ExtensionItem::new(id, name, description, Source::Plugin, plugin.enabled && !off),
+                item: ExtensionItem::new(
+                    id,
+                    name,
+                    description,
+                    Source::Plugin,
+                    plugin.enabled && !off,
+                ),
                 server,
                 plugin: Some(plugin),
             });
@@ -771,9 +861,9 @@ pub fn servers_on(places: &Places, choice: Option<&ExtensionChoice>) -> Map<Stri
         let id = entry.item.id;
         // On in the panel (a plugin's server, with its plugin on in the settings), and,
         // for a plugin's, its plugin not turned off by the choice: nothing shown off loads.
-        let plugin_off = entry.plugin.is_some_and(|plugin| {
-            choice.and_then(|c| c.plugins.get(&plugin.id)) == Some(&false)
-        });
+        let plugin_off = entry
+            .plugin
+            .is_some_and(|plugin| choice.and_then(|c| c.plugins.get(&plugin.id)) == Some(&false));
         let on = entry.item.enabled && !plugin_off;
         if !on || turned_off(&id) || id.eq_ignore_ascii_case(OWN_SERVER) {
             continue;
@@ -816,7 +906,9 @@ fn with_plugin_paths(server: &Value, plugin: &Plugin, places: &Places) -> Option
                 Value::String(text)
             }
             Value::Array(list) => Value::Array(
-                list.iter().map(|v| fill(v, root, data)).collect::<Option<_>>()?,
+                list.iter()
+                    .map(|v| fill(v, root, data))
+                    .collect::<Option<_>>()?,
             ),
             Value::Object(map) => Value::Object(
                 map.iter()
@@ -864,7 +956,13 @@ fn server_summary(server: &Value) -> String {
         None => server
             .get("command")
             .and_then(Value::as_str)
-            .map(|command| command.rsplit(['/', '\\']).next().unwrap_or(command).to_string())
+            .map(|command| {
+                command
+                    .rsplit(['/', '\\'])
+                    .next()
+                    .unwrap_or(command)
+                    .to_string()
+            })
             .unwrap_or_default(),
     };
     if target.is_empty() {
@@ -1021,7 +1119,11 @@ fn same_path(a: &Path, b: &Path) -> bool {
     let norm = |p: &Path| {
         let text = p.to_string_lossy().replace('\\', "/");
         let text = text.trim_end_matches('/').to_string();
-        if cfg!(windows) { text.to_lowercase() } else { text }
+        if cfg!(windows) {
+            text.to_lowercase()
+        } else {
+            text
+        }
     };
     norm(a) == norm(b)
 }
@@ -1061,7 +1163,8 @@ fn front_matter(text: &str) -> BTreeMap<String, String> {
         let value = value.trim();
         let value = if value.is_empty() || value.starts_with(['>', '|']) {
             let mut block = Vec::new();
-            while i < body.len() && (body[i].starts_with([' ', '\t']) || body[i].trim().is_empty()) {
+            while i < body.len() && (body[i].starts_with([' ', '\t']) || body[i].trim().is_empty())
+            {
                 block.push(body[i].trim());
                 i += 1;
             }
@@ -1106,7 +1209,10 @@ mod tests {
             cwd,
             config,
         };
-        Fixture { _root: root, places }
+        Fixture {
+            _root: root,
+            places,
+        }
     }
 
     fn put(path: &Path, text: &str) {
@@ -1139,16 +1245,34 @@ mod tests {
     fn lists_user_and_project_skills_with_the_settings_overrides() {
         let f = fixture();
         let p = &f.places;
-        put(&p.config.join("skills/deploy/SKILL.md"), "---\nname: deploy\ndescription: Ships it\n---\n");
-        put(&p.config.join("skills/notes/SKILL.md"), "---\ndescription: Takes notes\n---\n");
+        put(
+            &p.config.join("skills/deploy/SKILL.md"),
+            "---\nname: deploy\ndescription: Ships it\n---\n",
+        );
+        put(
+            &p.config.join("skills/notes/SKILL.md"),
+            "---\ndescription: Takes notes\n---\n",
+        );
         // A folder without SKILL.md (a plugin folder, a stray file) is not a skill.
         put(&p.config.join("skills/stray/README.md"), "x");
-        put(&p.cwd.join(".claude/skills/lint/SKILL.md"), "---\nname: lint\n---\n");
-        put(&p.cwd.join(".claude/skills/deploy/SKILL.md"), "---\nname: deploy\n---\n");
-        put_json(&p.cwd.join(".claude/settings.local.json"), json!({ "skillOverrides": { "notes": "off" } }));
+        put(
+            &p.cwd.join(".claude/skills/lint/SKILL.md"),
+            "---\nname: lint\n---\n",
+        );
+        put(
+            &p.cwd.join(".claude/skills/deploy/SKILL.md"),
+            "---\nname: deploy\n---\n",
+        );
+        put_json(
+            &p.cwd.join(".claude/settings.local.json"),
+            json!({ "skillOverrides": { "notes": "off" } }),
+        );
 
         let skills = list(p).skills;
-        assert_eq!(ids(&skills), vec![("deploy", true), ("lint", true), ("notes", false)]);
+        assert_eq!(
+            ids(&skills),
+            vec![("deploy", true), ("lint", true), ("notes", false)]
+        );
         assert_eq!(skills[0].source, Source::User);
         assert_eq!(skills[0].description.as_deref(), Some("Ships it"));
         assert_eq!(skills[1].source, Source::Project);
@@ -1158,14 +1282,29 @@ mod tests {
     fn lists_subagents_and_sees_the_ones_already_denied() {
         let f = fixture();
         let p = &f.places;
-        put(&p.config.join("agents/reviewer.md"), "---\nname: code-reviewer\ndescription: Reviews\n---\n");
-        put(&p.cwd.join(".claude/agents/tester.md"), "---\nname: tester\n---\n");
+        put(
+            &p.config.join("agents/reviewer.md"),
+            "---\nname: code-reviewer\ndescription: Reviews\n---\n",
+        );
+        put(
+            &p.cwd.join(".claude/agents/tester.md"),
+            "---\nname: tester\n---\n",
+        );
         put(&p.cwd.join(".claude/agents/notes.txt"), "not an agent");
         // A Markdown file with no front matter documents the folder: it is no subagent.
-        put(&p.cwd.join(".claude/agents/README.md"), "# Our agents\nThe team.");
-        put_json(&p.config.join("settings.json"), json!({ "permissions": { "deny": ["Agent(tester)"] } }));
+        put(
+            &p.cwd.join(".claude/agents/README.md"),
+            "# Our agents\nThe team.",
+        );
+        put_json(
+            &p.config.join("settings.json"),
+            json!({ "permissions": { "deny": ["Agent(tester)"] } }),
+        );
 
-        assert_eq!(ids(&list(p).agents), vec![("code-reviewer", true), ("tester", false)]);
+        assert_eq!(
+            ids(&list(p).agents),
+            vec![("code-reviewer", true), ("tester", false)]
+        );
     }
 
     #[test]
@@ -1174,7 +1313,10 @@ mod tests {
         let p = &f.places;
         let other = p.cwd.parent().unwrap().join("elsewhere");
         let codex_root = p.plugins.join("cache/openai/codex/1.0.0");
-        put_json(&codex_root.join(".claude-plugin/plugin.json"), json!({ "description": "Codex from Claude" }));
+        put_json(
+            &codex_root.join(".claude-plugin/plugin.json"),
+            json!({ "description": "Codex from Claude" }),
+        );
         put_json(
             &p.plugins.join("installed_plugins.json"),
             json!({ "version": 2, "plugins": {
@@ -1183,11 +1325,20 @@ mod tests {
                 "there@market": [{ "scope": "project", "projectPath": other.to_string_lossy(), "installPath": "x" }],
             } }),
         );
-        put_json(&p.config.join("settings.json"), json!({ "enabledPlugins": { "codex@openai": true, "here@market": true } }));
-        put_json(&p.cwd.join(".claude/settings.json"), json!({ "enabledPlugins": { "here@market": false } }));
+        put_json(
+            &p.config.join("settings.json"),
+            json!({ "enabledPlugins": { "codex@openai": true, "here@market": true } }),
+        );
+        put_json(
+            &p.cwd.join(".claude/settings.json"),
+            json!({ "enabledPlugins": { "here@market": false } }),
+        );
 
         let plugins = list(p).plugins;
-        assert_eq!(ids(&plugins), vec![("codex@openai", true), ("here@market", false)]);
+        assert_eq!(
+            ids(&plugins),
+            vec![("codex@openai", true), ("here@market", false)]
+        );
         assert_eq!(plugins[0].name, "codex");
         assert_eq!(plugins[0].description.as_deref(), Some("Codex from Claude"));
         assert_eq!(plugins[1].source, Source::Project);
@@ -1199,7 +1350,10 @@ mod tests {
         let p = &f.places;
         let other = p.cwd.parent().unwrap().join("elsewhere");
         let root = p.plugins.join("cache/official/superpowers/7.0.0");
-        put_json(&root.join(".claude-plugin/plugin.json"), json!({ "name": "superpowers" }));
+        put_json(
+            &root.join(".claude-plugin/plugin.json"),
+            json!({ "name": "superpowers" }),
+        );
         put_json(
             &p.plugins.join("installed_plugins.json"),
             json!({ "version": 2, "plugins": {
@@ -1207,8 +1361,14 @@ mod tests {
                 "caveman@caveman": [{ "scope": "project", "projectPath": other.to_string_lossy(), "installPath": "x" }],
             } }),
         );
-        put_json(&p.config.join("settings.json"), json!({ "enabledPlugins": { "pg-tuner@official": true } }));
-        put_json(&p.cwd.join(".claude/settings.json"), json!({ "enabledPlugins": { "superpowers@official": true } }));
+        put_json(
+            &p.config.join("settings.json"),
+            json!({ "enabledPlugins": { "pg-tuner@official": true } }),
+        );
+        put_json(
+            &p.cwd.join(".claude/settings.json"),
+            json!({ "enabledPlugins": { "superpowers@official": true } }),
+        );
 
         // Named here, Claude loads it from the cache; one only installed elsewhere, or not installed at all, it doesn't.
         let plugins = list(p).plugins;
@@ -1221,20 +1381,44 @@ mod tests {
         let f = fixture();
         let p = &f.places;
         let guard = p.cwd.join(".claude/skills/security-guidance");
-        put_json(&guard.join(".claude-plugin/plugin.json"), json!({ "name": "security-guidance", "description": "Warns" }));
-        put(&guard.join("agents/auditor.md"), "---\nname: auditor\n---\n");
+        put_json(
+            &guard.join(".claude-plugin/plugin.json"),
+            json!({ "name": "security-guidance", "description": "Warns" }),
+        );
+        put(
+            &guard.join("agents/auditor.md"),
+            "---\nname: auditor\n---\n",
+        );
         // The manifest's name, not the folder's, is the plugin's.
-        put_json(&p.config.join("skills/folder/.claude-plugin/plugin.json"), json!({ "name": "styles" }));
+        put_json(
+            &p.config.join("skills/folder/.claude-plugin/plugin.json"),
+            json!({ "name": "styles" }),
+        );
         // A plain skill is not a plugin.
-        put(&p.cwd.join(".claude/skills/lint/SKILL.md"), "---\nname: lint\n---\n");
-        put_json(&p.cwd.join(".claude/settings.local.json"), json!({ "enabledPlugins": { "styles@skills-dir": false } }));
+        put(
+            &p.cwd.join(".claude/skills/lint/SKILL.md"),
+            "---\nname: lint\n---\n",
+        );
+        put_json(
+            &p.cwd.join(".claude/settings.local.json"),
+            json!({ "enabledPlugins": { "styles@skills-dir": false } }),
+        );
 
         let found = list(p);
-        assert_eq!(ids(&found.plugins), vec![("security-guidance@skills-dir", true), ("styles@skills-dir", false)]);
+        assert_eq!(
+            ids(&found.plugins),
+            vec![
+                ("security-guidance@skills-dir", true),
+                ("styles@skills-dir", false)
+            ]
+        );
         assert_eq!(found.plugins[0].source, Source::Project);
         assert_eq!(found.plugins[0].description.as_deref(), Some("Warns"));
         assert_eq!(found.plugins[1].source, Source::User);
-        assert_eq!(ids(&found.agents), vec![("security-guidance:auditor", true)]);
+        assert_eq!(
+            ids(&found.agents),
+            vec![("security-guidance:auditor", true)]
+        );
         assert_eq!(ids(&found.skills), vec![("lint", true)]);
     }
 
@@ -1257,7 +1441,10 @@ mod tests {
             json!({ "enabledMcpjsonServers": ["linear", "vercel"], "enabledPlugins": { "tools@m": true } }),
         );
         let tools = p.plugins.join("cache/m/tools/1.0.0");
-        put_json(&tools.join(".claude-plugin/plugin.json"), json!({ "name": "tools" }));
+        put_json(
+            &tools.join(".claude-plugin/plugin.json"),
+            json!({ "name": "tools" }),
+        );
         put_json(
             &tools.join(".mcp.json"),
             json!({ "mcpServers": {
@@ -1272,12 +1459,18 @@ mod tests {
 
         // No choice: what the panel shows on. The plugin's server that needs a user setting stays out.
         let servers = servers_on(p, None);
-        assert_eq!(servers.keys().collect::<Vec<_>>(), vec!["linear", "plugin_tools_local", "vercel"]);
+        assert_eq!(
+            servers.keys().collect::<Vec<_>>(),
+            vec!["linear", "plugin_tools_local", "vercel"]
+        );
         // Copied as written: the headers too, or the server would not answer.
         assert_eq!(servers["linear"], secret);
         // A plugin's paths filled in, as Claude fills them.
         let local = &servers["plugin_tools_local"];
-        assert_eq!(local["command"], json!(format!("{}/bin/serve", tools.to_string_lossy())));
+        assert_eq!(
+            local["command"],
+            json!(format!("{}/bin/serve", tools.to_string_lossy()))
+        );
         assert_eq!(
             local["args"][1],
             json!(p.plugins.join("data").join("tools-m").to_string_lossy())
@@ -1289,15 +1482,24 @@ mod tests {
             plugins: BTreeMap::from([("tools@m".into(), false)]),
             ..Default::default()
         };
-        assert_eq!(servers_on(p, Some(&choice)).keys().collect::<Vec<_>>(), vec!["linear"]);
+        assert_eq!(
+            servers_on(p, Some(&choice)).keys().collect::<Vec<_>>(),
+            vec!["linear"]
+        );
 
         // A plugin off in the settings shows its servers off: turning it on here doesn't load them.
-        put_json(&p.cwd.join(".claude/settings.local.json"), json!({ "enabledMcpjsonServers": ["linear"] }));
+        put_json(
+            &p.cwd.join(".claude/settings.local.json"),
+            json!({ "enabledMcpjsonServers": ["linear"] }),
+        );
         let choice = ExtensionChoice {
             plugins: BTreeMap::from([("tools@m".into(), true)]),
             ..Default::default()
         };
-        assert_eq!(servers_on(p, Some(&choice)).keys().collect::<Vec<_>>(), vec!["linear"]);
+        assert_eq!(
+            servers_on(p, Some(&choice)).keys().collect::<Vec<_>>(),
+            vec!["linear"]
+        );
     }
 
     #[test]
@@ -1306,13 +1508,28 @@ mod tests {
         let p = &f.places;
         let on = p.plugins.join("cache/m/stripe/1.0.0");
         let off = p.plugins.join("cache/m/figma/1.0.0");
-        put_json(&on.join(".claude-plugin/plugin.json"), json!({ "name": "stripe" }));
-        put_json(&on.join(".mcp.json"), json!({ "mcpServers": { "stripe": { "type": "http", "url": "https://mcp.stripe.com" } } }));
-        put(&on.join("agents/research.md"), "---\nname: Company Researcher\ndescription: Researches\n---\n");
-        put_json(&off.join(".claude-plugin/plugin.json"), json!({ "name": "figma", "mcpServers": { "figma": { "command": "npx" } } }));
+        put_json(
+            &on.join(".claude-plugin/plugin.json"),
+            json!({ "name": "stripe" }),
+        );
+        put_json(
+            &on.join(".mcp.json"),
+            json!({ "mcpServers": { "stripe": { "type": "http", "url": "https://mcp.stripe.com" } } }),
+        );
+        put(
+            &on.join("agents/research.md"),
+            "---\nname: Company Researcher\ndescription: Researches\n---\n",
+        );
+        put_json(
+            &off.join(".claude-plugin/plugin.json"),
+            json!({ "name": "figma", "mcpServers": { "figma": { "command": "npx" } } }),
+        );
         // A `.mcp.json` may list its servers at its top level, without `mcpServers`.
         let bare = p.plugins.join("cache/m/linear/1.0.0");
-        put_json(&bare.join(".claude-plugin/plugin.json"), json!({ "name": "linear" }));
+        put_json(
+            &bare.join(".claude-plugin/plugin.json"),
+            json!({ "name": "linear" }),
+        );
         put_json(
             &bare.join(".mcp.json"),
             json!({
@@ -1321,7 +1538,10 @@ mod tests {
                 "copy": { "type": "http", "url": "https://mcp.sentry.dev/mcp" },
             }),
         );
-        put_json(&p.claude_json, json!({ "mcpServers": { "sentry": { "type": "http", "url": "https://mcp.sentry.dev/mcp" } } }));
+        put_json(
+            &p.claude_json,
+            json!({ "mcpServers": { "sentry": { "type": "http", "url": "https://mcp.sentry.dev/mcp" } } }),
+        );
         put_json(
             &p.plugins.join("installed_plugins.json"),
             json!({ "version": 2, "plugins": {
@@ -1330,7 +1550,10 @@ mod tests {
                 "linear@m": [{ "scope": "user", "installPath": bare.to_string_lossy() }],
             } }),
         );
-        put_json(&p.config.join("settings.json"), json!({ "enabledPlugins": { "stripe@m": true, "linear@m": true } }));
+        put_json(
+            &p.config.join("settings.json"),
+            json!({ "enabledPlugins": { "stripe@m": true, "linear@m": true } }),
+        );
 
         let found = list(p);
         // A plugin that is off leaves its server off.
@@ -1346,8 +1569,14 @@ mod tests {
         );
         assert_eq!(found.mcp[4].name, "stripe");
         assert_eq!(found.mcp[4].source, Source::Plugin);
-        assert_eq!(found.mcp[4].description.as_deref(), Some("stripe · http · mcp.stripe.com"));
-        assert_eq!(ids(&found.agents), vec![("stripe:Company Researcher", true)]);
+        assert_eq!(
+            found.mcp[4].description.as_deref(),
+            Some("stripe · http · mcp.stripe.com")
+        );
+        assert_eq!(
+            ids(&found.agents),
+            vec![("stripe:Company Researcher", true)]
+        );
 
         // Turned off, a plugin's server is denied by its tools' prefix and never put in `.mcp.json`'s list.
         let choice = ExtensionChoice {
@@ -1358,7 +1587,10 @@ mod tests {
         let patch = settings_patch(&choice, p).unwrap();
         assert_eq!(
             patch["permissions"]["deny"],
-            json!(["mcp__plugin_stripe_stripe", "Agent(stripe:Company Researcher)"])
+            json!([
+                "mcp__plugin_stripe_stripe",
+                "Agent(stripe:Company Researcher)"
+            ])
         );
         assert!(patch.get("disabledMcpjsonServers").is_none());
     }
@@ -1395,7 +1627,13 @@ mod tests {
         let mcp = list(p).mcp;
         assert_eq!(
             ids(&mcp),
-            vec![("db", true), ("docs", true), ("dummyplane", true), ("github", false), ("pending", false)]
+            vec![
+                ("db", true),
+                ("docs", true),
+                ("dummyplane", true),
+                ("github", false),
+                ("pending", false)
+            ]
         );
         assert_eq!(mcp[0].source, Source::Local);
         assert_eq!(mcp[0].description.as_deref(), Some("stdio · pg-mcp.exe"));
@@ -1405,29 +1643,58 @@ mod tests {
         assert_eq!(mcp[2].source, Source::App);
         assert_eq!(mcp[2].fixed, Some(Fixed::Own));
         assert_eq!(mcp[2].description, None);
-        assert!(mcp.iter().all(|item| item.fixed.is_none() || item.id == "dummyplane"));
+        assert!(
+            mcp.iter()
+                .all(|item| item.fixed.is_none() || item.id == "dummyplane")
+        );
     }
 
     #[test]
     fn lists_claude_in_chrome_once_claude_json_says_whether_it_is_on() {
         let f = fixture();
         let p = &f.places;
-        let chrome = |p: &Places| list(p).mcp.into_iter().find(|item| item.id == "claude-in-chrome");
+        let chrome = |p: &Places| {
+            list(p)
+                .mcp
+                .into_iter()
+                .find(|item| item.id == "claude-in-chrome")
+        };
         // Never set up: Claude doesn't start it, nothing lists it.
         assert_eq!(chrome(p), None);
-        put_json(&p.claude_json, json!({ "claudeInChromeDefaultEnabled": true }));
+        put_json(
+            &p.claude_json,
+            json!({ "claudeInChromeDefaultEnabled": true }),
+        );
         let on = chrome(p).unwrap();
-        assert_eq!((on.source, on.enabled, on.fixed), (Source::Builtin, true, None));
+        assert_eq!(
+            (on.source, on.enabled, on.fixed),
+            (Source::Builtin, true, None)
+        );
         // Denied in the settings, or off by default: shown off.
-        put_json(&p.config.join("settings.json"), json!({ "permissions": { "deny": ["mcp__claude-in-chrome"] } }));
+        put_json(
+            &p.config.join("settings.json"),
+            json!({ "permissions": { "deny": ["mcp__claude-in-chrome"] } }),
+        );
         assert!(!chrome(p).unwrap().enabled);
         put_json(&p.config.join("settings.json"), json!({}));
-        put_json(&p.claude_json, json!({ "claudeInChromeDefaultEnabled": false }));
+        put_json(
+            &p.claude_json,
+            json!({ "claudeInChromeDefaultEnabled": false }),
+        );
         assert!(!chrome(p).unwrap().enabled);
         // Turned off for a terminal: its tools are denied by name, and a fleet never copies it (it has no definition).
-        put_json(&p.claude_json, json!({ "claudeInChromeDefaultEnabled": true }));
-        let choice = ExtensionChoice { mcp_off: vec!["claude-in-chrome".into()], ..Default::default() };
-        assert_eq!(settings_patch(&choice, p).unwrap()["permissions"]["deny"], json!(["mcp__claude-in-chrome"]));
+        put_json(
+            &p.claude_json,
+            json!({ "claudeInChromeDefaultEnabled": true }),
+        );
+        let choice = ExtensionChoice {
+            mcp_off: vec!["claude-in-chrome".into()],
+            ..Default::default()
+        };
+        assert_eq!(
+            settings_patch(&choice, p).unwrap()["permissions"]["deny"],
+            json!(["mcp__claude-in-chrome"])
+        );
         assert!(servers_on(p, None).is_empty());
     }
 
@@ -1435,27 +1702,63 @@ mod tests {
     fn lists_commands_claude_ai_skills_and_plugins_skills_as_claude_names_them() {
         let f = fixture();
         let p = &f.places;
-        put(&p.config.join("skills/deploy/SKILL.md"), "---\nname: deploy\ndescription: Ships it\n---\n");
+        put(
+            &p.config.join("skills/deploy/SKILL.md"),
+            "---\nname: deploy\ndescription: Ships it\n---\n",
+        );
         // Commands are skills to Claude: named after their file, described by their front matter or first line.
-        put(&p.config.join("commands/tokens.md"), "---\ndescription: Token usage\n---\nBody");
-        put(&p.cwd.join(".claude/commands/chatlog.md"), "\n# Saves the chat log\n\nMore.");
+        put(
+            &p.config.join("commands/tokens.md"),
+            "---\ndescription: Token usage\n---\nBody",
+        );
+        put(
+            &p.cwd.join(".claude/commands/chatlog.md"),
+            "\n# Saves the chat log\n\nMore.",
+        );
         // A skill of the same name wins; a README documents the folder.
         put(&p.cwd.join(".claude/commands/deploy.md"), "Deploys");
         put(&p.cwd.join(".claude/commands/README.md"), "# The commands");
         // The signed-in account's claude.ai skills; another account's bucket is not this one's.
-        put_json(&p.claude_json, json!({ "oauthAccount": { "organizationUuid": "org-1", "accountUuid": "acct-1" } }));
-        put(&p.config.join("skills/synced/org-1_acct-1/pdf/SKILL.md"), "---\nname: pdf\ndescription: PDFs\n---\n");
-        put(&p.config.join("skills/synced/org-1_acct-1/docx/SKILL.md"), "---\nname: docx\n---\n");
-        put(&p.config.join("skills/synced/org-2_acct-9/xlsx/SKILL.md"), "---\nname: xlsx\n---\n");
+        put_json(
+            &p.claude_json,
+            json!({ "oauthAccount": { "organizationUuid": "org-1", "accountUuid": "acct-1" } }),
+        );
+        put(
+            &p.config.join("skills/synced/org-1_acct-1/pdf/SKILL.md"),
+            "---\nname: pdf\ndescription: PDFs\n---\n",
+        );
+        put(
+            &p.config.join("skills/synced/org-1_acct-1/docx/SKILL.md"),
+            "---\nname: docx\n---\n",
+        );
+        put(
+            &p.config.join("skills/synced/org-2_acct-9/xlsx/SKILL.md"),
+            "---\nname: xlsx\n---\n",
+        );
         // A plugin's skills and commands, on with it; an off plugin's, off.
         let codex = p.plugins.join("cache/m/codex/1.0.0");
-        put_json(&codex.join(".claude-plugin/plugin.json"), json!({ "name": "codex", "commands": ["./extra/setup.md"] }));
-        put(&codex.join("skills/runtime/SKILL.md"), "---\nname: codex-cli-runtime\n---\n");
-        put(&codex.join("commands/rescue.md"), "---\ndescription: Rescue\n---\n");
+        put_json(
+            &codex.join(".claude-plugin/plugin.json"),
+            json!({ "name": "codex", "commands": ["./extra/setup.md"] }),
+        );
+        put(
+            &codex.join("skills/runtime/SKILL.md"),
+            "---\nname: codex-cli-runtime\n---\n",
+        );
+        put(
+            &codex.join("commands/rescue.md"),
+            "---\ndescription: Rescue\n---\n",
+        );
         put(&codex.join("extra/setup.md"), "Sets up");
         let figma = p.plugins.join("cache/m/figma/1.0.0");
-        put_json(&figma.join(".claude-plugin/plugin.json"), json!({ "name": "figma" }));
-        put(&figma.join("skills/inspect/SKILL.md"), "---\nname: inspect\n---\n");
+        put_json(
+            &figma.join(".claude-plugin/plugin.json"),
+            json!({ "name": "figma" }),
+        );
+        put(
+            &figma.join("skills/inspect/SKILL.md"),
+            "---\nname: inspect\n---\n",
+        );
         put_json(
             &p.plugins.join("installed_plugins.json"),
             json!({ "version": 2, "plugins": {
@@ -1469,7 +1772,12 @@ mod tests {
         );
 
         let skills = list(p).skills;
-        let by_id = |id: &str| skills.iter().find(|item| item.id == id).unwrap_or_else(|| panic!("{id} not listed"));
+        let by_id = |id: &str| {
+            skills
+                .iter()
+                .find(|item| item.id == id)
+                .unwrap_or_else(|| panic!("{id} not listed"))
+        };
         let mut listed: Vec<&str> = skills.iter().map(|item| item.id.as_str()).collect();
         listed.sort();
         assert_eq!(
@@ -1490,20 +1798,32 @@ mod tests {
         assert_eq!(by_id("tokens").description.as_deref(), Some("Token usage"));
         assert!(!by_id("tokens").enabled);
         assert_eq!(by_id("chatlog").source, Source::Project);
-        assert_eq!(by_id("chatlog").description.as_deref(), Some("Saves the chat log"));
+        assert_eq!(
+            by_id("chatlog").description.as_deref(),
+            Some("Saves the chat log")
+        );
         // A claude.ai skill: its bare name shown, its namespaced one switched; either spelling turns it off.
         let pdf = by_id("anthropic-skills:pdf");
-        assert_eq!((pdf.name.as_str(), pdf.source, pdf.enabled, pdf.fixed), ("pdf", Source::Synced, false, None));
+        assert_eq!(
+            (pdf.name.as_str(), pdf.source, pdf.enabled, pdf.fixed),
+            ("pdf", Source::Synced, false, None)
+        );
         assert!(!by_id("anthropic-skills:docx").enabled);
         // A plugin's skill is fixed to its plugin, which it names.
         let runtime = by_id("codex:codex-cli-runtime");
-        assert_eq!((runtime.source, runtime.enabled, runtime.fixed), (Source::Plugin, true, Some(Fixed::Plugin)));
+        assert_eq!(
+            (runtime.source, runtime.enabled, runtime.fixed),
+            (Source::Plugin, true, Some(Fixed::Plugin))
+        );
         assert_eq!(runtime.plugin.as_deref(), Some("codex@m"));
         assert_eq!(by_id("codex:rescue").description.as_deref(), Some("Rescue"));
         assert!(!by_id("figma:inspect").enabled);
 
         // Turned off for a terminal: the namespaced name goes into `skillOverrides`, which Claude reads for it.
-        let choice = ExtensionChoice { skills_off: vec!["anthropic-skills:pdf".into(), "chatlog".into()], ..Default::default() };
+        let choice = ExtensionChoice {
+            skills_off: vec!["anthropic-skills:pdf".into(), "chatlog".into()],
+            ..Default::default()
+        };
         let overrides = &settings_patch(&choice, p).unwrap()["skillOverrides"];
         assert_eq!(overrides["anthropic-skills:pdf"], json!("off"));
         assert_eq!(overrides["chatlog"], json!("off"));
@@ -1513,9 +1833,15 @@ mod tests {
     fn finds_no_claude_ai_skills_without_an_account_or_with_an_id_that_is_a_path() {
         let f = fixture();
         let p = &f.places;
-        put(&p.config.join("skills/synced/org-1_acct-1/pdf/SKILL.md"), "---\nname: pdf\n---\n");
+        put(
+            &p.config.join("skills/synced/org-1_acct-1/pdf/SKILL.md"),
+            "---\nname: pdf\n---\n",
+        );
         assert!(list(p).skills.is_empty());
-        put_json(&p.claude_json, json!({ "oauthAccount": { "organizationUuid": "../..", "accountUuid": "acct-1" } }));
+        put_json(
+            &p.claude_json,
+            json!({ "oauthAccount": { "organizationUuid": "../..", "accountUuid": "acct-1" } }),
+        );
         assert!(list(p).skills.is_empty());
     }
 
@@ -1528,7 +1854,10 @@ mod tests {
     #[test]
     fn a_choice_becomes_settings_and_keeps_dummyplane_on() {
         let f = fixture();
-        put_json(&f.places.config.join("settings.json"), json!({ "skillOverrides": { "old": "name-only" } }));
+        put_json(
+            &f.places.config.join("settings.json"),
+            json!({ "skillOverrides": { "old": "name-only" } }),
+        );
         let choice = ExtensionChoice {
             skills_off: vec!["deploy".into()],
             agents_off: vec!["tester".into(), "bad)name".into()],
@@ -1536,13 +1865,22 @@ mod tests {
             plugins: BTreeMap::from([("codex@openai".into(), false), ("here@market".into(), true)]),
         };
         let patch = settings_patch(&choice, &f.places).unwrap();
-        assert_eq!(patch["enabledPlugins"], json!({ "codex@openai": false, "here@market": true }));
-        assert_eq!(patch["skillOverrides"], json!({ "old": "name-only", "deploy": "off" }));
+        assert_eq!(
+            patch["enabledPlugins"],
+            json!({ "codex@openai": false, "here@market": true })
+        );
+        assert_eq!(
+            patch["skillOverrides"],
+            json!({ "old": "name-only", "deploy": "off" })
+        );
         assert_eq!(
             patch["permissions"]["deny"],
             json!(["mcp__github", "mcp__my_server", "Agent(tester)"])
         );
-        assert_eq!(patch["disabledMcpjsonServers"], json!(["github", "my server"]));
+        assert_eq!(
+            patch["disabledMcpjsonServers"],
+            json!(["github", "my server"])
+        );
     }
 
     #[test]
@@ -1560,7 +1898,10 @@ mod tests {
             }),
         );
         assert_eq!(settings["permissions"]["allow"], json!(["mcp__dummyplane"]));
-        assert_eq!(settings["permissions"]["deny"], json!(["Bash", "mcp__github"]));
+        assert_eq!(
+            settings["permissions"]["deny"],
+            json!(["Bash", "mcp__github"])
+        );
         assert_eq!(settings["enabledPlugins"], json!({ "codex@openai": false }));
         assert_eq!(settings["disabledMcpjsonServers"], json!(["github"]));
         assert_eq!(settings["hooks"], json!({ "Stop": [] }));
@@ -1569,7 +1910,8 @@ mod tests {
     #[test]
     fn reads_the_stored_choice_from_the_interface() {
         let choice: ExtensionChoice =
-            serde_json::from_value(json!({ "skillsOff": ["a"], "plugins": { "p@m": true } })).unwrap();
+            serde_json::from_value(json!({ "skillsOff": ["a"], "plugins": { "p@m": true } }))
+                .unwrap();
         assert_eq!(choice.skills_off, vec!["a".to_string()]);
         assert!(choice.mcp_off.is_empty());
         assert_eq!(choice.plugins.get("p@m"), Some(&true));
@@ -1582,19 +1924,37 @@ mod tests {
         assert_eq!(launch_defaults(p), LaunchDefaults { model: None });
         put_json(&p.config.join("settings.json"), json!({ "model": "opus" }));
         assert_eq!(launch_defaults(p).model.as_deref(), Some("opus"));
-        put_json(&p.cwd.join(".claude/settings.json"), json!({ "model": "sonnet" }));
+        put_json(
+            &p.cwd.join(".claude/settings.json"),
+            json!({ "model": "sonnet" }),
+        );
         assert_eq!(launch_defaults(p).model.as_deref(), Some("sonnet"));
-        put_json(&p.cwd.join(".claude/settings.local.json"), json!({ "model": "claude-haiku-5-5" }));
-        assert_eq!(launch_defaults(p).model.as_deref(), Some("claude-haiku-5-5"));
+        put_json(
+            &p.cwd.join(".claude/settings.local.json"),
+            json!({ "model": "claude-haiku-5-5" }),
+        );
+        assert_eq!(
+            launch_defaults(p).model.as_deref(),
+            Some("claude-haiku-5-5")
+        );
         // A blank or non-text value names nothing: the next file down speaks.
-        put_json(&p.cwd.join(".claude/settings.local.json"), json!({ "model": "  " }));
+        put_json(
+            &p.cwd.join(".claude/settings.local.json"),
+            json!({ "model": "  " }),
+        );
         put_json(&p.cwd.join(".claude/settings.json"), json!({ "model": 4 }));
         assert_eq!(launch_defaults(p).model.as_deref(), Some("opus"));
     }
 
     #[test]
     fn compares_project_paths_whatever_the_separators() {
-        assert!(same_path(Path::new("D:/Projects/app/"), Path::new("D:\\Projects\\app")));
-        assert!(!same_path(Path::new("D:/Projects/app"), Path::new("D:/Projects/other")));
+        assert!(same_path(
+            Path::new("D:/Projects/app/"),
+            Path::new("D:\\Projects\\app")
+        ));
+        assert!(!same_path(
+            Path::new("D:/Projects/app"),
+            Path::new("D:/Projects/other")
+        ));
     }
 }

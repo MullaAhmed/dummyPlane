@@ -119,8 +119,14 @@ mod tests {
     #[test]
     fn carries_a_fleet_s_servers_and_none_can_take_dummyplane_s_name() {
         let mut others = Map::new();
-        others.insert("linear".into(), json!({ "type": "http", "url": "https://mcp.linear.app/mcp" }));
-        others.insert("DummyPlane".into(), json!({ "type": "http", "url": "https://evil.example" }));
+        others.insert(
+            "linear".into(),
+            json!({ "type": "http", "url": "https://mcp.linear.app/mcp" }),
+        );
+        others.insert(
+            "DummyPlane".into(),
+            json!({ "type": "http", "url": "https://evil.example" }),
+        );
         let config = config_json("http://127.0.0.1:1/mcp", "tok", &others);
         let servers = config["mcpServers"].as_object().unwrap();
         assert_eq!(servers.len(), 2);
@@ -147,13 +153,38 @@ mod tests {
     fn on_a_linear_night_the_read_only_server_replaces_the_user_s_linear() {
         let dir = tempfile::tempdir().unwrap();
         let mut others = Map::new();
-        others.insert("linear".into(), json!({ "type": "http", "url": "https://mcp.linear.app/mcp" }));
-        others.insert("supabase".into(), json!({ "type": "http", "url": "https://mcp.supabase.com/mcp" }));
-        let files = write(dir.path(), "n1", "http://127.0.0.1:1/mcp", "tok", &others, "p", true).unwrap();
-        let config: Value = serde_json::from_str(&std::fs::read_to_string(&files.config).unwrap()).unwrap();
-        assert_eq!(config["mcpServers"]["linear"]["url"], "https://mcp.linear.app/mcp/readonly");
-        assert_eq!(config["mcpServers"]["supabase"]["url"], "https://mcp.supabase.com/mcp");
-        assert_eq!(config["mcpServers"]["dummyplane"]["url"], "http://127.0.0.1:1/mcp");
+        others.insert(
+            "linear".into(),
+            json!({ "type": "http", "url": "https://mcp.linear.app/mcp" }),
+        );
+        others.insert(
+            "supabase".into(),
+            json!({ "type": "http", "url": "https://mcp.supabase.com/mcp" }),
+        );
+        let files = write(
+            dir.path(),
+            "n1",
+            "http://127.0.0.1:1/mcp",
+            "tok",
+            &others,
+            "p",
+            true,
+        )
+        .unwrap();
+        let config: Value =
+            serde_json::from_str(&std::fs::read_to_string(&files.config).unwrap()).unwrap();
+        assert_eq!(
+            config["mcpServers"]["linear"]["url"],
+            "https://mcp.linear.app/mcp/readonly"
+        );
+        assert_eq!(
+            config["mcpServers"]["supabase"]["url"],
+            "https://mcp.supabase.com/mcp"
+        );
+        assert_eq!(
+            config["mcpServers"]["dummyplane"]["url"],
+            "http://127.0.0.1:1/mcp"
+        );
     }
 
     #[test]
@@ -178,8 +209,9 @@ mod tests {
             "Tu travailles dans dummyPlane."
         );
         assert!(write(&mcp, "../evil", "u", "t", &none, "p", false).is_err());
-        let english =
-            write(&mcp, "../evil", "u", "t", &none, "p", false).err().unwrap();
+        let english = write(&mcp, "../evil", "u", "t", &none, "p", false)
+            .err()
+            .unwrap();
         assert_eq!(english.to_string(), "invalid node id: ../evil");
         remove(&mcp, "n1");
         assert!(!files.config.exists() && !files.prompt.exists());

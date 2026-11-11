@@ -178,7 +178,7 @@ pub fn status_line_json(status: &StatusLine) -> Value {
 /// The `statusLine` of Claude's user settings when it runs a command.
 pub fn user_status_line(settings: &Path) -> Option<Value> {
     let bytes = std::fs::read(settings).ok()?;
-    // Notepad saves with a byte order mark (final review maj §6).
+    // Notepad saves with a byte order mark.
     let bytes = bytes.strip_prefix("\u{feff}".as_bytes()).unwrap_or(&bytes);
     let read: Value = serde_json::from_slice(bytes).ok()?;
     let line = read.get("statusLine")?;
@@ -190,7 +190,7 @@ pub fn user_status_line(settings: &Path) -> Option<Value> {
 }
 
 /// The status line Claude would show in `cwd`: its local settings', its
-/// project's, then the user's (final review maj §6: `--settings` outranks them all).
+/// project's, then the user's (`--settings` outranks them all).
 pub fn status_line_for(cwd: &Path, user: Option<&Path>) -> Option<Value> {
     let project = cwd.join(".claude");
     [

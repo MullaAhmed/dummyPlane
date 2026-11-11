@@ -27,7 +27,9 @@ const EXTENSION_HEADER: &str = "x-image-extension";
 #[tauri::command]
 pub async fn save_pasted_image(app: AppHandle, request: Request<'_>) -> AppResult<String> {
     let InvokeBody::Raw(bytes) = request.body() else {
-        return Err(AppError::InvalidInput("The image must be sent as raw bytes".into()));
+        return Err(AppError::InvalidInput(
+            "The image must be sent as raw bytes".into(),
+        ));
     };
     let extension = request
         .headers()
@@ -35,7 +37,9 @@ pub async fn save_pasted_image(app: AppHandle, request: Request<'_>) -> AppResul
         .and_then(|value| value.to_str().ok())
         .unwrap_or_default();
     let Some(extension) = EXTENSIONS.into_iter().find(|known| *known == extension) else {
-        return Err(AppError::InvalidInput(format!("Unsupported image type: {extension}")));
+        return Err(AppError::InvalidInput(format!(
+            "Unsupported image type: {extension}"
+        )));
     };
     let dir = app
         .path()
@@ -44,9 +48,11 @@ pub async fn save_pasted_image(app: AppHandle, request: Request<'_>) -> AppResul
         .join(DIR);
     let bytes = bytes.clone();
     // Off the async runtime's threads: writing a large screenshot blocks.
-    let path = tauri::async_runtime::spawn_blocking(move || save(&dir, &bytes, extension, SystemTime::now()))
-        .await
-        .map_err(|err| AppError::Io(io::Error::other(err.to_string())))??;
+    let path = tauri::async_runtime::spawn_blocking(move || {
+        save(&dir, &bytes, extension, SystemTime::now())
+    })
+    .await
+    .map_err(|err| AppError::Io(io::Error::other(err.to_string())))??;
     // Not canonicalized: that would give `\\?\C:\…`, which agents do not read as a path.
     Ok(path.to_string_lossy().into_owned())
 }
@@ -55,10 +61,20 @@ pub async fn save_pasted_image(app: AppHandle, request: Request<'_>) -> AppResul
 fn save(dir: &Path, bytes: &[u8], extension: &str, now: SystemTime) -> io::Result<PathBuf> {
     fs::create_dir_all(dir)?;
     prune(dir, now, MAX_AGE);
-    let millis = now.duration_since(UNIX_EPOCH).unwrap_or_default().as_millis();
-    let path = dir.join(file_name(millis, &uuid::Uuid::new_v4().simple().to_string()[..8], extension));
+    let millis = now
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis();
+    let path = dir.join(file_name(
+        millis,
+        &uuid::Uuid::new_v4().simple().to_string()[..8],
+        extension,
+    ));
     // create_new: two pastes never share a file, even within the same millisecond.
-    let mut file = OpenOptions::new().write(true).create_new(true).open(&path)?;
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&path)?;
     file.write_all(bytes)?;
     Ok(path)
 }
@@ -83,20 +99,29 @@ fn prune(dir: &Path, now: SystemTime, max_age: Duration) {
             continue;
         }
         let Ok(meta) = entry.metadata() else { continue };
-        let Ok(modified) = meta.modified() else { continue };
+        let Ok(modified) = meta.modified() else {
+            continue;
+        };
         let old = now.duration_since(modified).is_ok_and(|age| age > max_age);
-        if meta.is_file() && old {
-            if let Err(err) = fs::remove_file(entry.path()) {
-                log::warn!("could not remove an old pasted image: {err}");
-            }
+        if meta.is_file()
+            && old
+            && let Err(err) = fs::remove_file(entry.path())
+        {
+            log::warn!("could not remove an old pasted image: {err}");
         }
     }
 }
 
 /// Only files this command wrote: anything else in the folder is left alone.
 fn is_paste(path: &Path) -> bool {
-    let name = path.file_name().and_then(|name| name.to_str()).unwrap_or_default();
-    let extension = path.extension().and_then(|ext| ext.to_str()).unwrap_or_default();
+    let name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or_default();
+    let extension = path
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .unwrap_or_default();
     name.starts_with(PREFIX) && EXTENSIONS.contains(&extension)
 }
 
@@ -108,7 +133,10 @@ mod tests {
 
     #[test]
     fn names_a_paste_by_its_time_and_tag() {
-        assert_eq!(file_name(1_700_000_000_123, "ab12cd34", "png"), "paste-1700000000123-ab12cd34.png");
+        assert_eq!(
+            file_name(1_700_000_000_123, "ab12cd34", "png"),
+            "paste-1700000000123-ab12cd34.png"
+        );
     }
 
     #[test]
@@ -118,7 +146,10 @@ mod tests {
         let now = SystemTime::now();
         let first = save(&dir, b"one", "png", now).unwrap();
         let second = save(&dir, b"two", "png", now).unwrap();
-        assert_ne!(first, second, "two pastes in the same millisecond keep their own file");
+        assert_ne!(
+            first, second,
+            "two pastes in the same millisecond keep their own file"
+        );
         assert_eq!(first.parent(), Some(dir.as_path()));
         assert!(is_paste(&first));
         assert_eq!(fs::read(&first).unwrap(), b"one");

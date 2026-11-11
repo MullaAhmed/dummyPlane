@@ -26,7 +26,7 @@ use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 use db::Db;
 use pty::PtyManager;
 
-/// Spec §5.6: changed scrollbacks are written to SQLite every 10 s.
+/// Changed scrollbacks are written to SQLite every 10 s.
 const SCROLLBACK_FLUSH_INTERVAL: Duration = Duration::from_secs(10);
 
 /// A second launch comes back to the running window. It may be a click on a
@@ -84,7 +84,7 @@ pub fn run() {
                 Ok(db) => db,
                 Err(err) => {
                     log::error!("base not opened: {err}");
-                    // Spec §10: a blocking dialog with the file path, then stop. The one native
+                    // A blocking dialog with the file path, then stop. The one native
                     // alert left: without its database the interface cannot run to show its own.
                     let (title, message) = database_failure(&path, &err);
                     app.dialog()

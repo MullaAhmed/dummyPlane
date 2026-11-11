@@ -317,7 +317,10 @@ fn refuse_during_operation(root: &Path) -> Result<(), String> {
         running |= root.join(path.trim()).exists();
     }
     if running {
-        return Err("A merge or a rebase is in progress: finish it in a terminal, nothing was touched.".to_string());
+        return Err(
+            "A merge or a rebase is in progress: finish it in a terminal, nothing was touched."
+                .to_string(),
+        );
     }
     Ok(())
 }
@@ -331,7 +334,9 @@ fn exists(path: &Path) -> bool {
 /// old path, come back since, would be overwritten.
 fn refuse_what_git_would_replace(root: &Path, file: &ChangedFile) -> Result<(), String> {
     let refused = |path: &str| {
-        Err(format!("{path} is no longer a plain file here: nothing was touched, have a look in a terminal."))
+        Err(format!(
+            "{path} is no longer a plain file here: nothing was touched, have a look in a terminal."
+        ))
     };
     for path in std::iter::once(file.path.as_str()).chain(file.old_path.as_deref()) {
         let is_dir = |at: &Path| at.symlink_metadata().is_ok_and(|meta| meta.is_dir());
@@ -382,7 +387,9 @@ pub fn commit(dir: &Path, files: &[ChangedFile], message: &str) -> Result<String
         .filter_map(|file| file.old_path.as_deref())
         .find(|old| exists(&root.join(old)))
     {
-        return Err(format!("{old} was created again after its rename: commit from a terminal."));
+        return Err(format!(
+            "{old} was created again after its rename: commit from a terminal."
+        ));
     }
     let (present, gone): (Vec<&str>, Vec<&str>) = paths
         .iter()
@@ -409,7 +416,7 @@ pub fn commit(dir: &Path, files: &[ChangedFile], message: &str) -> Result<String
 }
 
 /// Puts one file back as it was, if it still is what the
-/// user confirmed: an agent may have written to it since (§2.2). `confirmed` is
+/// user confirmed: an agent may have written to it since. `confirmed` is
 /// the file's stamp in the list the user saw.
 pub fn discard(dir: &Path, file: &ChangedFile, confirmed: &str) -> Result<(), String> {
     let root = review::root(dir)?;
@@ -419,7 +426,9 @@ pub fn discard(dir: &Path, file: &ChangedFile, confirmed: &str) -> Result<(), St
     let listing = index_listing(&root)?;
     if !current.contains(file) || stamp(&root, file, &parse_index(&listing)) != confirmed {
         let path = &file.path;
-        return Err(format!("{path} changed since you confirmed: nothing was touched."));
+        return Err(format!(
+            "{path} changed since you confirmed: nothing was touched."
+        ));
     }
     refuse_what_git_would_replace(&root, file)?;
     match file.status.as_str() {
@@ -535,7 +544,10 @@ pub fn push(dir: &Path, branch: &str, target: &str, head: &str) -> Result<(), St
     // An agent may have committed since: the button counted what it showed.
     let now = run(&root, &["rev-parse", "--verify", "--quiet", "HEAD"]).unwrap_or_default();
     if current != branch || resolved.label != target || now.trim() != head {
-        return Err("The branch, its commits or its target changed: nothing was pushed, have another look.".to_string());
+        return Err(
+            "The branch, its commits or its target changed: nothing was pushed, have another look."
+                .to_string(),
+        );
     }
     let refspec = format!("refs/heads/{current}:{}", resolved.dest);
     let mut args = vec![
@@ -931,7 +943,10 @@ mod tests {
         raw(&root, &["checkout", "-q", "main"]);
         fs::write(root.join("a.txt"), "two\n").unwrap();
         raw(&root, &["commit", "-q", "-am", "on main"]);
-        raw(&root, &["merge", "-q", "--no-ff", "-m", "merge side", "side"]);
+        raw(
+            &root,
+            &["merge", "-q", "--no-ff", "-m", "merge side", "side"],
+        );
         (dir, root)
     }
 
@@ -945,7 +960,10 @@ mod tests {
         let log = history(&root).unwrap();
         assert_eq!(log.len(), 4);
         assert_eq!(log[0].subject, "merge side");
-        assert_eq!(log[0].parents, vec![rev(&root, "HEAD^1"), rev(&root, "HEAD^2")]);
+        assert_eq!(
+            log[0].parents,
+            vec![rev(&root, "HEAD^1"), rev(&root, "HEAD^2")]
+        );
         let first = log.iter().find(|entry| entry.subject == "first").unwrap();
         assert!(first.parents.is_empty());
         // The graph is drawn top down: a parent always comes later.
@@ -976,7 +994,10 @@ mod tests {
         };
         assert_eq!(
             refs("merge side"),
-            vec![named("branch", "main", true), named("remote", "origin/main", false)]
+            vec![
+                named("branch", "main", true),
+                named("remote", "origin/main", false)
+            ]
         );
         assert_eq!(refs("on the side"), vec![named("branch", "side", false)]);
         assert_eq!(refs("first"), vec![named("tag", "v1", false)]);

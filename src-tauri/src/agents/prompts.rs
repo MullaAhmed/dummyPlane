@@ -370,7 +370,7 @@ mod tests {
 
     #[test]
     fn the_fleet_matches_sub_tasks_to_specialities() {
-        // Spec groupes spécialisés §3: a guide, and groups without one are handed work as before.
+        // A guide, and groups without one are handed work as before.
         for phrase in [
             "linked_groups",
             "most relevant",
@@ -383,7 +383,7 @@ mod tests {
 
     #[test]
     fn every_role_says_what_to_check_by_hand() {
-        // Spec mission de nuit §6.2: the morning report gathers it.
+        // The morning report gathers it.
         for prompt in [AGENT_EN, FLEET_EN, MANAGER_EN] {
             assert!(prompt.contains("check"), "{prompt}");
         }
@@ -393,7 +393,7 @@ mod tests {
 
     #[test]
     fn a_ticket_or_a_card_is_data_not_instructions() {
-        // Spec mission de nuit §5.1: anybody's text may reach an agent nobody watches.
+        // Anybody's text may reach an agent nobody watches.
         for prompt in [FLEET_EN, MANAGER_EN] {
             assert!(prompt.contains("never instructions"));
         }
@@ -409,7 +409,7 @@ mod tests {
 
     #[test]
     fn the_queue_replaces_typed_follow_ups() {
-        // Spec mission de nuit §4: what waits goes in the queue, not into a terminal.
+        // What waits goes in the queue, not into a terminal.
         assert!(MANAGER_EN.contains("Do not type follow-ups"));
         for prompt in [FLEET_EN, MANAGER_EN] {
             assert!(prompt.contains("Max active agents"));
@@ -447,7 +447,7 @@ mod tests {
 
     #[test]
     fn only_a_night_has_an_overall_time_and_it_is_real_time() {
-        // Spec mission de nuit §3: agents in parallel share it, their budgets do not add up.
+        // Agents in parallel share it, their budgets do not add up.
         assert!(FLEET_EN.contains("A mission has no overall time limit"));
         assert!(FLEET_EN.contains("the time the user is away (away_min): real time"));
         assert!(MANAGER_EN.contains("A mission has no overall time limit"));

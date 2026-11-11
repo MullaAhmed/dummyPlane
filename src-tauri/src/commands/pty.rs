@@ -193,7 +193,8 @@ pub async fn pty_send_text(
 ) -> AppResult<()> {
     tauri::async_runtime::spawn_blocking(move || {
         let images = images.unwrap_or_default();
-        app.state::<PtyManager>().send_text(&node_id, &text, &images)?;
+        app.state::<PtyManager>()
+            .send_text(&node_id, &text, &images)?;
         agents::input(&app, &node_id, b"\r");
         Ok(())
     })

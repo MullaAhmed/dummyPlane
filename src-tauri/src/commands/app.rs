@@ -28,15 +28,15 @@ pub async fn prepare_for_update(app: AppHandle) {
 const UPDATE_STOP_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
 
 fn log_dir(app: &AppHandle) -> AppResult<PathBuf> {
-    app.path().app_log_dir().map_err(|err| {
-        AppError::NotFound(format!("Logs folder not found: {err}"))
-    })
+    app.path()
+        .app_log_dir()
+        .map_err(|err| AppError::NotFound(format!("Logs folder not found: {err}")))
 }
 
 fn data_dir(app: &AppHandle) -> AppResult<PathBuf> {
-    app.path().app_data_dir().map_err(|err| {
-        AppError::NotFound(format!("Data folder not found: {err}"))
-    })
+    app.path()
+        .app_data_dir()
+        .map_err(|err| AppError::NotFound(format!("Data folder not found: {err}")))
 }
 
 fn open_dir(app: &AppHandle, dir: &Path) -> AppResult<()> {

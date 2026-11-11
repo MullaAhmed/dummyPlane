@@ -17,9 +17,7 @@ const MAX_ISSUES: &str = "100";
 pub fn backlog(project: &Path) -> Result<String, String> {
     let path = project.join("BACKLOG.md");
     let size = std::fs::metadata(&path)
-        .map_err(|_| {
-            "no BACKLOG.md in this project".to_string()
-        })?
+        .map_err(|_| "no BACKLOG.md in this project".to_string())?
         .len();
     if size > MAX_BACKLOG {
         return Err("BACKLOG.md is too large".to_string());
@@ -52,9 +50,7 @@ pub fn github_issues(project: &Path, label: &str) -> Result<String, String> {
     if label.is_empty() {
         return Err("a label is needed".to_string());
     }
-    let gh = which_locate("gh").ok_or_else(|| {
-        "gh not found: install GitHub CLI".to_string()
-    })?;
+    let gh = which_locate("gh").ok_or_else(|| "gh not found: install GitHub CLI".to_string())?;
     let output = hide_window(
         Command::new(gh)
             .current_dir(project)

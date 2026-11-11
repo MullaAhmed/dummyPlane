@@ -35,11 +35,7 @@ pub const SUPPORTED_VERSIONS: [&str; 3] = [PROTOCOL_VERSION, "2025-03-26", "2024
 
 pub fn action(message: &Value) -> Action {
     if !message.is_object() {
-        return Action::Reply(failure(
-            &Value::Null,
-            -32600,
-            "invalid request",
-        ));
+        return Action::Reply(failure(&Value::Null, -32600, "invalid request"));
     }
     let Some(id) = message.get("id").cloned() else {
         return Action::Accept;
@@ -52,11 +48,7 @@ pub fn action(message: &Value) -> Action {
         None => json!({}),
         Some(params) if params.is_object() => params.clone(),
         Some(_) => {
-            return Action::Reply(failure(
-                &id,
-                -32602,
-                "invalid params",
-            ));
+            return Action::Reply(failure(&id, -32602, "invalid params"));
         }
     };
     match method {
@@ -81,11 +73,7 @@ pub fn action(message: &Value) -> Action {
             method: method.to_string(),
             params,
         },
-        other => Action::Reply(failure(
-            &id,
-            -32601,
-            &format!("unknown method: {other}"),
-        )),
+        other => Action::Reply(failure(&id, -32601, &format!("unknown method: {other}"))),
     }
 }
 
@@ -96,14 +84,7 @@ pub fn handle(
     mut call: impl FnMut(&str, Value) -> Result<Value, String>,
 ) -> (u16, Option<Value>) {
     let Ok(message) = serde_json::from_slice::<Value>(body) else {
-        return (
-            200,
-            Some(failure(
-                &Value::Null,
-                -32700,
-                "parse error",
-            )),
-        );
+        return (200, Some(failure(&Value::Null, -32700, "parse error")));
     };
     let mut answer = |message: &Value| match action(message) {
         Action::Accept => None,
@@ -114,14 +95,9 @@ pub fn handle(
         }),
     };
     match &message {
-        Value::Array(batch) if batch.is_empty() => (
-            200,
-            Some(failure(
-                &Value::Null,
-                -32600,
-                "empty batch",
-            )),
-        ),
+        Value::Array(batch) if batch.is_empty() => {
+            (200, Some(failure(&Value::Null, -32600, "empty batch")))
+        }
         Value::Array(batch) => {
             let replies: Vec<Value> = batch.iter().filter_map(&mut answer).collect();
             if replies.is_empty() {

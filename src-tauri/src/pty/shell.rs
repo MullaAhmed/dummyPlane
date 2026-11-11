@@ -313,8 +313,7 @@ pub const INHERITED_MARKERS: [&str; 8] = [
     "CLAUDE_CODE_SKIP_PROMPT_HISTORY",
 ];
 
-/// What a Claude Code session also sets for the processes it starts (spec
-/// première version §4.4). Outside Claude Code they can be the user's own
+/// What a Claude Code session also sets for the processes it starts. Outside Claude Code they can be the user's own
 /// settings (`GIT_EDITOR`…), so they are left alone there.
 pub const CLAUDE_SESSION_EXTRAS: [&str; 8] = [
     "CLAUDE_CODE_SSE_PORT",

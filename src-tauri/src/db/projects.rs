@@ -98,7 +98,9 @@ pub fn create(conn: &Connection, path: &str) -> AppResult<Project> {
 pub fn rename(conn: &Connection, id: &str, name: &str) -> AppResult<()> {
     let name = name.trim();
     if name.is_empty() {
-        return Err(AppError::InvalidInput("the project name is empty".to_string()));
+        return Err(AppError::InvalidInput(
+            "the project name is empty".to_string(),
+        ));
     }
     changed(
         conn.execute(
@@ -295,7 +297,9 @@ pub fn delete(conn: &Connection, id: &str) -> AppResult<Deleted> {
 fn valid_path(conn: &Connection, path: &str, except: Option<&str>) -> AppResult<String> {
     let path = normalize_path(path);
     if path.is_empty() {
-        return Err(AppError::InvalidInput("the project folder is empty".to_string()));
+        return Err(AppError::InvalidInput(
+            "the project folder is empty".to_string(),
+        ));
     }
     let key = path_key(&path);
     let mut stmt = conn.prepare("SELECT id, path FROM projects")?;
@@ -308,7 +312,9 @@ fn valid_path(conn: &Connection, path: &str, except: Option<&str>) -> AppResult<
         .iter()
         .any(|(id, other)| Some(id.as_str()) != except && path_key(other) == key)
     {
-        return Err(AppError::InvalidInput(format!("this folder is already a project: {path}")));
+        return Err(AppError::InvalidInput(format!(
+            "this folder is already a project: {path}"
+        )));
     }
     Ok(path)
 }
@@ -575,7 +581,10 @@ mod tests {
                 workspaces::set_folder(conn, &theirs.id, Some("C:\\code\\api\\web"))?;
                 relocate(conn, &project.id, "D:\\api")?;
                 let folder = |id: &str| -> Option<String> {
-                    conn.query_row("SELECT folder FROM workspaces WHERE id = ?1", [id], |row| row.get(0)).unwrap()
+                    conn.query_row("SELECT folder FROM workspaces WHERE id = ?1", [id], |row| {
+                        row.get(0)
+                    })
+                    .unwrap()
                 };
                 assert_eq!(folder(&own.id).as_deref(), Some("D:\\api"));
                 assert_eq!(folder(&inside.id).as_deref(), Some("D:\\api\\web"));

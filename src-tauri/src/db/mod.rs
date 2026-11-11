@@ -70,7 +70,8 @@ impl Db {
 }
 
 fn newer_base() -> String {
-    "This database comes from a newer version of dummyPlane. Install the latest version.".to_string()
+    "This database comes from a newer version of dummyPlane. Install the latest version."
+        .to_string()
 }
 
 /// A base from a newer dummyPlane is left untouched; an older one is copied
@@ -92,7 +93,9 @@ fn prepare_upgrade(conn: &Connection, path: &Path) -> AppResult<()> {
         return Ok(());
     }
     copy_checked(conn, &backup, applied).map_err(|err| {
-        AppError::InvalidInput(format!("Could not copy the database before upgrading it: {err}"))
+        AppError::InvalidInput(format!(
+            "Could not copy the database before upgrading it: {err}"
+        ))
     })?;
     // The file name only: the log is meant to be sent, without the user's folders.
     log::info!(
@@ -342,7 +345,9 @@ mod tests {
         assert_eq!(listed[1].kind, "code");
         workspaces::set_folder(&conn, "w1", Some("D:/work/api")).unwrap();
         assert_eq!(
-            workspaces::list(&conn, &project).unwrap()[0].folder.as_deref(),
+            workspaces::list(&conn, &project).unwrap()[0]
+                .folder
+                .as_deref(),
             Some("D:/work/api")
         );
         let version: i64 = conn
@@ -582,10 +587,11 @@ mod tests {
         db.with(|conn| {
             let version: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0))?;
             assert_eq!(version, MIGRATIONS.len() as i64);
-            let folders: i64 =
-                conn.query_row("SELECT count(*) FROM workspaces WHERE folder IS NULL", [], |r| {
-                    r.get(0)
-                })?;
+            let folders: i64 = conn.query_row(
+                "SELECT count(*) FROM workspaces WHERE folder IS NULL",
+                [],
+                |r| r.get(0),
+            )?;
             assert_eq!(folders, 2);
             let payload: String =
                 conn.query_row("SELECT payload_json FROM nodes WHERE id = 'k1'", [], |r| {

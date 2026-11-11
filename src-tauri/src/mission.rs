@@ -101,9 +101,8 @@ fn git(dir: &Path, args: &[&str]) -> Result<String, String> {
 /// The repository's root, and the folder of its worktrees: `<parent>/<folder>.worktrees`.
 fn locate(project: &Path) -> Result<(PathBuf, PathBuf), String> {
     // The folder is named: a workspace may work in another one than the project's.
-    let root = git(project, &["rev-parse", "--show-toplevel"]).map_err(|_| {
-        format!("The folder {} is not a git repository.", project.display())
-    })?;
+    let root = git(project, &["rev-parse", "--show-toplevel"])
+        .map_err(|_| format!("The folder {} is not a git repository.", project.display()))?;
     // git answers with forward slashes, even on Windows.
     let root = PathBuf::from(if cfg!(windows) {
         root.replace('/', "\\")
@@ -112,14 +111,12 @@ fn locate(project: &Path) -> Result<(PathBuf, PathBuf), String> {
     });
     let name = root
         .file_name()
-        .ok_or_else(|| {
-            "The repository has no folder name.".to_string()
-        })?
+        .ok_or_else(|| "The repository has no folder name.".to_string())?
         .to_string_lossy()
         .into_owned();
-    let parent = root.parent().ok_or_else(|| {
-        "The repository has no parent folder.".to_string()
-    })?;
+    let parent = root
+        .parent()
+        .ok_or_else(|| "The repository has no parent folder.".to_string())?;
     let dir = parent.join(format!("{name}.worktrees"));
     Ok((root, dir))
 }
@@ -154,7 +151,8 @@ fn add_worktree(root: &Path, dir: &Path, slug: &str, from: &str) -> Result<Workt
 }
 
 fn no_commit() -> String {
-    "The repository has no commit yet: make a first commit, then launch the mission again.".to_string()
+    "The repository has no commit yet: make a first commit, then launch the mission again."
+        .to_string()
 }
 
 /// The mission's branch, from the project's current commit, and its worktree (where merges happen).
@@ -469,7 +467,11 @@ mod tests {
             return;
         };
         prepare(&proj, "auth").unwrap();
-        assert!(prepare(&proj, "auth").unwrap_err().contains("already exists"));
+        assert!(
+            prepare(&proj, "auth")
+                .unwrap_err()
+                .contains("already exists")
+        );
         let plain = parent.path().join("plain");
         std::fs::create_dir(&plain).unwrap();
         assert_eq!(
@@ -628,7 +630,9 @@ mod tests {
         );
         assert!(!parent.path().join("proj.worktrees").join("auth").exists());
         let branches = run(&proj, &["branch", "--list", "dummyplane/*"]);
-        assert!(branches.contains("dummyplane/auth-wolverine") && branches.contains("dummyplane/auth"));
+        assert!(
+            branches.contains("dummyplane/auth-wolverine") && branches.contains("dummyplane/auth")
+        );
     }
 
     #[test]

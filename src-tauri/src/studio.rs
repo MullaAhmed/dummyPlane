@@ -315,8 +315,7 @@ pub fn read(root: &Path, file: &str) -> Result<OpenedFile, String> {
         return Err(binary(file));
     }
     let version = version_of(&bytes);
-    let text = String::from_utf8(bytes)
-        .map_err(|_| format!("file not in UTF-8: {file}"))?;
+    let text = String::from_utf8(bytes).map_err(|_| format!("file not in UTF-8: {file}"))?;
     Ok(OpenedFile { text, version })
 }
 
@@ -458,10 +457,7 @@ mod tests {
     #[test]
     fn explains_a_refused_path() {
         let dir = project(&[]);
-        assert_eq!(
-            read(dir.path(), "../a").unwrap_err(),
-            "path refused: ../a"
-        );
+        assert_eq!(read(dir.path(), "../a").unwrap_err(), "path refused: ../a");
     }
 
     #[test]

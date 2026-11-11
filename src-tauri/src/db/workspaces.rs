@@ -58,7 +58,9 @@ pub fn list(conn: &Connection, project_id: &str) -> AppResult<Vec<Workspace>> {
 pub fn create(conn: &Connection, project_id: &str, name: &str, kind: &str) -> AppResult<Workspace> {
     let name = valid_name(name)?;
     if ![CANVAS, CODE, NOTES].contains(&kind) {
-        return Err(AppError::InvalidInput(format!("unknown workspace kind: {kind}")));
+        return Err(AppError::InvalidInput(format!(
+            "unknown workspace kind: {kind}"
+        )));
     }
     if kind != CANVAS {
         let existing = conn
@@ -135,7 +137,9 @@ pub fn delete(conn: &Connection, id: &str) -> AppResult<()> {
         |row| row.get(0),
     )?;
     if read_kind(kind) == CANVAS && canvases <= 1 {
-        return Err(AppError::InvalidInput("cannot delete the project's last workspace".to_string()));
+        return Err(AppError::InvalidInput(
+            "cannot delete the project's last workspace".to_string(),
+        ));
     }
     conn.execute("DELETE FROM workspaces WHERE id = ?1", [id])?;
     Ok(())
@@ -176,7 +180,9 @@ pub fn set_folder(conn: &Connection, id: &str, folder: Option<&str>) -> AppResul
 fn valid_name(name: &str) -> AppResult<String> {
     let name = name.trim();
     if name.is_empty() {
-        return Err(AppError::InvalidInput("the workspace name is empty".to_string()));
+        return Err(AppError::InvalidInput(
+            "the workspace name is empty".to_string(),
+        ));
     }
     Ok(name.to_string())
 }
@@ -336,7 +342,10 @@ mod tests {
                 assert_eq!(listed[0].folder.as_deref(), Some("D:/work/api"));
                 // Another workspace of the project keeps the project's folder.
                 assert_eq!(listed[1].folder, None);
-                assert_eq!(serde_json::to_value(&listed[0]).unwrap()["folder"], "D:/work/api");
+                assert_eq!(
+                    serde_json::to_value(&listed[0]).unwrap()["folder"],
+                    "D:/work/api"
+                );
                 set_folder(conn, &a.id, None)?;
                 assert_eq!(list(conn, &p)?[0].folder, None);
                 assert_eq!(b.folder, None);
@@ -355,8 +364,14 @@ mod tests {
                 let blank = set_folder(conn, &w.id, Some("  ")).unwrap_err();
                 assert_eq!(blank.kind(), "invalidInput");
                 assert_eq!(blank.to_string(), "empty folder");
-                assert_eq!(set_folder(conn, "nope", Some("D:/x")).unwrap_err().kind(), "notFound");
-                assert_eq!(set_folder(conn, "nope", None).unwrap_err().kind(), "notFound");
+                assert_eq!(
+                    set_folder(conn, "nope", Some("D:/x")).unwrap_err().kind(),
+                    "notFound"
+                );
+                assert_eq!(
+                    set_folder(conn, "nope", None).unwrap_err().kind(),
+                    "notFound"
+                );
                 assert_eq!(list(conn, &p)?[0].folder, None);
                 Ok(())
             })

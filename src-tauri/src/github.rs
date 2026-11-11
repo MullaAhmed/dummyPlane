@@ -250,10 +250,14 @@ fn gh(path: &Path, args: &[&str]) -> AppResult<String> {
     }
     let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
     if stderr.contains("gh auth login") || stderr.contains("not logged") {
-        return Err(AppError::Github("GitHub CLI not authenticated: run `gh auth login` in a terminal.".to_string()));
+        return Err(AppError::Github(
+            "GitHub CLI not authenticated: run `gh auth login` in a terminal.".to_string(),
+        ));
     }
     if stderr.contains("missing required scopes") || stderr.contains("read:project") {
-        return Err(AppError::Github("Access to GitHub Projects denied: run `gh auth refresh -s project`.".to_string()));
+        return Err(AppError::Github(
+            "Access to GitHub Projects denied: run `gh auth refresh -s project`.".to_string(),
+        ));
     }
     Err(AppError::Github(format!("gh failed: {stderr}")))
 }
@@ -356,9 +360,8 @@ fn status_field(path: &Path, owner: &str, number: &str) -> AppResult<StatusField
             "json",
         ],
     )?;
-    parse_status_field(&json)?.ok_or_else(|| {
-        AppError::NotFound("this GitHub Project has no Status field".to_string())
-    })
+    parse_status_field(&json)?
+        .ok_or_else(|| AppError::NotFound("this GitHub Project has no Status field".to_string()))
 }
 
 /// The Status options of the project, in their order on GitHub.
@@ -382,7 +385,9 @@ pub fn set_issue_state(path: &Path, repo: &str, number: u64, state: &str) -> App
         "closed" => "close",
         "open" => "reopen",
         other => {
-            return Err(AppError::InvalidInput(format!("unknown issue state: {other}")));
+            return Err(AppError::InvalidInput(format!(
+                "unknown issue state: {other}"
+            )));
         }
     };
     gh(path, &["issue", verb, &number.to_string(), "--repo", repo])?;
