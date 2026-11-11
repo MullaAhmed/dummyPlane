@@ -19,7 +19,7 @@ import { StatusScreen } from "@/shell/StatusScreen";
 import { TroubleshootingDialog } from "@/shell/TroubleshootingDialog";
 import { UpdateDialog } from "@/shell/UpdateDialog";
 import { AccountsDialog } from "@/accounts/AccountsDialog";
-import { messages, useMessages } from "@/i18n";
+import { useMessages } from "@/i18n";
 import { projectsStore, useProjects } from "@/store/projects";
 import { usePalette } from "@/commands/paletteState";
 import { useAccounts } from "@/accounts/store";
@@ -45,7 +45,8 @@ export default function App() {
     boot().catch((error: unknown) => {
       const message = error instanceof Error ? error.message : String(error);
       console.error("start failed", error);
-      projectsStore.setState({ view: "error", error: messages(appMessages).startInterrupted(message) });
+      // The sentence is built where it shows, as for a failed read of the projects (projectsStore.init).
+      projectsStore.setState({ view: "error", error: message });
     });
   }, []);
 
@@ -54,7 +55,7 @@ export default function App() {
       {view === "home" && <HomeScreen />}
       {view === "project" && <ProjectView />}
       {view === "loading" && <StatusScreen message={t.loading} />}
-      {view === "error" && <StatusScreen message={t.projectsLoadFailed(String(error))} />}
+      {view === "error" && <StatusScreen failed message={t.startFailed(String(error))} />}
       {/* A dialog that failed once shows nothing; it tries again the next time it is asked for (its key changes). */}
       <QuietBoundary scope="palette" useResetKey={usePaletteOpenings}>
         <Palette />

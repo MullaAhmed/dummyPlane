@@ -65,6 +65,8 @@ export const shellMessages = defineMessages(
       agentsKeepRunning: "Your agents keep running: reloading the interface finds them again.",
       reload: "Reload the interface",
     },
+    /** The start-up error screen: what failed, then the ways out. */
+    statusScreen: { tryAgain: "Try again", openLogs: "Open the logs folder", troubleshooting: "Troubleshooting…" },
     modeExit: { zen: "Leave zen mode", reading: "Leave reading mode" },
     projectPicker: { project: "Project", allProjects: "All projects…", closeProject: "Close the project", openFailed: (error: string) => `Could not open: ${error}` },
     searchField: { project: "Search for a project", inProject: (name: string) => `Search in ${name}`, shortcut: "Ctrl+P" },
