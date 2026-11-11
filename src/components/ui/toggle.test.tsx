@@ -3,6 +3,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, expect, it } from "vitest";
 import { cn } from "@/lib/utils";
+import { readSource, sourceFiles } from "@/theme/cssBlocks";
 import { ToggleGroup, ToggleGroupItem } from "./toggle-group";
 import { toggleVariants } from "./toggle";
 
@@ -78,4 +79,16 @@ it("rings the chosen swatch in the accent on aria-checked, which a hint's trigge
   expect(classes(on)).toEqual(expect.arrayContaining(["size-6", "rounded-full", "p-0", "aria-checked:ring-2", "aria-checked:ring-dp-accent", "hover:ring-dp-text-3", "active:scale-[0.97]"]));
   // The default size's height and padding do not outrank the swatch's 24 px.
   expect(classes(on).filter((c) => /^(h-|px-|min-w-8)/.test(c))).toEqual([]);
+});
+
+it("restates no toggle recipe at a call site: the motion, press and chosen look come from the variant", () => {
+  const callSites = Object.entries(sourceFiles()).filter(([file, text]) => /<ToggleGroupItem\b/.test(text) && !file.startsWith("components/ui/"));
+  expect(callSites.length).toBeGreaterThan(5);
+  // OptionItem is a full-width row (no press, its dot carries the choice): it keeps its own skin.
+  const ROWS = ["components/OptionList.tsx"];
+  for (const [file, text] of callSites) {
+    if (ROWS.includes(file)) continue;
+    expect(text.match(/data-\[state=on\]:bg-dp-accent-soft|aria-checked:ring-dp-accent|data-\[state=on\]:ring-dp-accent/g) ?? [], file).toEqual([]);
+  }
+  expect(readSource("components/PanelTabs.tsx")).toContain('<ToggleGroupItem variant="choice" size="sm"');
 });
