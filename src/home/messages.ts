@@ -49,6 +49,8 @@ export const homeMessages = defineMessages({
       cancel: "Cancel",
       actions: "Project actions",
       rename: "Rename",
+      /** The rename field's name. */
+      nameField: "Project name",
       changeFolder: "Change folder",
       removeFromList: "Remove from the list",
       missing: "Folder not found",
