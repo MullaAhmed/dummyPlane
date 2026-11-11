@@ -150,10 +150,30 @@ const BUILTIN_SUBAGENT_TOOLS: [&str; 2] = ["Task", "Agent"];
 
 const SPAWN_AGENT_INSTEAD: &str = "In dummyPlane, delegate with the dummyplane spawn_agent tool so the sub-agent opens as a terminal.";
 
+/// A Manager has no `spawn_agent`: its team's agents start from the queue.
+const QUEUE_INSTEAD: &str = "In dummyPlane, your team's agents start from the queue, each in a terminal of its own: put the work in the queue with add_tasks, or hand a task to a new agent with next_task or reassign.";
+
+/// Added to the query of a Manager's `PreToolUse` hook (`claude_settings`): it
+/// only words the refusal, the decision is everyone's.
+const MANAGER_TAG: &str = "role=manager";
+
+/// A Manager's `PreToolUse` hook URL: the session's own, tagged.
+pub fn manager_hook_url(url: &str) -> String {
+    let joint = if url.contains('?') { '&' } else { '?' };
+    format!("{url}{joint}{MANAGER_TAG}")
+}
+
+/// Whether a hook came from a Manager's session (`manager_hook_url`).
+fn from_manager(url: &str) -> bool {
+    url.split_once('?')
+        .is_some_and(|(_, query)| query.split('&').any(|pair| pair == MANAGER_TAG))
+}
+
 /// What a `PreToolUse` gets back: a denial of the built-in sub-agent tool while
-/// sub-agents open as terminals, else no decision. An agent's and a fleet's alike:
-/// both have `spawn_agent` (`claude_settings` gives both the hook).
-fn pre_tool_use(json: &Value, terminals: bool) -> Option<Value> {
+/// sub-agents open as terminals, else no decision. An agent's, a fleet's and a
+/// Manager's alike (`claude_settings` gives them all the hook); an agent and a
+/// fleet are sent to `spawn_agent`, a Manager, which lacks it, to its queue.
+fn pre_tool_use(json: &Value, terminals: bool, manager: bool) -> Option<Value> {
     let builtin = json["tool_name"]
         .as_str()
         .is_some_and(|tool| BUILTIN_SUBAGENT_TOOLS.contains(&tool));
@@ -162,7 +182,7 @@ fn pre_tool_use(json: &Value, terminals: bool) -> Option<Value> {
             "hookSpecificOutput": {
                 "hookEventName": "PreToolUse",
                 "permissionDecision": "deny",
-                "permissionDecisionReason": SPAWN_AGENT_INSTEAD,
+                "permissionDecisionReason": if manager { QUEUE_INSTEAD } else { SPAWN_AGENT_INSTEAD },
             }
         })
     })
@@ -363,7 +383,7 @@ fn status_of(request: &mut Request, token: &str, sink: &dyn HookSink) -> (u16, O
             if event == "PreToolUse" {
                 // A question, not an activity: the terminal's state stays as it is.
                 let terminals = SUBAGENT_TERMINALS.load(Ordering::Relaxed);
-                return match pre_tool_use(&json, terminals) {
+                return match pre_tool_use(&json, terminals, from_manager(request.url())) {
                     Some(decision) => (200, Some(decision)),
                     None => (204, None),
                 };
@@ -894,9 +914,11 @@ mod tests {
     fn only_the_built_in_subagent_tool_is_denied_and_only_while_the_switch_is_on() {
         let call = |tool: &str| json!({ "hook_event_name": "PreToolUse", "tool_name": tool });
         for tool in ["Agent", "Task"] {
-            let decision = pre_tool_use(&call(tool), true).unwrap();
-            assert_eq!(decision["hookSpecificOutput"]["permissionDecision"], "deny");
-            assert_eq!(pre_tool_use(&call(tool), false), None, "{tool}");
+            for manager in [false, true] {
+                let decision = pre_tool_use(&call(tool), true, manager).unwrap();
+                assert_eq!(decision["hookSpecificOutput"]["permissionDecision"], "deny");
+                assert_eq!(pre_tool_use(&call(tool), false, manager), None, "{tool}");
+            }
         }
         // Matched by its exact name: tools named alike are not Claude's sub-agent.
         for tool in [
@@ -908,10 +930,41 @@ mod tests {
             "mcp__dummyplane__show_output",
             "mcp__dummyplane__read_node",
         ] {
-            assert_eq!(pre_tool_use(&call(tool), true), None, "{tool}");
+            assert_eq!(pre_tool_use(&call(tool), true, false), None, "{tool}");
+            assert_eq!(pre_tool_use(&call(tool), true, true), None, "{tool}");
         }
         let nameless = json!({ "hook_event_name": "PreToolUse" });
-        assert_eq!(pre_tool_use(&nameless, true), None);
+        assert_eq!(pre_tool_use(&nameless, true, false), None);
+    }
+
+    #[test]
+    fn a_manager_is_sent_to_its_queue_never_to_spawn_agent_which_it_lacks() {
+        let call = json!({ "hook_event_name": "PreToolUse", "tool_name": "Agent" });
+        let reason = |manager| {
+            pre_tool_use(&call, true, manager).unwrap()["hookSpecificOutput"]
+                ["permissionDecisionReason"]
+                .as_str()
+                .unwrap()
+                .to_string()
+        };
+        let manager = reason(true);
+        assert!(!manager.contains("spawn_agent"), "{manager}");
+        for tool in ["add_tasks", "next_task", "reassign"] {
+            assert!(manager.contains(tool), "{tool}");
+        }
+        assert_eq!(reason(false), SPAWN_AGENT_INSTEAD);
+        // The tag rides the session's own URL, token and all, and nothing else reads as it.
+        let url = "http://127.0.0.1:1/hook/claude/m1?t=tok";
+        let tagged = manager_hook_url(url);
+        assert_eq!(tagged, format!("{url}&role=manager"));
+        assert!(from_manager(&tagged));
+        assert!(!from_manager(url));
+        assert!(!from_manager("/hook/claude/m1?t=tok&role=managers"));
+        assert!(!from_manager("/hook/claude/role=manager"));
+        assert_eq!(
+            parse_route(&tagged.replace("http://127.0.0.1:1", ""), "tok", None),
+            Ok((HookSource::Claude, "m1".to_string()))
+        );
     }
 
     /// Puts the switch back on, even when an assertion fails.
@@ -939,6 +992,17 @@ mod tests {
         let pre = |tool: &str| exchange(server.port, "POST", &path, &[], call(tool).as_bytes());
         let fleet_pre =
             |tool: &str| exchange(server.port, "POST", &fleet_path, &[], call(tool).as_bytes());
+        // A Manager's hook carries its tag (`manager_hook_url`): denied the same, worded for its queue.
+        let manager_path = manager_hook_url(&format!("/hook/claude/manager1?t={}", server.token));
+        let manager_pre = |tool: &str| {
+            exchange(
+                server.port,
+                "POST",
+                &manager_path,
+                &[],
+                call(tool).as_bytes(),
+            )
+        };
         let denial = json!({
             "hookSpecificOutput": {
                 "hookEventName": "PreToolUse",
@@ -957,6 +1021,14 @@ mod tests {
                     "{tool}"
                 );
             }
+            let (status, body) = manager_pre(tool);
+            assert_eq!(status, 200, "{tool}");
+            let body = serde_json::from_str::<Value>(&body).unwrap();
+            assert_eq!(body["hookSpecificOutput"]["permissionDecision"], "deny");
+            assert_eq!(
+                body["hookSpecificOutput"]["permissionDecisionReason"],
+                QUEUE_INSTEAD
+            );
         }
         let head = raw_exchange(server.port, "POST", &path, &[], call("Agent").as_bytes())
             .to_ascii_lowercase();
@@ -981,6 +1053,7 @@ mod tests {
         for tool in ["Agent", "Task"] {
             assert_eq!(pre(tool), (204, String::new()), "{tool}");
             assert_eq!(fleet_pre(tool), (204, String::new()), "{tool}");
+            assert_eq!(manager_pre(tool), (204, String::new()), "{tool}");
         }
         set_subagent_terminals(true);
         assert_eq!(pre("Agent").0, 200);

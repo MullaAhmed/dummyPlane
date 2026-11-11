@@ -22,7 +22,7 @@ const SUFFIX: &str = ".config.toml";
 /// The server dummyPlane's tools go by, as for Claude.
 const SERVER: &str = "dummyplane";
 
-/// What a fleet must not take from the user's Codex: tools that act out of reach
+/// What a fleet, or a Manager, must not take from the user's Codex: tools that act out of reach
 /// of its read-only sandbox (plugins, apps, the browser, the computer) and
 /// sub-agents of its own, which the user would not see. Turned off on its command
 /// line (`cli_args`): a trusted project's `.codex/config.toml` outranks a profile
@@ -86,7 +86,7 @@ pub struct Profile<'a> {
 
 /// The servers a session may keep: dummyPlane's, and Linear's read-only one for a fleet that reads its tickets there.
 fn allowed(profile: &Profile, name: &str) -> bool {
-    name == SERVER || (profile.linear && profile.role == Role::Fleet && name == LINEAR)
+    name == SERVER || (profile.linear && profile.role.reads_linear() && name == LINEAR)
 }
 
 /// What goes on the session's command line rather than in its profile, which a
@@ -100,7 +100,7 @@ pub fn cli_args(role: Role, mcp_url: &str) -> Vec<String> {
         "-c".to_string(),
         format!("mcp_servers.{SERVER}.bearer_token_env_var='{TOKEN_ENV}'"),
     ];
-    if role == Role::Fleet {
+    if role.reads_only() {
         for feature in FLEET_FEATURES_OFF {
             args.push("--disable".to_string());
             args.push(feature.to_string());
@@ -162,7 +162,7 @@ pub struct Listed {
     pub url: Option<String>,
 }
 
-/// Writes the session's profile. A fleet keeps none of the user's MCP servers:
+/// Writes the session's profile. A fleet, or a Manager, keeps none of the user's MCP servers:
 /// `enabled` lists the servers Codex would start under the profile and the
 /// session's command line (`codex mcp list`, in its folder, so the project's own
 /// config counts). Those it may not have are turned off, then the list is read
@@ -176,7 +176,7 @@ pub fn prepare(
 ) -> Result<PathBuf, String> {
     let path =
         write_file(home, node_id, &profile_toml(profile, &[])).map_err(|err| err.to_string())?;
-    if profile.role != Role::Fleet {
+    if !profile.role.reads_only() {
         return Ok(path);
     }
     let name = profile_name(node_id);
@@ -567,6 +567,41 @@ mod tests {
             Ok(vec![])
         });
         assert!(missing.is_err());
+    }
+
+    #[test]
+    fn a_manager_has_the_fleet_s_rails_but_never_linear() {
+        // Its features off, like the fleet's: no sub-agents of its own, nothing out of its sandbox.
+        assert_eq!(
+            cli_args(Role::Manager, "http://127.0.0.1:4242/mcp"),
+            cli_args(Role::Fleet, "http://127.0.0.1:4242/mcp")
+        );
+        // The user's servers turned off, then checked, as for a fleet.
+        let home = tempfile::tempdir().unwrap();
+        let calls = RefCell::new(0);
+        prepare(home.path(), "m1", &profile(Role::Manager, false), |_| {
+            *calls.borrow_mut() += 1;
+            let text =
+                std::fs::read_to_string(home.path().join("dummyplane-m1.config.toml")).unwrap();
+            Ok(
+                if text.contains("[mcp_servers.\"vercel\"]\nenabled = false") {
+                    on(&["dummyplane"])
+                } else {
+                    on(&["dummyplane", "vercel"])
+                },
+            )
+        })
+        .unwrap();
+        assert_eq!(*calls.borrow(), 2);
+        let stays = prepare(home.path(), "m1", &profile(Role::Manager, false), |_| {
+            Ok(on(&["dummyplane", "stubborn"]))
+        });
+        assert!(stays.is_err());
+        // Linear's server is the fleet's alone: a Manager asked for it gets none, and the user's is off.
+        let text = profile_toml(&profile(Role::Manager, true), &["linear".into()]);
+        assert!(!text.contains("mcp.linear.app"), "{text}");
+        assert!(text.contains("[mcp_servers.\"linear\"]\nenabled = false\n"));
+        assert!(!profile_toml(&profile(Role::Manager, true), &[]).contains("linear"));
     }
 
     #[test]
