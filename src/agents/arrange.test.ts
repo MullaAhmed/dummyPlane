@@ -106,20 +106,22 @@ describe("arrangedElements", () => {
       g,
     ];
     const result = arrangedElements(input(elements));
-    // In the group: m1 then m2, one column, the frame fitted around them.
+    // In the group: m1 then m2, one column; the drawing in a row under them; the frame fitted around them all.
     const group = at(result, "g");
-    expect(group).toMatchObject({ width: 2 * PADDING + W, height: PADDING_TOP + 2 * H + ROW_GAP + PADDING_BOTTOM });
+    const drawingsTop = PADDING_TOP + 2 * H + ROW_GAP + ROW_GAP;
+    expect(group).toMatchObject({ width: 2 * PADDING + W, height: drawingsTop + 50 + PADDING_BOTTOM });
     expect(at(result, "m1")).toMatchObject({ x: group.x + PADDING, y: group.y + PADDING_TOP });
     expect(at(result, "m2")).toMatchObject({ x: group.x + PADDING, y: group.y + PADDING_TOP + H + ROW_GAP });
     // The group first in reading order, the loose terminal beside it, a group's gap apart.
     expect(group).toMatchObject({ x: 0, y: 0 });
     expect(at(result, "loose")).toMatchObject({ x: group.width + GROUP_GAP, y: 0 });
-    // The drawing in the frame went with it: the frame did not move, so neither did it.
-    expect(at(result, "note")).toMatchObject({ x: 200, y: 1300 });
+    // Before, a drawing in a group stayed where it was; now it is one of the members laid out.
+    expect(at(result, "note")).toMatchObject({ x: group.x + PADDING, y: group.y + drawingsTop });
   });
 
-  it("moves the drawings a frame holds by as much as the frame", () => {
-    const g = frame("g", 5000, 0, 2 * PADDING + W, PADDING_TOP + H + PADDING_BOTTOM);
+  it("moves the drawings a frame drawn by hand holds by as much as the frame", () => {
+    // A plain frame: nothing in it is laid out again (a group's drawings now are, see above).
+    const g = frame("g", 5000, 0, 2 * PADDING + W, PADDING_TOP + H + PADDING_BOTTOM, { customData: undefined });
     const elements = [node("first", 0, 0), node("m", 5000 + PADDING, PADDING_TOP, { frameId: "g" }), shape("s", 5100, 10, { frameId: "g" }), g];
     const result = arrangedElements(input(elements));
     const group = at(result, "g");

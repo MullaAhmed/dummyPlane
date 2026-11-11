@@ -8,15 +8,16 @@ import { Button } from "@/components/ui/button";
 import { useMessages } from "@/i18n";
 import { Hint } from "@/shell/buttons";
 import { useNativeKeyDown } from "@/lib/useNativeKeyDown";
-import { takeOverPaste, withPathAt } from "@/nodes/terminal/imagePaste";
+import { takeOverImage } from "@/nodes/terminal/imagePaste";
 import { sendCommand } from "./broadcast";
+import { ImageChips, useImageAttachments } from "./composer/imageAttachments";
 import { Keycap } from "./composer/Keycap";
 import { LocalComposer } from "./composer/LocalComposer";
 import { routeCommand } from "./composer/route";
 import { AgentStatusDot, TargetIcon } from "./composer/TargetMark";
 import { agentsMessages } from "./messages";
 import { browseHistory, historyStore } from "./history";
-import { commandAt, isKnownCommand, matchCommands } from "./slashCommands";
+import { commandAt, isKnownCommand, isSlashCommand, matchCommands } from "./slashCommands";
 import {
   completedMention,
   extractMentions,
@@ -253,15 +254,8 @@ function CommandField(props: CommandInputProps & { deliver: RefObject<(text: str
     moveCaret(at);
   };
 
-  // A pasted image becomes the path of its saved file, as in a terminal (imagePaste.ts); text pastes as usual. The path
-  // goes where the caret is once the image is saved: the user may have typed meanwhile, and a closed field gets nothing.
-  const insertPath = (path: string) => {
-    const element = field.current;
-    if (!element) return;
-    const next = withPathAt(element.value, element.selectionStart, element.selectionEnd, path);
-    edit(next.text, next.caret);
-    moveCaret(next.caret);
-  };
+  // A pasted image is an attachment, shown as a chip, never its path in the text; text pastes as usual (imagePaste.ts).
+  const attachments = useImageAttachments();
 
   const insertCommand = (name: string) => {
     if (!command) return;
@@ -283,7 +277,13 @@ function CommandField(props: CommandInputProps & { deliver: RefObject<(text: str
     historyStore.getState().add(sent);
     setTargets(route.targets);
     typed("", 0);
-    void sendCommand(route.ids, route.instruction);
+    // A /command goes alone: an image pasted before it would make it a message. The images wait for the next one.
+    if (attachments.images.length === 0 || isSlashCommand(route.instruction)) {
+      void sendCommand(route.ids, route.instruction);
+      return;
+    }
+    // The chips go with the text; the send waits for an image still being saved.
+    void attachments.take().then((images) => (images.length > 0 ? sendCommand(route.ids, route.instruction, images) : sendCommand(route.ids, route.instruction)));
   };
 
   // Only what this field can deliver is sent: the composer alone would send any text, and empty the field.
@@ -334,8 +334,10 @@ function CommandField(props: CommandInputProps & { deliver: RefObject<(text: str
     } else if (e.key === "ArrowDown" && browsing && !element.value.slice(element.selectionEnd).includes("\n")) {
       e.preventDefault();
       recall("down");
-    } else if (e.key === "Backspace" && element.selectionEnd === 0 && element.selectionStart === 0 && chips.length > 0) {
-      removeChip(chips[chips.length - 1]);
+    } else if (e.key === "Backspace" && element.selectionEnd === 0 && element.selectionStart === 0) {
+      // The chip before the caret: the last image, else the last target.
+      if (attachments.images.length > 0) attachments.remove(attachments.images[attachments.images.length - 1]);
+      else if (chips.length > 0) removeChip(chips[chips.length - 1]);
     }
   };
   // In a fleet the field sits inside the canvas, which must not see its keys. The native
@@ -350,7 +352,7 @@ function CommandField(props: CommandInputProps & { deliver: RefObject<(text: str
   const keepCaret = (e: ReactMouseEvent<HTMLButtonElement>) => e.preventDefault();
 
   // An empty field shows its keys as keycaps, where the placeholder used to spell them out.
-  const showKeys = !compact && text === "" && chips.length === 0;
+  const showKeys = !compact && text === "" && chips.length === 0 && attachments.images.length === 0;
   const chipLabels = chips.map((target) => labels.get(targetKey(target)) ?? "");
   // The field's description: its hints, who the chips send to, then its keys.
   const describedBy = [hints.length > 0 ? `${listId}-hints` : null, chips.length > 0 ? `${listId}-to` : null, showKeys ? `${listId}-keys` : null]
@@ -434,6 +436,7 @@ function CommandField(props: CommandInputProps & { deliver: RefObject<(text: str
               ))}
             </ul>
           )}
+          <ImageChips images={attachments.images} onRemove={attachments.remove} onMouseDown={keepCaret} />
           {/* Who the chips send to, read with the field: they empty its placeholder, and sit before it. */}
           {chips.length > 0 && (
             <span id={`${listId}-to`} hidden>
@@ -447,11 +450,11 @@ function CommandField(props: CommandInputProps & { deliver: RefObject<(text: str
             aria-label={label}
             placeholder={chips.length > 0 ? "" : placeholder}
             // The keys are this field's (see useNativeKeyDown); the composer neither submits, cancels nor attaches by itself:
-            // a send carries text only (messageText), so a pasted image goes in as its file's path instead.
+            // a send carries text only (messageText), so a pasted image is the field's own attachment (useImageAttachments).
             submitMode="none"
             cancelOnEscape={false}
             addAttachmentOnPaste={false}
-            onPaste={(e) => takeOverPaste(e, insertPath)}
+            onPaste={(e) => takeOverImage(e, attachments.add)}
             aria-autocomplete="list"
             aria-controls={listOpen ? listId : undefined}
             aria-activedescendant={listOpen ? `${listId}-${row}` : undefined}

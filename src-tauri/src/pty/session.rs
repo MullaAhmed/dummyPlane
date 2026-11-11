@@ -4,7 +4,7 @@ use std::thread::JoinHandle;
 
 use portable_pty::{Child, ChildKiller, CommandBuilder, MasterPty, PtySize, native_pty_system};
 
-use super::paste::PasteMode;
+use super::paste::{ImageMarks, PasteMode};
 use super::scrollback::{Capture, SCROLLBACK_CAPACITY, Scrollback, capture_time};
 use super::shell::SpawnPlan;
 use crate::error::{AppError, AppResult};
@@ -33,6 +33,7 @@ pub struct Session {
     killer: Mutex<Box<dyn ChildKiller + Send + Sync>>,
     output: Mutex<Output>,
     paste: Mutex<PasteMode>,
+    images: Mutex<ImageMarks>,
     interrupt: Option<&'static [u8]>,
     pub pid: Option<u32>,
 }
@@ -84,6 +85,7 @@ impl Session {
                 sink: Some(sink),
             }),
             paste: Mutex::new(PasteMode::default()),
+            images: Mutex::new(ImageMarks::default()),
             interrupt: plan.interrupt,
             pid: child.process_id(),
         });
@@ -105,6 +107,11 @@ impl Session {
     /// The program asked for bracketed paste (`ESC[?2004h`) and did not take it back.
     pub fn pastes_bracketed(&self) -> bool {
         lock(&self.paste).is_on()
+    }
+
+    /// The highest `[Image #N]` the program printed (`ImageMarks`).
+    pub fn images_shown(&self) -> u32 {
+        lock(&self.images).highest()
     }
 
     /// Writes the agent's interrupt key; `None` for a plain shell.
@@ -178,6 +185,7 @@ fn spawn_reader(
                     let chunk = &buf[..n];
                     // Before the front sees it: a visible chunk's mode is known.
                     lock(&session.paste).feed(chunk);
+                    lock(&session.images).feed(chunk);
                     {
                         let mut output = lock(&session.output);
                         output.scrollback.push(chunk);

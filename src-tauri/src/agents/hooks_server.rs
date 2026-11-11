@@ -151,7 +151,8 @@ const BUILTIN_SUBAGENT_TOOLS: [&str; 2] = ["Task", "Agent"];
 const SPAWN_AGENT_INSTEAD: &str = "In dummyPlane, delegate with the dummyplane spawn_agent tool so the sub-agent opens as a terminal.";
 
 /// What a `PreToolUse` gets back: a denial of the built-in sub-agent tool while
-/// sub-agents open as terminals, else no decision.
+/// sub-agents open as terminals, else no decision. An agent's and a fleet's alike:
+/// both have `spawn_agent` (`claude_settings` gives both the hook).
 fn pre_tool_use(json: &Value, terminals: bool) -> Option<Value> {
     let builtin = json["tool_name"]
         .as_str()
@@ -929,11 +930,15 @@ mod tests {
         let (tx, rx) = mpsc::channel();
         let server = start(Arc::new(TestSink::new(tx))).unwrap();
         let path = format!("/hook/claude/n1?t={}", server.token);
+        // A fleet's session posts to its own node's route: it is answered the same way.
+        let fleet_path = format!("/hook/claude/fleet1?t={}", server.token);
         let call = |tool: &str| {
             json!({ "hook_event_name": "PreToolUse", "tool_name": tool, "tool_input": {} })
                 .to_string()
         };
         let pre = |tool: &str| exchange(server.port, "POST", &path, &[], call(tool).as_bytes());
+        let fleet_pre =
+            |tool: &str| exchange(server.port, "POST", &fleet_path, &[], call(tool).as_bytes());
         let denial = json!({
             "hookSpecificOutput": {
                 "hookEventName": "PreToolUse",
@@ -944,13 +949,14 @@ mod tests {
 
         set_subagent_terminals(true);
         for tool in ["Agent", "Task"] {
-            let (status, body) = pre(tool);
-            assert_eq!(status, 200, "{tool}");
-            assert_eq!(
-                serde_json::from_str::<Value>(&body).unwrap(),
-                denial,
-                "{tool}"
-            );
+            for (status, body) in [pre(tool), fleet_pre(tool)] {
+                assert_eq!(status, 200, "{tool}");
+                assert_eq!(
+                    serde_json::from_str::<Value>(&body).unwrap(),
+                    denial,
+                    "{tool}"
+                );
+            }
         }
         let head = raw_exchange(server.port, "POST", &path, &[], call("Agent").as_bytes())
             .to_ascii_lowercase();
@@ -970,10 +976,11 @@ mod tests {
             assert_eq!(pre(tool), (204, String::new()), "{tool}");
         }
 
-        // Switched off, Claude's own sub-agents run, in sessions already started too.
+        // Switched off, Claude's own sub-agents run, in sessions already started too, a fleet's included.
         set_subagent_terminals(false);
         for tool in ["Agent", "Task"] {
             assert_eq!(pre(tool), (204, String::new()), "{tool}");
+            assert_eq!(fleet_pre(tool), (204, String::new()), "{tool}");
         }
         set_subagent_terminals(true);
         assert_eq!(pre("Agent").0, 200);
