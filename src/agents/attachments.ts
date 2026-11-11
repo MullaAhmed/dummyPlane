@@ -1,5 +1,6 @@
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { nodeKindOf } from "@/canvas/nodeElement";
+import { noteLinkOf } from "@/nodes/note/link";
 import { nodesStore } from "@/store/nodes";
 
 /**
@@ -51,9 +52,8 @@ export const outputSource: AnchorRule = (element) => {
  * written for, its host, whose id its element keeps in `customData.note.of`.
  */
 export const noteHost: AnchorRule = (element) => {
-  if (nodeKindOf(element) !== "note") return null;
-  const of = (element.customData?.note as { of?: unknown } | undefined)?.of;
-  return typeof of === "string" ? { anchor: of, beside: true } : null;
+  const of = noteLinkOf(element)?.of;
+  return of ? { anchor: of, beside: true } : null;
 };
 
 /** Every rule; the first that names a live element wins. */

@@ -221,7 +221,7 @@ describe("Dessin, sur la sélection (spec menu radial §4.5)", () => {
 
 describe("Scene", () => {
   it("exports, imports and saves a PNG as the settings menu does", async () => {
-    expect(SCENE.map((c) => labelOf(c, busy))).toEqual(["Export scene…", "Import scene…", "Export as PNG…", "Arrange terminals"]);
+    expect(SCENE.map((c) => labelOf(c, busy))).toEqual(["Export scene…", "Import scene…", "Export as PNG…", "Arrange"]);
     for (const command of SCENE.slice(0, 3)) await command.run(busy);
     expect([exportCurrentScene, importIntoScene, exportCurrentPng].every((f) => vi.mocked(f).mock.calls.length === 1)).toBe(true);
   });

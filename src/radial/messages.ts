@@ -15,6 +15,7 @@ export const radialMessages = defineMessages(
       restart: "Restart",
       close: "Close",
       duplicate: "Duplicate",
+      note: "Note",
       pause: "Pause",
       resume: "Resume",
       stop: "Stop",

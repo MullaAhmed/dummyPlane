@@ -22,6 +22,7 @@ import {
   Scan,
   SendToBack,
   Square,
+  StickyNote,
   Terminal,
   Trash2,
   Ungroup,
@@ -107,7 +108,8 @@ export const RINGS: Record<RingKind, readonly RingSlot[]> = {
     { command: "terminal.rename", short: "rename", icon: Pencil },
     { command: "terminal.relaunch", short: "restart", icon: RotateCw },
     { command: "terminal.close", short: "close", icon: X, danger: true },
-    { command: "terminal.duplicate", short: "duplicate", icon: CopyPlus },
+    // Duplicate stays in "⋯", the palette and Ctrl+D: its place is the quick note's (src/nodes/note).
+    { command: "terminal.note", short: "note", icon: StickyNote },
     {
       command: (ctx) => (resumes(ctx) ? "terminal.resume" : "terminal.pause"),
       short: (ctx) => (resumes(ctx) ? short().resume : short().pause),
@@ -132,6 +134,7 @@ export const RINGS: Record<RingKind, readonly RingSlot[]> = {
     { command: "fleet.remove", short: "delete", icon: Trash2, danger: true },
     { command: "fleet.link", short: "link", icon: Link },
     { command: "fleet.paste", short: "paste", icon: ClipboardPaste },
+    { command: "fleet.note", short: "note", icon: StickyNote },
   ],
   selection: [
     { command: "drawing.copy", short: "copy", icon: Copy },

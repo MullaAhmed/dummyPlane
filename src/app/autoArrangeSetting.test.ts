@@ -12,7 +12,7 @@ beforeEach(() => {
   autoArrangeStore.setState({ enabled: false });
 });
 
-describe("the \"Auto-arrange terminals\" setting", () => {
+describe("the \"Auto-arrange\" setting", () => {
   it("is off until it is turned on, and stays on after a restart", async () => {
     vi.mocked(getSetting).mockResolvedValue(undefined as never);
     await loadAutoArrange();

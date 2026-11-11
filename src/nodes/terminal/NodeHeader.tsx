@@ -78,6 +78,14 @@ export function HeaderButton(props: { label: string; onClick: () => void; childr
   );
 }
 
+/** Set by a menu item that gives the keyboard elsewhere (a new note's text): the closing menu leaves it there. */
+let keepFocus = false;
+
+/** Called from a menu item's onSelect: the menu, as it closes, does not hand the keyboard back to its "⋯". */
+export function keepFocusAfterMenu() {
+  keepFocus = true;
+}
+
 /**
  * The header's one overflow menu, "⋯": the actions a node needs now and then
  * (a terminal's Review, Restart, Minimize…, a Fleet's Pause all…), kept off the
@@ -118,7 +126,15 @@ export function HeaderMenu(props: { label: string; children: ReactNode }) {
           {props.label}
         </TooltipContent>
       </Tooltip>
-      <DropdownMenuContent align="end" className="w-56">
+      <DropdownMenuContent
+        align="end"
+        className="w-56"
+        onCloseAutoFocus={(event) => {
+          if (!keepFocus) return;
+          keepFocus = false;
+          event.preventDefault();
+        }}
+      >
         {props.children}
       </DropdownMenuContent>
     </DropdownMenu>

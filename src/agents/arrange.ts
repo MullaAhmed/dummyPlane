@@ -1,6 +1,7 @@
 import type { ExcalidrawArrowElement, ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { groupInfoOf, type Rect } from "@/canvas/groups";
 import { nodeKindOf } from "@/canvas/nodeElement";
+import { settleNotes } from "@/nodes/note/link";
 import { boxOf, containerOf, endsOf, followedArrow } from "./arrangeDrawings";
 import type { Attachment } from "./attachments";
 import { COLUMN_GAP, GROUP_GAP, MAX_ROWS, NODE_GAP, PADDING, PADDING_BOTTOM, PADDING_TOP, ROW_GAP } from "./groupLayout";
@@ -655,5 +656,7 @@ export function arrangedElements(input: ArrangeInput): { elements: ExcalidrawEle
     if (nodeIds.has(e.id) || frameIds.has(e.id)) movedNodeIds.add(e.id);
     return changed(e, target);
   });
-  return any ? { elements: next, movedNodeIds } : null;
+  // Each quick note at its place beside its host, in no frame (src/nodes/note): what `beside` laid out, settled.
+  const settled = settleNotes(next);
+  return any || settled !== next ? { elements: [...settled], movedNodeIds } : null;
 }

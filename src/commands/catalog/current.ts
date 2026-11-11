@@ -13,6 +13,7 @@ import { expandTerminal, minimizeTerminal } from "@/nodes/terminal/minimize";
 import { relaunchMode } from "@/nodes/terminal/launch";
 import { pasteImageIntoTerminal, pasteIntoTerminal, relaunchTerminal, stopTerminal, terminalSelection } from "@/nodes/terminal/registry";
 import { clipboardTextOf, readClipboard } from "@/radial/bridges";
+import { quickNote } from "@/nodes/note/quickNote";
 import { openReview } from "@/review/reviewStore";
 import { agentActivityStore } from "@/store/agentActivity";
 import { nodesStore, terminalOf } from "@/store/nodes";
@@ -133,6 +134,14 @@ export const CURRENT: readonly Command[] = [
     // Expanded where it is; the view follows if it no longer shows whole.
     run: (ctx) => {
       if (expandTerminal(terminalId(ctx))) showNode(terminalId(ctx));
+    },
+  }),
+  command("terminal.note", {
+    section: terminalSection,
+    available: hasTerminal,
+    // A quick note beside it, its text taking the keyboard (src/nodes/note).
+    run: async (ctx) => {
+      await quickNote(terminalId(ctx));
     },
   }),
   command("terminal.close", {

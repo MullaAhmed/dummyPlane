@@ -82,7 +82,7 @@ export const shellMessages = defineMessages(
       help: "Help",
       nativeNotifications: "Windows notifications",
       followWaiting: "Go to agents that ask",
-      autoArrange: "Auto-arrange terminals",
+      autoArrange: "Auto-arrange",
       subagentTerminals: "Sub-agents as terminals",
       maxSpawned: "Sub-agents at once",
       exportScene: "Export the scene…",

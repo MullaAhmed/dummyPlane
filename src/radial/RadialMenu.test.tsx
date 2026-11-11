@@ -71,7 +71,7 @@ const pointer = (target: Element, type: string, x: number, y: number) =>
 
 it("draws the wheel around the click, a wedge per command clockwise from the top (spec menu radial §4.2, §5.1)", async () => {
   await open();
-  expect(buttons().map((b) => b.getAttribute("aria-label"))).toEqual(["Copy", "Paste", "Rename", "Restart", "Close", "Duplicate", "Pause", "Stop the process"]);
+  expect(buttons().map((b) => b.getAttribute("aria-label"))).toEqual(["Copy", "Paste", "Rename", "Restart", "Close", "Quick note on this terminal", "Pause", "Stop the process"]);
   expect(buttons().map((b, slot) => b.querySelector("path")!.getAttribute("d") === wedgePath(slot, 8))).toEqual(Array(8).fill(true));
   expect([labelAt(buttons()[0]), labelAt(buttons()[2])]).toEqual([slotPosition(0), slotPosition(2)]);
   expect(document.querySelector<HTMLElement>("[data-radial]")!.style.left).toBe("300px");
@@ -79,7 +79,7 @@ it("draws the wheel around the click, a wedge per command clockwise from the top
 
 it("names each wedge under its icon in a word or two; the full name stays the button's", async () => {
   await open();
-  expect(buttons().map((b) => b.textContent)).toEqual(["Copy", "Paste", "Rename", "Restart", "Close", "Duplicate", "Pause", "Stop"]);
+  expect(buttons().map((b) => b.textContent)).toEqual(["Copy", "Paste", "Rename", "Restart", "Close", "Note", "Pause", "Stop"]);
   expect(buttons()[7].getAttribute("aria-label")).toBe("Stop the process");
 });
 
