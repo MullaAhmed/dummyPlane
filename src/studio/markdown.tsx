@@ -1,4 +1,5 @@
-import type { ReactNode } from "react";
+import type { MouseEvent, ReactNode } from "react";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { messages } from "@/i18n";
 import { studioMessages } from "./messages";
 
@@ -46,8 +47,59 @@ export function safeHref(raw: string): string | null {
   return ["http", "https", "mailto"].includes(scheme[1]) ? href : null;
 }
 
+/**
+ * Where the preview's relative links go: `from` is the file the Markdown is read from, and
+ * `openFile` opens a project path in the studio. Without it, relative links stay text.
+ */
+export interface MarkdownLinks {
+  from: string;
+  openFile: (path: string) => void;
+}
+
+/**
+ * A relative link of `from` as a project path: resolved against its folder (a leading `/` is the
+ * project's root), without its `#fragment` or `?query`. null for a bare anchor, or a path that
+ * climbs out of the project.
+ */
+export function resolveLink(from: string, href: string): string | null {
+  const path = href.replace(/\\/g, "/").split(/[?#]/)[0];
+  if (!path) return null;
+  let decoded = path;
+  try {
+    decoded = decodeURI(path);
+  } catch {
+    // A stray % stays as it is.
+  }
+  const parts = decoded.startsWith("/") ? [] : from.split("/").slice(0, -1);
+  for (const part of decoded.split("/")) {
+    if (part === "" || part === ".") continue;
+    if (part !== "..") parts.push(part);
+    else if (parts.pop() === undefined) return null;
+  }
+  return parts.length > 0 ? parts.join("/") : null;
+}
+
+/**
+ * A click that opens the link itself: the webview never navigates or opens a window of its own.
+ * The middle button too (auxclick), which would otherwise open a bare popup webview.
+ */
+function opener(open: () => void) {
+  const go = (event: MouseEvent) => {
+    event.preventDefault();
+    open();
+  };
+  return { onClick: go, onAuxClick: (event: MouseEvent) => event.button === 1 && go(event) };
+}
+
+/** What a link does: the web and mail through the system's opener, a relative path in the studio; null when it goes nowhere. */
+function linkAction(href: string, links: MarkdownLinks | undefined): (() => void) | null {
+  if (/^(https?|mailto):/i.test(href)) return () => void openUrl(href);
+  const path = links ? resolveLink(links.from, href) : null;
+  return path === null || !links ? null : () => links.openFile(path);
+}
+
 /** Renders inline formatting: code, bold, italic, links, images (as text). */
-function renderInline(text: string): ReactNode[] {
+function renderInline(text: string, links?: MarkdownLinks): ReactNode[] {
   const out: ReactNode[] = [];
   let last = 0;
   let key = 0;
@@ -66,25 +118,27 @@ function renderInline(text: string): ReactNode[] {
       out.push(<span key={k} className="text-dp-text-3">[{m[2] || messages(studioMessages).markdownImage}]</span>);
     } else if (m[4] !== undefined) {
       const href = safeHref(m[5]);
+      const action = href === null ? null : linkAction(href, links);
       out.push(
-        href === null ? (
-          <span key={k}>{renderInline(m[4])}</span>
+        href === null || action === null ? (
+          <span key={k}>{renderInline(m[4], links)}</span>
         ) : (
           <a
             key={k}
             href={href}
             target="_blank"
             rel="noreferrer noopener"
+            {...opener(action)}
             className="rounded-sm text-dp-accent-ink underline underline-offset-2 transition-colors duration-(--dp-dur-fast) ease-(--dp-ease-out) motion-reduce:transition-none hover:bg-dp-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/70"
           >
-            {renderInline(m[4])}
+            {renderInline(m[4], links)}
           </a>
         ),
       );
     } else if (m[6] !== undefined || m[7] !== undefined) {
-      out.push(<strong key={k}>{renderInline(m[6] ?? m[7])}</strong>);
+      out.push(<strong key={k}>{renderInline(m[6] ?? m[7], links)}</strong>);
     } else {
-      out.push(<em key={k}>{renderInline(m[8] ?? m[9])}</em>);
+      out.push(<em key={k}>{renderInline(m[8] ?? m[9], links)}</em>);
     }
   }
   if (last < text.length) out.push(text.slice(last));
@@ -104,8 +158,8 @@ function startsBlock(line: string, next: string | undefined): boolean {
   );
 }
 
-/** Renders a Markdown string as React nodes. */
-export function renderMarkdown(source: string): ReactNode {
+/** Renders a Markdown string as React nodes; `links` makes its relative links open in the studio. */
+export function renderMarkdown(source: string, links?: MarkdownLinks): ReactNode {
   const lines = source.replace(/\r\n?/g, "\n").split("\n");
   const blocks: ReactNode[] = [];
   let i = 0;
@@ -130,7 +184,7 @@ export function renderMarkdown(source: string): ReactNode {
     } else if ((m = HEADING.exec(line))) {
       const level = m[1].length;
       const Tag = `h${level}` as "h1";
-      blocks.push(<Tag key={key} className={`text-dp-text ${HEADING_CLASSES[level - 1]}`}>{renderInline(m[2])}</Tag>);
+      blocks.push(<Tag key={key} className={`text-dp-text ${HEADING_CLASSES[level - 1]}`}>{renderInline(m[2], links)}</Tag>);
       i++;
     } else if (HR.test(line)) {
       blocks.push(<hr key={key} className="border-dp-line" />);
@@ -143,7 +197,7 @@ export function renderMarkdown(source: string): ReactNode {
       }
       blocks.push(
         <blockquote key={key} className="border-l-2 border-dp-line pl-3 text-dp-text-2">
-          {renderMarkdown(inner.join("\n"))}
+          {renderMarkdown(inner.join("\n"), links)}
         </blockquote>,
       );
     } else if (UL.test(line) || OL.test(line)) {
@@ -154,7 +208,7 @@ export function renderMarkdown(source: string): ReactNode {
         items.push(m[1]);
         i++;
       }
-      const children = items.map((item, n) => <li key={n}>{renderInline(item)}</li>);
+      const children = items.map((item, n) => <li key={n}>{renderInline(item, links)}</li>);
       blocks.push(
         ordered ? (
           <ol key={key} className="list-decimal pl-5">{children}</ol>
@@ -170,11 +224,11 @@ export function renderMarkdown(source: string): ReactNode {
       blocks.push(
         <table key={key} className="border-collapse text-sm">
           <thead>
-            <tr>{head.map((c, n) => <th key={n} className="border border-dp-line px-2 py-1 text-left">{renderInline(c)}</th>)}</tr>
+            <tr>{head.map((c, n) => <th key={n} className="border border-dp-line px-2 py-1 text-left">{renderInline(c, links)}</th>)}</tr>
           </thead>
           <tbody>
             {rows.map((row, r) => (
-              <tr key={r}>{row.map((c, n) => <td key={n} className="border border-dp-line px-2 py-1">{renderInline(c)}</td>)}</tr>
+              <tr key={r}>{row.map((c, n) => <td key={n} className="border border-dp-line px-2 py-1">{renderInline(c, links)}</td>)}</tr>
             ))}
           </tbody>
         </table>,
@@ -183,7 +237,7 @@ export function renderMarkdown(source: string): ReactNode {
       const para: string[] = [line];
       i++;
       while (i < lines.length && lines[i].trim() && !startsBlock(lines[i], lines[i + 1])) para.push(lines[i++]);
-      blocks.push(<p key={key}>{renderInline(para.join(" "))}</p>);
+      blocks.push(<p key={key}>{renderInline(para.join(" "), links)}</p>);
     }
   }
   return <div className="flex flex-col gap-2 text-sm text-dp-text">{blocks}</div>;

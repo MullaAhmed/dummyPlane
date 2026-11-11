@@ -3,14 +3,15 @@ import { defineMessages } from "@/i18n";
 export const studioMessages = defineMessages({
   open: "Code Studio",
   title: (name: string) => `Code Studio · ${name}`,
-  showFiles: "Show the files",
-  hideFiles: "Hide the files",
+  // The files panel: its toggle's name (pressed or not) and the tree's.
+  files: "Files",
   refresh: "Refresh the tree",
   filterLabel: "Filter the files",
   filterPlaceholder: "Filter the files…",
   readingTree: "Reading the repository…",
   treeFailed: (error: string) => `The repository could not be read: ${error}`,
   noMatch: "No file matches",
+  treeCut: (count: number) => `Only the first ${count} rows are shown: filter to narrow down`,
   empty: "The repository is empty",
   pickFile: "Pick a file in the tree",
   readingFile: "Reading the file…",

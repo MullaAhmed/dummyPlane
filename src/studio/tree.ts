@@ -8,11 +8,13 @@ export interface TreeNode {
   children: TreeNode[];
 }
 
-/** A line of the tree on screen. */
+/** A line of the tree on screen, with its place among its siblings (`aria-setsize`, `aria-posinset`). */
 export interface TreeRow {
   node: TreeNode;
   depth: number;
   expanded: boolean;
+  size: number;
+  position: number;
 }
 
 const byKindThenName = (a: TreeNode, b: TreeNode) =>
@@ -70,9 +72,9 @@ export function visibleRows(nodes: readonly TreeNode[], expanded: ReadonlySet<st
   const filtering = query.trim() !== "";
   const rows: TreeRow[] = [];
   const walk = (list: readonly TreeNode[], depth: number) => {
-    for (const node of list) {
+    for (const [index, node] of list.entries()) {
       const open = node.kind === "dir" && (filtering || expanded.has(node.path));
-      rows.push({ node, depth, expanded: open });
+      rows.push({ node, depth, expanded: open, size: list.length, position: index + 1 });
       if (open) walk(node.children, depth + 1);
     }
   };

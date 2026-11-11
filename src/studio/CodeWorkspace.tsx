@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ComponentProps } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type ComponentProps, type Dispatch, type KeyboardEvent as ReactKeyboardEvent, type SetStateAction } from "react";
 import { ChevronDown, ChevronRight, Code2, Eye, File, Folder, FolderTree, PanelTopOpen, RotateCw, Save, X } from "lucide-react";
 import { useStore } from "zustand";
 import { useMessages } from "@/i18n";
@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AccentButton, Hint, HintedButton, IconButton, QuietButton, ToolButton } from "@/shell/buttons";
 import { TOP_ROW_HEIGHT } from "@/shell/layout";
+import { CutHint } from "@/review/PathTail";
 import { useProjects } from "@/store/projects";
 import { CodeEditor } from "./CodeEditor";
 import { insertFileNode } from "./insert";
@@ -17,9 +18,9 @@ import { studioMessages } from "./messages";
 import { BAR_FIELD, DiskBanner, errorText, ListMessage, Message } from "./parts";
 import { useDiskWatch, useSaveKey } from "./sessionEffects";
 import { closeStudio, closeTab, editFile, isDirty, openFile, openStudio, saveFile, useStudio, type StudioTab } from "./studioStore";
-import { ancestors, baseName, buildTree, toggle, visibleRows } from "./tree";
+import { ancestors, baseName, buildTree, toggle, visibleRows, type TreeNode, type TreeRow } from "./tree";
 
-/** The tree shows this many lines at most; the filter finds the others. */
+/** The tree shows this many lines at most, and says so; the filter finds the others. */
 const MAX_ROWS = 2000;
 
 /**
@@ -47,10 +48,11 @@ function StudioContent({ project }: { project: string }) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [treeOpen, setTreeOpen] = useState(true);
 
-  const open = (path: string) => {
+  // Stable: the tree's memoised rows take it.
+  const open = useCallback((path: string) => {
     setExpanded((current) => new Set([...current, ...ancestors(path)]));
     void openFile(path);
-  };
+  }, []);
 
   // A dialog over the workspace has its own Ctrl+S (the notes), or none.
   useSaveKey(() => {
@@ -62,19 +64,21 @@ function StudioContent({ project }: { project: string }) {
   return (
     <div
       data-code-workspace
+      role="region"
       aria-label={t.title(name)}
       className="absolute inset-0 flex gap-3 pr-18 pb-3 pl-3 text-dp-text"
       style={{ paddingTop: TOP_ROW_HEIGHT + 12 }}
     >
       <nav className="dp-glass z-30 flex shrink-0 flex-col items-center gap-0.5 self-center rounded-lg p-1">
-        <ToolButton label={treeOpen ? t.hideFiles : t.showFiles} active={treeOpen} onClick={() => setTreeOpen(!treeOpen)}>
+        {/* One name, its state in aria-pressed: "Files, pressed", not "Hide the files, pressed". */}
+        <ToolButton label={t.files} active={treeOpen} onClick={() => setTreeOpen(!treeOpen)}>
           <FolderTree />
         </ToolButton>
       </nav>
       {treeOpen && <FileTree project={project} active={active} expanded={expanded} setExpanded={setExpanded} onOpen={open} />}
       <section className="dp-glass-strong flex min-w-0 flex-1 flex-col overflow-hidden rounded-xl">
         <Tabs tabs={tabs} active={active} />
-        {tab ? <FilePane key={tab.path} tab={tab} /> : <Message>{t.pickFile}</Message>}
+        {tab ? <FilePane key={tab.path} tab={tab} onOpen={open} /> : <Message>{t.pickFile}</Message>}
       </section>
     </div>
   );
@@ -84,7 +88,7 @@ interface FileTreeProps {
   project: string;
   active: string | null;
   expanded: Set<string>;
-  setExpanded: (next: Set<string>) => void;
+  setExpanded: Dispatch<SetStateAction<Set<string>>>;
   onOpen: (path: string) => void;
 }
 
@@ -110,6 +114,48 @@ function FileTree({ project, active, expanded, setExpanded, onOpen }: FileTreePr
 
   const tree = useMemo(() => buildTree(entries ?? []), [entries]);
   const rows = useMemo(() => visibleRows(tree, expanded, query), [tree, expanded, query]);
+  const shown = useMemo(() => rows.slice(0, MAX_ROWS), [rows]);
+  const filtering = query.trim() !== "";
+
+  // The tree is one tab stop (APG tree view, P2-15): the row last focused, else the open file's, else the first.
+  const [focusPath, setFocusPath] = useState<string | null>(null);
+  const treeBox = useRef<HTMLDivElement>(null);
+  const has = (path: string | null) => path !== null && shown.some((row) => row.node.path === path);
+  const stopPath = has(focusPath) ? focusPath : has(active) ? active : (shown[0]?.node.path ?? null);
+
+  const activate = useCallback(
+    (node: TreeNode) => (node.kind === "dir" ? setExpanded((current) => toggle(current, node.path)) : onOpen(node.path)),
+    [setExpanded, onOpen],
+  );
+
+  const moveTo = (index: number) => {
+    const target = Math.max(0, Math.min(index, shown.length - 1));
+    setFocusPath(shown[target].node.path);
+    treeBox.current?.querySelectorAll<HTMLElement>('[role="treeitem"]')[target]?.focus();
+  };
+
+  /** The tree's keys: Up, Down, Home and End move; Right opens a folder or enters it; Left closes it or goes to its parent. Enter is the row's click. */
+  const onTreeKey = (e: ReactKeyboardEvent<HTMLDivElement>) => {
+    const at = shown.findIndex((row) => row.node.path === (e.target as HTMLElement).dataset.path);
+    if (at < 0) return;
+    const { node, depth, expanded: isOpen } = shown[at];
+    const folder = node.kind === "dir";
+    let to: number | undefined;
+    if (e.key === "ArrowDown") to = at + 1;
+    else if (e.key === "ArrowUp") to = at - 1;
+    else if (e.key === "Home") to = 0;
+    else if (e.key === "End") to = shown.length - 1;
+    else if (e.key === "ArrowRight") {
+      // While filtering, every folder is open: Right only goes in.
+      if (folder && !isOpen) setExpanded((current) => toggle(current, node.path));
+      else if (folder && shown[at + 1]?.depth === depth + 1) to = at + 1;
+    } else if (e.key === "ArrowLeft") {
+      if (folder && isOpen && !filtering) setExpanded((current) => toggle(current, node.path));
+      else for (let k = at - 1; k >= 0 && to === undefined; k--) if (shown[k].depth < depth) to = k;
+    } else return;
+    e.preventDefault();
+    if (to !== undefined) moveTo(to);
+  };
 
   return (
     <aside data-files className="dp-glass-strong flex w-70 shrink-0 flex-col overflow-hidden rounded-xl">
@@ -125,50 +171,84 @@ function FileTree({ project, active, expanded, setExpanded, onOpen }: FileTreePr
           <RotateCw />
         </IconButton>
       </div>
-      <div role="tree" aria-label={t.filterLabel} className="min-h-0 flex-1 overflow-auto py-1">
+      <div className="min-h-0 flex-1 overflow-auto py-1">
         {error !== null ? (
           <ListMessage>{t.treeFailed(error)}</ListMessage>
         ) : entries === null ? (
           <ListMessage>{t.readingTree}</ListMessage>
         ) : rows.length === 0 ? (
-          <ListMessage>{query.trim() ? t.noMatch : t.empty}</ListMessage>
+          <ListMessage>{filtering ? t.noMatch : t.empty}</ListMessage>
         ) : (
-          rows.slice(0, MAX_ROWS).map(({ node, depth, expanded: isOpen }) => (
-            // A tree row, not a control: role="treeitem", and up to 2000 of them, kept to the bare element.
-            <button
-              key={node.path}
-              type="button"
-              role="treeitem"
-              aria-expanded={node.kind === "dir" ? isOpen : undefined}
-              aria-selected={node.path === active}
-              data-path={node.path}
-              title={node.path}
-              onClick={() => (node.kind === "dir" ? setExpanded(toggle(expanded, node.path)) : onOpen(node.path))}
-              className={cn(
-                "flex h-7 w-full items-center gap-1 pr-2 text-left text-sm text-dp-text-2 hover:bg-dp-hover hover:text-dp-text focus-visible:ring-2 focus-visible:ring-dp-accent/70 focus-visible:outline-none focus-visible:ring-inset [&_svg]:size-4 [&_svg]:shrink-0",
-                node.path === active && "bg-dp-accent-soft text-dp-text hover:bg-dp-accent-soft dp-on-soft",
-              )}
-              style={{ paddingLeft: 8 + depth * 12 }}
+          <>
+            <div
+              ref={treeBox}
+              role="tree"
+              aria-label={t.files}
+              onKeyDown={onTreeKey}
+              onFocus={(e) => e.target.dataset.path !== undefined && setFocusPath(e.target.dataset.path)}
             >
-              {node.kind === "dir" ? (
-                <>
-                  {isOpen ? <ChevronDown className="text-dp-text-3" /> : <ChevronRight className="text-dp-text-3" />}
-                  <Folder className="text-dp-text-3" />
-                </>
-              ) : (
-                <>
-                  <span className="w-4 shrink-0" />
-                  <File className="text-dp-text-3" />
-                </>
-              )}
-              <span className="ml-1 truncate">{node.name}</span>
-            </button>
-          ))
+              {shown.map((row) => (
+                <TreeItem key={row.node.path} row={row} active={active} tabbable={row.node.path === stopPath} onActivate={activate} />
+              ))}
+            </div>
+            {/* The cut is said: a file past it is not missing, the filter finds it (P2-52). */}
+            {rows.length > MAX_ROWS && <ListMessage>{t.treeCut(MAX_ROWS)}</ListMessage>}
+          </>
         )}
       </div>
     </aside>
   );
 }
+
+/**
+ * Whether a row's name may not fit the panel (w-70, 280 px): its indent, chevron and icon, then
+ * 9 px a character, more than a 14 px name ever takes, scrollbar aside. A row that surely fits
+ * needs no hint: up to 2000 rows would each carry a tooltip's machinery for nothing (P2-59).
+ */
+const mayBeCut = (name: string, depth: number) => 8 + depth * 12 + 44 + 8 + name.length * 9 > 280 - 16;
+
+/**
+ * A row of the tree, not a control: role="treeitem", and up to 2000 of them, kept to the bare element.
+ * Memoised: moving the keyboard draws the two rows whose tab stop changes, not the whole tree
+ * (`active` is the open file's path, which changes only when another file opens).
+ * The path shows in the app's hint when the name is cut, never in a native title (P2-20).
+ */
+const TreeItem = memo(function TreeItem({ row, active, tabbable, onActivate }: { row: TreeRow; active: string | null; tabbable: boolean; onActivate: (node: TreeNode) => void }) {
+  const { node, depth, expanded: isOpen, size, position } = row;
+  const item = (
+    <button
+      type="button"
+      role="treeitem"
+      aria-level={depth + 1}
+      aria-setsize={size}
+      aria-posinset={position}
+      aria-expanded={node.kind === "dir" ? isOpen : undefined}
+      aria-selected={node.path === active}
+      tabIndex={tabbable ? 0 : -1}
+      data-path={node.path}
+      onClick={() => onActivate(node)}
+      className={cn(
+        "flex h-7 w-full items-center gap-1 pr-2 text-left text-sm text-dp-text-2 hover:bg-dp-hover hover:text-dp-text focus-visible:ring-2 focus-visible:ring-dp-accent/70 focus-visible:outline-none focus-visible:ring-inset [&_svg]:size-4 [&_svg]:shrink-0",
+        node.path === active && "bg-dp-accent-soft text-dp-text hover:bg-dp-accent-soft dp-on-soft",
+      )}
+      style={{ paddingLeft: 8 + depth * 12 }}
+    >
+      {node.kind === "dir" ? (
+        <>
+          {isOpen ? <ChevronDown className="text-dp-text-3" /> : <ChevronRight className="text-dp-text-3" />}
+          <Folder className="text-dp-text-3" />
+        </>
+      ) : (
+        <>
+          <span className="w-4 shrink-0" />
+          <File className="text-dp-text-3" />
+        </>
+      )}
+      <span className="ml-1 truncate">{node.name}</span>
+    </button>
+  );
+  return mayBeCut(node.name, depth) ? <CutHint label={node.path}>{item}</CutHint> : item;
+});
 
 function Tabs({ tabs, active }: { tabs: StudioTab[]; active: string | null }) {
   const t = useMessages(studioMessages);
@@ -184,7 +264,8 @@ function Tabs({ tabs, active }: { tabs: StudioTab[]; active: string | null }) {
     // The bar asking about unsaved changes lies over the editor's top edge, under the tabs: the code
     // under the pointer never moves down to make room for it.
     <div className="relative shrink-0">
-      <div role="tablist" className="flex h-10 shrink-0 items-end gap-0.5 overflow-x-auto border-b border-dp-line px-2">
+      {/* Documents that open and close, not a view switcher: buttons, the one shown aria-current (P2-15). */}
+      <div data-doc-strip className="flex h-10 shrink-0 items-end gap-0.5 overflow-x-auto border-b border-dp-line px-2">
         {tabs.map((tab) => (
           <TabItem key={tab.path} tab={tab} active={tab.path === active} onClose={() => close(tab)} />
         ))}
@@ -224,9 +305,9 @@ function Tabs({ tabs, active }: { tabs: StudioTab[]; active: string | null }) {
 }
 
 /**
- * An open file's tab stays custom, built from two Buttons side by side: the tab itself and its
- * close button. Radix Tabs has no place for a second control inside a trigger, and a tab strip of
- * documents that open, close and middle-click away is not a view switcher.
+ * An open file's tab stays custom, built from two Buttons side by side: the document's and its
+ * close button. Radix Tabs has no place for a second control inside a trigger, and a strip of
+ * documents that open, close and middle-click away is not a view switcher: no tab roles.
  */
 function TabItem({ tab, active, onClose }: { tab: StudioTab; active: boolean; onClose: () => void }) {
   const t = useMessages(studioMessages);
@@ -241,18 +322,19 @@ function TabItem({ tab, active, onClose }: { tab: StudioTab; active: boolean; on
         active && "bg-dp-tab-on text-dp-text hover:bg-dp-tab-on",
       )}
     >
-      {/* The path is on the name, not on the tab: a native title on the tab would stack under the close hint. */}
-      <Button
+      {/* The path is in the document's own hint, as the close button's is in its: one kind of tooltip, on focus too. */}
+      <HintedButton
+        hint={tab.path}
         variant="ghost"
-        role="tab"
-        title={tab.path}
-        aria-selected={active}
+        aria-current={active ? "page" : undefined}
         onClick={() => void openFile(tab.path)}
         className="h-full gap-2 rounded-none rounded-tl-md bg-transparent pr-1 pl-3 text-sm font-normal text-current hover:bg-transparent hover:text-current focus-visible:ring-inset active:scale-100"
       >
         <span className="max-w-48 truncate">{name}</span>
-        {dirty && <span data-dirty aria-label={t.modified} title={t.modified} className="size-2 shrink-0 rounded-full bg-dp-accent" />}
-      </Button>
+        {/* The dot is for the eye; its words are read with the name. */}
+        {dirty && <span data-dirty aria-hidden className="size-2 shrink-0 rounded-full bg-dp-accent" />}
+        {dirty && <span className="sr-only">{t.modified}</span>}
+      </HintedButton>
       {/* IconButton is 28 px: a tab is 32, so this one is the kit's `icon-xs` made from the same HintedButton. */}
       <HintedButton hint={t.closeTab(name)} variant="ghost" size="icon-xs" aria-label={t.closeTab(name)} onClick={onClose} className="mr-1 text-dp-text-3 hover:text-dp-text">
         <X />
@@ -261,7 +343,7 @@ function TabItem({ tab, active, onClose }: { tab: StudioTab; active: boolean; on
   );
 }
 
-function FilePane({ tab }: { tab: StudioTab }) {
+function FilePane({ tab, onOpen }: { tab: StudioTab; onOpen: (path: string) => void }) {
   const t = useMessages(studioMessages);
   const { draft, disk, error, file, loading, refused, revision, saving } = useStore(tab.session);
   const markdown = isMarkdown(tab.path);
@@ -303,11 +385,13 @@ function FilePane({ tab }: { tab: StudioTab }) {
         </span>
       </div>
       <div className="min-h-0 flex-1 overflow-hidden">
-        {previewing ? (
+        {previewing && (
           <div data-preview className="h-full overflow-auto px-6 py-4 text-sm leading-relaxed">
-            {renderMarkdown(draft)}
+            {renderMarkdown(draft, { from: tab.path, openFile: onOpen })}
           </div>
-        ) : (
+        )}
+        {/* Hidden, not unmounted, under the preview: the editor keeps its undo history, its cursor and its scroll (P2-49). */}
+        <div className={cn("h-full", previewing && "hidden")}>
           <CodeEditor
             path={tab.path}
             text={draft}
@@ -315,7 +399,7 @@ function FilePane({ tab }: { tab: StudioTab }) {
             onChange={(content) => editFile(tab.path, content)}
             onSave={() => void saveFile(tab.path)}
           />
-        )}
+        </div>
       </div>
     </>
   );
