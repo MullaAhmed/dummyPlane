@@ -128,6 +128,32 @@ describe("the loops store", () => {
     expect(store.getState().runtime["1"]?.running ?? false).toBe(false);
   });
 
+  it("puts a deleted loop back at its place, turned off, once (the delete's undo, audit P2 #42)", async () => {
+    const store = make();
+    await store.getState().load();
+    store.getState().start("1");
+    const removed = store.getState().loops[0];
+    await store.getState().remove("1");
+    expect(await store.getState().restore(removed, 0)).toBe("ok");
+    expect(store.getState().loops.map((l) => l.id)).toEqual(["1", "2"]);
+    expect(saved[saved.length - 1]).toEqual({ version: LOOPS_VERSION, loops: [loop("1"), loop("2")] });
+    expect(store.getState().runtime["1"]?.running ?? false).toBe(false);
+    // A second undo writes nothing more.
+    const writes = saved.length;
+    expect(await store.getState().restore(removed, 0)).toBe("ok");
+    expect(saved).toHaveLength(writes);
+    expect(store.getState().loops).toHaveLength(2);
+  });
+
+  it("does not put a loop back into a full list", async () => {
+    stored = { version: LOOPS_VERSION, loops: Array.from({ length: 30 }, (_, i) => loop(String(i))) };
+    const store = make();
+    await store.getState().load();
+    expect(await store.getState().restore(loop("extra"), 0)).toBe("full");
+    expect(store.getState().loops).toHaveLength(30);
+    expect(saved).toEqual([]);
+  });
+
   it("changing a loop that runs turns it off: it was not the loop the user turned on", async () => {
     const store = make();
     await store.getState().load();

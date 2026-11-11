@@ -8,6 +8,8 @@ export const commandsMessages = defineMessages({
       placeholderFunctions: "Search for a function…",
       loading: "Loading…",
       empty: "No results",
+      // Read out by a screen reader once the list settles (the visible list says it by itself).
+      results: (count: number) => plural(count, "result", "results"),
       footer: "↑↓ navigate · Enter open · Esc close",
       recent: "Recent",
     },

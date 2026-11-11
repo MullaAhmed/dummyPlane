@@ -32,12 +32,14 @@ Surfaces, from back to front:
 - `--dp-hover`: hover and subtle fill.
 - `--dp-tray`: faint ink fill for trays and wells. Defined in each palette; no component reads it yet.
 - `--dp-tab-on`: fill of the active tab.
+- `--dp-selection`: selected text (`::selection`), under the ink: 28% ink in `calm` and `expressive`, 16% in `electric`, so the text keeps 4.5:1 on every ground. xterm, the code editor and Excalidraw draw their own.
 
 Every surface is opaque. There is no glass, no blur and no transparency setting. `.dp-glass` and `.dp-glass-strong` survive as class names for the rails and bars that already use them, and both draw the same raised surface: the `--dp-surface` fill, a `--dp-line` hairline and `--dp-float-shadow`.
 
 Lines and shadows:
 
 - `--dp-line`: borders and dividers.
+- `--dp-line-strong`: a control's own boundary (Input, Textarea, the Select trigger), the ink at 60% in `calm` and `electric` and 40% in `expressive`: 3:1 or more on every ground, where the hairline reads about 1.2:1. Never a divider.
 - `--dp-shadow`, `--dp-float-shadow`: elevation for dialogs, menus and floating bars. A small neutral shadow in `calm` only; no visible shadow in the dark palettes (`0 0 #0000`).
 - `--dp-scrim`: veil behind dialogs and sheets. Flat, nothing blurred behind it. Per palette.
 

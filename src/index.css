@@ -26,6 +26,7 @@
   --color-dp-card: var(--dp-card);
   --color-dp-command: var(--dp-command);
   --color-dp-line: var(--dp-line);
+  --color-dp-line-strong: var(--dp-line-strong);
   --color-dp-hover: var(--dp-hover);
   --color-dp-selected: var(--dp-selected);
   --color-dp-text: var(--dp-text);
@@ -153,6 +154,14 @@
   }
   :not(.excalidraw *, .xterm *)::-webkit-scrollbar-corner {
     background: transparent;
+  }
+  /* Selected text: the palette's selection tint under the ink, not the system's highlight (a blue band that
+     vanishes on electric). xterm, the code editor and Excalidraw draw their own selection. A terminal's body
+     (a subagent's transcript) is written in the terminal theme's inks: calm's ink would vanish on its green,
+     so it keeps the browser's selection. */
+  :not(.excalidraw *, .xterm *, .cm-editor *, .bg-dp-terminal *)::selection {
+    background: var(--dp-selection);
+    color: var(--dp-text);
   }
 }
 

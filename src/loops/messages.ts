@@ -46,6 +46,9 @@ export const loopsMessages = defineMessages({
       close: "Close",
       edit: "Edit",
       remove: "Delete",
+      // The row left where a deleted loop was, with its Undo; the loop comes back turned off.
+      removed: (name: string) => `Loop “${name}” deleted`,
+      undo: "Undo",
       turnOn: "Turn on",
       turnOff: "Stop",
       off: "off",

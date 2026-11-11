@@ -274,6 +274,12 @@ export const HOVERED_BOX = "group-hover/row:border-dp-text-2 data-checked:group-
  * that is fixed (a plugin's skill, dummyPlane's own server) stays as it is:
  * each says why on its second line, where the description would be.
  */
+/**
+ * A row's second line, cut to one line; its whole text was only in a native title, which the keyboard never shows.
+ * With the keyboard on the row's checkbox, it unfolds to four lines at most: a long description stays bounded.
+ */
+const REVEAL = "group-has-[:focus-visible]/row:line-clamp-4 group-has-[:focus-visible]/row:whitespace-normal";
+
 function ExtensionRow(props: { item: ExtensionItem; on: boolean; locked: boolean; fleet: boolean; onToggle: (on: boolean) => void }) {
   const { item, on, locked, onToggle } = props;
   const t = useMessages(canvasMessages).selection;
@@ -299,13 +305,15 @@ function ExtensionRow(props: { item: ExtensionItem; on: boolean; locked: boolean
             {t.sources[item.source]}
           </span>
         </span>
+        {/* Why it is off or fixed, whole: its checkbox is disabled, so no focus could unfold it. A description is
+            cut to one line, its whole text on hover; the keyboard on the row's checkbox unfolds it, up to four lines (REVEAL). */}
         {locked ? (
-          <span id={reason} className="block truncate text-xs text-dp-text-3" title={whyOff}>
+          <span id={reason} className="block text-xs text-dp-text-3">
             {whyOff}
           </span>
         ) : (
           item.description && (
-            <span id={described} className="block truncate text-xs text-dp-text-2" title={item.description}>
+            <span id={described} className={cn("block truncate text-xs text-dp-text-2", REVEAL)} title={item.description}>
               {item.description}
             </span>
           )

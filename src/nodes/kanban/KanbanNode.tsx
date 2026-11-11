@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState, type ComponentProps, type DragEvent, type FormEvent } from "react";
 import { CaptureUpdateAction, newElementWith } from "@excalidraw/excalidraw";
 import { cn } from "@/lib/utils";
-import { Bot, Calendar, CircleDot, KanbanSquare, MoreHorizontal, Plus, RefreshCw } from "lucide-react";
+import { Bot, Calendar, CircleDot, KanbanSquare, MoreHorizontal, Plus, RefreshCw, SignalHigh, SignalLow, SignalMedium, type LucideIcon } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
@@ -26,11 +27,14 @@ import {
   addCard,
   addColumn,
   cardText,
+  columnOf,
   dueOf,
   dueState,
   removeCard,
   removeColumn,
   renameColumn,
+  restoreCard,
+  restoreColumn,
   updateCard,
   type CardDraft,
   type DuePreset,
@@ -41,7 +45,7 @@ import { nodeKindOf } from "@/canvas/nodeElement";
 import { endCardDrag, sendCardToTerminal, startCardDrag } from "@/kanban/dropOnTerminal";
 import { createIssueForCard, detectRepo, linkBoard, moveCardWithGithub, parseProject, syncBoard } from "@/kanban/github";
 import { useNativeKeyDown } from "@/lib/useNativeKeyDown";
-import { AccentButton, Hint, HintedButton, IconButton, QuietButton } from "@/shell/buttons";
+import { AccentButton, Hint, IconButton, QuietButton } from "@/shell/buttons";
 import { nodesStore, terminalOf, useNodes } from "@/store/nodes";
 import { KANBAN_PRIORITIES, type KanbanBoardLink, type KanbanCard, type KanbanColumn, type KanbanPayload, type KanbanPriority } from "@/nodes/types";
 import { KANBAN_CARD_MIME } from "./drag";
@@ -52,13 +56,21 @@ export { KANBAN_CARD_MIME } from "./drag";
 
 type Messages = typeof kanbanNodeMessages;
 
-/** The colour of a priority's dot: none shows nothing, then warmer as it grows. */
-const PRIORITY_COLOR: Record<KanbanPriority, string> = {
-  none: "transparent",
-  low: "var(--dp-ok)",
-  medium: "var(--dp-wait)",
-  high: "var(--dp-danger)",
+/**
+ * A priority's mark: bars that fill as it grows, in the chip's own ink. Not a dot, which is an agent's status,
+ * and not the status colours (ok, wait, danger), which would read as one.
+ */
+const PRIORITY_MARK: Record<Exclude<KanbanPriority, "none">, LucideIcon> = {
+  low: SignalLow,
+  medium: SignalMedium,
+  high: SignalHigh,
 };
+
+function PriorityMark({ priority }: { priority: KanbanPriority }) {
+  if (priority === "none") return null;
+  const Mark = PRIORITY_MARK[priority];
+  return <Mark aria-hidden data-priority-mark className="size-3 shrink-0" />;
+}
 
 type Editing = { mode: "new"; columnId: string } | { mode: "edit"; cardId: string };
 
@@ -73,7 +85,7 @@ function Tag({ hint, ...props }: ComponentProps<"span"> & { hint?: string }) {
 
 /** A choice of the card dialog: a hairline, filled with the soft ink once chosen. The due dates and the priorities share it. */
 const CHOICE =
-  "h-7 min-w-0 gap-1.5 rounded-md border border-dp-line px-2 text-xs font-normal text-dp-text-2 transition-[color,background-color,border-color,scale] duration-(--dp-dur-fast) ease-(--dp-ease-out) motion-reduce:transition-none hover:bg-dp-hover hover:text-dp-text focus-visible:ring-2 focus-visible:ring-dp-accent/70 active:scale-[0.97] data-[state=on]:border-dp-accent data-[state=on]:bg-dp-accent-soft data-[state=on]:text-dp-text";
+  "gap-1.5 border-dp-line px-2";
 
 /** Where a dragged card would land; where a card moved from the keyboard lands. */
 interface DropSpot {
@@ -110,6 +122,34 @@ function commit(nodeId: string, change: (board: KanbanPayload) => KanbanPayload)
   if (!board) return;
   const next = change(board);
   if (next !== board) nodesStore.getState().update(nodeId, { columns: next.columns, cards: next.cards });
+}
+
+/**
+ * Deletes a column and its cards, or a card, at once, and offers to take it back: a node's payload is outside
+ * the canvas's undo history. The undo puts back what was removed, where it was, without undoing what changed since.
+ */
+function removeColumnUndoable(nodeId: string, columnId: string, t: Messages) {
+  const board = currentBoard(nodeId);
+  const index = board?.columns.findIndex((c) => c.id === columnId) ?? -1;
+  if (!board || index < 0) return;
+  const column = board.columns[index];
+  const cards = Object.fromEntries(column.cardIds.flatMap((id) => (board.cards[id] ? [[id, board.cards[id]] as const] : [])));
+  commit(nodeId, (b) => removeColumn(b, columnId));
+  toast(t.columnRemoved(column.title, Object.keys(cards).length), {
+    action: { label: t.undo, onClick: () => commit(nodeId, (b) => restoreColumn(b, column, cards, index)) },
+  });
+}
+
+function removeCardUndoable(nodeId: string, cardId: string, t: Messages) {
+  const board = currentBoard(nodeId);
+  const card = board?.cards[cardId];
+  const column = board && columnOf(board, cardId);
+  if (!card || !column) return;
+  const index = column.cardIds.indexOf(cardId);
+  commit(nodeId, (b) => removeCard(b, cardId));
+  toast(t.cardRemoved(card.title), {
+    action: { label: t.undo, onClick: () => commit(nodeId, (b) => restoreCard(b, card, column.id, index)) },
+  });
 }
 
 /** The node grows (or shrinks) to the right so every column shows; its height stays the user's. Not an undo step. */
@@ -322,7 +362,7 @@ export function KanbanNode({ nodeId }: { nodeId: string }) {
                   if (title !== null && title.trim()) commit(nodeId, (b) => renameColumn(b, column.id, title.trim()));
                   setRenaming(null);
                 }}
-                onRemove={() => commit(nodeId, (b) => removeColumn(b, column.id))}
+                onRemove={() => removeColumnUndoable(nodeId, column.id, t)}
                 onNewCard={() => setEditing({ mode: "new", columnId: column.id })}
                 onOpenCard={(cardId) => setEditing({ mode: "edit", cardId })}
                 columns={board.columns}
@@ -369,7 +409,7 @@ export function KanbanNode({ nodeId }: { nodeId: string }) {
         onDelete={
           editedCard
             ? () => {
-                commit(nodeId, (b) => removeCard(b, editedCard.id));
+                removeCardUndoable(nodeId, editedCard.id, t);
                 setEditing(null);
               }
             : undefined
@@ -409,6 +449,10 @@ function LinkDialog({
   const [project, setProject] = useState(initial?.project ? `${initial.project.owner}/${initial.project.number}` : "");
   const [detecting, setDetecting] = useState(!initial);
   const [notDetected, setNotDetected] = useState(false);
+  // A field's error shows once the user leaves it wrong, or tries to link: not at the first keystroke.
+  const [checked, setChecked] = useState({ repo: false, project: false });
+  const repoField = useRef<HTMLInputElement>(null);
+  const projectField = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (initial) return;
@@ -429,10 +473,17 @@ function LinkDialog({
   const repoValid = REPO.test(repo.trim());
   const parsedProject = project.trim() ? parseProject(project) : undefined;
   const projectValid = parsedProject !== null;
+  const repoError = checked.repo && !repoValid;
+  const projectError = checked.project && !projectValid;
+  const hintNotDetected = notDetected && !repo.trim();
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    if (!repoValid || !projectValid) return;
+    if (!repoValid || !projectValid) {
+      setChecked({ repo: true, project: true });
+      (repoValid ? projectField : repoField).current?.focus();
+      return;
+    }
     const link: KanbanBoardLink = { repo: repo.trim() };
     if (parsedProject) link.project = parsedProject;
     onLink(link);
@@ -449,28 +500,57 @@ function LinkDialog({
           <div className="grid gap-1.5">
             <Label htmlFor="kanban-github-repo">{t.github.repo}</Label>
             <Input
+              ref={repoField}
               id="kanban-github-repo"
               autoFocus
               value={repo}
               placeholder={detecting ? t.github.detecting : t.github.repoPlaceholder}
-              onChange={(e) => setRepo(e.target.value)}
+              onChange={(e) => {
+                setRepo(e.target.value);
+                // Right again, the error goes at once; wrong again, it waits for the next blur.
+                if (REPO.test(e.target.value.trim())) setChecked((c) => ({ ...c, repo: false }));
+              }}
+              // Left empty, it waits for a submit to say so.
+              onBlur={() => setChecked((c) => ({ ...c, repo: !repoValid && (c.repo || repo.trim() !== "") }))}
+              aria-invalid={repoError || undefined}
+              aria-describedby={repoError ? "kanban-github-repo-error" : hintNotDetected ? "kanban-github-repo-hint" : undefined}
             />
-            {repo.trim() && !repoValid && <p className="text-xs text-dp-danger">{t.github.repoInvalid}</p>}
-            {notDetected && !repo.trim() && <p className="text-xs text-dp-text-2">{t.github.notDetected}</p>}
+            {repoError && (
+              <p id="kanban-github-repo-error" className="text-xs text-dp-danger">
+                {t.github.repoInvalid}
+              </p>
+            )}
+            {hintNotDetected && (
+              <p id="kanban-github-repo-hint" className="text-xs text-dp-text-2">
+                {t.github.notDetected}
+              </p>
+            )}
           </div>
           <div className="grid gap-1.5">
             <Label htmlFor="kanban-github-project">{t.github.project}</Label>
             <Input
+              ref={projectField}
               id="kanban-github-project"
               value={project}
               placeholder={t.github.projectPlaceholder}
-              onChange={(e) => setProject(e.target.value)}
+              onChange={(e) => {
+                setProject(e.target.value);
+                if (!e.target.value.trim() || parseProject(e.target.value) !== null) setChecked((c) => ({ ...c, project: false }));
+              }}
+              onBlur={() => setChecked((c) => ({ ...c, project: !projectValid }))}
+              aria-invalid={projectError || undefined}
+              aria-describedby={projectError ? "kanban-github-project-error" : undefined}
             />
-            {!projectValid && <p className="text-xs text-dp-danger">{t.github.projectInvalid}</p>}
+            {projectError && (
+              <p id="kanban-github-project-error" className="text-xs text-dp-danger">
+                {t.github.projectInvalid}
+              </p>
+            )}
           </div>
           <DialogFooter>
             <QuietButton onClick={onClose}>{t.cancel}</QuietButton>
-            <AccentButton type="submit" size="lg" disabled={!repoValid || !projectValid}>
+            {/* Enabled: a submit says what is wrong and focuses that field, where a greyed button would not. */}
+            <AccentButton type="submit" size="lg">
               {t.github.confirm}
             </AccentButton>
           </DialogFooter>
@@ -661,47 +741,56 @@ function CardView({
       >
         {card.title}
       </button>
-      <CardMenu t={t} boardId={boardId} cardId={card.id} columnId={columnId} columns={columns} first={first} last={last} focusCard={() => button.current?.focus()} onMove={onMove} onStep={onStep} />
+      <CardMenu
+        t={t}
+        boardId={boardId}
+        cardId={card.id}
+        issueUrl={card.github?.url}
+        columnId={columnId}
+        columns={columns}
+        first={first}
+        last={last}
+        focusCard={() => button.current?.focus()}
+        onMove={onMove}
+        onStep={onStep}
+      />
       {(card.priority !== "none" || card.due || card.github || card.agent) && (
         <div className="mt-2 flex flex-wrap gap-1">
-          {/* The priority, as the dialog shows it: its dot and its word, no coloured stripe down the card. */}
+          {/* The priority, as the dialog shows it: its bars and its word, no coloured stripe down the card. */}
           {card.priority !== "none" && (
             <span data-priority={card.priority} className={cn(CHIP, "bg-dp-surface text-dp-text-2")}>
-              <span className="size-1.5 rounded-full" style={{ background: PRIORITY_COLOR[card.priority] }} />
+              <PriorityMark priority={card.priority} />
               {t.priorities[card.priority]}
             </span>
           )}
+          {/* A warning's words stay in the text ink (danger at 12px misses 4.5:1 on its tint); its icon carries the danger. */}
           {card.due && (
-            <Tag hint={overdue ? t.overdue : undefined} className={cn(CHIP, overdue ? "bg-dp-danger/15 text-dp-danger" : "bg-dp-surface text-dp-text-2")}>
-              <Calendar className="size-3" />
+            <Tag
+              hint={overdue ? t.overdue : undefined}
+              data-overdue={overdue || undefined}
+              className={cn(CHIP, overdue ? "bg-dp-danger/15 text-dp-text" : "bg-dp-surface text-dp-text-2")}
+            >
+              <Calendar className={cn("size-3", overdue && "text-dp-danger")} />
               {formatDue(card.due)}
             </Tag>
           )}
+          {/* A tag, not a small button inside the card's own target: the card's menu opens the issue. */}
           {card.github && (
-            <HintedButton
+            <Tag
               hint={t.githubIssue(card.github.repo, card.github.number)}
-              variant="ghost"
-              aria-label={t.githubIssue(card.github.repo, card.github.number)}
-              onClick={(e) => {
-                e.stopPropagation();
-                if (card.github?.url) void openUrl(card.github.url).catch(() => undefined);
-              }}
-              className={cn(
-                CHIP,
-                "h-auto bg-dp-surface font-mono font-normal hover:bg-dp-hover hover:text-dp-text",
-                card.github.state === "closed" ? "text-dp-text" : "text-dp-text-2",
-              )}
+              data-issue={card.github.number}
+              className={cn(CHIP, "bg-dp-surface font-mono", card.github.state === "closed" ? "text-dp-text" : "text-dp-text-2")}
             >
               <CircleDot className="size-3" />#{card.github.number}
-            </HintedButton>
+            </Tag>
           )}
           {card.agent && (
             <Tag
               hint={card.agentStatus ? t.agentAlert[card.agentStatus](card.agent) : t.agentChip(card.agent)}
               data-agent-status={card.agentStatus}
-              className={cn(CHIP, card.agentStatus ? "bg-dp-danger/15 text-dp-danger" : "bg-dp-accent-soft text-dp-text")}
+              className={cn(CHIP, card.agentStatus ? "bg-dp-danger/15 text-dp-text" : "bg-dp-accent-soft text-dp-text")}
             >
-              <Bot className="size-3" />
+              <Bot className={cn("size-3", card.agentStatus && "text-dp-danger")} />
               {card.agent}
             </Tag>
           )}
@@ -720,6 +809,7 @@ function CardMenu({
   t,
   boardId,
   cardId,
+  issueUrl,
   columnId,
   columns,
   first,
@@ -731,6 +821,8 @@ function CardMenu({
   t: Messages;
   boardId: string;
   cardId: string;
+  /** A linked card's issue, opened from here rather than from a small target inside the card's own. */
+  issueUrl?: string;
   columnId: string;
   columns: KanbanColumn[];
   first: boolean;
@@ -799,6 +891,7 @@ function CardMenu({
             <SendToItems t={t} boardId={boardId} cardId={cardId} />
           </DropdownMenuSubContent>
         </DropdownMenuSub>
+        {issueUrl && <DropdownMenuItem onSelect={() => void openUrl(issueUrl).catch(() => undefined)}>{t.card.openIssue}</DropdownMenuItem>}
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -927,11 +1020,11 @@ function CardDialog({
                 spacing={1.5}
                 className="flex-wrap"
               >
-                <ToggleGroupItem value={NO_DUE} className={CHOICE}>
+                <ToggleGroupItem value={NO_DUE} variant="choice" size="sm" className={CHOICE}>
                   {t.dueNone}
                 </ToggleGroupItem>
                 {presets.map(({ preset }) => (
-                  <ToggleGroupItem key={preset} value={preset} className={CHOICE}>
+                  <ToggleGroupItem key={preset} value={preset} variant="choice" size="sm" className={CHOICE}>
                     {presetLabel[preset]}
                   </ToggleGroupItem>
                 ))}
@@ -957,8 +1050,8 @@ function CardDialog({
               className="flex-wrap"
             >
               {KANBAN_PRIORITIES.map((p) => (
-                <ToggleGroupItem key={p} value={p} className={CHOICE}>
-                  {p !== "none" && <span className="size-2 rounded-full" style={{ background: PRIORITY_COLOR[p] }} />}
+                <ToggleGroupItem key={p} value={p} variant="choice" size="sm" className={CHOICE}>
+                  <PriorityMark priority={p} />
                   {t.priorities[p]}
                 </ToggleGroupItem>
               ))}

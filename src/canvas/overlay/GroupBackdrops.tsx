@@ -1,6 +1,6 @@
 import { screenRectOf } from "@/agents/placement";
 import { ROLES } from "@/agents/roles";
-import { useCanvas } from "../canvasStore";
+import { useCanvas, useCanvasPlace } from "../canvasStore";
 
 /**
  * Frame outlines, painted under the transparent canvas (spec habillage §11.4):
@@ -8,7 +8,7 @@ import { useCanvas } from "../canvasStore";
  */
 export function GroupBackdrops() {
   const frames = useCanvas((s) => s.frames);
-  const view = useCanvas((s) => s.view);
+  const view = useCanvasPlace();
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
       {frames.map((frame) => {

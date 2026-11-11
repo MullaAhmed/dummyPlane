@@ -16,6 +16,7 @@ import { useCanvas } from "@/canvas/canvasStore";
 import { groupOf } from "@/canvas/groups";
 import { agentInk, AGENTS, AGENTS_WITHOUT_OPTIONS, INDIGO } from "@/agents/catalog";
 import { RemoteButton } from "@/agents/RemoteButton";
+import { Hint, HintedButton } from "@/shell/buttons";
 import { modelLabel } from "@/mission/router";
 import { openReview } from "@/review/reviewStore";
 import { ROLES } from "@/agents/roles";
@@ -120,16 +121,16 @@ function ModelChip({ nodeId, model }: { nodeId: string; model: string }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button
-          type="button"
+        {/* The app's hint, shut while its menu is open, not a native title. */}
+        <HintedButton
           variant="ghost"
           size="xs"
+          hint={t.modelChosen(model)}
           data-model={model}
-          title={t.modelChosen(model)}
           className="rounded-md px-1 font-mono font-normal text-dp-text-2 hover:text-dp-text"
         >
           {modelLabel(model)}
-        </Button>
+        </HintedButton>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuItem onSelect={() => nodesStore.getState().update(nodeId, { model: undefined })}>
@@ -179,6 +180,8 @@ export function TerminalHeader(props: {
   const name = (
     <NameField
       value={shown}
+      // The terminal's own title, on its name only; a sub-agent's task line's tooltip says it instead.
+      detail={spawned ? undefined : payload.title}
       editing={editing}
       onEditingChange={setEditing}
       onCommit={(next) => {
@@ -188,8 +191,8 @@ export function TerminalHeader(props: {
   );
 
   return (
-    // The task line's tooltip says the title: no native one beside it.
-    <NodeHeader title={spawned ? undefined : payload.title}>
+    // No native title on the header: it showed over every button's hint. The name carries the terminal's title.
+    <NodeHeader>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button type="button" variant="ghost" size="sm" aria-label={t.agent} className="shrink-0 gap-0.5 rounded-md px-1">
@@ -212,11 +215,15 @@ export function TerminalHeader(props: {
           <DropdownMenuItem onSelect={() => setOptionsOpen(true)}>{t.options}</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-      <span
-        aria-hidden
-        className="size-1.5 shrink-0 rounded-full"
-        style={{ backgroundColor: role ? ROLES[role].color : "var(--dp-text-3)" }}
-      />
+      {/* The group's role, as a short bar of its colour, named: a dot here read as a second status dot (the signature is the
+          status dot alone). A terminal in no group shows nothing. */}
+      {role && (
+        <Hint label={ROLES[role].label}>
+          <span role="img" aria-label={ROLES[role].label} data-role={role} className="grid h-5 w-2 shrink-0 place-items-center">
+            <span className="h-3.5 w-0.5 rounded-sm" style={{ backgroundColor: ROLES[role].color }} />
+          </span>
+        </Hint>
+      )}
       {/* Renaming, the 28px field takes the row alone: with the task line under it, it would not fit in 36px. */}
       {spawned && !editing ? <NodeTitle name={name} line={spawned.line} detail={spawned.detail} /> : name}
       <NodeHeaderEnd>

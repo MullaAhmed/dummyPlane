@@ -5,6 +5,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { requestUi } from "@/commands/uiRequests";
 import { remoteStore } from "@/agents/remoteControl";
+import { canvasStore } from "@/canvas/canvasStore";
 import { nodesStore } from "@/store/nodes";
 import { relaunchTerminal, stopTerminal } from "./registry";
 import { TerminalHeader } from "./TerminalHeader";
@@ -263,6 +264,52 @@ it("keeps the row to the name field while it is renamed, and to the name for a t
   await view.unmount();
   const plain = await mount(<TerminalHeader nodeId="batman" payload={claude} status={{ state: "running" }} />);
   expect(plain.host.querySelector("[data-task-line]")).toBeNull();
-  expect(plain.host.querySelector("header")!.getAttribute("title")).toBe("Batman");
+  await plain.unmount();
+});
+
+it("shows its group's role as a named bar of the role's colour, never a second dot; nothing outside a group (P2 #56)", async () => {
+  const solidDots = (host: HTMLElement) => [...host.querySelectorAll("header span")].filter((span) => span.className.includes("rounded-full") && !span.hasAttribute("data-status"));
+  // In no group: no grey dot beside the agent any more.
+  const loose = await mount(<TerminalHeader nodeId="batman" payload={claude} status={{ state: "running" }} />);
+  expect(loose.host.querySelector("[data-role]")).toBeNull();
+  expect(solidDots(loose.host)).toEqual([]);
+  await loose.unmount();
+  const group = { id: "g1", name: "Avengers", x: 0, y: 0, width: 100, height: 100, group: { role: "frontend", pantheon: "marvel" }, memberIds: ["batman"] };
+  canvasStore.setState({ frames: [group] as never });
+  try {
+    const view = await mount(<TerminalHeader nodeId="batman" payload={claude} status={{ state: "running" }} />);
+    const mark = view.host.querySelector<HTMLElement>("[data-role='frontend']")!;
+    // Named, not by colour alone, and not a dot: the status dot is the only one in the header.
+    expect(mark.getAttribute("role")).toBe("img");
+    expect(mark.getAttribute("aria-label")).toBe("Frontend");
+    const bar = mark.firstElementChild as HTMLElement;
+    expect(bar.className).toContain("w-0.5");
+    expect(bar.className).not.toContain("rounded-full");
+    expect(bar.style.backgroundColor).not.toBe("");
+    expect(solidDots(view.host)).toEqual([]);
+    await view.unmount();
+  } finally {
+    canvasStore.setState({ frames: [] });
+  }
+});
+
+it("keeps native titles off the header and its buttons: the terminal's title is on its name, the model's in the app's hint (P2 #20)", async () => {
+  const payload = { ...claude, title: "Fixing the header", model: "claude-haiku-5-5" };
+  const view = await mount(<TerminalHeader nodeId="batman" payload={payload} status={{ state: "running" }} onClose={() => {}} />);
+  const header = view.host.querySelector("header")!;
+  // On the header it showed over the hint of every button in it (Close, ⋯, Remote).
+  expect(header.hasAttribute("title")).toBe(false);
+  expect(header.querySelector("button[title]")).toBeNull();
+  const name = header.querySelector("span[title]")!;
+  expect(name.textContent).toBe("Batman");
+  expect(name.getAttribute("title")).toBe("Fixing the header\nDouble-click to rename");
+  const chip = header.querySelector<HTMLButtonElement>("[data-model]")!;
+  await act(async () => chip.focus());
+  await act(async () => new Promise((resolve) => setTimeout(resolve, 450)));
+  expect(document.querySelector('[role="tooltip"]')?.textContent).toBe("Model chosen by the router: claude-haiku-5-5");
+  await view.unmount();
+  // A title that only repeats the name adds nothing to its tooltip.
+  const plain = await mount(<TerminalHeader nodeId="batman" payload={claude} status={{ state: "running" }} />);
+  expect(plain.host.querySelector("header span[title]")!.getAttribute("title")).toBe("Double-click to rename");
   await plain.unmount();
 });

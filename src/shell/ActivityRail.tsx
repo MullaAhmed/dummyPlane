@@ -30,7 +30,7 @@ export function ActivityRail() {
   return (
     <nav className="dp-glass absolute right-3 top-1/2 z-30 flex -translate-y-1/2 flex-col items-center gap-0.5 rounded-lg p-1">
       {/* Its name carries the pip's number: "Agents, 2 waiting" (WCAG 2.5.3 label in name). */}
-      <RailButton label={waiting > 0 ? t.agentsWaiting(waiting) : t.agents} active={open} onClick={() => setAgentsPanel(!open)}>
+      <RailButton toggle label={waiting > 0 ? t.agentsWaiting(waiting) : t.agents} active={open} onClick={() => setAgentsPanel(!open)}>
         <Users />
         {waiting > 0 && (
           <span
@@ -44,12 +44,13 @@ export function ActivityRail() {
       <RailButton
         label={studioLabel}
         active={codeOnScreen}
+        aria-current={codeOnScreen ? "page" : undefined}
         disabled={!inProject}
         onClick={() => void openCodeWorkspace()}
       >
         <Code2 />
       </RailButton>
-      <RailButton label={t.notes} active={notesOnScreen} disabled={!inProject} onClick={openNotes}>
+      <RailButton label={t.notes} active={notesOnScreen} aria-current={notesOnScreen ? "page" : undefined} disabled={!inProject} onClick={openNotes}>
         <BookOpen />
       </RailButton>
       <Separator className="my-1 bg-dp-line data-horizontal:w-6" />

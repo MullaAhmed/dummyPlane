@@ -12,6 +12,8 @@ import {
   removeCard,
   removeColumn,
   renameColumn,
+  restoreCard,
+  restoreColumn,
   updateCard,
 } from "./board";
 
@@ -50,6 +52,36 @@ describe("board", () => {
     b = removeColumn(b, "id1");
     expect(b.columns.map((c) => c.id)).toEqual(["id2", "id3", "x"]);
     expect(Object.keys(b.cards)).toEqual(["id6"]);
+  });
+
+  it("puts a deleted column back where it was, with its cards, once (the delete's undo)", () => {
+    const b = board();
+    const column = b.columns[0];
+    const cards = { id4: b.cards.id4, id5: b.cards.id5 };
+    const removed = removeColumn(b, column.id);
+    const back = restoreColumn(removed, column, cards, 0);
+    expect(back.columns).toEqual(b.columns);
+    expect(back.cards).toEqual(b.cards);
+    // A second undo, or a column already there, changes nothing.
+    expect(restoreColumn(back, column, cards, 0)).toBe(back);
+    // A card placed elsewhere since stays there; the index is clamped to the board.
+    const elsewhere = addCard(removed, "id3", draft("again"), () => "id5");
+    const kept = restoreColumn(elsewhere, column, cards, 9);
+    expect(kept.columns.map((c) => c.id)).toEqual(["id2", "id3", "id1"]);
+    expect(kept.columns[2].cardIds).toEqual(["id4"]);
+    expect(kept.cards.id5.title).toBe("again");
+  });
+
+  it("puts a deleted card back at its place in its column, unless it is back or its column gone", () => {
+    const b = board();
+    const card = b.cards.id4;
+    const removed = removeCard(b, "id4");
+    const back = restoreCard(removed, card, "id1", 0);
+    expect(back.columns[0].cardIds).toEqual(["id4", "id5"]);
+    expect(back.cards.id4).toEqual(card);
+    expect(restoreCard(back, card, "id1", 0)).toBe(back);
+    const gone = removeColumn(removed, "id1");
+    expect(restoreCard(gone, card, "id1", 0)).toBe(gone);
   });
 
   it("adds a card at the end of a column, not to an unknown one", () => {
