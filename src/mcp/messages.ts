@@ -38,6 +38,14 @@ export const agentMessages = defineMessages({
       messageText: "The message, on one line.",
       readAgent: "The end of a linked agent's terminal, as plain text.",
       readLines: "How many lines, 50 by default.",
+      handOff:
+        "Hand a task to the Fleet the user linked you to. While its mission runs, the task joins the mission's queue (a card in the board's to-do column) and a new agent takes it as a seat frees up; " +
+        "with no mission running, the task is typed to the Fleet, which plans it. Only for work beyond your own task that another agent should do: use message_agent to talk to the Fleet, spawn_agent for ad-hoc help of your own. " +
+        "Answers where the task went, or why it was not taken.",
+      handOffBrief: "The complete instructions: the agent that takes the task starts from nothing and knows only this.",
+      handOffBudget: "Minutes the agent gets (a whole number, 1 at least): 30 by default, less if the night is shorter.",
+      handOffLevel: "Difficulty. With the Fleet's model router on, it chooses the agent's model (low Haiku 5.5, medium Sonnet 5.5, high Opus 5.5, extreme Fable 5.1); medium by default.",
+      handOffFleet: "Only when several Fleets are linked to you: the Fleet's name (or its id), as linked_agents gives it.",
       showOutput: (components: string) =>
         "Show the user a result (report, summary, comparison, table, figures, chart) as an output node beside your terminal, instead of a wall of text. " +
         `Written in OpenUI Lang: root = Stack([...]), then one name = Component(args) per line. Components: ${components}. ` +
@@ -145,6 +153,35 @@ export const agentMessages = defineMessages({
       sent: (name: string) => `Sent to ${name}. An answer, if any, will be typed into your terminal: carry on, do not wait for it.`,
       held: (name: string) => `${name} is waiting for the user's answer to a dialog: your message is typed as soon as it is answered.`,
       emptyTerminal: "(empty terminal)",
+    },
+    /** hand_off, and message_agent to the Fleet that commands the caller (`./handOff.ts`). */
+    handOff: {
+      noCanvas: "Your workspace's canvas is not loaded: open it in dummyPlane, then try again.",
+      team: "You work for a mission: its Manager runs it (message_agent reaches it, report hands your work back). Only an agent the user linked to a Fleet hands tasks off to it.",
+      notLinked: "No Fleet is linked to you. The user links you to one with \"+ Link\" under your terminal, then a click on the Fleet.",
+      noSuchFleet: (name: string, fleets: string) => `"${name}" is not a Fleet linked to you. Linked: ${fleets}.`,
+      whichFleet: (fleets: string) => `Several Fleets are linked to you: name one (fleet). Linked: ${fleets}.`,
+      gone: (fleet: string) => `${fleet} is no longer on the canvas.`,
+      titleMissing: (max: number) => `Give the task a short title (title, ${max} characters at most).`,
+      briefMissing: "Give the task's brief (brief).",
+      finished: (fleet: string) => `${fleet}'s mission is finished: the user cleans it up from its panel, then the Fleet takes new work. The task is not handed off: tell the user.`,
+      stopped: (fleet: string) => `${fleet} is stopped: its terminal is not running, nothing is sent.`,
+      nothingToSend: "Nothing to send (text).",
+      sent: (fleet: string) => `Sent to ${fleet}: no mission is running, so the Fleet plans the task. It has no tool to answer you: carry on, do not wait for it.`,
+      queued: (title: string, card: string | undefined, waiting: number) =>
+        `Queued${card ? ` as card ${card}` : ""} ("${title}"). Waiting: ${waiting}. A new agent takes it as a seat frees up; the Fleet is told.`,
+      queuedStopped: (fleet: string) => ` ${fleet} is stopped: it hears of it when it is back.`,
+      messageSent: (fleet: string) => `Sent to ${fleet}. It has no tool to answer you: carry on, do not wait for it.`,
+      cardNote: (from: string) => `Handed off by ${from}.`,
+      /** What the Fleet hears: a task, queued or to plan, and a message. */
+      queuedLine: (from: string, title: string, card: string | undefined, waiting: number) =>
+        `${from} (an agent linked to you) handed off "${title}": queued${card ? ` as card ${card}` : ""}, ${waiting} waiting. A new agent takes it as a seat frees up; do nothing unless the user wants it changed (prioritize, queue).`,
+      planLine: (from: string, title: string, brief: string, extra: string) =>
+        `${from} (an agent linked to you) hands off a task: "${title}" — ${brief}${extra} No mission is running: plan it (propose_plan, or add_tasks), or ask the user if it does not fit what they asked.`,
+      messageLine: (from: string, text: string) => `Message from ${from} (an agent linked to you; you have no tool to answer it: act on it, or tell the user): ${text}`,
+      /** What the Manager of the mission hears. */
+      cardLine: (from: string, fleet: string, title: string) =>
+        `${from}, an agent linked to ${fleet}, handed off "${title}" to the board. It waits in the queue: a new agent takes it as a seat frees up.`,
     },
     /** show_output and output_guide (`@/nodes/output/show`). */
     output: {

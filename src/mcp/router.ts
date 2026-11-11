@@ -4,6 +4,7 @@ import { notesTool, notesToolSpec } from "@/notes/agentTool";
 import { missionOf } from "@/mission/store";
 import { isManagerRecord, nodesStore, sessionOf, terminalOf } from "@/store/nodes";
 import { AGENT_ONLY, agentTools, declareSteps, markStep, refused, reportTool, spawnAgentSpec, spawnAgentTool } from "./agentTools";
+import { handOffTool, handOffTools } from "./handOff";
 import { linkTool, linkTools } from "./linkTools";
 import { outputGuideSpec, outputGuideTool, outputTools, readNodeSpec, readNodeTool, showOutputTool } from "./nodeTools";
 import { agentMessages } from "./messages";
@@ -29,7 +30,7 @@ export async function answer(call: McpCall): Promise<unknown> {
       ? [...fleetTools({ legacy: runsTheOldWay(missionOf(record)), claude }), spawnAgentSpec(true), outputGuideSpec()]
       : manager
         ? [...managerTools(), outputGuideSpec()]
-        : [...agentTools(), ...linkTools(), ...outputTools()];
+        : [...agentTools(), ...linkTools(), ...handOffTools(call.nodeId), ...outputTools()];
     return { tools: [...own, readNodeSpec(), notesToolSpec()] };
   }
   const asked = String(call.params.name ?? "");
@@ -59,6 +60,8 @@ export async function answer(call: McpCall): Promise<unknown> {
       return reportTool(call.nodeId, args);
     case "spawn_agent":
       return spawnAgentTool(call.nodeId, args);
+    case "hand_off":
+      return handOffTool(call.nodeId, args);
     case "show_output":
       return showOutputTool(call.nodeId, args);
     default:

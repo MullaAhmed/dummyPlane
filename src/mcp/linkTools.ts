@@ -11,6 +11,7 @@ import { agentActivityStore } from "@/store/agentActivity";
 import { isManagerNode, nodesStore, terminalOf } from "@/store/nodes";
 import { isRunning } from "@/store/terminalStatus";
 import { refused, said, type ToolResult } from "./agentTools";
+import { fleetNamed, fleetPeers, messageFleet } from "./handOff";
 import { agentMessages } from "./messages";
 import { outAgentState } from "./protocol";
 
@@ -91,10 +92,15 @@ function linkedNamed(nodeId: string, raw: unknown): LinkedAgent | string {
 function listLinked(nodeId: string): ToolResult {
   const linked = reachable(nodeId);
   if (linked === null) return refused(t().links.noCanvas);
-  if (linked.length === 0) return said(t().links.none);
+  // The Fleet the user wired it to is listed too, relation "fleet": message_agent reaches it, hand_off hands it a task.
+  const fleets = fleetPeers(nodeId);
+  if (linked.length === 0 && fleets.length === 0) return said(t().links.none);
   return said(
     JSON.stringify(
-      linked.map((a) => ({ name: a.name, id: a.nodeId, state: outAgentState(agentState(a.nodeId)), relation: relationOf(nodeId, a.nodeId) })),
+      [
+        ...linked.map((a) => ({ name: a.name, id: a.nodeId, state: outAgentState(agentState(a.nodeId)), relation: relationOf(nodeId, a.nodeId) })),
+        ...fleets.map(({ name, id, state, relation }) => ({ name, id, state, relation })),
+      ],
       null,
       2,
     ),
@@ -104,7 +110,11 @@ function listLinked(nodeId: string): ToolResult {
 function messageLinked(nodeId: string, args: Record<string, unknown>): ToolResult {
   const l = t().links;
   const peer = linkedNamed(nodeId, args.agent);
-  if (typeof peer === "string") return refused(peer);
+  if (typeof peer === "string") {
+    // Not an agent: the Fleet that commands the caller, then; any other name is refused as before.
+    const fleetId = fleetNamed(nodeId, args.agent);
+    return fleetId ? messageFleet(nodeId, fleetId, args.text) : refused(peer);
+  }
   const text = typeof args.text === "string" ? oneLine(args.text) : "";
   if (!text) return refused(l.nothingToSend);
   if (!isRunning(peer.nodeId)) return refused(l.stopped(peer.name));

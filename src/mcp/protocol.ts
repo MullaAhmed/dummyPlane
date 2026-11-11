@@ -36,6 +36,7 @@ const TOOLS: Record<string, string> = {
   linked_agents: "linked_agents",
   message_agent: "message_agent",
   read_agent: "read_agent",
+  hand_off: "hand_off",
   show_output: "show_output",
   output_guide: "output_guide",
   read_node: "read_node",
@@ -63,6 +64,7 @@ const ARGS: Record<string, Record<string, string>> = {
   reattribuer: { subtask: "sous_tache" },
   terminer: { summary: "bilan" },
   remote_control: { on: "actif" },
+  hand_off: { title: "titre", brief: "consigne", level: "niveau" },
 };
 const SUBTASK_ARGS: Record<string, string> = { title: "titre", brief: "consigne", level: "niveau", group: "groupe" };
 
@@ -91,6 +93,7 @@ export function internalCall(name: string, raw: Record<string, unknown>): { name
   if (internal === "etape") args.etat = valueIn(STEP_IN, args.etat);
   if (internal === "rendre_compte") args.statut = valueIn(REPORT_IN, args.statut);
   if (internal === "reattribuer") args.agent = valueIn(AGENT_IN, args.agent);
+  if (internal === "hand_off" && args.niveau !== undefined) args.niveau = valueIn(LEVEL_IN, args.niveau);
   if (internal === "remote_control" && Array.isArray(args.agents)) args.agents = args.agents.map((target) => valueIn(TARGET_IN, target));
   if (internal === "proposer_plan" && Array.isArray(args.sous_taches)) {
     args.sous_taches = args.sous_taches.map((item) => {
