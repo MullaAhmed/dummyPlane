@@ -61,7 +61,8 @@ function specificity(selector: string): [number, number, number] {
   let extra: [number, number, number] = [0, 0, 0];
   rest = rest.replace(/:(?:is|not|where)\(((?:[^()]|\([^()]*\))*)\)/g, (whole, args: string) => {
     if (whole.startsWith(":where")) return "";
-    const best = selectors(args).map(specificity).sort(compare).at(-1)!;
+    const ranked = selectors(args).map(specificity).sort(compare);
+    const best = ranked[ranked.length - 1];
     extra = [extra[0] + best[0], extra[1] + best[1], extra[2] + best[2]];
     return "";
   });
@@ -89,7 +90,10 @@ const SHORTHAND: Record<string, string> = {
 
 const PARTS = ["data-title", "data-description", "data-button", "data-cancel", "data-action"];
 /** The last compound of a selector: the element it styles. */
-const subject = (selector: string) => selector.split(/[\s>+~]+/).at(-1)!;
+const subject = (selector: string) => {
+  const compounds = selector.split(/[\s>+~]+/);
+  return compounds[compounds.length - 1];
+};
 
 describe("a toast's title, description and buttons take the app's classes (Alerts)", () => {
   const handBack = rules(index).find((r) => r.body.includes("revert-layer") && r.selector.includes("data-sonner-toast"));
