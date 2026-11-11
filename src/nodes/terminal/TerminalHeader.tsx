@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { ChevronDown, X } from "lucide-react";
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
@@ -21,7 +22,9 @@ import { Hint, HintedButton } from "@/shell/buttons";
 import { modelLabel } from "@/mission/router";
 import { openReview } from "@/review/reviewStore";
 import { ROLES } from "@/agents/roles";
-import type { AgentId } from "@/ipc/pty";
+import { MANAGER_ROLE, type AgentId } from "@/ipc/pty";
+import { missionMessages } from "@/mission/messages";
+import { RouterToggle } from "@/mission/RouterToggle";
 import { cn } from "@/lib/utils";
 import type { TerminalPayload } from "@/nodes/types";
 import type { AgentActivity } from "@/store/agentActivity";
@@ -57,6 +60,7 @@ function TerminalMenu(props: { nodeId: string; payload: TerminalPayload; running
   const t = useMessages(nodesMessages).header;
   const duplicate = useMessages(nodesMessages).terminal.duplicate;
   const quickNoteLabel = useMessages(noteMessages).add;
+  const routerLabel = useMessages(missionMessages).routerSwitch;
   const relaunch = (mode: LaunchMode) => relaunchTerminal(nodeId, payload, mode);
   const newSession = () => {
     const fresh = newConversation();
@@ -87,6 +91,15 @@ function TerminalMenu(props: { nodeId: string; payload: TerminalPayload; running
         </>
       ) : (
         <DropdownMenuItem onSelect={() => relaunch("new")}>{t.relaunch}</DropdownMenuItem>
+      )}
+      {/* The router's switch is in the header from 28rem on; here it is, at any width. A Manager's has nothing to route. */}
+      {payload.agent === "claude" && payload.role !== MANAGER_ROLE && (
+        <>
+          <DropdownMenuSeparator />
+          <DropdownMenuCheckboxItem checked={payload.router === true} onCheckedChange={(on) => nodesStore.getState().update(nodeId, { router: on === true || undefined })}>
+            {routerLabel}
+          </DropdownMenuCheckboxItem>
+        </>
       )}
       {/* The model chip says it from 28rem of header on; here it is said, and cleared, at any width. */}
       {payload.model && (
@@ -253,6 +266,10 @@ export function TerminalHeader(props: {
         <div className={cn(WIDE_ONLY, "items-center gap-1")}>
           {payload.agent === "claude" && <AccountChip accountId={payload.accountId} />}
           {payload.model && <ModelChip nodeId={nodeId} model={payload.model} />}
+          {/* A Manager runs a board, never a plan's agent: the router has nothing to give it. */}
+          {payload.agent === "claude" && payload.role !== MANAGER_ROLE && (
+            <RouterToggle on={payload.router === true} onChange={(on) => nodesStore.getState().update(nodeId, { router: on || undefined })} />
+          )}
         </div>
         {payload.agent === "claude" && <RemoteButton nodeId={nodeId} wanted={payload.remoteControl === true} running={running} />}
         <TerminalMenu nodeId={nodeId} payload={payload} running={running} onDuplicate={onDuplicate} />

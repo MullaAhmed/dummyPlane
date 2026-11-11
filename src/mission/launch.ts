@@ -21,6 +21,7 @@ import { freshText, quietFor, relaunchTerminal, stopTerminal } from "@/nodes/ter
 import { addTaskCards, linkedBoards, reassignMissionCard, startMissionCards } from "@/kanban/fleetBoards";
 import { agentMessages } from "@/mcp/messages";
 import { outReport } from "@/mcp/protocol";
+import type { TerminalPayload } from "@/nodes/types";
 import { nodeNameOf, nodesStore, sessionOf, terminalOf } from "@/store/nodes";
 import { isRunning } from "@/store/terminalStatus";
 import { markLaunching } from "@/agents/spawnFamily";
@@ -106,8 +107,16 @@ export function teamAgent(fleetId: string): AgentId {
   return agent && FLEET_CAPABLE.includes(agent) ? agent : fleetAgent();
 }
 
-/** The router's model for a task: its levels name Claude's models, which another CLI would refuse. */
-const teamModel = (fleetId: string, mission: Mission, task: SubTask) => (teamAgent(fleetId) === "claude" ? modelFor(mission, task) : undefined);
+/**
+ * The router's model for a task: its levels name Claude's models, which another CLI would refuse. The mission's
+ * router routes the team of a Claude Fleet; a linked Claude agent whose own router is on (`linked`) takes it on a
+ * Fleet of another CLI too, and keeps the model it has when the task names no level.
+ */
+function teamModel(fleetId: string, mission: Mission, task: SubTask, linked?: TerminalPayload): string | undefined {
+  const byMission = teamAgent(fleetId) === "claude" && mission.router === true;
+  const own = linked?.agent === "claude" && linked.router === true;
+  return modelFor({ router: byMission }, task, { router: own }) ?? (own ? linked?.model : undefined);
+}
 
 /** The terminal of an agent created for the mission, in its worktree, on its team's CLI. */
 const agentPayload = (agent: AgentId, name: string, cwd: string, model?: string, permission?: Permission) => ({
@@ -162,7 +171,7 @@ async function formTeam(fleetId: string, workspaceId: string, project: string, m
       taken.push(name);
       const tree = await missionAddAgent(project, root.slug, name);
       made.push(tree);
-      const model = teamModel(fleetId, mission, task);
+      const model = teamModel(fleetId, mission, task, terminalOf(nodesStore.getState().nodes[agent?.nodeId ?? ""]));
       members.push({
         nodeId: agent?.nodeId ?? "",
         name,

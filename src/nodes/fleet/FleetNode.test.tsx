@@ -7,6 +7,8 @@ import { canvasStore, EMPTY_VIEW } from "@/canvas/canvasStore";
 import { requestUi } from "@/commands/uiRequests";
 import { sendCommand } from "@/agents/broadcast";
 import { agentActivityStore } from "@/store/agentActivity";
+import { NEW_MISSION } from "@/mission/mission";
+import type { FleetPayload } from "@/nodes/types";
 import { nodesStore, sessionOf } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
 import { markForAutostart, mountTerminal } from "../terminal/registry";
@@ -262,6 +264,44 @@ describe("its header, the same chrome as a terminal's", () => {
     await act(async () => void press(again, "Enter"));
     expect(nameOf()).toBe("Fleet");
     expect(seen).not.toHaveBeenCalled();
+  });
+
+  describe("its model router, back where the Fleet's chrome has room", () => {
+    const routerButton = () => host.querySelector<HTMLButtonElement>('[data-fleet] > header button[aria-label="Model router"]');
+    const missionRouter = () => (nodesStore.getState().nodes.chef?.payload as FleetPayload).mission?.router;
+
+    it("is a sticky switch: pressed is on, it writes the mission's router and the panel's own row agrees", async () => {
+      const sw = routerButton()!;
+      expect(sw).not.toBeNull();
+      expect(sw.getAttribute("aria-pressed")).toBe("false");
+      // With the clock, from 28rem of header on: a narrower node has the same switch in its Edit tab.
+      expect(sw.parentElement!.className).toContain("@md/head:flex");
+      await act(async () => sw.click());
+      expect(missionRouter()).toBe(true);
+      expect(routerButton()!.getAttribute("aria-pressed")).toBe("true");
+      expect(host.querySelector('[data-mission] [aria-label="Model router"]')?.getAttribute("aria-checked")).toBe("true");
+      await act(async () => routerButton()!.click());
+      expect(missionRouter()).toBeUndefined();
+      expect(routerButton()!.getAttribute("aria-pressed")).toBe("false");
+    });
+
+    it("is in its ⋯ menu too, at any width, a checked entry that writes the mission's router", async () => {
+      await act(async () => host.querySelector<HTMLButtonElement>('button[aria-label="Fleet menu"]')!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true })));
+      const entry = () => document.querySelector<HTMLElement>('[role="menuitemcheckbox"]');
+      expect(entry()?.textContent).toBe("Model router");
+      expect(entry()?.getAttribute("aria-checked")).toBe("false");
+      await act(async () => entry()!.click());
+      expect(missionRouter()).toBe(true);
+    });
+
+    it("is there once the team is at work, and shows none on a Fleet whose session runs another CLI", async () => {
+      const mission = (nodesStore.getState().nodes.chef?.payload as FleetPayload).mission ?? NEW_MISSION;
+      await act(async () => nodesStore.getState().update("chef", { mission: { ...mission, state: "en_cours", router: true } }));
+      expect(routerButton()!.getAttribute("aria-pressed")).toBe("true");
+      const session = sessionOf(nodesStore.getState().nodes.chef)!;
+      await act(async () => nodesStore.getState().update("chef", { session: { ...session, agent: "codex" } }));
+      expect(routerButton()).toBeNull();
+    });
   });
 
   it("cancels a rename on Escape and keeps Backspace and Delete from the canvas", async () => {

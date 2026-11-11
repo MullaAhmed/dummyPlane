@@ -116,7 +116,10 @@ function MissionView({ nodeId, mission }: { nodeId: string; mission: Mission }) 
   );
 }
 
-/** Before the go-ahead: the team it can call on, and its settings, folded into the line of their values. */
+/**
+ * Before the go-ahead: the team it can call on, the model router in plain view, and the other settings folded
+ * into the line of their values. A night sets its own team size, so nothing is left to fold.
+ */
 function Setup({ nodeId, mission }: { nodeId: string; mission: Mission }) {
   const t = useMessages(missionMessages);
   const [open, setOpen] = useState(false);
@@ -127,24 +130,57 @@ function Setup({ nodeId, mission }: { nodeId: string; mission: Mission }) {
   return (
     <div ref={block} className="flex flex-col">
       <TeamLink nodeId={nodeId} />
-      <Button
-        type="button"
-        variant="ghost"
-        aria-expanded={open}
-        aria-controls={grid}
-        onClick={() => setOpen(!open)}
-        // Its words on the body's edge, its hover surface out into the padding.
-        className="-mx-2 h-7 justify-start gap-2 px-2 text-xs font-normal text-dp-text-2 hover:text-dp-text"
-      >
-        {t.settings}
-        {/* A night sets its own team size: the settings keep the router. */}
-        <span className="min-w-0 truncate text-dp-text-3 tabular-nums">{t.settingsSummary(mission.overnight ? null : mission.maxAgents, mission.router === true)}</span>
-        <ChevronDown
-          aria-hidden
-          className={cn("ml-auto size-4 text-dp-text-3 transition-transform duration-(--dp-dur-fast) ease-(--dp-ease-out) motion-reduce:transition-none", open && "rotate-180")}
-        />
-      </Button>
-      {open && <SettingsGrid id={grid} nodeId={nodeId} mission={mission} night={mission.overnight === true} />}
+      <RouterRow nodeId={nodeId} mission={mission} />
+      {!mission.overnight && (
+        <>
+          <Button
+            type="button"
+            variant="ghost"
+            aria-expanded={open}
+            aria-controls={grid}
+            onClick={() => setOpen(!open)}
+            // Its words on the body's edge, its hover surface out into the padding.
+            className="-mx-2 h-7 justify-start gap-2 px-2 text-xs font-normal text-dp-text-2 hover:text-dp-text"
+          >
+            {t.settings}
+            <span className="min-w-0 truncate text-dp-text-3 tabular-nums">{t.settingsSummary(mission.maxAgents)}</span>
+            <ChevronDown
+              aria-hidden
+              className={cn("ml-auto size-4 text-dp-text-3 transition-transform duration-(--dp-dur-fast) ease-(--dp-ease-out) motion-reduce:transition-none", open && "rotate-180")}
+            />
+          </Button>
+          {open && <SettingsGrid id={grid} nodeId={nodeId} mission={mission} />}
+        </>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The model router, always in view: with it on, each sub-task's level picks its agent's model, so the user
+ * must be able to see the switch without opening anything. Its levels name Claude's models: a team on another
+ * CLI keeps its own, and the row is not there (`teamModel`, launch.ts).
+ */
+function RouterRow({ nodeId, mission }: { nodeId: string; mission: Mission }) {
+  const t = useMessages(missionMessages);
+  const claudeTeam = useNodes((s) => (sessionOf(s.nodes[nodeId])?.agent ?? "claude") === "claude");
+  const router = useId();
+  if (!claudeTeam) return null;
+  return (
+    <div className="flex h-7 items-center gap-2">
+      <Checkbox
+        id={router}
+        role="switch"
+        aria-label={t.routerLabel}
+        checked={mission.router === true}
+        onCheckedChange={(checked) => setMission(nodeId, { router: checked === true || undefined })}
+        className="after:-inset-1"
+      />
+      <Hint label={t.routerTitle} side="bottom">
+        <label htmlFor={router} className="cursor-pointer">
+          {t.routerLabel}
+        </label>
+      </Hint>
     </div>
   );
 }
@@ -177,55 +213,30 @@ function TeamLink({ nodeId }: { nodeId: string }) {
   );
 }
 
-/** The settings, a label per row and every control on one line, all 28px tall (as the lines above). */
-function SettingsGrid({ id, nodeId, mission, night }: { id: string; nodeId: string; mission: Mission; night: boolean }) {
+/** The settings the fold keeps, a label per row and every control on one line, all 28px tall (as the lines above). */
+function SettingsGrid({ id, nodeId, mission }: { id: string; nodeId: string; mission: Mission }) {
   const t = useMessages(missionMessages);
-  const claudeTeam = useNodes((s) => (sessionOf(s.nodes[nodeId])?.agent ?? "claude") === "claude");
   const agents = useId();
-  const router = useId();
   return (
     <div id={id} className="grid grid-cols-[auto_1fr] items-center gap-x-4 gap-y-1 pt-1">
-      {!night && (
-        <>
-          {/* Named by its visible label (WCAG 2.5.3 label in name); the long phrasing is the label's hint. */}
-          <Hint label={t.maxAgentsHint} side="bottom">
-            <label htmlFor={agents}>{t.maxAgents}</label>
-          </Hint>
-          <div className="flex h-7 items-center">
-            <Input
-              id={agents}
-              type="number"
-              min={1}
-              max={MAX_AGENTS}
-              value={mission.maxAgents}
-              onChange={(e) => {
-                const count = Math.round(Number(e.target.value));
-                if (count >= 1) setMission(nodeId, { maxAgents: Math.min(MAX_AGENTS, count) });
-              }}
-              className={NUMBER}
-            />
-          </div>
-        </>
-      )}
-      {/* Its levels name Claude's models: a team on another CLI keeps its own. */}
-      {claudeTeam && (
-        <>
-          <Hint label={t.routerTitle} side="bottom">
-            <label htmlFor={router} className="cursor-pointer">
-              {t.routerLabel}
-            </label>
-          </Hint>
-          <div className="flex h-7 items-center">
-            <Checkbox
-              id={router}
-              aria-label={t.routerLabel}
-              checked={mission.router === true}
-              onCheckedChange={(checked) => setMission(nodeId, { router: checked === true || undefined })}
-              className="after:-inset-1"
-            />
-          </div>
-        </>
-      )}
+      {/* Named by its visible label (WCAG 2.5.3 label in name); the long phrasing is the label's hint. */}
+      <Hint label={t.maxAgentsHint} side="bottom">
+        <label htmlFor={agents}>{t.maxAgents}</label>
+      </Hint>
+      <div className="flex h-7 items-center">
+        <Input
+          id={agents}
+          type="number"
+          min={1}
+          max={MAX_AGENTS}
+          value={mission.maxAgents}
+          onChange={(e) => {
+            const count = Math.round(Number(e.target.value));
+            if (count >= 1) setMission(nodeId, { maxAgents: Math.min(MAX_AGENTS, count) });
+          }}
+          className={NUMBER}
+        />
+      </div>
     </div>
   );
 }

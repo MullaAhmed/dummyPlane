@@ -259,7 +259,8 @@ function describeMission(fleetId: string, mission: Mission): ToolResult {
     linked_agents: canvasKnown(fleetId)
       ? linkedTeamAgents(fleetId)
           .filter((a) => !team.has(a.nodeId))
-          .map((a) => ({ name: a.name, state: outAgentState(agentState(a.nodeId)), ...agentGroup(a.nodeId) }))
+          // `router: true`: its own model router is on, so a sub-task with a level starts it on that level's model.
+          .map((a) => ({ name: a.name, state: outAgentState(agentState(a.nodeId)), ...agentGroup(a.nodeId), ...(terminalOf(nodesStore.getState().nodes[a.nodeId])?.router ? { router: true } : {}) }))
       : null,
     linked_groups: canvasKnown(fleetId) ? linkedGroups(fleetId).map(({ name, speciality }) => ({ name, speciality })) : null,
     linked_agents_note: canvasKnown(fleetId) ? null : t().fleet.hiddenAgents,

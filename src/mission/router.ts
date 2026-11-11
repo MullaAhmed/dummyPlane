@@ -17,9 +17,16 @@ export function readLevel(raw: unknown): Level | undefined {
   return (Object.keys(LEVELS) as Level[]).find((level) => level === folded);
 }
 
-/** The model of a sub-task: only with the mission's router on and a level given. */
-export function modelFor(mission: { router?: boolean }, task: { level?: Level }): string | undefined {
-  return mission.router && task.level ? LEVELS[task.level].model : undefined;
+/** The table the router reads, as a sentence's tail: "low Haiku 5.5, medium Sonnet 5.5, …". Built from LEVELS, never retyped. */
+export const ROUTER_LEVELS = (Object.values(LEVELS) as { label: string; modelLabel: string }[]).map((l) => `${l.label} ${l.modelLabel}`).join(", ");
+
+/**
+ * The model of a sub-task: only with a router on and a level given. The router is the mission's (the Fleet's
+ * switch) or the agent's own (a terminal's switch, `TerminalPayload.router`): either one routes, and an agent whose
+ * own is off never vetoes the mission's.
+ */
+export function modelFor(mission: { router?: boolean }, task: { level?: Level }, agent?: { router?: boolean }): string | undefined {
+  return (mission.router || agent?.router) && task.level ? LEVELS[task.level].model : undefined;
 }
 
 /** The models a terminal's edit panel offers for its next launch (`--model`): the current family, lightest first. */

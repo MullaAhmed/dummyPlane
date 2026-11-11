@@ -22,15 +22,16 @@ import { switchRemote } from "@/agents/RemoteButton";
 import { requestCloseFleet, renameFleet } from "@/fleet/fleets";
 import { duplicateTerminal, requestClose } from "@/agents/terminals";
 import { claudeLaunchDefaults, type ClaudeLaunchDefaults } from "@/ipc/claudeExtensions";
-import type { Permission, ShellKind } from "@/ipc/pty";
+import { MANAGER_ROLE, type Permission, type ShellKind } from "@/ipc/pty";
 import { EFFORT_LEVELS, MODEL_CHOICES, modelLabel, readEffort, settingsModelLabel, type EffortLevel } from "@/mission/router";
+import { missionOf, setMission } from "@/mission/store";
 import { folderChange, folderLockOf, type FolderLock } from "@/nodes/terminal/folder";
 import { newConversation, SHELL_LABELS } from "@/nodes/terminal/launch";
 import { resumeTerminal } from "@/nodes/terminal/registry";
 import { StatusPill } from "@/nodes/terminal/StatusPill";
 import type { TerminalPayload } from "@/nodes/types";
 import { useActivity } from "@/store/agentActivity";
-import { nodeNameOf, nodesStore, sessionOf, updateSession, useNodes, type NodeRecord } from "@/store/nodes";
+import { nodeNameOf, nodesStore, sessionOf, terminalOf, updateSession, useNodes, type NodeRecord } from "@/store/nodes";
 import { useTerminalStatus } from "@/store/terminalStatus";
 import { formatTokens } from "@/usage/usage";
 import { useNodeSession } from "@/usage/usageStore";
@@ -249,6 +250,8 @@ function General({ nodeId, record, session }: { nodeId: string; record: NodeReco
           </div>
         </Row>
         {claude && <RemoteRow nodeId={nodeId} wanted={session.remoteControl === true} running={running} />}
+        {/* A Fleet's router is its mission's, a terminal's is its own; a Manager's has nothing to route (no plan gives it a sub-task). */}
+        {claude && session.role !== MANAGER_ROLE && <RouterRow nodeId={nodeId} fleet={fleet} />}
       </Rows>
       {session && (
         <div role="group" aria-labelledby={`${ids.model}-heading`} className="grid grid-cols-1 gap-2">
@@ -329,8 +332,8 @@ function Rows({ children }: { children: ReactNode }) {
   return <div className="grid grid-cols-[6rem_minmax(0,1fr)] items-start gap-x-3 gap-y-2">{children}</div>;
 }
 
-/** One setting: its label, its control, and under the control a quiet line when there is something to know. */
-function Row({ label, htmlFor, note, children }: { label: string; htmlFor?: string; note?: ReactNode; children: ReactNode }) {
+/** One setting: its label, its control, and under the control a quiet line when there is something to know (`noteId`: what the control is described by). */
+function Row({ label, htmlFor, note, noteId, children }: { label: string; htmlFor?: string; note?: ReactNode; noteId?: string; children: ReactNode }) {
   return (
     <>
       <label htmlFor={htmlFor} className="truncate text-xs leading-7 text-dp-text-2">
@@ -338,7 +341,11 @@ function Row({ label, htmlFor, note, children }: { label: string; htmlFor?: stri
       </label>
       <div className="grid min-w-0 grid-cols-1 gap-1">
         {children}
-        {note && <p className="text-xs leading-4 text-dp-text-3">{note}</p>}
+        {note && (
+          <p id={noteId} className="text-xs leading-4 text-dp-text-3">
+            {note}
+          </p>
+        )}
       </div>
     </>
   );
@@ -555,6 +562,38 @@ function remoteState(link: RemoteLink | undefined, wanted: boolean, running: boo
   if (link?.state === "error") return link.error ? remoteErrorText(link.error) : null;
   if (wanted) return running ? states.requested : states.nextStart;
   return null;
+}
+
+/**
+ * The model router: a Fleet's is its mission's (each agent of its team takes the model of its sub-task's level),
+ * a terminal's is its own (a sub-task a Fleet gives it does). The same switch as its header's and, like Remote
+ * Control, applied at once: it is no launch setting, so it never offers "Restart now". A real switch
+ * (`role="switch"`) in the panel's checkbox, named by its visible label, described by the line under it.
+ */
+function RouterRow({ nodeId, fleet }: { nodeId: string; fleet: boolean }) {
+  const t = useMessages(canvasMessages).selection;
+  const id = useId();
+  const on = useNodes((s) => (fleet ? missionOf(s.nodes[nodeId])?.router === true : terminalOf(s.nodes[nodeId])?.router === true));
+  const change = (next: boolean) => {
+    if (fleet) setMission(nodeId, { router: next || undefined });
+    else nodesStore.getState().update(nodeId, { router: next || undefined });
+  };
+  return (
+    <Row label={t.modelRouter} htmlFor={id} note={fleet ? t.modelRouterFleet : t.modelRouterAgent} noteId={`${id}-note`}>
+      <div className="flex h-7 items-center">
+        <Checkbox
+          id={id}
+          role="switch"
+          aria-label={t.modelRouter}
+          aria-describedby={`${id}-note`}
+          checked={on}
+          onCheckedChange={(checked) => change(checked === true)}
+          onMouseDown={keepCanvasFocus}
+          className={QUIET_BOX}
+        />
+      </div>
+    </Row>
+  );
 }
 
 /** Remote Control of the Claude session, the same switch as its header's phone: it applies to a running session at once. */
