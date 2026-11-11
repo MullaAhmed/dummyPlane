@@ -3,23 +3,31 @@
 <style>
 @font-face { font-family: Inter; src: url("../../../node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2") format("woff2"); font-weight: 100 900; }
 @font-face { font-family: "JetBrains Mono"; src: url("../../../node_modules/@fontsource-variable/jetbrains-mono/files/jetbrains-mono-latin-wght-normal.woff2") format("woff2"); font-weight: 100 900; }
+/* The app's own palettes (src/theme/tokens.css, src/nodes/terminal/terminalTheme.ts):
+   dark = Dark and Expressive, ?theme=light = Calm and Playful. A canvas and an ink that is also the
+   accent; surfaces, hairlines and the text roles are quiet steps of the two. Opaque, no glow. The
+   role colour is the Frontend role's (src/agents/roles.ts), the same in every palette. */
 :root {
-  --canvas: #232220; --dot: rgba(255,255,255,.07); --text: #F5F4EF; --text2: #B3B0A8; --text3: #86837C;
-  --accent: #D97757; --accent-soft: rgba(217,119,87,.18); --wait: #D4A27F; --ok: #8FA876;
-  --glass: rgba(40,39,36,.52); --glass-strong: rgba(42,41,38,.84); --glass-line: rgba(255,255,255,.10);
-  --glass-hi: inset 0 1px 0 rgba(255,255,255,.07); --glass-edge: 0 0 0 1px rgba(0,0,0,.28);
-  --tray: rgba(255,255,255,.028); --head: rgba(32,31,29,.70); --line: rgba(255,255,255,.09);
-  --glow1: rgba(217,119,87,.16); --glow2: rgba(143,168,118,.12); --glow3: rgba(106,155,204,.08);
-  --float-shadow: 0 8px 28px rgba(0,0,0,.32); --field: rgba(255,255,255,.05);
+  --canvas: #101014; --dot: rgba(244,244,241,.07); --text: #F4F4F1; --text2: #C2C2C0; --text3: #949494;
+  --accent: #F4F4F1; --on-accent: #101014; --accent-soft: rgba(244,244,241,.12);
+  --wait: #DDAA62; --ok: #7CC492; --role: #C18E57;
+  --glass: #17171B; --glass-strong: #17171B; --glass-line: rgba(244,244,241,.08);
+  --glass-hi: 0 0 #0000; --glass-edge: 0 0 #0000;
+  --tray: rgba(244,244,241,.03); --head: #1B1B1F; --line: rgba(244,244,241,.08);
+  --glow1: transparent; --glow2: transparent; --glow3: transparent;
+  --float-shadow: 0 0 #0000; --field: rgba(244,244,241,.05);
+  --term-bg: #0B0B0E; --term-fg: #F4F4F1; --term-dim: #7F7F7F; --term-ok: #5BA86D; --term-wt: #D1A057; --term-red: #EA7572; --term-hl: #353537;
 }
 :root.light {
-  --canvas: #F7F5EF; --dot: rgba(41,38,27,.10); --text: #29261B; --text2: #625F57; --text3: #8F8C83;
-  --accent: #C2603F; --accent-soft: rgba(194,96,63,.13); --wait: #B07D3A; --ok: #5E7A43;
-  --glass: rgba(255,255,255,.50); --glass-strong: rgba(252,251,248,.88); --glass-line: rgba(255,255,255,.80);
-  --glass-hi: inset 0 1px 0 rgba(255,255,255,.90); --glass-edge: 0 0 0 1px rgba(41,38,27,.08);
-  --tray: rgba(255,255,255,.38); --head: rgba(255,255,255,.66); --line: rgba(41,38,27,.10);
-  --glow1: rgba(217,119,87,.16); --glow2: rgba(106,155,204,.14); --glow3: rgba(143,168,118,.12);
-  --float-shadow: 0 8px 28px rgba(41,38,27,.10); --field: rgba(255,255,255,.60);
+  --canvas: #EDE3CC; --dot: rgba(23,63,50,.12); --text: #173F32; --text2: #315344; --text3: #4D6859;
+  --accent: #173F32; --on-accent: #EDE3CC; --accent-soft: rgba(23,63,50,.12);
+  --wait: #7A5418; --ok: #356A44;
+  --glass: #F7F2E8; --glass-strong: #F7F2E8; --glass-line: rgba(23,63,50,.10);
+  --glass-hi: 0 0 #0000; --glass-edge: 0 0 #0000;
+  --tray: rgba(23,63,50,.03); --head: #F6F1E6; --line: rgba(23,63,50,.10);
+  --glow1: transparent; --glow2: transparent; --glow3: transparent;
+  --float-shadow: 0 8px 24px rgba(0,0,0,.06); --field: rgba(23,63,50,.04);
+  --term-bg: #0F2921; --term-fg: #EDE3CC; --term-dim: #8E9482; --term-ok: #75B06F; --term-wt: #D5AD67; --term-red: #E48A76; --term-hl: #374A40;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; width: 1280px; height: var(--h, 400px); overflow: hidden; }
@@ -49,20 +57,20 @@ body {
 .board { position: absolute; left: 660px; top: 0; right: 0; bottom: 0; }
 .tray { position: absolute; border-radius: 18px; background: var(--tray); border: 1px solid var(--glass-line); box-shadow: var(--glass-hi); }
 .tray-label { position: absolute; display: flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 600; letter-spacing: .04em; }
-.tray-label .role { width: 8px; height: 8px; border-radius: 2px; background: var(--accent); }
+.tray-label .role { width: 8px; height: 8px; border-radius: 2px; background: var(--role); }
 .tray-label .meta { font: 400 10.5px "JetBrains Mono", monospace; color: var(--text2); letter-spacing: 0; }
 .node { position: absolute; border: 1px solid var(--glass-line); border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; box-shadow: var(--float-shadow); }
 .node.focus { border-color: var(--accent); }
 .node.wait { border-color: var(--wait); }
 .nhead { height: 28px; flex: none; display: flex; align-items: center; gap: 6px; padding: 0 10px; background: var(--head); backdrop-filter: blur(18px) saturate(150%); border-bottom: 1px solid var(--glass-line); font-size: 12px; }
-.nhead .tint { width: 8px; height: 8px; border-radius: 2px; }
+.nhead .tint { width: 8px; height: 8px; border-radius: 2px; background: var(--role); }
 .nhead b { font-weight: 600; }
 .nhead .ag { color: var(--text2); }
 .nhead .st { margin-left: auto; font: 10.5px "JetBrains Mono", monospace; display: flex; align-items: center; gap: 5px; color: var(--text2); }
 .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
-.nbody { flex: 1; background: rgba(24,23,22,.97); padding: 8px 11px; font: 11px/1.6 "JetBrains Mono", monospace; color: #E8E5DD; white-space: pre; overflow: hidden; }
-.nbody .ac { color: #D97757; } .nbody .ok { color: #8FA876; } .nbody .dim { color: #77756F; } .nbody .wt { color: #D4A27F; } .nbody .hl { background: #3D2A22; color: #F5F4EF; }
-.cursor { display: inline-block; width: 7px; height: 13px; vertical-align: -2px; background: #D97757; }
+.nbody { flex: 1; background: var(--term-bg); padding: 8px 11px; font: 11px/1.6 "JetBrains Mono", monospace; color: var(--term-fg); white-space: pre; overflow: hidden; }
+.nbody .ac { color: var(--term-fg); } .nbody .ok { color: var(--term-ok); } .nbody .dim { color: var(--term-dim); } .nbody .wt { color: var(--term-wt); } .nbody .hl { background: var(--term-hl); color: var(--term-fg); }
+.cursor { display: inline-block; width: 7px; height: 13px; vertical-align: -2px; background: var(--term-fg); }
 .orch { position: absolute; border-radius: 14px; display: flex; flex-direction: column; overflow: hidden; }
 .orch .ohead { height: 30px; display: flex; align-items: center; gap: 7px; padding: 0 10px; border-bottom: 1px solid var(--line); font-weight: 600; font-size: 12px; }
 .orch .ohead .prog { margin-left: auto; font: 400 10.5px "JetBrains Mono", monospace; color: var(--text2); }
@@ -74,8 +82,7 @@ body {
 .cmd { position: absolute; height: 42px; border-radius: 16px; display: flex; align-items: center; gap: 8px; padding: 0 8px 0 14px; font-size: 13px; }
 .chip { display: inline-flex; align-items: center; height: 22px; padding: 0 7px; border-radius: 4px; background: var(--accent-soft); color: var(--accent); font: 11px "JetBrains Mono", monospace; }
 .cmd .txt { color: var(--text); }
-.cmd .send { margin-left: auto; height: 28px; padding: 0 12px; border-radius: 9px; background: var(--accent); color: var(--canvas); font-size: 12px; font-weight: 600; display: flex; align-items: center; }
-:root.light .cmd .send { color: #fff; }
+.cmd .send { margin-left: auto; height: 28px; padding: 0 12px; border-radius: 9px; background: var(--accent); color: var(--on-accent); font-size: 12px; font-weight: 600; display: flex; align-items: center; }
 </style>
 <script>
   const q = new URLSearchParams(location.search);
@@ -93,7 +100,7 @@ body {
 <body>
 <div class="id">
   <div class="lockup">
-    <svg viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="#1A1918"/><path d="M10 36 C 18 14, 26 14, 32 32 S 46 50, 54 26" stroke="#D97757" stroke-width="7" fill="none" stroke-linecap="round"/></svg>
+    <svg viewBox="0 0 64 64"><rect width="64" height="64" rx="14" style="fill:var(--accent)"/><path d="M10 36 C 18 14, 26 14, 32 32 S 46 50, 54 26" style="stroke:var(--on-accent)" stroke-width="7" fill="none" stroke-linecap="round"/></svg>
     <span>dummyPlane</span>
   </div>
   <div class="tag">An infinite canvas of <em>real terminals</em> for your AI coding agents: brief a whole team, let a fleet split the work.</div>
@@ -105,16 +112,16 @@ body {
   <div class="tray-label" style="left:34px; top:38px"><span class="role"></span>FRONTEND <span class="meta">3 agents</span></div>
 
   <div class="node focus" style="left:34px; top:62px; width:262px; height:146px">
-    <div class="nhead"><span class="tint" style="background:#D97757"></span><b>Batman</b><span class="ag">claude</span><span class="st"><span class="dot" style="background:var(--accent)"></span>4:12</span></div>
+    <div class="nhead"><span class="tint"></span><b>Batman</b><span class="ag">claude</span><span class="st"><span class="dot" style="background:var(--accent)"></span>4:12</span></div>
     <div class="nbody"><span class="ac">&gt;</span> Add OAuth login to the app
 <span class="ok">●</span> Read <span class="dim">src/auth/session.ts</span>
 <span class="ok">●</span> Update <span class="dim">src/auth/oauth.ts</span>
-  <span class="ok">+ 48</span> <span style="color:#E5534B">- 12</span>
+  <span class="ok">+ 48</span> <span style="color:var(--term-red)">- 12</span>
 <span class="ac">✻</span> Wiring the callback… <span class="cursor"></span></div>
   </div>
 
   <div class="node wait" style="left:308px; top:62px; width:254px; height:146px">
-    <div class="nhead"><span class="tint" style="background:#D97757"></span><b>Superman</b><span class="ag">claude</span><span class="st"><span class="dot" style="background:var(--wait)"></span>1:47</span></div>
+    <div class="nhead"><span class="tint"></span><b>Superman</b><span class="ag">claude</span><span class="st"><span class="dot" style="background:var(--wait)"></span>1:47</span></div>
     <div class="nbody"><span class="wt">?</span> Run <span class="hl"> pnpm test auth </span>
 <span class="dim">  The command touches</span>
 <span class="dim">  the test database.</span>
@@ -124,7 +131,7 @@ body {
   </div>
 
   <div class="node" style="left:34px; top:220px; width:528px; height:74px">
-    <div class="nhead"><span class="tint" style="background:#D97757"></span><b>Aquaman</b><span class="ag">codex</span><span class="st"><span class="dot" style="background:var(--text3)"></span>ready</span></div>
+    <div class="nhead"><span class="tint"></span><b>Aquaman</b><span class="ag">codex</span><span class="st"><span class="dot" style="background:var(--text3)"></span>ready</span></div>
     <div class="nbody"><span class="ok">✓</span> 42 tests passed <span class="dim">· 3 files · 0.9 s</span></div>
   </div>
 
