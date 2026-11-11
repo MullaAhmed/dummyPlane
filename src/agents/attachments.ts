@@ -1,7 +1,7 @@
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { nodeKindOf } from "@/canvas/nodeElement";
 import { noteLinkOf } from "@/nodes/note/link";
-import { nodesStore } from "@/store/nodes";
+import { isManagerRecord, nodesStore } from "@/store/nodes";
 
 /**
  * Items attached to an anchor: a quick note beside its terminal, the output an
@@ -17,7 +17,9 @@ import { nodesStore } from "@/store/nodes";
  *   beside its anchor wherever that goes in the grid, and the grid makes room
  *   for it there (a quick note, which its own watch keeps beside its host);
  * - on the canvas, the item and its anchor's block (a group, a spawn tree, a
- *   node alone) move together.
+ *   node alone) move together: a mission's board with its Fleet, its Manager
+ *   with the board, the Manager's team with it as its spawn tree, the whole
+ *   as one block whose shape Arrange keeps.
  *
  * A feature plugs in one of two ways: its element names its anchor in
  * `customData.attachedTo` (nothing else to do), or it adds a rule to
@@ -56,8 +58,28 @@ export const noteHost: AnchorRule = (element) => {
   return of ? { anchor: of, beside: true } : null;
 };
 
+/**
+ * A Fleet's mission (src/mission): its Kanban board (`mission.board`) is
+ * attached to the Fleet, its Manager terminal to that board, or to the Fleet
+ * when the board is gone.
+ */
+export const missionAnchor: AnchorRule = (element, scene) => {
+  const nodes = nodesStore.getState().nodes;
+  const kind = nodeKindOf(element);
+  if (kind === "kanban") {
+    const fleet = Object.entries(nodes).find(([, record]) => record.kind === "fleet" && record.payload.mission?.board === element.id);
+    return fleet?.[0] ?? null;
+  }
+  if (kind !== "terminal") return null;
+  const record = nodes[element.id];
+  if (!isManagerRecord(record) || record?.kind !== "terminal" || !record.payload.fleet) return null;
+  const fleet = nodes[record.payload.fleet];
+  const board = fleet?.kind === "fleet" ? fleet.payload.mission?.board : undefined;
+  return board && scene.has(board) ? board : record.payload.fleet;
+};
+
 /** Every rule; the first that names a live element wins. */
-export const ANCHOR_RULES: readonly AnchorRule[] = [markedAnchor, outputSource, noteHost];
+export const ANCHOR_RULES: readonly AnchorRule[] = [markedAnchor, outputSource, noteHost, missionAnchor];
 
 /**
  * For Arrange: what each element of `elements` is attached to, by `rules`.
