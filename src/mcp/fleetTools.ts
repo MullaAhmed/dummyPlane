@@ -7,6 +7,7 @@ import { missionFolder } from "@/mission/folder";
 import { endMission, launchMission, mergeMission, reassignTask } from "@/mission/launch";
 import { budgetOf, memberTime, NEW_AGENT, nightMin, oneLine, proposedPlan, proposedTasks, remainingGlobal, sameName, spentMin, type Member, type Mission, type QueuedTask } from "@/mission/mission";
 import { activeCount } from "@/mission/active";
+import { duplicateWork } from "@/mission/activeWork";
 import { giveNext, pumpQueue } from "@/mission/queue";
 import { boardView, todoColumnOf } from "@/kanban/missionLink";
 import { moveCard as movedCard } from "@/kanban/board";
@@ -271,6 +272,15 @@ function describeMission(fleetId: string, mission: Mission): ToolResult {
   });
 }
 
+/** The tasks of a plan or a queue that an agent already works on (`@/mission/duplicateTask`), numbered as the agent gave them. */
+function alreadyOnIt(fleetId: string, tasks: readonly { title: string; brief: string; card?: string }[], exclude: readonly (string | undefined)[]) {
+  const workspaceId = nodesStore.getState().nodes[fleetId]?.workspaceId;
+  return tasks.flatMap((task, i) => {
+    const who = duplicateWork(task, workspaceId, exclude);
+    return who ? [{ n: i + 1, title: task.title, who }] : [];
+  });
+}
+
 function proposePlan(fleetId: string, mission: Mission, args: Record<string, unknown>): ToolResult {
   if (mission.state === "lancement" || mission.state === "en_cours") return refused(t().fleet.running);
   if (mission.state === "terminee") return refused(t().fleet.finished);
@@ -278,8 +288,13 @@ function proposePlan(fleetId: string, mission: Mission, args: Record<string, unk
   const named = Array.isArray(args.sous_taches) && args.sous_taches.some((s) => onCanvas(s as Record<string, unknown> | null));
   if (named && !canvasKnown(fleetId)) return refused(t().fleet.hiddenWorkspace);
   const cards = linkedBoards(fleetId).flatMap(({ board }) => Object.keys(board.cards));
-  const result = proposedPlan(args, mission, linkedTeamAgents(fleetId).map((a) => a.name), linkedGroups(fleetId), cards);
+  const linked = linkedTeamAgents(fleetId);
+  const result = proposedPlan(args, mission, linked.map((a) => a.name), linkedGroups(fleetId), cards);
   if (typeof result === "string") return refused(result);
+  // The linked agents the plan names take their sub-task: whatever they hold is theirs to give up.
+  const taking = linked.filter((a) => result.plan.some((s) => sameName(s.agent, a.name))).map((a) => a.nodeId);
+  const already = alreadyOnIt(fleetId, result.plan, [fleetId, mission.manager, ...taking]);
+  if (already.length > 0) return refused(t().fleet.duplicatePlan(already));
   setMission(fleetId, { state: "plan", ...result, error: undefined });
   // The dialog was the go-ahead: the user has left (spec overnight mission §5.1).
   if (mission.overnight && mission.autoLaunch) {
@@ -317,6 +332,9 @@ export function enqueueTasks(fleetId: string, mission: Mission, args: Record<str
   const cards = linkedBoards(fleetId).flatMap(({ board }) => Object.keys(board.cards));
   const proposed = proposedTasks(args, mission, linkedGroups(fleetId), cards);
   if (typeof proposed === "string") return proposed;
+  // Before any card is written: a task another agent already works on is not queued again, from add_tasks or hand_off.
+  const already = alreadyOnIt(fleetId, proposed, [fleetId, mission.manager]);
+  if (already.length > 0) return t().fleet.duplicateTasks(already);
   const tasks = addTaskCards(fleetId, handedBy ? proposed.map((task) => ({ ...task, handedBy })) : proposed);
   // Read again: the cards were written meanwhile.
   const latest = missionOf(nodesStore.getState().nodes[fleetId]) ?? mission;

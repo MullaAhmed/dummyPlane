@@ -5,6 +5,7 @@ import { signalWire } from "@/canvas/wireActivity";
 import { messages } from "@/i18n";
 import { ptySendText, ptyWrite } from "@/ipc/pty";
 import { agentMessages } from "@/mcp/messages";
+import { duplicateWork } from "@/mission/activeWork";
 import { notify } from "@/mission/events";
 import { oneLine } from "@/mission/mission";
 import { missionFolder } from "@/mission/folder";
@@ -110,6 +111,10 @@ async function spawnNow(parentId: string, args: SpawnArgs): Promise<SpawnResult>
   const record = nodesStore.getState().nodes[parentId];
   const parent = spawnerOf(record, parentId);
   if (!record || !parent) return refuse(t().gone);
+  // Another agent already works on this task: it is theirs to message or read, not to start again (`@/mission/duplicateTask`).
+  const given = typeof args.title === "string" ? oneLine(args.title) : "";
+  const holder = duplicateWork({ title: given, brief: task }, record.workspaceId, [parentId]);
+  if (holder) return refuse(t().duplicate(holder));
   if (spawnDepth(parentId) + 1 > MAX_SPAWN_DEPTH) return refuse(t().tooDeep(MAX_SPAWN_DEPTH));
   const max = subagentSettingsStore.getState().maxSpawned;
   const running = runningSpawned();

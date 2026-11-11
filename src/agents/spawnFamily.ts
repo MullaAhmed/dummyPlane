@@ -84,7 +84,7 @@ export function markReported(nodeId: string) {
 }
 
 /** A sub-agent created, not stopped, not reported yet. */
-function atWork(id: string): boolean {
+export function atWork(id: string): boolean {
   if (launching.has(id)) return true;
   const state = statusOf(id).state;
   return !reported.has(id) && (state === "running" || state === "starting");

@@ -4,6 +4,8 @@ import { agentMessages } from "@/mcp/messages";
 import { stopTerminal } from "@/nodes/terminal/registry";
 import { nodesStore } from "@/store/nodes";
 import { activeCount, freeSeat, holdSeat, moving, oneAtATime, seatHeld, seatsHeld } from "./active";
+import { duplicateWork } from "./activeWork";
+import type { ActiveWork } from "./duplicateTask";
 import { notify } from "./events";
 import { assign, mergeMember, newMember, subTaskText, withTeamNote, withTicketNote } from "./launch";
 import { NEW_AGENT, noNewWork, type Member, type Mission, type QueuedTask, type Report, type SubTask } from "./mission";
@@ -79,9 +81,35 @@ async function mergeThenFill(fleetId: string, nodeId: string): Promise<void> {
   await fill(fleetId);
 }
 
-/** The queue's tasks nobody is starting on yet; the first ones wait for the members being merged, whose seats they will take. */
-function unclaimed(fleetId: string, mission: Mission): QueuedTask[] {
-  const left = (mission.queue ?? []).filter((task) => !seatHeld(fleetId, task.title));
+/** The duplicates the fleet's runner was told of, once each: `fill` runs at every report. */
+const duplicateTold = new Set<string>();
+
+/** The agent already on a waiting task, if one is: the fleet and its Manager do not count (`./duplicateTask`). */
+function holderOf(fleetId: string, mission: Mission, task: QueuedTask): ActiveWork | null {
+  return duplicateWork(task, nodesStore.getState().nodes[fleetId]?.workspaceId, [fleetId, mission.manager]);
+}
+
+/**
+ * A waiting task that another agent is at work on is skipped: no second agent, its card untouched, it stays in the
+ * queue and starts once that agent is no longer on it. The fleet's runner hears of it once, unless `tell` is off.
+ */
+function skipped(fleetId: string, mission: Mission, task: QueuedTask, tell = true): boolean {
+  const who = holderOf(fleetId, mission, task);
+  if (!who) return false;
+  const key = `${fleetId}:${mission.startedAt}:${task.title}:${who.agentId}`;
+  if (tell && !duplicateTold.has(key)) {
+    duplicateTold.add(key);
+    notify(missionRunner(fleetId), t().lines.duplicateSkipped(task.title, who));
+  }
+  return true;
+}
+
+/**
+ * The queue's tasks nobody is starting on yet, and nobody else is at work on; the first ones wait for the members
+ * being merged, whose seats they will take. A skipped duplicate takes no seat: the tasks behind it start.
+ */
+function unclaimed(fleetId: string, mission: Mission, tell = true): QueuedTask[] {
+  const left = (mission.queue ?? []).filter((task) => !seatHeld(fleetId, task.title) && !skipped(fleetId, mission, task, tell));
   return left.slice(mission.members.filter((m) => moving.has(m.nodeId)).length);
 }
 
@@ -92,6 +120,8 @@ async function create(fleetId: string, task: QueuedTask): Promise<{ said: string
   const mission = missionOf(record);
   if (!record || !mission || !canStart(fleetId, mission) || !canvasKnown(fleetId)) return undefined;
   if (!mission.queue?.some((waiting) => waiting.title === task.title)) return undefined;
+  // Read again too: an agent may have taken the task, or its card, while this one waited for its turn.
+  if (skipped(fleetId, mission, task)) return undefined;
   const made = await newMember(fleetId, record.workspaceId, mission, { ...task, agent: NEW_AGENT });
   if (typeof made === "string") return { said: t().lines.newFailed(task.title, made) };
   const now = missionNow(fleetId);
@@ -200,13 +230,19 @@ export async function giveNext(fleetId: string, member: Member): Promise<{ given
   if (member.abandoned) return { refused: t().lines.alreadyLeft(member.name) };
   const mission = missionNow(fleetId);
   if (mission && noNewWork(mission, Date.now())) return { refused: t().lines.windingDown };
-  if (!mission || unclaimed(fleetId, mission).length === 0) return { refused: t().lines.nothingFor(member.name) };
+  if (!mission) return { refused: t().lines.nothingFor(member.name) };
+  if (unclaimed(fleetId, mission, false).length === 0) {
+    // Tasks wait, but another agent is on each: say who, the caller reads it here.
+    const waiting = (mission.queue ?? []).filter((task) => !seatHeld(fleetId, task.title));
+    const held = waiting.map((task) => ({ task, who: holderOf(fleetId, mission, task) })).find(({ who }) => who);
+    return { refused: held?.who ? t().lines.duplicateNext(held.task.title, held.who) : t().lines.nothingFor(member.name) };
+  }
   if (!canvasKnown(fleetId)) return { refused: t().reassign.hidden };
   if (!seatLeft(fleetId, mission)) return { refused: t().lines.noSeat(mission.maxAgents) };
   if (report.status === "termine" && !member.merged && !(await mergeOnce(fleetId, member.nodeId))) return { refused: t().lines.notMoved(member.name) };
   // All is read again after the merge; the seat is held before the next wait.
   const now = missionNow(fleetId);
-  const task = now && unclaimed(fleetId, now)[0];
+  const task = now && unclaimed(fleetId, now, false)[0];
   if (!now || !task) return { refused: t().lines.nothingFor(member.name) };
   if (!seatLeft(fleetId, now)) return { refused: t().lines.noSeat(now.maxAgents) };
   holdSeat(fleetId, task.title);
