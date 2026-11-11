@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { open as pickDirectory } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -386,4 +386,52 @@ it("grows from its trigger when clicked, but shows at once when a request (the p
   await act(async () => host.querySelector("button")!.click());
   expect(content()).not.toBeNull();
   expect(content()!.hasAttribute("data-instant")).toBe(false);
+});
+
+describe("the keyboard follows the menu's views (WCAG 2.4.3)", () => {
+  const back = () => document.activeElement as HTMLElement | null;
+
+  it("takes Back of an Install, then gives the keyboard back to that Install", async () => {
+    await openMenu();
+    const install = installButtons()[0];
+    install.focus();
+    await act(async () => install.click());
+    expect(document.body.querySelector("[data-install-prompt]")).not.toBeNull();
+    expect(back()?.textContent).toContain("Install Codex");
+    expect(back()).not.toBe(document.body);
+    await act(async () => back()!.click());
+    expect(document.activeElement).toBe(installButtons()[0]);
+  });
+
+  it("takes Back of the Options, then gives the keyboard back to Options", async () => {
+    await openMenu();
+    const options = document.body.querySelector<HTMLButtonElement>("[data-launch-options]")!;
+    options.focus();
+    await act(async () => options.click());
+    const content = document.body.querySelector("[data-slot='popover-content']")!;
+    expect(content.contains(document.activeElement)).toBe(true);
+    expect(document.activeElement?.tagName).toBe("BUTTON");
+    await act(async () => (document.activeElement as HTMLButtonElement).click());
+    expect(document.activeElement).toBe(document.body.querySelector("[data-launch-options]"));
+  });
+
+  it("leaves the keyboard on Custom's command, and comes back to the Custom row", async () => {
+    agents = only("claude");
+    agentsStore.setState({ agents, shells: ["powershell"], loaded: true });
+    await openMenu();
+    const custom = document.body.querySelector<HTMLButtonElement>('[data-agent-pick="custom"]')!;
+    await act(async () => custom.click());
+    expect(document.activeElement?.tagName).toBe("INPUT");
+    const backButton = [...document.body.querySelectorAll<HTMLButtonElement>("[data-slot='popover-content'] button")][0];
+    await act(async () => backButton.click());
+    expect(document.activeElement).toBe(document.body.querySelector('[data-agent-pick="custom"]'));
+  });
+
+  it("opens a requested view on its first control, never painting the agents list first", async () => {
+    await act(async () => root.render(<AgentMenu answersRequests trigger={() => <button type="button">open</button>} />));
+    await act(async () => requestUi({ kind: "agentMenu", view: { install: "aider" } }));
+    expect(document.body.querySelector("[data-install-prompt='aider']")).not.toBeNull();
+    const content = document.body.querySelector("[data-slot='popover-content']")!;
+    expect(content.contains(document.activeElement)).toBe(true);
+  });
 });

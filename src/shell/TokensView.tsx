@@ -47,7 +47,8 @@ export function TokensView({ onBack }: { onBack: () => void }) {
   return (
     <div data-tokens className="flex max-h-[70vh] flex-col gap-4 overflow-y-auto">
       <div className="flex items-center gap-2">
-        <IconButton label={u.tokensBack} onClick={onBack} className="-ml-1">
+        {/* The link that opened this view is gone: Back takes the keyboard, or it would fall to the page. */}
+        <IconButton autoFocus label={u.tokensBack} onClick={onBack} className="-ml-1">
           <ArrowLeft />
         </IconButton>
         <p className="dp-label">{u.tokensTitle}</p>

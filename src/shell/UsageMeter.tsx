@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { ArrowRight } from "lucide-react";
 import { useStore } from "zustand";
 import { loadDiagnostics } from "@/app/diagnostics";
@@ -154,13 +154,32 @@ function LimitRow({ label, limit, now }: { label: string; limit: Limit; now: num
   );
 }
 
-/** The usage detail, or the 30-day tokens it links to (spec Tokens §4). */
+/**
+ * The usage detail, or the 30-day tokens it links to (spec Tokens §4). The keyboard follows the swap: Tokens takes
+ * it on its Back, and Back hands it to the link that opened it, never to the page behind the popover.
+ */
 function UsageContent() {
   const [tokens, setTokens] = useState(false);
-  return tokens ? <TokensView onBack={() => setTokens(false)} /> : <UsageDetail onTokens={() => setTokens(true)} />;
+  const link = useRef<HTMLButtonElement>(null);
+  const returning = useRef(false);
+  useLayoutEffect(() => {
+    if (tokens || !returning.current) return;
+    returning.current = false;
+    link.current?.focus();
+  }, [tokens]);
+  return tokens ? (
+    <TokensView
+      onBack={() => {
+        returning.current = true;
+        setTokens(false);
+      }}
+    />
+  ) : (
+    <UsageDetail tokensLink={link} onTokens={() => setTokens(true)} />
+  );
 }
 
-function UsageDetail({ onTokens }: { onTokens: () => void }) {
+function UsageDetail({ onTokens, tokensLink }: { onTokens: () => void; tokensLink: RefObject<HTMLButtonElement | null> }) {
   const t = useMessages(shellMessages);
   const u = t.usage;
   const limits = useCurrentLimits();
@@ -228,8 +247,10 @@ function UsageDetail({ onTokens }: { onTokens: () => void }) {
         </Section>
       )}
       <Button
+        ref={tokensLink}
         variant="ghost"
         size="xs"
+        data-tokens-link
         onClick={onTokens}
         className="-ml-2 self-start rounded-md px-2 font-normal text-dp-accent-ink hover:text-dp-accent-ink"
       >
