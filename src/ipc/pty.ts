@@ -18,11 +18,20 @@ export type Permission = "ask" | "edits" | "work";
  */
 export const STORED_FLEET_ROLE = "orchestrator";
 
+/**
+ * Stored data and wire value: the `role` of a mission's Manager, the terminal that runs a Fleet's board with
+ * the team (`@/mission/manager`). The backend gives it the Manager's tools and the Fleet's read-only rails.
+ */
+export const MANAGER_ROLE = "manager";
+
+/** The role a session is launched with: an agent (none stored), a Fleet, or a mission's Manager. */
+export type SessionRole = "agent" | typeof STORED_FLEET_ROLE | typeof MANAGER_ROLE;
+
 export interface ClaudeLaunch {
   mode: ClaudeMode;
   sessionId: string;
   title: string;
-  role: "agent" | typeof STORED_FLEET_ROLE;
+  role: SessionRole;
   /** Started with Remote Control, under this name (spec maj §2). */
   remoteControl?: string;
   /** `--model`, chosen by a mission's router (spec maj §3) or in the edit panel. */
@@ -43,7 +52,7 @@ export interface ClaudeLaunch {
 export interface CodexLaunch {
   /** The thread Codex saved, to resume; none starts a new conversation. */
   sessionId?: string;
-  role: "agent" | typeof STORED_FLEET_ROLE;
+  role: SessionRole;
   permission?: Permission;
   linear?: boolean;
   /** `-m`, a model a parent agent asked for. */

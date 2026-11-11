@@ -136,6 +136,15 @@ export interface Mission {
   handChecks?: string[];
   /** The dialog was the go-ahead: the plan starts as soon as it is proposed (spec overnight mission §5.1). */
   autoLaunch?: boolean;
+  /**
+   * The Manager terminal that runs the mission since its go-ahead (`./manager`). A running mission without one
+   * was launched before Managers existed: its Fleet runs it, the old way.
+   */
+  manager?: string;
+  /** The Kanban board the mission runs on: its cards are its tasks. */
+  board?: string;
+  /** The board was made for the mission, not handed over by the user ("Plan with the fleet"). */
+  boardMade?: boolean;
 }
 
 export const NEW_AGENT = "nouveau";
@@ -246,7 +255,7 @@ export function readMission(raw: unknown): Mission | undefined {
   };
   // Only a night has a length: a regular mission saved with the old global budget drops it.
   if (typeof r.budgetMin === "number" && r.overnight === true) mission.budgetMin = r.budgetMin;
-  for (const key of ["name", "task", "project", "slug", "branch", "worktree", "frameId", "summary", "summaryUi", "error"] as const) {
+  for (const key of ["name", "task", "project", "slug", "branch", "worktree", "frameId", "summary", "summaryUi", "error", "manager", "board"] as const) {
     if (typeof r[key] === "string") mission[key] = r[key];
   }
   if (Array.isArray(r.plan)) mission.plan = r.plan.filter(isSubTask).map(readSubTask);
@@ -260,6 +269,7 @@ export function readMission(raw: unknown): Mission | undefined {
   const tickets = readTicketSource(r.tickets);
   if (tickets) mission.tickets = tickets;
   if (r.autoLaunch === true) mission.autoLaunch = true;
+  if (r.boardMade === true) mission.boardMade = true;
   if (Array.isArray(r.handChecks)) mission.handChecks = r.handChecks.filter((line): line is string => typeof line === "string");
   if (r.permission === "ask" || r.permission === "edits" || r.permission === "work") mission.permission = r.permission;
   return mission;

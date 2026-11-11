@@ -7,6 +7,7 @@ import { storeMessages } from "./messages";
 import { debounce, type Debounced } from "@/lib/debounce";
 import { onFlushAll } from "@/lib/flush";
 import { rebasePath } from "@/lib/paths";
+import { MANAGER_ROLE } from "@/ipc/pty";
 import {
   readFilePayload,
   readKanbanPayload,
@@ -151,6 +152,14 @@ function readRecord(workspaceId: string, node: StoredNode): NodeRecord | null {
 export function nodeNameOf(record: NodeRecord | undefined): string {
   return record?.kind === "terminal" || record?.kind === "fleet" ? record.payload.name : "";
 }
+
+/** Whether a node is a mission's Manager: the terminal that runs a Fleet's board with its team (`@/mission/manager`). */
+export function isManagerRecord(record: NodeRecord | undefined): boolean {
+  return record?.kind === "terminal" && record.payload.role === MANAGER_ROLE && Boolean(record.payload.fleet);
+}
+
+/** `isManagerRecord` by id, read now. */
+export const isManagerNode = (nodeId: string) => isManagerRecord(nodesStore.getState().nodes[nodeId]);
 
 /** The terminal payload of a node; undefined for a fleet or a missing node. */
 export function terminalOf(record: NodeRecord | undefined): TerminalPayload | undefined {

@@ -15,6 +15,9 @@ export function cloneTerminalPayload(source: TerminalPayload, name: string): Ter
   // A copy reports to nobody and counts toward no sub-agent tree.
   delete copy.spawnedBy;
   delete copy.task;
+  // A copy of a mission's Manager is a plain agent: the mission has its own Manager.
+  delete copy.role;
+  delete copy.fleet;
   // A copy is a new agent: it starts open, with no report of its own yet.
   delete copy.minimized;
   delete copy.expandedHeight;

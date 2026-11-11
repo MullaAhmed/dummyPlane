@@ -1,7 +1,7 @@
 import { FLEET_CAPABLE } from "@/fleet/capable";
 import { readExtensionChoice, type ExtensionChoice } from "@/ipc/claudeExtensions";
 import type { IssueState } from "@/ipc/github";
-import { AGENT_IDS, STORED_FLEET_ROLE, type AgentId, type OllamaLaunch, type Permission, type ShellKind } from "@/ipc/pty";
+import { AGENT_IDS, MANAGER_ROLE, STORED_FLEET_ROLE, type AgentId, type OllamaLaunch, type Permission, type ShellKind } from "@/ipc/pty";
 import { readMission, type Mission } from "@/mission/mission";
 import { readEffort, type EffortLevel } from "@/mission/router";
 import { readSteps, settledSteps, type Step } from "./steps";
@@ -24,8 +24,13 @@ export interface TerminalPayload {
   ollama?: OllamaLaunch;
   /** The steps its agent declared (spec orchestrateur §5). */
   steps?: Step[];
-  /** A fleet's session (spec orchestrateur §4.2); absent for an agent. Stored data: see `STORED_FLEET_ROLE`. */
-  role?: typeof STORED_FLEET_ROLE;
+  /**
+   * A fleet's session (spec orchestrateur §4.2), or a mission's Manager; absent for an agent. Stored data: see
+   * `STORED_FLEET_ROLE` and `MANAGER_ROLE`.
+   */
+  role?: typeof STORED_FLEET_ROLE | typeof MANAGER_ROLE;
+  /** A Manager's Fleet: the node whose mission it runs (`@/mission/manager`). */
+  fleet?: string;
   /** Claude starts with Remote Control (spec maj §2). */
   remoteControl?: boolean;
   /** Claude's model, chosen by a mission's router (spec maj §3) or in the edit panel. */
@@ -263,6 +268,11 @@ export function readTerminalPayload(raw: unknown): TerminalPayload | null {
   const steps = readSteps(r.steps);
   if (steps) payload.steps = settledSteps(steps, lastReport?.status);
   if (r.role === STORED_FLEET_ROLE) payload.role = STORED_FLEET_ROLE;
+  // A Manager without its Fleet is no Manager: it would run no mission.
+  if (r.role === MANAGER_ROLE && typeof r.fleet === "string" && r.fleet) {
+    payload.role = MANAGER_ROLE;
+    payload.fleet = r.fleet;
+  }
   if (r.remoteControl === true) payload.remoteControl = true;
   if (typeof r.model === "string" && r.model) payload.model = r.model;
   const effort = readEffort(r.effort);
