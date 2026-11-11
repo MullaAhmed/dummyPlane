@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect } from "react";
+import { lazy, Suspense, useEffect, type RefCallback } from "react";
 import { Canvas } from "@/canvas/Canvas";
 import { ErrorBoundary, QuietBoundary } from "@/components/ErrorBoundary";
 import { AgentsPanel } from "@/agents/AgentsPanel";
@@ -38,6 +38,24 @@ const NotesWorkspace = lazy(() => import("@/notes/NotesWorkspace"));
 const useActiveWorkspace = () => useWorkspaces((s) => s.activeId);
 
 const SCOPES = { canvas: "canvas", code: "code workspace", notes: "notes workspace" } as const;
+
+/**
+ * The command band's height (the hint and the bar, which grows with the field's lines), published on the view as
+ * `--dp-bottom-band`: the waiting notice rises above it where the two would meet.
+ */
+const publishBand: RefCallback<HTMLDivElement> = (band) => {
+  const view = band?.parentElement;
+  if (!band || !view) return;
+  const publish = () => view.style.setProperty("--dp-bottom-band", `${band.offsetHeight}px`);
+  publish();
+  if (typeof ResizeObserver === "undefined") return () => view.style.removeProperty("--dp-bottom-band");
+  const observer = new ResizeObserver(publish);
+  observer.observe(band);
+  return () => {
+    observer.disconnect();
+    view.style.removeProperty("--dp-bottom-band");
+  };
+};
 
 /** A floating panel's error, where the panels open. */
 function panelCrash(error: Error, retry: () => void) {
@@ -108,7 +126,7 @@ export function ProjectView() {
               <div className="absolute bottom-3 left-3 z-30">
                 <GitChip />
               </div>
-              <div className="pointer-events-none absolute inset-x-0 bottom-3 z-30 flex flex-col items-center gap-2">
+              <div ref={publishBand} data-bottom-band className="pointer-events-none absolute inset-x-0 bottom-3 z-30 flex flex-col items-center gap-2">
                 <CommandHint />
                 <CommandBar />
               </div>

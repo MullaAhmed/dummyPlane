@@ -153,3 +153,9 @@ describe("WaitingNotice (spec notification §4)", () => {
     expect(last(rows())).toBe("+ 1 more");
   });
 });
+
+it("rises above the command band where the bar reaches its column, and moves only its bottom", () => {
+  const source = readSource("shell/WaitingNotice.tsx");
+  expect(source).toContain("max-[1340px]:bottom-[calc(var(--dp-bottom-band,2.25rem)+1.25rem)]");
+  expect(readSource("shell/ProjectView.tsx")).toContain('setProperty("--dp-bottom-band"');
+});
