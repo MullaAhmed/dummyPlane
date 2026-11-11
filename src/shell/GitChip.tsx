@@ -59,7 +59,13 @@ export function GitChip() {
         className="dp-glass-strong pointer-events-auto h-8 gap-2 rounded-lg px-3 font-mono text-xs font-normal text-dp-text-2 hover:bg-dp-hover hover:text-dp-text"
       >
         <GitBranch className="text-dp-text-3" />
-        <span className="max-w-[150px] truncate">{status.branch}</span>
+        {/*
+          Below 1,150 px the centred command bar starts left of 235 px: a 150 px branch would run under it, so the
+          branch is cut at 80 px there (the chip ends near 165 px). The hint gives it whole.
+        */}
+        <span data-branch className="max-w-20 truncate min-[1150px]:max-w-[150px]">
+          {status.branch}
+        </span>
         {status.changed > 0 && <span className="tabular-nums text-dp-accent-ink">{status.changed}</span>}
       </Button>
     </Hint>

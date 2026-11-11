@@ -5,6 +5,27 @@ All notable changes to dummyPlane are documented here. The format follows [Keep 
 ## [Unreleased]
 
 ### Added
+- **An output node:** an agent shows a result with the `show_output` tool instead of a wall of text: a report, a summary, a comparison, a table, figures or a chart. It appears beside the agent's terminal, wired to it, under the same header as terminals.
+  - **How it's drawn:** [OpenUI](https://www.openui.com/) Lang, with dummyPlane's own components (cards, tables, stats, callouts, code, bar and line charts, links, buttons…) in the palette's colours.
+  - **Buttons:** a button types its message into the agent that made the output, only when you click it.
+  - **The agent's side:** calling the tool again updates the same node, and `output_guide` gives the agent the components and an example.
+  - **Your side:** *Copy as text* copies the output, and ⋯ shows or copies its source.
+  - **Database upgrade:** it needs migration 7 on first start; dummyPlane keeps a copy of the database first (`dummyplane.v6-backup.db`).
+  - **Privacy:** OpenUI's install-time analytics are switched off and its development widget is replaced. Nothing it ships calls out from the app.
+- **Agents read dummyPlane links:** a `dummyplane://…` link you paste into an agent's terminal (a terminal, a Fleet, a sub-agent, an output, a file or a Kanban board) is read with the new `read_node` tool, without linking the two on the canvas. A sub-agent's link gives its type, its prompt and its answer.
+- **Generated text through OpenUI:** these render OpenUI Lang, and Markdown otherwise:
+  - an agent's last report in the *Edit* tab;
+  - the Fleet's mission summary;
+  - the morning report's summaries;
+  - a sub-agent's answer.
+
+  Names, step titles, status words and one-line summaries stay plain text. A report written in OpenUI Lang with errors is refused, and the agent is told which lines to fix.
+- **A Fleet's sub-agents open as terminals:** with *Sub-agents open as terminals* on, a Fleet delegates one-off work (a lookup, a check) with `spawn_agent`, like any agent, instead of Claude's built-in sub-agents.
+  - **Where it opens:** a regular agent in its own terminal beside the Fleet, wired to it, in the workspace's folder and on the Fleet's CLI.
+  - **What it may do:** it edits files and runs commands with your usual prompts. During an overnight run, it has the night's permission until the night ends.
+  - **When it's done:** its report is typed into the Fleet's terminal.
+  - **Not on the team:** a mission's work still goes to its team, and a sub-agent is not a team member.
+- **Pasted images are attachments:** an image pasted into the command bar or a Fleet's message line shows as a thumbnail chip, never as a file path. It can be removed with its × or Backspace. On send, Claude Code and Codex get each image as an attached image (`[Image #N]`) before the text; dummyPlane waits for the image to show before typing the rest, since Claude drops an Enter that arrives while it reads one.
 - **An agent for the Fleet:** the settings menu's *Fleet agent…* lists the CLIs, installed or not, and which can carry a Fleet; the Fleet, its team, its queue's agents and their sub-agents all run on the one chosen, and dummyPlane asks before the first Fleet when more than one installed CLI could (with a single one, it is taken). Claude Code and Codex can carry a Fleet; the others are listed with why not yet.
 - **A Fleet on Codex:** a Codex Fleet runs in Codex's read-only sandbox and never waits for a yes, with dummyPlane's tools and none of your own MCP servers, plugins or browser tools, even those a project's `.codex/config.toml` adds; it does not start if Codex still lists one, or points dummyPlane's server elsewhere. Its team and their sub-agents run Codex too, with dummyPlane's tools and their mission's permission: *Edit files* is Codex's `workspace-write` sandbox (to commit, an agent asks you, or fails), *Edit files and run commands* runs without a sandbox, since Codex's keeps `.git` read-only. dummyPlane knows when Codex's prompt is ready, answers its trust question in the worktrees it makes, and *Resume* takes the conversation Codex saved back up. Every Codex terminal now gets dummyPlane's tools and role through a profile file in Codex's folder, removed when it closes; it starts without Codex's update check, which would stop it before its task. The model router stays Claude's, and Remote Control is not offered to a Codex Fleet.
 - **Linear as an overnight ticket source:** choose *Linear*, a team and a label in *Overnight run*; the Fleet reads the issues itself through Linear's own read-only server, with no key stored in dummyPlane. *Connect…* gives the Fleet that server; you sign in once, in its terminal with `/mcp` for Claude, in the browser Codex opens for Codex.
@@ -32,6 +53,45 @@ All notable changes to dummyPlane are documented here. The format follows [Keep 
 - **Agents stacked under a Fleet or in a group are spaced further apart,** to leave room for their step frieze.
 
 ### Fixed
+- **The UI audit's second tier (P2), all 59 findings:** 49 fixed in this release, 10 already fixed before it.
+  - **Keyboard and screen readers:**
+    - focus follows menus and panels that swap views, and returns to what opened them;
+    - placing an agent ends with Enter;
+    - hints, palette results, update progress and errors are announced, and the errors are tied to their fields;
+    - rename fields are named;
+    - the project card is one button;
+    - the git changes list is one tab stop;
+    - the file tree has a real tree keyboard model;
+    - native tooltips gave way to the app's hints.
+  - **Legibility:**
+    - fields have a visible boundary (`--dp-line-strong`);
+    - the chosen soft tab has an accent border;
+    - text selection follows the palette;
+    - agent tints and the overdue chips pass contrast in every palette;
+    - working and waiting no longer differ by colour alone;
+    - a role shows as a bar, and a priority as signal bars, not as status dots.
+  - **Layout at small sizes:**
+    - the window buttons stay in reach at 960 px;
+    - the bottom bars no longer overlap;
+    - the active workspace tab scrolls into view;
+    - dialogs scroll past the window's height, and their close button no longer covers the title;
+    - menus fit their content.
+  - **States and recovery:**
+    - *Undo* for a deleted Kanban column, card or loop;
+    - *Try again* after a failed start or workspace load;
+    - error boundaries recover;
+    - the overnight run waits for its checks;
+    - a mission stopped on an error says so;
+    - the Files tab refreshes;
+    - a remark stays on its line;
+    - Markdown preview keeps the editor's undo;
+    - Markdown links open in the browser;
+    - one primary button per first-run screen.
+  - **Speed:** panning no longer re-derives the scene on every frame, and typing a remark no longer re-renders the whole diff.
+  - **Not done in this pass:**
+    - virtualising very long diffs and trees;
+    - moving the canvas backdrops with transforms;
+    - the bottom band as one grid.
 - **The Fleet gets the MCP servers its *MCP* tab shows on.** It used to start with dummyPlane's server only, whatever the tab said, so a Linear or Supabase server checked there was missing from its session. They are now copied into the Fleet's own MCP configuration, a plugin's server too while its plugin is on. Your own servers keep the sign-in Claude already has for them; a plugin's server may ask for it once (`/mcp`). A Fleet still reads no other MCP configuration, and no claude.ai connector. During an overnight run that reads its tickets in Linear, Linear's read-only server takes the place of a `linear` server of yours.
 - **Every plugin Claude loads is in the *Plugins* tab:** one turned on in the project's settings but installed for another project (Claude loads it from its cache), and a plugin kept in a `skills` folder (`<name>@skills-dir`, on until turned off), with its subagents and MCP servers.
 - **Every skill and MCP server Claude loads is in the *Edit* tab:** your own and the project's commands, the skills synced from your claude.ai account, and each plugin's skills and commands. Commands and synced skills switch one by one; a plugin's skills follow their plugin's switch, since Claude's per-skill switch doesn't reach them. *MCP* now shows Claude in Chrome, which can be turned off, and dummyPlane's own server, always on. A `.md` file without front matter (a README) is no longer listed as a subagent. What nothing on disk names, Claude Code's bundled skills, built-in plugins and subagents, and claude.ai connectors, is said under each list.

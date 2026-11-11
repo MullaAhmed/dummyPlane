@@ -30,6 +30,7 @@ let host: HTMLDivElement;
 beforeEach(async () => {
   mockIPC(() => undefined);
   vi.mocked(sendCommand).mockClear();
+  vi.mocked(savePastedImage).mockReset();
   host = document.createElement("div");
   document.body.append(host);
   root = createRoot(host);
@@ -170,13 +171,18 @@ it("says why Send is grey when the chosen group has no agent, not Write an instr
   await type("@vide run the tests");
   const send = host.querySelector<HTMLButtonElement>('button[aria-label="Send"]')!;
   expect(send.disabled).toBe(true);
-  expect(send.title).toBe("No agent in this target");
+  expect(sendHint()).toBe("No agent in this target");
   expect(host.textContent).toContain("No agent in this target");
 });
 
 // --- When Send is grey: only when nothing is targeted (fallback empty and no known @mention). ---
 
 const sendButton = () => host.querySelector<HTMLButtonElement>('button[aria-label="Send"]')!;
+/** What Send's hint says: the app's tooltip on its wrapper, never a native title (it would never show on a grey Send). */
+const sendHint = () => {
+  expect(sendButton().hasAttribute("title")).toBe(false);
+  return sendButton().closest("[data-send-hint]")!.getAttribute("data-send-hint");
+};
 
 async function renderWith(props: { agents?: TargetAgent[]; groups?: unknown[]; fallback?: string[] }) {
   await act(async () =>
@@ -197,7 +203,7 @@ it("enables Send for a selected agent (fallback) and a plain instruction, and se
   expect(sendButton().disabled).toBe(true);
   await type("run tests");
   expect(sendButton().disabled).toBe(false);
-  expect(sendButton().title).toBe("Send");
+  expect(sendHint()).toBe("Send");
   expect(host.textContent).not.toContain("Tape @");
   await act(async () => sendButton().click());
   expect(sendCommand).toHaveBeenCalledWith(["b"], "run tests");
@@ -247,7 +253,7 @@ it("does not match an agent whose name has spaces when typed with the space (@Te
   // "@Team" is no known mention: nothing is targeted and the generic hint shows.
   await type("@Team Back run tests");
   expect(sendButton().disabled).toBe(true);
-  expect(sendButton().title).toBe("Tape @");
+  expect(sendHint()).toBe("Tape @");
   expect(host.textContent).toContain("Tape @");
 });
 
@@ -262,11 +268,11 @@ it("enables Send for an @group with nothing selected, and sends to its members",
 
 it("keeps Send grey with nothing targeted; in an unfocused field the hint shows once text is typed, the title always", async () => {
   expect(sendButton().disabled).toBe(true);
-  expect(sendButton().title).toBe("Tape @");
+  expect(sendHint()).toBe("Tape @");
   expect(host.textContent).not.toContain("Tape @");
   await type("run tests");
   expect(sendButton().disabled).toBe(true);
-  expect(sendButton().title).toBe("Tape @");
+  expect(sendHint()).toBe("Tape @");
   expect(host.textContent).toContain("Tape @");
   await act(async () => sendButton().click());
   expect(sendCommand).not.toHaveBeenCalled();
@@ -295,7 +301,7 @@ it("treats an @name shared by two agents as ambiguous: with nothing selected, Se
   });
   await type("@claudecode run tests");
   expect(sendButton().disabled).toBe(true);
-  expect(sendButton().title).toBe("Tape @");
+  expect(sendHint()).toBe("Tape @");
 });
 
 // --- The field is assistant-ui's composer; its keys stay this field's. ---
@@ -461,17 +467,123 @@ function pasteEvent({ text = "", files = [] as File[] } = {}) {
   return event;
 }
 
-it("pastes an image as its saved file's path, at the caret, like a terminal (image paste)", async () => {
+const png = (bytes = [137, 80]) => new File([new Uint8Array(bytes)], "image.png", { type: "image/png" });
+const imageChips = () => [...host.querySelectorAll("[data-image-chip]")];
+
+/** The object URLs the field makes and revokes: happy-dom has no blob URLs. */
+function blobUrls() {
+  let made = 0;
+  const create = vi.fn(() => `blob:dummyplane/${++made}`);
+  const revoke = vi.fn();
+  Object.assign(URL, { createObjectURL: create, revokeObjectURL: revoke });
+  return { create, revoke };
+}
+
+async function pasteImage(file = png()) {
+  const paste = pasteEvent({ files: [file] });
+  await act(async () => void field().dispatchEvent(paste));
+  return paste;
+}
+
+it("shows a pasted image as an attachment, a thumbnail chip, never its path in the text (attachments)", async () => {
+  const urls = blobUrls();
   vi.mocked(savePastedImage).mockResolvedValue(String.raw`C:\cache\paste-1.png`);
   await type("@cyborg look at this");
-  await act(async () => field().setSelectionRange(16, 16));
-  const paste = pasteEvent({ files: [new File([new Uint8Array([137, 80])], "image.png", { type: "image/png" })] });
-  await act(async () => void field().dispatchEvent(paste));
+  const paste = await pasteImage();
   expect(paste.defaultPrevented).toBe(true);
-  await vi.waitFor(() => expect(field().value).toBe(String.raw`@cyborg look at C:\cache\paste-1.png this`));
   expect(savePastedImage).toHaveBeenCalledWith(new Uint8Array([137, 80]), "png");
+  // The text is left as typed: no path, at the caret or anywhere.
+  expect(field().value).toBe("@cyborg look at this");
+  const list = getByRole(host, "list", "Images");
+  expect([...list.querySelectorAll('[role="listitem"]')].map((item) => item.textContent)).toEqual(["Image 1"]);
+  const thumbnail = list.querySelector("img")!;
+  expect(thumbnail.getAttribute("src")).toBe("blob:dummyplane/1");
+  expect(thumbnail.getAttribute("alt")).toBe("");
+  expect(urls.create).toHaveBeenCalledTimes(1);
+  expect(getByRole(list, "button", "Remove Image 1")).not.toBeNull();
+});
+
+it("sends the images with the text, then clears them like the text (attachments)", async () => {
+  const urls = blobUrls();
+  vi.mocked(savePastedImage).mockResolvedValueOnce(String.raw`C:\cache\paste-1.png`).mockResolvedValueOnce(String.raw`C:\Users\Jane Doe\paste-2.png`);
+  await type("@cyborg what is wrong here?");
+  await pasteImage();
+  await pasteImage(png([137, 81]));
+  expect(imageChips().map((chip) => chip.textContent)).toEqual(["Image 1", "Image 2"]);
   await press("Enter");
-  expect(sendCommand).toHaveBeenCalledWith(["b"], String.raw`look at C:\cache\paste-1.png this`);
+  // The paths as pasted: quoted when they hold a space.
+  await vi.waitFor(() =>
+    expect(sendCommand).toHaveBeenCalledWith(["b"], "what is wrong here?", [String.raw`C:\cache\paste-1.png`, String.raw`"C:\Users\Jane Doe\paste-2.png"`]),
+  );
+  expect(field().value).toBe("");
+  expect(imageChips()).toEqual([]);
+  expect(urls.revoke.mock.calls).toEqual([["blob:dummyplane/1"], ["blob:dummyplane/2"]]);
+  // The next message carries none.
+  await type("and now?");
+  await press("Enter");
+  expect(vi.mocked(sendCommand).mock.calls.slice(-1)[0]).toEqual([["b"], "and now?"]);
+});
+
+it("waits for an image still being saved, rather than sending without it (attachments)", async () => {
+  blobUrls();
+  let saved!: (path: string) => void;
+  vi.mocked(savePastedImage).mockReturnValue(new Promise((resolve) => (saved = resolve)));
+  await type("@cyborg look");
+  await pasteImage();
+  await press("Enter");
+  expect(sendCommand).not.toHaveBeenCalled();
+  expect(imageChips()).toEqual([]);
+  await act(async () => saved(String.raw`C:\cache\paste-3.png`));
+  await vi.waitFor(() => expect(sendCommand).toHaveBeenCalledWith(["b"], "look", [String.raw`C:\cache\paste-3.png`]));
+});
+
+it("removes an image with its ✕ or Backspace before the text, and revokes its thumbnail (attachments)", async () => {
+  const urls = blobUrls();
+  vi.mocked(savePastedImage).mockResolvedValue(String.raw`C:\cache\paste-1.png`);
+  await type("@cyb");
+  await press("Tab");
+  expect(chips()).toEqual(["@cyborg"]);
+  await pasteImage();
+  await pasteImage();
+  await act(async () => getByRole(host, "button", "Remove Image 1").click());
+  expect(urls.revoke).toHaveBeenCalledWith("blob:dummyplane/1");
+  // The one left is the first now.
+  expect(imageChips().map((chip) => chip.textContent)).toEqual(["Image 1"]);
+  await press("Backspace");
+  expect(imageChips()).toEqual([]);
+  expect(urls.revoke).toHaveBeenCalledWith("blob:dummyplane/2");
+  // Backspace took the chip just before the caret, the image: the target stays.
+  expect(chips()).toEqual(["@cyborg"]);
+  await type("run tests");
+  await press("Enter");
+  expect(sendCommand).toHaveBeenCalledWith(["b"], "run tests");
+});
+
+it("sends a /command alone and keeps the images for the next message (attachments)", async () => {
+  blobUrls();
+  vi.mocked(savePastedImage).mockResolvedValue(String.raw`C:\cache\paste-1.png`);
+  await type("@cyborg /compact");
+  await pasteImage();
+  await press("Enter");
+  expect(sendCommand).toHaveBeenCalledWith(["b"], "/compact");
+  expect(imageChips().map((chip) => chip.textContent)).toEqual(["Image 1"]);
+  await type("what now?");
+  await press("Enter");
+  await vi.waitFor(() => expect(sendCommand).toHaveBeenLastCalledWith(["b"], "what now?", [String.raw`C:\cache\paste-1.png`]));
+});
+
+it("drops the chip of an image that could not be saved, and revokes the rest when the field goes (attachments)", async () => {
+  const urls = blobUrls();
+  vi.spyOn(console, "error").mockImplementation(() => undefined);
+  vi.mocked(savePastedImage).mockRejectedValueOnce(new Error("disk full")).mockResolvedValueOnce(String.raw`C:\cache\paste-2.png`);
+  await pasteImage();
+  await vi.waitFor(() => expect(imageChips()).toEqual([]));
+  expect(urls.revoke).toHaveBeenCalledWith("blob:dummyplane/1");
+  await pasteImage();
+  expect(imageChips()).toHaveLength(1);
+  await act(async () => root.unmount());
+  expect(urls.revoke).toHaveBeenCalledWith("blob:dummyplane/2");
+  root = createRoot(host);
 });
 
 it("leaves a pasted text to the field (image paste)", async () => {
@@ -498,4 +610,39 @@ it("keeps its name once a chip empties the placeholder, and reads who the chips 
   await act(async () => getByRole(list, "button", "Remove @deadpool").click());
   expect(queryByRole(host, "list", "Targets")).toBeNull();
   expect(accessibleDescription(field())).not.toContain("To @");
+});
+
+// --- The hints above the field are a live region, read with it. ---
+
+const hints = () => host.querySelector<HTMLElement>("[data-field-hints]")!;
+
+it("keeps one status region for its hints mounted while empty, so the first one is announced", async () => {
+  expect(hints().getAttribute("role")).toBe("status");
+  expect(hints().textContent).toBe("");
+  expect(field().getAttribute("aria-describedby") ?? "").not.toContain(hints().id);
+  await type("run tests");
+  // Enter with nothing targeted: refused, and the region says why, tied to the field.
+  await press("Enter");
+  expect(sendCommand).not.toHaveBeenCalled();
+  expect(hints().textContent).toBe("Tape @");
+  expect(accessibleDescription(field())).toContain("Tape @");
+});
+
+it("says an unknown target and an empty group in the same region", async () => {
+  await act(async () => root.render(<CommandInput agents={agents} groups={[]} fallback={["d"]} placeholder="Consigne" emptyHint="Tape @" />));
+  await type("/clear @cyborg/deadpoll");
+  await press("Enter");
+  expect(hints().textContent).toBe("Unknown target: @cyborg/deadpoll");
+  expect(accessibleDescription(field())).toContain("Unknown target: @cyborg/deadpoll");
+  const empty = { id: "g1", name: "Vide", x: 0, y: 0, width: 10, height: 10, group: { role: "general", pantheon: "egypt" }, memberIds: [] };
+  await act(async () => root.render(<CommandInput agents={agents} groups={[empty] as never} fallback={[]} placeholder="Consigne" emptyHint="Tape @" />));
+  await type("@vide run the tests");
+  expect(hints().textContent).toBe("No agent in this target");
+});
+
+it("shows a suggestion's detail in its row, never in a native title", async () => {
+  await type("/");
+  const rows = [...host.querySelectorAll<HTMLElement>('[role="option"]')];
+  expect(rows.length).toBeGreaterThan(0);
+  for (const row of rows) expect(row.hasAttribute("title")).toBe(false);
 });

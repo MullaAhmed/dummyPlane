@@ -1,12 +1,13 @@
 // @vitest-environment happy-dom
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mockIPC } from "@tauri-apps/api/mocks";
 import { clearWirePulses, wireActivityStore } from "@/canvas/wireActivity";
 import type { Member } from "@/mission/mission";
 import { notify } from "@/mission/events";
 import { nodesStore, terminalOf } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
-import { agentTools, declareSteps, markStep, report } from "./agentTools";
+import { fleetSession } from "@/nodes/terminal/launch";
+import { agentTools, declareSteps, markStep, report, spawnAgentSpec } from "./agentTools";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
 vi.mock("@/kanban/fleetBoards", () => ({ finishMissionCard: vi.fn(() => Promise.resolve()), flagMissionCard: vi.fn() }));
@@ -144,4 +145,42 @@ it("tells both the fleet and the parent when a spawned agent is also a mission m
 it("still has nobody to tell for an agent neither in a mission nor spawned", () => {
   expect(report("shazam", { resume: "Done", statut: "termine" }).content[0].text).toBe("No mission under way: nothing to pass on.");
   expect(notify).not.toHaveBeenCalled();
+});
+
+describe("a Fleet's sub-agent (spawn_agent)", () => {
+  beforeEach(async () => {
+    // A Fleet outside any mission, its session running, that opened Cyborg with spawn_agent.
+    await nodesStore.getState().create("fleet", { workspaceId: "w1", kind: "fleet", payload: { name: "Fleet", session: fleetSession("Fleet", { cwd: "C:/p", shell: "default" }) } });
+    await nodesStore.getState().create("cyborg", { workspaceId: "w1", kind: "terminal", payload: terminal("Cyborg", "fleet") });
+    terminalStatusStore.getState().set("fleet", { state: "running" });
+  });
+
+  it("types its report into the Fleet's terminal and lights the wire toward it", () => {
+    const result = report("cyborg", { resume: "Found it in src/mcp", statut: "termine" });
+    expect(result).toEqual({ content: [{ type: "text", text: "Report passed on to Fleet." }] });
+    expect(notify).toHaveBeenCalledWith("fleet", "Cyborg reported (done): Found it in src/mcp");
+    expect(pulses().cyborg).toMatchObject({ direction: "toFleet", fleetId: "fleet" });
+    expect(terminalOf(nodesStore.getState().nodes.cyborg)).toMatchObject({ lastReport: { status: "done", summary: "Found it in src/mcp" } });
+  });
+
+  it("lights the Fleet's wire when it declares or marks a step", () => {
+    declareSteps("cyborg", { etapes: ["Look"] });
+    expect(pulses().cyborg).toMatchObject({ direction: "toFleet", fleetId: "fleet" });
+  });
+
+  it("says so when the Fleet's session no longer runs", () => {
+    terminalStatusStore.getState().set("fleet", { state: "exited", code: 0 });
+    expect(report("cyborg", { resume: "Done", statut: "termine" }).content[0].text).toContain("is closed");
+    expect(notify).not.toHaveBeenCalled();
+  });
+
+  it("is described to the Fleet as ad-hoc work beside its mission's queue, in its workspace's folder", () => {
+    const spawn = spawnAgentSpec(true);
+    expect(spawn.name).toBe("spawn_agent");
+    expect(spawn.inputSchema).toEqual(agentTools().find((tool) => tool.name === "spawn_agent")!.inputSchema);
+    expect(spawn.description).toContain("outside your mission's queue");
+    expect(spawn.description).toContain("in your workspace's folder");
+    expect(spawn.description).toContain("not on your team");
+    expect(spawn.description).toContain("3 levels below you");
+  });
 });

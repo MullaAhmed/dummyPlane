@@ -33,7 +33,7 @@ export function UpdateChip() {
 export function UpdateDialog() {
   const all = useMessages(shellMessages);
   const t = all.update;
-  const { available, dialogOpen, progress } = useUpdates((s) => s);
+  const { available, dialogOpen, progress, step } = useUpdates((s) => s);
   const nodes = useNodes((s) => s.nodes);
   useStore(terminalStatusStore, (s) => s.statuses);
   const running = Object.entries(nodes)
@@ -43,7 +43,7 @@ export function UpdateDialog() {
   const busy = progress !== null;
   const install = () =>
     void installUpdate().catch((error: unknown) => {
-      updatesStore.setState({ progress: null });
+      updatesStore.setState({ progress: null, step: null });
       toast.error(messages(shellMessages).update.failed, { description: error instanceof Error ? error.message : String(error) });
     });
 
@@ -55,12 +55,20 @@ export function UpdateDialog() {
           <DialogDescription>{running.length > 0 ? t.willStop(running) : t.willClose}</DialogDescription>
         </DialogHeader>
         {available?.notes && <ReleaseNotes notes={available.notes} />}
+        {/* The button's label shows the figure; this says the stage once, for a screen reader. Mounted while empty. */}
+        <p role="status" data-update-status className="sr-only">
+          {step?.kind === "downloading" ? t.downloadingStatus : step?.kind === "installing" ? t.installingStatus : ""}
+        </p>
         <DialogFooter>
           <QuietButton onClick={close} disabled={busy}>
             {t.later}
           </QuietButton>
           <AccentButton size="lg" onClick={install} disabled={busy} className="tabular-nums">
-            {busy ? t.downloading(Math.round((progress ?? 0) * 100)) : t.install}
+            {!busy
+              ? t.install
+              : step?.kind === "installing"
+                ? t.installing
+                : t.downloading(step?.kind === "downloading" && step.share !== null ? Math.round(step.share * 100) : null)}
           </AccentButton>
         </DialogFooter>
       </DialogContent>

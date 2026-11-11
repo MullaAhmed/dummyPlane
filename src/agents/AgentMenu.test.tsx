@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { open as pickDirectory } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -76,6 +76,8 @@ const openMenu = async () => {
   await act(async () => host.querySelector("button")!.click());
 };
 const button = (text: string) => [...document.body.querySelectorAll("button")].find((b) => b.textContent?.includes(text));
+/** What the app's hint says: the tooltip of the control that has the keyboard (or the pointer). */
+const hintShown = () => document.querySelector('[role="tooltip"]')?.textContent ?? "";
 const installButtons = () => [...document.body.querySelectorAll<HTMLButtonElement>("[data-install]")];
 
 it("offers to install the missing agents only (spec installation §4.1)", async () => {
@@ -251,13 +253,16 @@ const folderShown = () => folderBar().querySelector("[data-launch-folder-name]")
 const pickNext = (path: string | null) => vi.mocked(pickDirectory).mockResolvedValueOnce(path);
 const recentShown = () => [...document.body.querySelectorAll<HTMLElement>("[data-recent-folder]")].map((b) => b.textContent);
 
-it("shows the folder the next terminals start in at the top of the menu, its full path on hover", async () => {
+it("shows the folder the next terminals start in at the top of the menu, its full path in the app's hint", async () => {
   await inProject();
   await openMenu();
   const popover = document.body.querySelector("[data-slot='popover-content']")!;
   expect(popover.firstElementChild).toBe(folderBar());
   expect(folderShown()).toBe("api");
-  expect([...folderBar().querySelectorAll<HTMLElement>("[title]")].map((e) => e.title)).toContain("D:\\code\\api");
+  // No native title: the app's hint, which the keyboard reaches on Change….
+  expect(folderBar().querySelector("[title]")).toBeNull();
+  await act(async () => button("Change…")!.focus());
+  expect(document.querySelector('[role="tooltip"]')?.textContent).toContain("D:\\code\\api");
   expect(button("Change…")).toBeTruthy();
   expect(button("Project folder")).toBeUndefined();
 });
@@ -292,7 +297,8 @@ it("goes back to the project folder with « Project folder »", async () => {
   await openMenu();
   pickNext("D:\\work\\lib");
   await act(async () => button("Change…")!.click());
-  expect(button("Project folder")!.title).toContain("D:\\code\\api");
+  await act(async () => button("Project folder")!.focus());
+  expect(hintShown()).toContain("D:\\code\\api");
   await act(async () => button("Project folder")!.click());
   expect(folderShown()).toBe("api");
   expect(button("Project folder")).toBeUndefined();
@@ -312,7 +318,8 @@ it("lists the recent folders, and a click on one chooses it", async () => {
   await act(async () => document.body.querySelector<HTMLElement>("[data-recent-folder]")!.click());
   expect(folderShown()).toBe("one");
   expect(recentShown()).toEqual(["two"]);
-  expect(document.body.querySelector<HTMLElement>("[data-recent-folder]")!.title).toBe("D:\\work\\two");
+  await act(async () => document.body.querySelector<HTMLElement>("[data-recent-folder]")!.focus());
+  expect(hintShown()).toBe("D:\\work\\two");
 });
 
 it("saves the folder on the workspace, and the recent folders for the project", async () => {
@@ -386,4 +393,52 @@ it("grows from its trigger when clicked, but shows at once when a request (the p
   await act(async () => host.querySelector("button")!.click());
   expect(content()).not.toBeNull();
   expect(content()!.hasAttribute("data-instant")).toBe(false);
+});
+
+describe("the keyboard follows the menu's views (WCAG 2.4.3)", () => {
+  const back = () => document.activeElement as HTMLElement | null;
+
+  it("takes Back of an Install, then gives the keyboard back to that Install", async () => {
+    await openMenu();
+    const install = installButtons()[0];
+    install.focus();
+    await act(async () => install.click());
+    expect(document.body.querySelector("[data-install-prompt]")).not.toBeNull();
+    expect(back()?.textContent).toContain("Install Codex");
+    expect(back()).not.toBe(document.body);
+    await act(async () => back()!.click());
+    expect(document.activeElement).toBe(installButtons()[0]);
+  });
+
+  it("takes Back of the Options, then gives the keyboard back to Options", async () => {
+    await openMenu();
+    const options = document.body.querySelector<HTMLButtonElement>("[data-launch-options]")!;
+    options.focus();
+    await act(async () => options.click());
+    const content = document.body.querySelector("[data-slot='popover-content']")!;
+    expect(content.contains(document.activeElement)).toBe(true);
+    expect(document.activeElement?.tagName).toBe("BUTTON");
+    await act(async () => (document.activeElement as HTMLButtonElement).click());
+    expect(document.activeElement).toBe(document.body.querySelector("[data-launch-options]"));
+  });
+
+  it("leaves the keyboard on Custom's command, and comes back to the Custom row", async () => {
+    agents = only("claude");
+    agentsStore.setState({ agents, shells: ["powershell"], loaded: true });
+    await openMenu();
+    const custom = document.body.querySelector<HTMLButtonElement>('[data-agent-pick="custom"]')!;
+    await act(async () => custom.click());
+    expect(document.activeElement?.tagName).toBe("INPUT");
+    const backButton = [...document.body.querySelectorAll<HTMLButtonElement>("[data-slot='popover-content'] button")][0];
+    await act(async () => backButton.click());
+    expect(document.activeElement).toBe(document.body.querySelector('[data-agent-pick="custom"]'));
+  });
+
+  it("opens a requested view on its first control, never painting the agents list first", async () => {
+    await act(async () => root.render(<AgentMenu answersRequests trigger={() => <button type="button">open</button>} />));
+    await act(async () => requestUi({ kind: "agentMenu", view: { install: "aider" } }));
+    expect(document.body.querySelector("[data-install-prompt='aider']")).not.toBeNull();
+    const content = document.body.querySelector("[data-slot='popover-content']")!;
+    expect(content.contains(document.activeElement)).toBe(true);
+  });
 });

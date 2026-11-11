@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent, type ReactElement } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type ReactElement } from "react";
 import { Check, Kanban, Network, SquareTerminal } from "lucide-react";
 import { toast } from "sonner";
 import { useUiRequest } from "@/commands/uiRequests";
@@ -31,6 +31,9 @@ import type { Point } from "./terminals";
  */
 type View = "agents" | "options" | "launch" | "ollama" | { install: AgentId };
 
+/** What takes the keyboard in a view that has none yet: its first control, Back in every sub-view. */
+const FIRST_CONTROL = "button:not(:disabled), input:not(:disabled), [tabindex]:not([tabindex='-1'])";
+
 /** One entry of the menu: an icon, a name, sometimes a line under it. */
 const ROW = "h-auto w-full justify-start gap-2.5 rounded-md border-0 px-2 py-1.5 text-left font-normal whitespace-normal";
 
@@ -62,6 +65,9 @@ export function AgentMenu({
 
   const requestedView = useRef<View | null>(null);
   const agentRows = useRef<HTMLDivElement>(null);
+  const content = useRef<HTMLDivElement>(null);
+  // The control that opened a sub-view (a row, an Install, Options): its Back gives the keyboard back to it.
+  const opener = useRef<string | null>(null);
   const [placeAt, setPlaceAt] = useState<Point | null>(null);
   // Opened by a request (the palette, a shortcut, the radial menu), not by its trigger: it shows at once.
   const [instant, setInstant] = useState(false);
@@ -71,15 +77,40 @@ export function AgentMenu({
     setTypedFolder(null);
   }, [launchFolder.folder, open]);
 
-  useEffect(() => {
+  // Before paint: a view asked for by the palette shows at once, without the agents list for a frame.
+  useLayoutEffect(() => {
     if (!open) {
       setPlaceAt(null);
+      opener.current = null;
       return;
     }
     setView(requestedView.current ?? "agents");
     requestedView.current = null;
     void agentsStore.getState().load();
   }, [open]);
+
+  // The keyboard follows the view (WCAG 2.4.3): the control that swapped it is gone, and focus would fall to the page.
+  // A sub-view takes it on its first control, unless one of its own took it (Custom's command); back on the agents,
+  // the control that opened the sub-view has it again.
+  useLayoutEffect(() => {
+    const root = content.current;
+    if (!root) return;
+    if (view === "agents") {
+      const from = opener.current;
+      opener.current = null;
+      const back = from ? root.querySelector<HTMLElement>(from) : null;
+      if (back) back.focus();
+      else if (!root.contains(document.activeElement)) agentRows.current?.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus();
+      return;
+    }
+    if (!root.contains(document.activeElement)) root.querySelector<HTMLElement>(FIRST_CONTROL)?.focus();
+  }, [view]);
+
+  /** A sub-view, opened from the control `from` names: Back gives it the keyboard again. */
+  const showView = (next: View, from: string) => {
+    opener.current = from;
+    setView(next);
+  };
 
   useUiRequest(
     "agentMenu",
@@ -117,9 +148,9 @@ export function AgentMenu({
   };
 
   const pick = (agent: AgentId) => {
-    if (agent === "ollama") setView("ollama");
+    if (agent === "ollama") showView("ollama", `[data-agent-pick="ollama"]`);
     // The command is what a Custom terminal is: it is shown, the last one filled in, before anything runs.
-    else if (agent === "custom") setView("options");
+    else if (agent === "custom") showView("options", `[data-agent-pick="custom"]`);
     else place(agent, current);
   };
 
@@ -149,6 +180,7 @@ export function AgentMenu({
     >
       <PopoverTrigger asChild>{trigger(open)}</PopoverTrigger>
       <PopoverContent
+        ref={content}
         side={side}
         align="start"
         data-instant={instant ? "" : undefined}
@@ -177,6 +209,7 @@ export function AgentMenu({
                       type="button"
                       variant="ghost"
                       disabled={!usable}
+                      data-agent-pick={id}
                       title={usable ? undefined : t.agentMenu.notFound(meta.binary)}
                       onClick={() => pick(id)}
                       className={cn(ROW, "disabled:pointer-events-auto disabled:cursor-not-allowed disabled:hover:bg-transparent")}
@@ -200,7 +233,7 @@ export function AgentMenu({
                         size="xs"
                         data-install={id}
                         aria-label={t.install.installAgent(meta.label)}
-                        onClick={() => setView({ install: id })}
+                        onClick={() => showView({ install: id }, `[data-install="${id}"]`)}
                         className="absolute right-2 top-1/2 h-auto -translate-y-1/2 border-0 bg-dp-accent-soft px-2 py-0.5 text-xs font-medium text-dp-accent-ink hover:bg-dp-accent/25"
                       >
                         {t.install.button}
@@ -263,7 +296,14 @@ export function AgentMenu({
             </div>
             <div className="mt-1 flex items-center justify-between border-t border-dp-line px-2 pt-2 text-xs text-dp-text-2">
               <span>{placeAt ? t.agentMenu.placedWhereClicked : t.agentMenu.thenClickCanvas}</span>
-              <Button type="button" variant="link" size="xs" className="h-auto px-1 text-xs font-normal text-dp-accent-ink" onClick={() => setView("launch")}>
+              <Button
+                type="button"
+                variant="link"
+                size="xs"
+                data-launch-options
+                className="h-auto px-1 text-xs font-normal text-dp-accent-ink"
+                onClick={() => showView("launch", "[data-launch-options]")}
+              >
                 {t.agentMenu.options}
               </Button>
             </div>

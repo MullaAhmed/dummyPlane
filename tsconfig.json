@@ -21,7 +21,8 @@
     "noFallthroughCasesInSwitch": true,
 
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@openuidev/devtools": ["./src/openui/devtoolsStub.ts"]
     }
   },
   "include": ["src"],

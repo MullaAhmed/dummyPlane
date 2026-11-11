@@ -76,3 +76,16 @@ it("gives a minimized terminal's copy the height its card stood for: the copy st
   expect(scene.find((e) => e.id === "batman")!.height).toBe(68);
   expect(terminalOf(nodesStore.getState().nodes.batman2)?.minimized).toBeUndefined();
 });
+
+it("gives a copied output a node of its own, with the same content, its link pointed at it", async () => {
+  const output = { title: "Tests", source: "batman", ui: 'root = Stack([Text("ok")])', updatedAt: 1 };
+  await nodesStore.getState().create("o1", { workspaceId: "w1", kind: "output", payload: output });
+  const element = (id: string) => ({ id, type: "embeddable", x: 0, y: 0, width: 560, height: 520, isDeleted: false, frameId: null, groupIds: [], link: "dummyplane://output/o1", customData: { kind: "output" } }) as unknown as ExcalidrawElement;
+  scene = [element("o1"), element("o2")];
+  await adoptCopies("w1", [{ id: "o2", sourceId: "o1" }]);
+  expect(nodesStore.getState().nodes.o2).toEqual({ workspaceId: "w1", kind: "output", payload: output });
+  expect(scene.find((e) => e.id === "o2")!.link).toBe("dummyplane://output/o2");
+  // Each its own: changing the copy leaves the first as it was.
+  nodesStore.getState().update("o2", { title: "Copy" });
+  expect(nodesStore.getState().nodes.o1).toMatchObject({ payload: { title: "Tests" } });
+});

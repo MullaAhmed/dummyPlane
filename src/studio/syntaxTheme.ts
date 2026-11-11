@@ -23,14 +23,9 @@
 import { HighlightStyle } from "@codemirror/language";
 import { tags as t } from "@lezer/highlight";
 import type { ThemeChoice } from "@/app/theme";
+import { SYNTAX_HUES, type SyntaxHue } from "./syntaxHues";
 
-export type SyntaxHue = "red" | "green" | "yellow" | "blue" | "magenta" | "cyan";
-
-export const SYNTAX_HUES: Record<ThemeChoice, Record<SyntaxHue, string>> = {
-  calm: { red: "#994735", green: "#326B2D", yellow: "#7E5904", blue: "#316390", magenta: "#864D6E", cyan: "#046B66" },
-  electric: { red: "#FFC0C1", green: "#67E899", yellow: "#F4CC3F", blue: "#ABD4FF", magenta: "#ECC0FF", cyan: "#56E2F1" },
-  expressive: { red: "#ED7874", green: "#5DAB6F", yellow: "#D1A057", blue: "#6B9DE5", magenta: "#C784C5", cyan: "#38AAB4" },
-};
+export { SYNTAX_HUES, type SyntaxHue };
 
 /** What each kind of token is drawn in: a hue of the palette, or one of its text roles. */
 function specs(hue: Record<SyntaxHue, string>) {
@@ -61,6 +56,11 @@ const STYLES: Record<ThemeChoice, HighlightStyle> = {
   electric: HighlightStyle.define(specs(SYNTAX_HUES.electric)),
   expressive: HighlightStyle.define(specs(SYNTAX_HUES.expressive)),
 };
+
+/** What each kind of token is drawn in under `palette`: code shown outside an editor highlights with these (`@/openui/highlight`). */
+export function syntaxSpecs(palette: ThemeChoice) {
+  return specs(SYNTAX_HUES[palette]);
+}
 
 /** The palette's highlight style: made once, so a palette switch swaps one for another. */
 export function syntaxStyleFor(palette: ThemeChoice): HighlightStyle {

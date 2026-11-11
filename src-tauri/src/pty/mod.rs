@@ -119,13 +119,27 @@ impl PtyManager {
         self.require(node_id)?.write(data)
     }
 
-    /// Types `text` as a paste, then Enter after `ENTER_DELAY` (spec §15.3).
-    /// Blocks for that delay: call it off the async runtime.
-    pub fn send_text(&self, node_id: &str, text: &str) -> AppResult<()> {
+    /// Types each of `images` (an image's path) as a paste of its own, each
+    /// waited for until the agent shows it attached, then `text` as a paste,
+    /// then Enter after `ENTER_DELAY` (spec §15.3). Blocks meanwhile: call it
+    /// off the async runtime.
+    pub fn send_text(&self, node_id: &str, text: &str, images: &[String]) -> AppResult<()> {
         let session = self.require(node_id)?;
-        send_text_with(text, session.pastes_bracketed(), |bytes| {
-            session.write(bytes)
-        })
+        send_text_with(
+            images,
+            text,
+            session.pastes_bracketed(),
+            |bytes| session.write(bytes),
+            |paste| {
+                let shown = paste_image_with(paste, IMAGE_WAIT, |bytes| session.write(bytes), || {
+                    session.images_shown()
+                })?;
+                if !shown {
+                    log::warn!("pasted image not shown attached in {node_id} after {IMAGE_WAIT:?}: sent anyway");
+                }
+                Ok(())
+            },
+        )
     }
 
     /// Stops the agent's turn with its own key (spec §14); `None` for a plain
@@ -238,28 +252,69 @@ impl PtyManager {
     }
 }
 
-/// The two writes of `send_text`: the paste, then Enter after `ENTER_DELAY`.
+/// How long a pasted image may take to show attached. Claude Code reads (and
+/// may resize) the file before it attaches it, and meanwhile drops an Enter
+/// and puts a pasted text before it; past this, the rest is sent anyway.
+const IMAGE_WAIT: Duration = Duration::from_secs(3);
+const IMAGE_POLL: Duration = Duration::from_millis(10);
+
+/// The writes of `send_text`: each image's paste through `paste_image`, the
+/// text's paste, then Enter after `ENTER_DELAY`. No empty paste: Claude Code
+/// reads one as a paste of the clipboard's image.
 fn send_text_with(
+    images: &[String],
     text: &str,
     bracketed: bool,
     mut write: impl FnMut(&[u8]) -> AppResult<()>,
+    mut paste_image: impl FnMut(&[u8]) -> AppResult<()>,
 ) -> AppResult<()> {
-    write(&paste_payload(text, bracketed))?;
+    for path in images {
+        paste_image(&paste_payload(path, bracketed))?;
+    }
+    if !text.is_empty() {
+        write(&paste_payload(text, bracketed))?;
+    }
     std::thread::sleep(ENTER_DELAY);
     write(b"\r")
+}
+
+/// Writes an image path's `paste`, then waits until the program shows a new
+/// `[Image #N]` (`ImageMarks`, through `shown`) or `timeout` runs out. True
+/// when it showed one.
+fn paste_image_with(
+    paste: &[u8],
+    timeout: Duration,
+    write: impl FnOnce(&[u8]) -> AppResult<()>,
+    shown: impl Fn() -> u32,
+) -> AppResult<bool> {
+    let before = shown();
+    write(paste)?;
+    let deadline = Instant::now() + timeout;
+    while shown() <= before {
+        if Instant::now() >= deadline {
+            return Ok(false);
+        }
+        std::thread::sleep(IMAGE_POLL);
+    }
+    Ok(true)
 }
 
 #[cfg(test)]
 mod send_tests {
     use super::*;
 
+    /// A send with no image: an image paste would be a mistake.
+    fn no_image(_: &[u8]) -> AppResult<()> {
+        panic!("no image to paste")
+    }
+
     #[test]
     fn writes_the_paste_then_a_separate_enter() {
         let mut writes: Vec<Vec<u8>> = vec![];
-        send_text_with("lance\nles tests", true, |bytes| {
+        send_text_with(&[], "lance\nles tests", true, |bytes| {
             writes.push(bytes.to_vec());
             Ok(())
-        })
+        }, no_image)
         .unwrap();
         assert_eq!(
             writes,
@@ -269,10 +324,10 @@ mod send_tests {
             ]
         );
         writes.clear();
-        send_text_with("continue", false, |bytes| {
+        send_text_with(&[], "continue", false, |bytes| {
             writes.push(bytes.to_vec());
             Ok(())
-        })
+        }, no_image)
         .unwrap();
         assert_eq!(writes, vec![b"continue".to_vec(), b"\r".to_vec()]);
     }
@@ -280,12 +335,100 @@ mod send_tests {
     #[test]
     fn stops_before_enter_when_the_paste_fails() {
         let mut writes = 0;
-        let result = send_text_with("x", false, |_| {
+        let result = send_text_with(&[], "x", false, |_| {
             writes += 1;
             Err(AppError::Io(std::io::Error::other("closed")))
-        });
+        }, no_image);
         assert!(result.is_err());
         assert_eq!(writes, 1);
+    }
+
+    #[test]
+    fn pastes_each_image_alone_before_the_text_then_enter() {
+        // (what wrote it, the bytes): an image's paste waits until it shows attached, the text's does not.
+        let writes: std::cell::RefCell<Vec<(&str, Vec<u8>)>> = Default::default();
+        let images = [
+            r"C:\cache\paste-1.png".to_string(),
+            r#""C:\Users\Jane Doe\paste-2.png""#.to_string(),
+        ];
+        send_text_with(
+            &images,
+            "what is wrong here?",
+            true,
+            |bytes| {
+                writes.borrow_mut().push(("text", bytes.to_vec()));
+                Ok(())
+            },
+            |bytes| {
+                writes.borrow_mut().push(("image", bytes.to_vec()));
+                Ok(())
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            writes.into_inner(),
+            vec![
+                ("image", b"\x1b[200~C:\\cache\\paste-1.png\x1b[201~".to_vec()),
+                ("image", b"\x1b[200~\"C:\\Users\\Jane Doe\\paste-2.png\"\x1b[201~".to_vec()),
+                ("text", b"\x1b[200~what is wrong here?\x1b[201~".to_vec()),
+                ("text", b"\r".to_vec()),
+            ]
+        );
+    }
+
+    #[test]
+    fn writes_no_empty_paste() {
+        let mut writes: Vec<Vec<u8>> = vec![];
+        send_text_with(&[], "", true, |bytes| {
+            writes.push(bytes.to_vec());
+            Ok(())
+        }, no_image)
+        .unwrap();
+        assert_eq!(writes, vec![b"\r".to_vec()]);
+    }
+
+    #[test]
+    fn waits_for_the_pasted_image_to_show_attached() {
+        // Already showing #4: only a higher number is this image.
+        let shown = std::cell::Cell::new(4);
+        let polls = std::cell::Cell::new(0);
+        let written = std::cell::Cell::new(false);
+        let attached = paste_image_with(
+            b"paste",
+            Duration::from_secs(5),
+            |bytes| {
+                assert_eq!(bytes, b"paste");
+                written.set(true);
+                Ok(())
+            },
+            || {
+                polls.set(polls.get() + 1);
+                // The agent attaches it a few polls after the paste, never before it.
+                if written.get() && polls.get() >= 4 {
+                    shown.set(5);
+                }
+                shown.get()
+            },
+        )
+        .unwrap();
+        assert!(attached);
+        assert!(polls.get() >= 4);
+    }
+
+    #[test]
+    fn sends_on_when_the_image_never_shows() {
+        let started = Instant::now();
+        let attached = paste_image_with(b"paste", Duration::from_millis(60), |_| Ok(()), || 7).unwrap();
+        assert!(!attached);
+        assert!(started.elapsed() >= Duration::from_millis(60));
+        // A failed write is no wait at all.
+        let failed = paste_image_with(
+            b"paste",
+            Duration::from_secs(5),
+            |_| Err(AppError::Io(std::io::Error::other("closed"))),
+            || 0,
+        );
+        assert!(failed.is_err());
     }
 }
 
@@ -638,7 +781,7 @@ mod windows_tests {
         let sink = VecSink::default();
         let exited = spawn_answering(&mgr, "j", cmd_plan(&[], None), sink.clone());
         wait_until("prompt", || sink.text().contains('>'));
-        mgr.send_text("j", "echo sent-by-dummyplane").unwrap();
+        mgr.send_text("j", "echo sent-by-dummyplane", &[]).unwrap();
         // The typed line, then what the command printed.
         wait_until("command output", || {
             sink.text().matches("sent-by-dummyplane").count() >= 2
@@ -657,7 +800,7 @@ mod windows_tests {
         assert_eq!(mgr.interrupt("k").unwrap(), Some(&b"\x03"[..]));
         assert_eq!(mgr.interrupt("l").unwrap(), None);
         assert_eq!(mgr.interrupt("nope").unwrap_err().kind(), "notFound");
-        assert_eq!(mgr.send_text("nope", "x").unwrap_err().kind(), "notFound");
+        assert_eq!(mgr.send_text("nope", "x", &[]).unwrap_err().kind(), "notFound");
         mgr.kill_all();
         wait_exit(&agent);
         wait_exit(&shell);

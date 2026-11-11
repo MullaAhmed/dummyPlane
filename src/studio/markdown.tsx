@@ -1,6 +1,7 @@
 import type { MouseEvent, ReactNode } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { messages } from "@/i18n";
+import { cn } from "@/lib/utils";
 import { studioMessages } from "./messages";
 
 /** The file's extension, lower case, without the dot; "" when it has none. */
@@ -26,6 +27,10 @@ const OL = /^\s*\d+[.)]\s+(.*)$/;
 const TABLE_SEP = /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/;
 const INLINE =
   /`([^`]+)`|!\[([^\]]*)\]\(([^)\s]*)\)|\[([^\]]+)\]\(([^)\s]*)\)|\*\*(.+?)\*\*|__(.+?)__|\*([^*\s][^*]*?)\*|\b_([^_\s][^_]*?)_\b/g;
+
+/** A link in running text: the accent's ink, underlined, with the shared focus ring. */
+export const LINK_CLASS =
+  "rounded-sm text-dp-accent-ink underline underline-offset-2 transition-colors duration-(--dp-dur-fast) ease-(--dp-ease-out) motion-reduce:transition-none hover:bg-dp-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/70";
 
 /** Hierarchy from size, then from ink, at one weight. */
 const HEADING_CLASSES = [
@@ -98,8 +103,28 @@ function linkAction(href: string, links: MarkdownLinks | undefined): (() => void
   return path === null || !links ? null : () => links.openFile(path);
 }
 
+/**
+ * How a caller draws a link instead of the plain one: generated text opens its
+ * links through the opener, http(s) only (`@/openui/parts`). Null draws the
+ * label as plain text.
+ */
+export type LinkRenderer = (href: string, label: ReactNode[], key: number) => ReactNode | null;
+
+/**
+ * How Markdown is drawn: the studio preview's relative links (`from`,
+ * `openFile`: `MarkdownLinks`), generated text's own links (`link`), and
+ * classes merged over the block's own (`className`, a smaller size).
+ */
+export interface MarkdownOptions extends Partial<MarkdownLinks> {
+  link?: LinkRenderer;
+  className?: string;
+}
+
+const linksOf = (options: MarkdownOptions): MarkdownLinks | undefined =>
+  options.from !== undefined && options.openFile ? { from: options.from, openFile: options.openFile } : undefined;
+
 /** Renders inline formatting: code, bold, italic, links, images (as text). */
-function renderInline(text: string, links?: MarkdownLinks): ReactNode[] {
+export function renderInline(text: string, options: MarkdownOptions = {}): ReactNode[] {
   const out: ReactNode[] = [];
   let last = 0;
   let key = 0;
@@ -118,27 +143,21 @@ function renderInline(text: string, links?: MarkdownLinks): ReactNode[] {
       out.push(<span key={k} className="text-dp-text-3">[{m[2] || messages(studioMessages).markdownImage}]</span>);
     } else if (m[4] !== undefined) {
       const href = safeHref(m[5]);
-      const action = href === null ? null : linkAction(href, links);
-      out.push(
-        href === null || action === null ? (
-          <span key={k}>{renderInline(m[4], links)}</span>
-        ) : (
-          <a
-            key={k}
-            href={href}
-            target="_blank"
-            rel="noreferrer noopener"
-            {...opener(action)}
-            className="rounded-sm text-dp-accent-ink underline underline-offset-2 transition-colors duration-(--dp-dur-fast) ease-(--dp-ease-out) motion-reduce:transition-none hover:bg-dp-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-dp-accent/70"
-          >
-            {renderInline(m[4], links)}
-          </a>
-        ),
-      );
+      const label = renderInline(m[4], options);
+      const custom = href !== null && options.link ? options.link(href, label, k) : undefined;
+      const action = href === null ? null : linkAction(href, linksOf(options));
+      if (custom !== undefined) out.push(custom ?? <span key={k}>{label}</span>);
+      else if (href === null || action === null) out.push(<span key={k}>{label}</span>);
+      else
+        out.push(
+          <a key={k} href={href} target="_blank" rel="noreferrer noopener" {...opener(action)} className={LINK_CLASS}>
+            {label}
+          </a>,
+        );
     } else if (m[6] !== undefined || m[7] !== undefined) {
-      out.push(<strong key={k}>{renderInline(m[6] ?? m[7], links)}</strong>);
+      out.push(<strong key={k}>{renderInline(m[6] ?? m[7], options)}</strong>);
     } else {
-      out.push(<em key={k}>{renderInline(m[8] ?? m[9], links)}</em>);
+      out.push(<em key={k}>{renderInline(m[8] ?? m[9], options)}</em>);
     }
   }
   if (last < text.length) out.push(text.slice(last));
@@ -158,8 +177,11 @@ function startsBlock(line: string, next: string | undefined): boolean {
   );
 }
 
-/** Renders a Markdown string as React nodes; `links` makes its relative links open in the studio. */
-export function renderMarkdown(source: string, links?: MarkdownLinks): ReactNode {
+/**
+ * Renders a Markdown string as React nodes; `options.from` and `openFile` make its
+ * relative links open in the studio, `options.link` draws its links, `className` sizes it.
+ */
+export function renderMarkdown(source: string, options: MarkdownOptions = {}): ReactNode {
   const lines = source.replace(/\r\n?/g, "\n").split("\n");
   const blocks: ReactNode[] = [];
   let i = 0;
@@ -184,7 +206,7 @@ export function renderMarkdown(source: string, links?: MarkdownLinks): ReactNode
     } else if ((m = HEADING.exec(line))) {
       const level = m[1].length;
       const Tag = `h${level}` as "h1";
-      blocks.push(<Tag key={key} className={`text-dp-text ${HEADING_CLASSES[level - 1]}`}>{renderInline(m[2], links)}</Tag>);
+      blocks.push(<Tag key={key} className={`text-dp-text ${HEADING_CLASSES[level - 1]}`}>{renderInline(m[2], options)}</Tag>);
       i++;
     } else if (HR.test(line)) {
       blocks.push(<hr key={key} className="border-dp-line" />);
@@ -197,7 +219,7 @@ export function renderMarkdown(source: string, links?: MarkdownLinks): ReactNode
       }
       blocks.push(
         <blockquote key={key} className="border-l-2 border-dp-line pl-3 text-dp-text-2">
-          {renderMarkdown(inner.join("\n"), links)}
+          {renderMarkdown(inner.join("\n"), options)}
         </blockquote>,
       );
     } else if (UL.test(line) || OL.test(line)) {
@@ -208,7 +230,7 @@ export function renderMarkdown(source: string, links?: MarkdownLinks): ReactNode
         items.push(m[1]);
         i++;
       }
-      const children = items.map((item, n) => <li key={n}>{renderInline(item, links)}</li>);
+      const children = items.map((item, n) => <li key={n}>{renderInline(item, options)}</li>);
       blocks.push(
         ordered ? (
           <ol key={key} className="list-decimal pl-5">{children}</ol>
@@ -224,11 +246,11 @@ export function renderMarkdown(source: string, links?: MarkdownLinks): ReactNode
       blocks.push(
         <table key={key} className="border-collapse text-sm">
           <thead>
-            <tr>{head.map((c, n) => <th key={n} className="border border-dp-line px-2 py-1 text-left">{renderInline(c, links)}</th>)}</tr>
+            <tr>{head.map((c, n) => <th key={n} className="border border-dp-line px-2 py-1 text-left">{renderInline(c, options)}</th>)}</tr>
           </thead>
           <tbody>
             {rows.map((row, r) => (
-              <tr key={r}>{row.map((c, n) => <td key={n} className="border border-dp-line px-2 py-1">{renderInline(c, links)}</td>)}</tr>
+              <tr key={r}>{row.map((c, n) => <td key={n} className="border border-dp-line px-2 py-1">{renderInline(c, options)}</td>)}</tr>
             ))}
           </tbody>
         </table>,
@@ -237,8 +259,8 @@ export function renderMarkdown(source: string, links?: MarkdownLinks): ReactNode
       const para: string[] = [line];
       i++;
       while (i < lines.length && lines[i].trim() && !startsBlock(lines[i], lines[i + 1])) para.push(lines[i++]);
-      blocks.push(<p key={key}>{renderInline(para.join(" "), links)}</p>);
+      blocks.push(<p key={key}>{renderInline(para.join(" "), options)}</p>);
     }
   }
-  return <div className="flex flex-col gap-2 text-sm text-dp-text">{blocks}</div>;
+  return <div className={cn("flex flex-col gap-2 text-sm text-dp-text", options.className)}>{blocks}</div>;
 }

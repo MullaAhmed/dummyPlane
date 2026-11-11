@@ -1,4 +1,4 @@
-import { useState, type ReactElement } from "react";
+import { useRef, useState, type ReactElement } from "react";
 import { ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { useCanvas } from "@/canvas/canvasStore";
@@ -36,6 +36,8 @@ export function GroupMenu({ groupId, trigger, answersRequests = false }: { group
   const [open, setOpen] = useState(false);
   // Opened by the palette, not by its trigger: it shows at once (never animate what the keyboard asked for).
   const [instant, setInstant] = useState(false);
+  // Rename hands the keyboard to the label's name field once the menu has closed: focus must not come back then.
+  const renaming = useRef(false);
   const agents = useAgents((s) => s.agents);
   const speciality = useCanvas((s) => s.frames.find((f) => f.id === groupId)?.group?.speciality);
   const pantheon = useCanvas((s) => s.frames.find((f) => f.id === groupId)?.group?.pantheon);
@@ -75,10 +77,25 @@ export function GroupMenu({ groupId, trigger, answersRequests = false }: { group
           </Button>
         )}
       </DropdownMenuTrigger>
-      {/* Focus must not come back to the trigger: it would close Excalidraw's name editor. */}
-      <DropdownMenuContent align="start" className="w-48" data-instant={instant ? "" : undefined} onCloseAutoFocus={(e) => e.preventDefault()}>
+      <DropdownMenuContent
+        align="start"
+        className="w-48"
+        data-instant={instant ? "" : undefined}
+        onCloseAutoFocus={(e) => {
+          // On the canvas, focus must not come back to the ⌄: it would close Excalidraw's name editor. The panel's ⋯
+          // gets it back, so the keyboard keeps its place, unless a pick handed it on: the name field, a dialog, the notes.
+          const elsewhere = document.activeElement !== null && document.activeElement !== document.body;
+          if (!trigger || renaming.current || elsewhere) e.preventDefault();
+          renaming.current = false;
+        }}
+      >
         {/* After the menu has closed, so its focus handling leaves the name field alone. */}
-        <DropdownMenuItem onSelect={() => requestAnimationFrame(() => uiStore.getState().setRenamingGroup(groupId))}>
+        <DropdownMenuItem
+          onSelect={() => {
+            renaming.current = true;
+            requestAnimationFrame(() => uiStore.getState().setRenamingGroup(groupId));
+          }}
+        >
           {t.groupMenu.rename}
         </DropdownMenuItem>
         <SpecialityMenu groupId={groupId} speciality={speciality} onDone={() => setOpen(false)} />

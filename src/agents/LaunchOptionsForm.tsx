@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useMessages } from "@/i18n";
 import type { ShellKind } from "@/ipc/pty";
 import { cn } from "@/lib/utils";
+import { Hint } from "@/shell/buttons";
 import { SHELL_LABELS } from "@/nodes/terminal/launch";
 import type { LaunchOptions } from "./launchAgent";
 import { pickFolder } from "./launchFolder";
@@ -85,9 +86,11 @@ export function LaunchOptionsForm(props: {
             className={cn("h-8 font-mono text-xs", folderLocked !== undefined && "text-dp-text-2")}
           />
           {folderLocked === undefined && (
-            <Button type="button" variant="outline" size="icon" aria-label={t.browse} title={t.browse} onClick={() => void browse()}>
-              <FolderOpen />
-            </Button>
+            <Hint label={t.browse}>
+              <Button type="button" variant="outline" size="icon" aria-label={t.browse} onClick={() => void browse()}>
+                <FolderOpen />
+              </Button>
+            </Hint>
           )}
         </div>
         {folderLocked !== undefined && (

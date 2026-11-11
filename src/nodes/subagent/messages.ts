@@ -8,6 +8,8 @@ export const subagentMessages = defineMessages({
   ended: "This subagent has ended.",
   waiting: "Waiting for its first output…",
   report: "Report",
+  /** Over its last words once it is done: what it hands back. */
+  answer: "Answer",
   /** The header's prefix: who spawned it. */
   from: (parent: string) => `↳ ${parent} ›`,
   terminal: "terminal",

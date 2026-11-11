@@ -7,6 +7,7 @@ import { CrashNotice } from "@/shell/CrashNotice";
 import { FileNode } from "./file/FileNode";
 import { KanbanNode } from "./kanban/KanbanNode";
 import { FleetNode } from "./fleet/FleetNode";
+import { OutputNode } from "./output/OutputNode";
 import { SubagentNode } from "./subagent/SubagentNode";
 import { TerminalNode } from "./terminal/TerminalNode";
 import { useMessages } from "@/i18n";
@@ -40,6 +41,8 @@ function NodeOfKind({ element }: { element: NonDeleted<ExcalidrawEmbeddableEleme
       return <FileNode nodeId={element.id} />;
     case "subagent":
       return <SubagentNode nodeId={element.id} />;
+    case "output":
+      return <OutputNode nodeId={element.id} />;
     default:
       return <div className="grid h-full place-items-center rounded-md border bg-card text-muted-foreground">{t.unknownNode}</div>;
   }

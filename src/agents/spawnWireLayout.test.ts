@@ -23,3 +23,31 @@ it("keeps a spawn wire's mark when the flowchart layout reroutes it, so its ligh
   expect(wire).toMatchObject({ startBinding: { elementId: "parent" }, endBinding: { elementId: "child" } });
   expect(wirePaths(laid!)).toEqual([expect.objectContaining({ id: wire.id, fleetId: "parent", targetId: "child" })]);
 });
+
+it("lays a Fleet's sub-agents out as a flowchart beside it, each on its spawn wire", () => {
+  const fleet = { ...(createNodeElement("fleet", { x: 0, y: 0 }) as unknown as ExcalidrawElement), id: "fleet", x: 0, y: 0 };
+  // Two sub-agents where addTerminal left them, far off; then their wires, then the layout.
+  let scene: ExcalidrawElement[] = [fleet, terminal("a", 4000, 3000), terminal("b", -3000, 5000)];
+  scene = withWire(scene, "fleet", "a", "calm", true);
+  scene = withWire(scene, "fleet", "b", "calm", true);
+  const laid = layoutSpawnTree(scene, (id) => (id === "a" || id === "b" ? "fleet" : null), "b")!;
+  expect(laid).not.toBeNull();
+  const at = (id: string) => laid.find((e) => e.id === id)!;
+  // The Fleet stays; its sub-agents take one column right of it, the first level with its top, the second under it.
+  expect(at("fleet")).toMatchObject({ x: 0, y: 0 });
+  expect(at("a").x).toBeGreaterThan(fleet.width);
+  expect(at("b").x).toBe(at("a").x);
+  expect(at("a").y).toBe(0);
+  expect(at("b").y).toBeGreaterThan(at("a").y + at("a").height);
+  const wires = laid.filter((e) => e.type === "arrow") as ExcalidrawArrowElement[];
+  expect(wires).toHaveLength(2);
+  expect(wires.every(isSpawnWire)).toBe(true);
+  expect(wires.map((w) => [w.startBinding?.elementId, w.endBinding?.elementId])).toEqual([
+    ["fleet", "a"],
+    ["fleet", "b"],
+  ]);
+  expect(wirePaths(laid).map((p) => [p.fleetId, p.targetId])).toEqual([
+    ["fleet", "a"],
+    ["fleet", "b"],
+  ]);
+});

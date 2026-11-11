@@ -137,6 +137,11 @@ export async function adoptCopies(workspaceId: string, copies: readonly { id: st
       await nodesStore.getState().create(id, { workspaceId, kind: "file", payload: { ...source.payload } });
       continue;
     }
+    if (source.kind === "output") {
+      // A copied output shows the same content; its agent can only update the one it made.
+      await nodesStore.getState().create(id, { workspaceId, kind: "output", payload: { ...source.payload } });
+      continue;
+    }
     if (source.kind === "kanban") {
       // A copied board starts with the same columns and cards, then lives on its own.
       await nodesStore.getState().create(id, { workspaceId, kind: "kanban", payload: structuredClone(source.payload) });

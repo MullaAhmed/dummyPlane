@@ -24,6 +24,8 @@ const project: Project = { id: "p1", name: "api", path: "C:/code/api", position:
 
 let agents: AgentInfo[];
 let projects: Project[];
+/** What `git --version` answered in the diagnostics; null without Git. */
+let git: string | null;
 let calls: string[];
 let host: HTMLDivElement;
 let root: Root;
@@ -31,6 +33,7 @@ let root: Root;
 beforeEach(() => {
   agents = only();
   projects = [];
+  git = "git version 2.47.0";
   calls = [];
   vi.mocked(installFromHome).mockClear();
   agentsStore.setState({ agents: [], shells: [], loaded: false });
@@ -43,6 +46,7 @@ beforeEach(() => {
       if (cmd === "list_shells") return ["powershell"];
       if (cmd === "refresh_path") return null;
       if (cmd === "npm_available") return true;
+      if (cmd === "diagnostics") return { git };
       if (cmd === "plugin:window|is_maximized") return false;
     },
     { shouldMockEvents: true },
@@ -193,4 +197,36 @@ it("tells the user when the clipboard refuses the install command", async () => 
   await render();
   await act(async () => button("Copy").click());
   expect(toast.error).toHaveBeenCalled();
+});
+
+/** The filled (accent) buttons of the screen: the outline and ghost ones carry a variant of their own. */
+const filled = () => [...host.querySelectorAll<HTMLButtonElement>('button[data-variant="default"]')].map((b) => b.textContent?.trim());
+
+it("has one filled button per state: Install Claude Code with no agent, then Add a project", async () => {
+  await render();
+  expect(filled()).toEqual(["Install Claude Code"]);
+  expect(button("Check again").dataset.variant).toBe("outline");
+  expect(button("Add a project").dataset.variant).toBe("outline");
+  await act(async () => root.unmount());
+  agents = only("claude");
+  root = createRoot(host);
+  await render();
+  expect(filled()).toEqual(["Add a project"]);
+});
+
+it("does not repeat the empty state under Getting started", async () => {
+  await render();
+  expect(panel()).not.toBeNull();
+  expect(host.querySelector("[data-no-projects]")).toBeNull();
+});
+
+it("offers to install Git only when the diagnostics find none", async () => {
+  await render();
+  const gitLink = () => panel()!.querySelector("li[data-step='project'] [data-link]");
+  expect(gitLink()).toBeNull();
+  await act(async () => root.unmount());
+  git = null;
+  root = createRoot(host);
+  await render();
+  expect(gitLink()?.textContent).toContain("No Git? Install it");
 });

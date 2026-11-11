@@ -27,6 +27,11 @@ afterEach(async () => {
   host.remove();
 });
 
+
+// OpenUI loads on demand; its first load (zod, the parser) is slow under the full suite's load: warmed here, not in a test.
+beforeAll(async () => {
+  await Promise.all([import("@/openui/plainText"), import("@/openui/OpenUIView")]);
+}, 60_000);
 async function show(mission?: Partial<Mission>) {
   await nodesStore.getState().create("chef", {
     workspaceId: "w1",
@@ -321,4 +326,30 @@ it("gives an agent's report summary in the app's hint, reached by the keyboard t
   expect(word.tabIndex).toBe(0);
   await act(async () => word.focus());
   expect(document.querySelector('[role="tooltip"]')?.textContent).toBe("Blocked on the API key");
+});
+
+it("draws the fleet's summary: Markdown as Markdown, OpenUI Lang through the library", async () => {
+  await show({ state: "terminee", summary: "All **done**.", members: [] });
+  expect(host.querySelector("strong")?.textContent).toBe("done");
+  act(() => root.unmount());
+  host.remove();
+  nodesStore.setState({ nodes: {} });
+  const ui = 'root = Stack([Table(["Task", "State"], [["Login", "done"]])])';
+  await show({ state: "terminee", summary: "| Task | State |", summaryUi: ui, members: [] });
+  await act(async () => {
+    await vi.dynamicImportSettled();
+  });
+  expect([...host.querySelectorAll("td")].map((td) => td.textContent)).toEqual(["Login", "done"]);
+  expect(host.textContent).not.toContain("root =");
+});
+
+it("draws each agent's summary in the morning report, whole, in a bounded scroller", async () => {
+  await show({
+    state: "terminee", overnight: true, budgetMin: 480, startedAt: 0, endedAt: 60 * 60_000, summary: "Night done",
+    members: [{ nodeId: "a", name: "Batman", task: "Login", budgetMin: 20, linked: false, branch: "b", worktree: "w", sentAt: 0, merged: true, report: { summary: "Login **done**\n- tests green\n- docs", status: "termine", at: 10 * 60_000 } }],
+  });
+  const summary = host.querySelector<HTMLElement>("[data-morning-summary]")!;
+  expect(summary.className).toContain("overflow-y-auto");
+  expect(summary.querySelector("strong")?.textContent).toBe("done");
+  expect(summary.querySelectorAll("li")).toHaveLength(2);
 });

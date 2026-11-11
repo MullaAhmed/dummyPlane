@@ -32,7 +32,7 @@ function fakeUpdate(version = "1.0.0-beta.2") {
 
 beforeEach(() => {
   steps.length = 0;
-  updatesStore.setState({ auto: true, available: null, progress: null, dialogOpen: false });
+  updatesStore.setState({ auto: true, available: null, progress: null, step: null, dialogOpen: false });
   vi.mocked(check).mockReset();
   vi.mocked(toast).mockClear();
   vi.mocked(toast.error).mockClear();
@@ -70,6 +70,38 @@ it("downloads, saves everything, then installs", async () => {
   await installUpdate();
   expect(steps).toEqual(["download", "flush", "prepare_for_update", "install"]);
   expect(updatesStore.getState().progress).toBe(1);
+});
+
+it("tells the download's share only once its size is known, then says it installs", async () => {
+  const seen: unknown[] = [];
+  const update = fakeUpdate();
+  update.download.mockImplementation(async (onEvent) => {
+    onEvent({ event: "Started", data: {} });
+    seen.push(updatesStore.getState().step);
+    onEvent({ event: "Progress", data: { chunkLength: 50 } });
+    seen.push(updatesStore.getState().step);
+    onEvent({ event: "Finished" });
+    seen.push(updatesStore.getState().step);
+  });
+  vi.mocked(check).mockResolvedValue(update as never);
+  await checkForUpdate();
+  await installUpdate();
+  // No content length: no figure, rather than a 0% that jumps to 100.
+  expect(seen).toEqual([{ kind: "downloading", share: null }, { kind: "downloading", share: null }, { kind: "installing" }]);
+});
+
+it("gives the share of a sized download", async () => {
+  const seen: unknown[] = [];
+  const update = fakeUpdate();
+  update.download.mockImplementation(async (onEvent) => {
+    onEvent({ event: "Started", data: { contentLength: 200 } });
+    onEvent({ event: "Progress", data: { chunkLength: 50 } });
+    seen.push(updatesStore.getState().step);
+  });
+  vi.mocked(check).mockResolvedValue(update as never);
+  await checkForUpdate();
+  await installUpdate();
+  expect(seen).toEqual([{ kind: "downloading", share: 0.25 }]);
 });
 
 it("checks 10 s after the start, only when automatic checks are on", async () => {
@@ -131,6 +163,7 @@ it("does not install over unsaved changes in the code studio, and says so (revie
   expect(call).not.toHaveBeenCalledWith("prepare_for_update");
   expect(toast.warning).toHaveBeenCalled();
   expect(updatesStore.getState().progress).toBeNull();
+  expect(updatesStore.getState().step).toBeNull();
 });
 
 it("saves everything before an update even with the studio open and clean (review)", async () => {

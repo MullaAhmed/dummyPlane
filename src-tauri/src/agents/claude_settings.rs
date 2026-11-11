@@ -1,6 +1,7 @@
 //! The settings file given to Claude with `--settings` (spec habillage §8.2,
-//! §10.3): http hooks that report its state, and, for an agent, one that asks
-//! dummyPlane before Claude starts a built-in sub-agent (the hook server decides).
+//! §10.3): http hooks that report its state, and one that asks dummyPlane
+//! before Claude starts a built-in sub-agent (the hook server decides), for an
+//! agent and a fleet alike.
 
 use std::io;
 use std::path::{Path, PathBuf};
@@ -25,7 +26,7 @@ pub fn settings_json(url: &str, role: Role) -> Value {
         // A manager does not code itself, nor run commands in the user's folder.
         permissions["deny"] = json!(["Edit", "Write", "NotebookEdit", "Bash"]);
     }
-    let mut settings = json!({
+    json!({
         "hooks": {
             "UserPromptSubmit": every,
             "PostToolUse": every,
@@ -35,17 +36,13 @@ pub fn settings_json(url: &str, role: Role) -> Value {
             "SubagentStart": every,
             "SubagentStop": every,
             "Notification": [{ "matcher": NOTIFICATIONS, "hooks": [hook] }],
+            // Always asked, decided at each call: the user's "Sub-agents open as
+            // terminals" reaches the sessions already running. A fleet's go to
+            // spawn_agent too, as regular agents in terminals of their own.
+            "PreToolUse": [{ "matcher": BUILTIN_SUBAGENTS, "hooks": [hook] }],
         },
         "permissions": permissions,
-    });
-    if role == Role::Agent {
-        // Always asked, decided at each call: the user's "Sub-agents open as
-        // terminals" reaches the sessions already running. A fleet has no
-        // spawn_agent to send its sub-agents to.
-        settings["hooks"]["PreToolUse"] =
-            json!([{ "matcher": BUILTIN_SUBAGENTS, "hooks": [hook] }]);
-    }
-    settings
+    })
 }
 
 /// What needs a yes in Claude, for an agent nobody watches. Read-only tools ask nothing.
@@ -346,19 +343,19 @@ mod tests {
     }
 
     #[test]
-    fn only_an_agent_asks_dummyplane_before_starting_a_built_in_subagent() {
+    fn an_agent_and_a_fleet_both_ask_dummyplane_before_starting_a_built_in_subagent() {
         let hook = json!({ "type": "http", "url": URL, "timeout": 2 });
         let agent = settings_json(URL, Role::Agent);
         assert_eq!(
             agent["hooks"]["PreToolUse"],
             json!([{ "matcher": "Task|Agent", "hooks": [hook] }])
         );
-        // A fleet has no spawn_agent: its hooks only report.
+        // A fleet has spawn_agent too: its built-in sub-agents are asked about the same way,
+        // and the hook server's decision (`hooks_server::pre_tool_use`) does not depend on the role.
         let manager = settings_json(URL, Role::Fleet);
-        assert!(manager["hooks"].get("PreToolUse").is_none());
-        let mut reporting = agent["hooks"].clone();
-        reporting.as_object_mut().unwrap().remove("PreToolUse");
-        assert_eq!(manager["hooks"], reporting);
+        assert_eq!(manager["hooks"], agent["hooks"]);
+        // Only its rails differ: it neither edits nor runs commands itself.
+        assert_ne!(manager["permissions"], agent["permissions"]);
     }
 
     #[test]
@@ -386,6 +383,7 @@ mod tests {
 
     #[test]
     fn allows_dummyplane_s_tools_without_asking() {
+        // The rule names the server, not its tools: show_output, output_guide and read_node need no rule of their own.
         assert_eq!(
             settings_json(URL, Role::Agent)["permissions"],
             serde_json::json!({ "allow": ["mcp__dummyplane"] })

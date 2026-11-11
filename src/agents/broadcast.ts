@@ -5,6 +5,7 @@ import { signalWire } from "@/canvas/wireActivity";
 import { messages } from "@/i18n";
 import type { Activity } from "@/ipc/activity";
 import { ptyInterrupt, ptySendText, type AgentId } from "@/ipc/pty";
+import { ATTACHES_PASTED_IMAGES } from "@/nodes/terminal/imagePaste";
 import { agentActivityStore } from "@/store/agentActivity";
 import { nodesStore, terminalOf } from "@/store/nodes";
 import { statusOf, terminalStatusStore } from "@/store/terminalStatus";
@@ -88,12 +89,14 @@ function nameOf(id: string): string {
  * An agent waiting for an answer is left alone: the Enter after the text
  * would confirm its dialog's highlighted choice (spec §12). A `/command`
  * goes to the agents only, never to a plain terminal. `onSent` hears each
- * terminal the text was typed into.
+ * terminal the text was typed into. `images`, the paths of the images the
+ * message carries, go with it (`typeInto`).
  */
 export async function sendToAgents(
   ids: readonly string[],
   text: string,
   onSent?: (id: string) => void,
+  images: readonly string[] = [],
 ): Promise<{ sent: number; skipped: string[]; waiting: string[]; unsuited: string[]; starting: string[] }> {
   const waiting: string[] = [];
   const unsuited: string[] = [];
@@ -118,7 +121,7 @@ export async function sendToAgents(
         return null;
       }
       try {
-        await ptySendText(id, text);
+        await typeInto(id, facts.agent, text, images);
         onSent?.(id);
         return true;
       } catch {
@@ -133,6 +136,18 @@ export async function sendToAgents(
     unsuited,
     starting,
   };
+}
+
+/**
+ * Types `text` and the paths of its `images` into a terminal. An agent that attaches an image path pasted alone
+ * (Claude Code, Codex) gets each pasted so before the text, as `[Image #N]`; another agent gets them written
+ * before the text, as the field once sent them, for it to read. A plain shell gets the text alone: a path the
+ * field never showed would run before the command, and open the image.
+ */
+function typeInto(id: string, agent: AgentId, text: string, images: readonly string[]): Promise<void> {
+  if (images.length === 0 || agent === "shell") return ptySendText(id, text);
+  if (ATTACHES_PASTED_IMAGES.has(agent)) return ptySendText(id, text, images);
+  return ptySendText(id, [...images, text].join(" "));
 }
 
 /** Interrupts the agents of `ids` that are at work, and remembers them for "Tout reprendre". */
@@ -204,10 +219,10 @@ export function resumedText(count: number): string {
   return messages(agentsMessages).broadcast.resumed(count);
 }
 
-/** The command bar's and the fleet's send, with the toasts of ignored agents. */
-export async function sendCommand(ids: readonly string[], text: string) {
+/** The command bar's and the fleet's send, with the toasts of ignored agents; `images`, the paths of its attachments. */
+export async function sendCommand(ids: readonly string[], text: string, images: readonly string[] = []) {
   // The wires reaching the agents show the command going down them.
-  const { skipped, waiting, unsuited, starting } = await sendToAgents(ids, text, (id) => signalWire(id, "toAgent"));
+  const { skipped, waiting, unsuited, starting } = await sendToAgents(ids, text, (id) => signalWire(id, "toAgent"), images);
   for (const warning of [skippedText(skipped), startingText(starting), waitingText(waiting), unsuitedText(unsuited)]) {
     if (warning) toast.warning(warning);
   }

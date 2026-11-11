@@ -2,8 +2,9 @@ import { messages } from "@/i18n";
 import { mcpReply, onMcpCall, type McpCall } from "@/ipc/mcp";
 import { notesTool, notesToolSpec } from "@/notes/agentTool";
 import { nodesStore, sessionOf, terminalOf } from "@/store/nodes";
-import { AGENT_ONLY, agentTools, declareSteps, markStep, refused, report, spawnAgentTool } from "./agentTools";
+import { AGENT_ONLY, agentTools, declareSteps, markStep, refused, reportTool, spawnAgentSpec, spawnAgentTool } from "./agentTools";
 import { linkTool, linkTools } from "./linkTools";
+import { outputGuideSpec, outputGuideTool, outputTools, readNodeSpec, readNodeTool, showOutputTool } from "./nodeTools";
 import { agentMessages } from "./messages";
 import { FLEET_ONLY, fleetTool, fleetTools } from "./fleetTools";
 import { internalCall, RENAMED } from "./protocol";
@@ -15,10 +16,12 @@ export async function answer(call: McpCall): Promise<unknown> {
   const record = nodesStore.getState().nodes[call.nodeId];
   const fleet = record?.kind === "fleet";
   if (call.method === "tools/list") {
-    // Remote Control is Claude's: a fleet on another CLI is not offered it.
+    // Remote Control is Claude's: a fleet on another CLI is not offered it. spawn_agent is every session's, as listed once per session.
     const claude = sessionOf(record)?.agent !== "codex";
-    const own = fleet ? fleetTools().filter((tool) => claude || tool.name !== "remote_control") : [...agentTools(), ...linkTools()];
-    return { tools: [...own, notesToolSpec()] };
+    const own = fleet
+      ? [...fleetTools().filter((tool) => claude || tool.name !== "remote_control"), spawnAgentSpec(true), outputGuideSpec()]
+      : [...agentTools(), ...linkTools(), ...outputTools()];
+    return { tools: [...own, readNodeSpec(), notesToolSpec()] };
   }
   const asked = String(call.params.name ?? "");
   const { name, args } = internalCall(asked, (call.params.arguments ?? {}) as Record<string, unknown>);
@@ -26,6 +29,12 @@ export async function answer(call: McpCall): Promise<unknown> {
   if (!name) return refused(Object.prototype.hasOwnProperty.call(RENAMED, asked) ? t().renamed(RENAMED[asked]) : t().unknown(asked));
   // Read-only and for all: the caller's project comes from the base, it may not be the one on screen.
   if (name === "notes") return notesTool(call.nodeId, fleet, args);
+  // A link the user pasted is theirs to hand over: any agent, any fleet reads it, with no wire.
+  if (name === "read_node") return readNodeTool(args);
+  // A fleet writes its summary in OpenUI Lang too (finish): the guide is for all.
+  if (name === "output_guide") return outputGuideTool();
+  // A Fleet's sub-agent is a regular agent in its own terminal, for work beside its mission's queue.
+  if (fleet && name === "spawn_agent") return spawnAgentTool(call.nodeId, args);
   if (fleet) return AGENT_ONLY.has(name) ? refused(t().agentsOnly) : fleetTool(call.nodeId, name, args);
   if (!terminalOf(record)) return refused(t().gone);
   if (FLEET_ONLY.has(name)) return refused(t().fleetOnly);
@@ -35,9 +44,11 @@ export async function answer(call: McpCall): Promise<unknown> {
     case "etape":
       return markStep(call.nodeId, args);
     case "rendre_compte":
-      return report(call.nodeId, args);
+      return reportTool(call.nodeId, args);
     case "spawn_agent":
       return spawnAgentTool(call.nodeId, args);
+    case "show_output":
+      return showOutputTool(call.nodeId, args);
     default:
       return linkTool(call.nodeId, name, args) ?? refused(t().unknown(asked));
   }

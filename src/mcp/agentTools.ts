@@ -9,8 +9,9 @@ import { isFleetClosed, memberOf, missionOf, updateMember } from "@/mission/stor
 import { spawnAgent } from "@/agents/spawn";
 import { markReported, MAX_SPAWN_DEPTH, spawnedByOf } from "@/agents/spawnFamily";
 import { onAgentReported } from "@/nodes/terminal/minimize";
-import { nodeNameOf, nodesStore, terminalOf } from "@/store/nodes";
+import { nodeNameOf, nodesStore, sessionOf, terminalOf } from "@/store/nodes";
 import { isRunning } from "@/store/terminalStatus";
+import { splitGenerated } from "@/openui/detect";
 import { agentMessages } from "./messages";
 import { outReport, outStep } from "./protocol";
 
@@ -52,28 +53,34 @@ export function agentTools() {
       description: d.report,
       inputSchema: {
         type: "object",
-        properties: { summary: { type: "string" }, status: { type: "string", enum: ["done", "blocked", "failed"] }, check: { type: "string", description: d.reportCheck } },
+        properties: { summary: { type: "string", description: d.reportSummary }, status: { type: "string", enum: ["done", "blocked", "failed"] }, check: { type: "string", description: d.reportCheck } },
         required: ["summary", "status"],
       },
     },
-    {
-      name: "spawn_agent",
-      description: d.spawnAgent(MAX_SPAWN_DEPTH),
-      inputSchema: {
-        type: "object",
-        properties: {
-          task: { type: "string", description: d.spawnTask },
-          title: { type: "string", maxLength: 60, description: d.spawnTitle },
-          model: { type: "string", description: d.spawnModel },
-        },
-        required: ["task"],
-      },
-    },
+    spawnAgentSpec(),
   ];
 }
 
-/** Internal names of the agents' tools (`./protocol.ts`), linked agents' included (`./linkTools.ts`). */
-export const AGENT_ONLY = new Set(["declarer_etapes", "etape", "rendre_compte", "spawn_agent", "linked_agents", "message_agent", "read_agent"]);
+/** spawn_agent: an agent's, or a Fleet's (`fleet`), told it is for ad-hoc work beside its mission's queue. */
+export function spawnAgentSpec(fleet = false) {
+  const d = t().tools;
+  return {
+    name: "spawn_agent",
+    description: (fleet ? d.fleetSpawnAgent : d.spawnAgent)(MAX_SPAWN_DEPTH),
+    inputSchema: {
+      type: "object",
+      properties: {
+        task: { type: "string", description: d.spawnTask },
+        title: { type: "string", maxLength: 60, description: d.spawnTitle },
+        model: { type: "string", description: d.spawnModel },
+      },
+      required: ["task"],
+    },
+  };
+}
+
+/** Internal names of the agents' tools (`./protocol.ts`), linked agents' (`./linkTools.ts`) and outputs' (`./nodeTools.ts`) included; spawn_agent is a Fleet's too. */
+export const AGENT_ONLY = new Set(["declarer_etapes", "etape", "rendre_compte", "linked_agents", "message_agent", "read_agent", "show_output"]);
 
 /** Who hears an agent's news over a wire: its mission's fleet, else the agent that spawned it. */
 const listenerOf = (nodeId: string) => memberOf(nodeId)?.fleetId ?? spawnedByOf(nodeId);
@@ -105,9 +112,9 @@ export async function spawnAgentTool(nodeId: string, args: Record<string, unknow
 }
 
 /**
- * A spawned agent's report, typed into the agent that spawned it as a mission
- * report is into its fleet: queued while that one is busy. Null when
- * nobody spawned it.
+ * A spawned agent's report, typed into the agent or the Fleet that spawned it
+ * as a mission report is into its fleet: queued while that one is busy. Null
+ * when nobody spawned it.
  */
 function reportToParent(nodeId: string, summary: string, status: ReportStatus): ToolResult | null {
   const parentId = spawnedByOf(nodeId);
@@ -117,7 +124,7 @@ function reportToParent(nodeId: string, summary: string, status: ReportStatus): 
   // Its task is done: it no longer counts against the sub-agents at work.
   markReported(nodeId);
   signalWire(nodeId, "toFleet", parentId);
-  if (!terminalOf(nodes[parentId]) || !isRunning(parentId)) return said(t().agent.unheardParent);
+  if (!sessionOf(nodes[parentId]) || !isRunning(parentId)) return said(t().agent.unheardParent);
   notify(parentId, t().agent.reported(name, outReport(status), oneLine(summary)));
   return said(t().agent.sentToParent(nodeNameOf(nodes[parentId]) || "your parent agent"));
 }
@@ -125,9 +132,11 @@ function reportToParent(nodeId: string, summary: string, status: ReportStatus): 
 /**
  * `report`: inside a mission its fleet hears it (spec §7.5); an agent
  * opened with spawn_agent reports to its parent too; otherwise nobody listens.
+ * `ui`: the summary as the agent wrote it in OpenUI Lang, when it did
+ * (`reportTool`); `resume` is then its text.
  */
-export function report(nodeId: string, args: Record<string, unknown>): ToolResult {
-  onAgentReported(nodeId, args.statut, args.resume);
+export function report(nodeId: string, args: Record<string, unknown>, ui?: string): ToolResult {
+  onAgentReported(nodeId, args.statut, args.resume, ui);
   const found = memberOf(nodeId, { evenClosed: true });
   const spawned = spawnedByOf(nodeId) !== undefined;
   if (!found && !spawned) return said(t().agent.noMission);
@@ -151,4 +160,17 @@ export function report(nodeId: string, args: Record<string, unknown>): ToolResul
   void afterReport(found.fleetId, nodeId);
   const toFleet = isFleetClosed(found.fleetId) || !isRunning(found.fleetId) ? t().agent.unheard : t().agent.sent;
   return said(toParent ? `${toFleet} ${toParent.content[0].text}` : toFleet);
+}
+
+/**
+ * `report` as an agent calls it: a summary written in OpenUI Lang is kept to
+ * be drawn (the edit panel), and passed on as text everywhere a line or plain
+ * words go (the fleet's and the parent's terminals, the fleet's tools, a card).
+ */
+export async function reportTool(nodeId: string, args: Record<string, unknown>): Promise<ToolResult> {
+  if (typeof args.resume !== "string") return report(nodeId, args);
+  const { text, ui, errors } = await splitGenerated(args.resume.trim());
+  // Before anything is recorded: the agent fixes it and reports again.
+  if (errors) return refused(t().output.summaryInvalid(errors));
+  return report(nodeId, { ...args, resume: text }, ui);
 }

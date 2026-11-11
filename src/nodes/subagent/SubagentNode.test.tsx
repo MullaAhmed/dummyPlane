@@ -87,3 +87,28 @@ it("closing it removes its node and keeps it from coming back", async () => {
   expect(subagentNodesStore.getState().dismissed.a1).toBe(true);
   await act(async () => root.unmount());
 });
+
+it("draws its answer on a surface of its own once it is done: its last words, never a tool's output", async () => {
+  subagentNodesStore.getState().append("a1", [{ kind: "text", text: "Found **3** hooks:\n- start\n- stop\n- report" }]);
+  const { host, root } = await render("el-1");
+  // Running, its last words are only its latest: a terminal line like the rest.
+  expect(host.querySelector("[data-subagent-answer]")).toBeNull();
+  await act(async () => subagentNodesStore.getState().upsert({ nodeId: "n1", agentId: "a1", agentType: "Explore", description: "Find the hooks", state: "done" }));
+  const answer = host.querySelector<HTMLElement>("[data-subagent-answer]")!;
+  // The app's inks on the app's surface: the terminal's body reads 1.3:1 under them in calm.
+  expect(answer.className).toContain("bg-dp-surface");
+  expect(answer.querySelector("span")?.textContent).toBe("Answer");
+  expect(answer.querySelector("strong")?.textContent).toBe("3");
+  expect(answer.querySelectorAll("li")).toHaveLength(3);
+  expect(host.textContent).toContain("claude_settings.rs:31");
+  await act(async () => root.unmount());
+});
+
+it("draws a handback as its report, even while it runs", async () => {
+  subagentNodesStore.getState().append("a1", [{ kind: "report", text: "All **set**" }]);
+  const { host, root } = await render("el-1");
+  const answer = host.querySelector<HTMLElement>("[data-subagent-answer]")!;
+  expect(answer.querySelector("span")?.textContent).toBe("Report");
+  expect(answer.querySelector("strong")?.textContent).toBe("set");
+  await act(async () => root.unmount());
+});
