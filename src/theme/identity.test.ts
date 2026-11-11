@@ -4,7 +4,7 @@ import { expect, it, vi } from "vitest";
 vi.setConfig({ testTimeout: 30_000 });
 import { sourceFiles } from "./cssBlocks";
 
-// What the habillage spec took from Symvibe (spec identité §5.11, §12).
+// What the habillage spec took from Symvibe.
 const FORBIDDEN: [RegExp, string][] = [
   [/#f4602e/i, "Symvibe's orange"],
   [/#322f28/i, "the fixed background of the status badges"],

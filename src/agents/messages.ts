@@ -4,7 +4,7 @@ import { defineMessages, plural } from "@/i18n";
 const whoJoined = (names: readonly string[]) =>
   names.length <= 2 ? names.join(" and ") : `${names[0]}, ${names[1]} and ${plural(names.length - 2, "other", "others")}`;
 
-/** Every text of the agents panel and the agent menus the interface shows (spec first version §7.1). */
+/** Every text of the agents panel and the agent menus the interface shows. */
 export const agentsMessages = defineMessages({
     launchFailed: "Could not launch the agent",
     launchNext: "Check that the agent is installed and its folder exists, then try again",

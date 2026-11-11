@@ -12,7 +12,7 @@ vi.mock("@/nodes/terminal/registry", () => ({ focusTerminal: vi.fn() }));
 // No terminal here is minimized, but the one a test makes so.
 vi.mock("@/nodes/terminal/minimize", () => ({ expandTerminal: vi.fn(() => false) }));
 
-it("activates the element an agents panel click centers on (spec habillage §5.5)", () => {
+it("activates the element an agents panel click centers on", () => {
   const element = { id: "t1", x: 0, y: 0, width: 400, height: 300 };
   const updateScene = vi.fn();
   const api = {
@@ -25,7 +25,7 @@ it("activates the element an agents panel click centers on (spec habillage §5.5
   expect(updateScene.mock.calls[0][0].appState.activeEmbeddable).toEqual({ element, state: "active" });
 });
 
-it("unfolds the folded group of the agent first (spec replier un groupe §2)", async () => {
+it("unfolds the folded group of the agent first", async () => {
   const setGroupFolded = vi.fn();
   vi.stubGlobal("requestAnimationFrame", () => 0);
   vi.doMock("@/agents/groups", () => ({ setGroupFolded }));

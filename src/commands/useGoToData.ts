@@ -15,8 +15,7 @@ import { commandsMessages } from "./messages";
 import { goToItems, type GoToItem } from "./goTo";
 
 /**
- * The items of "Go to" for the palette that just opened (spec window
- * §7.2): the scene on screen as it is, the other workspaces' scenes read by
+ * The items of "Go to" for the palette that just opened: the scene on screen as it is, the other workspaces' scenes read by
  * the scene cache (one SQLite read per workspace and session); their lines
  * come as they are read. An unreadable scene leaves its items out.
  */

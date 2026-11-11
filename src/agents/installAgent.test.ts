@@ -78,7 +78,7 @@ describe("installAgent", () => {
     expect(launch).not.toHaveBeenCalled();
   });
 
-  it("refreshes the detection until the agent shows up, then says so (spec installation §4.3)", async () => {
+  it("refreshes the detection until the agent shows up, then says so", async () => {
     const recheck = vi.fn(() => Promise.resolve());
     agentsStore.setState({ recheck, agents: available("codex", false) });
     await installAgent("codex");

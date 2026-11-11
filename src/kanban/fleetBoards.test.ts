@@ -103,7 +103,7 @@ describe("the Kanban handed to a fleet", () => {
   });
 });
 
-describe("the cards of a mission its Manager runs (spec babysitter Fleet)", () => {
+describe("the cards of a mission its Manager runs", () => {
   beforeAll(async () => {
     await nodesStore.getState().create("sitter", { workspaceId: "w1", kind: "fleet", payload: { name: "Sitter", mission: { state: "en_cours", maxAgents: 4, members: [], manager: "boss", board: "k2" } } });
     await nodesStore.getState().create("k2", {

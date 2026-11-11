@@ -193,7 +193,7 @@ describe("boardView", () => {
   });
 });
 
-describe("a mission's cards on the board its Manager runs (spec babysitter Fleet)", () => {
+describe("a mission's cards on the board its Manager runs", () => {
   it("takes the column handed to the fleet as the to-do, else the first one", () => {
     expect(todoColumnOf(board(), "chef")?.id).toBe("todo");
     const handed = linkFleet(board(), "chef", "done");

@@ -83,7 +83,7 @@ const typeMessage = (value: string) =>
     area.dispatchEvent(new Event("input", { bubbles: true }));
   });
 
-describe("the changes (spec fenêtre git §3.1)", () => {
+describe("the changes", () => {
   it("lists the files with status and +/−, all checked", async () => {
     await render();
     const row = document.body.querySelector<HTMLElement>("[data-git-file='src/a.ts']")!;
@@ -171,7 +171,7 @@ describe("the changes (spec fenêtre git §3.1)", () => {
   });
 });
 
-describe("the commit (spec fenêtre git §3.2)", () => {
+describe("the commit", () => {
   it("needs a message and a file", async () => {
     await render();
     expect(button("Commit (2)")!.disabled).toBe(true);
@@ -220,7 +220,7 @@ describe("the commit (spec fenêtre git §3.2)", () => {
   });
 });
 
-describe("discarding (spec fenêtre git §3.3)", () => {
+describe("discarding", () => {
   const ask = (path: string) => act(async () => labelled(`Discard ${path}`).click());
 
   it("touches nothing before the dialog's button", async () => {
@@ -278,7 +278,7 @@ describe("discarding (spec fenêtre git §3.3)", () => {
   });
 });
 
-describe("the history (spec fenêtre git §3.4)", () => {
+describe("the history", () => {
   it("shows hash, author and date", async () => {
     await render();
     await act(async () => button("History")!.click());
@@ -360,7 +360,7 @@ describe("the history (spec fenêtre git §3.4)", () => {
   });
 });
 
-describe("pushing (spec fenêtre git §3.5)", () => {
+describe("pushing", () => {
   it("only ever pushes on the button's click", async () => {
     await render();
     await act(async () => labelled("Refresh").click());
@@ -413,7 +413,7 @@ describe("pushing (spec fenêtre git §3.5)", () => {
     expect(document.body.querySelector("[role='alert']")!.textContent).toContain("rejected: fetch first");
   });
 
-  it("has one caller in the whole application: the window's button (spec fenêtre git §2.3)", () => {
+  it("has one caller in the whole application: the window's button", () => {
     const callers = Object.entries(sourceFiles()).filter(([, text]) => /repoPush|repo_push/.test(text));
     expect(callers.map(([path]) => path.replace(/\\/g, "/").replace(/^.*src\//, "")).sort()).toEqual(["git/GitWindow.tsx", "ipc/repo.ts"]);
   });

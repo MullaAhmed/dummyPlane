@@ -121,7 +121,7 @@ impl PtyManager {
 
     /// Types each of `images` (an image's path) as a paste of its own, each
     /// waited for until the agent shows it attached, then `text` as a paste,
-    /// then Enter after `ENTER_DELAY` (spec §15.3). Blocks meanwhile: call it
+    /// then Enter after `ENTER_DELAY`. Blocks meanwhile: call it
     /// off the async runtime.
     pub fn send_text(&self, node_id: &str, text: &str, images: &[String]) -> AppResult<()> {
         let session = self.require(node_id)?;
@@ -142,7 +142,7 @@ impl PtyManager {
         )
     }
 
-    /// Stops the agent's turn with its own key (spec §14); `None` for a plain
+    /// Stops the agent's turn with its own key; `None` for a plain
     /// shell, which has none.
     pub fn interrupt(&self, node_id: &str) -> AppResult<Option<&'static [u8]>> {
         self.require(node_id)?.interrupt()
@@ -216,7 +216,7 @@ impl PtyManager {
         self.get(node_id).map(|session| session.scrollback())
     }
 
-    /// Scrollbacks that changed since the previous call (spec §5.6, every 10 s).
+    /// Scrollbacks that changed since the previous call.
     pub fn dirty_scrollbacks(&self) -> Vec<(String, scrollback::Capture)> {
         self.snapshot_sessions()
             .into_iter()

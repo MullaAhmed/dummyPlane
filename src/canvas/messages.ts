@@ -1,7 +1,7 @@
 import { defineMessages } from "@/i18n";
 import { ROUTER_LEVELS } from "@/mission/router";
 
-/** The texts of the canvas (spec première version §7.1). */
+/** The texts of the canvas. */
 export const canvasMessages = defineMessages(
   {
     saveFailed: "Could not save the canvas",

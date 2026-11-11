@@ -47,7 +47,7 @@ describe("spacing", () => {
 });
 
 describe("groupGrid", () => {
-  it("sizes the frame of 1, 4, 5 and 12 agents (spec §11.3)", () => {
+  it("sizes the frame of 1, 4, 5 and 12 agents", () => {
     expect([1, 4, 5, 12].map((n) => [groupGrid(n).width, groupGrid(n).height])).toEqual([
       [784, 544],
       [784, 2032],

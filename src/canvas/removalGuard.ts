@@ -21,7 +21,7 @@ export function allowRemoval(ids: Iterable<string>) {
 const liveOf = (elements: readonly ExcalidrawElement[]) => new Map(elements.filter((e) => !e.isDeleted).map((e) => [e.id, e]));
 
 /**
- * A running agent never leaves the canvas unasked (retours J8b): Ctrl+Z
+ * A running agent never leaves the canvas unasked: Ctrl+Z
  * undoing its launch, Redo, Delete, the eraser or an imported scene would
  * end its session. Given each change of the scene (deleted elements included)
  * and the nodes it removed, the guard lets the stopped and the confirmed ones

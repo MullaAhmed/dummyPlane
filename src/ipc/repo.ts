@@ -1,7 +1,7 @@
 import { call } from "./invoke";
 import type { ChangedFile } from "./review";
 
-/** Why a push cannot be offered (spec fenêtre git §3.5). */
+/** Why a push cannot be offered. */
 export type NoPush = "noRemote" | "manyRemotes" | "detached" | "noCommit" | "mirror";
 
 /** The repository of the project, as the git window shows it. */
@@ -49,5 +49,5 @@ export const repoHistory = (path: string) => call<LogEntry[]>("repo_history", { 
 export const repoCommit = (path: string, files: ChangedFile[], message: string) => call<string>("repo_commit", { path, files, message });
 /** Only after the window's confirmation; refused if the file changed since it was listed. */
 export const repoDiscard = (path: string, file: ChangedFile, stamp: string) => call<void>("repo_discard", { path, file, stamp });
-/** Only ever the Push button's click (spec fenêtre git §2.3), for the branch, target and commits it showed: refused if they changed. */
+/** Only ever the Push button's click, for the branch, target and commits it showed: refused if they changed. */
 export const repoPush = (path: string, branch: string, target: string, head: string) => call<void>("repo_push", { path, branch, target, head });

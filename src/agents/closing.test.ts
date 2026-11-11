@@ -39,7 +39,7 @@ beforeEach(() => {
   nodesStore.setState({ nodes: {} });
 });
 
-describe("closing running agents, confirmed (spec habillage §7.5, retours J8b)", () => {
+describe("closing running agents, confirmed", () => {
   it("asks first for a running agent, naming it", () => {
     requestClose("batman");
     expect(uiStore.getState().closing).toEqual({ agents: ["batman"], remove: ["batman"] });

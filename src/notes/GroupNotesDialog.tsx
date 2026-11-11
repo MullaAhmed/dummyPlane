@@ -11,7 +11,7 @@ import { noteNamed } from "./links";
 import { notesMessages } from "./messages";
 import { closeGroupNotes, useNotesUi } from "./notesStore";
 
-/** Which of the project's notes a group carries (spec notes §3). */
+/** Which of the project's notes a group carries. */
 export function GroupNotesDialog() {
   const groupId = useNotesUi((s) => s.attaching);
   return groupId ? <Chooser key={groupId} groupId={groupId} /> : null;

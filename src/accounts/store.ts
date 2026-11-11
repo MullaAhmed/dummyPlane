@@ -7,7 +7,7 @@ interface AccountsState {
   loaded: boolean;
   /** The list could not be read: which account a terminal belongs to is unknown. */
   unread: boolean;
-  /** The Accounts dialog (spec comptes §6). */
+  /** The Accounts dialog. */
   open: boolean;
 }
 

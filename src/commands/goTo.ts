@@ -15,7 +15,7 @@ import { rank, rankSections } from "./search";
 
 export type GoToKind = "terminal" | "group" | "fleet" | "workspace" | "project";
 
-/** A line of "Go to" (spec window §7.2). */
+/** A line of "Go to". */
 export interface GoToItem {
   key: string;
   kind: GoToKind;
@@ -61,7 +61,7 @@ function projectItems(input: GoToInput): GoToItem[] {
     .map((p) => ({ key: `project:${p.id}`, kind: "project", label: p.name, keywords: [p.path], projectId: p.id, path: p.path }));
 }
 
-/** The items of "Go to", section by section, in their order without a search (spec window §7.2). */
+/** The items of "Go to", section by section, in their order without a search. */
 export function goToItems(input: GoToInput): GoToItem[] {
   if (input.home) return projectItems(input);
   const words = messages(commandsMessages).goTo.keywords;

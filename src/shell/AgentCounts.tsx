@@ -29,7 +29,7 @@ function Count({ label, name, color, filter, children }: { label: string; name: 
 }
 
 /**
- * The title bar's counters (spec identité §5.1): each opens the agents panel on what it counts. All three count
+ * The title bar's counters: each opens the agents panel on what it counts. All three count
  * the agents of the workspace on screen, the ones the panel lists: "active" once counted every running process of
  * every tab, shells included, and could read "16 active" beside "1 working" (retours 2026-11-11).
  */

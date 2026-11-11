@@ -3,7 +3,7 @@ import { readSource } from "@/theme/cssBlocks";
 
 const lib = readSource("../src-tauri/src/lib.rs");
 
-it("stops a second launch before anything else starts: two instances on one database lose data (spec notification §10)", () => {
+it("stops a second launch before anything else starts: two instances on one database lose data", () => {
   const guard = lib.indexOf(".plugin(tauri_plugin_single_instance::init(");
   expect(guard).toBeGreaterThan(-1);
   for (const later of [".plugin(logging::plugin())", ".plugin(tauri_plugin_dialog::init())", ".setup("]) {

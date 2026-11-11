@@ -39,7 +39,7 @@ function points(path: string): { x: number; y: number }[] {
   return out;
 }
 
-describe("the wheel's geometry (spec menu radial §5)", () => {
+describe("the wheel's geometry", () => {
   it("sizes the wheel: a hub, then the wedges one gap away from it", () => {
     expect([HUB_RADIUS, INNER_RADIUS, OUTER_RADIUS, WEDGE_GAP]).toEqual([56, 60, 140, 4]);
     // A slide released over the hub chooses nothing.

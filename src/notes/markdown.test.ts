@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { parseInline, parseMarkdown, safeUrl } from "./markdown";
 
-describe("the blocks (spec notes §3)", () => {
+describe("the blocks", () => {
   it("reads headings, paragraphs and rules", () => {
     expect(parseMarkdown("# Title\n\nFirst line\nsame paragraph\n\n---\n\n### Sub")).toEqual([
       { kind: "heading", level: 1, text: "Title" },

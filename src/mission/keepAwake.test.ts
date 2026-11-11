@@ -15,7 +15,7 @@ beforeEach(() => {
   nodesStore.setState({ nodes: {} });
 });
 
-it("keeps the PC awake during a running night only (spec mission de nuit §5.4)", () => {
+it("keeps the PC awake during a running night only", () => {
   expect(wantsAwake({ chef: fleet({ state: "en_cours", overnight: true }) })).toBe(true);
   expect(wantsAwake({ chef: fleet({ state: "plan", overnight: true }) })).toBe(false);
   expect(wantsAwake({ chef: fleet({ state: "terminee", overnight: true }) })).toBe(false);

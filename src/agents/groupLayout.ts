@@ -4,7 +4,7 @@ import { TIMELINE_ROOM } from "@/canvas/overlay/timeline";
 import type { Point } from "./terminals";
 
 /**
- * Group grid (spec theme §11.3): 32 of clear air between what stands side by
+ * Group grid: 32 of clear air between what stands side by
  * side and inside the frame's sides, 48 at the top for the label. A terminal's
  * step frieze hangs under it (TIMELINE_ROOM, 24), so the rows are that much
  * further apart: 56 from one terminal to the next, the same 32 of air under a
@@ -108,7 +108,7 @@ function grownTo(frame: Rect, cell: Rect): Rect {
 }
 
 /**
- * Mathieu's alignment rule (spec §11.3): a terminal opened in a group takes the
+ * Mathieu's alignment rule: a terminal opened in a group takes the
  * first free cell of its grid, column by column, so it lands under the one
  * above it. A full frame grows by a row (down to MAX_ROWS), then by a column to
  * the right; growth cells a member already covers (one dragged past the edge
@@ -209,7 +209,7 @@ export function freeSpot(spot: Rect, obstacles: readonly Rect[]): Rect {
   return candidates.find(isFree) ?? spot;
 }
 
-/** Where "Link a fleet" puts it: left of the group, tops aligned (spec theme §11.4). */
+/** Where "Link a fleet" puts it: left of the group, tops aligned. */
 export function fleetSpot(frame: Rect): Point {
   const { width, height } = NODE_SIZE.fleet;
   return { x: frame.x - GROUP_GAP - width / 2, y: frame.y + height / 2 };

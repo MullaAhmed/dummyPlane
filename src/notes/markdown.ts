@@ -34,7 +34,7 @@ const itemOf = (text: string): ListItem => {
 
 /**
  * The Markdown a note uses, as data for React to draw: nothing is ever read as
- * HTML, so a note written by an agent cannot run anything (spec notes §3).
+ * HTML, so a note written by an agent cannot run anything.
  */
 export function parseMarkdown(source: string): Block[] {
   const blocks: Block[] = [];

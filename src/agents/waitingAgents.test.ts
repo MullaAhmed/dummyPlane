@@ -15,7 +15,7 @@ const running = { state: "running" };
 const waiting = (since: number) => ({ activity: "waiting", since });
 const agent = (id: string): WaitingAgent => ({ id, kind: "terminal", name: id, workspaceId: "w1", since: 0 });
 
-describe("waitingAgents (spec notification §3)", () => {
+describe("waitingAgents", () => {
   it("names the running agents waiting for an answer, the one waiting longest first", () => {
     const nodes = { batman: terminal("w1", "Batman"), cyborg: terminal("w2", "Cyborg") };
     const list = waitingAgents(["w1", "w2"], nodes, { batman: running, cyborg: running }, { batman: waiting(20), cyborg: waiting(10) });
@@ -73,7 +73,7 @@ describe("currentWaitingAgents", () => {
   });
 });
 
-describe("nextWaiting (spec notification §6)", () => {
+describe("nextWaiting", () => {
   const agents = [agent("a"), agent("b"), agent("c")];
 
   it("takes the agent after the current one, then loops", () => {

@@ -83,7 +83,7 @@ describe("readFleetPayload", () => {
   });
 });
 
-describe("a fleet's session (spec orchestrateur §6)", () => {
+describe("a fleet's session", () => {
   const session = { title: "Chef", name: "Chef", agent: "claude", cwd: "C:/code", shell: "default", command: "", claudeSessionId: "s1", role: "orchestrator" };
 
   it("reads it back as the fleet's Claude session", () => {
@@ -91,7 +91,7 @@ describe("a fleet's session (spec orchestrateur §6)", () => {
     expect(readTerminalPayload(session)?.role).toBe("orchestrator"); // The stored role, see STORED_FLEET_ROLE.
   });
 
-  it("keeps the model the router chose (spec maj §3)", () => {
+  it("keeps the model the router chose", () => {
     expect(readTerminalPayload({ ...session, model: "claude-haiku-5-5" })?.model).toBe("claude-haiku-5-5");
     expect(readTerminalPayload({ ...session, model: 4 })?.model).toBeUndefined();
   });
@@ -106,7 +106,7 @@ describe("a fleet's session (spec orchestrateur §6)", () => {
     expect(readTerminalPayload({ ...session, title: "Review of api" })?.title).toBe("Review of api");
   });
 
-  it("keeps Remote Control on (spec maj §2)", () => {
+  it("keeps Remote Control on", () => {
     expect(readTerminalPayload({ ...session, remoteControl: true })?.remoteControl).toBe(true);
     expect(readTerminalPayload({ ...session, remoteControl: "oui" })?.remoteControl).toBeUndefined();
   });
@@ -123,7 +123,7 @@ it("keeps a fleet's night through a restart: it still waits for nobody, and stil
   expect(readFleetPayload({ name: "Fleet", session: { ...session, linear: "yes" } }).session).not.toHaveProperty("linear");
 });
 
-it("reads a fleet's mission with it (spec orchestrateur §7)", () => {
+it("reads a fleet's mission with it", () => {
   const mission = { state: "plan", maxAgents: 4, name: "Auth", members: [] };
   expect(readFleetPayload({ name: "Chef", mission })).toEqual({ name: "Chef", mission });
   expect(readFleetPayload({ name: "Chef", mission: { state: "?" } })).toEqual({ name: "Chef" });

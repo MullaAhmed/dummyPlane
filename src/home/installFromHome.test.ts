@@ -56,7 +56,7 @@ it("goes to a canvas when the project reopens on its code workspace", async () =
   expect(installAgent).toHaveBeenCalledWith("codex");
 });
 
-it("opens the last project and installs once its scene is on screen (spec installation §4.2)", async () => {
+it("opens the last project and installs once its scene is on screen", async () => {
   projectsStore.setState({ projects: [project("old", 1), project("new", 2), project("gone", 3, true)] });
   await installFromHome("codex");
   expect(open).toHaveBeenCalledWith("new");

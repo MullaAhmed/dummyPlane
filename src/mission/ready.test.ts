@@ -44,7 +44,7 @@ function agent(first: string, onPress: (keys: string, show: (screen: string) => 
   return { probe, wait, pressed, now: () => clock, wroteAt: () => wrote };
 }
 
-describe("trustKey (spec orchestrateur §7.3)", () => {
+describe("trustKey", () => {
   it("moves down while « No » is selected and confirms only « Yes »", () => {
     expect(trustKey(TRUST)).toBe("\x1b[B");
     expect(trustKey(TRUST_YES)).toBe("\r");
@@ -90,7 +90,7 @@ describe("Codex's screens", () => {
   });
 });
 
-describe("whenReady (spec orchestrateur §7.3)", () => {
+describe("whenReady", () => {
   it("accepts the trust prompt once, then waits for Claude's prompt to stay quiet 2 s", async () => {
     const a = agent(TRUST, (keys, show) => {
       if (keys === "\x1b[B") show(TRUST_YES);

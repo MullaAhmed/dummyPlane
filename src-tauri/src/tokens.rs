@@ -1,5 +1,5 @@
 //! Tokens consumed by Claude Code, read from the conversation logs it keeps on
-//! disk (spec Tokens). Read-only and bounded: only dates, session ids, models
+//! disk. Read-only and bounded: only dates, session ids, models
 //! and counters are kept, never the text of a conversation.
 
 use std::collections::{BTreeMap, HashMap, HashSet};

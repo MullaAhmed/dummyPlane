@@ -64,7 +64,7 @@ afterEach(async () => {
 const row = () => host.firstElementChild as HTMLElement;
 const tabs = () => [...row().querySelectorAll<HTMLElement>("[data-tab]")];
 
-it("shows the workspaces as browser tabs, then +, then empty space that moves the window (spec identité §5.2)", () => {
+it("shows the workspaces as browser tabs, then +, then empty space that moves the window", () => {
   expect(row().style.height).toBe(`${TABS_HEIGHT}px`);
   expect(tabs().map((t) => t.dataset.tab)).toEqual(["w1", "w2"]);
   expect(tabs()[1].dataset.active).toBe("true");

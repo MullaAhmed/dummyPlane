@@ -24,7 +24,7 @@ function Row({ agent, children }: { agent: WaitingAgent; children: ReactNode }) 
 }
 
 /**
- * Who has a question (spec notification §4): at the bottom left, for as long
+ * Who has a question: at the bottom left, for as long
  * as an agent waits. Below 1,340 px the centred command bar reaches its column:
  * there it rises 8 px above the command band (`--dp-bottom-band`, ProjectView). The top of the canvas stays to the bars, the bottom right
  * to the toasts; 70 px from the edge clears the tool rail in a short window

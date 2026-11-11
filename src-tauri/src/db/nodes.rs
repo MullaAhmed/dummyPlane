@@ -39,7 +39,7 @@ impl NodeKind {
     }
 }
 
-/// Creates or replaces the content of a node (spec §8.3). The payload is opaque
+/// Creates or replaces the content of a node. The payload is opaque
 /// JSON owned by the frontend.
 pub fn save(
     conn: &Connection,

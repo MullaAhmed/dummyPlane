@@ -20,7 +20,7 @@ interface Props {
   onOpen: (name: string) => void;
 }
 
-/** The notes and their links, in SVG: wheel to zoom, drag the background or a note, click to open (spec notes §3). */
+/** The notes and their links, in SVG: wheel to zoom, drag the background or a note, click to open. */
 export function NoteGraph({ notes, current, onOpen }: Props) {
   const t = useMessages(notesMessages);
   const links = useMemo(() => edges(notes), [notes]);

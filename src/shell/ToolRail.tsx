@@ -18,7 +18,7 @@ const setTool = (type: Tool) => canvasStore.getState().api?.setActiveTool({ type
 const Separator = () => <Rule className="my-1 bg-dp-line data-horizontal:w-6" />;
 
 /**
- * The canvas tools, floating on the left (spec identité §5.4). They replace
+ * The canvas tools, floating on the left. They replace
  * Excalidraw's toolbar and follow its active tool, keyboard shortcuts included.
  */
 export function ToolRail() {

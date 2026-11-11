@@ -12,7 +12,7 @@ import { nodesMessages } from "@/nodes/messages";
 export const STATUS_TEXT = "flex shrink-0 items-center gap-2 text-xs text-dp-text-2 tabular-nums";
 
 /**
- * Where an agent stands (spec habillage §7.2): its status dot and a quiet word,
+ * Where an agent stands: its status dot and a quiet word,
  * no pill around them. The tooltip tells how long it has been so (§10.4).
  * `labelClassName` lets a narrow header take the word back to the screen
  * readers and the tooltip, the dot alone staying. `report` is the agent's last

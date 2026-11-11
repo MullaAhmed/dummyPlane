@@ -95,19 +95,19 @@ interface CanvasState {
   setApi: (api: ExcalidrawImperativeAPI | null) => void;
   /** Called on every Excalidraw onChange; listeners only hear real changes. */
   setView: (view: CanvasView) => void;
-  /** Frames and groups of the scene on screen, derived on every change (spec §11.1). */
+  /** Frames and groups of the scene on screen, derived on every change. */
   frames: SceneFrame[];
   setFrames: (frames: SceneFrame[]) => void;
   /** Ids of the dummyPlane nodes on the canvas on screen (deleted ones excluded). */
   nodeIds: string[];
   setNodeIds: (ids: string[]) => void;
-  /** What each fleet of the scene is wired to (spec habillage §13). */
+  /** What each fleet of the scene is wired to. */
   links: Record<string, Links>;
   setLinks: (links: Record<string, Links>) => void;
   /** The route of each wire, from its fleet: where WireActivity shows the messages. */
   wires: WirePath[];
   setWires: (wires: WirePath[]) => void;
-  /** The scene rectangle of each node: where the overlays anchor (spec orchestrateur §5.1). */
+  /** The scene rectangle of each node: where the overlays anchor. */
   nodeRects: Record<string, Rect>;
   setNodeRects: (rects: Record<string, Rect>) => void;
   /** The drawn (non-node) elements selected on screen: what the selection panel acts on. */

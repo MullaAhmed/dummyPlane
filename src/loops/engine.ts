@@ -3,7 +3,7 @@ import type { AgentId } from "@/ipc/pty";
 import { promptUp } from "@/mission/ready";
 import type { LoopDef } from "./model";
 
-/** The least time between two runs of an idle or output loop (loops spec §3). */
+/** The least time between two runs of an idle or output loop. */
 export const COOLDOWN_MS = 30_000;
 /** How often the engine is ticked (output screens are read at each tick). */
 export const TICK_MS = 2000;
@@ -52,7 +52,7 @@ export function acceptsInstruction(agent: AgentId | undefined, screen: string): 
 const shows = (screen: string, text: string) => screen.toLocaleLowerCase().includes(text.toLocaleLowerCase());
 
 /**
- * The loops' engine (loops spec §3). Nothing here runs by itself: the
+ * The loops' engine. Nothing here runs by itself: the
  * caller ticks it and reports activity changes. Every run goes through the
  * guards: a stop condition checked before each run, no send to an agent that
  * waits (a permission dialog included), a pause between runs, one send at a

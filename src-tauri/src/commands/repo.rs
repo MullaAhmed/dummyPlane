@@ -14,7 +14,7 @@ async fn blocking<T: Send + 'static>(
         .map_err(AppError::InvalidInput)
 }
 
-/// Branch, push target and changes of the project's repository (spec fenêtre git).
+/// Branch, push target and changes of the project's repository.
 #[tauri::command]
 pub async fn repo_state(path: String) -> AppResult<RepoState> {
     blocking(move || repo::state(Path::new(&path))).await
@@ -35,13 +35,13 @@ pub async fn repo_commit(
     blocking(move || repo::commit(Path::new(&path), &files, &message)).await
 }
 
-/// After the window's confirmation; refused if the file changed since (spec fenêtre git §2).
+/// After the window's confirmation; refused if the file changed since.
 #[tauri::command]
 pub async fn repo_discard(path: String, file: ChangedFile, stamp: String) -> AppResult<()> {
     blocking(move || repo::discard(Path::new(&path), &file, &stamp)).await
 }
 
-/// The window's Push button, and nothing else (spec fenêtre git §2.3).
+/// The window's Push button, and nothing else.
 #[tauri::command]
 pub async fn repo_push(
     path: String,

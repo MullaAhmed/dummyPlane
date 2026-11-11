@@ -1,4 +1,4 @@
-//! The log file a user can send (spec première version §3.6):
+//! The log file a user can send:
 //! `%LOCALAPPDATA%\dev.dummyplane.app\logs\dummyplane.log`. Never a token, a
 //! terminal's text, an instruction or a file's content.
 

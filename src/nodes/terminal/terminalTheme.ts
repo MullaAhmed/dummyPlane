@@ -1,5 +1,5 @@
 /**
- * xterm's colors (spec identité §3): terminals stay dark in every palette, on the
+ * xterm's colors: terminals stay dark in every palette, on the
  * node body's `--dp-terminal` (the palette's deepest color), and every color
  * xterm draws with is the palette's own, none left to xterm's defaults:
  *

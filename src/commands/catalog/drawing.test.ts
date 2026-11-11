@@ -41,7 +41,7 @@ beforeEach(() => {
 });
 afterEach(() => document.body.replaceChildren());
 
-describe("Dessin (spec fenêtre §7.3)", () => {
+describe("Dessin", () => {
   it("lists the tools, the hand included, with Excalidraw's keys, then Annuler and Rétablir", () => {
     expect(DRAWING.map((c) => [labelOf(c, busy), c.keys ?? null])).toEqual([
       ["Selection", "V"],
@@ -101,7 +101,7 @@ describe("Dessin (spec fenêtre §7.3)", () => {
   });
 });
 
-describe("Dessin, sur la sélection (spec menu radial §4.5)", () => {
+describe("Dessin, sur la sélection", () => {
   const view = { scrollX: 0, scrollY: 0, zoom: 2, width: 800, height: 600, offsetLeft: 5, offsetTop: 7, tool: "selection", selectedIds: [], editingFrame: null, mode: null };
   const mixed = (selected: Record<string, boolean>) =>
     canvasStore.setState({
@@ -143,7 +143,7 @@ describe("Dessin, sur la sélection (spec menu radial §4.5)", () => {
     expect(labelOf(DRAWING.find((c) => c.id === "drawing.lock")!, busy)).toBe("Unlock");
   });
 
-  it("offers Unlock on a mixed selection: Excalidraw's lock unlocks it whole (plan G1)", () => {
+  it("offers Unlock on a mixed selection: Excalidraw's lock unlocks it whole", () => {
     mixed({ r1: true, r2: true });
     expect(labelOf(DRAWING.find((c) => c.id === "drawing.lock")!, busy)).toBe("Unlock");
   });

@@ -26,7 +26,7 @@ export function viewportCenter(view: Viewport & Pick<CanvasView, "width" | "heig
   return sceneOf({ x: view.offsetLeft + view.width / 2, y: view.offsetTop + view.height / 2 }, view);
 }
 
-/** Screen rectangle of the node about to be placed, a terminal by default, centered on the pointer (spec theme §10.1). */
+/** Screen rectangle of the node about to be placed, a terminal by default, centered on the pointer. */
 export function ghostRect(pointer: Point, zoom: number, kind: NodeKind = "terminal") {
   const width = NODE_SIZE[kind].width * zoom;
   const height = NODE_SIZE[kind].height * zoom;

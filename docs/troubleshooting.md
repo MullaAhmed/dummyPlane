@@ -1,7 +1,7 @@
 # Troubleshooting
 
 
-Start with the **Troubleshooting** dialog: the settings menu (the gear), the command palette (`Ctrl+K`, then type "troubleshooting"), or the link at the bottom of the home screen. It shows dummyPlane's version, the agents it finds and where, Git, Git Bash and the local server, and gives you the diagnostics to copy into a bug report.
+Start with the **Troubleshooting** dialog: the settings menu (the gear), the command palette (`Ctrl+Shift+P`, then type "troubleshooting"), or the link at the bottom of the home screen. It shows dummyPlane's version, the agents it finds and where, Git, Git Bash and the local server, and gives you the diagnostics to copy into a bug report.
 
 ## Windows SmartScreen stops the installer
 
@@ -15,11 +15,11 @@ dummyPlane launches the agent CLIs installed on your PC; it looks for them on Wi
 2. In dummyPlane, click **Check again** (on the home screen, or in the Troubleshooting dialog). It reads Windows' `PATH` again, so an agent installed while dummyPlane runs is found without restarting it.
 3. Still not found: `where.exe claude` in PowerShell shows the folder it is in. That folder must be in your user or system `PATH` (Windows settings → "Edit environment variables for your account").
 
-Claude Code is needed for the fleet, missions and the usage meter. Its official installer, in PowerShell: `irm https://claude.ai/install.ps1 | iex` (see [Claude Code's setup page](https://code.claude.com/docs/en/setup)).
+Claude Code is needed for the usage meter and, by default, for the Fleet and missions. A Fleet can also run on Codex (*Fleet agent…* in the settings menu). Claude Code's official installer, in PowerShell: `irm https://claude.ai/install.ps1 | iex` (see [Claude Code's setup page](https://code.claude.com/docs/en/setup)).
 
 ### Installing an agent from dummyPlane
 
-*Install*, next to a missing agent, shows the official command and runs it in a visible terminal on the canvas of the open project (open a project first). Read the terminal if it fails: the installer's own message is there, and `Ctrl+C` stops it. Gemini CLI, OpenCode and Ollama's models need **npm**: if dummyPlane says it is missing, install [Node.js](https://nodejs.org/), which brings it, then click **Check again**. dummyPlane looks for the new agent for up to 30 minutes after the command starts, and says when it is installed.
+*Install*, next to a missing agent, shows the official command and runs it in a visible terminal on the canvas of the open project (open a project first). Read the terminal if it fails: the installer's own message is there, and `Ctrl+C` stops it. Gemini CLI and OpenCode need **npm**: if dummyPlane says it is missing, install [Node.js](https://nodejs.org/), which brings it, then click **Check again**. dummyPlane looks for the new agent for up to 30 minutes after the command starts, and says when it is installed.
 
 ## No Windows notification when an agent has a question
 
@@ -35,7 +35,7 @@ The view reads the `.jsonl` logs that Claude Code keeps under `~/.claude/project
 
 ## Code Studio refuses to save
 
-dummyPlane never overwrites what an agent wrote meanwhile. If the file changed on the disk since you opened it, the studio says so and offers to **reload** (your edits are lost) or to **overwrite** with your version. If the file was deleted, it offers to recreate it or to close it without keeping your edits. A project outside a git repository lists its files from the folder itself, up to a limit.
+dummyPlane never overwrites what an agent wrote meanwhile. If the file changed on the disk since you opened it, the studio says so and offers **Reload (loses my changes)** or **Overwrite with my version**. If the file was deleted, it offers **Create the file again** or **Close without keeping**, which drops your edits. A project outside a git repository lists its files from the folder itself, up to a limit.
 
 ## An agent has disappeared from a group
 
@@ -59,9 +59,9 @@ A mission works on git branches, which need a first commit. In the project's fol
 
 ## An overnight run did little, or did more than you wanted
 
-- **Agents stopped early.** Under *Files*, the default, an agent stops at its first command until you are back: the morning report shows those tasks as not finished. *Files and commands* avoids that, but agents then run any command unasked, and the network and the accounts logged in on this PC are open to them. Choose it knowingly.
-- **Nothing started.** By default the plan waits for your go-ahead: click *Launch the mission* before you leave, or tick *Start without waiting for my go-ahead*.
-- **No tickets.** GitHub issues are read with `gh`, which must be installed and logged in, and only issues with the label you gave are read. `BACKLOG.md` must be at the project's root. Kanban is not a source yet.
+- **Agents stopped early.** Under *Edit files*, the default, edits and simple file commands (`mkdir`, `mv`, `cp`) run unasked, and an agent stops at its first other command until you are back: the morning report shows those tasks as not finished. *Edit files and run commands* avoids that, but agents then run any command unasked, and the network and the accounts logged in on this PC are open to them. Choose it knowingly.
+- **Nothing started.** By default the plan waits for your go-ahead: check it in the Fleet's panel and click *Launch the mission*. To start without you, choose *As soon as the plan is ready* under *Start* in the overnight dialog.
+- **No tickets.** GitHub issues are read with `gh`, which must be installed and logged in, and only issues with the label you gave are read. `BACKLOG.md` must be at the project's root. Linear needs the Fleet connected to it (*Connect…*). Kanban is not a source yet.
 - **The run stopped in the night.** The PC stays awake during the mission, but closing the lid or asking for sleep still puts it to sleep.
 - **An agent pushed, or acted on GitHub.** The push block is not a security boundary. `git push` and the `gh` commands that reach the remote are denied by rules on the command's text and by a git setting in the terminal: they stop accidents, and an agent running commands can get past them, as a review did with `-c remote.origin.pushurl` and `GIT_CONFIG_COUNT=0`. If that matters, stay with *Files*, or use a repository and accounts you can afford to expose.
 

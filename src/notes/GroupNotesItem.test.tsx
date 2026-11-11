@@ -17,7 +17,7 @@ afterEach(() => {
   closeGroupNotes();
 });
 
-it("chooses a group's notes from its menu (spec notes §3)", async () => {
+it("chooses a group's notes from its menu", async () => {
   const host = document.createElement("div");
   document.body.append(host);
   const root = createRoot(host);

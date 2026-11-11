@@ -7,7 +7,7 @@ const member = (nodeId: string, name: string, extra: Partial<Member> = {}): Memb
 const night = (mission: Partial<Mission>): Mission => ({ ...NEW_MISSION, state: "terminee", overnight: true, budgetMin: 480, startedAt: 0, endedAt: 300 * min, ...mission });
 const report = (status: "termine" | "bloque" | "echec", at = 30 * min) => ({ summary: `Résumé ${status}`, status, at });
 
-describe("what the morning report gathers (spec mission de nuit §6.2)", () => {
+describe("what the morning report gathers", () => {
   it("sorts the tasks: done, then failed or blocked, each with its agent, time and branch", () => {
     const result = morningReport(night({ members: [member("n1", "Batman", { report: report("termine"), merged: true }), member("n2", "Aquaman", { task: "API", report: report("echec", 25 * min) }), member("n3", "Cyborg", { task: "Docs", report: report("bloque") })] }), 400 * min);
     expect(result.done).toEqual([{ task: "Login", agent: "Batman", minutes: 30, budgetMin: 20, branch: "b-Batman", summary: "Résumé termine", merged: true, status: "termine" }]);

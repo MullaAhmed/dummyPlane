@@ -43,7 +43,7 @@ afterEach(async () => {
 
 const byLabel = (label: string) => host.querySelector<HTMLButtonElement>(`[aria-label="${label}"]`)!;
 
-it("offers the canvas tools in the spec's order, each setting its Excalidraw tool (spec identité §5.4)", async () => {
+it("offers the canvas tools in the spec's order, each setting its Excalidraw tool", async () => {
   const labels = [...host.querySelectorAll("button")].map((b) => b.getAttribute("aria-label"));
   expect(labels).toEqual(["Select (V)", "Hand (H)", "Shapes", "Text (T)", "Pen (P)", "Eraser (E)", "Image", "Launch an agent", "Fit the view"]);
   const tools: [string, string][] = [
@@ -59,7 +59,7 @@ it("offers the canvas tools in the spec's order, each setting its Excalidraw too
   }
 });
 
-it("holds the catalog, New console, Fleet and Kanban in its ＋ (spec identité §5.4, §11)", async () => {
+it("holds the catalog, New console, Fleet and Kanban in its ＋", async () => {
   const menuEntries = () =>
     [...document.querySelectorAll<HTMLButtonElement>('[data-slot="popover-content"] button')].map((b) => b.textContent ?? "");
   await act(async () => byLabel("Launch an agent").click());

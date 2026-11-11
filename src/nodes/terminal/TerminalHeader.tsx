@@ -122,7 +122,7 @@ function TerminalMenu(props: { nodeId: string; payload: TerminalPayload; running
 }
 
 /**
- * The Claude profile a terminal started with (spec comptes §6), once there is a choice to show:
+ * The Claude profile a terminal started with, once there is a choice to show:
  * at least one profile besides the default one.
  */
 export function AccountChip({ accountId }: { accountId?: string }) {
@@ -168,7 +168,7 @@ function ModelChip({ nodeId, model }: { nodeId: string; model: string }) {
 }
 
 /**
- * Header of a terminal node (spec habillage §7.1). A row of essentials: the
+ * Header of a terminal node. A row of essentials: the
  * agent, the name, where the process stands when the foot does not say it,
  * Remote Control's state, "⋯" for the rest, Close. Chips of the account and
  * the model join them from 28rem of header on.

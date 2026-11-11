@@ -23,7 +23,7 @@ beforeEach(() => {
 });
 afterEach(() => clearMocks());
 
-it("puts the title bar on top and scrolls the projects under it, never into it (spec identité §5.9)", async () => {
+it("puts the title bar on top and scrolls the projects under it, never into it", async () => {
   const host = document.createElement("div");
   document.body.append(host);
   const root = createRoot(host);

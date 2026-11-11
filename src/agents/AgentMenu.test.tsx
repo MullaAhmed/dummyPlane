@@ -80,7 +80,7 @@ const button = (text: string) => [...document.body.querySelectorAll("button")].f
 const hintShown = () => document.querySelector('[role="tooltip"]')?.textContent ?? "";
 const installButtons = () => [...document.body.querySelectorAll<HTMLButtonElement>("[data-install]")];
 
-it("offers to install the missing agents only (spec installation §4.1)", async () => {
+it("offers to install the missing agents only", async () => {
   await openMenu();
   expect(installButtons().map((b) => b.dataset.install)).toEqual(["codex", "gemini", "qwen", "cursor", "opencode", "aider", "ollama"]);
   expect(installButtons()[0].getAttribute("aria-label")).toBe("Install Codex");
@@ -115,7 +115,7 @@ it("says that Gemini CLI needs Node.js, in cmd, and links to its page", async ()
   expect(openUrl).toHaveBeenCalledWith("https://github.com/google-gemini/gemini-cli");
 });
 
-it("says npm is missing before anything runs, and checks again once Node.js is there (spec installation §3)", async () => {
+it("says npm is missing before anything runs, and checks again once Node.js is there", async () => {
   npm = false;
   await openMenu();
   await act(async () => document.body.querySelector<HTMLButtonElement>("[data-install='gemini']")!.click());
@@ -227,7 +227,7 @@ it("keeps the command out of the footer's Options and out of the other agents' l
   expect(placing()).toMatchObject({ agent: "claude", options: { title: "API", command: "" } });
 });
 
-it("pulls an Ollama model from its picker, the menu closing on the terminal (spec installation §5)", async () => {
+it("pulls an Ollama model from its picker, the menu closing on the terminal", async () => {
   agents = only("ollama");
   models = ["llama3.2:3b"];
   await openMenu();

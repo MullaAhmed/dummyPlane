@@ -8,7 +8,7 @@ import { shellMessages } from "./messages";
 
 /**
  * "⌕ Search in <project>   Ctrl+P" at the center of a project's title
- * bar, « Rechercher un projet » at home (spec identité §5.1, §5.9): it opens "Go to".
+ * bar, « Rechercher un projet » at home: it opens "Go to".
  */
 export function SearchField() {
   const t = useMessages(shellMessages).searchField;

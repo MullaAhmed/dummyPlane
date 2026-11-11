@@ -44,7 +44,7 @@ function frameKnown(frameId: string): Promise<void> {
   });
 }
 
-/** The real functions of a deployment: the agents it starts are the user's choice (spec presets §3). */
+/** The real functions of a deployment: the agents it starts are the user's choice. */
 export async function liveDeployDeps(): Promise<DeployDeps> {
   if (!agentsStore.getState().loaded) await agentsStore.getState().load().catch(() => undefined);
   const { agents } = agentsStore.getState();

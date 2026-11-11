@@ -28,7 +28,7 @@ const text = (values: unknown[]) => {
 
 /**
  * Console warnings and errors, uncaught errors and unhandled rejections also go
- * to the log file a user can send (spec première version §3.6). Writing to the
+ * to the log file a user can send. Writing to the
  * file never fails the caller.
  */
 export function installLogging(target: LogTarget = { warn: send(LogLevel.Warn), error: send(LogLevel.Error) }, cons: Console = console, win: Window = window) {

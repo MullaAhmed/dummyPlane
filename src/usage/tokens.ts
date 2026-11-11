@@ -1,6 +1,6 @@
 import type { TokenCounts, TokenReport } from "@/ipc/tokens";
 
-/** Agents listed before the rest is summed up (spec Tokens §4). */
+/** Agents listed before the rest is summed up. */
 export const MAX_AGENT_ROWS = 10;
 
 /** Every token processed: what is read, written and kept in the cache. */

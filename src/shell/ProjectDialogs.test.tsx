@@ -17,7 +17,7 @@ vi.mock("./CloseGroupDialog", () => ({ CloseGroupDialog: () => <p>group dialog</
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-it("keeps a failing dialog to itself: the project stays on screen (spec première version §3.4)", async () => {
+it("keeps a failing dialog to itself: the project stays on screen", async () => {
   vi.spyOn(console, "error").mockImplementation(() => undefined);
   agentDialog.fails = true;
   const host = document.createElement("div");

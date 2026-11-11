@@ -73,7 +73,7 @@ function triggerOf(form: Form): LoopTrigger {
   return { kind: "interval", minutes: Number(form.minutes) };
 }
 
-/** The loops: the list and the form (loops spec §4), opened by the palette or the indicator. */
+/** The loops: the list and the form, opened by the palette or the indicator. */
 export function LoopsDialog() {
   const t = useMessages(loopsMessages).dialog;
   const formId = useId();

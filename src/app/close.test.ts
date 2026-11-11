@@ -21,7 +21,7 @@ it("commits the field being edited before writing pending saves", async () => {
   input.remove();
 });
 
-it("keeps the window open while the code studio has unsaved changes (spec studio code §3)", async () => {
+it("keeps the window open while the code studio has unsaved changes", async () => {
   const preventDefault = vi.fn();
   const release = guardQuit(() => true);
   await saveBeforeClose({ preventDefault });

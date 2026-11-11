@@ -31,7 +31,7 @@ const ROW_CHECK = "border-dp-text-3 after:-inset-1";
 const MIXED =
   "data-[state=indeterminate]:border-dp-accent data-[state=indeterminate]:bg-dp-accent data-[state=indeterminate]:text-dp-on-accent [&[data-state=indeterminate]_svg]:hidden data-[state=indeterminate]:before:h-0.5 data-[state=indeterminate]:before:w-2 data-[state=indeterminate]:before:rounded-sm data-[state=indeterminate]:before:bg-current";
 
-/** The project's changes, commit, history and push, opened from the branch chip (spec fenêtre git). */
+/** The project's changes, commit, history and push, opened from the branch chip. */
 export function GitWindow() {
   const path = useGitWindow((s) => s.path);
   // The window follows the active workspace's folder: it closes when another one comes up.
@@ -162,7 +162,7 @@ function GitDrawer({ path }: { path: string }) {
   );
 }
 
-/** Greyed, with why, when there is nothing to push or nowhere to (spec fenêtre git §3.5). */
+/** Greyed, with why, when there is nothing to push or nowhere to. */
 function PushButton({ repo, pushing, onPush }: { repo: RepoState; pushing: boolean; onPush: () => void }) {
   const t = useMessages(gitMessages).push;
   const target = repo.pushTo;
@@ -197,7 +197,7 @@ function ChangesTab(props: {
   const { path, files, stamps, cut, refresh, onChanged, onFailure } = props;
   const t = useMessages(gitMessages).changes;
   const words = useMessages(reviewMessages);
-  // What is left out, not what is in: a new file arrives checked (spec fenêtre git §3.1).
+  // What is left out, not what is in: a new file arrives checked.
   const [left, setLeft] = useState<ReadonlySet<string>>(new Set());
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [message, setMessage] = useState("");
@@ -273,7 +273,7 @@ function ChangesTab(props: {
     }
   };
 
-  // The only way to `repoDiscard`: the dialog's button (spec fenêtre git §2.1).
+  // The only way to `repoDiscard`: the dialog's button.
   const discard = async (file: ChangedFile) => {
     const at = files.findIndex((other) => other.path === file.path);
     afterDiscard.current = { discarded: file.path, next: files[at + 1]?.path ?? files[at - 1]?.path ?? null };

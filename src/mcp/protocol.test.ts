@@ -1,7 +1,7 @@
 import { expect, it } from "vitest";
 import { internalCall, outMission, outReport, outStep, outAgentState, outLevel, RENAMED } from "./protocol";
 
-it("maps the English tool names and arguments to the internal ones (spec première version §7.1)", () => {
+it("maps the English tool names and arguments to the internal ones", () => {
   expect(internalCall("declare_steps", { steps: ["Plan"] })).toEqual({ name: "declarer_etapes", args: { etapes: ["Plan"] } });
   expect(internalCall("step", { title: "Plan", state: "done" })).toEqual({ name: "etape", args: { titre: "Plan", etat: "fait" } });
   expect(internalCall("report", { summary: "Fait", status: "blocked" })).toEqual({ name: "rendre_compte", args: { resume: "Fait", statut: "bloque" } });

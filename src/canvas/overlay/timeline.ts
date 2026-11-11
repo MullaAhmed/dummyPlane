@@ -20,7 +20,7 @@ export const TIMELINE_HEIGHT = 21;
  */
 export const TIMELINE_ROOM = TIMELINE_GAP + TIMELINE_HEIGHT;
 
-/** Done, running, to come, failed (spec orchestrateur §5.1; tokens of spec identité). */
+/** Done, running, to come, failed. */
 export const STEP_COLOR: Record<StepState, string> = {
   fait: "var(--dp-ok)",
   en_cours: "var(--dp-working)",
@@ -43,7 +43,7 @@ export function dotsOf(steps: readonly Step[], width: number): Dot[] {
   return steps.map((step, i) => ({ x: slot * (i + 0.5), slot, title: step.title, state: step.state, color: STEP_COLOR[step.state] }));
 }
 
-/** A budget's bar (spec orchestrateur §8.3): ok, the wait colour past 80 % (a warning, not the ink), the danger colour past 100 %. */
+/** A budget's bar: ok, the wait colour past 80 % (a warning, not the ink), the danger colour past 100 %. */
 export const BUDGET_COLOR: Record<BudgetTone, string> = { ok: "var(--dp-ok)", late: "var(--dp-wait)", over: "var(--dp-danger)" };
 
 /** A bar's title: "22 / 50 min" while the agent works; once it reported, how that ended ("Done in 22 min of 50"). */

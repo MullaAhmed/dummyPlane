@@ -59,7 +59,7 @@ const canvas = () => document.querySelector("canvas")!;
 const text = () => document.getElementById("text")!;
 const nextFrame = () => new Promise((resolve) => requestAnimationFrame(resolve));
 
-describe("opening the ring (spec menu radial §5.2, §6.4)", () => {
+describe("opening the ring", () => {
   it("opens the terminal's ring on a right press in its text, the press kept from xterm", () => {
     const xterm = vi.fn();
     text().addEventListener("pointerdown", xterm);
@@ -93,7 +93,7 @@ describe("opening the ring (spec menu radial §5.2, §6.4)", () => {
     });
   });
 
-  it("closes Excalidraw's own menu and the open dropdowns when the ring opens (plan G1)", () => {
+  it("closes Excalidraw's own menu and the open dropdowns when the ring opens", () => {
     document.body.insertAdjacentHTML("beforeend", '<div role="menu" data-state="open"></div>');
     const escapes: string[] = [];
     document.addEventListener("keydown", (e) => escapes.push(e.key), { once: true });

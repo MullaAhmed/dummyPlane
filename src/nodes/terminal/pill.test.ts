@@ -3,7 +3,7 @@ import { DOT_OF_TONE } from "./StatusDot";
 import { isTypingKey, pillActivity, pillOf, resumeOfferOf, startsNewConversation, startsOnKeystroke } from "./pill";
 
 describe("pillOf", () => {
-  it("labels each process state (spec habillage §7.2)", () => {
+  it("labels each process state", () => {
     expect(pillOf({ state: "running" })).toEqual({ label: "Active", tone: "live" });
     expect(pillOf({ state: "stopped" })).toEqual({ label: "Stopped", tone: "stopped" });
     expect(pillOf({ state: "exited", code: 0 })).toEqual({ label: "Exited · 0", tone: "done" });
@@ -85,7 +85,7 @@ describe("a terminal waiting for its staggered start", () => {
   });
 });
 
-describe("a running agent's activity (spec habillage §7.2)", () => {
+describe("a running agent's activity", () => {
   const running = { state: "running" } as const;
 
   it("reads Ready, Working or Waiting", () => {

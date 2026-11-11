@@ -54,7 +54,7 @@ afterEach(() => {
   uninstall();
 });
 
-describe("the Windows notification (spec notification §8)", () => {
+describe("the Windows notification", () => {
   it("tells when an agent starts waiting and the window is not focused", async () => {
     apply("batman", "waiting");
     await settled();
@@ -72,7 +72,7 @@ describe("the Windows notification (spec notification §8)", () => {
     expect(body).not.toContain("Batman");
   });
 
-  it("keeps the preview in the window: a toast can show on the lock screen (spec notification §7)", async () => {
+  it("keeps the preview in the window: a toast can show on the lock screen", async () => {
     agentActivityStore.getState().apply({ nodeId: "batman", activity: "waiting", since: 1, message: "Run rm on C:/secret?" });
     await settled();
     expect(sendNotification).toHaveBeenCalledExactlyOnceWith({ title: "Batman · Waiting", body: "Has a question for you", extra: { nodeId: "batman" } });
@@ -85,7 +85,7 @@ describe("the Windows notification (spec notification §8)", () => {
     expect(sendNotification).not.toHaveBeenCalled();
   });
 
-  it("stays silent when the setting is off, and a click still comes back (spec notification §11)", async () => {
+  it("stays silent when the setting is off, and a click still comes back", async () => {
     nativeNotificationsStore.setState({ enabled: false });
     apply("batman", "waiting");
     await settled();
@@ -137,7 +137,7 @@ describe("the Windows notification (spec notification §8)", () => {
   });
 });
 
-describe("a click on the Windows notification (spec notification §8)", () => {
+describe("a click on the Windows notification", () => {
   it("brings the window back and goes to the agent", async () => {
     apply("batman", "waiting");
     await click("batman");

@@ -15,7 +15,7 @@ import { handOffTool, handOffTools } from "./handOff";
 const t = () => messages(agentMessages).router;
 
 /**
- * The interface's answer to one MCP call of a node, by its kind and role (spec orchestrateur §4.1, §4.3):
+ * The interface's answer to one MCP call of a node, by its kind and role:
  * a Fleet plans and babysits its board, a mission's Manager runs the board with the team, an agent works.
  */
 export async function answer(call: McpCall): Promise<unknown> {

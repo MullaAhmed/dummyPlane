@@ -1,7 +1,7 @@
 import { messages } from "@/i18n";
 import { agentMessages } from "@/mcp/messages";
 
-/** A step an agent declared (spec orchestrateur §4.4, §5): its frieze shows them in order. */
+/** A step an agent declared: its frieze shows them in order. */
 export type StepState = "a_venir" | "en_cours" | "fait" | "echec";
 
 export interface Step {

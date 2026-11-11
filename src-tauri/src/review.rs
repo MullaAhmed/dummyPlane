@@ -1,4 +1,4 @@
-//! What an agent changed, for the review panel (spec maj §5): its files
+//! What an agent changed, for the review panel: its files
 //! against a base, each file's diff, and the files of its folder, read-only.
 
 use std::collections::{BTreeSet, HashMap};

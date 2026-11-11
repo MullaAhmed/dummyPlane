@@ -18,7 +18,7 @@ import { groupBeingRenamed, isGroup, type SceneGroup } from "../groups";
 import { useMessages } from "@/i18n";
 import { canvasMessages } from "../messages";
 
-/** The label sits on the frame's top edge, 16 px from its corner, like a tab (spec §11.4). */
+/** The label sits on the frame's top edge, 16 px from its corner, like a tab. */
 const LABEL_INSET = 16;
 const LABEL_HEIGHT = 24;
 

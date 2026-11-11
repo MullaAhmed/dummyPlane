@@ -10,7 +10,7 @@ pub enum AppError {
     NotFound(String),
     #[error("{0}")]
     Pty(String),
-    /// A fleet without dummyPlane's tools and guards does not start (spec première version §4.1).
+    /// A fleet without dummyPlane's tools and guards does not start.
     #[error("{0}")]
     ToolsUnavailable(String),
     /// The `gh` CLI is missing, not logged in, or failed (Kanban GitHub sync).

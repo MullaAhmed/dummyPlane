@@ -43,8 +43,7 @@ let pending = false;
 
 /**
  * Hand-drawn wires get their mark, wires left without an end go and wires in
- * another palette's color take the current palette's accent (spec theme §13,
- * plan B3); a deleted wire leaves its ends' lists and a revived one is listed
+ * another palette's color take the current palette's accent; a deleted wire leaves its ends' lists and a revived one is listed
  * again; then each sub-agent whose spawner is in the scene gets its spawn wire
  * back when none joins them (`missingSpawnWires`), a wire just deleted as
  * orphaned included: a fresh one, bound to both. Outside the undo history, a

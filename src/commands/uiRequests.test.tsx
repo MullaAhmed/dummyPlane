@@ -38,7 +38,7 @@ it("lets the right component answer a request, once, even one made before it mou
   await act(async () => root.unmount());
 });
 
-it("lets an unanswered request expire: it must not fire at a later mount (plan F2)", async () => {
+it("lets an unanswered request expire: it must not fire at a later mount", async () => {
   vi.useFakeTimers();
   requestUi({ kind: "composeGroup" });
   expect(pendingUiRequest()).toEqual({ kind: "composeGroup" });

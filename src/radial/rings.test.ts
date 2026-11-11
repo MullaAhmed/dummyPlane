@@ -39,7 +39,7 @@ beforeAll(async () => {
   agentsStore.setState({ agents: [{ id: "claude", available: true }] } as never);
 });
 
-describe("the rings (spec menu radial §4)", () => {
+describe("the rings", () => {
   it("gives each ring at most 8 wedges, More last included, no empty place, each a function of the registry, never twice with its arc", () => {
     for (const kind of KINDS) {
       expect(wedgeCountOf(kind), kind).toBeLessThanOrEqual(8);
@@ -292,7 +292,7 @@ describe("the selection ring's Ungroup", () => {
   });
 });
 
-describe("the canvas ring when the default agent is the Shell (plan G1)", () => {
+describe("the canvas ring when the default agent is the Shell", () => {
   it("does not offer « Launch Shell » twice: its second place goes to another agent, else to the custom one", () => {
     const canvas = () => RINGS.canvas.map((slot) => lineOf(slot, ctx)!.label);
     agentsStore.setState({ agents: [{ id: "shell", available: true }, { id: "gemini", available: true }] } as never);

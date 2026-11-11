@@ -41,7 +41,7 @@ import { useMessages } from "@/i18n";
 import { nodesMessages } from "@/nodes/messages";
 import type { TerminalPayload } from "@/nodes/types";
 
-/** The manager of a team, the Fleet: its Claude session, then its mission (spec orchestrateur §6). */
+/** The manager of a team, the Fleet: its Claude session, then its mission. */
 export function FleetNode({ nodeId }: { nodeId: string }) {
   const t = useMessages(nodesMessages).fleet;
   const record = useNodes((s) => s.nodes[nodeId]);
@@ -59,7 +59,7 @@ export function FleetNode({ nodeId }: { nodeId: string }) {
 
   useEffect(() => {
     const current = nodesStore.getState().nodes[nodeId];
-    // A Fleet of before gets its session when first shown (spec orchestrateur §6).
+    // A Fleet of before gets its session when first shown.
     if (current?.kind !== "fleet" || current.payload.session) return;
     nodesStore.getState().update(nodeId, { session: fleetSession(current.payload.name, defaultLaunchOptions(current.workspaceId), fleetAgent()) });
     markForAutostart(nodeId);

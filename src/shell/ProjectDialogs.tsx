@@ -11,8 +11,7 @@ const dropClosingAgents = () => uiStore.getState().setClosing(null);
 const dropClosingGroup = () => uiStore.getState().setClosingGroup(null);
 
 /**
- * The project's confirmation dialogs: one that fails to render shows nothing, the project stays (spec première
- * version §3.4), and the next request tries it again.
+ * The project's confirmation dialogs: one that fails to render shows nothing, the project stays, and the next request tries it again.
  */
 export function ProjectDialogs() {
   return (

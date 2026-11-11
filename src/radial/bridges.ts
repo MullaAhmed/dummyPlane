@@ -73,7 +73,7 @@ export function copyCanvasSelection() {
   document.dispatchEvent(new ClipboardEvent("copy", { clipboardData: new DataTransfer(), bubbles: true, cancelable: true }));
 }
 
-/** The clipboard as a paste carries it; null, with a toast, when empty or unreadable (spec menu radial §7). */
+/** The clipboard as a paste carries it; null, with a toast, when empty or unreadable. */
 export async function readClipboard(): Promise<DataTransfer | null> {
   const data = new DataTransfer();
   try {

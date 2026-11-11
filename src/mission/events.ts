@@ -18,7 +18,7 @@ const starting = new Set<string>();
 /** A line waits this long after the user's last keystroke: it would be typed into their half-written text. */
 export const TYPING_PAUSE_MS = 4000;
 
-/** A fleet takes a line while its Claude's prompt is up and no dialog waits for the user (spec §7.5). */
+/** A fleet takes a line while its Claude's prompt is up and no dialog waits for the user. */
 function free(fleetId: string): boolean {
   return (
     isRunning(fleetId) &&
@@ -89,7 +89,7 @@ const takesLines = (nodeId: string) => {
 };
 
 /**
- * A running mission's Manager is stuck on the user (spec babysitter Fleet): its Fleet hears it, in one line,
+ * A running mission's Manager is stuck on the user: its Fleet hears it, in one line,
  * and tells them. Its team's news never reaches the Fleet.
  */
 function tellFleetOfManager(managerId: string, line: (name: string) => string) {

@@ -58,7 +58,7 @@ const open = async () => {
 const dialog = () => document.querySelector<HTMLElement>("[role='dialog']")!;
 const button = (text: string) => [...dialog().querySelectorAll("button")].find((b) => b.textContent?.includes(text))!;
 
-it("shows the version, the agents found and where, Git and the local server (spec première version §7.3)", async () => {
+it("shows the version, the agents found and where, Git and the local server", async () => {
   await open();
   const text = dialog().textContent!;
   expect(text).toContain("Troubleshooting");
@@ -83,8 +83,8 @@ it("copies the diagnostic, opens the folders, the guide and a new issue with the
   await act(async () => button("Troubleshooting guide").click());
   await act(async () => button("Report a problem").click());
   expect(vi.mocked(openUrl).mock.calls.map(([url]) => url)).toEqual([
-    "https://github.com/Mideky-hub/openvibe/blob/main/docs/troubleshooting.md",
-    "https://github.com/Mideky-hub/openvibe/issues/new?template=bug_report.yml&version=1.0.0-beta.1",
+    "https://github.com/MullaAhmed/dummyPlane/blob/main/docs/troubleshooting.md",
+    "https://github.com/MullaAhmed/dummyPlane/issues/new?template=bug_report.yml&version=1.0.0-beta.1",
   ]);
 });
 

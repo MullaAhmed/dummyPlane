@@ -1,4 +1,4 @@
-//! The subagents each Claude session runs (spec orchestrateur §5.2): its
+//! The subagents each Claude session runs: its
 //! `SubagentStart` / `SubagentStop` hooks paired by id, and what their
 //! transcripts show. The hooks only change this state; a poller reads the
 //! files, off the hook server's threads.

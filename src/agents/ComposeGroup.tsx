@@ -41,7 +41,7 @@ function AgentLogo({ agent, className }: { agent: AgentId; className?: string })
   );
 }
 
-/** A slot of the grid: the agent's logo and label; a click opens the agents (spec §11.2). */
+/** A slot of the grid: the agent's logo and label; a click opens the agents. */
 function SlotButton(props: { agent: AgentId; choices: AgentId[]; onPick: (agent: AgentId) => void }) {
   return (
     <DropdownMenu>
@@ -69,7 +69,7 @@ function SlotButton(props: { agent: AgentId; choices: AgentId[]; onPick: (agent:
   );
 }
 
-/** "Compose a group", anchored to its trigger (spec theme §11.2). */
+/** "Compose a group", anchored to its trigger. */
 export function ComposeGroup({
   trigger,
   side = "top",
@@ -113,7 +113,7 @@ export function ComposeGroup({
   }, [open]);
 
   const pickRole = (next: RoleId) => {
-    // An emptied field follows the role again (spec §11.2).
+    // An emptied field follows the role again.
     setTypedName((current) => (current === null || current.trim() === "" ? null : current));
     setRole(next);
   };

@@ -24,7 +24,7 @@ function onCanvas(element: Element): boolean {
   );
 }
 
-/** The ring a right press opens, and its context (spec menu radial §6.1, §6.4); null where it opens none. */
+/** The ring a right press opens, and its context; null where it opens none. */
 export function ringAt(element: Element, client: Point): { kind: RingKind; context: CommandContext } | null {
   const { api, view, frames } = canvasStore.getState();
   if (!api || !onCanvas(element) || isTextField(element)) return null;
@@ -63,7 +63,7 @@ export function ringAt(element: Element, client: Point): { kind: RingKind; conte
   }
 }
 
-/** The right click opens the ring; the native menu never opens unasked (spec menu radial §5.2). */
+/** The right click opens the ring; the native menu never opens unasked. */
 export function installRadial(win: Window): () => void {
   // The contextmenu that follows a right release the ring handled: closed by a
   // slide, the ring no longer covers it, and over the UI WebView2 would show its own.

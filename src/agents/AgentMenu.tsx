@@ -37,7 +37,7 @@ const FIRST_CONTROL = "button:not(:disabled), input:not(:disabled), [tabindex]:n
 /** One entry of the menu: an icon, a name, sometimes a line under it. */
 const ROW = "h-auto w-full justify-start gap-2.5 rounded-md border-0 px-2 py-1.5 text-left font-normal whitespace-normal";
 
-/** "Launch an agent", opened from the tool rail's ＋ or the agents panel (spec identity §5.4, §5.6). */
+/** "Launch an agent", opened from the tool rail's ＋ or the agents panel. */
 export function AgentMenu({
   trigger,
   side = "right",
@@ -142,7 +142,7 @@ export function AgentMenu({
     settleFolder(launch.cwd);
     // Only a Custom terminal runs its command: another agent would just carry it.
     const kept = agent === "custom" ? launch : { ...launch, command: "" };
-    // "Other agent…" of the radial menu: launched where the right click was (spec menu radial §4.1).
+    // "Other agent…" of the radial menu: launched where the right click was.
     if (placeAt) void launchAgent(agent, kept, placeAt).catch((error: unknown) => toastError(messages(agentsMessages).launchFailed, { error, next: messages(agentsMessages).launchNext }));
     else uiStore.getState().setPlacing({ agent, options: kept });
   };

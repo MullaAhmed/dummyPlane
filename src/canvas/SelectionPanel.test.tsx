@@ -289,7 +289,7 @@ const terminal = (overrides: Partial<TerminalPayload> = {}): TerminalPayload => 
   ...overrides,
 });
 
-/** What t1's Claude reported in its status line (spec maj §6). */
+/** What t1's Claude reported in its status line. */
 const reported = (patch: Partial<SessionUsage> = {}): SessionUsage => ({
   sessionId: "s1",
   nodeId: "t1",

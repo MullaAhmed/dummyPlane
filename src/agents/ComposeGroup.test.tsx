@@ -43,7 +43,7 @@ afterEach(async () => {
 
 const field = () => document.querySelector<HTMLInputElement>('input[aria-label="Group name"], input[aria-label="Group name"]')!;
 
-it("launches the group on Enter in the name field (plan B1)", async () => {
+it("launches the group on Enter in the name field", async () => {
   await act(async () => field().dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true })));
   expect(launchGroup).toHaveBeenCalledWith(expect.objectContaining({ role: "general" }), expect.objectContaining({ cwd: "" }));
 });

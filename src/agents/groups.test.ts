@@ -67,7 +67,7 @@ it("staffs a mission's group with the names, folders and pantheon it is given, a
   expect(frame?.customData?.dummyplane).toMatchObject({ kind: "group", pantheon: "egyptian" });
 });
 
-it("sets a group's speciality as one undoable step, and leaves other frames alone (spec groupes spécialisés §2)", () => {
+it("sets a group's speciality as one undoable step, and leaves other frames alone", () => {
   const data = { kind: "group", role: "general", pantheon: "egyptian" };
   scene = [
     { id: "f1", type: "frame", customData: { dummyplane: data } },
@@ -179,7 +179,7 @@ it("gives each agent of a staffed group the model the router chose, and none oth
   expect(made!.nodeIds.map((id) => terminalOf(nodesStore.getState().nodes[id])?.model)).toEqual(["opus", undefined]);
 });
 
-describe("a scene not on screen (spec mission de nuit §6.1)", () => {
+describe("a scene not on screen", () => {
   const options = { cwd: "C:/code", shell: "default" as const, title: "", command: "" };
   const saved = () => saves[saves.length - 1];
   let saves: { elementsJson: string; nodeIds: string[] }[];
@@ -264,7 +264,7 @@ it("closes a group with the wires that led to it (final review H2)", () => {
   expect(scene.filter((e) => e.isDeleted).map((e) => e.id)).toEqual(["f1", "t1", "w1", "w2"]);
 });
 
-it("folds and unfolds a group as one undoable step, keeping everything else (spec replier un groupe §3)", () => {
+it("folds and unfolds a group as one undoable step, keeping everything else", () => {
   const data = { kind: "group", role: "general", pantheon: "egyptian", speciality: "API" };
   scene = [{ id: "f1", type: "frame", customData: { dummyplane: data } }, { id: "plain", type: "frame" }, { id: "t1", type: "embeddable", customData: { kind: "terminal" }, frameId: "f1" } as never];
   setGroupFolded("f1", true);

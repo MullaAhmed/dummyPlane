@@ -41,7 +41,7 @@ function tasksOf(member: Member): PastTask[] {
   return member.report && !member.handedTo ? [...past, pastTask(member, member.report)] : past;
 }
 
-/** What the user reads when they come back (spec overnight mission §6.2). */
+/** What the user reads when they come back. */
 export function morningReport(mission: Mission, now: number): MorningReport {
   const rows = mission.members.flatMap((m) => tasksOf(m).map((past) => row(m.name, past)));
   const running = mission.members.filter((m) => !m.report && !m.handedTo);

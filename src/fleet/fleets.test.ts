@@ -33,7 +33,7 @@ beforeEach(() => {
   canvasStore.setState({ api: api as unknown as ExcalidrawImperativeAPI });
 });
 
-it("places a fleet with its Claude session, started when shown (spec orchestrateur §6)", async () => {
+it("places a fleet with its Claude session, started when shown", async () => {
   await addFleet("w1", { x: 0, y: 0 });
   const id = scene[0].id;
   expect(sessionOf(nodesStore.getState().nodes[id])).toMatchObject({ agent: "claude", role: "orchestrator", name: "Fleet" });
@@ -55,7 +55,7 @@ it("starts the Fleet's session in the folder of its workspace, else in the proje
   workspacesStore.setState({ workspaces: [], activeId: null });
 });
 
-it("refuses a fleet without Claude Code, and creates nothing (spec première version §7.2)", async () => {
+it("refuses a fleet without Claude Code, and creates nothing", async () => {
   agentsStore.setState({ agents: [{ id: "claude", available: false }], shells: [], loaded: true });
   await addFleet("w1", { x: 0, y: 0 });
   expect(scene).toEqual([]);
@@ -91,7 +91,7 @@ it("takes back a copied fleet when Claude Code is not installed", async () => {
   expect(toast.error).toHaveBeenCalled();
 });
 
-it("asks before closing a working fleet, with its wires; a stopped one goes at once (spec première version §5.4)", () => {
+it("asks before closing a working fleet, with its wires; a stopped one goes at once", () => {
   const wire = { id: "fil", type: "arrow", startBinding: { elementId: "chef" }, endBinding: { elementId: "batman" } };
   scene = [{ id: "chef", type: "embeddable" }, wire as (typeof scene)[number], { id: "batman", type: "embeddable" }];
   terminalStatusStore.getState().set("chef", { state: "running" });
@@ -105,7 +105,7 @@ it("asks before closing a working fleet, with its wires; a stopped one goes at o
   expect(scene.filter((e) => e.isDeleted).map((e) => e.id)).toEqual(["chef", "fil"]);
 });
 
-it("puts a second fleet of the same group clear of the first (plan B3)", async () => {
+it("puts a second fleet of the same group clear of the first", async () => {
   const frame = { id: "g1", type: "frame", x: 1000, y: 0, width: 600, height: 400, isDeleted: false, frameId: null, customData: { dummyplane: { kind: "group", role: "backend", pantheon: "egypt" } } };
   scene = [frame];
   canvasStore.setState({

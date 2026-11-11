@@ -12,7 +12,7 @@ import { requestUi } from "../uiRequests";
 import { command } from "./define";
 import { catalog } from "./messages";
 
-/** The fleet the radial menu points at; the palette never sets one (spec menu radial §6.2). */
+/** The fleet the radial menu points at; the palette never sets one. */
 function fleetOf(ctx: CommandContext): string | null {
   const id = ctx.project ? ctx.fleetId : null;
   return id && nodesStore.getState().nodes[id]?.kind === "fleet" ? id : null;

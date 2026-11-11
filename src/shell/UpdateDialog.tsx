@@ -11,7 +11,7 @@ import { isRunning, terminalStatusStore } from "@/store/terminalStatus";
 import { shellMessages } from "./messages";
 import { ReleaseNotes } from "./ReleaseNotes";
 
-/** "Version x available" in the title bar, once a check found one (spec première version §6.4): accent text, no pill. */
+/** "Version x available" in the title bar, once a check found one: accent text, no pill. */
 export function UpdateChip() {
   const t = useMessages(shellMessages).update;
   const available = useUpdates((s) => s.available);

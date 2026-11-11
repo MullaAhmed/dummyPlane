@@ -1,7 +1,7 @@
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { call } from "./invoke";
 
-/** A question of dummyPlane's MCP server, for the interface to answer (spec orchestrateur §4.1). */
+/** A question of dummyPlane's MCP server, for the interface to answer. */
 export interface McpCall {
   callId: number;
   nodeId: string;
@@ -15,7 +15,7 @@ export function onMcpCall(handler: (call: McpCall) => void): Promise<UnlistenFn>
 
 export const mcpReply = (callId: number, result: unknown) => call<void>("mcp_reply", { callId, result });
 
-/** How many subagents a Claude session runs (spec orchestrateur §5.2). */
+/** How many subagents a Claude session runs. */
 export interface SubagentsEvent {
   nodeId: string;
   running: number;

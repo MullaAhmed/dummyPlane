@@ -48,7 +48,7 @@ beforeEach(() => {
 });
 afterEach(() => cleanups.splice(0).forEach((cleanup) => cleanup()));
 
-describe("Excalidraw's own actions, driven from outside (spec menu radial §6.3)", () => {
+describe("Excalidraw's own actions, driven from outside", () => {
   it("sends Excalidraw's own shortcut to its container, the canvas taking the keyboard", () => {
     document.getElementById("field")!.focus();
     pressCanvasKey(CANVAS_KEYS.front);
@@ -74,7 +74,7 @@ describe("Excalidraw's own actions, driven from outside (spec menu radial §6.3)
     expect((seen[1] as ClipboardEvent).clipboardData!.getData("text/plain")).toBe("hello");
   });
 
-  it("does not paste over a node and says so: Excalidraw would paste nothing (plan G1)", async () => {
+  it("does not paste over a node and says so: Excalidraw would paste nothing", async () => {
     document.body.insertAdjacentHTML("beforeend", '<div data-terminal="batman"><span id="body"></span></div>');
     vi.spyOn(document, "elementFromPoint").mockReturnValue(document.getElementById("body"));
     clipboard(async () => [textItem("hello")]);

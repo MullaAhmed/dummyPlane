@@ -54,7 +54,7 @@ beforeEach(async () => {
   scene = withWire(scene, "boss", "cyborg", undefined, true);
 });
 
-describe("wires form when the agents of a mission talk (spec babysitter Fleet)", () => {
+describe("wires form when the agents of a mission talk", () => {
   it("draws a dashed talk wire between two teammates at their first message, and lights it on every message", () => {
     expect(linkTool("robin", "message_agent", { agent: "Cyborg", text: "Your API is ready" })?.isError).toBeUndefined();
     expect(notify).toHaveBeenCalledWith("cyborg", expect.stringContaining("Message from Robin"));

@@ -1,4 +1,4 @@
-//! Claude's saved conversations, checked before resuming one (spec première version §3.1).
+//! Claude's saved conversations, checked before resuming one.
 
 use std::path::{Path, PathBuf};
 

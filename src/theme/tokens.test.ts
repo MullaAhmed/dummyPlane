@@ -54,7 +54,7 @@ function schemeOf(palette: PaletteId): string {
   return /color-scheme:\s*(\w+);/.exec(tokens.slice(at))![1];
 }
 
-describe("design tokens (spec identité §4.2)", () => {
+describe("design tokens", () => {
   it("defines every token in each of the three palettes", () => {
     for (const palette of Object.keys(PALETTE_SELECTORS) as PaletteId[]) {
       const block = cssBlock(tokens, PALETTE_SELECTORS[palette]);

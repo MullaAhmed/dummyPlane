@@ -9,7 +9,7 @@ import type { LaunchOptions } from "@/agents/launchAgent";
  */
 export type ClosingAgents = { agents: string[]; remove: string[]; children?: string[] };
 
-/** An agent, or a fleet, chosen in the menu and waiting for a click on the canvas (spec habillage §10.1). */
+/** An agent, or a fleet, chosen in the menu and waiting for a click on the canvas. */
 export type Placement = { agent: AgentId; options: LaunchOptions } | { fleet: true };
 
 interface UiState {

@@ -51,7 +51,7 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 afterAll(() => clearMocks());
 
-describe("the registry (spec fenêtre §6.1, §8)", () => {
+describe("the registry", () => {
   it("names each command once and gives each shortcut to one command", () => {
     const ids = COMMANDS.map((c) => c.id);
     expect(new Set(ids).size).toBe(ids.length);
@@ -125,7 +125,7 @@ describe("commandContext", () => {
   });
 });
 
-describe("what each context lists (spec fenêtre §11)", () => {
+describe("what each context lists", () => {
   const sectionsOf = (ctx: CommandContext) =>
     [...new Set(COMMANDS.filter((c) => c.available(ctx)).map((c) => (typeof c.section === "function" ? c.section(ctx) : c.section)))];
   const idsOf = (ctx: CommandContext) => COMMANDS.filter((c) => c.available(ctx)).map((c) => c.id);
@@ -181,7 +181,7 @@ describe("what each context lists (spec fenêtre §11)", () => {
   });
 });
 
-it("a failed command says what its button says (plan F2)", async () => {
+it("a failed command says what its button says", async () => {
   const error = vi.spyOn(toast, "error").mockImplementation(() => "");
   for (const id of ["terminal.duplicate", "workspace.new", "workspace.delete", "group.linkFleet"]) {
     runCommand({ ...command(id), run: () => Promise.reject(new Error("boom")) }, busy);

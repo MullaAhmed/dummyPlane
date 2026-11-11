@@ -8,7 +8,7 @@ import { isCanvas, workspacesStore, type Workspace } from "@/store/workspaces";
 import { shellMessages } from "./messages";
 
 /**
- * Deletes a workspace after confirmation, stopping its terminals (spec V1 §8.5): the tab's × and the palette.
+ * Deletes a workspace after confirmation, stopping its terminals: the tab's × and the palette.
  * The code and notes tabs just close: their files are on disk, and what was being edited stays in memory
  * until the window closes, which asks about it (studio/QuitPrompt.tsx).
  */

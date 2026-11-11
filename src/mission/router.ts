@@ -1,4 +1,4 @@
-/** How hard a sub-task is (spec update §3): with the router on, it chooses the agent's model. */
+/** How hard a sub-task is: with the router on, it chooses the agent's model. */
 export type Level = "faible" | "moyen" | "eleve" | "extreme";
 
 export const LEVELS: Record<Level, { label: string; model: string; modelLabel: string }> = {

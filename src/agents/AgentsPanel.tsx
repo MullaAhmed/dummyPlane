@@ -39,7 +39,7 @@ const SECTION_ROW =
 // `-rotate-90` sets the `rotate` property: a list naming `transform` would never ease it.
 const CHEVRON = "size-3.5 text-dp-text-2 transition-[rotate] duration-(--dp-dur-fast) ease-(--dp-ease-out) motion-reduce:transition-none";
 
-/** The agents of the workspace on screen, by group (spec identity §5.6). */
+/** The agents of the workspace on screen, by group. */
 export function AgentsPanel() {
   const t = useMessages(agentsMessages).panel;
   const filter = useAgentsPanel((s) => s.filter);

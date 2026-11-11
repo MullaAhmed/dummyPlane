@@ -13,7 +13,7 @@ import { setGroupSpeciality } from "./groups";
 import { agentsMessages } from "./messages";
 import { ROLE_ORDER } from "./roles";
 
-/** "Speciality" of the group menu: free text, or a role as a suggestion (specialised groups spec §2). */
+/** "Speciality" of the group menu: free text, or a role as a suggestion. */
 export function SpecialityMenu({ groupId, speciality, onDone }: { groupId: string; speciality?: string; onDone?: () => void }) {
   const t = useMessages(agentsMessages);
   const field = useRef<HTMLInputElement | null>(null);

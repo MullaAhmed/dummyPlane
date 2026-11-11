@@ -3,7 +3,7 @@ const OPEN_MENU = '[role="menu"][data-state="open"], [data-radix-popper-content-
 
 /**
  * Closes the open Radix menus with their own Escape: they are modal and take
- * the keyboard back from whatever the user does next (plan E1, plan G1).
+ * the keyboard back from whatever the user does next.
  */
 export function closeOpenMenus(doc: Document = document) {
   if (doc.querySelector(OPEN_MENU) === null) return;

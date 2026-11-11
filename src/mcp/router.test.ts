@@ -52,7 +52,7 @@ beforeAll(async () => {
   await nodesStore.getState().create("chef", { workspaceId: "w1", kind: "fleet", payload: { name: "chef" } });
 });
 
-describe("the notes tool (spec notes §3)", () => {
+describe("the notes tool", () => {
   const notes = (node: string) => call(node, "notes", {});
   afterEach(() => void mockIPC(() => undefined));
 
@@ -68,7 +68,7 @@ describe("the notes tool (spec notes §3)", () => {
   });
 });
 
-describe("the agent's tools (spec orchestrateur §4.4)", () => {
+describe("the agent's tools", () => {
   it("lists them for any Claude session", async () => {
     const list = (await answer({ callId: 1, nodeId: "batman", method: "tools/list", params: {} })) as { tools: { name: string; inputSchema: object }[] };
     expect(list.tools.map((t) => t.name)).toEqual(["declare_steps", "step", "report", "spawn_agent", "linked_agents", "message_agent", "read_agent", "linked_boards", "add_board_card", "move_board_card", "show_output", "output_guide", "read_node", "notes"]);
@@ -108,7 +108,7 @@ describe("the agent's tools (spec orchestrateur §4.4)", () => {
   });
 });
 
-describe("the fleet's tools (spec orchestrateur §7.2)", () => {
+describe("the fleet's tools", () => {
   const plan = {
     name: "Auth",
     task: "Ajoute l'authentification",
@@ -120,7 +120,7 @@ describe("the fleet's tools (spec orchestrateur §7.2)", () => {
 
   it("lists them for the fleet only, and each side refuses the other's", async () => {
     const list = (await answer({ callId: 1, nodeId: "chef", method: "tools/list", params: {} })) as { tools: { name: string }[] };
-    // The babysitter's: it plans, then adds and orders the board's cards, looks, and may stop the mission (spec babysitter Fleet).
+    // The babysitter's: it plans, then adds and orders the board's cards, looks, and may stop the mission.
     expect(list.tools.map((t) => t.name)).toEqual(["mission", "propose_plan", "add_tasks", "queue", "prioritize", "tickets", "board", "team", "stop_mission", "clean_up_mission", "remote_control", "spawn_agent", "linked_boards", "add_board_card", "move_board_card", "output_guide", "read_node", "notes"]);
     expect(textOf(await call("batman", "propose_plan", plan))).toBe("This tool is for the fleet.");
     // The cleanup is the Fleet's too: no agent calls it.
@@ -191,7 +191,7 @@ describe("the fleet's tools (spec orchestrateur §7.2)", () => {
     });
   });
 
-  describe("the groups and their specialities (spec groupes spécialisés §3)", () => {
+  describe("the groups and their specialities", () => {
     const front = { id: "g1", name: "Interface", x: 0, y: 0, width: 10, height: 10, memberIds: ["batman"], group: { role: "frontend" as const, pantheon: "egyptian", speciality: "Frontend" } };
     const back = { ...front, id: "g2", name: "Serveur", memberIds: [], group: { role: "backend" as const, pantheon: "norse" } };
 
@@ -222,7 +222,7 @@ describe("the fleet's tools (spec orchestrateur §7.2)", () => {
     });
   });
 
-  describe("a workspace not on screen whose scene is known (spec mission de nuit §6.1)", () => {
+  describe("a workspace not on screen whose scene is known", () => {
     it("reads its linked agents and groups as on screen", async () => {
       await nodesStore.getState().create("ailleurs", { workspaceId: "w8", kind: "fleet", payload: { name: "Ailleurs" } });
       rememberScene("w8", [{ id: "g", type: "frame", name: "Interface", isDeleted: false, frameId: null, x: 0, y: 0, width: 1, height: 1, customData: { dummyplane: { kind: "group", role: "frontend", pantheon: "norse", speciality: "Frontend" } } }, { id: "ailleurs", type: "embeddable", isDeleted: false, frameId: null, x: 0, y: 0, width: 1, height: 1, customData: { kind: STORED_FLEET_KIND } }, { id: "a", type: "arrow", isDeleted: false, frameId: null, startBinding: { elementId: "ailleurs" }, endBinding: { elementId: "g" } }] as never, {} as never, {}, []);
@@ -235,7 +235,7 @@ describe("the fleet's tools (spec orchestrateur §7.2)", () => {
     });
   });
 
-  describe("the queue (spec mission de nuit §4)", () => {
+  describe("the queue", () => {
     const task = { title: "Docs", brief: "Écris la doc", budget_min: 10 };
 
     it("adds tasks beyond the team, says how many wait and reads them back", async () => {
@@ -274,7 +274,7 @@ describe("the fleet's tools (spec orchestrateur §7.2)", () => {
     });
   });
 
-  it("takes each sub-task's level and says whether the router is on (spec maj §3)", async () => {
+  it("takes each sub-task's level and says whether the router is on", async () => {
     setMission("chef", { router: true });
     expect(textOf(await call("chef", "propose_plan", plan))).toContain("level");
     const leveled = { ...plan, subtasks: plan.subtasks.map((s, i) => ({ ...s, level: i === 0 ? "low" : "extrême" })) };
@@ -290,7 +290,7 @@ describe("the fleet's tools (spec orchestrateur §7.2)", () => {
     expect(JSON.parse(textOf(await call("chef", "mission", {})))).toMatchObject({ router: false, plan: [{ level: "low", model: null }, {}] });
   });
 
-  it("turns Remote Control on or off for its agents or itself, and gives the links (spec maj §2)", async () => {
+  it("turns Remote Control on or off for its agents or itself, and gives the links", async () => {
     vi.mocked(setRemoteControl).mockImplementation(async (id, on) => (on ? { on: true, url: `https://claude.ai/code/session_${id}` } : { on: false }));
     terminalStatusStore.getState().set("batman", { state: "running" });
     terminalStatusStore.getState().set("chef", { state: "running" });
@@ -345,7 +345,7 @@ describe("the fleet's tools (spec orchestrateur §7.2)", () => {
       expect(JSON.parse(textOf(await call("chef", "mission", {})))).toMatchObject({ runs: "fleet", manager: null, board: null });
     });
 
-    it("says each member's group and speciality, to choose who takes a sub-task over (spec groupes spécialisés §3)", async () => {
+    it("says each member's group and speciality, to choose who takes a sub-task over", async () => {
       const front = { id: "g1", name: "Interface", x: 0, y: 0, width: 10, height: 10, memberIds: ["batman"], group: { role: "frontend" as const, pantheon: "egyptian", speciality: "Frontend" } };
       canvasStore.setState({ frames: [front] });
       expect(JSON.parse(textOf(await call("chef", "team", {})))[0]).toMatchObject({ name: "Batman", group: "Interface", speciality: "Frontend" });
@@ -402,12 +402,12 @@ describe("the fleet's tools (spec orchestrateur §7.2)", () => {
       expect(notify).toHaveBeenCalledWith("chef", "Batman reported (done): Login fait");
     });
 
-    it("keeps what an agent leaves to check by hand (spec mission de nuit §6.2)", async () => {
+    it("keeps what an agent leaves to check by hand", async () => {
       await call("batman", "report", { summary: "Fait", status: "done", check: "Le bouton\nsur Windows 10" });
       expect(missionOf(nodesStore.getState().nodes.chef)?.members[0].report?.check).toBe("Le bouton sur Windows 10");
     });
 
-    it("records a report no fleet hears, and says so (spec première version §5.4)", async () => {
+    it("records a report no fleet hears, and says so", async () => {
       const unheard = "Report saved, but the fleet is closed: nobody will read it for now.";
       vi.mocked(notify).mockClear();
       terminalStatusStore.getState().set("chef", { state: "stopped" });
@@ -428,7 +428,7 @@ describe("the fleet's tools (spec orchestrateur §7.2)", () => {
       expect(missionOf(nodesStore.getState().nodes.chef)?.members[0]).toMatchObject({ merged: true, report: { summary: "Vérifié" } });
     });
 
-    it("extends an agent's target only within the real time left of the night (spec mission de nuit §3)", async () => {
+    it("extends an agent's target only within the real time left of the night", async () => {
       setMission("chef", { overnight: true, budgetMin: 30, startedAt: Date.now() });
       // Batman reported earlier in this file: still at work here, its whole budget counts.
       updateMember("chef", "batman", { report: undefined });
@@ -444,14 +444,14 @@ describe("the fleet's tools (spec orchestrateur §7.2)", () => {
       setMission("chef", { overnight: undefined, budgetMin: undefined, startedAt: undefined });
     });
 
-    it("interrupts an agent's turn like « Pause » (spec §7.2)", async () => {
+    it("interrupts an agent's turn like « Pause »", async () => {
       expect(textOf(await call("chef", "interrupt", { agent: "Batman" }))).toBe('Batman\'s turn interrupted. write "continue" resumes it.');
       expect(pauseAgents).toHaveBeenCalledWith(["batman"]);
       vi.mocked(pauseAgents).mockResolvedValueOnce(0);
       expect(textOf(await call("chef", "interrupt", { agent: "Batman" }))).toBe("Batman is not at work: nothing to interrupt.");
     });
 
-    it("hands a sub-task over through dummyPlane (spec §7.2)", async () => {
+    it("hands a sub-task over through dummyPlane", async () => {
       expect(textOf(await call("chef", "reassign", { subtask: "login", agent: "new" }))).toBe('"Login" goes to Aquaman.');
       expect(reassignTask).toHaveBeenCalledWith("chef", "batman", "nouveau");
       expect(await call("chef", "reassign", { subtask: "Paiement", agent: "new" })).toMatchObject({ isError: true });
@@ -467,7 +467,7 @@ describe("the fleet's tools (spec orchestrateur §7.2)", () => {
   });
 });
 
-describe("a mission its Manager runs (spec babysitter Fleet)", () => {
+describe("a mission its Manager runs", () => {
   const member = (nodeId: string, name: string, task: string) => ({ nodeId, name, task, budgetMin: 20, linked: false, branch: `dummyplane/auth-${nodeId}`, worktree: `C:/w/${nodeId}`, sentAt: Date.now() });
   const lines = (nodeId: string) => vi.mocked(notify).mock.calls.filter(([id]) => id === nodeId).map(([, line]) => line);
   const terminal = (name: string, extra: Record<string, unknown> = {}) => ({ title: name, name, agent: "claude" as const, cwd: "C:/code", shell: "default" as const, command: "", ...extra });
@@ -615,7 +615,7 @@ it("answers a failed step with its accent in French (backlog R5c)", async () => 
   expect(textOf(await call("batman", "step", { title: "Plan", state: "failed" }))).toBe("Plan: failed.");
 });
 
-describe("the English protocol (spec première version §7.1)", () => {
+describe("the English protocol", () => {
   it("still takes French values, and tells a former name what it became", async () => {
     expect(textOf(await call("batman", "step", { title: "Plan", state: "en_cours" }))).toBe("Plan: in_progress.");
     const old = await call("batman", "rendre_compte", { resume: "x", statut: "termine" });

@@ -16,7 +16,7 @@ import { terminalStatusStore } from "@/store/terminalStatus";
 import { useWorkspaces } from "@/store/workspaces";
 import { shellMessages } from "./messages";
 
-/** The bar under the chips (spec habillage §5.6, §12): a command for the workspace's agents. */
+/** The bar under the chips: a command for the workspace's agents. */
 export function CommandBar() {
   const t = useMessages(shellMessages).commandBar;
   const nodeIds = useCanvas((s) => s.nodeIds);
@@ -87,7 +87,7 @@ export function CommandBar() {
   );
 }
 
-/** The hint "Try @all run the tests", above the chips until dismissed (spec §12). */
+/** The hint "Try @all run the tests", above the chips until dismissed. */
 export function CommandHint() {
   const t = useMessages(shellMessages).commandBar;
   const [shown, setShown] = useState(false);

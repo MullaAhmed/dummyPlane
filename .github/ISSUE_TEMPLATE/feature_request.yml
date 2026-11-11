@@ -5,8 +5,8 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for the idea! You can write in English or in French.
-        Please check BACKLOG.md first: your idea may already be planned.
+        Thanks for the idea!
+        Please search the existing issues first: your idea may already be requested.
   - type: textarea
     id: problem
     attributes:

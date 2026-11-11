@@ -17,7 +17,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-it("names the open project in the title bar, lists recent projects with their path, closes it (spec identité §5.1)", async () => {
+it("names the open project in the title bar, lists recent projects with their path, closes it", async () => {
   projectsStore.setState({
     projects: [
       { id: "p1", name: "mk-webapp", path: "C:/code/mk-webapp", position: 0, lastOpenedAt: 1, workspaceCount: 1, missing: false, liveAgents: 0 },

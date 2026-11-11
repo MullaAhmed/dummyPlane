@@ -3,7 +3,7 @@ import { agentMessages } from "@/mcp/messages";
 import { missionOf } from "@/mission/store";
 import { nodesStore } from "@/store/nodes";
 
-/** One line of a file's diff, numbered on its side (spec maj §5). */
+/** One line of a file's diff, numbered on its side. */
 export interface DiffLine {
   kind: "add" | "del" | "ctx" | "hunk" | "meta";
   text: string;

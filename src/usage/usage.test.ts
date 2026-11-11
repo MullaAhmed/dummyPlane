@@ -12,7 +12,7 @@ const STATUS = {
   effort: { level: "medium" },
 };
 
-describe("readStatus (spec maj §6)", () => {
+describe("readStatus", () => {
   it("reads a session's usage and the plan's limits", () => {
     const { session, limits } = readStatus(STATUS, "batman", 1000);
     expect(session).toEqual({

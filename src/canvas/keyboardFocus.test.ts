@@ -65,7 +65,7 @@ it("makes the terminal whose xterm takes the keyboard the one Send goes to, and 
   activeTerminalStore.setState({ id: null });
 });
 
-it("remembers the last terminal of each workspace to have had the keyboard (spec fenêtre §6.3)", () => {
+it("remembers the last terminal of each workspace to have had the keyboard", () => {
   const batman = terminalNode("batman");
   const cyborg = terminalNode("cyborg");
   const aquaman = terminalNode("aquaman");

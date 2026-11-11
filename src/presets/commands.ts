@@ -32,7 +32,7 @@ async function deploy(preset: TeamPreset) {
 }
 
 /**
- * The palette's lines for the presets (spec presets §3): saving the team on
+ * The palette's lines for the presets: saving the team on
  * screen, then deploying and deleting each preset. Added to the registry's
  * commands when the palette lists them.
  */

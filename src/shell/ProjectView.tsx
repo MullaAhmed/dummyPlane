@@ -68,7 +68,7 @@ function panelCrash(error: Error, retry: () => void) {
 }
 
 /**
- * The open project (spec identité §5): the canvas fills the window, under the
+ * The open project: the canvas fills the window, under the
  * glass bars; everything else floats on it.
  */
 export function ProjectView() {

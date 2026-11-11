@@ -8,7 +8,7 @@ use crate::error::{AppError, AppResult};
 use crate::notes::{self, AgentNote, NoteList};
 use crate::studio::{OpenedFile, WriteOutcome};
 
-/// The project's folder, read here: the interface never names a root (spec notes §3).
+/// The project's folder, read here: the interface never names a root.
 fn project_root(db: &Db, project_id: &str) -> AppResult<PathBuf> {
     let project = db.with(|conn| projects::get(conn, project_id))?;
     Ok(PathBuf::from(project.path))

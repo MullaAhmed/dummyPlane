@@ -1,4 +1,4 @@
-// The pure parts of `scripts/release.mjs` (spec première version §6.1): version
+// The pure parts of `scripts/release.mjs`: version
 // bumps and the changelog, tested in `release.test.mjs`.
 
 const SEMVER = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-[0-9A-Za-z.-]+)?$/;

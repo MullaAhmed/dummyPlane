@@ -1,6 +1,6 @@
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
-/** What a Claude session's status line was given, as Claude Code sends it (spec maj §6). */
+/** What a Claude session's status line was given, as Claude Code sends it. */
 export interface StatusEvent {
   nodeId: string;
   status: unknown;

@@ -2,7 +2,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { Project } from "@/ipc/db";
 import { projectsStore, type ProjectsView } from "@/store/projects";
 
-/** The window's title (spec fenêtre §4.5): the taskbar and Alt+Tab name the open project. */
+/** The window's title: the taskbar and Alt+Tab name the open project. */
 export function titleFor(view: ProjectsView, projects: readonly Project[], activeId: string | null): string {
   const project = view === "project" ? projects.find((p) => p.id === activeId) : undefined;
   return project ? `dummyPlane — ${project.name}` : "dummyPlane";

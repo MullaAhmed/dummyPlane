@@ -102,7 +102,7 @@ function linkToggleOf(id: string): HTMLElement | null {
 }
 
 /**
- * "Link" (spec theme §13): each click wires a group or a terminal; Escape or a click in the void ends it.
+ * "Link": each click wires a group or a terminal; Escape or a click in the void ends it.
  * Started from an agent's foot, it runs the other way: a click on a fleet wires the agent to it,
  * the same wire as from the fleet's end; a click on another agent links the two (agents/agentLinks.ts).
  * Either way the mode ends.

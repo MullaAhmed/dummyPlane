@@ -9,7 +9,7 @@ import { agentsMessages } from "./messages";
 import { ROLES } from "./roles";
 
 /**
- * What the agents panel tells about an agent (spec theme §5.5).
+ * What the agents panel tells about an agent.
  * `active`: the process starts, or runs and its activity is not known (the pill says Active).
  */
 export type PanelState = "working" | "waiting" | "active" | "idle" | "stopped";

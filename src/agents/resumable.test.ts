@@ -19,7 +19,7 @@ describe("resumableTerminals", () => {
     expect(resumableTerminals(nodes, statuses, "w1", new Set(), onScene)).toEqual(["a", "f"]);
   });
 
-  it("never counts a one-shot command: resuming would run the installer again (spec installation §7)", () => {
+  it("never counts a one-shot command: resuming would run the installer again", () => {
     const nodes = { install: { ...node("w1"), payload: { oneShot: true } } as unknown as NodeRecord, agent: node("w1") };
     expect(resumableTerminals(nodes, {}, "w1", new Set(), new Set(["install", "agent"]))).toEqual(["agent"]);
   });

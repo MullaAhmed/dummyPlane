@@ -15,15 +15,14 @@ import type { Point } from "./terminals";
 const reportLaunchError = (error: unknown) => toastError(messages(agentsMessages).launchFailed, { error, next: messages(agentsMessages).launchNext });
 
 /**
- * An agent at `at`, else at the center of the view, in the group under it if any (spec theme §11.3,
- * spec menu radial §4.1). It starts in the active workspace's folder, unless `options` says otherwise.
+ * An agent at `at`, else at the center of the view, in the group under it if any. It starts in the active workspace's folder, unless `options` says otherwise.
  */
 export function launchAt(agent: AgentId, at?: Point, options: LaunchOptions = defaultLaunchOptions()) {
   const center = at ?? viewportCenter(canvasStore.getState().view);
   void launchAgent(agent, options, center).catch(reportLaunchError);
 }
 
-/** "New console": the default agent (spec theme §5.6). */
+/** "New console": the default agent. */
 export async function newConsole(at?: Point) {
   launchAt(defaultAgent(await loadedAgents()), at);
 }
@@ -40,7 +39,7 @@ export async function newTerminalInFolder(at?: Point) {
   launchAt(defaultAgent(await loadedAgents()), at, { ...defaultLaunchOptions(), cwd: folder });
 }
 
-/** "Fleet": at `at`, else at the center of the view, like a launch (plan F2, decision 3). */
+/** "Fleet": at `at`, else at the center of the view, like a launch. */
 export function placeFleet(at?: Point) {
   const workspaceId = workspacesStore.getState().activeId;
   if (!workspaceId) return;
@@ -48,7 +47,7 @@ export function placeFleet(at?: Point) {
 }
 
 /**
- * "Sign in" of a Claude profile (spec comptes §5): a visible Claude terminal started with that
+ * "Sign in" of a Claude profile: a visible Claude terminal started with that
  * profile, where the user logs in. False when there is no canvas to place it on: no project, or the code workspace.
  */
 export async function launchLogin(accountId: string): Promise<boolean> {

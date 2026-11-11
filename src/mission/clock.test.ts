@@ -33,7 +33,7 @@ beforeAll(async () => {
   });
 });
 
-it("tells the fleet once when a budget runs out, warns the user at 200 %, and never ends a regular mission on an overall time (spec §8.2)", () => {
+it("tells the fleet once when a budget runs out, warns the user at 200 %, and never ends a regular mission on an overall time", () => {
   checkBudgets(5 * min);
   expect(notify).not.toHaveBeenCalled();
   checkBudgets(11 * min);
@@ -54,7 +54,7 @@ it("tells the fleet once when a budget runs out, warns the user at 200 %, and ne
   expect(missionOf(nodesStore.getState().nodes.chef)?.globalOverdue).toBeUndefined();
 });
 
-describe("an overnight mission (spec mission de nuit §3)", () => {
+describe("an overnight mission", () => {
   const fresh = { nodeId: "batman", name: "Batman", task: "Login", budgetMin: 10, linked: false, branch: "b", worktree: "w", sentAt: 0 };
   const night = () => setMission("chef", { overnight: true, budgetMin: 100, startedAt: 0, members: [fresh], globalOverdue: undefined, windDownTold: undefined });
 
@@ -109,7 +109,7 @@ describe("an overnight mission (spec mission de nuit §3)", () => {
   });
 });
 
-it("says nothing about the mission of a closed fleet (spec première version §5.4)", () => {
+it("says nothing about the mission of a closed fleet", () => {
   const fresh = { nodeId: "batman", name: "Batman", task: "Login", budgetMin: 10, linked: false, branch: "b", worktree: "w", sentAt: 0 };
   setMission("chef", { members: [fresh], globalOverdue: undefined });
   vi.mocked(notify).mockClear();
@@ -123,7 +123,7 @@ it("says nothing about the mission of a closed fleet (spec première version §5
   expect(notify).toHaveBeenCalled();
 });
 
-it("tells the fleet and the user in English when the interface is (spec première version §7.1)", () => {
+it("tells the fleet and the user in English when the interface is", () => {
   const fresh = { nodeId: "batman", name: "Batman", task: "Login", budgetMin: 10, linked: false, branch: "b", worktree: "w", sentAt: 0 };
   setMission("chef", { members: [fresh], globalOverdue: undefined });
   vi.mocked(notify).mockClear();
@@ -187,7 +187,7 @@ it("tells a budget once even while the fleet cannot hear, and records the worst 
   expect(missionOf(nodesStore.getState().nodes.chef2)?.members[0].overdue).toBe(2);
 });
 
-it("tells a mission's Manager, not its Fleet, of a budget used up and of the night's end (spec babysitter Fleet)", async () => {
+it("tells a mission's Manager, not its Fleet, of a budget used up and of the night's end", async () => {
   vi.mocked(notify).mockClear();
   await nodesStore.getState().create("sitter", {
     workspaceId: "w1",

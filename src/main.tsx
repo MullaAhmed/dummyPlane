@@ -17,7 +17,7 @@ import "./index.css";
 installLogging();
 document.documentElement.lang = "en";
 startTheme();
-// For the app's whole life (spec fenêtre §6.2, §8).
+// For the app's whole life.
 installShortcuts(window);
 trackTerminalFocus(document);
 installRadial(window);

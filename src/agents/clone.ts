@@ -5,7 +5,7 @@ export function cloneTerminalPayload(source: TerminalPayload, name: string): Ter
   const copy: TerminalPayload = { ...source, name };
   delete copy.claudeSessionId;
   delete copy.codexSessionId;
-  // Its steps belong to the source's conversation (spec orchestrateur §5).
+  // Its steps belong to the source's conversation.
   delete copy.steps;
   // A mission's model and Remote Control were asked for the source only (final review maj §3).
   delete copy.model;

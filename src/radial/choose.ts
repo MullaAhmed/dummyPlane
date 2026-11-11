@@ -15,8 +15,7 @@ function run(definition: RingSlot | undefined) {
 
 /**
  * Closes the ring, then runs the slot's command on the next frame, once the
- * ring has left the screen: Excalidraw pastes only over its canvas (spec menu
- * radial §6.3). Evaluated now: a target gone meanwhile does nothing (§7).
+ * ring has left the screen: Excalidraw pastes only over its canvas. Evaluated now: a target gone meanwhile does nothing (§7).
  * More opens its arc at once instead, and the ring stays.
  */
 export function chooseSlot(slot: number) {

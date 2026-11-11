@@ -26,7 +26,7 @@ import { requestUi } from "../uiRequests";
 import { command } from "./define";
 import { catalog } from "./messages";
 
-/** The terminal of the moment (spec window §7.3): the one that had the keyboard when the palette opened. */
+/** The terminal of the moment: the one that had the keyboard when the palette opened. */
 function payloadOf(ctx: CommandContext): TerminalPayload | undefined {
   return ctx.project && ctx.terminalId ? terminalOf(nodesStore.getState().nodes[ctx.terminalId]) : undefined;
 }
@@ -91,7 +91,7 @@ export const CURRENT: readonly Command[] = [
   command("terminal.relaunch", {
     section: terminalSection,
     available: hasTerminal,
-    // Claude and Codex resume their conversation, other agents start anew (plan F2, decision 2).
+    // Claude and Codex resume their conversation, other agents start anew.
     run: (ctx) => {
       const payload = payloadOf(ctx);
       if (!payload) return;
@@ -188,7 +188,7 @@ export const CURRENT: readonly Command[] = [
   command("group.addAgent", {
     section: groupSection,
     available: hasGroup,
-    // The group's menu, in the agents panel (plan F2, decision 4).
+    // The group's menu, in the agents panel.
     run: forGroup((id) => {
       setAgentsFilter("all");
       setAgentsPanel(true);
@@ -215,7 +215,7 @@ export const CURRENT: readonly Command[] = [
     label: (ctx) => (groupOfCurrent(ctx)?.group.folded ? catalog().unfoldGroup : catalog().foldGroup),
     section: groupSection,
     available: hasGroup,
-    // Folds an unfolded group onto its label, unfolds a folded one (spec replier un groupe).
+    // Folds an unfolded group onto its label, unfolds a folded one.
     run: forGroup((id) => setGroupFolded(id, !canvasStore.getState().frames.find((f) => f.id === id)?.group?.folded)),
   }),
   command("group.ungroup", { section: groupSection, available: hasGroup, run: forGroup((id) => ungroup(id)) }),

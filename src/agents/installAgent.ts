@@ -19,7 +19,7 @@ const WATCH_FOR_MS = 30 * 60_000;
 /**
  * Asks `found` every few seconds until it says yes, the terminal stops or the
  * time is up. The command is typed into a shell that stays open, so no
- * `pty-exit` marks the end of an install (spec installation §4.3).
+ * `pty-exit` marks the end of an install.
  */
 export function watchTerminal(nodeId: string, found: () => Promise<boolean>, onFound: () => void) {
   const deadline = Date.now() + WATCH_FOR_MS;
@@ -33,7 +33,7 @@ export function watchTerminal(nodeId: string, found: () => Promise<boolean>, onF
   setTimeout(() => void tick(), WATCH_EVERY_MS);
 }
 
-/** A terminal running `command` in plain sight: never in the background (spec installation §2). Its id, or null with the reason shown. */
+/** A terminal running `command` in plain sight: never in the background. Its id, or null with the reason shown. */
 async function openCommandTerminal(title: string, command: string, shell: ShellKind, at?: Point): Promise<string | null> {
   const t = messages(agentsMessages);
   try {
@@ -54,7 +54,7 @@ async function agentDetected(agent: AgentId): Promise<boolean> {
   return agentsStore.getState().agents.some((a) => a.id === agent && a.available);
 }
 
-/** Runs the agent's official command in a terminal; the menus follow once it is found (spec installation §4). */
+/** Runs the agent's official command in a terminal; the menus follow once it is found. */
 export async function installAgent(agent: AgentId, at?: Point): Promise<string | null> {
   const install = AGENT_INSTALLS[agent];
   if (!install) return null;
@@ -64,7 +64,7 @@ export async function installAgent(agent: AgentId, at?: Point): Promise<string |
   return nodeId;
 }
 
-/** `ollama pull` in a terminal; PowerShell runs ollama.exe whatever the execution policy (spec installation §5). */
+/** `ollama pull` in a terminal; PowerShell runs ollama.exe whatever the execution policy. */
 export async function pullOllamaModel(model: string, at?: Point): Promise<string | null> {
   if (!validOllamaModel(model)) return null;
   const nodeId = await openCommandTerminal(`Ollama · ${model}`, ollamaPullCommand(model), "powershell", at);

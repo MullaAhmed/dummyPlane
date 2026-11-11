@@ -31,7 +31,7 @@ export const MIN_WORK_MS = 20_000;
  * though the agent is still at it: a turn that resumes within this goes on.
  */
 export const SETTLE_MS = 5_000;
-/** The longest summary line, in characters: the question preview's (spec notification §7). */
+/** The longest summary line, in characters: the question preview's. */
 export const MAX_SUMMARY = 140;
 
 type State = FinishSignal["state"] | "finished";

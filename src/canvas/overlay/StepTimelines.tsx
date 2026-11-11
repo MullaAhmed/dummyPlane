@@ -12,7 +12,7 @@ import type { Rect } from "../groups";
 import { BUDGET_COLOR, budgetTitle, dotsOf, TIMELINE_GAP } from "./timeline";
 
 /**
- * Each Claude terminal's steps, under it (spec orchestrateur §5). Like the
+ * Each Claude terminal's steps, under it. Like the
  * group backdrops, the layer sits under the nodes and takes no pointer: a
  * frieze never covers nor blocks the header of the row below it. It is drawn
  * at the scene's size and scaled like the nodes.
@@ -21,7 +21,7 @@ export function StepTimelines() {
   const rects = useCanvas((s) => s.nodeRects);
   const view = useCanvasPlace();
   const nodes = useNodes((s) => s.nodes);
-  // The budget bars move with time, not only with the canvas (spec orchestrateur §8.3). Not memoised on its
+  // The budget bars move with time, not only with the canvas. Not memoised on its
   // arguments: a fleet closed (mission store) takes its bars away without changing them.
   const now = useNow(15_000);
   const budgets = memberBudgets(nodes, now);

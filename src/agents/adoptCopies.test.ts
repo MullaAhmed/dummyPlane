@@ -45,7 +45,7 @@ beforeEach(async () => {
   workspacesStore.setState({ workspaces: [{ id: "w1", projectId: "p1", name: "A", position: 0, pantheon: "greek" }] } as never);
 });
 
-it("gives a group copied whole a pantheon of its own and names its agents from it (plan B1)", async () => {
+it("gives a group copied whole a pantheon of its own and names its agents from it", async () => {
   await adoptCopies("w1", [{ id: "batman2", sourceId: "batman" }]);
   const pantheonOf = (id: string) => (scene.find((e) => e.id === id)!.customData!.dummyplane as { pantheon: string }).pantheon;
   expect(pantheonOf("g1")).toBe("egyptian");

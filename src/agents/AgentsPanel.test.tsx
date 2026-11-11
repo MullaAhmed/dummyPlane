@@ -50,7 +50,7 @@ afterEach(async () => {
 
 const byLabel = (label: string) => host.querySelector<HTMLButtonElement>(`[aria-label="${label}"]`);
 
-it("floats under the tabs, down to the command bar at most, with the chips' actions (spec identité §5.6)", () => {
+it("floats under the tabs, down to the command bar at most, with the chips' actions", () => {
   const panel = host.firstElementChild as HTMLElement;
   expect(panel.style.top).toBe(`${TOP_ROW_HEIGHT + 14}px`);
   expect(panel.style.maxHeight).toBe(`calc(100% - ${TOP_ROW_HEIGHT + 14 + BOTTOM_BAR_HEIGHT + 14}px)`);
@@ -134,7 +134,7 @@ it("wraps its filters rather than clipping one, and says when a filter hides eve
   expect(host.textContent).not.toContain("dans ce filtre");
 });
 
-it("offers a group's menu on its header, on hover; No group has none (spec identité §5.6)", async () => {
+it("offers a group's menu on its header, on hover; No group has none", async () => {
   expect(host.querySelector('[aria-label="Group menu"]')).toBeNull();
   await act(async () =>
     canvasStore.setState({
@@ -179,7 +179,7 @@ it("stops above the Resume offer instead of sitting under it", async () => {
   expect(panel.style.maxHeight).toBe(before);
 });
 
-it("gives each agent row Center and Close on hover and on keyboard focus (spec identité §5.6)", () => {
+it("gives each agent row Center and Close on hover and on keyboard focus", () => {
   const row = host.querySelector("[data-filter]")!.closest("aside")!.querySelector<HTMLElement>(".group.flex.items-center.gap-2")!;
   const labels = [...row.querySelectorAll("button[aria-label]")].map((b) => b.getAttribute("aria-label"));
   expect(labels.some((l) => /^Center /.test(l!))).toBe(true);

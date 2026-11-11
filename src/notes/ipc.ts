@@ -7,7 +7,7 @@ export interface Note {
   version: string;
 }
 
-/** `skipped`: the notes left out, binary, too big, or past the limits (spec notes §3). */
+/** `skipped`: the notes left out, binary, too big, or past the limits. */
 export interface NoteList {
   notes: Note[];
   skipped: number;

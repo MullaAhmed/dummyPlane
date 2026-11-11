@@ -1,4 +1,4 @@
-//! A command typed into a terminal as a paste (spec habillage §15.3): wrapped
+//! A command typed into a terminal as a paste: wrapped
 //! in bracketed paste when the program asked for it, so an agent takes several
 //! lines as one message, then validated with Enter.
 

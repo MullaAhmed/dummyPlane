@@ -5,7 +5,7 @@ import { terminalStatusStore } from "@/store/terminalStatus";
 import { useWorkspaces, workspacesStore } from "@/store/workspaces";
 import { AGENTS } from "./catalog";
 
-/** An agent stopped until the user answers it (spec notification §3). */
+/** An agent stopped until the user answers it. */
 export interface WaitingAgent {
   id: string;
   kind: "terminal" | "fleet";
@@ -13,7 +13,7 @@ export interface WaitingAgent {
   workspaceId: string;
   /** Since when it waits, in ms. */
   since: number;
-  /** What it says it waits for, if it says so: untrusted plain text (spec notification §7). */
+  /** What it says it waits for, if it says so: untrusted plain text. */
   message?: string;
 }
 

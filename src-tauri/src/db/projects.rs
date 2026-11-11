@@ -4,7 +4,7 @@ use serde::Serialize;
 use super::{nodes, now_ms, workspaces};
 use crate::error::{AppError, AppResult};
 
-/// A project is a repository folder holding workspaces (spec habillage §6).
+/// A project is a repository folder holding workspaces.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Project {

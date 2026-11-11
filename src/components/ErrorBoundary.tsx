@@ -19,7 +19,7 @@ interface Props {
 
 /**
  * Keeps a render error to the part of the interface it happened in, instead of
- * blanking the whole window (spec première version §3.4). The error goes to the
+ * blanking the whole window. The error goes to the
  * log through `console.error`.
  */
 export class ErrorBoundary extends Component<Props, { error: Error | null }> {

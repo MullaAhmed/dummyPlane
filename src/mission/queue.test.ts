@@ -106,7 +106,7 @@ beforeEach(() => {
   });
 });
 
-describe("an agent that reports « done » (spec mission de nuit §4.3)", () => {
+describe("an agent that reports « done »", () => {
   it("takes its card along: the task's Kanban card moves to In progress, and the agent is told it is data", async () => {
     await setup({ queue: [{ ...next, card: "c1" }] });
     await nodesStore.getState().create("k1", {
@@ -544,7 +544,7 @@ describe("what the review of the queue found", () => {
   });
 });
 
-describe("a task taken from the queue keeps every tool working (spec mission de nuit §4.4)", () => {
+describe("a task taken from the queue keeps every tool working", () => {
   it("can be reassigned like a sub-task of the plan", async () => {
     await setup({ members: [member("batman", "Batman", { report: done }), member("aquaman", "Aquaman", { task: "Docs", report: done, merged: true })], plan: [{ title: "Login", brief: "b", agent: "Batman", budgetMin: 20 }, { title: "Docs", brief: "b", agent: "Aquaman", budgetMin: 20 }], queue: [next] });
     await afterReport("chef", "batman");
@@ -791,7 +791,7 @@ describe("Max agents caps the agents at work, not the team", () => {
   });
 });
 
-describe("a card the Fleet adds while its Manager runs the board (spec babysitter Fleet)", () => {
+describe("a card the Fleet adds while its Manager runs the board", () => {
   it("lands in the to-do column, and the Manager's queue starts it under the Manager as soon as a seat is free, without the Fleet", async () => {
     await nodesStore.getState().create("b1", {
       workspaceId: "w1",

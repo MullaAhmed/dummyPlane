@@ -61,7 +61,7 @@ beforeEach(async () => {
 });
 afterEach(() => forgetScene("w1"));
 
-describe("the go-ahead's board, Manager and tree, together (spec babysitter Fleet)", () => {
+describe("the go-ahead's board, Manager and tree, together", () => {
   it("lays five agents out under the Manager, four in a row and the fifth below, the board and the Manager left where they stand", async () => {
     const setup = await setUpBoard("chef", "w1", missionOf(nodesStore.getState().nodes.chef)!, "claude", quietly("mission"));
     const board = rect(element(setup.boardId));

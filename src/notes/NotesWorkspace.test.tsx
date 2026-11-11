@@ -92,7 +92,7 @@ const typeInEditor = (text: string) =>
   });
 const pressSave = () => act(async () => void window.dispatchEvent(new KeyboardEvent("keydown", { key: "s", ctrlKey: true, bubbles: true, cancelable: true })));
 
-describe("the notes (spec notes §6)", () => {
+describe("the notes", () => {
   it("lists the project's notes", () => {
     expect(row("Auth")).not.toBeNull();
     expect(row("Deploy")).not.toBeNull();

@@ -4,8 +4,7 @@ import type { AgentState } from "@/mission/store";
 import type { StepState } from "@/nodes/steps";
 
 /**
- * dummyPlane's MCP tools speak English to every agent (spec first version
- * §7.1): names, arguments and values. Inside, the saved ids stay French
+ * dummyPlane's MCP tools speak English to every agent: names, arguments and values. Inside, the saved ids stay French
  * (`en_cours`, `faible`…); this module translates at the boundary, and still
  * takes the French values a resumed conversation may send.
  */

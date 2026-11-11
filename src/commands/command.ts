@@ -4,18 +4,18 @@ import type { Point } from "@/agents/terminals";
 import { commandsMessages } from "./messages";
 import type { Shortcut } from "./shortcuts";
 
-/** What a command knows of the moment it runs in (spec window §7.3). */
+/** What a command knows of the moment it runs in. */
 export interface CommandContext {
   /** A project is open, its workspace on screen. */
   project: boolean;
   workspaceId: string | null;
   /** Terminals of the workspace on screen. */
   terminalCount: number;
-  /** The terminal that has the keyboard, else the last of the workspace to have had it (spec window §6.3). */
+  /** The terminal that has the keyboard, else the last of the workspace to have had it. */
   terminalId: string | null;
-  /** Where the radial menu was opened, in scene coordinates: what it creates goes there (spec menu radial §6.1). */
+  /** Where the radial menu was opened, in scene coordinates: what it creates goes there. */
   at?: Point;
-  /** The group the radial menu points at; else the current terminal's (spec menu radial §6.1). */
+  /** The group the radial menu points at; else the current terminal's. */
   groupId?: string | null;
   /** The fleet the radial menu points at. */
   fleetId?: string | null;
@@ -63,7 +63,7 @@ export function commandFor(commands: readonly Command[], shortcut: Shortcut, ctx
   return commands.find((command) => command.shortcut === shortcut && command.available(ctx) && !command.disabled?.(ctx)) ?? null;
 }
 
-/** Runs a command; a failure says so, like the menus (spec window §9). */
+/** Runs a command; a failure says so, like the menus. */
 export function runCommand(command: Command, ctx: CommandContext) {
   const fail = (error: unknown) => {
     const text = messages(commandsMessages);

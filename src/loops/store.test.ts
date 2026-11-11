@@ -68,7 +68,7 @@ describe("the loops store", () => {
     expect(store.getState().loaded).toBe(false);
   });
 
-  it("loads the saved loops all off: nothing runs after a restart (spec boucles §1)", async () => {
+  it("loads the saved loops all off: nothing runs after a restart", async () => {
     const store = make();
     await store.getState().load();
     expect(store.getState().loops.map((l) => l.id)).toEqual(["1", "2"]);

@@ -1,6 +1,6 @@
 import { createStore, useStore } from "zustand";
 
-/** Subagents each Claude session runs, from its hooks (spec orchestrateur §5.2). */
+/** Subagents each Claude session runs, from its hooks. */
 export const subagentsStore = createStore<{ running: Record<string, number>; set: (nodeId: string, running: number) => void }>()((set) => ({
   running: {},
   set: (nodeId, running) => set((s) => ({ running: { ...s.running, [nodeId]: running } })),

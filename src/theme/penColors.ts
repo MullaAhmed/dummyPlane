@@ -1,5 +1,5 @@
 /**
- * Pen colors as stored (spec identité §4.2): what the light theme shows; the
+ * Pen colors as stored: what the light theme shows; the
  * dark theme shows the same hues with their lightness inverted.
  */
 export const PEN_COLORS: { label: string; scene: string }[] = [

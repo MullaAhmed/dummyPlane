@@ -4,7 +4,7 @@ import { blockers, checksFor, usageWarning } from "./overnightChecks";
 
 const limits = (fiveHour: number, sevenDay: number): Limits => ({ fiveHour: { usedPercent: fiveHour }, sevenDay: { usedPercent: sevenDay }, models: [] }) as unknown as Limits;
 
-describe("what stops a night before it starts (spec mission de nuit §5.2)", () => {
+describe("what stops a night before it starts", () => {
   it("needs a git repository, whatever the source", () => {
     expect(blockers({ git: false, gh: true }, "backlog")).toEqual(["git"]);
     expect(blockers({ git: true, gh: true }, "backlog")).toEqual([]);

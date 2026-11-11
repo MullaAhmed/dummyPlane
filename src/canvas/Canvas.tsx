@@ -113,7 +113,7 @@ function LoadedCanvas({ workspaceId, scene }: { workspaceId: string; scene: Load
   const theme = useTheme();
   const palette = usePalette();
   const initialData = useMemo(() => withSceneDefaults(scene.initialData), [scene]);
-  // A running agent never leaves unasked (retours J8b); sceneSync tells which nodes left.
+  // A running agent never leaves unasked; sceneSync tells which nodes left.
   const guardRemovals = useMemo(() => createRemovalGuard(isRunning, scene.initialData.elements ?? []), [scene]);
   const removedNow = useRef<string[]>([]);
 
@@ -136,7 +136,7 @@ function LoadedCanvas({ workspaceId, scene }: { workspaceId: string; scene: Load
   // A click or a double-click on a terminal or the Fleet selects it, whatever tool is active (a drag still draws or pans).
   useEffect(() => (api ? installDoubleClickSelect() : undefined), [api]);
 
-  // A Ctrl+P target of this workspace waits for its scene to be on screen (spec fenêtre §7.2).
+  // A Ctrl+P target of this workspace waits for its scene to be on screen.
   useEffect(() => {
     if (!api) return;
     const frame = requestAnimationFrame(() => {
@@ -198,7 +198,7 @@ function LoadedCanvas({ workspaceId, scene }: { workspaceId: string; scene: Load
             const added = classifyAddedNodes(ids, elements, (id) => id in nodesStore.getState().nodes);
             // An undo can bring back a node whose row the last scene save purged.
             added.restored.forEach((id) => void nodesStore.getState().persist(id).catch(reportSaveError));
-            // A closed fleet brought back takes its mission up again (spec première version §5.4).
+            // A closed fleet brought back takes its mission up again.
             added.restored.forEach((id) => setFleetClosed(id, false));
             // A spawned agent brought back takes its place in its tree again.
             reflowSpawnTreesOf(workspaceId, added.restored);
@@ -220,7 +220,7 @@ function LoadedCanvas({ workspaceId, scene }: { workspaceId: string; scene: Load
     };
   }, [sync]);
 
-  // Terminals saved before plan A have no name yet (spec habillage §9.2).
+  // Terminals saved before plan A have no name yet.
   useEffect(() => {
     void assignMissingNames(workspaceId, liveNodeIds(scene.initialData.elements ?? [])).catch(reportSaveError);
   }, [workspaceId, scene]);
@@ -308,7 +308,7 @@ function showAtFullSize(api: ExcalidrawImperativeAPI, nodeId: string) {
 
 /**
  * Frees the terminals that may go; puts back the running agents that left
- * unasked, as they were and outside the undo history, then asks (retours J8b).
+ * unasked, as they were and outside the undo history, then asks.
  */
 function settleRemovals({ dispose, restore, ask }: RemovalVerdict) {
   for (const id of dispose) {

@@ -34,7 +34,7 @@ function Check({ id, ok, label, value, hint, plain = false }: { id: string; ok: 
   );
 }
 
-/** Troubleshooting (spec première version §7.3): what dummyPlane sees, and where to go from there. */
+/** Troubleshooting: what dummyPlane sees, and where to go from there. */
 export function TroubleshootingDialog() {
   const t = useMessages(shellMessages).troubleshoot;
   const { open, diagnostics: d, error } = useTroubleshoot((s) => s);

@@ -33,7 +33,7 @@ const TOOLS: readonly { type: Tool; keys?: string }[] = [
   { type: "image" },
 ];
 
-/** A drawing tool, then the keyboard to the canvas (spec window §7.3). */
+/** A drawing tool, then the keyboard to the canvas. */
 function pickTool(type: Tool) {
   canvasStore.getState().api?.setActiveTool({ type });
   releaseToCanvas();
@@ -136,9 +136,9 @@ export const DRAWING: readonly Command[] = [
     available: withSelection,
     run: () => pressCanvasKey(CANVAS_KEYS.lock),
   }),
-  // Agents in the selection go through the closing guard (spec theme §7.5).
+  // Agents in the selection go through the closing guard.
   command("drawing.delete", { section: drawing, keys: "Suppr", available: withSelection, run: () => pressCanvasKey(CANVAS_KEYS.delete) }),
-  // The radial menu's only: Excalidraw's full menu at its point (spec menu radial §4.5).
+  // The radial menu's only: Excalidraw's full menu at its point.
   command("drawing.more", { section: drawing, available: (ctx) => withSelection(ctx) && ctx.at !== undefined, run: (ctx) => openNativeMenuAt(pointOf(ctx)) }),
 ];
 

@@ -11,7 +11,7 @@ use crate::process::hide_window;
 use crate::pty::PtyManager;
 use crate::pty::shell::{Agent, binary, find_git_bash, which_locate};
 
-/// Right before the installer closes dummyPlane (spec première version §6.4):
+/// Right before the installer closes dummyPlane:
 /// the agents stop and their final output is saved now, the scene and nodes
 /// having been saved by the interface. The installer ends the process with
 /// `std::process::exit`, so the app's own exit handling never runs.
@@ -46,7 +46,7 @@ fn open_dir(app: &AppHandle, dir: &Path) -> AppResult<()> {
         .map_err(|err| AppError::Io(std::io::Error::other(err.to_string())))
 }
 
-/// Opens the folder of the log file, to send it with a bug report (spec première version §3.6).
+/// Opens the folder of the log file, to send it with a bug report.
 #[tauri::command]
 pub fn open_log_dir(app: AppHandle) -> AppResult<()> {
     open_dir(&app, &log_dir(&app)?)

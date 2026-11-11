@@ -267,7 +267,7 @@ describe("who alerts", () => {
     expect(notified().map((n) => n.title)).toEqual(["Alfred · Done"]);
   });
 
-  it("never a mission's Manager: it works for its Fleet, whose mission's end alerts once (spec babysitter Fleet)", async () => {
+  it("never a mission's Manager: it works for its Fleet, whose mission's end alerts once", async () => {
     const mission = { state: "en_cours", maxAgents: 2, manager: "boss", members: [] } as Mission;
     nodesStore.setState((s) => ({
       nodes: {

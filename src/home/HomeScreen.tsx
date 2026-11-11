@@ -21,7 +21,7 @@ function OutlineButton({ className, ...props }: ComponentProps<typeof Button>) {
   return <Button type="button" variant="outline" className={cn("px-4 text-(length:--text-ui) font-normal [&_svg:not([class*='size-'])]:size-4", className)} {...props} />;
 }
 
-/** Projects as glass cards under the title bar; a click opens one on its last workspace (spec identity §5.9). */
+/** Projects as glass cards under the title bar; a click opens one on its last workspace. */
 export function HomeScreen() {
   const t = useMessages(homeMessages);
   const projects = useProjects((s) => s.projects);

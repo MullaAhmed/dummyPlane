@@ -3,14 +3,14 @@ import type { AgentState } from "./agentState";
 import { agentsMessages } from "./messages";
 
 /**
- * Counters of a group label (spec theme §11.4): "4 · 2 en cours", or
+ * Counters of a group label: "4 · 2 en cours", or
  * "4 · inactif".
  */
 export function countsText(members: number, working: number): string {
   return messages(agentsMessages).summary.counts(members, working);
 }
 
-/** Names of the members still running, listed by the "Close the group" confirmation (spec §11.4). */
+/** Names of the members still running, listed by the "Close the group" confirmation. */
 export function livingAgents(
   memberIds: readonly string[],
   nameOf: (id: string) => string,

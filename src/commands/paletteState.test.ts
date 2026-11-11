@@ -8,7 +8,7 @@ const ctx: CommandContext = { project: true, workspaceId: "w1", terminalCount: 2
 beforeEach(() => paletteStore.setState({ open: false, query: "", context: null, returnFocus: null }));
 afterEach(() => document.body.replaceChildren());
 
-describe("the palette (spec fenêtre §7.1)", () => {
+describe("the palette", () => {
   it("follows its text: > makes the functions mode", () => {
     expect(modeOf("")).toBe("goTo");
     expect(modeOf("batman")).toBe("goTo");

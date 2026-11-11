@@ -10,7 +10,7 @@ import { homeMessages } from "./messages";
 
 /**
  * An install asked from the home screen: a terminal lives on a canvas, so the
- * last project opens first, or a new one is added (spec installation §4.2).
+ * last project opens first, or a new one is added.
  */
 export async function installFromHome(agent: AgentId) {
   const projects = projectsStore.getState();

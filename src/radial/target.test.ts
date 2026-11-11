@@ -15,7 +15,7 @@ const pick = (point: { x: number; y: number }, elements: ExcalidrawElement[], fi
   ...fields,
 });
 
-describe("what is under a right press (spec menu radial §6.4)", () => {
+describe("what is under a right press", () => {
   it("reads a node's body from the page, and leaves text fields their own right click", () => {
     document.body.innerHTML =
       '<div data-terminal="batman"><div class="xterm"><span id="text"></span><textarea id="xterm-input"></textarea></div><input id="name" /></div><div data-fleet="chef"><span id="chef"></span><textarea id="field"></textarea></div><div id="else"></div>';
@@ -86,7 +86,7 @@ describe("what is under a right press (spec menu radial §6.4)", () => {
   });
 });
 
-describe("lines drawn to the left or up (plan G1)", () => {
+describe("lines drawn to the left or up", () => {
   // A line starting at (200, 200) and going up-left: its box is x 100..200, y 100..200.
   const line = element("line", { type: "line", x: 200, y: 200, width: 100, height: 100, points: [[0, 0], [-100, -100]] });
 

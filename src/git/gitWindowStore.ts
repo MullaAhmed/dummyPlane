@@ -8,7 +8,7 @@ interface GitWindowState {
   close: () => void;
 }
 
-/** The git window: it takes the review panel's place, so opening one closes the other (spec fenêtre git §3). */
+/** The git window: it takes the review panel's place, so opening one closes the other. */
 export const gitWindowStore = createStore<GitWindowState>()((set) => ({
   path: null,
   open: (path) => {

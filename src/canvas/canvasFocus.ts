@@ -5,14 +5,14 @@ import { canvasStore } from "./canvasStore";
 import { groupInfoOf } from "./groups";
 import { nodeKindOf } from "./nodeElement";
 
-/** The glass bars cover the canvas edges: views fit the zone utile, not the whole window (plan E1). */
+/** The glass bars cover the canvas edges: views fit the zone utile, not the whole window. */
 export const ZONE_OFFSETS = { top: TOP_ROW_HEIGHT, bottom: BOTTOM_BAR_HEIGHT };
 
 /** A group's name sits on its frame, above it: room for the label under the tabs. */
 export const LABEL_ROOM = 24;
 
 /**
- * Shift+Escape (spec fenêtre §6.5): the terminal or field that has the keyboard
+ * Shift+Escape: the terminal or field that has the keyboard
  * loses it, the active terminal is deactivated, nothing gets selected (a
  * click into a terminal selects it: that selection is cleared, or Suppr
  * would delete the terminal just left), and the keyboard goes to Excalidraw's
@@ -45,7 +45,7 @@ export function overviewTargets(elements: readonly ExcalidrawElement[]): Excalid
   return [...live.filter((e) => e.type === "frame" && holding.has(e.id) && groupInfoOf(e) !== null), ...nodes];
 }
 
-/** Ctrl+Shift+A (spec fenêtre §6.6): every node in view, with an animation and a 10 % margin, then the keyboard to the canvas. */
+/** Ctrl+Shift+A: every node in view, with an animation and a 10 % margin, then the keyboard to the canvas. */
 export function overview() {
   const api = canvasStore.getState().api;
   if (!api) return;
@@ -54,7 +54,7 @@ export function overview() {
   releaseToCanvas();
 }
 
-/** A group of "Go to" (spec fenêtre §7.2): its frame fitted, at 100 % at most, then the keyboard to the canvas. False when it is gone. */
+/** A group of "Go to": its frame fitted, at 100 % at most, then the keyboard to the canvas. False when it is gone. */
 export function focusGroup(frameId: string): boolean {
   const api = canvasStore.getState().api;
   const frame = api?.getSceneElements().find((e) => e.id === frameId && e.type === "frame");

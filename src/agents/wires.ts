@@ -24,7 +24,7 @@ const ELECTRIC_WIRE_SCENE = "#010001";
  * The color a wire is stored in under `palette`: the palette's accent
  * (`--dp-accent`, the color the light running on the wire is drawn in) as the
  * canvas must show it. A light palette shows a stored color as is; Excalidraw's
- * dark filter shows the nearest it can to the accent (spec habillage §4.3), so
+ * dark filter shows the nearest it can to the accent, so
  * the accent goes through `toSceneColor` there: expressive's #F4F4F1 is stored
  * #000000 and shown #EDEDED.
  */
@@ -157,7 +157,7 @@ function otherEnd(arrow: ExcalidrawElement, fleetId: string): string | null {
 
 /**
  * The groups and terminals wired to a fleet, from the arrows of the
- * scene: deleting an arrow or its target cuts the link (spec §13). Not its
+ * scene: deleting an arrow or its target cuts the link. Not its
  * spawn wires: a sub-agent it opened with spawn_agent is not on its team; nor
  * its talk wires: a message that passed puts nobody on it.
  */
@@ -348,7 +348,7 @@ export function elbowForm(from: ExcalidrawElement, to: ExcalidrawElement, tree: 
 
 /**
  * A complete elbow arrow from the side of `fleet` facing `target` to the
- * side of `target` facing it, without heads, in the color of `palette` (spec §13). Every base field is set
+ * side of `target` facing it, without heads, in the color of `palette`. Every base field is set
  * here, as for the nodes (Excalidraw's skeletons cannot bind to existing
  * elements). With `spawn` (true, or flags with it), `fleet` is an agent and
  * `target` the sub-agent it spawned (`isSpawnWire`); a talk wire is dashed;
@@ -462,7 +462,7 @@ function addWire(elements: readonly ExcalidrawElement[], from: ExcalidrawElement
 
 /**
  * `elements` with a new wire, recorded on both ends, unless one already joins
- * them (spec §13); `spawn` as for `createWire`. A talk wire already joining
+ * them; `spawn` as for `createWire`. A talk wire already joining
  * them becomes the link asked for (solid, no longer a talk wire), not a second
  * arrow over it.
  */
@@ -742,7 +742,7 @@ export function staleWireBindings(elements: readonly ExcalidrawElement[]): strin
   return elements.filter((e) => !e.isDeleted && e.type !== "arrow" && e.boundElements?.some((b) => gone.has(b.id))).map((e) => e.id);
 }
 
-/** Arrows drawn by hand between a fleet and a group or terminal: they get the wire mark (spec §13). */
+/** Arrows drawn by hand between a fleet and a group or terminal: they get the wire mark. */
 export function unmarkedWires(elements: readonly ExcalidrawElement[]): string[] {
   const byId = new Map(elements.map((e) => [e.id, e]));
   const fleets = elements.filter((e) => !e.isDeleted && nodeKindOf(e) === "fleet").map((e) => e.id);
@@ -771,7 +771,7 @@ export function outdatedWires(elements: readonly ExcalidrawElement[], palette: T
     .map((wire) => wire.id);
 }
 
-/** What a click of "Link" designates: a lone terminal, else the group under the pointer (spec §13). */
+/** What a click of "Link" designates: a lone terminal, else the group under the pointer. */
 export function linkTargetAt(elements: readonly ExcalidrawElement[], frames: readonly SceneFrame[], point: Point): string | null {
   const terminal = findTerminalAt(elements, point.x, point.y);
   if (terminal) {
@@ -823,7 +823,7 @@ export function isWireEnd(element: ExcalidrawElement | undefined): boolean {
 /**
  * Wires with a missing end: ungrouping, closing a group or a terminal and
  * Suppr on a fleet leave the arrow behind, unbound or bound to
- * what is gone (plan B3). They go in the same update.
+ * what is gone. They go in the same update.
  */
 export function orphanWires(elements: readonly ExcalidrawElement[]): string[] {
   const byId = new Map(elements.map((e) => [e.id, e]));

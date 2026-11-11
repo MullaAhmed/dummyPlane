@@ -67,7 +67,7 @@ const render = () => act(async () => root.render(<HomeScreen />));
 const panel = () => host.querySelector<HTMLElement>("[data-getting-started]");
 const button = (text: string) => [...host.querySelectorAll("button")].find((b) => b.textContent?.includes(text))!;
 
-it("guides a newcomer without agent nor project: three steps, Claude Code's command first (spec première version §7.2)", async () => {
+it("guides a newcomer without agent nor project: three steps, Claude Code's command first", async () => {
   await render();
   expect(panel()?.textContent).toContain("Getting started");
   const steps = [...panel()!.querySelectorAll<HTMLElement>("li[data-step]")].map((li) => [li.dataset.step, li.dataset.done]);
@@ -94,7 +94,7 @@ it("copies Claude Code's install command and opens the official pages", async ()
   expect(openUrl).toHaveBeenCalledWith("https://github.com/openai/codex");
 });
 
-it("installs Claude Code in one click: its command is already on screen (spec installation §4.2)", async () => {
+it("installs Claude Code in one click: its command is already on screen", async () => {
   await render();
   await act(async () => button("Install Claude Code").click());
   expect(installFromHome).toHaveBeenCalledWith("claude");
@@ -138,7 +138,7 @@ it("words the install in English", async () => {
   expect(card.textContent).toContain("The other agents:");
 });
 
-it("reads Windows' PATH again before looking for the agents, then shows the steps done (spec §7.2)", async () => {
+it("reads Windows' PATH again before looking for the agents, then shows the steps done", async () => {
   await render();
   agents = only("claude");
   calls = [];

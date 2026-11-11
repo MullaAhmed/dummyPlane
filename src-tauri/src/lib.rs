@@ -62,7 +62,7 @@ pub fn run() {
         .setup(|app| {
             // Built here, not from the config, for the one thing the config cannot
             // say: the page reads the clipboard without WebView2's prompt, since
-            // the radial menu's Coller has no Ctrl+V to carry it (spec menu radial §6.3).
+            // the radial menu's Coller has no Ctrl+V to carry it.
             let main = app
                 .config()
                 .app

@@ -10,7 +10,7 @@ export interface AgentInstall {
 }
 
 /**
- * Every install dummyPlane can run (spec installation §3). This table is fixed:
+ * Every install dummyPlane can run. This table is fixed:
  * nothing here comes from the network, and a command only enters it once
  * checked on the vendor's documentation.
  */
@@ -40,7 +40,7 @@ export const AGENT_INSTALLS: Partial<Record<AgentId, AgentInstall>> = {
 
 export type OllamaUse = "code" | "light" | "chat" | "reasoning" | "agent";
 
-/** Names and sizes read on ollama.com/library (spec installation §5). */
+/** Names and sizes read on ollama.com/library. */
 export const OLLAMA_SUGGESTIONS: readonly { model: string; sizeGb: number; use: OllamaUse }[] = [
   { model: "qwen2.5-coder:7b", sizeGb: 4.7, use: "code" },
   { model: "gemma3:4b", sizeGb: 3.4, use: "light" },

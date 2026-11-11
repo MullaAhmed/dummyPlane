@@ -53,7 +53,7 @@ beforeEach(() => {
 });
 afterAll(() => clearMocks());
 
-describe("Navigation (spec fenêtre §7.3)", () => {
+describe("Navigation", () => {
   it("lists the spec's functions, in its order", () => {
     agentsPanelStore.setState({ open: true });
     expect(NAVIGATION.filter((c) => c.id !== "palette.functions").map((c) => labelOf(c, busy))).toEqual([
@@ -111,7 +111,7 @@ describe("Navigation (spec fenêtre §7.3)", () => {
   });
 });
 
-describe("Notes (spec notes §6)", () => {
+describe("Notes", () => {
   it("opens from the palette, in a project only", () => {
     const notes = find(NAVIGATION, "notes.open");
     expect(labelOf(notes, busy)).toBe("Notes");

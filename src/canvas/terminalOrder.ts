@@ -8,7 +8,7 @@ interface Box {
   height: number;
 }
 
-/** A box joins a row when it overlaps the row's first box by half the smaller height at least (spec fenêtre §6.3). */
+/** A box joins a row when it overlaps the row's first box by half the smaller height at least. */
 function sameRow(first: Box, next: Box): boolean {
   const overlap = Math.min(first.y + first.height, next.y + next.height) - Math.max(first.y, next.y);
   return overlap >= Math.min(first.height, next.height) / 2;
@@ -26,7 +26,7 @@ export function readingOrder<T extends Box>(boxes: readonly T[]): T[] {
 }
 
 /**
- * Ctrl+Tab's order (spec fenêtre §6.3): each frame holding a terminal is a
+ * Ctrl+Tab's order: each frame holding a terminal is a
  * block, blocks in reading order and their members in reading order, then
  * the terminals outside any frame. Rotation is ignored.
  */

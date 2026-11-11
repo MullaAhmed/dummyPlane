@@ -79,7 +79,7 @@ beforeEach(() => {
 });
 afterAll(() => clearMocks());
 
-describe("Terminal · <prénom> and Groupe · <nom> (spec fenêtre §7.3)", () => {
+describe("Terminal · <prénom> and Groupe · <nom>", () => {
   it("names its sections after the terminal of the moment and its group", () => {
     expect(sectionOf(find("terminal.rename"), ctx("batman"))).toBe("Terminal · Batman");
     expect(sectionOf(find("group.rename"), ctx("batman"))).toBe("Group · Serveurs");
@@ -234,13 +234,13 @@ describe("Terminal · <prénom> and Groupe · <nom> (spec fenêtre §7.3)", () =
   });
 });
 
-it("opens the review of the terminal of the moment (spec maj §5)", async () => {
+it("opens the review of the terminal of the moment", async () => {
   await find("terminal.review").run(ctx("cyborg"));
   expect(reviewStore.getState().nodeId).toBe("cyborg");
 });
 
 
-describe("a target that went between the palette and Entrée (plan F2)", () => {
+describe("a target that went between the palette and Entrée", () => {
   it("does nothing, without a TypeError: the group is gone", async () => {
     canvasStore.setState({ frames: [] });
     for (const id of ["group.rename", "group.addAgent", "group.linkFleet", "group.arrange", "group.fold", "group.ungroup", "group.close", "group.pause", "group.resume", "group.frame"]) {

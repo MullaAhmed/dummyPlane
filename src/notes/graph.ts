@@ -27,7 +27,7 @@ const MARGIN = 48;
 const GOLDEN = Math.PI * (3 - Math.sqrt(5));
 
 /**
- * Where each note sits, by a small force simulation (spec notes §3): notes
+ * Where each note sits, by a small force simulation: notes
  * push each other away, links pull. Sorted first and free of chance, the same
  * notes always give the same picture.
  */

@@ -22,8 +22,8 @@ import { QuietButton } from "./buttons";
 import { shellMessages } from "./messages";
 
 /**
- * "Close Batman?" before closing a running agent (spec habillage §7.5), or
- * "Close 2 agents?" when an undo or Delete took several at once (retours J8b).
+ * "Close Batman?" before closing a running agent, or
+ * "Close 2 agents?" when an undo or Delete took several at once.
  * A fleet in mission says what its closing leaves behind (spec
  * première version §5.4). An agent that opened sub-agents (spawn_agent) offers
  * to close them too, ticked by default.

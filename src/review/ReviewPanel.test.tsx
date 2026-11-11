@@ -64,7 +64,7 @@ afterEach(async () => {
 const text = () => host.textContent ?? "";
 const button = (label: string) => [...host.querySelectorAll("button")].find((b) => b.textContent?.trim() === label || b.getAttribute("aria-label") === label)!;
 
-it("lists what the agent changed since its base, and shows a file's diff (spec maj §5)", async () => {
+it("lists what the agent changed since its base, and shows a file's diff", async () => {
   await vi.waitFor(() => expect(text()).toContain("src/a.ts"));
   expect(text()).toContain("Batman");
   expect(text()).toContain("Since main");
@@ -262,7 +262,7 @@ it("keeps the file read and the remark being typed through Refresh and a click o
   expect(field().value).toBe("half-way");
 });
 
-it("tells the remarks wait when the agent is still starting, and keeps them (plan B3)", async () => {
+it("tells the remarks wait when the agent is still starting, and keeps them", async () => {
   vi.mocked(sendToAgents).mockResolvedValueOnce({ sent: 0, skipped: [], waiting: [], unsuited: [], starting: ["Batman"] });
   vi.mocked(toast.warning).mockClear();
   await act(async () => reviewStore.getState().add({ file: "src/a.ts", line: 2, text: "Why 3?" }));

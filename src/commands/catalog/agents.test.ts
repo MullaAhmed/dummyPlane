@@ -30,7 +30,7 @@ beforeEach(() => {
 });
 afterAll(() => clearMocks());
 
-describe("Agents (spec fenêtre §7.3)", () => {
+describe("Agents", () => {
   it("lists the spec's functions, in its order", () => {
     expect(AGENT_COMMANDS.map((c) => labelOf(c, busy))).toEqual([
       "Launch Claude",
@@ -55,7 +55,7 @@ describe("Agents (spec fenêtre §7.3)", () => {
     ]);
   });
 
-  it("offers to install a missing agent, through the menu's confirmation (spec installation §4.1)", async () => {
+  it("offers to install a missing agent, through the menu's confirmation", async () => {
     const codex = find("agent.launch.codex");
     expect(labelOf(codex, busy)).toBe("Install Codex…");
     expect(codex.disabled!(busy)).toBeNull();

@@ -3,7 +3,7 @@ import { agentsMessages } from "./messages";
 
 /**
  * A pantheon is a themed set of names (DC, Marvel…): each group draws its
- * agents' names from its own (spec theme §9.1). The first ones were mythologies.
+ * agents' names from its own. The first ones were mythologies.
  */
 export type PantheonId = "dc" | "marvel" | "throne-of-glass" | "star-wars" | "lord-of-the-rings";
 

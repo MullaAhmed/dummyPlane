@@ -72,7 +72,7 @@ describe("a Codex terminal", () => {
   });
 });
 
-describe("a one-shot command (spec installation §7)", () => {
+describe("a one-shot command", () => {
   const input = { title: "t", cwd: "C:/a", agent: "custom", command: "npm i", shell: "cmd" } as const;
 
   it("keeps the mark on the payload, only when asked", () => {
@@ -104,13 +104,13 @@ describe("buildSpawnSpec", () => {
     });
   });
 
-  it("starts Claude with Remote Control, under the agent's name, when it is on (spec maj §2)", () => {
+  it("starts Claude with Remote Control, under the agent's name, when it is on", () => {
     const payload = { ...newTerminalPayload({ ...base, agent: "claude", title: "Agent" }, "Batman"), remoteControl: true };
     expect(buildSpawnSpec(payload, "new").claude?.remoteControl).toBe("Batman");
     expect(buildSpawnSpec({ ...payload, name: "" }, "new").claude?.remoteControl).toBe("Agent");
   });
 
-  it("starts Claude on the model the router chose (spec maj §3)", () => {
+  it("starts Claude on the model the router chose", () => {
     const payload = { ...newTerminalPayload({ ...base, agent: "claude", title: "Agent" }), model: "claude-haiku-5-5" };
     expect(buildSpawnSpec(payload, "new").claude?.model).toBe("claude-haiku-5-5");
     expect(buildSpawnSpec({ ...payload, model: undefined }, "new").claude).not.toHaveProperty("model");
@@ -156,7 +156,7 @@ describe("a new conversation (final review H1)", () => {
   });
 });
 
-describe("fleetSession (spec orchestrateur §6)", () => {
+describe("fleetSession", () => {
   it("is Claude in the project folder, launched with the fleet's role", () => {
     const session = fleetSession("Chef", { cwd: "C:/code", shell: "pwsh" });
     expect(session).toMatchObject({ title: "Chef", name: "Chef", agent: "claude", cwd: "C:/code", shell: "pwsh", role: "orchestrator" });

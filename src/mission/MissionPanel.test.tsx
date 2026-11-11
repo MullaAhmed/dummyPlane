@@ -71,7 +71,7 @@ async function openSettings() {
 /** The model router's checkbox: in plain view, no fold to open first. */
 const routerSwitch = () => host.querySelector<HTMLButtonElement>('[aria-label="Model router"]');
 
-it("sets the mission's team size before the plan, and no global budget any more (spec §7.1)", async () => {
+it("sets the mission's team size before the plan, and no global budget any more", async () => {
   await show();
   await openSettings();
   expect(host.querySelector('[aria-label="Global budget (minutes)"]')).toBeNull();
@@ -80,7 +80,7 @@ it("sets the mission's team size before the plan, and no global budget any more 
   expect(missionOf(nodesStore.getState().nodes.chef)).toMatchObject({ state: "redaction", maxAgents: 8 });
 });
 
-it("turns the model router on, and shows each sub-task's level and model (spec maj §3)", async () => {
+it("turns the model router on, and shows each sub-task's level and model", async () => {
   await show({ state: "plan", name: "Auth", plan: [{ title: "Login", brief: "Fais le login", agent: "Batman", budgetMin: 20, level: "faible" }] });
   expect(host.textContent).toContain("low");
   expect(host.textContent).not.toContain("Haiku 5.5");
@@ -135,7 +135,7 @@ it("shows the model router only until the go-ahead: the team's rows carry the mo
   expect(host.querySelector('[data-member="Batman"]')?.textContent).toContain("Haiku 5.5");
 });
 
-it("shows the plan and gives the go-ahead (spec §7.3)", async () => {
+it("shows the plan and gives the go-ahead", async () => {
   await show({ state: "plan", name: "Auth", task: "Ajoute l'authentification", plan: [{ title: "Login", brief: "Fais le login", agent: "Batman", budgetMin: 20 }] });
   expect(host.textContent).toContain("Fais le login");
   expect(host.textContent).toContain("20 agent minutes");
@@ -144,12 +144,12 @@ it("shows the plan and gives the go-ahead (spec §7.3)", async () => {
   expect(launchMission).toHaveBeenCalledWith("chef");
 });
 
-it("shows the group a new agent will join (spec groupes spécialisés §3)", async () => {
+it("shows the group a new agent will join", async () => {
   await show({ state: "plan", name: "Auth", plan: [{ title: "Style", brief: "Fais le style", agent: "nouveau", budgetMin: 20, group: { id: "g1", name: "Interface" } }] });
   expect(host.textContent).toContain("nouveau → Interface · 20 min");
 });
 
-it("opens Night mission from its settings, and marks a night (spec mission de nuit §5.1)", async () => {
+it("opens Night mission from its settings, and marks a night", async () => {
   await show();
   expect(host.textContent).toContain("Overnight run…");
   await act(async () => button("Overnight run…").click());
@@ -160,7 +160,7 @@ it("opens Night mission from its settings, and marks a night (spec mission de nu
   expect(host.querySelector("header")?.textContent).toContain("overnight");
 });
 
-it("keeps the night's choices in view, to change or call off until its team is formed (spec mission de nuit §5.1)", async () => {
+it("keeps the night's choices in view, to change or call off until its team is formed", async () => {
   await show({ overnight: true, budgetMin: 480, maxAgents: 3, tickets: { kind: "linear", team: "ENG", label: "overnight" }, permission: "edits", autoLaunch: true });
   const night = host.querySelector("[data-night]")!;
   expect(night.textContent).toContain("Away8 h");
@@ -190,7 +190,7 @@ it("shows a running night read-only, with the time it still has", async () => {
   expect(host.querySelector("header")!.textContent).toContain("overnight · 420 min left");
 });
 
-it("shows the morning report of a night, what to check first (spec mission de nuit §6.2)", async () => {
+it("shows the morning report of a night, what to check first", async () => {
   await show({
     state: "terminee", overnight: true, budgetMin: 480, startedAt: 0, endedAt: 60 * 60_000, summary: "Bilan", handChecks: ["Relire la migration"],
     queue: [{ title: "Docs", brief: "b", budgetMin: 10 }],
@@ -225,7 +225,7 @@ it("shows no morning report outside a night", async () => {
   expect(host.querySelector("[data-morning]")).toBeNull();
 });
 
-it("shows the tasks waiting in the queue (spec mission de nuit §4)", async () => {
+it("shows the tasks waiting in the queue", async () => {
   await show({ state: "plan", name: "Auth", plan: [{ title: "Login", brief: "Fais le login", agent: "Batman", budgetMin: 20 }], queue: [{ title: "API", brief: "b", budgetMin: 30 }, { title: "Docs", brief: "b", budgetMin: 10 }] });
   expect(host.querySelector("[data-queue]")?.textContent).toContain("Waiting (2)");
   expect(host.querySelector("[data-queue]")?.textContent).toContain("API");
@@ -241,7 +241,7 @@ it("shows no runaway time for a mission ended before end times were kept", async
   expect(host.querySelector('[data-member="Batman"]')?.textContent).not.toContain("/ 20 min");
 });
 
-it("shows the team's reports and the summary, and cleans the mission (spec §7.7)", async () => {
+it("shows the team's reports and the summary, and cleans the mission", async () => {
   await show({
     state: "terminee",
     name: "Auth",
@@ -413,7 +413,7 @@ it("draws each agent's summary in the morning report, whole, in a bounded scroll
   expect(summary.querySelectorAll("li")).toHaveLength(2);
 });
 
-it("says who runs a mission its Manager runs, the Manager and the board a click away (spec babysitter Fleet)", async () => {
+it("says who runs a mission its Manager runs, the Manager and the board a click away", async () => {
   await nodesStore.getState().create("boss", { workspaceId: "w1", kind: "terminal", payload: { title: "Manager", name: "Manager", agent: "claude", cwd: "C:/p", shell: "default", command: "", role: "manager", fleet: "chef" } });
   await nodesStore.getState().create("board", { workspaceId: "w1", kind: "kanban", payload: { columns: [], cards: {} } });
   await show({ state: "en_cours", manager: "boss", board: "board", members: [{ nodeId: "robin", name: "Robin", task: "Login", budgetMin: 20, linked: false, branch: "b", worktree: "w", sentAt: 1 }] });

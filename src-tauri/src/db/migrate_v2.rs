@@ -1,4 +1,4 @@
-//! Migration 002 (spec habillage §15.1): workspaces move into projects — one per
+//! Migration 002: workspaces move into projects — one per
 //! folder, taken from each workspace's first terminal — and nodes accept the
 //! `orchestrator` kind (the stored name of the fleet node kind, see
 //! `nodes::STORED_FLEET_KIND`). Both tables are rebuilt: SQLite cannot add a NOT NULL

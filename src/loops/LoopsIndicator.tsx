@@ -6,7 +6,7 @@ import { useLoops } from "./live";
 import { loopsMessages } from "./messages";
 
 /**
- * Visible as long as a loop runs (loops spec §1): how many, how many runs
+ * Visible as long as a loop runs: how many, how many runs
  * so far, and "Stop all" one click away. Each run costs real usage.
  */
 export function LoopsIndicator() {

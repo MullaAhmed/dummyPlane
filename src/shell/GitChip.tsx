@@ -10,7 +10,7 @@ import { Hint } from "./buttons";
 
 const POLL_MS = 5000;
 
-/** "⑂ main 7": branch and changed files of the active workspace's folder (spec identité §5.8); a click opens the git window. */
+/** "⑂ main 7": branch and changed files of the active workspace's folder; a click opens the git window. */
 export function GitChip() {
   const t = useMessages(gitMessages);
   const path = useActiveFolder().folder;
@@ -40,7 +40,7 @@ export function GitChip() {
     };
   }, [path]);
 
-  // Outside a git repository, no chip (spec identité §5.8).
+  // Outside a git repository, no chip.
   if (!status || !path) return null;
   return (
     // The hint shows what the chip cuts short: a long branch name, and the folder.

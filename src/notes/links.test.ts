@@ -3,7 +3,7 @@ import { backlinks, edges, linksIn, noteNamed, type LinkedNote } from "./links";
 
 const note = (name: string, text: string): LinkedNote => ({ name, text });
 
-describe("wikilinks (spec notes §3)", () => {
+describe("wikilinks", () => {
   it("finds the plain and the labelled form, once each", () => {
     expect(linksIn("See [[Auth]] and [[Deploy|the deploy]], and [[Auth]] again.")).toEqual([
       { target: "Auth", label: "Auth" },

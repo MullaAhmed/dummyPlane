@@ -38,7 +38,7 @@ const FIELD = "h-7 rounded-md px-2 text-xs md:text-xs";
 
 const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
-/** What an agent changed and its folder's files, with remarks sent back to it (spec maj §5). */
+/** What an agent changed and its folder's files, with remarks sent back to it. */
 export function ReviewPanel() {
   const nodeId = useReview((s) => s.nodeId);
   return nodeId ? <ReviewDrawer key={nodeId} nodeId={nodeId} /> : null;

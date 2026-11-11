@@ -8,7 +8,7 @@ import { ArrivalFlash } from "./ArrivalFlash";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-it("flashes the border of the terminal that arrives, anew on each arrival (spec fenêtre §6.4)", async () => {
+it("flashes the border of the terminal that arrives, anew on each arrival", async () => {
   const host = document.createElement("div");
   document.body.append(host);
   const root = createRoot(host);

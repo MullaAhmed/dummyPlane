@@ -1,5 +1,5 @@
 // Calls dummyPlane's MCP server as a Claude session would, with a node's
-// launch file (spec orchestrateur §11). Usage:
+// launch file. Usage:
 //   node scripts/mcp-probe.mjs <path to <appdata>/mcp/<nodeId>.json> <method> [json params]
 import { readFileSync } from "node:fs";
 

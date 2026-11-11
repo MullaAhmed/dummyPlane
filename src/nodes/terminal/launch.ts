@@ -6,7 +6,7 @@ import { profileNamed } from "@/accounts/store";
 import { messages } from "@/i18n";
 import { nodesMessages } from "@/nodes/messages";
 
-/** How "Relancer" starts a Claude terminal (spec V1 §5.3); other agents ignore it. */
+/** How "Relancer" starts a Claude terminal; other agents ignore it. */
 export type LaunchMode = "new" | "resume" | "continue";
 
 export const SHELL_LABELS: Record<ShellKind, string> = {
@@ -56,7 +56,7 @@ export function newTerminalPayload(input: LaunchInput, name = ""): TerminalPaylo
   return payload;
 }
 
-/** A fresh conversation: Claude's own id, Codex's to come, none of the previous one's steps nor report (spec orchestrateur §5). */
+/** A fresh conversation: Claude's own id, Codex's to come, none of the previous one's steps nor report. */
 export function newConversation(): Partial<TerminalPayload> {
   return { claudeSessionId: crypto.randomUUID(), codexSessionId: undefined, steps: undefined, lastReport: undefined };
 }
@@ -86,7 +86,7 @@ export function buildSpawnSpec(payload: TerminalPayload, mode: LaunchMode): Spaw
     if (payload.linear) spec.claude.linear = true;
     const extensions = readExtensionChoice(payload.extensions);
     if (extensions) spec.claude.extensions = extensions;
-    // The profile's folder if it still exists, else the default account (spec comptes §3).
+    // The profile's folder if it still exists, else the default account.
     const profile = profileNamed(payload.accountId);
     if (profile) spec.claude.configDir = profile.configDir;
   }
@@ -105,7 +105,7 @@ export function buildSpawnSpec(payload: TerminalPayload, mode: LaunchMode): Spaw
 /** A Claude model or alias (a mission's router gives these): never passed to another CLI. */
 const CLAUDE_MODEL = /^(claude|haiku|sonnet|opus|fable)/i;
 
-/** A fleet's brain: its CLI (Claude or Codex: fleet/fleetAgent.ts) in the project folder, with the manager's role (spec orchestrateur §6). */
+/** A fleet's brain: its CLI (Claude or Codex: fleet/fleetAgent.ts) in the project folder, with the manager's role. */
 export function fleetSession(name: string, options: { cwd: string; shell: ShellKind }, agent: AgentId = "claude"): TerminalPayload {
   return { ...newTerminalPayload({ title: name, cwd: options.cwd, agent, command: "", shell: options.shell }, name), role: STORED_FLEET_ROLE };
 }

@@ -12,7 +12,7 @@ interface UsageState {
   apply: (event: StatusEvent, now: number) => void;
 }
 
-/** What the status lines of dummyPlane's Claude sessions report (spec maj §6); kept in memory. */
+/** What the status lines of dummyPlane's Claude sessions report; kept in memory. */
 export const usageStore = createStore<UsageState>()((set) => ({
   sessions: {},
   limits: null,

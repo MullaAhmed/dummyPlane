@@ -40,7 +40,7 @@ afterEach(async () => {
 
 const button = (text: string) => [...document.querySelectorAll("button")].find((b) => b.textContent === text)!;
 
-it("names the agent it would end, and closes it once confirmed (spec habillage §7.5)", async () => {
+it("names the agent it would end, and closes it once confirmed", async () => {
   await act(async () => uiStore.getState().setClosing({ agents: ["batman"], remove: ["batman"] }));
   expect(document.querySelector('[role="dialog"]')!.textContent).toContain("Close Batman?");
   await act(async () => button("Close the agent").click());
@@ -65,7 +65,7 @@ it("keeps them when cancelled", async () => {
   expect(uiStore.getState().closing).toBeNull();
 });
 
-it("tells what closing a fleet in mission leaves behind (spec première version §5.4)", async () => {
+it("tells what closing a fleet in mission leaves behind", async () => {
   await nodesStore.getState().create("chef", {
     workspaceId: "w1",
     kind: "fleet",

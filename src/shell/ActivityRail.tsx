@@ -18,7 +18,7 @@ function RailButton(props: ComponentProps<typeof ToolButton>) {
   return <ToolButton hintSide="left" {...props} />;
 }
 
-/** The rail on the right: the activities (spec identité §5.5). "Functions" comes with J8. */
+/** The rail on the right: the activities. "Functions" comes with J8. */
 export function ActivityRail() {
   const t = useMessages(shellMessages).activityRail;
   const open = useAgentsPanel((s) => s.open);

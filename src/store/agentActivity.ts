@@ -11,7 +11,7 @@ export interface AgentActivity {
 
 interface AgentActivityState {
   activities: Record<string, AgentActivity>;
-  /** One change computed by Rust (spec habillage §10.2). */
+  /** One change computed by Rust. */
   apply: (event: ActivityEvent) => void;
   /** Rust's state when the webview (re)loads. */
   load: (events: readonly ActivityEvent[]) => void;

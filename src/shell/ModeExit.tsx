@@ -7,7 +7,7 @@ import { TOP_ROW_HEIGHT } from "./layout";
 
 /**
  * Zen (Alt+Z) and reading (Alt+R) hide the tools: a small dense-glass button
- * under the bars, at the right, says where you are and leaves (spec identité §5.10).
+ * under the bars, at the right, says where you are and leaves.
  * It is there at once: a shortcut put it there, and the keyboard is never answered with a fade.
  */
 export function ModeExit() {

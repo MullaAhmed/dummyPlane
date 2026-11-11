@@ -1,6 +1,6 @@
 //! Code Studio (issue #49): the files of a project folder, read and written
 //! from the interface. Nothing outside the project is ever read or written,
-//! and never over what an agent wrote meanwhile (spec studio code §4).
+//! and never over what an agent wrote meanwhile.
 
 use crate::review::{self, MAX_FILES};
 use std::collections::BTreeSet;
@@ -327,7 +327,7 @@ pub fn version(root: &Path, file: &str) -> Result<Option<String>, String> {
 
 /// Writes `text` if the disk still holds `expected` (None: no file). There is
 /// no way to force it: overwriting is writing against the version seen, so one
-/// more change is one more conflict (spec studio code §3). Its missing folders
+/// more change is one more conflict. Its missing folders
 /// are created, inside the project.
 pub fn write(
     root: &Path,

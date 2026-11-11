@@ -1,6 +1,6 @@
 export type Eol = "\n" | "\r\n";
 
-/** The ending most lines use. CodeMirror works in LF: a CRLF file must come back in CRLF (spec studio code §3). */
+/** The ending most lines use. CodeMirror works in LF: a CRLF file must come back in CRLF. */
 export function detectEol(text: string): Eol {
   const crlf = text.match(/\r\n/g)?.length ?? 0;
   const lf = (text.match(/\n/g)?.length ?? 0) - crlf;

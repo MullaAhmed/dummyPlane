@@ -18,7 +18,7 @@ const ROW_BUTTON = "rounded-md font-normal text-dp-text-2 hover:text-dp-text";
 /** A field's visible name: the section label, on a native label (shadcn's Label would resize it), as in the loops dialog. */
 const LABEL = "dp-label";
 
-/** "Claude accounts" (spec comptes §6): profiles are a name and a folder; the login happens in Claude. */
+/** "Claude accounts": profiles are a name and a folder; the login happens in Claude. */
 export function AccountsDialog() {
   const t = useMessages(accountsMessages);
   const { open, profiles, active } = useAccounts((s) => s);

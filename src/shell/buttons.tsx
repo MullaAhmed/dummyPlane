@@ -65,7 +65,7 @@ export function HintedButton({
 }
 
 /**
- * A button of the floating rails (spec identité §5.4, §5.5): 36 × 36, the active
+ * A button of the floating rails: 36 × 36, the active
  * one in the accent. Its name shows as a hint on the rail's open side
  * (`hintSide`); a menu it opens passes `aria-expanded`, which keeps the hint shut.
  * Only a real on/off (`toggle`: a canvas tool, a panel shown or hidden) says
@@ -132,7 +132,7 @@ export function QuietButton({ className, ...props }: ComponentProps<typeof Butto
 }
 
 /**
- * The main action of a screen or a popover (spec identité §4.4): the accent, brighter under the
+ * The main action of a screen or a popover: the accent, brighter under the
  * pointer. It takes the Button's `size` (`lg` for a dialog's primary action).
  */
 export function AccentButton({ className, ...props }: ComponentProps<typeof Button>) {

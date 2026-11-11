@@ -107,13 +107,13 @@ beforeEach(() => {
   canvasStore.setState({ api: { getSceneElementsIncludingDeleted: () => [] } as never, frames: [], links: {} });
 });
 
-it("writes an agent's sub-task on one line, with its budget, branch and duties (spec §7.3)", () => {
+it("writes an agent's sub-task on one line, with its budget, branch and duties", () => {
   expect(subTaskText("Auth", plan[1], "dummyplane/auth-aquaman")).toBe(
     "[dummyPlane · mission Auth] API — Fais l'API puis teste. Budget: 30 min. Branch: dummyplane/auth-aquaman. This worktree is new: its dependencies (node_modules…) are not installed. Declare your steps, delegate to your sub-agents, commit on your branch, then report with report.",
   );
 });
 
-describe("what dummyPlane types to agents, in English (spec première version §7.1)", () => {
+describe("what dummyPlane types to agents, in English", () => {
   const english = async (check: () => Promise<void> | void) => {
     try {
       await check();
@@ -160,7 +160,7 @@ describe("what dummyPlane types to agents, in English (spec première version §
     }));
 });
 
-describe("the model router (spec maj §3)", () => {
+describe("the model router", () => {
   it("starts each agent on the model of its sub-task's level, and gives the linked ones theirs back at the end", async () => {
     await setup({ router: true, plan: [{ ...plan[0], level: "eleve" }, { ...plan[1], level: "faible" }] });
     await launchMission("chef");
@@ -223,7 +223,7 @@ describe("the model router (spec maj §3)", () => {
   });
 });
 
-describe("launchMission (spec §7.3)", () => {
+describe("launchMission", () => {
   it("forms the team: a worktree each, linked agents relaunched there anew, new ones under the board's Manager", async () => {
     await setup();
     vi.mocked(addTerminal).mockResolvedValueOnce("n1");
@@ -362,7 +362,7 @@ describe("launchMission (spec §7.3)", () => {
   });
 });
 
-describe("a new agent in a chosen group (spec groupes spécialisés §4)", () => {
+describe("a new agent in a chosen group", () => {
   const front = { id: "g1", name: "Interface", x: 100, y: 100, width: 200, height: 100, memberIds: [], group: { role: "frontend" as const, pantheon: "norse", speciality: "Frontend" } };
   const inFront = { ...plan[1], group: { id: "g1", name: "Interface" } };
 
@@ -518,7 +518,7 @@ describe("a new agent in a chosen group (spec groupes spécialisés §4)", () =>
   });
 });
 
-describe("a mission whose workspace is not on screen (spec mission de nuit §6.1)", () => {
+describe("a mission whose workspace is not on screen", () => {
   const wired = [
     { id: "chef", type: "embeddable", isDeleted: false, frameId: null, x: 0, y: 0, width: 640, height: 760, customData: { kind: STORED_FLEET_KIND } },
     { id: "batman", type: "embeddable", isDeleted: false, frameId: null, x: 0, y: 0, width: 10, height: 10, customData: { kind: "terminal" } },
@@ -610,7 +610,7 @@ describe("a mission fed by tickets (review)", () => {
   });
 });
 
-describe("a mission's permissions (spec mission de nuit §5.3)", () => {
+describe("a mission's permissions", () => {
   it("reach every agent of the team, and leave the linked ones at the end", async () => {
     await setup({ permission: "work" });
     await launchMission("chef");
@@ -630,7 +630,7 @@ describe("a mission's permissions (spec mission de nuit §5.3)", () => {
   });
 });
 
-it("ends the mission: created agents closed, linked ones back in the project in a new conversation (spec §7.7)", async () => {
+it("ends the mission: created agents closed, linked ones back in the project in a new conversation", async () => {
   await setup({ state: "en_cours", project: "C:/code/proj", frameId: "f1", members: [member("batman", "Batman", true), member("n1", "Aquaman", false)] });
   vi.spyOn(Date, "now").mockReturnValue(1_234_567);
   const heard: FinishSignal[] = [];
@@ -646,7 +646,7 @@ it("ends the mission: created agents closed, linked ones back in the project in 
   expect(closeGroup).toHaveBeenCalledWith("f1");
 });
 
-it("merges the branches of the agents done, and says what happened to each (spec §7.6)", async () => {
+it("merges the branches of the agents done, and says what happened to each", async () => {
   const done = { summary: "ok", status: "termine" as const, at: 1 };
   await setup({
     state: "en_cours",
@@ -822,7 +822,7 @@ describe("what the final review of H2 found", () => {
   });
 });
 
-describe("reassignTask (spec §7.2 reattribuer)", () => {
+describe("reassignTask", () => {
   const report = { summary: "API faite", status: "termine" as const, at: 1 };
   const team = () =>
     setup({ state: "en_cours", project: "C:/code/proj", slug: "auth", frameId: "f1", members: [member("batman", "Batman", true, { task: "Login" }), member("n1", "Aquaman", false, { task: "API", report, merged: true })] });
@@ -1016,7 +1016,7 @@ describe("the repository a mission branches from", () => {
   });
 });
 
-describe("the board the go-ahead runs the mission on (spec babysitter Fleet)", () => {
+describe("the board the go-ahead runs the mission on", () => {
   it("puts every task of the plan and of the queue on it as a card in its to-do column, the started ones In progress", async () => {
     await nodesStore.getState().create("b1", {
       workspaceId: "w1",

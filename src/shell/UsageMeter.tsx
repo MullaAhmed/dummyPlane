@@ -54,7 +54,7 @@ function useGitBashMissing(enabled: boolean): boolean {
 }
 
 /**
- * The title bar's usage (spec maj §6): the plan's session and week, from
+ * The title bar's usage: the plan's session and week, from
  * Claude's status lines; the detail of this run's sessions on a click.
  */
 /** The limits as of now: a window past its reset shows as reset (final review maj §6). */
@@ -155,7 +155,7 @@ function LimitRow({ label, limit, now }: { label: string; limit: Limit; now: num
 }
 
 /**
- * The usage detail, or the 30-day tokens it links to (spec Tokens §4). The keyboard follows the swap: Tokens takes
+ * The usage detail, or the 30-day tokens it links to. The keyboard follows the swap: Tokens takes
  * it on its Back, and Back hands it to the link that opened it, never to the page behind the popover.
  */
 function UsageContent() {

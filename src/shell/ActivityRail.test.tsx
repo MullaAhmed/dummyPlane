@@ -23,7 +23,7 @@ vi.mock("@/studio/navigate", () => ({ openCodeWorkspace: vi.fn(async () => undef
 beforeEach(() => mockIPC(() => undefined));
 afterEach(() => clearMocks());
 
-it("toggles the agents panel and shows how many agents wait (spec identité §5.5)", async () => {
+it("toggles the agents panel and shows how many agents wait", async () => {
   await nodesStore.getState().create("alan", {
     workspaceId: "w1",
     kind: "terminal",
@@ -47,7 +47,7 @@ it("toggles the agents panel and shows how many agents wait (spec identité §5.
   host.remove();
 });
 
-it("opens the notes in their workspace tab, and shows when they are on screen (spec notes §6)", async () => {
+it("opens the notes in their workspace tab, and shows when they are on screen", async () => {
   projectsStore.setState({ activeId: "p1" });
   const openNotes = vi.fn(async () => "n1");
   workspacesStore.setState({ openNotes, activeId: "w1", workspaces: [{ id: "n1", projectId: "p1", name: "Notes", position: 1, pantheon: null, kind: "notes", folder: null }] } as never);
@@ -68,7 +68,7 @@ it("opens the notes in their workspace tab, and shows when they are on screen (s
   host.remove();
 });
 
-it("opens the code studio (spec studio code §6)", async () => {
+it("opens the code studio", async () => {
   projectsStore.setState({ activeId: "p1" });
   const host = document.createElement("div");
   document.body.append(host);

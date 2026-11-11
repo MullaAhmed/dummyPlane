@@ -4,7 +4,7 @@ import { getSetting, setSetting } from "@/ipc/db";
 import { presetsMessages } from "./messages";
 import { readPresets, storedPresets, withoutPreset, withPreset, type TeamPreset } from "./model";
 
-/** The setting that holds the presets (spec presets §3). */
+/** The setting that holds the presets. */
 export const PRESETS_KEY = "presets.teams";
 
 interface PresetsState {

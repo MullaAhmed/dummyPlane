@@ -11,7 +11,7 @@ interface Props {
   onAnswer: (answer: "save" | "discard" | "cancel") => void;
 }
 
-/** Before a change of file, closing the studio or the window (spec studio code §6). */
+/** Before a change of file, closing the studio or the window. */
 export function UnsavedDialog({ file, saving, onAnswer }: Props) {
   const t = useMessages(studioMessages).unsaved;
   return (

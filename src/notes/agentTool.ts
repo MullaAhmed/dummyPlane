@@ -5,12 +5,12 @@ import { errorText } from "@/studio/parts";
 import { notesAgentList, notesAgentRead } from "./ipc";
 import { notesMessages } from "./messages";
 
-/** Protects the agent's context: a longer note is cut, and says so (spec notes §3). */
+/** Protects the agent's context: a longer note is cut, and says so. */
 const MAX_CHARS = 100_000;
 
 const t = () => messages(notesMessages).tool;
 
-/** Additive and read-only: offered to every Claude session, next to its own tools (spec notes §3). */
+/** Additive and read-only: offered to every Claude session, next to its own tools. */
 export function notesToolSpec() {
   return {
     name: "notes",

@@ -1,6 +1,6 @@
 import { defineMessages } from "@/i18n";
 
-/** The texts of the nodes: terminals, the Fleet (spec première version §7.1). */
+/** The texts of the nodes: terminals, the Fleet. */
 export const nodesMessages = defineMessages(
   {
     unknownNode: "Unknown node",

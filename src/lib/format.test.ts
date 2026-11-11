@@ -28,7 +28,7 @@ describe("plural", () => {
 });
 
 describe("formatDuration", () => {
-  it("reads like the agents panel (spec habillage §10.4)", () => {
+  it("reads like the agents panel", () => {
     expect(formatDuration(45_400)).toBe("45 s");
     expect(formatDuration(12 * 60_000 + 5_000)).toBe("12 min");
     expect(formatDuration(65 * 60_000)).toBe("1 h 05");

@@ -36,3 +36,6 @@ public/fonts/
 .claude/worktrees/
 .claude/
 .context/
+scripts/media
+docs/assets/demo/
+BACKLOG.md

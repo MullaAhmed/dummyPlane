@@ -4,7 +4,7 @@ use crate::agents::claude_settings::claude_config_dir;
 use crate::error::{AppError, AppResult};
 use crate::tokens::{self, Report};
 
-/// The tokens Claude Code logged in the last 30 days (spec Tokens): read-only, off the async runtime.
+/// The tokens Claude Code logged in the last 30 days: read-only, off the async runtime.
 #[tauri::command]
 pub async fn token_usage() -> AppResult<Report> {
     let root =

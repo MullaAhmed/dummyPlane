@@ -4,7 +4,7 @@ import { agentMessages } from "@/mcp/messages";
 import { readLevel, type Level } from "./router";
 import type { TicketSource } from "./tickets";
 
-/** The mission of a fleet (spec orchestrateur §7), saved in its payload. */
+/** The mission of a fleet, saved in its payload. */
 export type MissionState = "redaction" | "plan" | "lancement" | "en_cours" | "terminee";
 export type ReportStatus = "termine" | "bloque" | "echec";
 
@@ -14,9 +14,9 @@ export interface SubTask {
   brief: string;
   agent: string;
   budgetMin: number;
-  /** Its difficulty: with the router, its agent's model (spec update §3). */
+  /** Its difficulty: with the router, its agent's model. */
   level?: Level;
-  /** The linked group a new agent joins, else it goes in the mission's (spec specialised groups §4). */
+  /** The linked group a new agent joins, else it goes in the mission's. */
   group?: PlanGroup;
   /** The Kanban card it handles (`board`): it follows the sub-task on its board. */
   card?: string;
@@ -24,7 +24,7 @@ export interface SubTask {
   handedBy?: string;
 }
 
-/** A task waiting for a new agent (spec overnight mission §4.1). */
+/** A task waiting for a new agent. */
 export type QueuedTask = Omit<SubTask, "agent">;
 
 /** A sub-task of the plan beyond Max agents, as it waits in the queue. */
@@ -56,7 +56,7 @@ export interface Report {
   summary: string;
   status: ReportStatus;
   at: number;
-  /** What the agent leaves to check by hand (spec overnight mission §6.2). */
+  /** What the agent leaves to check by hand. */
   check?: string;
 }
 
@@ -75,9 +75,9 @@ export interface Member {
   sentAt?: number;
   report?: Report;
   merged?: boolean;
-  /** Minutes added by `prolonger` (spec §8.2). */
+  /** Minutes added by `prolonger`. */
   extraMin?: number;
-  /** The overruns already told: 1 at 100 % of its budget, 2 at 200 % (spec §8.2). */
+  /** The overruns already told: 1 at 100 % of its budget, 2 at 200 %. */
   overdue?: 1 | 2;
   /** Its sub-task went to this agent (`reattribuer`): its clock stops. */
   handedTo?: string;
@@ -85,9 +85,9 @@ export interface Member {
   abandoned?: boolean;
   /** Sub-tasks it finished before taking another one (`reattribuer`). */
   done?: string[];
-  /** The model the router started it on (spec update §3). */
+  /** The model the router started it on. */
   model?: string;
-  /** The existing group it joined; it closes alone at the end (spec specialised groups §4). */
+  /** The existing group it joined; it closes alone at the end. */
   group?: string;
   /** The tasks it went through before this one. */
   past?: PastTask[];
@@ -96,8 +96,7 @@ export interface Member {
 export interface Mission {
   state: MissionState;
   /**
-   * An overnight run's length: the time the user is away, real time from the go-ahead (spec overnight
-   * mission §3). A regular mission has none: its old "global budget" setting is gone, and ignored if saved.
+   * An overnight run's length: the time the user is away, real time from the go-ahead. A regular mission has none: its old "global budget" setting is gone, and ignored if saved.
    */
   budgetMin?: number;
   maxAgents: number;
@@ -116,27 +115,27 @@ export interface Mission {
   /** The summary as the fleet wrote it in OpenUI Lang (finish), when it did: what the panel draws. */
   summaryUi?: string;
   error?: string;
-  /** The go-ahead: the night's time runs from then (spec §8.1). */
+  /** The go-ahead: the night's time runs from then. */
   startedAt?: number;
-  /** "finish": the members' times stop there (spec first version §5.3). */
+  /** "finish": the members' times stop there. */
   endedAt?: number;
-  /** The end of the night was told (spec §8.2). */
+  /** The end of the night was told. */
   globalOverdue?: boolean;
-  /** Each agent gets the model of its sub-task's level (spec update §3). */
+  /** Each agent gets the model of its sub-task's level. */
   router?: boolean;
-  /** Tasks beyond the team, in order; a new agent, in a new terminal, takes the next one (spec overnight mission §4). */
+  /** Tasks beyond the team, in order; a new agent, in a new terminal, takes the next one. */
   queue?: QueuedTask[];
-  /** Launched for the user's absence: `budgetMin` is the time away, agents' budgets are targets (spec overnight mission §3). */
+  /** Launched for the user's absence: `budgetMin` is the time away, agents' budgets are targets. */
   overnight?: boolean;
   /** The end of the night was told. */
   windDownTold?: boolean;
   /** Where an overnight mission takes its tasks. */
   tickets?: TicketSource;
-  /** What its agents may do unasked; none outside a night (spec overnight mission §5.3). */
+  /** What its agents may do unasked; none outside a night. */
   permission?: Permission;
   /** What `finish` leaves to check by hand. */
   handChecks?: string[];
-  /** The dialog was the go-ahead: the plan starts as soon as it is proposed (spec overnight mission §5.1). */
+  /** The dialog was the go-ahead: the plan starts as soon as it is proposed. */
   autoLaunch?: boolean;
   /**
    * The Manager terminal that runs the mission since its go-ahead (`./manager`). A running mission without one
@@ -286,7 +285,7 @@ function readTaskFields(r: Record<string, unknown>, n: number, mission: Mission)
   if (!title || title.length > MAX_TITLE) return e.title(n, MAX_TITLE);
   if (!brief) return e.brief(n);
   if (typeof budget !== "number" || !Number.isInteger(budget) || budget < 1) return e.budget(n);
-  // The night is real time: agents in parallel share it, only one sub-task alone could not fit (spec overnight mission §3).
+  // The night is real time: agents in parallel share it, only one sub-task alone could not fit.
   const night = nightMin(mission);
   if (night !== undefined && budget > night) return e.overBudget(n, budget, night);
   const given = r.niveau !== undefined && r.niveau !== null;
@@ -310,7 +309,7 @@ function namedCard(r: Record<string, unknown>, cards: readonly string[]): string
   return cards.includes(card) ? card : null;
 }
 
-/** `add_tasks`' arguments as tasks for the queue, or what is wrong (spec overnight mission §4.2). `cards`: ids of the cards of its linked boards. */
+/** `add_tasks`' arguments as tasks for the queue, or what is wrong. `cards`: ids of the cards of its linked boards. */
 export function proposedTasks(args: Record<string, unknown>, mission: Mission, groups: readonly PlanGroup[], cards: readonly string[] = []): QueuedTask[] | string {
   const e = messages(agentMessages).plan;
   const raw = args.tasks;
@@ -337,7 +336,7 @@ export function proposedTasks(args: Record<string, unknown>, mission: Mission, g
 }
 
 /**
- * `propose_plan`'s arguments (internal names, `@/mcp/protocol`) as a plan, or what is wrong (spec §7.2).
+ * `propose_plan`'s arguments (internal names, `@/mcp/protocol`) as a plan, or what is wrong.
  * `linked`: names of the linked Claude agents; `groups`: the linked groups; `cards`: ids of the cards of its linked boards.
  */
 export function proposedPlan(
@@ -389,7 +388,7 @@ export function nightMin(mission: Mission): number | undefined {
   return mission.overnight ? mission.budgetMin : undefined;
 }
 
-/** What is kept of a task when its agent takes another (spec overnight mission §6.2). */
+/** What is kept of a task when its agent takes another. */
 export function pastTask(member: Member, report: Report): PastTask {
   return {
     task: member.task,
@@ -406,7 +405,7 @@ export function pastTask(member: Member, report: Report): PastTask {
 /** A member's budget with its extensions. */
 export const budgetOf = (member: Member) => member.budgetMin + (member.extraMin ?? 0);
 
-/** Minutes a member has spent: from its sub-task's sending to its report, in real time (spec §8.1). */
+/** Minutes a member has spent: from its sub-task's sending to its report, in real time. */
 export function spentMin(member: Member, now: number): number {
   if (member.sentAt === undefined) return 0;
   return Math.max(0, ((member.report?.at ?? now) - member.sentAt) / MINUTE);
@@ -414,7 +413,7 @@ export function spentMin(member: Member, now: number): number {
 
 /**
  * A member's time as shown: it stops at its report, else at the mission's end
- * (spec first version §5.3). Unknown for a mission ended before end times
+ *. Unknown for a mission ended before end times
  * were kept: its members without a report would count on forever.
  */
 export function memberTime(mission: Mission, member: Member, now: number): number | undefined {
@@ -431,7 +430,7 @@ export interface Overrun {
 }
 
 /**
- * What the clock has to tell (spec §8.2): the members past 100 % or 200 % of
+ * What the clock has to tell: the members past 100 % or 200 % of
  * their budget without a report, each step once, and the end of the night.
  */
 export function overruns(mission: Mission, now: number): { members: Overrun[]; global: boolean } {
@@ -447,7 +446,7 @@ export function overruns(mission: Mission, now: number): { members: Overrun[]; g
   return { members, global };
 }
 
-/** The whole minutes left of the night, real time from the go-ahead (spec overnight mission §3); undefined outside one. */
+/** The whole minutes left of the night, real time from the go-ahead; undefined outside one. */
 export function remainingGlobal(mission: Mission, now: number): number | undefined {
   const night = nightMin(mission);
   if (night === undefined) return undefined;
@@ -458,7 +457,7 @@ export function remainingGlobal(mission: Mission, now: number): number | undefin
 /** The last minutes of an overnight mission keep the time to merge and finish: 10 %, 10 min at least, half of a short one. */
 export const windDownMin = (budget: number) => Math.min(budget / 2, Math.max(10, budget / 10));
 
-/** An overnight mission near its end: no new work, the fleet wraps up (spec overnight mission §3). */
+/** An overnight mission near its end: no new work, the fleet wraps up. */
 export function windingDown(mission: Mission, now: number): boolean {
   if (!mission.overnight || mission.budgetMin === undefined || mission.startedAt === undefined) return false;
   return (now - mission.startedAt) / MINUTE >= mission.budgetMin - windDownMin(mission.budgetMin);
@@ -475,7 +474,7 @@ export type BudgetTone = "ok" | "late" | "over";
 const REPORT_TONE: Record<ReportStatus, BudgetTone> = { termine: "ok", bloque: "late", echec: "over" };
 
 /**
- * A budget's bar (spec §8.3): green, orange past 80 %, red past 100 %. A member
+ * A budget's bar: green, orange past 80 %, red past 100 %. A member
  * that reported is finished, its time frozen: its bar is complete, in the tone of its report.
  */
 export function budgetBar(spent: number, budget: number, report?: ReportStatus): { ratio: number; tone: BudgetTone } {
@@ -484,7 +483,7 @@ export function budgetBar(spent: number, budget: number, report?: ReportStatus):
   return { ratio: Math.min(1, ratio), tone: ratio > 1 ? "over" : ratio > 0.8 ? "late" : "ok" };
 }
 
-/** The fleet's header during a mission (spec §8.3): time spent, over the night's length if overnight. */
+/** The fleet's header during a mission: time spent, over the night's length if overnight. */
 export function clockText(mission: Mission, now: number): string | null {
   if (mission.state !== "en_cours" || mission.startedAt === undefined) return null;
   const spent = Math.floor((now - mission.startedAt) / MINUTE);

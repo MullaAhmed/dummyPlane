@@ -26,7 +26,7 @@ interface Viewport {
 /**
  * The view stays when the terminal shows whole, at 100 %, in the zone utile:
  * the canvas less the bars at the top and the command bar's band at the
- * bottom (spec fenêtre §6.4, as amended by spec identité §7).
+ * bottom.
  */
 export function needsMove(rect: Rect, view: Viewport): boolean {
   if (view.zoom !== 1) return true;
@@ -35,7 +35,7 @@ export function needsMove(rect: Rect, view: Viewport): boolean {
   return left < 0 || top < TOP_ROW_HEIGHT || left + rect.width > view.width || top + rect.height > view.height - BOTTOM_BAR_HEIGHT;
 }
 
-/** The waiting notice would hide part of the node: an agent's question sits at the bottom of its terminal (spec notification §4). */
+/** The waiting notice would hide part of the node: an agent's question sits at the bottom of its terminal. */
 function underWaitingNotice(rect: Rect, view: Viewport): boolean {
   const notice = document.querySelector("[data-waiting-notice]")?.getBoundingClientRect();
   if (!notice) return false;
@@ -44,7 +44,7 @@ function underWaitingNotice(rect: Rect, view: Viewport): boolean {
   return left < notice.right && left + rect.width > notice.left && top < notice.bottom && top + rect.height > notice.top;
 }
 
-/** The terminal at 100 %, centered in the usable area (plan E1, decision 1). */
+/** The terminal at 100 %, centered in the usable area. */
 export function arrivalView(rect: Rect, viewport: { width: number; height: number }) {
   const middle = (TOP_ROW_HEIGHT + viewport.height - BOTTOM_BAR_HEIGHT) / 2;
   return {
@@ -54,7 +54,7 @@ export function arrivalView(rect: Rect, viewport: { width: number; height: numbe
   };
 }
 
-/** How many frames (about two seconds) the keyboard is offered to an arriving node: after a workspace switch its terminal mounts late (plan E1, J8). */
+/** How many frames (about two seconds) the keyboard is offered to an arriving node: after a workspace switch its terminal mounts late. */
 export const FOCUS_FRAMES = 120;
 
 /**
@@ -74,7 +74,7 @@ function focusSoon(focus: () => boolean, token: number, frames = FOCUS_FRAMES) {
 let generation = 0;
 let arriving: string | null = null;
 
-/** The node an arrival is still giving the keyboard to: a Ctrl+Tab repeat steps on from it, not from the terminal left (plan E1). */
+/** The node an arrival is still giving the keyboard to: a Ctrl+Tab repeat steps on from it, not from the terminal left. */
 export function arrivingNode(): string | null {
   return arriving;
 }
@@ -87,7 +87,7 @@ function focusNodeInput(nodeId: string, kind: NodeKind | null): boolean {
 }
 
 /**
- * Arrival on a node (spec fenêtre §6.4, §7.2), shared by Ctrl+Tab and Ctrl+P:
+ * Arrival on a node, shared by Ctrl+Tab and Ctrl+P:
  * the view moves only if needed; the node is activated as by a click in its
  * body, without selecting it, and the selection left behind is cleared: the
  * canvas keys (Suppr, arrows) must not act on a node out of sight. A terminal
@@ -98,7 +98,7 @@ export function arrive(nodeId: string): boolean {
   const api = canvasStore.getState().api;
   let element = api?.getSceneElements().find((e) => e.id === nodeId);
   if (!api || !element) return false;
-  // A folded group keeps its terminals off the screen: unfold it, then arrive (spec replier un groupe §2).
+  // A folded group keeps its terminals off the screen: unfold it, then arrive.
   const folded = canvasStore.getState().frames.find((f) => f.group?.folded && f.memberIds.includes(nodeId));
   if (folded) {
     void import("@/agents/groups").then(({ setGroupFolded }) => {
@@ -121,8 +121,8 @@ export function arrive(nodeId: string): boolean {
   generation += 1;
   arriving = nodeId;
   focusSoon(() => focusNodeInput(nodeId, kind), generation);
-  // A fleet takes only the view and the keyboard of an arrival, not its flash (spec fenêtre §7, the palette's
-  // Fleets row: "vue comme l'arrivée (§6.4, point 1)").
+  // A fleet takes only the view and the keyboard of an arrival, not its flash
+  // (the palette's Fleets row: "same view as an arrival").
   if (kind === "terminal") signalArrival(nodeId);
   return true;
 }

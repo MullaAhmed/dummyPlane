@@ -216,7 +216,7 @@ function edgeMask(start: boolean, end: boolean): string | undefined {
 
 /**
  * Workspace tabs of the open project, then "+", then the empty space that
- * moves the window (spec identité §5.2). The tabs scroll sideways, by the
+ * moves the window. The tabs scroll sideways, by the
  * wheel, without a scrollbar: their row must not drag itself, or a press on it
  * would move the window instead of scrolling. "+" stays outside it, always in
  * reach; the tab on screen is scrolled into view, and a cut edge fades.

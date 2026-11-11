@@ -1,4 +1,4 @@
-//! Where an overnight mission takes its tasks (spec mission de nuit §5.1). The
+//! Where an overnight mission takes its tasks. The
 //! fleet may not run commands: dummyPlane reads the source for it.
 
 use std::path::Path;
@@ -69,7 +69,7 @@ pub fn github_issues(project: &Path, label: &str) -> Result<String, String> {
     }
 }
 
-/// What a night needs of the project before it starts (spec mission de nuit §5.2).
+/// What a night needs of the project before it starts.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 pub struct ProjectChecks {
     pub git: bool,

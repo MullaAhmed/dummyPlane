@@ -13,13 +13,13 @@ async fn blocking<T: Send + 'static>(
         .await
         .map_err(|err| AppError::Io(std::io::Error::other(err.to_string())))?
         .map_err(|err| {
-            // In the log a tester sends (spec première version §3.6).
+            // In the log a tester sends.
             log::warn!("mission: {err}");
             AppError::InvalidInput(err)
         })
 }
 
-/// The mission's branch and worktree (spec orchestrateur §7.4).
+/// The mission's branch and worktree.
 #[tauri::command]
 pub async fn mission_prepare(project: String, name: String) -> AppResult<Worktree> {
     blocking(move || mission::prepare(Path::new(&project), &name)).await
@@ -34,7 +34,7 @@ pub async fn mission_add_agent(
     blocking(move || mission::add_agent(Path::new(&project), &mission, &agent)).await
 }
 
-/// `mission` and `agent` are the worktrees' paths (spec orchestrateur §7.6).
+/// `mission` and `agent` are the worktrees' paths.
 #[tauri::command]
 pub async fn mission_merge(
     mission: String,
@@ -44,7 +44,7 @@ pub async fn mission_merge(
     blocking(move || mission::merge_agent(Path::new(&mission), Path::new(&agent), &branch)).await
 }
 
-/// The project's `BACKLOG.md` (spec mission de nuit §5.1).
+/// The project's `BACKLOG.md`.
 #[tauri::command]
 pub async fn mission_backlog(project: String) -> AppResult<String> {
     blocking(move || tickets::backlog(Path::new(&project))).await
@@ -62,7 +62,7 @@ pub async fn mission_checks(project: String) -> AppResult<ProjectChecks> {
     blocking(move || Ok(tickets::checks(Path::new(&project)))).await
 }
 
-/// Held while an overnight mission runs (spec mission de nuit §5.4).
+/// Held while an overnight mission runs.
 #[tauri::command]
 pub fn set_keep_awake(awake: tauri::State<'_, KeepAwake>, on: bool) {
     awake.set(on);
@@ -85,7 +85,7 @@ pub async fn mission_discard(project: String, trees: Vec<Worktree>) -> AppResult
     blocking(move || mission::discard(Path::new(&project), &trees)).await
 }
 
-/// « Nettoyer la mission » (spec orchestrateur §7.7).
+/// « Nettoyer la mission ».
 #[tauri::command]
 pub async fn mission_cleanup(
     project: String,

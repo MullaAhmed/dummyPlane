@@ -5,9 +5,9 @@ export type PaletteMode = "goTo" | "functions";
 
 interface PaletteState {
   open: boolean;
-  /** The field's text; `>` first makes the functions mode (spec window §7.1). */
+  /** The field's text; `>` first makes the functions mode. */
   query: string;
-  /** Taken when it opened: the functions are listed for that moment (spec window §7.3). */
+  /** Taken when it opened: the functions are listed for that moment. */
   context: CommandContext | null;
   /** Where the keyboard was when it opened, and goes back when it closes. */
   returnFocus: HTMLElement | null;
@@ -53,7 +53,7 @@ export function setPaletteQuery(query: string) {
   paletteStore.setState({ query });
 }
 
-/** Closes it; the keyboard goes back where it was when it opened (spec window §7.1). */
+/** Closes it; the keyboard goes back where it was when it opened. */
 export function closePalette() {
   const { returnFocus } = paletteStore.getState();
   paletteStore.setState({ open: false, query: "", context: null, returnFocus: null });

@@ -5,7 +5,7 @@ import type { Point } from "@/agents/terminals";
 import type { AgentId } from "@/ipc/pty";
 import type { TeamPreset } from "./model";
 
-/** What deploying needs from the app: tests give it fakes, so no real agent ever starts (spec presets §3). */
+/** What deploying needs from the app: tests give it fakes, so no real agent ever starts. */
 export interface DeployDeps {
   /** The center of the view, in scene coordinates. */
   center: Point;
@@ -35,7 +35,7 @@ export interface DeployResult {
 }
 
 /**
- * Poses a preset (spec presets §3): its groups around the view's center, in
+ * Poses a preset: its groups around the view's center, in
  * their saved places, then each fleet linked to its groups. A group
  * that cannot be posed is left out; the rest goes on.
  */

@@ -116,7 +116,7 @@ it("keeps the name when the field is left empty or unchanged", async () => {
   await unmount();
 });
 
-it("shows Remote Control on a Claude session only, as dummyPlane knows it (spec maj §2)", async () => {
+it("shows Remote Control on a Claude session only, as dummyPlane knows it", async () => {
   const host = document.createElement("div");
   document.body.append(host);
   const root = createRoot(host);

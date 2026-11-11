@@ -84,8 +84,7 @@ function Swatch({ palette }: { palette: ThemeChoice }) {
 }
 
 /**
- * Gear menu: what Excalidraw's hidden main menu used to offer (spec habillage
- * §5.2), opened from `trigger`. Settings come first, grouped by what they
+ * Gear menu: what Excalidraw's hidden main menu used to offer, opened from `trigger`. Settings come first, grouped by what they
  * change; the scene's files next; help last, one level down.
  */
 export function SettingsMenu({

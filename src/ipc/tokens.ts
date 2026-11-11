@@ -8,7 +8,7 @@ export interface TokenCounts {
   cacheWrite: number;
 }
 
-/** What Rust read from Claude's local logs over the last 30 days (spec Tokens); mirrors `tokens::Report`. */
+/** What Rust read from Claude's local logs over the last 30 days; mirrors `tokens::Report`. */
 export interface TokenReport {
   days: { date: string; counts: TokenCounts }[];
   sessions: { sessionId: string; model: string | null; counts: TokenCounts }[];

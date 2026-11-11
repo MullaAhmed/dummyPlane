@@ -11,7 +11,7 @@ import { AGENTS } from "./catalog";
 import { agentsMessages } from "./messages";
 
 /**
- * Claude Code's Remote Control (spec update §2): a session followed from
+ * Claude Code's Remote Control: a session followed from
  * claude.ai or the phone. dummyPlane types `/remote-control` and reads the
  * answer on the terminal's screen; a terminal that has it on starts with it.
  */

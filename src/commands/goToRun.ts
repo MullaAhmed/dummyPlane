@@ -20,7 +20,7 @@ function reachTarget(target: PendingArrival) {
   if (!reach(target.kind, target.id)) toastError(messages(commandsMessages).goTo.gone(target.label));
 }
 
-/** Enter on a line of "Go to" (spec window §7.2). */
+/** Enter on a line of "Go to". */
 export function goTo(item: GoToItem) {
   switch (item.kind) {
     case "workspace":
@@ -41,14 +41,14 @@ export function goTo(item: GoToItem) {
 
 let lastReached: string | null = null;
 
-/** A click on the notification (spec notification §5), or on an agent's finish alert. */
+/** A click on the notification, or on an agent's finish alert. */
 export function goToAgent(agent: OpenAgent) {
   lastReached = agent.id;
   reachTarget({ workspaceId: agent.workspaceId, kind: agent.kind, id: agent.id, label: agent.name });
 }
 
 /**
- * The next waiting agent (spec notification §6), after the current node. The
+ * The next waiting agent, after the current node. The
  * keyboard of a fleet is not in the context, which keeps naming the
  * last terminal: a fleet just reached counts as the current node, or
  * the command would never get past it.

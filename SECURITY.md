@@ -4,11 +4,11 @@ dummyPlane launches AI coding agents in real terminals on your machine, so its s
 
 ## Supported versions
 
-dummyPlane is in beta. Only the latest release and the `main` branch receive security fixes; installed versions update themselves.
+dummyPlane is an early preview. Only the latest release and the `main` branch receive security fixes; installed versions update themselves.
 
 | Version | Supported |
 |---|---|
-| Latest release (1.0.0 betas) and `main` | Yes |
+| Latest release (0.1.0 and later) and `main` | Yes |
 | Anything older | No |
 
 ## Reporting a vulnerability

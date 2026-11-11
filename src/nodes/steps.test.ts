@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { declaredSteps, markedSteps, readSteps, settledSteps, type Step } from "./steps";
 import { readTerminalPayload } from "./types";
 
-describe("an agent's steps (spec orchestrateur §4.4, §5)", () => {
+describe("an agent's steps", () => {
   it("declares 1 to 12 short titles, all to come", () => {
     expect(declaredSteps([" Plan ", "Recherche"])).toEqual([
       { title: "Plan", state: "a_venir" },

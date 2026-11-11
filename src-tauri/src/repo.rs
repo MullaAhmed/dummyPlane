@@ -1,4 +1,4 @@
-//! The git window (spec fenêtre git): what the project's repository holds, and
+//! The git window: what the project's repository holds, and
 //! what the user does to it by hand: commit, discard one file, push.
 
 use std::collections::{BTreeMap, HashMap};
@@ -30,7 +30,7 @@ pub struct RepoState {
     /// Why it cannot: `noRemote`, `manyRemotes`, `detached`, `noCommit`, `mirror`.
     pub no_push: Option<String>,
     pub files: Vec<ChangedFile>,
-    /// Each file as it is now, by path: what a discard must still find (spec fenêtre git §2.2).
+    /// Each file as it is now, by path: what a discard must still find.
     pub stamps: BTreeMap<String, String>,
     /// `files` stops at `review::MAX_ENTRIES`.
     pub truncated: bool,
@@ -64,7 +64,7 @@ pub struct LogRef {
     pub current: bool,
 }
 
-/// `review::command`, where a path is never a pattern (spec fenêtre git §2.4)
+/// `review::command`, where a path is never a pattern
 /// and git never waits for an answer nobody can type.
 fn command(root: &Path, args: &[&str]) -> Command {
     let mut command = review::command(root, &["--literal-pathspecs"]);
@@ -231,7 +231,7 @@ fn parse_index(output: &str) -> HashMap<&str, &str> {
 }
 
 /// What a file is now, on the disk and in the index. Line counts would not do:
-/// a rewrite can keep them, and a big or binary file has none (spec fenêtre git §2.2).
+/// a rewrite can keep them, and a big or binary file has none.
 fn stamp(root: &Path, file: &ChangedFile, index: &HashMap<&str, &str>) -> String {
     std::iter::once(file.path.as_str())
         .chain(file.old_path.as_deref())
@@ -327,7 +327,7 @@ fn exists(path: &Path) -> bool {
 }
 
 /// The file's path is a directory, or lives under what is no longer one: git
-/// would delete what is there to put it back (spec fenêtre git §3.3). A rename's
+/// would delete what is there to put it back. A rename's
 /// old path, come back since, would be overwritten.
 fn refuse_what_git_would_replace(root: &Path, file: &ChangedFile) -> Result<(), String> {
     let refused = |path: &str| {
@@ -364,7 +364,7 @@ fn all_paths(files: &[ChangedFile]) -> Result<Vec<&str>, String> {
     Ok(paths)
 }
 
-/// Commits exactly `files`, whatever else is staged (spec fenêtre git §3.2); the new commit's short hash.
+/// Commits exactly `files`, whatever else is staged; the new commit's short hash.
 pub fn commit(dir: &Path, files: &[ChangedFile], message: &str) -> Result<String, String> {
     let message = message.trim();
     if message.is_empty() {
@@ -408,7 +408,7 @@ pub fn commit(dir: &Path, files: &[ChangedFile], message: &str) -> Result<String
         .to_string())
 }
 
-/// Puts one file back as it was (spec fenêtre git §3.3), if it still is what the
+/// Puts one file back as it was, if it still is what the
 /// user confirmed: an agent may have written to it since (§2.2). `confirmed` is
 /// the file's stamp in the list the user saw.
 pub fn discard(dir: &Path, file: &ChangedFile, confirmed: &str) -> Result<(), String> {
@@ -519,7 +519,7 @@ fn history_up_to(dir: &Path, max: usize) -> Result<Vec<LogEntry>, String> {
     )?))
 }
 
-/// Only ever called by the window's Push button (spec fenêtre git §2.3), for the
+/// Only ever called by the window's Push button, for the
 /// branch, commit and target that button showed. The refspec is explicit and has no
 /// `+`: `remote.*.push`, `push.default` or `pushRemote` cannot send anything
 /// else, or force anything, behind what the button says.

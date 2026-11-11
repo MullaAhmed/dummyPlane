@@ -17,7 +17,7 @@ export const BACK = "-ml-1.5 gap-2 self-start rounded-md px-1.5 font-normal text
 /** A text link of these steps: the ink, underlined on hover, sized by its text. */
 export const LINK = "h-auto gap-1 rounded-sm p-0 text-xs font-normal text-dp-accent-ink";
 
-/** The whole command, read before the click that runs it (spec installation §2). */
+/** The whole command, read before the click that runs it. */
 export function InstallPrompt({ agent, onBack, onRun }: { agent: AgentId; onBack: () => void; onRun: () => void }) {
   const t = useMessages(agentsMessages).install;
   const install = AGENT_INSTALLS[agent];

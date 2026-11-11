@@ -2,7 +2,7 @@ import type { AppState } from "@excalidraw/excalidraw/types";
 import { nodeKindOf } from "./nodeElement";
 
 /**
- * Returns the id of a terminal the moment Excalidraw activates it (spec §6.3),
+ * Returns the id of a terminal the moment Excalidraw activates it,
  * once per activation; null the rest of the time.
  */
 export function createActivationTracker() {

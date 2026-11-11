@@ -29,7 +29,7 @@ beforeEach(() => {
 });
 afterEach(() => vi.restoreAllMocks());
 
-describe("goTo (spec fenêtre §7.2)", () => {
+describe("goTo", () => {
   it("arrives on a terminal or a fleet of the workspace on screen, fits a group", () => {
     goTo(item({ workspaceId: "w1", targetId: "batman" }));
     expect(arrive).toHaveBeenCalledWith("batman");
@@ -64,7 +64,7 @@ describe("goTo (spec fenêtre §7.2)", () => {
     expect(arrive).not.toHaveBeenCalled();
   });
 
-  it("says so when the target is gone (spec fenêtre §9)", async () => {
+  it("says so when the target is gone", async () => {
     const error = vi.spyOn(toast, "error").mockImplementation(() => "");
     vi.mocked(arrive).mockReturnValue(false);
     goTo(item({ workspaceId: "w2", targetId: "batman", label: "Batman" }));
@@ -113,7 +113,7 @@ describe("goTo (spec fenêtre §7.2)", () => {
   });
 });
 
-describe("goToNextWaiting (spec notification §6)", () => {
+describe("goToNextWaiting", () => {
   const terminal = (name: string) => ({
     workspaceId: "w1",
     kind: "terminal",

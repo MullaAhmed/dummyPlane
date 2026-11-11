@@ -58,7 +58,6 @@ export function updateMember(fleetId: string, nodeId: string, patch: Partial<Mem
 /**
  * Fleets deleted from the canvas. Their record stays for an undo, and so
  * does their mission: it waits, unheard, until the undo brings them back
- * (spec first version §5.4).
  */
 const closedFleets = new Set<string>();
 
@@ -123,7 +122,7 @@ export function releaseSpawnedPermission(fleetId: string, permission: Mission["p
 }
 
 /**
- * The running mission an agent works for, once its sub-task was sent (spec §7.5);
+ * The running mission an agent works for, once its sub-task was sent;
  * a closed fleet's only with `evenClosed`.
  */
 export function memberOf(nodeId: string, { evenClosed = false } = {}): { fleetId: string; member: Member } | null {
@@ -143,7 +142,7 @@ export function fleetShown(fleetId: string): boolean {
   return record !== undefined && record.workspaceId === workspacesStore.getState().activeId && canvasStore.getState().api !== null;
 }
 
-/** A workspace's wires and groups: live on screen, from its stored scene otherwise (spec overnight mission §6.1). */
+/** A workspace's wires and groups: live on screen, from its stored scene otherwise. */
 export function workspaceCanvas(workspaceId: string | undefined): Pick<ReturnType<typeof canvasStore.getState>, "frames" | "links"> {
   const shown = workspaceId === workspacesStore.getState().activeId && canvasStore.getState().api !== null;
   if (workspaceId === undefined || shown) return canvasStore.getState();
@@ -159,7 +158,7 @@ export function canvasKnown(fleetId: string): boolean {
 
 const canvasOfNode = (nodeId: string) => workspaceCanvas(nodesStore.getState().nodes[nodeId]?.workspaceId);
 
-/** The agents wired to a fleet that have dummyPlane's tools for a mission, Claude's or Codex's (spec §2). */
+/** The agents wired to a fleet that have dummyPlane's tools for a mission, Claude's or Codex's. */
 export function linkedTeamAgents(fleetId: string): { nodeId: string; name: string }[] {
   const { links, frames } = canvasOfNode(fleetId);
   const nodes = nodesStore.getState().nodes;
@@ -174,7 +173,7 @@ export function linkedTeamAgents(fleetId: string): { nodeId: string; name: strin
   });
 }
 
-/** The groups wired to a fleet, with what each is for (spec specialised groups §3). */
+/** The groups wired to a fleet, with what each is for. */
 export function linkedGroups(fleetId: string): { id: string; name: string; speciality: string | null }[] {
   const { links, frames } = canvasOfNode(fleetId);
   return linkedAgents(links[fleetId] ?? NO_LINKS, frames).groups.map((f) => ({ id: f.id, name: f.name, speciality: f.group?.speciality ?? null }));
@@ -193,7 +192,7 @@ export function memberGroupId(member: Member): string | null {
 
 export type AgentState = "travaille" | "attend" | "inactif" | "arrêté";
 
-/** An agent's state as the fleet reads it (spec §7.2 `equipe`). */
+/** An agent's state as the fleet reads it. */
 export function agentState(nodeId: string): AgentState {
   if (!isRunning(nodeId)) return "arrêté";
   const activity = agentActivityStore.getState().activities[nodeId];
@@ -209,7 +208,7 @@ export interface MemberBudget {
   report?: ReportStatus;
 }
 
-/** The time and budget of each agent of a running mission, by node (spec §8.3). */
+/** The time and budget of each agent of a running mission, by node. */
 export function memberBudgets(nodes: Record<string, NodeRecord>, now: number): Record<string, MemberBudget> {
   const budgets: Record<string, MemberBudget> = {};
   for (const [fleetId, record] of Object.entries(nodes)) {

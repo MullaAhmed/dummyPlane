@@ -7,7 +7,7 @@ beforeEach(() => {
   localStorage.clear();
 });
 
-it("keeps the last three functions run, most recent first, each once, across restarts (retours J8b)", () => {
+it("keeps the last three functions run, most recent first, each once, across restarts", () => {
   for (const id of ["canvas.fit", "workspace.new", "canvas.fit", "terminal.rename", "agent.console"]) rememberFunction(id);
   expect(recentStore.getState().ids).toEqual(["agent.console", "terminal.rename", "canvas.fit"]);
   expect(JSON.parse(localStorage.getItem("dummyplane.recentFunctions")!)).toEqual(["agent.console", "terminal.rename", "canvas.fit"]);

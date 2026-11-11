@@ -15,7 +15,7 @@ export const arrivalStore = createStore<ArrivalState>()(() => ({ nodeId: null, s
  */
 export const ARRIVAL_FLASH_MS = 300;
 
-/** The arriving terminal's border takes the accent at once, then fades back (spec fenêtre §6.4), once. */
+/** The arriving terminal's border takes the accent at once, then fades back, once. */
 export function signalArrival(nodeId: string) {
   const seq = arrivalStore.getState().seq + 1;
   arrivalStore.setState({ nodeId, seq });

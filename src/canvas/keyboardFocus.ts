@@ -16,8 +16,8 @@ export function terminalWithKeyboard(doc: Document = document): string | null {
 }
 
 /**
- * Follows the keyboard into the terminals (spec fenêtre §8): the start of
- * Ctrl+Tab when no terminal has the keyboard (spec fenêtre §6.3). A click on
+ * Follows the keyboard into the terminals: the start of
+ * Ctrl+Tab when no terminal has the keyboard. A click on
  * a header button does not count, only xterm's input.
  */
 export function trackTerminalFocus(doc: Document = document): () => void {
@@ -41,7 +41,7 @@ export function lastTerminalOf(workspaceId: string): string | null {
 /**
  * After an action of ours (Ungroup, Compose a group…), Excalidraw's shortcuts
  * (Ctrl+Z first) answer only inside its container: the keyboard goes back
- * there once the menu or popover has handed it to its trigger (plan B1). A
+ * there once the menu or popover has handed it to its trigger. A
  * terminal or a text field that has it keeps it.
  */
 export function returnKeyboardToCanvas(doc: Document = document) {

@@ -30,7 +30,7 @@ import {
 import { closeRadial, radialStore, updateRadial, useRadial } from "./radialState";
 import { arcLines, ringLines, wedgeCountOf, type RingLine } from "./rings";
 
-/** The ring closes when its context goes: another workspace or project, a dialog, the palette (spec menu radial §7). */
+/** The ring closes when its context goes: another workspace or project, a dialog, the palette. */
 function closeOnLeave() {
   const close = () => {
     if (radialStore.getState().ring) closeRadial();
@@ -159,7 +159,7 @@ function Wedge({ line, path, label, pop, box, pointed, pressed, data, expanded, 
   );
 }
 
-/** The ring of the right click, a wheel of wedges around a hub (spec menu radial §5), and the arc its More opens. */
+/** The ring of the right click, a wheel of wedges around a hub, and the arc its More opens. */
 export function RadialMenu() {
   const ring = useRadial((s) => s.ring);
   const t = useMessages(radialMessages);

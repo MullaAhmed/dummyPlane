@@ -39,7 +39,7 @@ beforeEach(() => {
 });
 afterEach(() => vi.useRealTimers());
 
-it("offers a newer version it finds (spec première version §6.4)", async () => {
+it("offers a newer version it finds", async () => {
   vi.mocked(check).mockResolvedValue(fakeUpdate() as never);
   await checkForUpdate();
   expect(updatesStore.getState().available).toEqual({ version: "1.0.0-beta.2", notes: "### Fixed\n- Things." });

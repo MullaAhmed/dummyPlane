@@ -1,6 +1,6 @@
 import type { AgentId } from "@/ipc/pty";
 
-/** What readiness reads of an agent's terminal, and how it answers it (spec orchestrateur §7.3). */
+/** What readiness reads of an agent's terminal, and how it answers it. */
 export interface ReadyProbe {
   running(): boolean;
   quietMs(): number;

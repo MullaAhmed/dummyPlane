@@ -33,7 +33,7 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 
-it("marks a hand-drawn wire once, however many changes come before the frame (plan B3)", () => {
+it("marks a hand-drawn wire once, however many changes come before the frame", () => {
   const elements = [fleet, lone, hand];
   scheduleWireUpkeep(api(elements), elements);
   scheduleWireUpkeep(api(elements), elements);
@@ -88,7 +88,7 @@ it("does nothing for a scene that needs nothing", () => {
   expect(frames).toHaveLength(0);
 });
 
-it("brings a dropped wire back when its ends come back, as an undo does (plan B3)", () => {
+it("brings a dropped wire back when its ends come back, as an undo does", () => {
   const wired = withWire([fleet, frame, lone], fleet.id, frame.id);
   const wire = wired[wired.length - 1];
   const gone = wired.filter((e) => e.id !== frame.id);

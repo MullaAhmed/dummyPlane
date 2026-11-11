@@ -9,13 +9,13 @@ export interface Rect {
   height: number;
 }
 
-/** What a group frame carries in `customData.dummyplane` (spec habillage §11.1). */
+/** What a group frame carries in `customData.dummyplane`. */
 export interface GroupInfo {
   role: RoleId;
   pantheon: string;
-  /** What the group is for, told to its fleet (spec groupes spécialisés §2). */
+  /** What the group is for, told to its fleet. */
   speciality?: string;
-  /** Folded onto its label: its terminals are not shown, nothing stops (spec replier un groupe). */
+  /** Folded onto its label: its terminals are not shown, nothing stops. */
   folded?: boolean;
 }
 
@@ -65,7 +65,7 @@ export function hiddenNodeIds(frames: readonly SceneFrame[]): Set<string> {
   return new Set(frames.filter((f) => f.group?.folded).flatMap((f) => f.memberIds));
 }
 
-/** The frames of the scene and their terminals, derived on every change (spec §11.1). */
+/** The frames of the scene and their terminals, derived on every change. */
 export function framesFromScene(elements: readonly ExcalidrawElement[]): SceneFrame[] {
   const frames = new Map<string, SceneFrame>();
   for (const element of elements) {
@@ -107,7 +107,7 @@ export function groupBeingRenamed(editingFrame: string | null, frames: readonly 
   return frames.some((f) => f.id === editingFrame && isGroup(f)) ? editingFrame : null;
 }
 
-/** The pantheons the groups of the scene draw their names from (spec §9.2). */
+/** The pantheons the groups of the scene draw their names from. */
 export function groupPantheons(frames: readonly SceneFrame[]): string[] {
   return frames.filter(isGroup).map((f) => f.group.pantheon);
 }

@@ -132,7 +132,7 @@ describe("groupBeingRenamed", () => {
   });
 });
 
-describe("a folded group (spec replier un groupe)", () => {
+describe("a folded group", () => {
   it("is read from the frame, and written without trace when unfolded", () => {
     const data = (folded: unknown) => group("g", "backend", "greek", { customData: { dummyplane: { kind: "group", role: "backend", pantheon: "greek", folded } } });
     expect(groupInfoOf(data(true))?.folded).toBe(true);

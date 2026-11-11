@@ -36,7 +36,7 @@ beforeEach(() => {
   });
 });
 
-it("scrolls to the agent it added: out of sight it would neither show nor start (plan B1)", async () => {
+it("scrolls to the agent it added: out of sight it would neither show nor start", async () => {
   const id = await addTerminal("w1", { title: "T", name: "T", agent: "shell", cwd: "C:/code", shell: "default", command: "" }, { x: 9000, y: 0 });
   expect(id).not.toBeNull();
   expect(revealNode).toHaveBeenCalledWith(id);

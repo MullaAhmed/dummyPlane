@@ -4,7 +4,7 @@ import { MAX_BODY, MAX_TICKETS, parseBacklog, parseIssues, readTickets } from ".
 
 vi.mock("@/ipc/mission", () => ({ missionBacklog: vi.fn(), missionIssues: vi.fn() }));
 
-describe("BACKLOG.md (spec mission de nuit §5.1)", () => {
+describe("BACKLOG.md", () => {
   it("takes the top-level bullets, with their section", () => {
     const text = "# Backlog\n\nIntro.\n\n## Interface\n\n- Le menu clignote.\n  détail\n  - sous-point\n\n### Panneau\n- Le panneau déborde\n\n## Fait\n- [x] Déjà fait\n- [ ] Encore à faire\n";
     expect(parseBacklog(text)).toEqual([

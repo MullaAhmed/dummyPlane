@@ -25,7 +25,7 @@ beforeAll(async () => {
   await nodesStore.getState().create("chef", { workspaceId: "w1", kind: "fleet", payload: { name: "chef de backend" } });
 });
 
-describe("Fleet · <nom> (spec menu radial §4.4, §6.2)", () => {
+describe("Fleet · <nom>", () => {
   it("is the radial menu's only: the palette never points at a fleet", () => {
     expect(FLEET.filter((c) => c.available(palette))).toEqual([]);
     expect(FLEET.map((c) => labelOf(c, ring))).toEqual(["Write an instruction", "Rename", "Link", "Paste", "Delete", "Quick note on this Fleet", "Remove from group"]);

@@ -7,7 +7,7 @@ export const COMIC_SHANNS = 8;
 /**
  * New elements get the pen's first ink (the theme turns it light on dark), Comic Shanns text, no sloppiness and elbow
  * arrows; only what is drawn from now on, never an element already in the scene. The canvas itself is transparent so
- * the dot grid shows through (spec habillage §4.2, §5.7).
+ * the dot grid shows through.
  */
 export const SCENE_DEFAULTS = {
   viewBackgroundColor: "transparent",
@@ -17,7 +17,7 @@ export const SCENE_DEFAULTS = {
   currentItemRoughness: 0,
   currentItemArrowType: "elbow" as const,
   gridModeEnabled: false,
-  // Our layers draw frame outlines and group labels (spec habillage §5.7, §11.4).
+  // Our layers draw frame outlines and group labels.
   frameRendering: { enabled: true, name: true, outline: false, clip: true },
 };
 

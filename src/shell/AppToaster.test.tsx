@@ -11,7 +11,7 @@ import { AppToaster, TOAST_BOTTOM } from "./AppToaster";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-it("keeps every toast in the bottom-right corner, above the zoom control (spec identité §5.8)", async () => {
+it("keeps every toast in the bottom-right corner, above the zoom control", async () => {
   const host = document.createElement("div");
   document.body.append(host);
   const root = createRoot(host);

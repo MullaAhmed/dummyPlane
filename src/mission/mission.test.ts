@@ -4,7 +4,7 @@ import { budgetBar, budgetOf, clockText, memberTime, NEW_MISSION, nightMin, noNe
 const task = (agent: string, budget = 20) => ({ titre: "Login", consigne: "Fais le login", agent, budget_min: budget });
 const args = (...sous_taches: object[]) => ({ nom: "Auth", tache: "Ajoute l'authentification", sous_taches });
 
-describe("proposedPlan (spec orchestrateur §7.2)", () => {
+describe("proposedPlan", () => {
   it("takes a plan of linked agents, named case and accents aside, and new ones", () => {
     const result = proposedPlan(args(task("hulk"), { ...task("nouveau", 30), titre: "API" }), NEW_MISSION, ["Hulk", "Wolverine"]);
     expect(result).toEqual({
@@ -21,7 +21,7 @@ describe("proposedPlan (spec orchestrateur §7.2)", () => {
     const budgeted: Mission = { ...NEW_MISSION, overnight: true, budgetMin: 30, maxAgents: 2 };
     expect(proposedPlan(args(task("Deadpool")), NEW_MISSION, ["Hulk"])).toContain("Deadpool");
     expect(proposedPlan(args(task("Hulk"), task("Hulk")), NEW_MISSION, ["Hulk"])).toContain("one sub-task per agent");
-    // Real time: two agents in parallel share it, one sub-task alone must fit (spec mission de nuit §3).
+    // Real time: two agents in parallel share it, one sub-task alone must fit.
     expect(proposedPlan(args({ ...task("nouveau", 30), titre: "A" }, { ...task("nouveau", 30), titre: "B" }), budgeted, [])).toMatchObject({ name: "Auth" });
     expect(proposedPlan(args(task("nouveau", 31)), budgeted, [])).toBe("Sub-task 1: 31 min do not fit in the night (30 min of real time).");
     // Past Max agents, sub-tasks wait in the queue at the go-ahead: only "new" ones, the queue names no agent.
@@ -34,7 +34,7 @@ describe("proposedPlan (spec orchestrateur §7.2)", () => {
     expect(proposedPlan(args(), NEW_MISSION, [])).toContain("at least one");
   });
 
-  it("refuses a plan whose waiting sub-tasks would overflow the queue (spec mission de nuit §4.1)", () => {
+  it("refuses a plan whose waiting sub-tasks would overflow the queue", () => {
     const queued = (count: number) => Array.from({ length: count }, (_, i) => ({ title: `Q${i}`, brief: "b", budgetMin: 5 }));
     const three = args({ ...task("nouveau"), titre: "A" }, { ...task("nouveau"), titre: "B" }, { ...task("nouveau"), titre: "C" });
     expect(proposedPlan(three, { ...NEW_MISSION, maxAgents: 1, queue: queued(99) }, [])).toBe("The queue holds 100 tasks at most.");
@@ -53,7 +53,7 @@ describe("proposedPlan (spec orchestrateur §7.2)", () => {
   });
 });
 
-describe("a new agent's group (spec groupes spécialisés §3)", () => {
+describe("a new agent's group", () => {
   const groups = [{ id: "f1", name: "Interface" }];
 
   it("puts it in a linked group, named as the fleet reads it", () => {
@@ -90,7 +90,7 @@ describe("a new agent's group (spec groupes spécialisés §3)", () => {
   });
 });
 
-describe("tasks for the queue (spec mission de nuit §4.2)", () => {
+describe("tasks for the queue", () => {
   const item = (titre: string, extra: object = {}) => ({ titre, consigne: "Fais-le", budget_min: 20, ...extra });
   const added = (...tasks: unknown[]) => ({ tasks });
 
@@ -164,7 +164,7 @@ describe("tasks for the queue (spec mission de nuit §4.2)", () => {
   });
 });
 
-describe("a refused plan in English (spec première version §7.1)", () => {
+describe("a refused plan in English", () => {
   it("explains what is wrong in the interface's language", () => {
     try {
       expect(proposedPlan(args(task("Deadpool")), NEW_MISSION, ["Hulk"])).toBe('Sub-task 1: "Deadpool" is not a linked Claude agent (a first name, or "new").');
@@ -175,7 +175,7 @@ describe("a refused plan in English (spec première version §7.1)", () => {
   });
 });
 
-describe("each sub-task's level (spec maj §3)", () => {
+describe("each sub-task's level", () => {
   it("reads it as written; the router needs one per sub-task", () => {
     const leveled = proposedPlan(args({ ...task("nouveau"), niveau: "Élevé" }), NEW_MISSION, []);
     expect(typeof leveled === "object" && leveled.plan[0].level).toBe("eleve");
@@ -220,7 +220,7 @@ it("compares names case and accents aside, and keeps typed text on one line", ()
   expect(oneLine("Fais ceci\r\n\n  puis cela ")).toBe("Fais ceci puis cela");
 });
 
-describe("the time of a mission (spec orchestrateur §8)", () => {
+describe("the time of a mission", () => {
   const min = 60_000;
   const member = (extra: Partial<Member> = {}): Member => ({ nodeId: "n1", name: "Batman", task: "Login", budgetMin: 10, linked: false, branch: "b", worktree: "w", sentAt: 0, ...extra });
   const running = (members: Member[], extra: Partial<Mission> = {}): Mission => ({ ...NEW_MISSION, state: "en_cours", name: "Auth", members, ...extra });
@@ -232,7 +232,7 @@ describe("the time of a mission (spec orchestrateur §8)", () => {
     expect(budgetOf(member({ extraMin: 5 }))).toBe(15);
   });
 
-  it("stops a member's time when the mission ends (spec première version §5.3)", () => {
+  it("stops a member's time when the mission ends", () => {
     const ended = running([member()], { state: "terminee", endedAt: 30 * min });
     expect(memberTime(ended, member(), 1440 * min)).toBe(30);
     expect(memberTime(running([member()]), member(), 9 * min)).toBe(9);
@@ -257,7 +257,7 @@ describe("the time of a mission (spec orchestrateur §8)", () => {
     expect(overruns({ ...mission, overnight: undefined }, 31 * min).global).toBe(false);
   });
 
-  it("counts the night in real time from the go-ahead, whatever the number of agents (spec mission de nuit §3)", () => {
+  it("counts the night in real time from the go-ahead, whatever the number of agents", () => {
     const team = [member(), member({ nodeId: "n2", extraMin: 5 }), member({ nodeId: "n3", handedTo: "Batman" })];
     const night = { overnight: true, budgetMin: 30 };
     expect(remainingGlobal(running(team, { ...night, startedAt: 0 }), 12 * min)).toBe(18);

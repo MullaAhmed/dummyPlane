@@ -8,7 +8,7 @@ import { Hint, IconButton } from "./buttons";
 import { shellMessages } from "./messages";
 
 /**
- * "− 56 % +" at the bottom right (spec identité §5.8); the percentage resets to
+ * "− 56 % +" at the bottom right; the percentage resets to
  * 100 %, which only its hint says. A 32 px bar of radius 12 holding 24 px
  * controls 4 px in: their radius is 12 − 4 = 8.
  */

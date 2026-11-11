@@ -14,7 +14,7 @@ export const CLOCK_MS = 15_000;
 /** Overruns whose line waits for a free fleet: not queued twice, and recorded as told only once typed. */
 const waiting = new Set<string>();
 
-/** One look at every running mission's budgets (spec §8.2); it never stops an agent. */
+/** One look at every running mission's budgets; it never stops an agent. */
 export function checkBudgets(now = Date.now()) {
   for (const [fleetId, record] of Object.entries(nodesStore.getState().nodes)) {
     const mission = missionOf(record);
@@ -28,7 +28,7 @@ export function checkBudgets(now = Date.now()) {
       const key = `${fleetId}:${overrun.nodeId}:${overrun.level}`;
       if (waiting.has(key)) continue;
       const before = mission.members.find((m) => m.nodeId === overrun.nodeId)?.overdue ?? 0;
-      // Overnight a budget is a target and nobody is there: the morning report shows it (spec overnight mission §3).
+      // Overnight a budget is a target and nobody is there: the morning report shows it.
       if (overrun.level === 2 && !mission.overnight) toast.warning(said.overBudgetTwice(overrun.name, overrun.budget));
       const told = () => {
         waiting.delete(key);

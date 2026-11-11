@@ -54,7 +54,7 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDRGNUU0MDUxNjlCOENEODQKUldTRXpiaHBVVUJlVHpPVmxrc1JzMWcyYXFKb25JSk9Kc0xVaisyNGZzQmg5VGd2VE4rcDlBbjgK",
       "endpoints": [
-        "https://github.com/Mideky-hub/openvibe/releases/latest/download/latest.json"
+        "https://github.com/MullaAhmed/dummyPlane/releases/latest/download/latest.json"
       ],
       "windows": {
         "installMode": "passive"

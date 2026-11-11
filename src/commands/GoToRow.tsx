@@ -41,7 +41,7 @@ function TerminalLine({ item }: { item: GoToItem }) {
   );
 }
 
-/** A line of "Go to" (spec window §7.2). */
+/** A line of "Go to". */
 export function GoToRow({ item }: { item: GoToItem }) {
   const t = useMessages(commandsMessages).goTo;
   switch (item.kind) {

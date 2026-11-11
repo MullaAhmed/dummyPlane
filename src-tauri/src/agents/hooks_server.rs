@@ -1,4 +1,4 @@
-//! The local HTTP endpoint the agents' hooks post to (spec habillage §10.3).
+//! The local HTTP endpoint the agents' hooks post to.
 //! Bound to 127.0.0.1 on a port the system picks; every request must carry the
 //! token drawn at startup.
 
@@ -17,7 +17,7 @@ use super::activity::{
 use super::mcp;
 use super::subagents::SubagentHook;
 
-/// Larger bodies are refused (spec §10.3).
+/// Larger bodies are refused.
 pub const MAX_BODY: usize = 64 * 1024;
 
 /// A hook event that changes a terminal's activity.
@@ -28,7 +28,7 @@ pub struct HookHit {
     pub activity: Activity,
     /// Claude left (`SessionEnd`): its shell's output decides again.
     pub session_ended: bool,
-    /// What a waiting agent says it waits for, cleaned (spec notification §7).
+    /// What a waiting agent says it waits for, cleaned.
     pub message: Option<String>,
 }
 
@@ -44,12 +44,12 @@ pub trait HookSink: Send + Sync + 'static {
     fn mcp_call(&self, node_id: &str, method: &str, params: Value) -> Result<Value, String>;
     /// A Codex turn ended in this thread (its notify's `thread-id`).
     fn codex_thread(&self, _node_id: &str, _thread: &str) {}
-    /// What a Claude session's status line was given: its usage (spec maj §6).
+    /// What a Claude session's status line was given: its usage.
     fn status(&self, _node_id: &str, _status: Value) {}
 }
 
 /// The header that carries the token for callers given it through a curl
-/// config file, so it never shows on a command line (spec première version §4.3).
+/// config file, so it never shows on a command line.
 pub const TOKEN_HEADER: &str = "X-dummyPlane-Token";
 
 pub struct HookServer {
@@ -74,7 +74,7 @@ impl HookServer {
         format!("http://127.0.0.1:{}/hook/{kind}/{node_id}", self.port)
     }
 
-    /// The URL a Claude session's status line posts its JSON to (spec maj §6), with the token.
+    /// The URL a Claude session's status line posts its JSON to, with the token.
     #[cfg(test)]
     pub fn status_url(&self, node_id: &str) -> String {
         format!("{}?t={}", self.bare_status_url(node_id), self.token)
@@ -85,7 +85,7 @@ impl HookServer {
         format!("http://127.0.0.1:{}/status/{node_id}", self.port)
     }
 
-    /// The URL of dummyPlane's MCP server (spec orchestrateur §4.1).
+    /// The URL of dummyPlane's MCP server.
     pub fn mcp_url(&self) -> String {
         format!("http://127.0.0.1:{}/mcp", self.port)
     }

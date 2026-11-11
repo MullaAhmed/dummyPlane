@@ -80,7 +80,7 @@ it("opens on the list, empty at first, with the spending warning in the descript
   expect(document.body.textContent).toContain("Each run spends real usage");
 });
 
-it("fills the form from a template and starts nothing (spec boucles §3)", async () => {
+it("fills the form from a template and starts nothing", async () => {
   await open();
   await act(async () => button("New loop").click());
   await act(async () => button("Relaunch").click());

@@ -30,7 +30,7 @@ const withScene = (elements: ExcalidrawElement[]) =>
     api: { getSceneElements: () => elements, updateScene, scrollToContent } as unknown as ExcalidrawImperativeAPI,
   });
 
-describe("releaseToCanvas (spec fenêtre §6.5)", () => {
+describe("releaseToCanvas", () => {
   it("takes the keyboard from the terminal, deactivates it and gives the keyboard to Excalidraw's container", () => {
     withScene([]);
     document.querySelector("textarea")!.focus();
@@ -54,7 +54,7 @@ describe("releaseToCanvas (spec fenêtre §6.5)", () => {
   });
 });
 
-describe("overview (spec fenêtre §6.6)", () => {
+describe("overview", () => {
   it("frames the nodes and their group frames, not drawings nor drawing frames", () => {
     const scene = [
       groupFrame("backend"),
@@ -89,7 +89,7 @@ describe("overview (spec fenêtre §6.6)", () => {
   });
 });
 
-describe("focusGroup (spec fenêtre §7.2)", () => {
+describe("focusGroup", () => {
   it("fits the group's frame, at 100 % at most, and gives the keyboard to the canvas", () => {
     const frame = groupFrame("backend");
     withScene([frame]);
@@ -105,7 +105,7 @@ describe("focusGroup (spec fenêtre §7.2)", () => {
   });
 });
 
-describe("releaseToCanvas in a rename field (plan E1)", () => {
+describe("releaseToCanvas in a rename field", () => {
   it("cancels the edit instead of validating it through the loss of focus", () => {
     withScene([]);
     document.body.insertAdjacentHTML("beforeend", '<input id="rename" />');

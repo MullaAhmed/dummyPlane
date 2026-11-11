@@ -35,7 +35,7 @@ async function comeBack({ actionId, notification }: ActionPerformed) {
 
 /**
  * A Windows notification when an agent starts waiting while the window is not
- * focused (spec notification §8). Installed after the activity snapshot, so a
+ * focused. Installed after the activity snapshot, so a
  * reload does not repeat the waits already known. Its failures are only
  * logged: the notice in the window says the same.
  */

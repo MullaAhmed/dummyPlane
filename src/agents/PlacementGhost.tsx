@@ -34,7 +34,7 @@ function placeAt(placing: Placement, client: Point) {
 }
 
 /**
- * Dashed outline that follows the pointer until a click places the agent (spec theme §10.1).
+ * Dashed outline that follows the pointer until a click places the agent.
  * Enter places it where the ghost is: under the pointer, or, before the pointer has moved
  * over the canvas (a launch from the keyboard), in its middle. Escape cancels.
  */
@@ -78,7 +78,7 @@ export function PlacementGhost() {
   }, [placing]);
 
   if (!placing) return null;
-  // Over a group the ghost shows the cell the agent will take (spec §10.1, §11.3).
+  // Over a group the ghost shows the cell the agent will take.
   const fleet = "fleet" in placing;
   const at = pointer ?? canvasMiddle(view);
   // A fleet is placed freely; an agent over a group takes the group's next cell.

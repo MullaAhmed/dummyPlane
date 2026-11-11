@@ -78,7 +78,7 @@ function ResumeAllToast({ workspaceId }: { workspaceId: string }) {
   );
 }
 
-/** Offers to resume the stopped terminals of a workspace (spec theme §7.4). */
+/** Offers to resume the stopped terminals of a workspace. */
 export function offerResumeAll(workspaceId: string) {
   if (answered.has(workspaceId)) return;
   const nodes = nodesStore.getState().nodes;

@@ -155,7 +155,7 @@ it("starts the highlight again at the top when the caret moves (backlog 27 oct)"
   expect(selected()).toBe(0);
 });
 
-it("does not send on the Enter that ends an IME composition (plan B3)", async () => {
+it("does not send on the Enter that ends an IME composition", async () => {
   await type("@cyborg lance");
   await act(async () => {
     field().dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true, isComposing: true }));
@@ -165,7 +165,7 @@ it("does not send on the Enter that ends an IME composition (plan B3)", async ()
   expect(sendCommand).toHaveBeenCalledTimes(1);
 });
 
-it("says why Send is grey when the chosen group has no agent, not Write an instruction (plan B3)", async () => {
+it("says why Send is grey when the chosen group has no agent, not Write an instruction", async () => {
   const empty = { id: "g1", name: "Vide", x: 0, y: 0, width: 10, height: 10, group: { role: "general", pantheon: "egypt" }, memberIds: [] };
   await act(async () => root.render(<CommandInput agents={agents} groups={[empty] as never} fallback={[]} placeholder="Consigne" emptyHint="Tape @" />));
   await type("@vide run the tests");

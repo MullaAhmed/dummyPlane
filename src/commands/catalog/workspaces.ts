@@ -38,7 +38,7 @@ export const WORKSPACES: readonly Command[] = [
   }),
   command("workspace.delete", {
     section,
-    // Never the last one (spec window §7.3), like the tab's ×.
+    // Never the last one, like the tab's ×.
     available: (ctx) => {
       const workspace = onScreen();
       return ctx.project && !!workspace && canRemove(workspacesStore.getState().workspaces, workspace);

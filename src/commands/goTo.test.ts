@@ -46,7 +46,7 @@ const input = (fields: Partial<GoToInput> = {}): GoToInput => ({
   ...fields,
 });
 
-describe("goToItems (spec fenêtre §7.2)", () => {
+describe("goToItems", () => {
   it("lists the workspace on screen first, then the others in tab order, terminals in Ctrl+Tab order", () => {
     const items = goToItems(input());
     expect(items.filter((i) => i.kind === "terminal").map((i) => i.label)).toEqual(["Cyclops", "Cyborg", "Batman"]);

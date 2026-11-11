@@ -21,7 +21,7 @@ export interface PresetFleet {
   groups: number[];
 }
 
-/** The shape of a team (spec presets §1): never its content. */
+/** The shape of a team: never its content. */
 export interface TeamPreset {
   id: string;
   name: string;
@@ -60,7 +60,7 @@ export interface CaptureInput {
 }
 
 /**
- * The team on screen as a preset (spec presets §3): groups with at least one
+ * The team on screen as a preset: groups with at least one
  * agent, and the fleets linked to one of them. Null when there is no
  * group to keep.
  */
@@ -119,7 +119,7 @@ function readPreset(raw: unknown): TeamPreset | null {
   return { id: raw.id, name, savedAt: raw.savedAt, groups: groups as PresetGroup[], fleets };
 }
 
-/** The presets of the saved setting: a damaged one is left out, the others stay (spec presets §3). */
+/** The presets of the saved setting: a damaged one is left out, the others stay. */
 export function readPresets(raw: unknown): TeamPreset[] {
   if (!isObject(raw) || raw.version !== PRESETS_VERSION || !Array.isArray(raw.presets)) return [];
   return raw.presets.flatMap((p) => readPreset(p) ?? []).slice(0, MAX_PRESETS);

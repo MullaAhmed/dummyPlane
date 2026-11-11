@@ -2,7 +2,7 @@ import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { nodeKindOf } from "@/canvas/nodeElement";
 import type { Point } from "@/agents/terminals";
 
-/** What a right press points at (spec menu radial §6.4). */
+/** What a right press points at. */
 export type RadialTarget =
   | { kind: "canvas" }
   | { kind: "terminal"; id: string }

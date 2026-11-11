@@ -53,7 +53,7 @@ afterEach(async () => {
   host.remove();
 });
 
-describe("WaitingNotice (spec notification §4)", () => {
+describe("WaitingNotice", () => {
   it("shows nothing while nobody waits, its live region already mounted so the first question is announced", () => {
     expect(host.querySelector("section")).toBeNull();
     expect(host.querySelector("[aria-live]")).not.toBeNull();
@@ -82,7 +82,7 @@ describe("WaitingNotice (spec notification §4)", () => {
     expect(rows()).toEqual(["Cyborg has a questionBackend"]);
   });
 
-  describe("the preview of the question (spec notification §7)", () => {
+  describe("the preview of the question", () => {
     const ask = (message?: string) => act(async () => agentActivityStore.getState().apply({ nodeId: "batman", activity: "waiting", since: 0, message }));
 
     it("shows what the agent says it waits for, on two lines at most, never in a native title", async () => {

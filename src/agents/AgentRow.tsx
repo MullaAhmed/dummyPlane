@@ -18,7 +18,7 @@ import { requestClose } from "./terminals";
 
 /**
  * One agent of the agents panel or of a fleet: logo, name, agent, pill;
- * on hover, Center, Pause, Resume and Close (spec theme §5.5, §13).
+ * on hover, Center, Pause, Resume and Close.
  */
 export function AgentRow(props: { id: string; onOpen?: () => void; trailing?: ReactNode; showCenter?: boolean }) {
   const { id, onOpen, trailing, showCenter = true } = props;

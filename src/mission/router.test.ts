@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { LEVELS, modelFor, readLevel, ROUTER_LEVELS } from "./router";
 
-describe("the model router (spec maj §3)", () => {
+describe("the model router", () => {
   it("gives each level of difficulty its model", () => {
     expect(Object.fromEntries(Object.entries(LEVELS).map(([level, { model }]) => [level, model]))).toEqual({
       faible: "claude-haiku-5-5",

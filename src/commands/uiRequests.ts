@@ -3,7 +3,7 @@ import { createStore } from "zustand";
 import type { Point } from "@/agents/terminals";
 import type { AgentId } from "@/ipc/pty";
 
-/** Something a command asks a component on screen to do: edit a name, open its menu (plan F2). */
+/** Something a command asks a component on screen to do: edit a name, open its menu. */
 export type UiRequest =
   | { kind: "renameWorkspace"; id: string }
   | { kind: "renameTerminal"; id: string }

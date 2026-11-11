@@ -53,7 +53,7 @@ const MISSION_DOT: Record<MissionState, DotState> = {
   terminee: "done",
 };
 
-/** Under the fleet's terminal: settings, plan and go-ahead, team, summary (spec orchestrateur §6, §7). */
+/** Under the fleet's terminal: settings, plan and go-ahead, team, summary. */
 export function MissionPanel({ nodeId }: { nodeId: string }) {
   const mission = useNodes((s) => missionOf(s.nodes[nodeId]));
   return mission ? <MissionView nodeId={nodeId} mission={mission} /> : null;
@@ -292,7 +292,7 @@ function Plan({ mission }: { mission: Mission }) {
   );
 }
 
-/** The tasks no agent has taken yet (spec overnight mission §4). */
+/** The tasks no agent has taken yet. */
 function Queue({ mission }: { mission: Mission }) {
   const t = useMessages(missionMessages);
   const queue = mission.queue ?? [];
@@ -445,7 +445,7 @@ function ReportWord({ report, merged }: { report: Report; merged: boolean }) {
   );
 }
 
-/** "6 / 20 min", coloured like its bar (spec §8.3). */
+/** "6 / 20 min", coloured like its bar. */
 /** A member's time, unless it cannot be told (a mission ended before end times were kept). */
 function MemberTime({ spent, budget }: { spent: number | undefined; budget: number }) {
   return spent === undefined ? null : <BudgetTime spent={spent} budget={budget} />;

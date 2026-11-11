@@ -16,7 +16,7 @@ import { agentsMessages } from "./messages";
 // dp-label sits in the components layer: Label's own text-sm would win over its 12 px, so the size is said again.
 const LABEL = "dp-label text-xs";
 
-/** Folder, shell and title of the next launch (spec theme §10.1), and the command of a Custom one. */
+/** Folder, shell and title of the next launch, and the command of a Custom one. */
 export function LaunchOptionsForm(props: {
   value: LaunchOptions;
   shells: ShellKind[];

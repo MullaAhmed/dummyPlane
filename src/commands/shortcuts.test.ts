@@ -13,7 +13,7 @@ const key = (fields: Partial<KeyLike>): KeyLike => ({
   ...fields,
 });
 
-describe("shortcutOf (spec fenêtre §6.1, §6.2)", () => {
+describe("shortcutOf", () => {
   it("recognizes each shortcut of the application", () => {
     expect(shortcutOf(key({ key: "Tab", ctrlKey: true }))).toBe("Ctrl+Tab");
     expect(shortcutOf(key({ key: "Tab", ctrlKey: true, shiftKey: true }))).toBe("Ctrl+Shift+Tab");

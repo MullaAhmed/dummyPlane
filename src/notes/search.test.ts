@@ -7,7 +7,7 @@ const notes = [
   { name: "Évité", text: "Rien ici" },
 ];
 
-describe("searching the notes (spec notes §2)", () => {
+describe("searching the notes", () => {
   it("gives every note for an empty search", () => {
     expect(searchNotes(notes, "  ").map((hit) => hit.name)).toEqual(["Auth", "Deploy", "Évité"]);
   });

@@ -11,7 +11,7 @@ import { presetNameOf } from "./model";
 import { presetsMessages } from "./messages";
 import { presetsStore, usePresets } from "./store";
 
-/** The name of a preset to save (spec presets §3), opened by “Save the team as a preset…”. */
+/** The name of a preset to save, opened by “Save the team as a preset…”. */
 export function SavePresetDialog() {
   const t = useMessages(presetsMessages).dialog;
   const [open, setOpen] = useState(false);

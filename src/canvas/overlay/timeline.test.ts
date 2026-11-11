@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { BUDGET_COLOR, budgetTitle, dotsOf, STEP_COLOR } from "./timeline";
 
-describe("the steps' frieze (spec orchestrateur §5.1)", () => {
+describe("the steps' frieze", () => {
   it("spreads the steps evenly along the terminal's width, half a slot from each end", () => {
     const dots = dotsOf(
       [
@@ -22,7 +22,7 @@ describe("the steps' frieze (spec orchestrateur §5.1)", () => {
   });
 });
 
-it("colours a budget's bar with the identity's tokens (spec orchestrateur §8.3)", () => {
+it("colours a budget's bar with the identity's tokens", () => {
   expect(BUDGET_COLOR).toEqual({ ok: "var(--dp-ok)", late: "var(--dp-wait)", over: "var(--dp-danger)" });
 });
 

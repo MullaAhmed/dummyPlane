@@ -8,7 +8,7 @@ export interface ActivityEvent {
   nodeId: string;
   activity: Activity;
   since: number;
-  /** What a waiting agent says it waits for, cleaned by Rust; untrusted, plain text only (spec notification §7). */
+  /** What a waiting agent says it waits for, cleaned by Rust; untrusted, plain text only. */
   message?: string;
   /** Claude exited and the terminal is back at its shell: no agent is there until one reports again. */
   left?: boolean;

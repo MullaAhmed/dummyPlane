@@ -51,7 +51,7 @@ pub async fn pty_spawn(
     // second one's token would replace the live session's (backlog B2).
     let _claim = pty.claim_start(&node_id)?;
     let mut spec = spec;
-    // The profile's folder, else dummyPlane's environment (spec comptes §4): where
+    // The profile's folder, else dummyPlane's environment: where
     // this terminal's Claude keeps its conversations and settings.
     let profile_dir = match spec.claude.as_ref().and_then(|c| c.config_dir.as_deref()) {
         Some(dir) => Some(crate::accounts::checked_dir(dir)?),
@@ -181,7 +181,7 @@ pub async fn pty_write(
 }
 
 /// The command bar, the fleet and "Reprendre" type into terminals this
-/// way (spec habillage §12, §15.3), the paths of the images a message carries
+/// way, the paths of the images a message carries
 /// first, each pasted alone. The Enter counts as the user's answer for the
 /// agent's activity.
 #[tauri::command]
@@ -201,7 +201,7 @@ pub async fn pty_send_text(
     .map_err(|err| AppError::Io(std::io::Error::other(err.to_string())))?
 }
 
-/// "Pause" (spec §14): false for a plain shell. The key counts as the user's
+/// "Pause": false for a plain shell. The key counts as the user's
 /// answer, so a hooked agent's activity follows its output again.
 #[tauri::command]
 pub async fn pty_interrupt(

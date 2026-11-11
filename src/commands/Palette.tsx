@@ -31,7 +31,7 @@ const HEADING =
 const ITEM =
   "flex h-8 cursor-default items-center gap-2 rounded-md px-2.5 text-(length:--text-ui) text-dp-text-2 hover:bg-dp-hover data-[selected=true]:bg-dp-accent-soft data-[selected=true]:dp-on-soft";
 
-/** The palette (spec window §7.1), under the title bar, centered; rendered only while open. */
+/** The palette, under the title bar, centered; rendered only while open. */
 export function Palette() {
   const open = usePalette((s) => s.open);
   const openings = usePalette((s) => s.openings);
@@ -54,7 +54,7 @@ function PaletteBody() {
   }, [mode]);
   const recent = useRecentFunctions();
   const goToList = mode === "goTo" ? goToSections(goToData.items, search) : [];
-  // The saved team presets add their lines to the registry's (spec presets §3).
+  // The saved team presets add their lines to the registry's.
   const presets = usePresets((s) => s.presets);
   const loops = useMemo(() => loopCommands(), []);
   const commands = useMemo(() => [...COMMANDS, ...presetCommands(presets), ...loops], [presets, loops]);
@@ -77,7 +77,7 @@ function PaletteBody() {
   const status = goToBusy ? t.loading : rows === 0 ? t.empty : t.results(rows);
   const announced = useSettled(status, STATUS_SETTLE_MS);
   const [chosen, setChosen] = useState("");
-  // The first line is chosen when it opens and after each keystroke (spec window §7.1).
+  // The first line is chosen when it opens and after each keystroke.
   useEffect(() => setChosen(""), [query]);
   const value = keys.includes(chosen) ? chosen : (keys[0] ?? "");
 

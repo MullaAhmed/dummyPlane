@@ -59,7 +59,7 @@ const selected = () => document.querySelector<HTMLElement>('[cmdk-item][data-sel
 const input = () => document.querySelector<HTMLInputElement>("[cmdk-input]")!;
 const press = (key: string) => input().dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }));
 
-describe("the palette (spec fenêtre §7.1, §7.2)", () => {
+describe("the palette", () => {
   it("opens on Go to, the first line chosen; at home, the projects, most recent first", async () => {
     await act(async () => openPalette("goTo", home));
     expect(input().placeholder).toBe("Go to a terminal, a workspace, a file (file:line)… (> for functions)");
@@ -131,7 +131,7 @@ describe("the palette (spec fenêtre §7.1, §7.2)", () => {
     expect(items().map((i) => i.textContent)).toEqual(["apiC:/code/api", "mk-webappC:/code/mk-webapp"]);
   });
 
-  it("lists the readable workspaces when one is unreadable (spec fenêtre §9)", async () => {
+  it("lists the readable workspaces when one is unreadable", async () => {
     const error = vi.spyOn(toast, "error").mockImplementation(() => "");
     mockIPC((cmd, args) => {
       if (cmd === "load_workspace" && (args as { id: string }).id === "w2") throw new Error("corrompu");
@@ -169,7 +169,7 @@ describe("the palette (spec fenêtre §7.1, §7.2)", () => {
     expect(selected()).not.toBe(line);
   });
 
-  it("offers to install a missing agent (spec installation §4.1)", async () => {
+  it("offers to install a missing agent", async () => {
     agentsStore.setState({ agents: [{ id: "claude", available: false }], loaded: true } as never);
     await act(async () => openPalette("functions", busy));
     await act(async () => setPaletteQuery("> install claude"));
@@ -177,7 +177,7 @@ describe("the palette (spec fenêtre §7.1, §7.2)", () => {
     expect(line.getAttribute("data-disabled")).not.toBe("true");
   });
 
-  it("offers the last function again first: Ctrl+Shift+P then Entrée repeats it (retours J8b)", async () => {
+  it("offers the last function again first: Ctrl+Shift+P then Entrée repeats it", async () => {
     recentStore.setState({ ids: [] });
     agentsPanelStore.setState({ open: false });
     await act(async () => openPalette("functions", busy));
@@ -209,7 +209,7 @@ describe("the palette (spec fenêtre §7.1, §7.2)", () => {
   });
 });
 
-describe("Escape and held keys (plan F1 findings)", () => {
+describe("Escape and held keys", () => {
   it("Échap closes the palette without reaching the window listeners of placement and link modes", async () => {
     const heard = vi.fn();
     window.addEventListener("keydown", heard);
@@ -221,7 +221,7 @@ describe("Escape and held keys (plan F1 findings)", () => {
   });
 });
 
-describe("agents in the functions list (plan F2)", () => {
+describe("agents in the functions list", () => {
   it("looks for the agents when the functions open, and lists the agents already found", async () => {
     const load = vi.spyOn(agentsStore.getState(), "load").mockResolvedValue();
     await act(async () => openPalette("functions", busy));
@@ -280,7 +280,7 @@ describe("what a screen reader hears (WCAG 4.1.3, P2-11)", () => {
   });
 });
 
-describe("while scenes are read (plan F1 finding)", () => {
+describe("while scenes are read", () => {
   it("does not say No results next to Loading…", async () => {
     mockIPC(() => new Promise(() => undefined));
     workspacesStore.setState({ workspaces: [{ id: "w9", name: "Slow", projectId: "p1", position: 0 }], activeId: "w1" } as never);
@@ -293,7 +293,7 @@ describe("while scenes are read (plan F1 finding)", () => {
   });
 });
 
-describe("the team presets in the functions list (spec presets §3)", () => {
+describe("the team presets in the functions list", () => {
   it("lists the saved presets under Teams, and reads them when the functions open", async () => {
     presetsStore.setState({
       presets: [{ id: "1", name: "Dev HQ", savedAt: 1, groups: [{ name: "G", role: "docs", agents: ["claude", "codex"], x: 0, y: 0 }], fleets: [] }],
@@ -306,7 +306,7 @@ describe("the team presets in the functions list (spec presets §3)", () => {
   });
 });
 
-describe("the loops in the functions list (spec boucles §4)", () => {
+describe("the loops in the functions list", () => {
   it("lists Manage loops… in a project, under Loops", async () => {
     await act(async () => openPalette("functions", busy));
     await act(async () => setPaletteQuery("> loops"));

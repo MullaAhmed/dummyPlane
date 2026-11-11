@@ -84,7 +84,7 @@ export function startTheme() {
   applyTheme();
 }
 
-/** At boot. Unreadable or unreachable settings keep the defaults, silently (spec identité §9). */
+/** At boot. Unreadable or unreachable settings keep the defaults, silently. */
 export async function loadThemeSettings() {
   try {
     themeStore.setState({ choice: readThemeChoice(await getSetting<unknown>(THEME_KEY)) });

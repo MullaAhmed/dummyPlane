@@ -45,7 +45,7 @@ it("opens its name editor on request (« Rename » of its radial menu)", async (
   host.remove();
 });
 
-it("gives a fleet of before its Claude session, and shows its terminal (spec orchestrateur §6)", async () => {
+it("gives a fleet of before its Claude session, and shows its terminal", async () => {
   mockIPC(() => undefined);
   await nodesStore.getState().create("ancien", { workspaceId: "w1", kind: "fleet", payload: { name: "Chef" } });
   const host = document.createElement("div");

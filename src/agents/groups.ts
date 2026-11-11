@@ -38,16 +38,16 @@ export interface GroupPlan {
   pantheon?: string;
 }
 
-/** Who staffs a mission's group: its pantheon, its agents' names and folders (spec orchestrateur §7.3). */
+/** Who staffs a mission's group: its pantheon, its agents' names and folders. */
 export interface GroupStaffing {
   pantheon: string;
   names: readonly string[];
   cwds: readonly string[];
-  /** Claude's model of each agent, chosen by a mission's router (spec update §3). */
+  /** Claude's model of each agent, chosen by a mission's router. */
   models?: readonly (string | undefined)[];
-  /** What its mission lets them do unasked (spec overnight mission §5.3). */
+  /** What its mission lets them do unasked. */
   permission?: Permission;
-  /** The fleet's workspace, on screen or not (spec overnight mission §6.1). */
+  /** The fleet's workspace, on screen or not. */
   workspaceId?: string;
 }
 
@@ -57,13 +57,13 @@ const withPermission = (payload: TerminalPayload, permission: Permission | undef
 /** Long enough for a render: a timer, since frames stop while the window is minimized. */
 const MOUNT_MS = 100;
 
-/** Time between two agents of a new group starting (spec theme §20). */
+/** Time between two agents of a new group starting. */
 export const LAUNCH_STAGGER_MS = 300;
 
 /**
  * Creates a group around `at`, else the view's center — its frame and terminals in one
  * scene update, so one undo removes it — then shows it whole and starts its
- * agents one by one (spec theme §11.3). Without `options` they start in the active
+ * agents one by one. Without `options` they start in the active
  * workspace's folder (a mission's groups bring their own, in `staffing`).
  * A group that arrives on its own (`arrival`) is not shown: the view and the keyboard stay, and a notice tells of it.
  */
@@ -112,7 +112,7 @@ export async function launchGroup(
   if (!scene) return null;
   scene.write([...scene.elements(), ...terminals, frame]);
   if (!scene.shown || !api || !arrival.reveal) {
-    // Nothing mounts a terminal out of sight (spec overnight mission §6.1), and one that arrives on its own must not scroll the view to get mounted.
+    // Nothing mounts a terminal out of sight, and one that arrives on its own must not scroll the view to get mounted.
     for (const id of nodeIds) {
       const payload = terminalOf(nodesStore.getState().nodes[id]);
       if (payload) startArrival(id, payload, scene.shown && api !== null);
@@ -139,7 +139,7 @@ export async function launchGroup(
   return { frameId: frame.id, nodeIds };
 }
 
-/** "Add an agent" of the group menu: the group's first free cell, in the folder the user chose for launches (spec §11.4). */
+/** "Add an agent" of the group menu: the group's first free cell, in the folder the user chose for launches. */
 export async function addAgentToGroup(groupId: string, agent: AgentId) {
   const workspaceId = workspacesStore.getState().activeId;
   const group = canvasStore.getState().frames.find((f) => f.id === groupId);
@@ -167,7 +167,7 @@ export function renameGroup(groupId: string, name: string) {
   });
 }
 
-/** Gives a group its speciality, or takes it away when blank, as one undoable step (spec specialised groups §2). */
+/** Gives a group its speciality, or takes it away when blank, as one undoable step. */
 export function setGroupSpeciality(groupId: string, speciality: string) {
   const api = canvasStore.getState().api;
   if (!api) return;
@@ -191,7 +191,7 @@ export function setGroupPantheon(groupId: string, pantheon: string) {
   });
 }
 
-/** Folds a group onto its label, or unfolds it: one undoable step, nothing stops (spec replier un groupe). */
+/** Folds a group onto its label, or unfolds it: one undoable step, nothing stops. */
 export function setGroupFolded(groupId: string, folded: boolean) {
   const api = canvasStore.getState().api;
   if (!api) return;
@@ -214,7 +214,7 @@ export function setGroupFolded(groupId: string, folded: boolean) {
   });
 }
 
-/** Frames these groups whole: an agent out of sight does not start (spec specialised groups §4). */
+/** Frames these groups whole: an agent out of sight does not start. */
 export function showGroups(groupIds: readonly string[]) {
   const api = canvasStore.getState().api;
   const frames = api?.getSceneElements().filter((e) => groupIds.includes(e.id)) ?? [];
@@ -227,7 +227,7 @@ function released(element: ExcalidrawElement, folded: boolean): ExcalidrawElemen
   return newElementWith(element, unlock ? { frameId: null, locked: false } : { frameId: null });
 }
 
-/** "Ungroup": the frame goes, its terminals stay where they are (spec §11.4). */
+/** "Ungroup": the frame goes, its terminals stay where they are. */
 export function ungroup(groupId: string) {
   const api = canvasStore.getState().api;
   if (!api) return;
@@ -320,13 +320,13 @@ function goingWithGroup(elements: readonly ExcalidrawElement[], groupId: string)
   );
 }
 
-/** Closes a group in a scene not on screen (spec overnight mission §6.1). */
+/** Closes a group in a scene not on screen. */
 export function closeStoredGroup(workspaceId: string, groupId: string) {
   const scene = sceneAccess(workspaceId);
   if (scene && !scene.shown) removeFromStoredScene(workspaceId, goingWithGroup(scene.elements(), groupId));
 }
 
-/** Asks first when agents of the group are still running (spec §11.4). */
+/** Asks first when agents of the group are still running. */
 export function requestCloseGroup(groupId: string) {
   const group = canvasStore.getState().frames.find((f) => f.id === groupId);
   if (group?.memberIds.some(isRunning)) uiStore.getState().setClosingGroup(groupId);

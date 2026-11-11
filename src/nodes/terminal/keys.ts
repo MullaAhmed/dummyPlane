@@ -3,7 +3,7 @@ export type KeyAction = "copy" | "paste" | "newline" | "default";
 type KeyInfo = Pick<KeyboardEvent, "key" | "ctrlKey" | "shiftKey" | "altKey" | "metaKey">;
 
 /**
- * Windows Terminal conventions (spec §5.4): Ctrl+C copies when text is selected
+ * Windows Terminal conventions: Ctrl+C copies when text is selected
  * and interrupts otherwise, Ctrl+V pastes, Shift+Enter inserts a newline in
  * Claude Code instead of sending the message. The same answer is given for
  * keydown, keypress and keyup so xterm never handles half of a combination.

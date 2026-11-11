@@ -57,7 +57,7 @@ const box = (name: string) => {
 const textButton = (text: string) => [...document.body.querySelectorAll("button")].find((b) => b.textContent === text);
 const toggle = (name: string) => act(async () => box(name).click());
 
-describe("the notes of a group (spec notes §3)", () => {
+describe("the notes of a group", () => {
   it("stores names with the group, keeping what it holds", () => {
     setGroupNotes("g1", ["Auth"]);
     expect(groupNotesOf("g1")).toEqual(["Auth"]);

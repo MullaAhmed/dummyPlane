@@ -43,7 +43,7 @@ function withConversationId(nodeId: string, payload: TerminalPayload): TerminalP
 }
 
 /**
- * A new Claude conversation starts with the profile in use (spec comptes §3), unless it already has one; a resumed one keeps the
+ * A new Claude conversation starts with the profile in use, unless it already has one; a resumed one keeps the
  * profile it started with, or its conversation would not be found.
  */
 async function withAccount(nodeId: string, payload: TerminalPayload, mode: LaunchMode): Promise<TerminalPayload> {
@@ -72,7 +72,7 @@ export async function startSession(nodeId: string, term: TermSink, payload: Term
     const message = error instanceof Error ? error.message : String(error);
     const kind = error instanceof AppError ? error.kind : undefined;
     setStatus(nodeId, kind ? { state: "error", message, kind } : { state: "error", message });
-    // A refused fleet says why over its terminal (spec première version §4.1); a refused Manager, a plain terminal, in it.
+    // A refused fleet says why over its terminal; a refused Manager, a plain terminal, in it.
     if (kind !== "toolsUnavailable" || nodesStore.getState().nodes[nodeId]?.kind === "terminal") term.write(`\r\n\x1b[31m${message}\x1b[0m\r\n`);
   }
 }
@@ -102,7 +102,7 @@ export async function attachSession(nodeId: string, term: TermSink, state: Sessi
 }
 
 /**
- * Shows the last saved output of a stopped terminal (spec §6.5). Like a
+ * Shows the last saved output of a stopped terminal. Like a
  * replay, it holds the input back until written: a long screen may still be
  * parsing when the terminal is relaunched, and xterm's answers to its old
  * queries must not reach the new process.

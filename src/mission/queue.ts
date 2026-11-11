@@ -201,7 +201,7 @@ function tellIfIdle(fleetId: string) {
 }
 
 /**
- * An agent reported (spec overnight mission §4.3): whatever its status, it no
+ * An agent reported: whatever its status, it no
  * longer counts against Max agents, and a new agent, in a new terminal, takes
  * its seat and the next task. "Done", its branch is merged first, its seat
  * held meanwhile. Its own terminal takes no other task. The rest is the

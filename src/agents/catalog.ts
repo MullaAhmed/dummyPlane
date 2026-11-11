@@ -18,7 +18,7 @@ import { agentsMessages } from "./messages";
 export interface AgentMeta {
   label: string;
   vendor: string;
-  /** Border and logo color of the agent's terminals (spec theme §8). */
+  /** Border and logo color of the agent's terminals. */
   tint: string;
   /** The program looked for on the PATH ("" for shell and custom). */
   binary: string;
@@ -27,8 +27,7 @@ export interface AgentMeta {
 
 /**
  * An agent's tint as an icon or text color: pulled toward the theme's text so
- * that light tints stay visible on Ivoire and dark ones on Clay (spec identity
- * §3, "readable in both"). The palest (PALE_TINTS) are pulled further: at 65 %
+ * that light tints stay visible on Ivoire and dark ones on Clay. The palest (PALE_TINTS) are pulled further: at 65 %
  * Cursor's and Ollama's icons read near 2:1 on calm's light grounds, and an icon
  * carries its agent at 3:1 (WCAG 1.4.11). catalog.test.ts measures every agent,
  * in every palette, on every ground an icon sits on.

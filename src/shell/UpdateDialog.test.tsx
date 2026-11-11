@@ -12,7 +12,7 @@ vi.mock("@/app/updates", async (original) => ({ ...(await original<typeof import
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-it("names the agents an update will stop, and installs on demand (spec première version §6.4)", async () => {
+it("names the agents an update will stop, and installs on demand", async () => {
   mockIPC(() => undefined);
   for (const [id, name] of [["batman", "Batman"], ["cyborg", "Cyborg"]]) {
     await nodesStore.getState().create(id, { workspaceId: "w1", kind: "terminal", payload: { title: name, name, agent: "claude", cwd: "C:/code", shell: "default", command: "" } });

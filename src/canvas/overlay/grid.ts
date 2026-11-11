@@ -1,6 +1,6 @@
 import type { CanvasView } from "../canvasStore";
 
-/** Scene distance between two dots (spec habillage §5.7). */
+/** Scene distance between two dots. */
 export const DOT_STEP = 32;
 const MIN_SCREEN_STEP = 16;
 

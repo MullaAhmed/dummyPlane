@@ -160,7 +160,7 @@ function missionToolSpecs(manager: boolean) {
   ];
 }
 
-/** The Fleet's tools while it plans and babysits its board (spec babysitter Fleet), by English name. */
+/** The Fleet's tools while it plans and babysits its board, by English name. */
 export const FLEET_TOOLS: readonly string[] = ["mission", "propose_plan", "add_tasks", "queue", "prioritize", "tickets", "board", "team", "stop_mission", "clean_up_mission", "remote_control"];
 /** The team's tools, the Fleet's only for a mission launched before Managers existed: it runs it to its end the old way. */
 export const LEGACY_TOOLS: readonly string[] = ["next_task", "read_output", "write", "extend", "interrupt", "reassign", "merge", "finish"];
@@ -171,7 +171,7 @@ export const MANAGER_TOOLS: readonly string[] = ["mission", "add_tasks", "queue"
 export const runsTheOldWay = (mission: Mission | undefined) => (mission?.state === "en_cours" || mission?.state === "lancement") && !mission.manager;
 
 /**
- * The Fleet's tools (spec orchestrateur §7.2), named in English, described in the interface's language:
+ * The Fleet's tools, named in English, described in the interface's language:
  * `legacy` adds the team's for a mission run the old way; without Claude, no Remote Control.
  */
 export function fleetTools({ legacy = false, claude = true }: { legacy?: boolean; claude?: boolean } = {}) {
@@ -311,7 +311,7 @@ async function proposePlan(fleetId: string, asked: Mission, args: Record<string,
   const already = alreadyOnIt(fleetId, result.plan, [fleetId, mission.manager, ...taking]);
   if (already.length > 0) return failed(t().fleet.duplicatePlan(already));
   setMission(fleetId, { state: "plan", ...result, error: undefined });
-  // The dialog was the go-ahead: the user has left (spec overnight mission §5.1).
+  // The dialog was the go-ahead: the user has left.
   if (mission.overnight && mission.autoLaunch) {
     void launchMission(fleetId);
     return said(t().fleet.launchingNight);
@@ -327,7 +327,7 @@ async function cleanUpMission(fleetId: string): Promise<ToolResult> {
 }
 
 /**
- * `tickets`: dummyPlane reads the source, the fleet may not run commands (spec overnight mission §5.1).
+ * `tickets`: dummyPlane reads the source, the fleet may not run commands.
  * It reads in the folder recorded when the team was formed: only before the launch is the live one used.
  */
 async function tickets(fleetId: string, mission: Mission): Promise<ToolResult> {
@@ -575,10 +575,10 @@ function prolong(fleetId: string, mission: Mission, args: Record<string, unknown
   const extraMin = (member.extraMin ?? 0) + minutes;
   const budget = member.budgetMin + extraMin;
   const spent = spentMin(member, Date.now());
-  // Real time: overnight, its new target must end before the night does (spec overnight mission §3).
+  // Real time: overnight, its new target must end before the night does.
   const left = remainingGlobal(mission, Date.now());
   if (left !== undefined && budget - spent > left) return refused(t().fleet.globalLeft(left));
-  // Below its new budget it may be told again later; still past it, it is not told twice (spec §8.2).
+  // Below its new budget it may be told again later; still past it, it is not told twice.
   const overdue = spent >= 2 * budget ? 2 : spent >= budget ? 1 : undefined;
   updateMember(fleetId, member.nodeId, { extraMin, overdue });
   return said(t().fleet.extended(member.name, minutes, budget));
@@ -668,7 +668,7 @@ async function remote(fleetId: string, mission: Mission, args: Record<string, un
 }
 
 /**
- * One call of the fleet, by internal name; it acts on its own mission only (spec orchestrateur §4.3). Once a
+ * One call of the fleet, by internal name; it acts on its own mission only. Once a
  * Manager runs its mission, the team's tools are the Manager's: the Fleet babysits the board.
  */
 export async function fleetTool(fleetId: string, name: string, args: Record<string, unknown>): Promise<ToolResult> {

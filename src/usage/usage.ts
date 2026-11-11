@@ -4,7 +4,7 @@ import { formatDecimal } from "@/i18n/format";
 import type { BudgetTone } from "@/mission/mission";
 
 /**
- * Claude's usage (spec maj §6), as each session's status line hands it to
+ * Claude's usage, as each session's status line hands it to
  * dummyPlane: the plan's limits, and the cost, time, code and tokens of the
  * sessions of this run of the app.
  */

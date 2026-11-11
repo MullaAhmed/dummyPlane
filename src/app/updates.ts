@@ -9,7 +9,7 @@ import { appMessages } from "./messages";
 import { hasUnsavedWork } from "@/studio/studioStore";
 import { saveEverything } from "./close";
 
-/** The first look, once the app has settled; then a look every 6 h (spec première version §6.4). */
+/** The first look, once the app has settled; then a look every 6 h. */
 export const FIRST_CHECK_MS = 10_000;
 export const CHECK_EVERY_MS = 6 * 60 * 60_000;
 /** A blocked connection must not leave "Check for updates" without an answer. */

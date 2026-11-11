@@ -56,7 +56,7 @@ function WindowButton({ label, danger, className, ...props }: ComponentProps<"bu
   );
 }
 
-/** Minimize, Maximize / Restore, Close dummyPlane, Windows-style in the title bar's corner (spec identité §5.1). */
+/** Minimize, Maximize / Restore, Close dummyPlane, Windows-style in the title bar's corner. */
 export function WindowControls() {
   const t = useMessages(shellMessages).window;
   const maximized = useMaximized();

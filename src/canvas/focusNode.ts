@@ -5,12 +5,12 @@ import { arrive } from "./arrive";
 import { canvasStore, fullSizeView } from "./canvasStore";
 import { nodeKindOf } from "./nodeElement";
 
-/** The agents panel's click: the view centered on the terminal at 100 %, the element activated (its header menu answers at once), and the keyboard to it (spec habillage §5.5). */
+/** The agents panel's click: the view centered on the terminal at 100 %, the element activated (its header menu answers at once), and the keyboard to it. */
 export function focusNode(nodeId: string) {
   const api = canvasStore.getState().api;
   let element = api?.getSceneElements().find((e) => e.id === nodeId);
   if (!api || !element) return;
-  // Its group is folded: arriving unfolds it, then centers and activates (spec replier un groupe §2).
+  // Its group is folded: arriving unfolds it, then centers and activates.
   if (canvasStore.getState().frames.some((f) => f.group?.folded && f.memberIds.includes(nodeId))) {
     arrive(nodeId);
     return;

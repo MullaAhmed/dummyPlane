@@ -42,7 +42,7 @@ function useGitMissing(asking: boolean): boolean {
 }
 
 /**
- * "Getting started" (spec first version §7.2): while no project exists or
+ * "Getting started": while no project exists or
  * no coding agent is installed, three steps and their state.
  */
 export function GettingStarted({ hasProject }: { hasProject: boolean }) {

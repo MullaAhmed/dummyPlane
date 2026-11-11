@@ -1,6 +1,6 @@
 import { defineMessages, plural } from "@/i18n";
 
-/** The git window's texts (spec fenêtre git). */
+/** The git window's texts. */
 export const gitMessages = defineMessages(
   {
     open: (branch: string, changed: number) =>

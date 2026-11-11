@@ -10,7 +10,7 @@ import { useMessages } from "@/i18n";
 import { nodesMessages } from "@/nodes/messages";
 
 /**
- * Floating card over a stopped terminal (spec habillage §7.3), or over a shell
+ * Floating card over a stopped terminal, or over a shell
  * whose Claude exited (`left`): the click brings the agent back in a fresh process.
  */
 export function ResumeCard(props: { nodeId: string; payload: TerminalPayload; status: TerminalStatus; left?: boolean }) {

@@ -28,7 +28,7 @@ export function recentProject(projects: readonly Project[]): Project | null {
 }
 
 /**
- * The project to reopen at launch (spec habillage §5.1): the saved one if its
+ * The project to reopen at launch: the saved one if its
  * folder still exists; the most recently opened one when none was ever saved
  * (first launch after migration 002); none after "Close" or if it is gone.
  */
@@ -55,7 +55,7 @@ export interface ProjectsState {
   activeId: string | null;
   view: ProjectsView;
   error?: string;
-  /** Reopens the last project, or shows the home screen (spec habillage §5.1). */
+  /** Reopens the last project, or shows the home screen. */
   init: () => Promise<void>;
   open: (id: string) => Promise<void>;
   /** Adds a folder as a project and opens it. */

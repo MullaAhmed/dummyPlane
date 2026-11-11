@@ -1,4 +1,4 @@
-//! Claude profiles (spec comptes): a name and a folder, nothing else. The
+//! Claude profiles: a name and a folder, nothing else. The
 //! folder is Claude Code's own `CLAUDE_CONFIG_DIR`. dummyPlane reads its
 //! `settings.json` for the status line and the names under `projects` to know
 //! whether a conversation can be resumed; it never reads a conversation or the

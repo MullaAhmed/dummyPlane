@@ -1,5 +1,5 @@
 //! Locks that outlive a panic: a thread that panicked while holding one must
-//! not take persistence or the terminals down with it (spec première version §3.5).
+//! not take persistence or the terminals down with it.
 
 use std::sync::{Mutex, MutexGuard, PoisonError};
 

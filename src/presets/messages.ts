@@ -1,7 +1,7 @@
 import { defineMessages, plural } from "@/i18n";
 import type { DeployResult } from "./deploy";
 
-/** Texts of the team presets (spec presets §3). */
+/** Texts of the team presets. */
 export const presetsMessages = defineMessages({
   section: "Teams",
   notRead: "The list of presets could not be read: nothing changed",

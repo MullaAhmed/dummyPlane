@@ -53,7 +53,7 @@ function initial(fleetId: string) {
 const clockIn = (minutes: number, now: number) => new Date(now + minutes * 60_000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
 /**
- * "Overnight run" (spec overnight mission §5.1): how long the user is away, where the tickets are, what
+ * "Overnight run": how long the user is away, where the tickets are, what
  * agents may do unasked, how the night starts, then what is checked before they go. Opened again on a
  * night already set, it shows that night and changes it.
  */

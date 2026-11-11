@@ -27,7 +27,7 @@ export const refused = (text: string): ToolResult => ({ ...said(text), isError: 
 
 const t = () => messages(agentMessages);
 
-/** The tools of any Claude session (spec orchestrateur §4.4), described in the interface's language. */
+/** The tools of any Claude session, described in the interface's language. */
 export function agentTools() {
   const d = t().tools;
   return [
@@ -134,7 +134,7 @@ function reportToParent(nodeId: string, summary: string, status: ReportStatus): 
 }
 
 /**
- * `report`: inside a mission its fleet hears it (spec §7.5); an agent
+ * `report`: inside a mission its fleet hears it; an agent
  * opened with spawn_agent reports to its parent too; otherwise nobody listens.
  * `ui`: the summary as the agent wrote it in OpenUI Lang, when it did
  * (`reportTool`); `resume` is then its text.

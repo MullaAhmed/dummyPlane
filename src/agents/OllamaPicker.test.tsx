@@ -90,7 +90,7 @@ it("does nothing on an empty name", async () => {
   expect(host.textContent).not.toContain("This name is not");
 });
 
-it("says the server is down, offers no download that would fail, and tries again (spec installation §5)", async () => {
+it("says the server is down, offers no download that would fail, and tries again", async () => {
   models = new Error("connection refused");
   await render();
   expect(host.textContent).toContain("The Ollama server is not responding: open the Ollama app, then try again.");

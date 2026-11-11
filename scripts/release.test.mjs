@@ -80,16 +80,16 @@ describe("latest.json of a drafted release", () => {
     const latest = {
       version: "1.0.0-beta.2",
       platforms: {
-        "windows-x86_64": { signature: "s", url: "https://api.github.com/repos/Mideky-hub/openvibe/releases/assets/682035832" },
-        "windows-x86_64-nsis": { signature: "s", url: "https://api.github.com/repos/Mideky-hub/openvibe/releases/assets/682035832" },
+        "windows-x86_64": { signature: "s", url: "https://api.github.com/repos/MullaAhmed/dummyPlane/releases/assets/682035832" },
+        "windows-x86_64-nsis": { signature: "s", url: "https://api.github.com/repos/MullaAhmed/dummyPlane/releases/assets/682035832" },
       },
     };
     const assets = [
-      { name: "dummyPlane_1.0.0-beta.2_x64-setup.exe", apiUrl: "https://api.github.com/repos/Mideky-hub/openvibe/releases/assets/682035832" },
-      { name: "latest.json", apiUrl: "https://api.github.com/repos/Mideky-hub/openvibe/releases/assets/682035833" },
+      { name: "dummyPlane_1.0.0-beta.2_x64-setup.exe", apiUrl: "https://api.github.com/repos/MullaAhmed/dummyPlane/releases/assets/682035832" },
+      { name: "latest.json", apiUrl: "https://api.github.com/repos/MullaAhmed/dummyPlane/releases/assets/682035833" },
     ];
-    const fixed = directDownloadUrls(latest, assets, "Mideky-hub/openvibe", "v1.0.0-beta.2");
-    const url = "https://github.com/Mideky-hub/openvibe/releases/download/v1.0.0-beta.2/dummyPlane_1.0.0-beta.2_x64-setup.exe";
+    const fixed = directDownloadUrls(latest, assets, "MullaAhmed/dummyPlane", "v1.0.0-beta.2");
+    const url = "https://github.com/MullaAhmed/dummyPlane/releases/download/v1.0.0-beta.2/dummyPlane_1.0.0-beta.2_x64-setup.exe";
     expect(Object.values(fixed.platforms).map((p) => p.url)).toEqual([url, url]);
     expect(fixed.platforms["windows-x86_64"].signature).toBe("s");
     expect(fixed.version).toBe("1.0.0-beta.2");

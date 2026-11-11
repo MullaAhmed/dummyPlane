@@ -36,7 +36,7 @@ function Rows({ title, rows }: { title: string; rows: MorningRow[] }) {
   );
 }
 
-/** What the user reads on coming back: done, failed, what to check by hand, time spent (spec overnight mission §6.2). */
+/** What the user reads on coming back: done, failed, what to check by hand, time spent. */
 export function MorningReportView({ mission }: { mission: Mission }) {
   const t = useMessages(missionMessages);
   const now = useNow(60_000);

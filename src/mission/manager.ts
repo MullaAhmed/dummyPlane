@@ -25,7 +25,7 @@ import type { Mission } from "./mission";
 import { fleetShown, missionOf, setMission } from "./store";
 
 /**
- * A mission's Manager (spec babysitter Fleet): at the plan's go-ahead dummyPlane — not the Fleet's model —
+ * A mission's Manager: at the plan's go-ahead dummyPlane — not the Fleet's model —
  * puts a Kanban board right of the Fleet (wired Fleet → Board), a Manager terminal under the board (wired
  * Board → Manager), and the team's new agents as the Manager's sub-agents (`spawnedBy`), which lay out as a
  * vertical tree under it (`@/agents/spawnLayout`). The Manager runs the mission with the team; the Fleet

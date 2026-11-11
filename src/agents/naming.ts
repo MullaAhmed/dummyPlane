@@ -25,7 +25,7 @@ function outsidePantheon(workspaceId: string): Promise<string> {
 }
 
 /**
- * The name of an agent about to be created (spec theme §9.2): from its
+ * The name of an agent about to be created: from its
  * group's pantheon, or from the workspace's pantheon outside groups.
  */
 export async function nameForNewAgent(workspaceId: string, groupPantheon?: string): Promise<string> {
@@ -61,7 +61,7 @@ export async function assignMissingNames(workspaceId: string, orderedIds: readon
  * Groups copied whole (Ctrl+D, copy-paste) arrive with the pantheon of the
  * original: two groups would share their names. The copy, a group frame all of
  * whose agents are copies while another frame has the same pantheon, gets a
- * pantheon of its own; frame id → pantheon (plan B1).
+ * pantheon of its own; frame id → pantheon.
  */
 export function pantheonsForCopiedGroups(
   elements: readonly ExcalidrawElement[],

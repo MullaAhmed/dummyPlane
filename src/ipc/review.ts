@@ -1,6 +1,6 @@
 import { call } from "./invoke";
 
-/** A file an agent changed (spec maj §5); `added` and `removed` are null for a binary file. */
+/** A file an agent changed; `added` and `removed` are null for a binary file. */
 export interface ChangedFile {
   path: string;
   oldPath: string | null;

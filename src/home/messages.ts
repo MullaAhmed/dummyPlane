@@ -1,6 +1,6 @@
 import { defineMessages, plural } from "@/i18n";
 
-/** The home screen's texts (spec first version §7.1). */
+/** The home screen's texts. */
 export const homeMessages = defineMessages({
     title: "Projects",
     add: "Add a project",

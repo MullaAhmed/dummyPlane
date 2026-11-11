@@ -162,7 +162,7 @@ describe("the output trigger", () => {
   });
 });
 
-describe("the spending guards (spec boucles §1)", () => {
+describe("the spending guards", () => {
   it("never sends to an agent that is waiting for an answer, a permission dialog included", async () => {
     activities.a = "waiting";
     const e = engine();

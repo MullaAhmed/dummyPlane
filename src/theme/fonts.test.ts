@@ -6,7 +6,7 @@ const deps: Record<string, string> = pkg.dependencies;
 const index = readSource("index.css");
 const excalidraw = readSource("theme/excalidraw.css");
 
-it("bundles Inter and JetBrains Mono at exact versions, and no longer Geist (spec identité §4.3)", () => {
+it("bundles Inter and JetBrains Mono at exact versions, and no longer Geist", () => {
   expect(deps["@fontsource-variable/inter"]).toBe("5.3.0");
   expect(deps["@fontsource-variable/jetbrains-mono"]).toBe("5.3.0");
   expect(deps["@fontsource-variable/geist"]).toBeUndefined();

@@ -20,7 +20,7 @@ const DIFF = [
   "",
 ].join("\n");
 
-describe("parseDiff (spec maj §5)", () => {
+describe("parseDiff", () => {
   it("numbers each line on its side and keeps the hunks' headers", () => {
     const { lines, binary } = parseDiff(DIFF);
     expect(binary).toBe(false);

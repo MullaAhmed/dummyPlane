@@ -15,7 +15,7 @@ const sample: Diagnostics = {
   logDir: "~\\AppData\\Local\\dev.dummyplane.app\\logs",
 };
 
-it("writes what a bug report needs, the home folder as ~ even when Rust missed it (spec première version §7.3)", () => {
+it("writes what a bug report needs, the home folder as ~ even when Rust missed it", () => {
   expect(diagnosticText(sample)).toBe(
     [
       "dummyPlane 1.0.0-beta.1",
@@ -34,6 +34,6 @@ it("writes what a bug report needs, the home folder as ~ even when Rust missed i
 });
 
 it("prefills the version in a new issue, and links the English guide", () => {
-  expect(issueUrl("1.0.0-beta.1")).toBe("https://github.com/Mideky-hub/openvibe/issues/new?template=bug_report.yml&version=1.0.0-beta.1");
-  expect(guideUrl()).toBe("https://github.com/Mideky-hub/openvibe/blob/main/docs/troubleshooting.md");
+  expect(issueUrl("1.0.0-beta.1")).toBe("https://github.com/MullaAhmed/dummyPlane/issues/new?template=bug_report.yml&version=1.0.0-beta.1");
+  expect(guideUrl()).toBe("https://github.com/MullaAhmed/dummyPlane/blob/main/docs/troubleshooting.md");
 });

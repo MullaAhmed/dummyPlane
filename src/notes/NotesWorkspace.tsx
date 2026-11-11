@@ -25,7 +25,7 @@ import { searchNotes } from "./search";
 type Tab = "edit" | "read" | "graph";
 
 /**
- * The project's notes (spec notes), in a workspace tab of their own, the way
+ * The project's notes, in a workspace tab of their own, the way
  * the code workspace is: one note open at a time, under the code studio's
  * guards. The note and its draft are the project's session (notesSession):
  * they stay when another tab is shown.

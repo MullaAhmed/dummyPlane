@@ -13,7 +13,7 @@ import { command, derived, sectionNamed } from "./define";
 import { catalog } from "./messages";
 import { inProject } from "./navigation";
 
-/** The agents of "Launch …", in the spec's order (spec window §7.3). */
+/** The agents of "Launch …", in the spec's order. */
 const LAUNCHED: readonly AgentId[] = ["claude", "codex", "gemini", "qwen", "cursor", "opencode", "aider", "ollama", "shell"];
 
 const section = sectionNamed((s) => s.agents);
@@ -24,7 +24,7 @@ const missing = (agent: AgentId) => {
   return loaded && !agents.some((a) => a.id === agent && a.available);
 };
 
-/** Like the Agent menu: a missing agent is offered for install (spec installation §4.1). */
+/** Like the Agent menu: a missing agent is offered for install. */
 const installable = (agent: AgentId) => missing(agent) && agent in AGENT_INSTALLS;
 
 /** One that cannot be installed from here is listed greyed, with why. */
@@ -40,9 +40,9 @@ export const AGENT_COMMANDS: readonly Command[] = [
           available: inProject,
           disabled: notFound(agent),
           run: (ctx) => {
-            // The command is read in the menu before it runs (spec installation §2).
+            // The command is read in the menu before it runs.
             if (installable(agent)) requestUi({ kind: "agentMenu", view: { install: agent }, at: ctx.at });
-            // Ollama starts on a model: its menu opens on them (plan F2, decision 1).
+            // Ollama starts on a model: its menu opens on them.
             else if (agent === "ollama") requestUi({ kind: "agentMenu", view: "ollama", at: ctx.at });
             else launchAt(agent, ctx.at);
           },
@@ -62,7 +62,7 @@ export const AGENT_COMMANDS: readonly Command[] = [
   command("agent.other", {
     section,
     available: inProject,
-    // The ＋ menu's catalog; from the radial menu, the agent starts at its point (spec menu radial §4.1).
+    // The ＋ menu's catalog; from the radial menu, the agent starts at its point.
     run: (ctx) => requestUi({ kind: "agentMenu", view: "agents", at: ctx.at }),
   }),
   command("agent.accounts", { section, available: inProject, run: () => openAccounts() }),
@@ -74,7 +74,7 @@ export const AGENT_COMMANDS: readonly Command[] = [
   command("group.compose", {
     section,
     available: inProject,
-    // Its window is anchored in the agents panel (plan F2, decision 4).
+    // Its window is anchored in the agents panel.
     run: () => {
       setAgentsPanel(true);
       requestUi({ kind: "composeGroup" });

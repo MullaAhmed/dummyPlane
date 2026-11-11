@@ -1,5 +1,4 @@
-//! The files that give a Claude session dummyPlane's tools (spec orchestrateur
-//! §4.2): `--mcp-config <nodeId>.json` and `--append-system-prompt-file <nodeId>.md`.
+//! The files that give a Claude session dummyPlane's tools: `--mcp-config <nodeId>.json` and `--append-system-prompt-file <nodeId>.md`.
 
 use std::io;
 use std::path::{Path, PathBuf};

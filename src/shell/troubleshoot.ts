@@ -23,7 +23,7 @@ async function load() {
   }
 }
 
-/** Troubleshooting from the palette, the settings menu and the home screen (spec première version §7.3). */
+/** Troubleshooting from the palette, the settings menu and the home screen. */
 export async function showTroubleshooting() {
   troubleshootStore.setState({ open: true, diagnostics: null, error: null });
   await load();

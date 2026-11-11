@@ -175,7 +175,7 @@ describe("the conflict", () => {
   });
 });
 
-describe("watching the disk (spec studio code §3)", () => {
+describe("watching the disk", () => {
   it("reloads a clean buffer without a word", async () => {
     const { disk, s } = session({ "a.ts": "old" });
     await s().open("a.ts");
@@ -273,7 +273,7 @@ describe("watching the disk (spec studio code §3)", () => {
   });
 });
 
-describe("the guard on unsaved changes (spec studio code §6)", () => {
+describe("the guard on unsaved changes", () => {
   async function edited() {
     const parts = session({ "a.ts": "a", "b.ts": "b" });
     await parts.s().open("a.ts");

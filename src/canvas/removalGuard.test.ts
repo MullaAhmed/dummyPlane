@@ -15,7 +15,7 @@ beforeEach(() => {
   running = new Set();
 });
 
-describe("the removal guard (retours J8b: Annuler never ends a running agent unasked)", () => {
+describe("the removal guard (Annuler never ends a running agent unasked)", () => {
   it("lets a stopped agent go", () => {
     const batman = element("batman");
     const check = createRemovalGuard(isRunning, [batman]);

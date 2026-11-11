@@ -3,7 +3,7 @@ import { AGENT_IDS } from "@/ipc/pty";
 import { AGENT_INSTALLS, OLLAMA_SUGGESTIONS, ollamaPullCommand, sameOllamaModel, validOllamaModel } from "./installCommands";
 
 describe("the install table", () => {
-  it("holds the vendors' exact commands (spec installation §3)", () => {
+  it("holds the vendors' exact commands", () => {
     expect(Object.fromEntries(Object.entries(AGENT_INSTALLS).map(([id, install]) => [id, install.command]))).toEqual({
       claude: "irm https://claude.ai/install.ps1 | iex",
       codex: 'powershell -ExecutionPolicy ByPass -c "irm https://chatgpt.com/codex/install.ps1 | iex"',

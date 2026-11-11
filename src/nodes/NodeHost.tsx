@@ -28,7 +28,7 @@ export const NodeHost = memo(function NodeHost({ element }: { element: NonDelete
 
 function NodeOfKind({ element }: { element: NonDeleted<ExcalidrawEmbeddableElement> }) {
   const t = useMessages(nodesMessages);
-  // A folded group keeps its terminals off the screen; their processes and screens go on (spec replier un groupe).
+  // A folded group keeps its terminals off the screen; their processes and screens go on.
   const hidden = useCanvas((s) => s.frames.some((f) => f.group?.folded && f.memberIds.includes(element.id)));
   if (hidden) return null;
   switch (nodeKindOf(element)) {

@@ -12,7 +12,7 @@ const command = (id: string, label: string, section: string, available = true): 
   run: () => undefined,
 });
 
-describe("functionSections (spec fenêtre §7.3)", () => {
+describe("functionSections", () => {
   const commands = [
     command("terminal.next", "Next terminal", "Navigation"),
     command("workspace.new", "New workspace", "Workspaces"),

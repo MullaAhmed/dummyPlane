@@ -1,4 +1,4 @@
-//! dummyPlane's MCP server (spec orchestrateur §4.1): JSON-RPC over one HTTP
+//! dummyPlane's MCP server: JSON-RPC over one HTTP
 //! POST, answered at once. Rust holds the transport and the caller's identity;
 //! `tools/list` and `tools/call` are answered by the interface.
 

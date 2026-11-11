@@ -1,6 +1,6 @@
 import { call } from "./invoke";
 
-/** A Claude profile: a name and Claude Code's own folder (`CLAUDE_CONFIG_DIR`), nothing from inside it (spec comptes §2). */
+/** A Claude profile: a name and Claude Code's own folder (`CLAUDE_CONFIG_DIR`), nothing from inside it. */
 export interface Profile {
   id: string;
   name: string;

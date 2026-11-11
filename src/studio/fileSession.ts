@@ -45,7 +45,7 @@ export interface SessionState {
   edit: (text: string) => void;
   /** True when the disk has the buffer. */
   save: () => Promise<boolean>;
-  /** Compares the disk with the buffer (spec studio code §3). */
+  /** Compares the disk with the buffer. */
   poll: () => Promise<void>;
   reload: () => Promise<void>;
   /** Writes the buffer over what the disk was last seen to hold; another change is another conflict. */
@@ -67,7 +67,7 @@ const NO_EXITS: SessionExits = { onClose: () => undefined, onQuit: () => undefin
 const empty = { refused: null, baseline: "", draft: "", version: null, eol: "\n", disk: null, error: null } as const;
 
 /**
- * One open file against a disk that agents write to (spec studio code §3):
+ * One open file against a disk that agents write to:
  * every write goes through the version the buffer knows, and nothing here
  * replaces a buffer holding changes without being told to.
  */

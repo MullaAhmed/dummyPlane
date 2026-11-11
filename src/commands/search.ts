@@ -1,4 +1,4 @@
-/** Lower case, accents dropped: "Padmé" and "padme" are the same (spec window §7.1). */
+/** Lower case, accents dropped: "Padmé" and "padme" are the same. */
 export function normalize(text: string): string {
   return text.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/œ/g, "oe").replace(/æ/g, "ae");
 }
@@ -12,7 +12,7 @@ function isSubsequence(needle: string, haystack: string): boolean {
 }
 
 /**
- * How well `query` matches an item (spec window §7.1), null when a term of
+ * How well `query` matches an item, null when a term of
  * the query does not: a term at the start of a word of the label scores
  * best, then of a keyword, then inside a word, then with its letters spread.
  */
@@ -70,8 +70,8 @@ export function rank<T>(items: readonly T[], query: string, textOf: (item: T) =>
 
 /**
  * Ranked sections, the one holding the best match first while searching, so
- * that the first line, the one chosen, is the best of all (retours J8b,
- * amending spec window §7.1); in their own order without a search and on ties.
+ * that the first line, the one chosen, is the best of all; in their own order
+ * without a search and on ties.
  */
 export function rankSections<T, S extends { items: readonly T[] }>(sections: readonly S[], query: string, textOf: (item: T) => Text): S[] {
   if (words(query).length === 0) return [...sections];

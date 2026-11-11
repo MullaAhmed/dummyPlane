@@ -16,7 +16,7 @@ function PlainButton({ onClick, children }: { onClick: () => void; children: Rea
   );
 }
 
-/** What a part of the interface shows after a render error (spec première version §3.4): the rest keeps working. */
+/** What a part of the interface shows after a render error: the rest keeps working. */
 export function CrashNotice({ error, retry, compact = false }: { error: Error; retry: () => void; compact?: boolean }) {
   const t = useMessages(shellMessages).crash;
   return (

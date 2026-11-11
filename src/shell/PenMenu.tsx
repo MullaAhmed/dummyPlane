@@ -14,7 +14,7 @@ import { shellMessages } from "./messages";
 /** A width: a 32 px square on the card (the Toggle's choice look: chosen, the accent's tint and border). */
 const WIDTH = "size-8 bg-dp-card p-0";
 
-/** Pen tool with its color and width menu (spec habillage §5.3). */
+/** Pen tool with its color and width menu. */
 export function PenMenu({ active }: { active: boolean }) {
   const t = useMessages(shellMessages).pen;
   const [open, setOpen] = useState(false);

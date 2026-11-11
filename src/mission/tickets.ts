@@ -1,7 +1,7 @@
 import { missionBacklog, missionIssues } from "@/ipc/mission";
 
 /**
- * Where an overnight mission takes its tasks (spec overnight mission §5.1). A Kanban reaches a fleet through
+ * Where an overnight mission takes its tasks. A Kanban reaches a fleet through
  * "Plan with the fleet". GitHub issues and the backlog are read by dummyPlane; Linear's by the fleet itself,
  * through Linear's own read-only server, in the team and with the label the user gave.
  */

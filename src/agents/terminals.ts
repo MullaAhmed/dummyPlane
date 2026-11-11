@@ -42,7 +42,7 @@ export function startArrival(nodeId: string, payload: TerminalPayload, shown: bo
 
 /**
  * Adds a terminal centered on `center` (scene coordinates), or in the first
- * free cell of the group `groupId` (spec theme §11.3), and starts it. It comes
+ * free cell of the group `groupId`, and starts it. It comes
  * into view unless `arrival` says it arrives on its own: then the view stays,
  * the keyboard too, and a notice tells of it.
  */
@@ -64,7 +64,7 @@ export async function addTerminal(
   const elements = scene.elements();
   const frame = groupId ? elements.find((e) => e.id === groupId && !e.isDeleted && groupInfoOf(e)) : undefined;
   scene.write(frame ? joinGroup(elements, element, frame) : [...elements, placeFree(elements, element)]);
-  // Out of sight, Excalidraw would neither show it nor start its agent; in another workspace nothing mounts it at all (spec overnight mission §6.1).
+  // Out of sight, Excalidraw would neither show it nor start its agent; in another workspace nothing mounts it at all.
   if (scene.shown && arrival.reveal) {
     revealNode(element.id);
     return element.id;
@@ -124,7 +124,7 @@ export async function adoptCopies(workspaceId: string, copies: readonly { id: st
     const source = nodesStore.getState().nodes[sourceId];
     if (!source) continue;
     if (source.kind === "fleet") {
-      // A fleet runs on the Fleet's CLI: without it, the copy is taken back (spec first version §7.2).
+      // A fleet runs on the Fleet's CLI: without it, the copy is taken back.
       // Imported late: the fleet module reaches this one through the canvas.
       const { refusedWithoutItsCli } = await import("@/fleet/fleets");
       if (await refusedWithoutItsCli()) {
@@ -185,7 +185,7 @@ export async function adoptCopies(workspaceId: string, copies: readonly { id: st
   api.updateScene({ elements: [...remapCopiedNotes(alignCopies(linked, ids), copyOf, notes)], captureUpdate: CaptureUpdateAction.NEVER });
 }
 
-/** Copies made inside a group (Ctrl+D, copy-paste) take its first free cells too (spec §11.3). */
+/** Copies made inside a group (Ctrl+D, copy-paste) take its first free cells too. */
 function alignCopies(elements: readonly ExcalidrawElement[], copyIds: ReadonlySet<string>): ExcalidrawElement[] {
   const byFrame = new Map<string, string[]>();
   for (const e of elements) {
@@ -210,7 +210,7 @@ function alignCopies(elements: readonly ExcalidrawElement[], copyIds: ReadonlySe
 
 /**
  * Deletes elements in one step, their closing confirmed or needing none: the
- * removal guard lets them go. Undo brings them back, stopped (spec V1 §8.5).
+ * removal guard lets them go. Undo brings them back, stopped.
  */
 export function removeNodes(ids: readonly string[]) {
   const api = canvasStore.getState().api;
@@ -225,7 +225,7 @@ export function removeNodes(ids: readonly string[]) {
   });
 }
 
-/** Removes `ids` from a scene not on screen: no canvas will free their terminals (spec overnight mission §6.1). */
+/** Removes `ids` from a scene not on screen: no canvas will free their terminals. */
 export function removeFromStoredScene(workspaceId: string, ids: ReadonlySet<string>) {
   const scene = sceneAccess(workspaceId);
   if (!scene || scene.shown) return;

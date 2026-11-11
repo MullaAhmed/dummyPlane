@@ -11,7 +11,7 @@ import { IconButton } from "./buttons";
 import { shellMessages } from "./messages";
 
 /**
- * The tokens Claude Code logged over 30 days (spec Tokens): a column per day
+ * The tokens Claude Code logged over 30 days: a column per day
  * and the part of each agent. Read from the logs on the disk when opened;
  * nothing leaves the machine.
  */

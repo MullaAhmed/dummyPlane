@@ -56,7 +56,7 @@ it("says no Claude session yet when none is running, whatever the Git Bash state
   expect(hint()).toContain("first reply");
 });
 
-it("waits for a Claude session's first answer before showing the limits (spec maj §6)", async () => {
+it("waits for a Claude session's first answer before showing the limits", async () => {
   await act(async () => terminalStatusStore.getState().set("batman", { state: "running" }));
   expect(meter().textContent).toBe("Usage· waiting for the first answer");
   await act(async () => meter().focus());

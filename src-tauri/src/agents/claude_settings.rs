@@ -1,5 +1,4 @@
-//! The settings file given to Claude with `--settings` (spec habillage §8.2,
-//! §10.3): http hooks that report its state, and one that asks dummyPlane
+//! The settings file given to Claude with `--settings`: http hooks that report its state, and one that asks dummyPlane
 //! before Claude starts a built-in sub-agent (the hook server decides), for an
 //! agent, a fleet and a Manager alike.
 
@@ -20,7 +19,7 @@ const BUILTIN_SUBAGENTS: &str = "Task|Agent";
 pub fn settings_json(url: &str, role: Role) -> Value {
     let hook = json!({ "type": "http", "url": url, "timeout": 2 });
     let every = json!([{ "hooks": [hook] }]);
-    // dummyPlane's own tools never ask (spec orchestrateur §4.2).
+    // dummyPlane's own tools never ask.
     let mut permissions = json!({ "allow": ["mcp__dummyplane"] });
     if role.reads_only() {
         // A fleet or a Manager does not code itself, nor run commands in the user's folder.
@@ -76,7 +75,7 @@ const MISSION_DENIES: [&str; 7] = [
     "Bash(gh release create *)",
 ];
 
-/// A mission's choice, in this session's settings only: the user's files stay as they are (spec mission de nuit §5.3).
+/// A mission's choice, in this session's settings only: the user's files stay as they are.
 /// A fleet takes the push block only: at night it refuses what would ask (`--permission-mode dontAsk`), and a
 /// manager is never opened the tools its deny list closes.
 pub fn apply_permission(settings: &mut Value, permission: Option<Permission>, role: Role) {
@@ -103,7 +102,7 @@ pub fn allow_linear(settings: &mut Value) {
     }
 }
 
-/// The status line dummyPlane gives Claude (spec maj §6): the session's usage
+/// The status line dummyPlane gives Claude: the session's usage
 /// posted to dummyPlane, then the user's own status line, shown as before.
 #[derive(Debug, Clone, PartialEq)]
 pub struct StatusLine {
@@ -129,7 +128,7 @@ printf '%s' \"$input\" | curl -s -m 1 -K \"$2\" -X POST -H 'Content-Type: applic
 if [ -n \"${3:-}\" ]; then printf '%s' \"$input\" | bash -c \"$3\"; fi\n";
 
 /// The curl config that gives the local server's token to curl as a header
-/// (spec première version §4.3): on a command line, any program of the
+///: on a command line, any program of the
 /// account could read it. Rewritten at each start, next to the settings
 /// files that already hold the token.
 pub fn write_curl_config(dir: &Path, token: &str) -> io::Result<PathBuf> {

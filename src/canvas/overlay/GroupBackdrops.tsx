@@ -3,7 +3,7 @@ import { ROLES } from "@/agents/roles";
 import { useCanvas, useCanvasPlace } from "../canvasStore";
 
 /**
- * Frame outlines, painted under the transparent canvas (spec habillage §11.4):
+ * Frame outlines, painted under the transparent canvas:
  * tinted with the role's color for groups, sober grey for plain frames.
  */
 export function GroupBackdrops() {
@@ -12,7 +12,7 @@ export function GroupBackdrops() {
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
       {frames.map((frame) => {
-        // A folded group is only its label (spec replier un groupe).
+        // A folded group is only its label.
         if (frame.group?.folded) return null;
         const rect = screenRectOf(frame, view);
         const color = frame.group ? ROLES[frame.group.role].color : null;

@@ -11,7 +11,7 @@ pub struct Workspace {
     pub project_id: String,
     pub name: String,
     pub position: i64,
-    /// Pantheon of the agents outside any group (spec habillage §9.2).
+    /// Pantheon of the agents outside any group.
     pub pantheon: Option<String>,
     /// `canvas` (free whiteboard), `code` (the project's single code workspace) or `notes` (its single notes tab).
     pub kind: String,

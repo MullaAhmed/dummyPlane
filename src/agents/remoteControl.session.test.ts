@@ -76,7 +76,7 @@ beforeEach(async () => {
   remoteStore.getState().set("batman", null);
 });
 
-describe("setRemoteControl on a running session (spec maj §2)", () => {
+describe("setRemoteControl on a running session", () => {
   it("reads the session's own screen, not what an earlier run left in the terminal", async () => {
     expect(await setRemoteControl("batman", true)).toEqual({ on: true, url: URL });
     expect(typed).toEqual(["/remote-control"]);

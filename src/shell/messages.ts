@@ -1,6 +1,6 @@
 import { defineMessages, plural } from "@/i18n";
 
-/** The app shell's texts: title bar, rails, menus, dialogs (spec première version §7.1). */
+/** The app shell's texts: title bar, rails, menus, dialogs. */
 export const shellMessages = defineMessages(
   {
     loading: "Loading…",
@@ -29,7 +29,7 @@ export const shellMessages = defineMessages(
     notification: {
       title: (name: string, state: string) => `${name} · ${state}`,
       waiting: "Waiting",
-      /** A fixed line, never the question: a notification can show on the lock screen (spec notification §7). */
+      /** A fixed line, never the question: a notification can show on the lock screen. */
       question: "Has a question for you",
     },
     /** A main agent finished (`@/shell/finishAlert`): a report, a mission's end, or a turn after real work. */

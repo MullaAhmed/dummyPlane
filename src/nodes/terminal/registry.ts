@@ -22,7 +22,7 @@ import { onNewWork } from "./minimize";
 import { isTypingKey, startsNewConversation, startsOnKeystroke } from "./pill";
 import { acceptsInput, reattachSession, relaunchSession, restoreSession, startSession, type SessionState } from "./session";
 
-// Terminals live outside React (spec §6.4): Excalidraw unmounts embeddables on a
+// Terminals live outside React: Excalidraw unmounts embeddables on a
 // workspace switch, and the xterm instance must survive it. Remounting moves the
 // existing DOM element into the new host instead of creating a new terminal.
 interface Entry {
@@ -34,7 +34,7 @@ interface Entry {
   zoom: number;
   opened: boolean;
   session: SessionState;
-  /** When output was last written: a quiet agent is ready (spec orchestrateur §7.3). */
+  /** When output was last written: a quiet agent is ready. */
   lastOutput?: number;
   /** When the user last typed in it: an event typed meanwhile would join their half-written text. */
   lastInput?: number;
@@ -174,7 +174,7 @@ export function layoutTerminal(nodeId: string, host: HTMLElement, zoom: number) 
 /**
  * Shows the terminal of `nodeId` in `host`. The first time a node is shown in this
  * session, its process is started (new node), re-attached (still running after a
- * webview reload) or restored as stopped with its saved output (spec §6.5).
+ * webview reload) or restored as stopped with its saved output.
  */
 export function mountTerminal(nodeId: string, host: HTMLElement, payload: TerminalPayload, zoom: number) {
   const existing = entries.get(nodeId);
@@ -278,7 +278,7 @@ export function freshText(nodeId: string, lines: number): string {
   return textSince(entry.term, entry.since, lines);
 }
 
-/** The last `lines` lines of the terminal, as plain text (spec orchestrateur §7.2 `lire_sortie`). */
+/** The last `lines` lines of the terminal, as plain text. */
 export function terminalText(nodeId: string, lines: number): string {
   const term = entries.get(nodeId)?.term;
   return term ? bufferText(term.buffer.active, lines) : "";

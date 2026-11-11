@@ -28,8 +28,7 @@ import { setRemoteControlAll } from "./remoteControl";
 import { SpecialityMenu } from "./SpecialityMenu";
 
 /**
- * The menu of a group: the `⌄` of its label on the canvas (spec theme
- * §11.4), or `trigger`, the ⋯ of its header in the agents panel (spec identity §5.6).
+ * The menu of a group: the `⌄` of its label on the canvas, or `trigger`, the ⋯ of its header in the agents panel.
  */
 export function GroupMenu({ groupId, trigger, answersRequests = false }: { groupId: string; trigger?: ReactElement; answersRequests?: boolean }) {
   const t = useMessages(agentsMessages);

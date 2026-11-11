@@ -28,7 +28,7 @@ beforeAll(async () => {
   agentActivityStore.getState().apply({ nodeId: "batman", activity: "working", since: 0 });
 });
 
-describe("the line chosen by a search, from a Claude terminal (retours J8b)", () => {
+describe("the line chosen by a search, from a Claude terminal", () => {
   it("is the function of the terminal of the moment, not a loose match in an earlier section", () => {
     expect(chosen("pause")).toMatchObject({ label: "Pause", section: "Terminal · Batman" });
     expect(chosen("restart")).toMatchObject({ label: "Restart", section: "Terminal · Batman" });

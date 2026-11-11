@@ -1,4 +1,4 @@
-//! Worktrees and branches of a mission (spec orchestrateur §7.4, §7.6, §7.7).
+//! Worktrees and branches of a mission.
 //! dummyPlane works beside the user's folder, never in their branch: no push,
 //! no force.
 

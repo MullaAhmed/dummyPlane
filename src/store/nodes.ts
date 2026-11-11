@@ -200,7 +200,7 @@ export function rebaseTerminalFolders(from: string, to: string) {
   }
 }
 
-/** The Claude session of a node: a terminal's own, or a fleet's (spec orchestrateur §6). */
+/** The Claude session of a node: a terminal's own, or a fleet's. */
 export function sessionOf(record: NodeRecord | undefined): TerminalPayload | undefined {
   if (record?.kind === "terminal") return record.payload;
   return record?.kind === "fleet" ? record.payload.session : undefined;

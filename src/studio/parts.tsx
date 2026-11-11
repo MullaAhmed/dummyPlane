@@ -37,7 +37,7 @@ export function ListMessage({ children, danger = false }: { children: ReactNode;
   return <p className={cn("px-3 py-4 text-center text-xs", danger ? "text-dp-danger" : "text-dp-text-2")}>{children}</p>;
 }
 
-/** The disk no longer holds what the buffer knows: only the user decides (spec studio code §3). */
+/** The disk no longer holds what the buffer knows: only the user decides. */
 export function DiskBanner({ session, disk, onDrop }: { session: FileSession; disk: NonNullable<SessionState["disk"]>; onDrop?: () => void }) {
   const t = useMessages(studioMessages);
   const { reload, overwrite, dropFile } = session.getState();

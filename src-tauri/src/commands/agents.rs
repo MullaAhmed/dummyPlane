@@ -1,4 +1,4 @@
-//! Agent activity as the frontend sees it (spec habillage §10.2, §15.3): the
+//! Agent activity as the frontend sees it: the
 //! hook server, the tracker, the `agent-activity` event and the snapshot.
 
 use std::collections::HashSet;
@@ -25,7 +25,7 @@ use crate::sync::lock;
 
 /// Quiet terminals are checked this often (the 1.5 s rule).
 const TICK: Duration = Duration::from_millis(250);
-/// An MCP call the interface has not answered by then fails (spec orchestrateur §4.1).
+/// An MCP call the interface has not answered by then fails.
 const MCP_TIMEOUT: Duration = Duration::from_secs(30);
 /// The subagents' transcripts are read this often.
 const SUBAGENT_POLL: Duration = Duration::from_millis(350);
@@ -33,13 +33,13 @@ const SUBAGENT_POLL: Duration = Duration::from_millis(350);
 pub struct AgentState {
     tracker: Mutex<Tracker>,
     hooks: Option<HookServer>,
-    /// The curl config that carries the server's token (spec première version §4.3).
+    /// The curl config that carries the server's token.
     curl_config: Option<PathBuf>,
     /// The bash that runs the status line script: Git Bash on Windows, else `bash`. None when Windows has no Git Bash.
     status_bash: Option<PathBuf>,
     hooks_dir: PathBuf,
     mcp_dir: PathBuf,
-    /// One token per Claude launch, naming its node (spec orchestrateur §4.1).
+    /// One token per Claude launch, naming its node.
     mcp_tokens: Tokens,
     mcp_calls: Pending,
     subagents: Mutex<Subagents>,
@@ -89,7 +89,7 @@ struct CodexSessionEvent {
     session_id: String,
 }
 
-/// What a Claude session's status line was given (spec maj §6).
+/// What a Claude session's status line was given.
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct StatusEvent {
@@ -366,7 +366,7 @@ pub fn server_running(app: &AppHandle) -> bool {
 
 /// The hooks a new process gets: Claude's settings file, Codex's notify URL.
 /// Without a server, Claude starts without `--settings`.
-/// Where a terminal reports to (spec première version §4.3): the token is in
+/// Where a terminal reports to: the token is in
 /// the URL Claude reads from its settings file only; the status line and Codex
 /// run commands, so their URLs are bare and curl reads the token from a file.
 pub struct HookUrls {
@@ -403,7 +403,7 @@ pub fn hooks_for(
     let urls = hook_urls(server, node_id);
     match agent {
         Agent::Claude => {
-            // The user's own status line goes on showing, after dummyPlane has read the usage (spec maj §6).
+            // The user's own status line goes on showing, after dummyPlane has read the usage.
             // Without the curl config, no status line: its token would go on a command line.
             // Without a bash to run it, none either: the user's own line then shows as it does without dummyPlane.
             let status = state
@@ -548,7 +548,7 @@ pub fn ended(app: &AppHandle, node_id: &str) {
     clear_subagents(app, &state, node_id);
 }
 
-/// The interface's answer to an MCP call (spec orchestrateur §4.1).
+/// The interface's answer to an MCP call.
 #[tauri::command]
 pub async fn mcp_reply(state: State<'_, AgentState>, call_id: u64, result: Value) -> AppResult<()> {
     state.mcp_calls.answer(call_id, result);

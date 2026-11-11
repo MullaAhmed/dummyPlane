@@ -40,7 +40,7 @@ it("speaks to the protocol under its own name", () => {
   expect(internalCall("tickets", {}).name).toBe("tickets");
 });
 
-describe("tickets (spec mission de nuit §5.1)", () => {
+describe("tickets", () => {
   it("sends the fleet to Linear's own read-only tools, in the team and with the label chosen, and reads nothing itself", async () => {
     await setup({ tickets: { kind: "linear", team: "ENG", label: "overnight" } });
     const answer = JSON.parse(textOf(await fleetTool("chef", "tickets", {})));
@@ -86,7 +86,7 @@ describe("tickets (spec mission de nuit §5.1)", () => {
   });
 });
 
-describe("what is left to check by hand (spec mission de nuit §6.2)", () => {
+describe("what is left to check by hand", () => {
   it("keeps what finish says, on one line each, blank ones dropped", async () => {
     await setup({ state: "en_cours" });
     await fleetTool("chef", "terminer", { bilan: "Fini", check: ["Relire\nla migration", "  ", 3] });
@@ -116,7 +116,7 @@ describe("what is left to check by hand (spec mission de nuit §6.2)", () => {
   });
 });
 
-describe("the plan of a night (spec mission de nuit §5.1)", () => {
+describe("the plan of a night", () => {
   it("starts by itself when the user said so: the dialog was the go-ahead", async () => {
     await setup({ overnight: true, autoLaunch: true });
     expect(textOf(await fleetTool("chef", "proposer_plan", plan))).toBe("Plan taken: the overnight mission is starting. A board and its Manager run it from here: you hear when the board is finished, or when the Manager needs the user.");

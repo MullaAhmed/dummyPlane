@@ -9,7 +9,7 @@ const frame = (id: string, x: number, y: number, width: number, height: number, 
 const terminal = (id: string, frameId: string | null, x: number, y: number) =>
   element({ id, type: "embeddable", customData: { kind: "terminal" }, frameId, x, y, width: 300, height: 200 });
 
-describe("terminalOrder (spec fenêtre §6.3)", () => {
+describe("terminalOrder", () => {
   it("reads the spec's example: blocks in reading order, members row by row, isolated terminals last", () => {
     const scene = [
       element({ id: "robin", type: "embeddable", customData: { kind: "terminal" }, x: 1300, y: 820, width: 300, height: 200 }),

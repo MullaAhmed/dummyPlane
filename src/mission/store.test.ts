@@ -9,7 +9,7 @@ import { agentGroup, canvasKnown, linkedTeamAgents, linkedGroups, memberBudgets,
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
 
-it("gives each agent of a running mission its time and budget, for the bars (spec orchestrateur §8.3)", () => {
+it("gives each agent of a running mission its time and budget, for the bars", () => {
   const member = { name: "Batman", task: "Login", budgetMin: 10, linked: false, branch: "b", worktree: "w" };
   const nodes: Record<string, NodeRecord> = {
     chef: {
@@ -57,7 +57,7 @@ it("freezes the time of an agent that reported at its report and gives its statu
   expect(at(200).robin).toEqual({ spent: 200, budget: 50 });
 });
 
-it("forgets the mission of a closed fleet until an undo brings it back (spec première version §5.4)", () => {
+it("forgets the mission of a closed fleet until an undo brings it back", () => {
   const member = { nodeId: "batman", name: "Batman", task: "Login", budgetMin: 10, linked: false, branch: "b", worktree: "w", sentAt: 0 };
   nodesStore.setState({
     nodes: { chef: { workspaceId: "w1", kind: "fleet", payload: { name: "Chef", mission: { ...NEW_MISSION, state: "en_cours", members: [member] } } } },
@@ -70,7 +70,7 @@ it("forgets the mission of a closed fleet until an undo brings it back (spec pre
   expect(memberOf("batman")?.fleetId).toBe("chef");
 });
 
-describe("what the fleet reads of the groups (spec groupes spécialisés §3)", () => {
+describe("what the fleet reads of the groups", () => {
   const frame = (id: string, name: string, memberIds: string[], speciality?: string) => ({
     id, name, x: 0, y: 0, width: 10, height: 10, memberIds, group: { role: "general" as const, pantheon: "egyptian", ...(speciality ? { speciality } : {}) },
   });
@@ -109,7 +109,7 @@ it("draws no budget bar for a closed fleet's mission (final review R3)", () => {
   expect(memberBudgets(nodes, 60 * 60_000)).toEqual({ batman: { spent: 60, budget: 10 } });
 });
 
-describe("a workspace not on screen (spec mission de nuit §6.1)", () => {
+describe("a workspace not on screen", () => {
   const terminal = { title: "", name: "Batman", agent: "claude" as const, cwd: "C:/", shell: "default" as const, command: "" };
   const frame = { id: "g1", type: "frame", name: "Interface", x: 0, y: 0, width: 10, height: 10, isDeleted: false, frameId: null, customData: { dummyplane: { kind: "group", role: "frontend", pantheon: "norse", speciality: "Frontend" } } };
   const batman = { id: "batman", type: "embeddable", isDeleted: false, frameId: "g1", x: 0, y: 0, width: 1, height: 1, customData: { kind: "terminal" } };

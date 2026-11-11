@@ -29,7 +29,7 @@ function read(): string[] {
   }
 }
 
-/** The last functions run from the palette, most recent first (retours J8b). */
+/** The last functions run from the palette, most recent first. */
 export const recentStore = createStore<{ ids: string[] }>()(() => ({ ids: read() }));
 
 /** A function run from the palette heads "Recent", the oldest of three leaving; the palette's own are left out. */

@@ -24,7 +24,7 @@ const MENU = [
 const DISCONNECTED = ["❯ /remote-control", "❯ /remote-control", "  ⎿  Remote Control disconnected.", ...PROMPT].join("\n");
 const EMPTY = ["  Claude Code v2.1.304", ...PROMPT].join("\n");
 
-/** The consent Claude asks for the first Remote Control of an account (spec maj §2). */
+/** The consent Claude asks for the first Remote Control of an account. */
 const CONSENT = [
   "  Claude Code v2.1.304",
   "▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔",

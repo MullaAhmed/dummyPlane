@@ -20,7 +20,7 @@ const draft = (over: Partial<LoopDraft> = {}): LoopDraft => ({
   ...over,
 });
 
-describe("validateLoop (spec boucles §3)", () => {
+describe("validateLoop", () => {
   it("accepts a loop with a stop condition, trimming its texts", () => {
     const result = validateLoop(draft({ name: "  Point  ", instruction: "  go  " }));
     expect(result).toEqual({ ok: true, loop: expect.objectContaining({ name: "Point", instruction: "go", targets: ["a"], maxRuns: 8 }) });

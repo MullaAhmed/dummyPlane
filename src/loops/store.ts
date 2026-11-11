@@ -4,7 +4,7 @@ import { createLoopEngine, TICK_MS, type EngineDeps, type LoopRuntime } from "./
 import { loopsMessages } from "./messages";
 import { LOOPS_VERSION, MAX_LOOPS, readLoops, validateLoop, withLoop, withoutLoop, type LoopDef } from "./model";
 
-/** The setting that holds the loops (loops spec §3): their definitions only, never that one is on. */
+/** The setting that holds the loops: their definitions only, never that one is on. */
 export const LOOPS_KEY = "loops.list";
 
 export interface LoopsIo {
@@ -35,7 +35,7 @@ export interface LoopsState {
 }
 
 /**
- * The loops' store (loops spec §4). Its inputs are passed in: the real ones
+ * The loops' store. Its inputs are passed in: the real ones
  * are wired in `live.ts`; tests pass fakes and never drive a real agent.
  */
 export function createLoopsStore(

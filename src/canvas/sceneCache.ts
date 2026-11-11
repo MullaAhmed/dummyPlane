@@ -73,7 +73,7 @@ export function cachedElements(workspaceId: string): readonly ExcalidrawElement[
 /**
  * Replaces the scene of a workspace that is not on screen, kept and saved as
  * the canvas would: the save purges the rows of nodes it does not list, so it
- * lists them all (spec mission de nuit §6.1).
+ * lists them all.
  */
 export function editStoredScene(workspaceId: string, edited: readonly ExcalidrawElement[]) {
   const scene = cache.get(workspaceId);

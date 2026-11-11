@@ -39,7 +39,7 @@ beforeEach(() => {
 });
 afterEach(() => clearMocks());
 
-describe("the lines of the palette (spec presets §3)", () => {
+describe("the lines of the palette", () => {
   it("lists save, then deploy and delete for each preset, with the agents announced", () => {
     const commands = presetCommands([preset("Dev HQ", "1"), preset("Tests", "2")]);
     expect(commands.map((c) => c.id)).toEqual(["presets.save", "presets.deploy.1", "presets.remove.1", "presets.deploy.2", "presets.remove.2"]);

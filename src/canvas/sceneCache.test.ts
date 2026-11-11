@@ -10,7 +10,7 @@ afterEach(() => {
   clearMocks();
 });
 
-it("reads a scene once while the first read is still pending (plan F1)", async () => {
+it("reads a scene once while the first read is still pending", async () => {
   const reads = vi.fn();
   mockIPC((cmd) => {
     if (cmd === "load_workspace") {

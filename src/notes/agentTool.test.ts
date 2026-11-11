@@ -26,7 +26,7 @@ afterEach(() => {
   clearMocks();
 });
 
-describe("the notes tool (spec notes §3)", () => {
+describe("the notes tool", () => {
   it("takes one optional argument and changes nothing", () => {
     const spec = notesToolSpec();
     expect(spec.name).toBe("notes");

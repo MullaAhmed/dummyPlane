@@ -1,7 +1,7 @@
 /** Excalidraw's interactive canvas: where it reads pointers and the wheel from. */
 const interactiveCanvas = () => document.querySelector<HTMLCanvasElement>(".excalidraw canvas.interactive");
 
-/** The wheel a covering layer receives goes on to the canvas, so the view still scrolls and zooms (plan B3). */
+/** The wheel a covering layer receives goes on to the canvas, so the view still scrolls and zooms. */
 export function forwardWheel(event: Pick<WheelEvent, "deltaX" | "deltaY" | "ctrlKey" | "metaKey" | "clientX" | "clientY">) {
   interactiveCanvas()?.dispatchEvent(
     new WheelEvent("wheel", {

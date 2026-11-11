@@ -1,4 +1,4 @@
-//! Agent activity (spec habillage §10.2): working, waiting for the user or
+//! Agent activity: working, waiting for the user or
 //! idle, from the agents' hooks first, else from their terminal's output.
 
 use std::collections::HashMap;
@@ -265,7 +265,7 @@ fn set(node_id: &str, node: &mut Node, activity: Activity, now: Instant) -> Opti
     Some(change_of(node_id, node))
 }
 
-/// The longest preview of a question, in characters (spec notification §7).
+/// The longest preview of a question, in characters.
 pub const MAX_MESSAGE_CHARS: usize = 140;
 
 const ESC: char = '\u{1b}';
@@ -357,7 +357,7 @@ fn is_hidden(c: char) -> bool {
 
 /// An agent's message as one line of plain text, capped; `None` when nothing
 /// readable is left. Its origin is not documented and it may quote a tool's
-/// name, so it is untrusted (spec notification §7).
+/// name, so it is untrusted.
 pub fn clean_message(raw: &str) -> Option<String> {
     let mut text = String::with_capacity(raw.len());
     let mut chars = raw.chars();
@@ -386,7 +386,7 @@ pub fn clean_message(raw: &str) -> Option<String> {
     Some(format!("{}…", cut.trim_end()))
 }
 
-/// Claude's hook events (spec §10.2), from `hook_event_name` and `notification_type`.
+/// Claude's hook events, from `hook_event_name` and `notification_type`.
 pub fn claude_activity(event: &str, notification_type: Option<&str>) -> Option<Activity> {
     match event {
         "UserPromptSubmit" | "PostToolUse" => Some(Activity::Working),

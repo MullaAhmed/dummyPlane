@@ -13,7 +13,7 @@ async fn blocking<T: Send + 'static>(
         .map_err(AppError::InvalidInput)
 }
 
-/// The changes of an agent's folder against `base`, or HEAD (spec maj §5).
+/// The changes of an agent's folder against `base`, or HEAD.
 #[tauri::command]
 pub async fn review_changes(path: String, base: Option<String>) -> AppResult<Changes> {
     blocking(move || review::changes(Path::new(&path), base.as_deref())).await

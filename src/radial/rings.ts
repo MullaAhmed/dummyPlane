@@ -135,7 +135,7 @@ function drawingsAlone(ctx: CommandContext): string | null {
 }
 
 /**
- * The five rings, positions clockwise from the top (spec menu radial §4). A
+ * The five rings, positions clockwise from the top. A
  * ring holds only real buttons: they are spread evenly around it, so a ring
  * of fewer than eight leaves no empty place. Each ends with More (↖ on a ring
  * of eight), which opens its arc of ARCS: what the ring has no room for.
@@ -263,7 +263,7 @@ export interface RingLine {
   danger: boolean;
 }
 
-/** A button as it shows now: its command, name, icon, and whether it can run (spec menu radial §5.1). */
+/** A button as it shows now: its command, name, icon, and whether it can run. */
 export function lineOf(slot: RingSlot, ring: CommandContext, commands: readonly Command[] = COMMANDS): RingLine | null {
   const id = typeof slot.command === "function" ? slot.command(ring) : slot.command;
   const command = commands.find((c) => c.id === id);

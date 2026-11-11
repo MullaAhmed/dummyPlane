@@ -22,7 +22,7 @@ const OTHERS = (Object.keys(AGENT_INSTALLS) as AgentId[]).filter((id) => id !== 
 /** A quiet text action: 28 px, its icons in the secondary text role. */
 const linkClass = "gap-1.5 px-2 text-xs font-normal [&_svg]:text-dp-text-2";
 
-/** "No code agent found": Claude Code first, then the others (spec installation §4.2). */
+/** "No code agent found": Claude Code first, then the others. */
 export function NoAgent() {
   const t = useMessages(homeMessages).noAgent;
   const [checking, setChecking] = useState(false);

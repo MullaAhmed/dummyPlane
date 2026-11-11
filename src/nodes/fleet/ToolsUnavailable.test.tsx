@@ -15,7 +15,7 @@ vi.mock("@/app/logs", () => ({ openLogDir: vi.fn() }));
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-it("says why the fleet did not start, and retries it (spec première version §4.1)", async () => {
+it("says why the fleet did not start, and retries it", async () => {
   mockIPC(() => undefined);
   const session = { title: "Fleet", name: "Fleet", agent: "claude" as const, cwd: "C:/code", shell: "default" as const, command: "", role: "orchestrator" as const, claudeSessionId: "0b9c4b5e-6f1a-4c39-9d2e-8f6c2d1a7e10" };
   await nodesStore.getState().create("o", { workspaceId: "w", kind: "fleet", payload: { name: "Fleet", session } });

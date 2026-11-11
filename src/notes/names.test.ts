@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { isNoteName } from "./names";
 
-describe("note names (spec notes §3)", () => {
+describe("note names", () => {
   it("takes names with spaces and accents", () => {
     for (const name of ["Auth", "décisions d'archi", "v1.2 notes", "a-b_c"]) expect(isNoteName(name), name).toBe(true);
   });

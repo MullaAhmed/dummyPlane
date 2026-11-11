@@ -11,7 +11,7 @@ const history = (...lines: string[]): GraphCommit[] =>
 /** A row's lines, short: `in 1>0` is a line from lane 1's top into the dot in column 0. */
 const lines = (row: GraphRow) => row.edges.map((e: GraphEdge) => `${e.span} ${e.from}>${e.to}`).sort();
 
-describe("the history's graph (spec fenêtre git §3.4)", () => {
+describe("the history's graph", () => {
   it("keeps a straight history in one lane, on HEAD's line", () => {
     const graph = layoutGraph(history("c: b", "b: a", "a"));
     expect(graph.rows.map((row) => row.column)).toEqual([0, 0, 0]);

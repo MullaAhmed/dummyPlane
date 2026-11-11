@@ -5,7 +5,7 @@ import { studioRead, studioVersion, studioWrite } from "@/ipc/studio";
 import { createFileSession, isDirty as sessionIsDirty, type FileSession, type StudioIo } from "./fileSession";
 import { studioMessages } from "./messages";
 
-/** An open file: its session holds the text and stands against the disk (spec studio code §3). */
+/** An open file: its session holds the text and stands against the disk. */
 export interface StudioTab {
   path: string;
   session: FileSession;

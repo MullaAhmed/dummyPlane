@@ -23,9 +23,9 @@ import { withWire } from "@/agents/wires";
 import { ensureFleetAgent, fleetAgent } from "./fleetAgent";
 import { fleetMessages } from "./messages";
 
-/** A new fleet with its session on the Fleet's CLI, which starts when it is shown (spec orchestrateur §6). */
+/** A new fleet with its session on the Fleet's CLI, which starts when it is shown. */
 async function createFleet(id: string, workspaceId: string) {
-  // A new fleet is named in the interface's language (spec first version §7.1).
+  // A new fleet is named in the interface's language.
   const name = messages(nodesMessages).fleet.defaultName;
   const session = fleetSession(name, defaultLaunchOptions(workspaceId), fleetAgent());
   await nodesStore.getState().create(id, { workspaceId, kind: "fleet", payload: { name, session } });
@@ -34,7 +34,7 @@ async function createFleet(id: string, workspaceId: string) {
 
 /**
  * A fleet runs on the CLI the user chose for it (asked before the first one, when there is a choice):
- * without it installed, nothing is created (spec first version §7.2).
+ * without it installed, nothing is created.
  */
 export async function refusedWithoutItsCli(): Promise<boolean> {
   const agent = await ensureFleetAgent();
@@ -67,7 +67,7 @@ export async function addFleetToGroup(groupId: string): Promise<string | null> {
   return element.id;
 }
 
-/** The menu's "Fleet", placed with a click like an agent (spec theme §10.1). Its id, null when none was made. */
+/** The menu's "Fleet", placed with a click like an agent. Its id, null when none was made. */
 export async function addFleet(workspaceId: string, center: Point): Promise<string | null> {
   const api = canvasStore.getState().api;
   if (!api || (await refusedWithoutItsCli())) return null;
@@ -80,7 +80,7 @@ export async function addFleet(workspaceId: string, center: Point): Promise<stri
   return element.id;
 }
 
-/** One click of "Link" (spec theme §13). */
+/** One click of "Link". */
 export function linkFleet(fleetId: string, targetId: string) {
   const workspaceId = nodesStore.getState().nodes[fleetId]?.workspaceId ?? workspacesStore.getState().activeId;
   const scene = workspaceId ? sceneAccess(workspaceId) : null;
@@ -110,7 +110,7 @@ export function removeFleet(fleetId: string) {
   });
 }
 
-/** The × and "Close the fleet": a working fleet asks first (spec first version §5.4). */
+/** The × and "Close the fleet": a working fleet asks first. */
 export function requestCloseFleet(fleetId: string) {
   const api = canvasStore.getState().api;
   if (!api || !isRunning(fleetId)) return removeFleet(fleetId);

@@ -46,7 +46,7 @@ beforeEach(async () => {
   vi.mocked(ptySendText).mockClear();
 });
 
-describe("events to the fleet (spec orchestrateur §7.5)", () => {
+describe("events to the fleet", () => {
   it("holds a line while a Remote Control flow is typing in the fleet (backlog 27 oct)", async () => {
     vi.useFakeTimers();
     vi.mocked(remoteBusy).mockReturnValueOnce(true).mockReturnValue(false);
@@ -98,7 +98,7 @@ describe("events to the fleet (spec orchestrateur §7.5)", () => {
     ]);
   });
 
-  it("tells it in English when the interface is (spec première version §7.1)", () => {
+  it("tells it in English when the interface is", () => {
     try {
       activity("batman", "waiting");
       status("batman", "exited");
@@ -141,7 +141,7 @@ describe("events to the fleet (spec orchestrateur §7.5)", () => {
   });
 });
 
-describe("a mission its Manager runs (spec babysitter Fleet)", () => {
+describe("a mission its Manager runs", () => {
   beforeAll(async () => {
     await nodesStore.getState().create("sitter", {
       workspaceId: "w1",

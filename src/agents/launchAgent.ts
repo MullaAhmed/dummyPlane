@@ -21,7 +21,7 @@ export interface LaunchOptions {
 
 /**
  * Agents start in the folder of the workspace (`workspaceId`, else the active one): the one it
- * picked, else the project's, in the first available shell (spec theme §6.1). Terminals, Fleet
+ * picked, else the project's, in the first available shell. Terminals, Fleet
  * sessions, installs and sign-in all start here.
  */
 export function defaultLaunchOptions(workspaceId?: string | null): LaunchOptions {
@@ -31,7 +31,7 @@ export function defaultLaunchOptions(workspaceId?: string | null): LaunchOptions
 /**
  * Creates and starts an agent of the active workspace at `center` (scene
  * coordinates). Inside a group it takes the group's next free cell and a name
- * from the group's pantheon (spec theme §10.1, §11.3).
+ * from the group's pantheon.
  */
 export async function launchAgent(agent: AgentId, options: LaunchOptions, center: Point): Promise<string | null> {
   const workspaceId = workspacesStore.getState().activeId;

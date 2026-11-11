@@ -6,7 +6,7 @@ import type { Rect } from "./groups";
 import { nodeKindOf } from "./nodeElement";
 import { createChangeDetector } from "./sceneChanges";
 
-/** Viewport saved with the scene (spec §8.2 `app_state_json`). */
+/** Viewport saved with the scene. */
 export type SavedAppState = Pick<AppState, "scrollX" | "scrollY" | "zoom">;
 
 export interface SceneSyncDeps {
@@ -28,7 +28,7 @@ export function liveNodeIds(elements: readonly ExcalidrawElement[]): string[] {
   return elements.filter((e) => !e.isDeleted && nodeKindOf(e) !== null).map((e) => e.id);
 }
 
-/** The scene rectangle of each live node: where the overlays anchor (spec orchestrateur §5.1). */
+/** The scene rectangle of each live node: where the overlays anchor. */
 export function liveNodeRects(elements: readonly ExcalidrawElement[]): Record<string, Rect> {
   return Object.fromEntries(
     elements.filter((e) => !e.isDeleted && nodeKindOf(e) !== null).map((e) => [e.id, { x: e.x, y: e.y, width: e.width, height: e.height }]),
@@ -36,7 +36,7 @@ export function liveNodeRects(elements: readonly ExcalidrawElement[]): Record<st
 }
 
 /**
- * Turns Excalidraw's onChange stream into saves (spec §8.4): the scene 500 ms
+ * Turns Excalidraw's onChange stream into saves: the scene 500 ms
  * after the last real change, new images at once, and node additions/removals
  * as events (a removal stops a terminal; an undo brings a node back).
  */

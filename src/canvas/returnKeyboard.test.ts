@@ -19,7 +19,7 @@ const settle = () => {
   while (frames.length > 0) frames.shift()!(0);
 };
 
-it("gives Excalidraw's container the keyboard a menu or popover left on its trigger (plan B1)", () => {
+it("gives Excalidraw's container the keyboard a menu or popover left on its trigger", () => {
   document.getElementById("trigger")!.focus();
   returnKeyboardToCanvas();
   expect(document.activeElement?.id).toBe("trigger");

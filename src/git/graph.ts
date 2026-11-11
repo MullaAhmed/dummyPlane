@@ -1,5 +1,5 @@
 /**
- * The history's graph (spec fenêtre git §3.4), laid out like `git log --graph`: each commit gets
+ * The history's graph, laid out like `git log --graph`: each commit gets
  * a lane, and the lines between a commit and its parents are routed one row at a time, so each
  * row draws itself alone. Pure: the History tab lays a history out once per read, then only draws.
  */

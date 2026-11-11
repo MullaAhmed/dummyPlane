@@ -22,7 +22,7 @@ const frame = (folded: boolean) => ({
   memberIds: ["a", "b"],
 });
 
-it("folds on the label's chevron, keeps the counters, and unfolds with a click (spec replier un groupe §2)", async () => {
+it("folds on the label's chevron, keeps the counters, and unfolds with a click", async () => {
   mockIPC(() => undefined);
   let scene: Record<string, unknown>[] = [{ id: "g", type: "frame", customData: { dummyplane: { kind: "group", role: "general", pantheon: "greek" } } }];
   const updateScene = vi.fn(({ elements }: { elements?: typeof scene }) => {

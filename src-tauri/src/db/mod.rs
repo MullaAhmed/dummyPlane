@@ -34,7 +34,7 @@ const MIGRATIONS: &[Step] = &[
     Step::Sql(include_str!("migrations/007_output_nodes.sql")),
 ];
 
-/// The single SQLite connection shared by every command (spec V1 §8.1).
+/// The single SQLite connection shared by every command.
 pub struct Db {
     conn: Mutex<Connection>,
 }
@@ -74,7 +74,7 @@ fn newer_base() -> String {
 }
 
 /// A base from a newer dummyPlane is left untouched; an older one is copied
-/// before its first missing migration (spec première version §3.3). A copy
+/// before its first missing migration. A copy
 /// already there is the one made before a first, failed attempt: it is kept.
 /// The copy is written aside and renamed once checked, so a copy cut short
 /// (full disk, crash) is never taken for the backup.

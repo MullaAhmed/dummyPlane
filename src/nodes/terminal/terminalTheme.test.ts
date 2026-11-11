@@ -18,7 +18,7 @@ const ANSI = [
 /** xterm draws faint text (SGR 2) at half opacity (addon-webgl's DIM_OPACITY). */
 const FAINT = 0.5;
 
-it("draws xterm on the node's body color in every palette, dark in each (spec identité §4.2)", () => {
+it("draws xterm on the node's body color in every palette, dark in each", () => {
   const selectors = {
     calm: ':root[data-palette="calm"]',
     electric: ':root[data-palette="electric"]',

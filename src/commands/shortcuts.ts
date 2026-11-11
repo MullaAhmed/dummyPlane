@@ -1,4 +1,4 @@
-/** The application's shortcuts (spec window §6.1), as the interface writes them. */
+/** The application's shortcuts, as the interface writes them. */
 export type Shortcut = "Ctrl+Tab" | "Ctrl+Shift+Tab" | "Ctrl+P" | "Ctrl+Shift+P" | "Shift+Escape" | "Ctrl+Shift+A" | "Ctrl+G" | "Ctrl+Shift+G";
 
 /**
@@ -15,7 +15,7 @@ export function isTypedInto(target: EventTarget | null): boolean {
 /** The part of a keydown event the shortcuts read. */
 export type KeyLike = Pick<KeyboardEvent, "key" | "ctrlKey" | "shiftKey" | "altKey" | "metaKey" | "repeat" | "isComposing">;
 
-/** A held key repeats these only (spec window §6.2). */
+/** A held key repeats these only. */
 const REPEATABLE: ReadonlySet<Shortcut> = new Set<Shortcut>(["Ctrl+Tab", "Ctrl+Shift+Tab"]);
 
 function match(key: string, ctrl: boolean, shift: boolean): Shortcut | null {
@@ -28,7 +28,7 @@ function match(key: string, ctrl: boolean, shift: boolean): Shortcut | null {
 }
 
 /**
- * The shortcut a keydown makes, if any (spec window §6.2). Letters are read
+ * The shortcut a keydown makes, if any. Letters are read
  * as printed (`key`, any case: P is P in AZERTY as in QWERTY); Alt, hence
  * AltGr, never makes a shortcut, nor does a key typed during an IME composition.
  */
@@ -58,14 +58,14 @@ export function isEyeDropperKey(event: KeyLike): boolean {
   return event.shiftKey ? key === "g" || key === "s" : key === "i";
 }
 
-/** The shortcut a held key repeats while it does not repeat: consumed, not run (plan F1). */
+/** The shortcut a held key repeats while it does not repeat: consumed, not run. */
 export function heldShortcutOf(event: KeyLike): Shortcut | null {
   const shortcut = recognized(event);
   return shortcut && event.repeat && !REPEATABLE.has(shortcut) ? shortcut : null;
 }
 
 /**
- * A modal dialog takes every key (spec window §6.2): ours (closing a node,
+ * A modal dialog takes every key: ours (closing a node,
  * terminal options) and Excalidraw's, whose container only exists while open.
  */
 export function isModalOpen(root: ParentNode = document): boolean {

@@ -6,8 +6,7 @@ import { useMessages } from "@/i18n";
 import { nodesMessages } from "@/nodes/messages";
 
 /**
- * Over a fleet refused for lack of dummyPlane's tools (spec première
- * version §4.1, spec orchestrateur §9): why, and a new attempt. The terminal's
+ * Over a fleet refused for lack of dummyPlane's tools: why, and a new attempt. The terminal's
  * body stays dark in every palette, calm's green included, where the text
  * roles are green too (1.3:1): the message sits on a surface card, where every
  * text role and the focus ring keep their tested contrast.

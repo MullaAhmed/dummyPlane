@@ -14,7 +14,7 @@ const projects = sectionNamed((s) => s.projects);
 const windowSection = sectionNamed((s) => s.window);
 const help = sectionNamed((s) => s.help);
 
-/** Projects, Window and Help (spec window §7.3), the last sections of the palette. */
+/** Projects, Window and Help, the last sections of the palette. */
 export const APP: readonly Command[] = [
   command("project.add", { section: projects, available: () => projectsStore.getState().view === "home", run: () => addProject() }),
   command("window.minimize", { section: windowSection, available: always, run: () => minimizeWindow() }),

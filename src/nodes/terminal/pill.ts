@@ -36,7 +36,7 @@ export function pillActivity(status: TerminalStatus, activity?: AgentActivity, s
 }
 
 /**
- * The status pill of a terminal header (spec habillage §7.2): the process
+ * The status pill of a terminal header: the process
  * state, and for a running process its activity. A running agent that is not at
  * work and whose last `report` stands has finished: done, blocked or failed
  * rather than Ready. As soon as it works again it is Working. A shell whose
@@ -68,7 +68,7 @@ export function pillOf(status: TerminalStatus, activity?: PillActivity, indigo =
 }
 
 /**
- * What the card over a stopped terminal offers (spec habillage §7.3); `resumable`: it has a conversation to take up (`canResume`).
+ * What the card over a stopped terminal offers; `resumable`: it has a conversation to take up (`canResume`).
  * `left`: its Claude exited and the shell runs on; the card offers the agent back.
  */
 export function resumeOfferOf(status: TerminalStatus, resumable: boolean, left = false): "resume" | "relaunch" | null {

@@ -156,7 +156,7 @@ const CommitRow = memo(function CommitRow({ entry, row, columns, now }: { entry:
   );
 });
 
-/** The branch's commits as a graph (spec fenêtre git §3.4): lanes, merges, and the names on each commit. */
+/** The branch's commits as a graph: lanes, merges, and the names on each commit. */
 export function HistoryTab({ path, refresh }: { path: string; refresh: number }) {
   const t = useMessages(gitMessages);
   const [log, setLog] = useState<LogEntry[] | null>(null);

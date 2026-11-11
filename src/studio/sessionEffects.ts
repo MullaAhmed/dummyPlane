@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import type { FileSession } from "./fileSession";
 
-/** Agents write by every means there is: the disk is compared this often (spec studio code §3). */
+/** Agents write by every means there is: the disk is compared this often. */
 const POLL_MS = 2000;
 
 /** The disk compared with the session's file, at once, then regularly and when the window comes back. */

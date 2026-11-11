@@ -13,7 +13,7 @@ function directives(csp: string): Record<string, string[]> {
   );
 }
 
-it("loads nothing from the network and runs no injected script (spec première version §4.2)", () => {
+it("loads nothing from the network and runs no injected script", () => {
   expect(typeof config.app.security.csp).toBe("string");
   const csp = directives(config.app.security.csp);
   expect(csp["default-src"]).toEqual(["'self'"]);

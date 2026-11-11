@@ -26,7 +26,7 @@ const HEADINGS = ["text-lg", "text-base", "text-sm", "text-sm text-dp-text-2", "
 const LINK =
   "rounded-sm underline underline-offset-2 transition-colors duration-(--dp-dur-fast) ease-(--dp-ease-out) hover:bg-dp-hover focus-visible:ring-2 focus-visible:ring-dp-accent/70 focus-visible:outline-none motion-reduce:transition-none";
 
-/** A note, read: elements built by React from the parsed text, never HTML (spec notes §3). */
+/** A note, read: elements built by React from the parsed text, never HTML. */
 export function NoteReader({ text, notes, onOpen, onCreate }: Props) {
   const t = useMessages(notesMessages);
   const blocks = useMemo(() => parseMarkdown(text), [text]);

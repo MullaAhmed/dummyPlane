@@ -16,7 +16,7 @@ export interface AddedNodes {
   orphans: string[];
 }
 
-/** How new node elements arrived on the canvas (spec habillage §7.5). */
+/** How new node elements arrived on the canvas. */
 export function classifyAddedNodes(
   ids: readonly string[],
   elements: readonly ExcalidrawElement[],

@@ -1,6 +1,6 @@
 // Rewrites a drafted release's latest.json with download links (release.yml).
 //
-//   node scripts/updater-json.mjs latest.json assets.json Mideky-hub/openvibe v1.0.0-beta.2
+//   node scripts/updater-json.mjs latest.json assets.json MullaAhmed/dummyPlane v1.0.0-beta.2
 import { readFileSync, writeFileSync } from "node:fs";
 import { directDownloadUrls } from "./release-lib.mjs";
 

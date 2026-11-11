@@ -3,7 +3,7 @@ import { layoutGraph, neighbours, fitView, zoomAt } from "./graph";
 
 const distance = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.hypot(a.x - b.x, a.y - b.y);
 
-describe("the graph's layout (spec notes §3)", () => {
+describe("the graph's layout", () => {
   const names = ["a", "b", "c", "d", "e"];
   const links = [
     { from: "a", to: "b" },

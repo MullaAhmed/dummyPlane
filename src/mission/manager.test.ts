@@ -65,7 +65,7 @@ beforeEach(() => {
   });
 });
 
-describe("where the board and its Manager go (spec babysitter Fleet)", () => {
+describe("where the board and its Manager go", () => {
   const fleetRect = { x: 0, y: 0, width: 640, height: 760 };
 
   it("puts the board right of the Fleet, GROUP_GAP away, tops aligned", () => {

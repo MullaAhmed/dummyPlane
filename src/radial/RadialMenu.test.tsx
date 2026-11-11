@@ -71,7 +71,7 @@ const pointer = (target: Element, type: string, x: number, y: number) =>
     target.dispatchEvent(new PointerEvent(type, { clientX: x, clientY: y, button: 0, bubbles: true, cancelable: true }));
   });
 
-it("draws the wheel around the click, a wedge per command clockwise from the top (spec menu radial §4.2, §5.1)", async () => {
+it("draws the wheel around the click, a wedge per command clockwise from the top", async () => {
   await open();
   expect(buttons().map((b) => b.getAttribute("aria-label"))).toEqual(["Copy", "Paste", "Rename", "Restart", "Close", "Quick note on this terminal", "Pause", "More"]);
   expect(buttons().map((b, slot) => b.querySelector("path")!.getAttribute("d") === wedgePath(slot, 8))).toEqual(Array(8).fill(true));
@@ -184,7 +184,7 @@ it("points at a wedge the keyboard focuses, and at none when it leaves", async (
   expect(radialStore.getState().ring!.hovered).toBeNull();
 });
 
-it("closes on its ×, and when the workspace changes or a dialog opens (spec menu radial §7)", async () => {
+it("closes on its ×, and when the workspace changes or a dialog opens", async () => {
   await open();
   await act(async () => hub().click());
   expect(radialStore.getState().ring).toBeNull();

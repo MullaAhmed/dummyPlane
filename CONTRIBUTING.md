@@ -1,13 +1,13 @@
 # Contributing to dummyPlane
 
-Thank you for your interest in dummyPlane! Bug reports, ideas, documentation and code are all welcome. You can write in English or in French.
+Thank you for your interest in dummyPlane! Bug reports, ideas, documentation and code are all welcome, in English.
 
 By taking part, you agree to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Before you start
 
 - **Found a bug?** Search the [issues](https://github.com/MullaAhmed/dummyPlane/issues) first, then open a bug report with the steps to reproduce, what you expected and what happened. Include your Windows version and the agent CLI and version involved.
-- **Have an idea?** Check [BACKLOG.md](BACKLOG.md): it may already be planned. Then open a feature request that explains the problem it solves.
+- **Have an idea?** Search the [issues](https://github.com/MullaAhmed/dummyPlane/issues) first: it may already be requested. Then open a feature request that explains the problem it solves.
 - **Found a security problem?** Do not open an issue. Follow [SECURITY.md](SECURITY.md).
 - **Want to write code?** For anything bigger than a small fix, please open an issue first, so we can agree on the approach before you spend time on it.
 
@@ -45,6 +45,7 @@ Run all of these before you open a pull request. They are what the maintainer ru
 ```powershell
 pnpm exec tsc --noEmit                                                   # types
 pnpm test                                                                # front-end tests (Vitest)
+pnpm build                                                               # front-end build
 cargo test --manifest-path src-tauri/Cargo.toml                          # Rust tests
 cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 cargo fmt --manifest-path src-tauri/Cargo.toml --check
@@ -56,10 +57,8 @@ The front-end tests live next to the code (`*.test.ts`, `*.test.tsx`); those tha
 
 - **Tests first.** Every feature and every fix comes with a test, written before the code and seen failing first. A bug fix includes the test that reproduces the bug.
 - **Check it in the app too.** For anything visible, try the change in the development build (with the separate profile above) and, when it helps, attach a screenshot or a short GIF to the pull request.
-- **Specs for big features.** Larger features start with a written design in [`docs/superpowers/specs/`](docs/superpowers/specs/), then an implementation plan in [`docs/superpowers/plans/`](docs/superpowers/plans/). These documents are in French; you can discuss them in English.
-  - Read the relevant spec before you change a feature: comments in the code often cite its sections, for example `spec habillage §10.3`.
-- **User-visible changes go to the changelog.** Add a line under `## [Unreleased]` in [CHANGELOG.md](CHANGELOG.md), in words a user understands. Releases are cut as [docs/RELEASING.md](docs/RELEASING.md) describes.
-- **Findings go to the backlog.** Issues you notice but don't fix belong in [BACKLOG.md](BACKLOG.md), not in a comment in the code.
+- **Design big features in an issue first.** Larger features start with a written proposal in an issue, so we agree on the approach before the code.- **User-visible changes go to the changelog.** Add a line under `## [Unreleased]` in [CHANGELOG.md](CHANGELOG.md), in words a user understands. Releases are cut as [docs/RELEASING.md](docs/RELEASING.md) describes.
+- **Findings go to an issue.** Problems you notice but don't fix belong in a [new issue](https://github.com/MullaAhmed/dummyPlane/issues/new/choose), not in a comment in the code.
 
 ### Code style
 
@@ -67,7 +66,7 @@ The front-end tests live next to the code (`*.test.ts`, `*.test.tsx`); those tha
 - **Comments** explain why rather than what, and match the density of the code around them.
 - **TypeScript** is strict, with no unused locals or parameters; there is no ESLint or Prettier, so follow the formatting of the surrounding code. Import from `src/` with the `@/` alias.
 - **Rust** follows `rustfmt`, and clippy must pass with `-D warnings`.
-- **Dependencies** are added at an exact version, and only when they earn their place.
+- **Dependencies** are added only when they earn their place, and a new one is pinned at an exact version (most of `package.json` already is).
 - **Line endings.** Files are stored with LF in the repository, even if Git checks them out with CRLF on Windows.
 - **Small files** with one clear job are easier to review than large ones.
 

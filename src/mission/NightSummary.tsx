@@ -13,7 +13,7 @@ import type { TicketSource } from "./tickets";
 const LINE_ACTION = "font-normal text-dp-text-2 hover:text-dp-text";
 
 /**
- * The night as it was set (spec overnight mission §5.1), in the Fleet's panel: what the dialog chose stays
+ * The night as it was set, in the Fleet's panel: what the dialog chose stays
  * in view, and until the team is formed it can be changed (the dialog, prefilled) or called off.
  */
 export function NightSummary({ nodeId, mission }: { nodeId: string; mission: Mission }) {

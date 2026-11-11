@@ -9,7 +9,7 @@ type Holder = Parameters<typeof holder>[0];
 const taken = (found: readonly { n: number; title: string; who: Holder }[]) => found.map(({ n, title, who }) => `Task ${n} ("${title}"): ${holder(who)}`).join(" ");
 
 /**
- * What dummyPlane says to the agents (spec first version §7.1): the MCP
+ * What dummyPlane says to the agents: the MCP
  * tools' descriptions and answers, the plan's and steps' checks, and the
  * `[dummyPlane]` lines typed into terminals. Tool and argument names are English
  * in both languages (`./protocol.ts`).

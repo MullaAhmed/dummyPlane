@@ -1,6 +1,6 @@
 import { call } from "./invoke";
 
-/** A worktree dummyPlane made for a mission, on its own branch (spec orchestrateur §7.4). */
+/** A worktree dummyPlane made for a mission, on its own branch. */
 export interface Worktree {
   slug: string;
   branch: string;
@@ -31,7 +31,7 @@ export const missionCleanup = (project: string, mission: string, agents: string[
  * merged into the mission's or that hold uncommitted changes, each as "name (reason)". Empty: nothing is unsaved.
  */
 export const missionCleanupUnsaved = (project: string, mission: string, agents: string[]) => call<string[]>("mission_cleanup_unsaved", { project, mission, agents });
-/** What a night needs of the project (spec mission de nuit §5.2). */
+/** What a night needs of the project. */
 export interface ProjectChecks {
   git: boolean;
   gh: boolean;

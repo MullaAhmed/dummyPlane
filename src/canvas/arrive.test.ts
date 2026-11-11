@@ -18,7 +18,7 @@ const at100 = { scrollX: 0, scrollY: 0, zoom: 1, ...viewport };
 const batman = { id: "batman", type: "embeddable", customData: { kind: "terminal" }, x: 100, y: 200, width: 720, height: 440 };
 const chef = { id: "chef", type: "embeddable", customData: { kind: STORED_FLEET_KIND }, x: 100, y: 200, width: 320, height: 420 };
 
-describe("needsMove (spec fenêtre §6.4, zone utile of spec identité §7)", () => {
+describe("needsMove", () => {
   it("keeps the view when the terminal shows whole at 100 % in the zone utile", () => {
     expect(needsMove(batman, at100)).toBe(false);
   });
@@ -84,7 +84,7 @@ describe("arrive", () => {
     activeTerminalStore.setState({ id: null });
   });
 
-  describe("under the waiting notice (spec notification §4)", () => {
+  describe("under the waiting notice", () => {
     const notice = (rect: Partial<DOMRect>) => {
       const element = document.createElement("section");
       element.setAttribute("data-waiting-notice", "");
@@ -145,7 +145,7 @@ describe("arrive", () => {
     document.body.replaceChildren();
   });
 
-  it("gives a fleet's terminal the keyboard, without the terminals' flash (spec orchestrateur §6)", () => {
+  it("gives a fleet's terminal the keyboard, without the terminals' flash", () => {
     withScene(at100);
     const before = arrivalStore.getState();
     expect(arrive("chef")).toBe(true);
@@ -201,7 +201,7 @@ describe("showNode", () => {
   });
 });
 
-describe("revealNode (plan B1)", () => {
+describe("revealNode", () => {
   const scrollToContent = vi.fn();
   const withScene = (appState: Record<string, unknown>) =>
     canvasStore.setState({
@@ -231,7 +231,7 @@ describe("revealNode (plan B1)", () => {
   });
 });
 
-describe("arriving at a terminal of a folded group (spec replier un groupe §2)", () => {
+describe("arriving at a terminal of a folded group", () => {
   it("unfolds the group first, then arrives", async () => {
     const setGroupFolded = vi.fn();
     vi.stubGlobal("requestAnimationFrame", () => 0);

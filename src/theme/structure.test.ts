@@ -7,12 +7,12 @@ import { readSource, sourceFiles } from "./cssBlocks";
 
 const index = readSource("index.css");
 
-it("binds Tailwind's dark variant to the dark theme, not to a fixed class (spec identité §4.5)", () => {
+it("binds Tailwind's dark variant to the dark theme, not to a fixed class", () => {
   expect(readSource("../index.html")).not.toMatch(/class="dark"/);
   expect(index).toContain('@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));');
 });
 
-it("puts menus, popovers, lists, dialogs and toasts on opaque raised surfaces (spec identité §5.10)", () => {
+it("puts menus, popovers, lists, dialogs and toasts on opaque raised surfaces", () => {
   for (const slot of ["dropdown-menu-content", "dropdown-menu-sub-content", "popover-content", "select-content", "dialog-content"]) {
     expect(index).toContain(`[data-slot="${slot}"]`);
   }
@@ -42,7 +42,7 @@ it("leaves nothing at the top of the canvas but the bars: no top toast, no banne
   }
 });
 
-it("draws the bottom row and its command bar in dense glass: they carry text over dark terminals (spec identité §4.2, §5.8)", () => {
+it("draws the bottom row and its command bar in dense glass: they carry text over dark terminals", () => {
   for (const file of ["shell/CommandBar.tsx", "shell/GitChip.tsx", "shell/ZoomControl.tsx", "shell/WaitingNotice.tsx"]) {
     expect(readSource(file), file).toMatch(/dp-glass-strong/);
     expect(readSource(file), `${file} : light glass under text`).not.toMatch(/dp-glass(?!-strong)\b/);
@@ -62,7 +62,7 @@ it("rounds the composer on the scale: the bar a floating panel (16), Send and th
   expect(input, "the old odd radius").not.toContain("rounded-[10px]");
 });
 
-it("keeps nothing of the habillage shell (spec identité §5.11)", () => {
+it("keeps nothing of the habillage shell", () => {
   const files = sourceFiles();
   for (const gone of ["shell/TopBar.tsx", "shell/DragStrip.tsx", "shell/LeftRail.tsx", "shell/RightRail.tsx", "shell/ActionChips.tsx", "shell/LiveCount.tsx", "shell/ui.tsx", "fleet/FleetPanel.tsx"]) {
     expect(files[gone], gone).toBeUndefined();
@@ -72,7 +72,7 @@ it("keeps nothing of the habillage shell (spec identité §5.11)", () => {
   }
 });
 
-it("stacks the title bar and the tabs: 72 px of canvas under them (spec identité §7)", () => {
+it("stacks the title bar and the tabs: 72 px of canvas under them", () => {
   expect([TITLE_BAR_HEIGHT, TABS_HEIGHT, TOP_ROW_HEIGHT]).toEqual([38, 34, 72]);
 });
 

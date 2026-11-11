@@ -14,7 +14,7 @@ beforeEach(() => {
   nativeNotificationsStore.setState({ enabled: true });
 });
 
-describe("the Windows notifications setting (spec notification §11)", () => {
+describe("the Windows notifications setting", () => {
   it("is on until it is turned off", async () => {
     vi.mocked(getSetting).mockResolvedValue(undefined as never);
     await loadNativeNotifications();

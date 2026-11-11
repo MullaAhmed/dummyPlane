@@ -35,7 +35,7 @@ it("promises that typing starts afresh on an ordinary terminal", async () => {
   expect(host.textContent).toContain("typing starts fresh");
 });
 
-it("does not promise it on a one-shot command, which only the click runs again (spec installation §7)", async () => {
+it("does not promise it on a one-shot command, which only the click runs again", async () => {
   await render({ ...payload, oneShot: true });
   expect(host.textContent).not.toContain("typing");
   expect(host.textContent).toContain("Click to run the command again");

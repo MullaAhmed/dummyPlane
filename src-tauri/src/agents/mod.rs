@@ -27,7 +27,7 @@ pub struct AgentInfo {
     pub available: bool,
 }
 
-/// Menu order of the catalog (spec habillage §8).
+/// Menu order of the catalog.
 pub(crate) const CATALOG: [Agent; 10] = [
     Agent::Claude,
     Agent::Codex,
@@ -51,7 +51,7 @@ pub fn list_agents(locate: Locate) -> Vec<AgentInfo> {
         .collect()
 }
 
-/// Whether the npm of an agent's install can run (spec installation §3).
+/// Whether the npm of an agent's install can run.
 pub fn npm_available(locate: Locate) -> bool {
     locate("npm").is_some()
 }
@@ -82,7 +82,7 @@ pub fn parse_ollama_list(output: &str) -> Vec<String> {
         .collect()
 }
 
-/// The models installed in Ollama (spec habillage §8.1).
+/// The models installed in Ollama.
 pub fn ollama_models() -> AppResult<Vec<String>> {
     let output = hide_window(Command::new("ollama").arg("list"))
         .output()

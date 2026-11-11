@@ -38,7 +38,7 @@ import { canvasKnown, linkedTeamAgents, linkedGroups, missionOf, missionRunner, 
 const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));
 const t = () => messages(agentMessages);
 
-/** What an agent of the mission reads first (spec orchestrateur §7.3, §7.4). */
+/** What an agent of the mission reads first. */
 export function subTaskText(mission: string, task: SubTask, branch: string, handover?: string): string {
   const brief = oneLine(task.brief);
   const text = t().lines.subTask(mission, task.title, `${brief}${/[.!?]$/.test(brief) ? "" : "."}`, task.budgetMin, branch);
@@ -48,7 +48,7 @@ export function subTaskText(mission: string, task: SubTask, branch: string, hand
 /**
  * What an agent is told of a task that may come from a ticket or from a Kanban
  * card, which GitHub may have filled: the fleet's note stops at the
- * fleet (spec overnight mission §5.1). A linked board counts whether the
+ * fleet. A linked board counts whether the
  * task names its card or not: `card` is optional, the card's text was still read.
  */
 export function withTicketNote(fleetId: string, mission: Mission, text: string, task?: { card?: string }): string {
@@ -59,14 +59,14 @@ export function withTicketNote(fleetId: string, mission: Mission, text: string, 
 
 /**
  * What an agent of a mission its Manager runs is told beyond its sub-task: who runs it, and that it reaches
- * the Manager and its teammates with message_agent, no wire drawn by hand (spec babysitter Fleet).
+ * the Manager and its teammates with message_agent, no wire drawn by hand.
  */
 export function withTeamNote(mission: Mission, text: string): string {
   const name = mission.manager ? nodeNameOf(nodesStore.getState().nodes[mission.manager]) : "";
   return name ? `${text} ${t().lines.teamNote(name)}` : text;
 }
 
-/** What the next agent learns of the previous one (spec §7.2 reassign). */
+/** What the next agent learns of the previous one. */
 export function handoverText(from: Member): string {
   const l = t().lines;
   const report = from.report ? l.handoverReport(outReport(from.report.status), oneLine(from.report.summary)) : l.handoverNoReport;
@@ -75,9 +75,9 @@ export function handoverText(from: Member): string {
 
 /**
  * A linked agent moves to `cwd` in a new conversation: a Claude session does
- * not resume from another folder (spec §7.3). It takes `model`, the router's,
- * or none to go back to Claude's own (spec update §3); likewise for what its
- * mission lets it do unasked (spec overnight mission §5.3).
+ * not resume from another folder. It takes `model`, the router's,
+ * or none to go back to Claude's own; likewise for what its
+ * mission lets it do unasked.
  */
 export function restartIn(nodeId: string, cwd: string, model?: string, permission?: Permission): Promise<void> {
   const payload = terminalOf(nodesStore.getState().nodes[nodeId]);
@@ -125,7 +125,7 @@ const agentPayload = (agent: AgentId, name: string, cwd: string, model?: string,
   ...(permission ? { permission } : {}),
 });
 
-/** Like a linked agent, a group chosen in the plan may be gone at the go-ahead (spec specialised groups §4). */
+/** Like a linked agent, a group chosen in the plan may be gone at the go-ahead. */
 function checkGroups(fleetId: string, plan: readonly SubTask[]) {
   const linked = linkedGroups(fleetId);
   const lost = plan.find((task) => task.group && !linked.some((g) => g.id === task.group?.id));
@@ -145,8 +145,7 @@ type Restarts = Map<string, Promise<void>>;
 
 /**
  * dummyPlane — not the AI — forms the team: every worktree first, then the board and its Manager
- * (`./manager`), then the agents, the new ones as the Manager's sub-agents in a tree under it (spec §7.3,
- * spec babysitter Fleet). A failure takes back what this launch made.
+ * (`./manager`), then the agents, the new ones as the Manager's sub-agents in a tree under it. A failure takes back what this launch made.
  */
 async function formTeam(fleetId: string, workspaceId: string, project: string, mission: Mission, restarts: Restarts): Promise<Team> {
   const plan = mission.plan ?? [];
@@ -184,7 +183,7 @@ async function formTeam(fleetId: string, workspaceId: string, project: string, m
         ...(task.group ? { group: task.group.id } : {}),
       });
     }
-    // Shown or not, its scene must be known to take the team (spec overnight mission §6.1).
+    // Shown or not, its scene must be known to take the team.
     if (!canvasKnown(fleetId)) throw new Error(t().launch.leftWorkspace);
     checkGroups(fleetId, plan);
     // The board beside the Fleet, its Manager under it: the user just asked for them, they come into view.
@@ -235,7 +234,7 @@ function removeTeam(fleetId: string, workspaceId: string, frameId: string | unde
   if (frameId) closeStoredGroup(workspaceId, frameId);
 }
 
-/** Types `text`, its sub-task, in a member's terminal once it is ready (spec §7.3). */
+/** Types `text`, its sub-task, in a member's terminal once it is ready. */
 export async function assign(fleetId: string, member: Member, text: string, restarted: Promise<void> = Promise.resolve()) {
   const id = member.nodeId;
   try {
@@ -264,7 +263,7 @@ export async function assign(fleetId: string, member: Member, text: string, rest
   }
 }
 
-/** "Launch the mission" (spec §7.3): the plan's go-ahead. A second click while it launches does nothing. */
+/** "Launch the mission": the plan's go-ahead. A second click while it launches does nothing. */
 export async function launchMission(fleetId: string): Promise<void> {
   const record = nodesStore.getState().nodes[fleetId];
   const mission = missionOf(record);
@@ -307,7 +306,7 @@ export async function launchMission(fleetId: string): Promise<void> {
   if (plan.length < mission.maxAgents && queue?.length) void import("./queue").then(({ pumpQueue }) => pumpQueue(fleetId)).catch(() => undefined);
 }
 
-/** `finish` (spec §7.7): created agents close, linked ones go back to the project. */
+/** `finish`: created agents close, linked ones go back to the project. */
 /** `ui`: the summary as the fleet wrote it in OpenUI Lang, when it did; `summary` is then its text. */
 export function endMission(fleetId: string, summary: string, ui?: string) {
   const record = nodesStore.getState().nodes[fleetId];
@@ -320,7 +319,7 @@ export function endMission(fleetId: string, summary: string, ui?: string) {
   for (const member of mission.members) if (member.linked && mission.project) void restartIn(member.nodeId, mission.project);
   // Its own sub-agents (spawn_agent) stay open, without the night's permission: a later restart asks. So do its Manager's.
   releaseSpawnedPermission(fleetId, mission.permission);
-  // Those who joined a group go alone: it stays, with its own agents (spec specialised groups §4). Under a
+  // Those who joined a group go alone: it stays, with its own agents. Under a
   // Manager, every agent made for the mission goes one by one (no mission group); the Manager stays until the
   // user cleans the mission up, its terminal showing how it ended.
   const joined = mission.members.filter((m) => !m.linked && (mission.manager !== undefined || m.group)).map((m) => m.nodeId);
@@ -360,7 +359,7 @@ export function mergeMember(fleetId: string, worktree: string, member: Member): 
   });
 }
 
-/** `merge` (spec §7.6): the branches of the agents done since the last merge. */
+/** `merge`: the branches of the agents done since the last merge. */
 export async function mergeMission(fleetId: string): Promise<string> {
   const m = t().merge;
   const mission = missionOf(nodesStore.getState().nodes[fleetId]);
@@ -378,7 +377,7 @@ export async function mergeMission(fleetId: string): Promise<string> {
 const cleaning = new Map<string, Promise<Cleanup | string>>();
 
 /**
- * "Clean up the mission" (spec §7.7): merged worktrees go, the branches stay; the fleet is free again. The panel's
+ * "Clean up the mission": merged worktrees go, the branches stay; the fleet is free again. The panel's
  * button and the Fleet's own cleanup (`./cleanup.ts`) are this. The mission stays finished while git works: a call
  * made in that time (a click meanwhile, the Fleet's two calls in one turn) is the one under way, never a second
  * reset that would blank a plan drafted since the first.
@@ -420,7 +419,7 @@ async function cleanMissionNow(fleetId: string): Promise<Cleanup | string> {
 export async function newMember(fleetId: string, workspaceId: string, mission: Mission, task: SubTask): Promise<Member | string> {
   if (!mission.project || !mission.slug) return t().launch.noFolder;
   const { frames } = workspaceCanvas(workspaceId);
-  // The sub-task's group if it still exists, else the mission's (spec specialised groups §4).
+  // The sub-task's group if it still exists, else the mission's.
   const chosen = frames.find((f) => f.id === task.group?.id);
   const frame = chosen ?? frames.find((f) => f.id === mission.frameId);
   const pantheon = frame?.group?.pantheon ?? pantheonForNewGroup(workspaceId);
@@ -473,7 +472,7 @@ export async function newMember(fleetId: string, workspaceId: string, mission: M
   };
 }
 
-/** `reassign` (spec §7.2): to a member who reported, or to a new agent; it gets the previous one's report and branch. */
+/** `reassign`: to a member who reported, or to a new agent; it gets the previous one's report and branch. */
 export async function reassignTask(fleetId: string, fromNodeId: string, target: string): Promise<{ name: string } | string> {
   const r = t().reassign;
   const record = nodesStore.getState().nodes[fleetId];

@@ -19,7 +19,7 @@ import { uiStore, useUi } from "@/store/ui";
 import { QuietButton } from "./buttons";
 import { shellMessages } from "./messages";
 
-/** "Close the group Backend?" listing the agents still running (spec habillage §11.4). */
+/** "Close the group Backend?" listing the agents still running. */
 export function CloseGroupDialog() {
   const all = useMessages(shellMessages);
   const t = all.closeGroup;

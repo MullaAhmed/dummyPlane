@@ -23,7 +23,7 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 
-it("names the project and its shortcut, and opens \"Go to\" (spec identité §5.1)", async () => {
+it("names the project and its shortcut, and opens \"Go to\"", async () => {
   const host = document.createElement("div");
   document.body.append(host);
   const root = createRoot(host);
@@ -41,7 +41,7 @@ it("names the project and its shortcut, and opens \"Go to\" (spec identité §5.
   await act(async () => root.unmount());
 });
 
-it("reads \"Search for a project\" at home (spec identité §5.9)", async () => {
+it("reads \"Search for a project\" at home", async () => {
   projectsStore.setState({ view: "home" } as never);
   const host = document.createElement("div");
   document.body.append(host);

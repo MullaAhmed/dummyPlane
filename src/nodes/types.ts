@@ -6,7 +6,7 @@ import { readMission, type Mission } from "@/mission/mission";
 import { readEffort, type EffortLevel } from "@/mission/router";
 import { readSteps, settledSteps, type Step } from "./steps";
 
-/** Content of a terminal node (spec habillage §15.2). */
+/** Content of a terminal node. */
 export interface TerminalPayload {
   /** Full title: tooltip of the header, and the session name given to Claude. */
   title: string;
@@ -22,18 +22,18 @@ export interface TerminalPayload {
   /** The thread a Codex terminal is in, once Codex saved it: `codex resume <id>`. */
   codexSessionId?: string;
   ollama?: OllamaLaunch;
-  /** The steps its agent declared (spec orchestrateur §5). */
+  /** The steps its agent declared. */
   steps?: Step[];
   /**
-   * A fleet's session (spec orchestrateur §4.2), or a mission's Manager; absent for an agent. Stored data: see
+   * A fleet's session, or a mission's Manager; absent for an agent. Stored data: see
    * `STORED_FLEET_ROLE` and `MANAGER_ROLE`.
    */
   role?: typeof STORED_FLEET_ROLE | typeof MANAGER_ROLE;
   /** A Manager's Fleet: the node whose mission it runs (`@/mission/manager`). */
   fleet?: string;
-  /** Claude starts with Remote Control (spec maj §2). */
+  /** Claude starts with Remote Control. */
   remoteControl?: boolean;
-  /** Claude's model, chosen by a mission's router (spec maj §3) or in the edit panel. */
+  /** Claude's model, chosen by a mission's router or in the edit panel. */
   model?: string;
   /**
    * Claude only: the model router is on for this agent, a sticky switch (its header, its edit panel). A mission that
@@ -45,13 +45,13 @@ export interface TerminalPayload {
   router?: true;
   /** Claude's effort level (`--effort`), chosen in the edit panel; absent: Claude's own (its settings, the model's default). */
   effort?: EffortLevel;
-  /** What its mission lets it do unasked (spec mission de nuit §5.3); on a fleet's session, its night. */
+  /** What its mission lets it do unasked; on a fleet's session, its night. */
   permission?: Permission;
   /** A fleet's session that reads its night's tickets in Linear, through Linear's own server. */
   linear?: true;
-  /** The Claude profile this terminal started with (spec comptes §3); absent: the default account. */
+  /** The Claude profile this terminal started with; absent: the default account. */
   accountId?: string;
-  /** A command to run once, an install: only an explicit gesture runs it again (spec installation §7). */
+  /** A command to run once, an install: only an explicit gesture runs it again. */
   oneShot?: boolean;
   /** Node id of the terminal whose agent spawned this one (spawn_agent). */ spawnedBy?: string;
   /** The task its spawner gave it (spawn_agent), its start only: said in a line under its name (`@/agents/taskSummary`). */
@@ -96,12 +96,12 @@ function readTerminalReport(raw: unknown): TerminalReport | undefined {
   return { status: r.status as TerminalReportStatus, summary: r.summary, ...(typeof r.ui === "string" && r.ui ? { ui: r.ui } : {}) };
 }
 
-/** Content of a fleet node (spec habillage §13, spec orchestrateur §6). */
+/** Content of a fleet node. */
 export interface FleetPayload {
   name: string;
   /** Its Claude session, created when it is first shown. */
   session?: TerminalPayload;
-  /** Its mission (spec orchestrateur §7). */
+  /** Its mission. */
   mission?: Mission;
   /** Its message field, folded unless the user opened it. */
   inputOpen?: boolean;

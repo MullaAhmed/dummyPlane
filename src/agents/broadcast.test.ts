@@ -82,7 +82,7 @@ describe("sendToAgents", () => {
     expect(calls).toEqual([{ cmd: "pty_send_text", nodeId: "batman", text: "lance les tests" }]);
   });
 
-  it("names an agent still in its staggered start apart from the stopped ones (plan B3)", async () => {
+  it("names an agent still in its staggered start apart from the stopped ones", async () => {
     await agent("batman", "claude", "running", "idle");
     await agent("cyborg", "claude", "starting");
     expect(await sendToAgents(["batman", "cyborg"], "go")).toEqual({ sent: 1, skipped: [], waiting: [], unsuited: [], starting: ["Cyborg"] });
@@ -191,7 +191,7 @@ describe("pauseAgents / resumeAgents", () => {
   });
 });
 
-describe("resumeAgent when the process just died (plan B3)", () => {
+describe("resumeAgent when the process just died", () => {
   it("says so instead of leaving the rejection unhandled, and stays paused", async () => {
     const warning = vi.spyOn(toast, "warning").mockImplementation(() => "");
     await agent("flash2", "claude", "running", "idle");
@@ -204,7 +204,7 @@ describe("resumeAgent when the process just died (plan B3)", () => {
   });
 });
 
-describe("sendCommand and agents still starting (plan B3)", () => {
+describe("sendCommand and agents still starting", () => {
   it("warns about them apart from the stopped ones", async () => {
     const warning = vi.spyOn(toast, "warning").mockImplementation(() => "");
     await agent("batman", "claude", "running", "idle");

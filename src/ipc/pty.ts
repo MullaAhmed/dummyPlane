@@ -7,7 +7,7 @@ import { call } from "./invoke";
 export type ShellKind = "default" | "powershell" | "pwsh" | "cmd" | "gitbash";
 export type ClaudeMode = "new" | "resume" | "continue";
 
-/** What a mission lets its agents do unasked (spec mission de nuit §5.3). */
+/** What a mission lets its agents do unasked. */
 export type Permission = "ask" | "edits" | "work";
 
 /**
@@ -32,9 +32,9 @@ export interface ClaudeLaunch {
   sessionId: string;
   title: string;
   role: SessionRole;
-  /** Started with Remote Control, under this name (spec maj §2). */
+  /** Started with Remote Control, under this name. */
   remoteControl?: string;
-  /** `--model`, chosen by a mission's router (spec maj §3) or in the edit panel. */
+  /** `--model`, chosen by a mission's router or in the edit panel. */
   model?: string;
   /** `--effort`, chosen in the edit panel. */
   effort?: EffortLevel;
@@ -42,7 +42,7 @@ export interface ClaudeLaunch {
   permission?: Permission;
   /** A fleet whose night reads its tickets in Linear: Linear's read-only MCP server joins its tools. */
   linear?: boolean;
-  /** The profile's folder: this terminal's `CLAUDE_CONFIG_DIR` (spec comptes §4). */
+  /** The profile's folder: this terminal's `CLAUDE_CONFIG_DIR`. */
   configDir?: string;
   /** The skills, plugins, MCP servers and subagents this terminal turns off or on. */
   extensions?: ExtensionChoice;
@@ -59,7 +59,7 @@ export interface CodexLaunch {
   model?: string;
 }
 
-/** Agents of the launch menu (spec habillage §8), in menu order. */
+/** Agents of the launch menu, in menu order. */
 export const AGENT_IDS = ["claude", "codex", "gemini", "qwen", "cursor", "opencode", "aider", "ollama", "shell", "custom"] as const;
 export type AgentId = (typeof AGENT_IDS)[number];
 
@@ -178,7 +178,7 @@ export function onTextSent(listener: (nodeId: string) => void): () => void {
 }
 
 /**
- * Types a command into the terminal, then Enter (spec habillage §15.3). `images`, paths of images the agent
+ * Types a command into the terminal, then Enter. `images`, paths of images the agent
  * attaches (`[Image #N]`), are pasted first, each alone, each waited for until it shows attached.
  */
 export function ptySendText(nodeId: string, text: string, images: readonly string[] = []): Promise<void> {
@@ -192,7 +192,7 @@ export function ptySendText(nodeId: string, text: string, images: readonly strin
   return queued(nodeId, () => call<void>("pty_send_text", images.length > 0 ? { nodeId, text, images } : { nodeId, text }));
 }
 
-/** Interrupts the agent's turn; false for a plain shell (spec §14). */
+/** Interrupts the agent's turn; false for a plain shell. */
 export function ptyInterrupt(nodeId: string): Promise<boolean> {
   return queued(nodeId, () => call<boolean>("pty_interrupt", { nodeId }));
 }
@@ -204,7 +204,7 @@ export const listAgents = () => call<AgentInfo[]>("list_agents");
 export const listOllamaModels = () => call<string[]>("list_ollama_models");
 export const listShells = () => call<ShellKind[]>("list_shells");
 export const npmAvailable = () => call<boolean>("npm_available");
-/** Reads Windows' PATH again from the registry: an agent installed since the start is found (spec première version §7.2). */
+/** Reads Windows' PATH again from the registry: an agent installed since the start is found. */
 export const refreshPath = () => call<void>("refresh_path");
 
 export async function getScrollback(nodeId: string): Promise<Uint8Array> {

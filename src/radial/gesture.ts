@@ -1,7 +1,7 @@
 import type { Point } from "@/agents/terminals";
 
 /**
- * The wheel (spec menu radial §5.1): a round hub in the middle, then a donut of
+ * The wheel: a round hub in the middle, then a donut of
  * wedges, one per command, an even gap between them. Every size is from the
  * center, in CSS pixels.
  */

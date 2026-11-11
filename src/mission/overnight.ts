@@ -55,7 +55,7 @@ const afterRestart = (restart: Promise<void>, then: () => void) =>
     then();
   });
 
-/** The dialog's answer: the mission is set for the night, then the fleet gets its orders (spec overnight mission §5.1). Again, it changes the night. */
+/** The dialog's answer: the mission is set for the night, then the fleet gets its orders. Again, it changes the night. */
 export function startOvernight(fleetId: string, choice: OvernightChoice): Promise<void> {
   const { awayMin, agents, source, autoLaunch, permission } = choice;
   const changing = choiceOf(fleetId) !== null;

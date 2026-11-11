@@ -12,7 +12,7 @@ import { useMessages } from "@/i18n";
 import { projectsStore, useProjects } from "@/store/projects";
 import { shellMessages } from "./messages";
 
-/** "mk-webapp ⌄" in the title bar: recent projects, the home screen, closing the project (spec identité §5.1). */
+/** "mk-webapp ⌄" in the title bar: recent projects, the home screen, closing the project. */
 export function ProjectPicker() {
   const t = useMessages(shellMessages).projectPicker;
   const projects = useProjects((s) => s.projects);

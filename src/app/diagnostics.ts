@@ -4,7 +4,7 @@ import { call } from "@/ipc/invoke";
 import type { AgentId } from "@/ipc/pty";
 import { appMessages } from "./messages";
 
-/** What dummyPlane sees of this PC for the troubleshooting dialog (spec première version §7.3); paths with the home folder as `~`. */
+/** What dummyPlane sees of this PC for the troubleshooting dialog; paths with the home folder as `~`. */
 export interface Diagnostics {
   version: string;
   os: string;
@@ -19,7 +19,7 @@ export interface Diagnostics {
   logDir: string;
 }
 
-const REPO = "https://github.com/Mideky-hub/openvibe";
+const REPO = "https://github.com/MullaAhmed/dummyPlane";
 
 export const loadDiagnostics = () => call<Diagnostics>("diagnostics");
 

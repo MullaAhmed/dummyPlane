@@ -12,7 +12,7 @@ function onCanvas(target: EventTarget | null): boolean {
 }
 
 /**
- * The application's single keydown listener (spec window §6.2): on the
+ * The application's single keydown listener: on the
  * window, in the capture phase, ahead of xterm, the fields, Excalidraw and
  * WebView2. A recognized shortcut whose command is available is consumed: it
  * reaches neither the terminal, nor its agent, nor Excalidraw.

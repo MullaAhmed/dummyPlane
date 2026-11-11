@@ -89,7 +89,7 @@ it("counts the old mythology a saved group has as the pantheon it reads as", asy
   expect(pantheonForNewGroup("w1")).toBe("throne-of-glass");
 });
 
-it("gives a copied group a pantheon of its own, the original keeping its own (plan B1)", () => {
+it("gives a copied group a pantheon of its own, the original keeping its own", () => {
   const group = (id: string, pantheon: string) =>
     ({ id, type: "frame", isDeleted: false, frameId: null, customData: { dummyplane: { kind: "group", role: "backend", pantheon } } }) as unknown as import("@excalidraw/excalidraw/element/types").ExcalidrawElement;
   const member = (id: string, frameId: string) =>

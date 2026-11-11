@@ -16,7 +16,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("the agents panel's state (spec identité §5.6)", () => {
+describe("the agents panel's state", () => {
   it("is open unless it was closed", () => {
     expect(readAgentsPanel("closed")).toBe(false);
     for (const raw of ["open", null, undefined, 3]) expect(readAgentsPanel(raw)).toBe(true);

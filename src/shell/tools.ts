@@ -1,4 +1,4 @@
-/** Buttons of the tool rail (spec identité §5.4). */
+/** Buttons of the tool rail. */
 export type RailTool = "selection" | "hand" | "shapes" | "text" | "pen" | "eraser" | "image";
 
 /** Excalidraw tools of the SHAPES menu. */

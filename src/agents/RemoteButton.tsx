@@ -38,7 +38,7 @@ export function switchRemote(nodeId: string, on: boolean) {
   });
 }
 
-/** Remote Control of one Claude session, in its header (spec update §2). */
+/** Remote Control of one Claude session, in its header. */
 export function RemoteButton({ nodeId, wanted, running }: { nodeId: string; wanted: boolean; running: boolean }) {
   const t = useMessages(agentsMessages).remote;
   const link = useRemoteLink(nodeId);

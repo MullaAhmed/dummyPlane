@@ -13,11 +13,11 @@ import { AGENTS } from "./catalog";
 import { agentsMessages } from "./messages";
 import { isSlashCommand, takesCommands } from "./slashCommands";
 
-/** "Tout reprendre" only restarts agents dummyPlane paused less than this ago (spec theme §14). */
+/** "Tout reprendre" only restarts agents dummyPlane paused less than this ago. */
 export const RESUME_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 /**
- * What "Resume" types (spec §14), on a line of its own: Claude Code puts a
+ * What "Resume" types, on a line of its own: Claude Code puts a
  * prompt interrupted before any answer back in its input, and "continue" must
  * not be glued to it.
  */
@@ -58,7 +58,7 @@ export interface AgentFacts {
   activity: Activity | undefined;
 }
 
-/** A running agent at work, other than a plain shell (spec §14). */
+/** A running agent at work, other than a plain shell. */
 export function canPause(facts: AgentFacts): boolean {
   return facts.running && facts.agent !== "shell" && facts.activity === "working";
 }
@@ -84,10 +84,10 @@ function nameOf(id: string): string {
 }
 
 /**
- * Types `text` into each running terminal of `ids` (spec §12). Stopped ones,
- * and those whose process dies meanwhile, are ignored and named (spec §17).
+ * Types `text` into each running terminal of `ids`. Stopped ones,
+ * and those whose process dies meanwhile, are ignored and named.
  * An agent waiting for an answer is left alone: the Enter after the text
- * would confirm its dialog's highlighted choice (spec §12). A `/command`
+ * would confirm its dialog's highlighted choice. A `/command`
  * goes to the agents only, never to a plain terminal. `onSent` hears each
  * terminal the text was typed into. `images`, the paths of the images the
  * message carries, go with it (`typeInto`).
@@ -162,7 +162,7 @@ export async function pauseAgents(ids: readonly string[], now = Date.now()): Pro
   return done.length;
 }
 
-/** Sends "continue" to the idle agents of `ids` dummyPlane paused less than 24 h ago (spec §14). */
+/** Sends "continue" to the idle agents of `ids` dummyPlane paused less than 24 h ago. */
 export async function resumeAgents(ids: readonly string[], now = Date.now()): Promise<number> {
   const { pausedAt } = pausedStore.getState();
   const targets = ids.filter((id) => {
@@ -191,7 +191,7 @@ export async function resumeAgent(id: string): Promise<boolean> {
   return true;
 }
 
-/** "2 stopped agents ignored: Cyborg, Flash" (spec §12). */
+/** "2 stopped agents ignored: Cyborg, Flash". */
 export function skippedText(names: readonly string[]): string | null {
   return names.length === 0 ? null : messages(agentsMessages).broadcast.skipped(names);
 }
@@ -201,7 +201,7 @@ export function startingText(names: readonly string[]): string | null {
   return names.length === 0 ? null : messages(agentsMessages).broadcast.starting(names);
 }
 
-/** "1 waiting agent ignored: Aquaman — answer it in its terminal" (spec §12). */
+/** "1 waiting agent ignored: Aquaman — answer it in its terminal". */
 export function waitingText(names: readonly string[]): string | null {
   return names.length === 0 ? null : messages(agentsMessages).broadcast.waiting(names);
 }

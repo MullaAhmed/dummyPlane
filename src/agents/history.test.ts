@@ -46,7 +46,7 @@ describe("historyStore", () => {
   });
 });
 
-describe("historyStore, a command sent before the history is read (plan B3)", () => {
+describe("historyStore, a command sent before the history is read", () => {
   it("saves nothing over a history it could not read (review)", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const saved: unknown[] = [];

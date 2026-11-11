@@ -407,7 +407,7 @@ describe("linkedAgents", () => {
   });
 });
 
-describe("orphanWires (plan B3)", () => {
+describe("orphanWires", () => {
   const withoutIds = (elements: ExcalidrawElement[], ...ids: string[]) =>
     elements.map((e) => (ids.includes(e.id) ? ({ ...e, isDeleted: true } as ExcalidrawElement) : e));
 
@@ -457,7 +457,7 @@ describe("orphanWires (plan B3)", () => {
   });
 });
 
-describe("revivableWires (plan B3 undo)", () => {
+describe("revivableWires", () => {
   it("lists a wire the upkeep deleted once both its ends are back, as an undo brings them", () => {
     const wired = withWire(base, fleet.id, frame.id);
     const wire = wired[wired.length - 1];

@@ -32,7 +32,7 @@ async function remove(project: Project) {
   if (confirmed) await projectsStore.getState().remove(project.id);
 }
 
-/** A project of the home screen (spec theme §5.1). */
+/** A project of the home screen. */
 export function ProjectCard({ project }: { project: Project }) {
   const t = useMessages(homeMessages).card;
   const [editing, setEditing] = useState(false);

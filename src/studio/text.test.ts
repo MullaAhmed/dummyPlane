@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { detectEol, smallestChange, toLf, withEol } from "./text";
 
-describe("line endings (spec studio code §3)", () => {
+describe("line endings", () => {
   it("keeps the dominant ending of the file", () => {
     expect(detectEol("a\nb\n")).toBe("\n");
     expect(detectEol("a\r\nb\r\n")).toBe("\r\n");

@@ -3,7 +3,7 @@ import type { Member, Mission } from "./mission";
 
 /**
  * Who counts against Max agents: the agents at work at once, not the team
- * (spec overnight mission §4). Shared by the queue and `reassign`, which
+ *. Shared by the queue and `reassign`, which
  * `./queue` imports: it lives apart so neither imports the other.
  */
 

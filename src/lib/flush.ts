@@ -1,5 +1,5 @@
 // Pending debounced saves register here so they can all be written before the
-// window closes (spec §8.4).
+// window closes.
 const flushers = new Set<() => unknown>();
 
 export function onFlushAll(flush: () => unknown): () => void {

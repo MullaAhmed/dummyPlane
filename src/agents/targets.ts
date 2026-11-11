@@ -3,7 +3,7 @@ import { messages } from "@/i18n";
 import { agentsText } from "./groupSummary";
 import { agentsMessages } from "./messages";
 
-/** Who a command goes to (spec theme §12). */
+/** Who a command goes to. */
 export type Target = { kind: "all" } | { kind: "group"; id: string } | { kind: "agent"; id: string };
 
 /** The word for everyone: `@all`. */
@@ -68,7 +68,7 @@ export function targetAgents(
   });
 }
 
-/** @all, then the groups, then the agents; two agents of the same name both show, with their group (spec §12). */
+/** @all, then the groups, then the agents; two agents of the same name both show, with their group. */
 export function targetOptions(agents: readonly TargetAgent[], groups: readonly SceneFrame[]): TargetOption[] {
   const all: TargetOption = { target: { kind: "all" }, label: messages(agentsMessages).targets.all, detail: agentsText(agents.length) };
   const groupOptions = groups
@@ -209,7 +209,7 @@ export function selectionChips(
   ];
 }
 
-/** Without `@`: the selected terminals and the members of the selected groups (spec §12). */
+/** Without `@`: the selected terminals and the members of the selected groups. */
 export function selectionTargets(
   selectedIds: readonly string[],
   frames: readonly SceneFrame[],

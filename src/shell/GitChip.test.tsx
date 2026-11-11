@@ -33,7 +33,7 @@ afterEach(async () => {
   clearMocks();
 });
 
-it("opens the git window on the project's folder (spec fenêtre git §3)", async () => {
+it("opens the git window on the project's folder", async () => {
   await act(async () => root.render(<GitChip />));
   const chip = host.querySelector("button")!;
   expect(chip.textContent).toContain("main");

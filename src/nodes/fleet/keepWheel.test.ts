@@ -2,7 +2,7 @@
 import { expect, it, vi } from "vitest";
 import { keepFieldWheel } from "./keepWheel";
 
-it("keeps the wheel over a text field from reaching Excalidraw's container, which would scroll the canvas (plan B3)", () => {
+it("keeps the wheel over a text field from reaching Excalidraw's container, which would scroll the canvas", () => {
   document.body.innerHTML = '<div id="container"><div id="node"><textarea></textarea><span id="plain"></span></div></div>';
   const reached = vi.fn();
   document.getElementById("container")!.addEventListener("wheel", reached);

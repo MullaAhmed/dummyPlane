@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicI64, Ordering};
 
-/// Per-terminal cap on retained output (spec §5.6).
+/// Per-terminal cap on retained output.
 pub const SCROLLBACK_CAPACITY: usize = 512 * 1024;
 
 /// SGR reset, prepended when replaying a truncated buffer so colors left open by
@@ -9,7 +9,7 @@ pub const SCROLLBACK_CAPACITY: usize = 512 * 1024;
 const RESET_ATTRIBUTES: &[u8] = b"\x1b[0m";
 
 /// A scrollback and when it was taken: of two saves of a terminal, the later
-/// capture wins, whatever order they reach SQLite in (spec première version §3.2).
+/// capture wins, whatever order they reach SQLite in.
 pub struct Capture {
     pub at: i64,
     pub data: Vec<u8>,

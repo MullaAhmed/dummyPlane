@@ -7,7 +7,7 @@ describe("normalize", () => {
   });
 });
 
-describe("matchScore (spec fenêtre §7.1)", () => {
+describe("matchScore", () => {
   it("finds regardless of case and accents, with letters in order, not necessarily together", () => {
     expect(matchScore("padme", "Padmé")).not.toBeNull();
     expect(matchScore("BATMAN", "Batman")).not.toBeNull();
@@ -72,7 +72,7 @@ describe("rankSections", () => {
   });
 });
 
-describe("search details (plan F1 findings)", () => {
+describe("search details", () => {
   it("puts the exact word before a longer word starting with the term", () => {
     expect(matchScore("tho", "Tho")!).toBeGreaterThan(matchScore("tho", "Thor")!);
     const items = [{ label: "Thor", keywords: [] }, { label: "Tho", keywords: [] }];

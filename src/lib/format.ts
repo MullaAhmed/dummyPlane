@@ -25,7 +25,7 @@ export function plural(count: number, one: string, many: string): string {
   return `${count} ${count === 1 ? one : many}`;
 }
 
-/** "45 s", "12 min", "1 h 05": how long an agent has been in its state (spec habillage §10.4). */
+/** "45 s", "12 min", "1 h 05": how long an agent has been in its state. */
 export function formatDuration(ms: number): string {
   const seconds = Math.max(0, Math.floor(ms / 1000));
   if (seconds < 60) return `${seconds} s`;

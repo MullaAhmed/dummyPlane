@@ -14,7 +14,7 @@ pub enum ShellKind {
     GitBash,
 }
 
-/// The agents of the launch menu (spec habillage §8).
+/// The agents of the launch menu.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Agent {
@@ -54,7 +54,7 @@ pub enum ClaudeMode {
     Continue,
 }
 
-/// What a Claude session is for (spec orchestrateur §4.2): an agent, the
+/// What a Claude session is for: an agent, the
 /// fleet that plans a mission with the user, or the Manager that runs its board
 /// with the team. Neither of the last two codes.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
@@ -86,7 +86,7 @@ impl Role {
     }
 }
 
-/// What a mission lets its agents do unasked (spec mission de nuit §5.3).
+/// What a mission lets its agents do unasked.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum Permission {
@@ -133,7 +133,7 @@ pub struct ClaudeLaunch {
     /// A fleet whose night reads its tickets in Linear: Linear's read-only MCP server joins its tools.
     #[serde(default)]
     pub linear: bool,
-    /// The profile's folder, for this terminal's `CLAUDE_CONFIG_DIR` (spec comptes §4).
+    /// The profile's folder, for this terminal's `CLAUDE_CONFIG_DIR`.
     #[serde(default)]
     pub config_dir: Option<String>,
     /// The skills, plugins, MCP servers and subagents it turns off or on (`agents::extensions`).
@@ -186,7 +186,7 @@ pub struct CodexLaunch {
     pub model: Option<String>,
 }
 
-/// What the frontend asks for when it starts a terminal (spec §9).
+/// What the frontend asks for when it starts a terminal.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SpawnSpec {
@@ -250,20 +250,20 @@ pub struct SpawnPlan {
     pub env_remove: Vec<String>,
     /// Typed into the shell right after it starts, e.g. `claude --resume <id>\r`.
     pub initial_input: Option<String>,
-    /// What `pty_interrupt` writes: the agent's interrupt key (spec §8).
+    /// What `pty_interrupt` writes: the agent's interrupt key.
     pub interrupt: Option<&'static [u8]>,
 }
 
-/// What dummyPlane passes to agents so they report their state (spec §8.2).
+/// What dummyPlane passes to agents so they report their state.
 #[derive(Debug, Clone, Default)]
 pub struct AgentHooks {
     /// Claude: `claude --settings <file>`.
     pub claude_settings: Option<PathBuf>,
     /// Codex: the URL its `notify` posts to, without the token.
     pub codex_notify: Option<String>,
-    /// The curl config that carries the local server's token (spec première version §4.3).
+    /// The curl config that carries the local server's token.
     pub curl_config: Option<PathBuf>,
-    /// Claude: `--mcp-config <file>`, dummyPlane's tools (spec orchestrateur §4.2).
+    /// Claude: `--mcp-config <file>`, dummyPlane's tools.
     pub mcp_config: Option<PathBuf>,
     /// Claude: `--append-system-prompt-file <file>`, its role.
     pub system_prompt: Option<PathBuf>,
@@ -275,7 +275,7 @@ pub struct AgentHooks {
     pub codex_args: Vec<String>,
 }
 
-/// What keeps a fleet, or a Manager, from coding (spec première version §4.1): its
+/// What keeps a fleet, or a Manager, from coding: its
 /// settings (`deny`), dummyPlane's tools and its role; for Codex, its profile
 /// (role, tools, the user's servers off) and its token, the read-only sandbox
 /// being on its command line. Without one of them it would start as a plain
@@ -301,7 +301,7 @@ pub fn fleet_tools(agent: Agent, hooks: &AgentHooks, server_running: bool) -> Re
 
 /// Claude Code marks the processes its tools start; an dummyPlane launched from
 /// a Claude Code session must not pass them on, or its agents become child
-/// sessions, left out of `--resume` (spec §8.2).
+/// sessions, left out of `--resume`.
 pub const INHERITED_MARKERS: [&str; 8] = [
     "CLAUDECODE",
     "CLAUDE_CODE_CHILD_SESSION",
@@ -451,7 +451,7 @@ pub fn binary(agent: Agent) -> &'static str {
     }
 }
 
-/// What stops an agent's current turn (spec §8): Escape, or Ctrl+C for the
+/// What stops an agent's current turn: Escape, or Ctrl+C for the
 /// agents that take it; nothing for a plain shell.
 pub fn interrupt_sequence(agent: Agent) -> Option<&'static [u8]> {
     match agent {
@@ -944,7 +944,7 @@ pub fn build_plan(
     let initial_input = command.map(|command| format!("{command}\r"));
     let (manual_args, manual_env) = manual.map(|m| (m.args, m.env)).unwrap_or_default();
     // A profile's folder reaches this terminal only; an invalid one is refused,
-    // never replaced by another account's (spec comptes §4).
+    // never replaced by another account's.
     let profile_dir = match spec.claude.as_ref().and_then(|c| c.config_dir.as_deref()) {
         Some(dir) => Some((
             "CLAUDE_CONFIG_DIR".to_string(),

@@ -6,7 +6,7 @@ import { AccentButton, IconButton, ToolButton } from "./buttons";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-it("names every icon button and marks the active rail tool (spec identité §5.4)", async () => {
+it("names every icon button and marks the active rail tool", async () => {
   const host = document.createElement("div");
   document.body.append(host);
   const root = createRoot(host);

@@ -5,7 +5,7 @@ export type TreeEntry = { path: string; kind: "file" | "dir" };
 
 export interface OpenedFile {
   text: string;
-  /** What the file was when read: an opaque text, compared at each write (spec studio code §3). */
+  /** What the file was when read: an opaque text, compared at each write. */
   version: string;
 }
 

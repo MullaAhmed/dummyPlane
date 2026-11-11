@@ -66,7 +66,7 @@ pub fn load(conn: &Connection, workspace_id: &str) -> AppResult<WorkspaceData> {
 }
 
 /// Saves the scene and, in the same transaction, deletes the nodes of this workspace
-/// that are no longer on it (their scrollback follows by cascade, spec §8.4).
+/// that are no longer on it (their scrollback follows by cascade).
 pub fn save(
     conn: &mut Connection,
     workspace_id: &str,

@@ -66,7 +66,7 @@ it("shows the account chip only once there is a profile to choose from", async (
   host.remove();
 });
 
-it("lists the profiles and uses, logs in and removes them (spec comptes §6), ", async () => {
+it("lists the profiles and uses, logs in and removes them, ", async () => {
   const host = document.createElement("div");
   document.body.append(host);
   const root = createRoot(host);

@@ -4,7 +4,7 @@ import { Logo } from "./Logo";
 import { WindowControls } from "./WindowControls";
 
 /**
- * The title bar (spec identité §5.1): the logo, `leading` (the project picker,
+ * The title bar: the logo, `leading` (the project picker,
  * or the app's name), `center` (the search field), `trailing` (the usage and
  * agent counts), the window buttons in the corner. Three columns: the sides
  * take at least their content's width and share the rest equally, so the

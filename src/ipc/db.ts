@@ -24,7 +24,7 @@ export interface Workspace {
   projectId: string;
   name: string;
   position: number;
-  /** Pantheon of the agents outside any group (spec habillage §9.2). */
+  /** Pantheon of the agents outside any group. */
   pantheon: string | null;
   kind: WorkspaceKind;
   /** The folder its terminals start in; null is the project's own, so a moved project is followed. */

@@ -1,5 +1,5 @@
 //! The role given to each Claude session dummyPlane launches, with
-//! `--append-system-prompt-file` (spec orchestrateur §4.4). The prompts are in
+//! `--append-system-prompt-file`. The prompts are in
 //! English, tool names included.
 
 use crate::pty::shell::Role;

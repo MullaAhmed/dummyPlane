@@ -15,7 +15,7 @@ interface ReviewState {
   clear: () => void;
 }
 
-/** The review panel (spec maj §5): one agent at a time; its remarks wait until sent or the panel moves on. */
+/** The review panel: one agent at a time; its remarks wait until sent or the panel moves on. */
 export const reviewStore = createStore<ReviewState>()((set, get) => ({
   nodeId: null,
   remarks: [],

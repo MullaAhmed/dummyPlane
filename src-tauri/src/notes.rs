@@ -1,4 +1,4 @@
-//! The project's notes (spec notes §3): plain Markdown in `.dummyplane/notes/`, so
+//! The project's notes: plain Markdown in `.dummyplane/notes/`, so
 //! that agents can simply read them. Only names arrive here, never paths, and
 //! the studio's confinement does the rest.
 

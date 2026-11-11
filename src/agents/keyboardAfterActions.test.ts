@@ -26,7 +26,7 @@ beforeEach(() => {
   workspacesStore.setState({ activeId: "w1" });
 });
 
-it("gives Excalidraw its keyboard back after Dégrouper and Fermer le groupe (plan B1)", () => {
+it("gives Excalidraw its keyboard back after Dégrouper and Fermer le groupe", () => {
   ungroup("g");
   expect(returnKeyboardToCanvas).toHaveBeenCalledTimes(1);
   closeGroup("g");

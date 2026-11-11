@@ -5,7 +5,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for taking the time to report a bug! You can write in English or in French.
+        Thanks for taking the time to report a bug!
         For a security problem, do not open an issue: follow SECURITY.md instead.
   - type: textarea
     id: what
@@ -28,7 +28,7 @@ body:
     id: version
     attributes:
       label: dummyPlane version or commit
-      placeholder: 0.1.0, or the commit you built
+      placeholder: 0.1.0 (from About dummyPlane in the command palette), or the commit you built
     validations:
       required: true
   - type: input
@@ -42,13 +42,13 @@ body:
     id: agent
     attributes:
       label: Agent CLI and version, if relevant
-      placeholder: Claude Code 2.1.304, Codex 0.x, …
+      placeholder: Claude Code, Codex, Gemini CLI or Qwen Code, with its version
   - type: textarea
     id: log
     attributes:
       label: Log file
       description: |
-        In dummyPlane, press Ctrl+Shift+P and choose "Ouvrir le dossier des journaux", or go to
+        In dummyPlane, press Ctrl+Shift+P and choose "Open the logs folder", or go to
         `%LOCALAPPDATA%\dev.dummyplane.app\logs`. Drag `dummyplane.log` here. It holds no token and no terminal text.
   - type: textarea
     id: extra

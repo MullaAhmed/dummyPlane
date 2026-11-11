@@ -1,6 +1,6 @@
 /**
  * Terminals created by the user start on their first mount, possibly after a
- * delay: a new group starts one agent every 300 ms (spec habillage §20).
+ * delay: a new group starts one agent every 300 ms.
  */
 export function createAutostart(setTimer = setTimeout, clearTimer = clearTimeout) {
   const delays = new Map<string, number>();

@@ -36,7 +36,7 @@ const press = (init: KeyboardEventInit) => {
   return event;
 };
 
-it("runs the shortcut's command and keeps the key from the terminal and its agent (spec fenêtre §6.2)", () => {
+it("runs the shortcut's command and keeps the key from the terminal and its agent", () => {
   const event = press({ key: "Tab", ctrlKey: true });
   expect(run).toHaveBeenCalledWith(ctx);
   expect(event.defaultPrevented).toBe(true);

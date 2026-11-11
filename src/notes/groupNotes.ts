@@ -2,7 +2,7 @@ import { CaptureUpdateAction, newElementWith } from "@excalidraw/excalidraw";
 import { canvasStore } from "@/canvas/canvasStore";
 import { isNoteName } from "./names";
 
-/** The note names a group carries, in `customData.dummyplane.notes` of its frame (spec notes §3). */
+/** The note names a group carries, in `customData.dummyplane.notes` of its frame. */
 export function groupNotesOf(groupId: string): string[] {
   const frame = canvasStore.getState().api?.getSceneElementsIncludingDeleted().find((element) => element.id === groupId);
   const notes = (frame?.customData?.dummyplane as { notes?: unknown } | undefined)?.notes;
