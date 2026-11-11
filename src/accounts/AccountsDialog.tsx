@@ -3,7 +3,6 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { launchLogin } from "@/agents/quickActions";
 import { useMessages } from "@/i18n";
@@ -15,8 +14,8 @@ import { accountsMessages } from "./messages";
 /** A profile's actions: one size, quiet until hovered. */
 const ROW_BUTTON = "rounded-md font-normal text-dp-text-2 hover:text-dp-text";
 
-// dp-label sits in the components layer: Label's own text-sm would win over its 12 px, so the size is said again.
-const LABEL = "dp-label text-xs";
+/** A field's visible name: the section label, on a native label (shadcn's Label would resize it), as in the loops dialog. */
+const LABEL = "dp-label";
 
 /** "Claude accounts" (spec comptes §6): profiles are a name and a folder; the login happens in Claude. */
 export function AccountsDialog() {
@@ -81,15 +80,15 @@ export function AccountsDialog() {
           <p className="dp-label mb-1">{t.addTitle}</p>
           {/* A visible label over each field: the placeholder is only an example, gone once the user types. */}
           <div className="grid gap-1.5">
-            <Label htmlFor={`${id}-name`} className={LABEL}>
+            <label htmlFor={`${id}-name`} className={LABEL}>
               {t.nameLabel}
-            </Label>
+            </label>
             <Input id={`${id}-name`} placeholder={t.namePlaceholder} value={name} onChange={(e) => setName(e.target.value)} />
           </div>
           <div className="grid gap-1.5">
-            <Label htmlFor={`${id}-folder`} className={LABEL}>
+            <label htmlFor={`${id}-folder`} className={LABEL}>
               {t.folderLabel}
-            </Label>
+            </label>
             <Input id={`${id}-folder`} placeholder={t.folderPlaceholder} value={folder} onChange={(e) => setFolder(e.target.value)} className="font-mono text-xs md:text-xs" />
           </div>
           <div className="flex justify-end">
