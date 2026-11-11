@@ -34,7 +34,7 @@ export function ShapesMenu(props: { active: boolean; current: string; onPick: (t
       }}
     >
       <PopoverTrigger asChild>
-        <ToolButton label={t.title} active={active}>
+        <ToolButton toggle label={t.title} active={active}>
           <Shapes />
         </ToolButton>
       </PopoverTrigger>
@@ -52,7 +52,8 @@ export function ShapesMenu(props: { active: boolean; current: string; onPick: (t
                 onPick(tool);
                 setOpen(false);
               }}
-              className="h-auto min-w-0 flex-col gap-1 rounded-md border border-transparent bg-dp-card px-0 py-2 text-xs font-normal text-dp-text-2 transition-[color,background-color,border-color,scale] duration-(--dp-dur-fast) ease-(--dp-ease-out) hover:bg-dp-hover hover:text-dp-text active:scale-[0.97] focus-visible:ring-2 focus-visible:ring-dp-accent/70 data-[state=on]:border-dp-accent data-[state=on]:bg-dp-accent-soft data-[state=on]:text-dp-text motion-reduce:transition-none"
+              variant="choice"
+              className="h-auto flex-col gap-1 bg-dp-card px-0 py-2"
             >
               <Icon />
               {t[tool]}

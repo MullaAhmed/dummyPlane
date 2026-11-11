@@ -67,7 +67,7 @@ function StudioContent({ project }: { project: string }) {
       style={{ paddingTop: TOP_ROW_HEIGHT + 12 }}
     >
       <nav className="dp-glass z-30 flex shrink-0 flex-col items-center gap-0.5 self-center rounded-lg p-1">
-        <ToolButton label={treeOpen ? t.hideFiles : t.showFiles} active={treeOpen} onClick={() => setTreeOpen(!treeOpen)}>
+        <ToolButton toggle label={treeOpen ? t.hideFiles : t.showFiles} active={treeOpen} onClick={() => setTreeOpen(!treeOpen)}>
           <FolderTree />
         </ToolButton>
       </nav>

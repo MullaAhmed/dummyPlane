@@ -11,16 +11,8 @@ import { PEN_WIDTHS } from "./tools";
 import { Hint, ToolButton } from "./buttons";
 import { shellMessages } from "./messages";
 
-/**
- * A swatch: a 24 px dot filled by its inline colour. The chosen one carries a
- * ring in the accent, the others a hairline ring on hover; no scale but the press. The rings never
- * fade: a ring is how focus shows, and focus answers the keyboard at once.
- */
-const SWATCH =
-  "size-6 rounded-full min-w-0 p-0 ring-offset-2 ring-offset-dp-surface hover:ring-2 hover:ring-dp-line data-[state=on]:ring-2 data-[state=on]:ring-dp-accent transition-[scale] duration-(--dp-dur-fast) ease-(--dp-ease-out) active:scale-[0.97] focus-visible:ring-2 focus-visible:ring-dp-accent/70 motion-reduce:transition-none";
-/** A width: a 32 px square, the chosen one on the accent's soft surface. */
-const WIDTH =
-  "size-8 min-w-0 rounded-md border border-transparent bg-dp-card p-0 hover:bg-dp-hover data-[state=on]:border-dp-accent data-[state=on]:bg-dp-accent-soft transition-[background-color,border-color,scale] duration-(--dp-dur-fast) ease-(--dp-ease-out) active:scale-[0.97] focus-visible:ring-2 focus-visible:ring-dp-accent/70 motion-reduce:transition-none";
+/** A width: a 32 px square on the card (the Toggle's choice look: chosen, the accent's tint and border). */
+const WIDTH = "size-8 bg-dp-card p-0";
 
 /** Pen tool with its color and width menu (spec habillage §5.3). */
 export function PenMenu({ active }: { active: boolean }) {
@@ -59,7 +51,7 @@ export function PenMenu({ active }: { active: boolean }) {
       }}
     >
       <PopoverTrigger asChild>
-        <ToolButton label={t.button} active={active}>
+        <ToolButton toggle label={t.button} active={active}>
           <PenLine />
         </ToolButton>
       </PopoverTrigger>
@@ -77,7 +69,7 @@ export function PenMenu({ active }: { active: boolean }) {
                     value={scene}
                     aria-label={t.colors[index]}
                     onClick={() => choose({ color: scene })}
-                    className={SWATCH}
+                    variant="swatch"
                     style={{ backgroundColor: displayColorFor(scene, theme) }}
                   />
                 </span>
@@ -101,7 +93,7 @@ export function PenMenu({ active }: { active: boolean }) {
           <p className="dp-label">{t.width}</p>
           <ToggleGroup type="single" value={String(width)} aria-label={t.width} spacing={2}>
             {PEN_WIDTHS.map((w) => (
-              <ToggleGroupItem key={w} value={String(w)} aria-label={t.widthN(w)} onClick={() => choose({ width: w })} className={WIDTH}>
+              <ToggleGroupItem key={w} value={String(w)} aria-label={t.widthN(w)} onClick={() => choose({ width: w })} variant="choice" className={WIDTH}>
                 <span className="rounded-full bg-dp-text" style={{ width: w + 2, height: w + 2 }} />
               </ToggleGroupItem>
             ))}
