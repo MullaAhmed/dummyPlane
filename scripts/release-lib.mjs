@@ -1,4 +1,4 @@
-// The pure parts of `scripts/release.mjs`: version
+// The pure parts of `scripts/release-decide.mjs`: version
 // bumps and the changelog, tested in `release.test.mjs`.
 
 const SEMVER = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-[0-9A-Za-z.-]+)?$/;
@@ -53,14 +53,29 @@ function sections(text) {
 
 const trimBlank = (lines) => lines.join("\n").replace(/^\s*\n/, "").replace(/\s+$/, "");
 
-/** `## [Unreleased]` becomes `## [version] - date`, with a new empty Unreleased above it. */
-export function releaseChangelog(text, version, date) {
+/** What the CHANGELOG's Unreleased section says, or "" when it is empty or missing. */
+export function unreleasedNotes(text) {
+  const unreleased = sections(text).find((s) => s.name === "Unreleased");
+  return unreleased ? trimBlank(unreleased.body) : "";
+}
+
+/**
+ * `## [Unreleased]` becomes `## [version] - date`, with a new empty Unreleased
+ * above it. An empty Unreleased takes `fallbackNotes` (the notes written from the
+ * commits) as the new section; without them it is an error.
+ */
+export function releaseChangelog(text, version, date, fallbackNotes = "") {
   requireSemver(version);
   const all = sections(text);
   if (all.some((s) => s.name === version)) throw new Error(`Version ${version} already has a CHANGELOG section`);
   const unreleased = all.find((s) => s.name === "Unreleased");
-  if (!unreleased || trimBlank(unreleased.body) === "") throw new Error("The CHANGELOG's Unreleased section is empty");
+  if (!unreleased) throw new Error("The CHANGELOG has no Unreleased section");
   const eol = text.includes("\r\n") ? "\r\n" : "\n";
+  if (trimBlank(unreleased.body) === "") {
+    if (!fallbackNotes) throw new Error("The CHANGELOG's Unreleased section is empty");
+    const notes = fallbackNotes.replace(/\r?\n/g, eol);
+    return text.replace(UNRELEASED, `${UNRELEASED}${eol}${eol}## [${version}] - ${date}${eol}${eol}${notes}`);
+  }
   return text.replace(UNRELEASED, `${UNRELEASED}${eol}${eol}## [${version}] - ${date}`);
 }
 

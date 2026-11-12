@@ -41,3 +41,5 @@ docs/assets/demo/
 BACKLOG.md
 # Update-signing key backup: a secret, never commit
 signing-key-backup.txt
+# Release notes the workflow writes (scripts/release-decide.mjs)
+release-notes.md

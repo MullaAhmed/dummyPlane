@@ -1,20 +1,153 @@
 name: Release
 
-# A tag v<version> (from scripts/release.mjs) builds the Windows installer and
-# the macOS disk image, and drafts one release with the updater files;
-# docs/RELEASING.md says how to publish it.
-# Run by hand, it only builds them, as artifacts.
+# Releases follow dummyIndex's approach: nobody tags by hand.
+#
+# A push to main runs scripts/release-decide.mjs: it reads the commits since the
+# last vX.Y.Z tag and decides the version from their conventional-commit types
+# (feat or BREAKING -> minor, fix -> patch, docs, chore, ci or test alone -> no
+# release). When a release is due: the checks run, a `chore(release): vX.Y.Z
+# [skip ci]` commit and its tag are pushed, the Windows installer and the macOS
+# disk image are built into a draft release, and the draft is published.
+#
+# A push to development cuts a beta (X.Y.Z-beta.N) the same way, except that its
+# version bump is pushed as a tag only, never to the branch, and the release is a
+# pre-release: GitHub's "latest" ignores it, so the updater never offers it.
+#
+# Everything runs in this one workflow, so the default GITHUB_TOKEN is enough
+# (dummyIndex needs a personal token because its PyPI workflow waits for the
+# `release: published` event, which that token would not fire).
+#
+# Run by hand (Actions -> Release -> Run workflow), it only runs the checks and
+# builds the installers, as artifacts: a way to try the pipeline without a release.
 on:
   push:
-    tags: ["v*"]
+    branches: [main, development]
   workflow_dispatch:
 
 permissions:
   contents: write
 
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  CHANNEL: ${{ github.ref_name == 'development' && 'beta' || 'stable' }}
+
 jobs:
-  release:
+  decide:
+    name: Decide the release
+    runs-on: ubuntu-latest
+    outputs:
+      released: ${{ steps.decide.outputs.released }}
+      version: ${{ steps.decide.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0 # the whole history and its tags: the commit range depends on them
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 22
+      - name: Decide
+        id: decide
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            node scripts/release-decide.mjs --channel "$CHANNEL" --dry-run
+          else
+            echo "released=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  # The same checks as CI: a release is cut from a commit whose CI may still be running.
+  gate:
+    name: Checks
+    needs: decide
+    if: ${{ needs.decide.outputs.released == 'true' || github.event_name == 'workflow_dispatch' }}
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+        with:
+          version: 10.12.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+        with:
+          workspaces: src-tauri
+      - run: pnpm install --frozen-lockfile
+      - name: Types
+        run: pnpm exec tsc --noEmit
+      - name: Interface tests
+        run: pnpm test
+      - name: Rust format
+        working-directory: src-tauri
+        run: cargo fmt --check
+      - name: Rust lints
+        working-directory: src-tauri
+        run: cargo clippy --all-targets -- -D warnings
+      - name: Rust tests
+        working-directory: src-tauri
+        run: cargo test
+
+  tag:
+    name: Tag the release
+    needs: [decide, gate]
+    if: ${{ needs.decide.outputs.released == 'true' }}
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.stage.outputs.tag }}
+      release_id: ${{ steps.draft.outputs.release_id }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 22
+      - name: Stage the release
+        id: stage
+        run: node scripts/release-decide.mjs --channel "$CHANNEL" --expect-version "${{ needs.decide.outputs.version }}"
+      - name: Commit and tag
+        env:
+          VERSION: ${{ steps.stage.outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [ "$CHANNEL" = "stable" ]; then
+            git add package.json src-tauri/Cargo.toml src-tauri/Cargo.lock CHANGELOG.md
+            git commit -m "chore(release): v${VERSION} [skip ci]"
+            git tag "v${VERSION}"
+            # Both or neither: a tag without its commit on main would be a release nobody can build again.
+            git push --atomic origin HEAD:main "refs/tags/v${VERSION}"
+          else
+            git add package.json src-tauri/Cargo.toml src-tauri/Cargo.lock
+            git commit -m "chore(release): v${VERSION} [skip ci]"
+            git tag "v${VERSION}"
+            git push origin "refs/tags/v${VERSION}"
+          fi
+      - name: Draft the release
+        id: draft
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.stage.outputs.version }}
+        run: |
+          prerelease=false
+          if [ "$CHANNEL" = "beta" ]; then prerelease=true; fi
+          id=$(gh api "repos/$GITHUB_REPOSITORY/releases" \
+            -f tag_name="v${VERSION}" -f name="dummyPlane ${VERSION}" \
+            -F draft=true -F prerelease="$prerelease" -F body=@release-notes.md \
+            --jq .id)
+          echo "release_id=$id" >> "$GITHUB_OUTPUT"
+
+  build:
     name: Build (${{ matrix.name }})
+    needs: [decide, gate, tag]
+    # Releasing, or run by hand: then nothing is tagged and the files are kept as artifacts.
+    if: ${{ !cancelled() && needs.gate.result == 'success' && (needs.tag.result == 'success' || github.event_name == 'workflow_dispatch') }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -33,6 +166,8 @@ jobs:
     # dependencies' install scripts or the tests.
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ needs.tag.result == 'success' && format('refs/tags/{0}', needs.tag.outputs.tag) || github.sha }}
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
         with:
           version: 10.12.1
@@ -41,78 +176,41 @@ jobs:
           node-version: 22
           cache: pnpm
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
-        with:
-          components: clippy, rustfmt
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           workspaces: src-tauri
       - run: pnpm install --frozen-lockfile
-      # The same checks as CI: a tag may be pushed from a commit CI never ran on.
-      # Windows only: the macOS checks run in CI, and a build that does not compile
-      # on macOS fails here anyway.
-      - name: Types
-        if: matrix.name == 'windows'
-        run: pnpm exec tsc --noEmit
-      - name: Interface tests
-        if: matrix.name == 'windows'
-        run: pnpm test
-      - name: Rust format
-        if: matrix.name == 'windows'
-        working-directory: src-tauri
-        run: cargo fmt --check
-      - name: Rust lints
-        if: matrix.name == 'windows'
-        working-directory: src-tauri
-        run: cargo clippy --all-targets -- -D warnings
-      - name: Rust tests
-        if: matrix.name == 'windows'
-        working-directory: src-tauri
-        run: cargo test
 
-      - name: Release notes
-        id: notes
-        if: startsWith(github.ref, 'refs/tags/v')
-        shell: bash
-        run: |
-          {
-            echo 'body<<END_OF_NOTES'
-            node scripts/release-notes.mjs "$GITHUB_REF_NAME"
-            echo 'END_OF_NOTES'
-          } >> "$GITHUB_OUTPUT"
-      - name: Build and draft the release
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Build and upload to the release
+        if: ${{ needs.tag.result == 'success' }}
         uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: dummyPlane __VERSION__
-          releaseBody: ${{ steps.notes.outputs.body }}
-          releaseDraft: true
-          # A pre-release would not be "latest", and the updater reads latest.json from the latest release.
-          prerelease: false
+          releaseId: ${{ needs.tag.outputs.release_id }}
           updaterJsonPreferNsis: true
 
       - name: Build only
-        if: "!startsWith(github.ref, 'refs/tags/v')"
+        if: ${{ needs.tag.result != 'success' }}
         uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
       - name: Keep the installer
-        if: "!startsWith(github.ref, 'refs/tags/v')"
+        if: ${{ needs.tag.result != 'success' }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: dummyplane-${{ matrix.name }}
           path: src-tauri/target/release/bundle/${{ matrix.bundle }}/*
 
-  # Once every platform has added its files, latest.json lists them all.
-  finalize:
-    name: Point latest.json at the download links
-    needs: release
-    if: ${{ startsWith(github.ref, 'refs/tags/v') && needs.release.result == 'success' }}
+  # Once every platform has added its files, latest.json lists them all: it gets
+  # the release's download links, and the draft goes out.
+  publish:
+    name: Publish the release
+    needs: [tag, build]
+    if: ${{ !cancelled() && needs.tag.result == 'success' && needs.build.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -121,12 +219,17 @@ jobs:
           node-version: 22
       # A draft's latest.json points at API asset URLs: rate-limited, and
       # fragile behind proxies. The release's download links work once published.
-      - name: Rewrite latest.json
-        shell: bash
+      - name: Rewrite latest.json and publish
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.tag.outputs.tag }}
         run: |
-          gh release download "$GITHUB_REF_NAME" --pattern latest.json --output latest.json --clobber
-          gh release view "$GITHUB_REF_NAME" --json assets > assets.json
-          node scripts/updater-json.mjs latest.json assets.json "$GITHUB_REPOSITORY" "$GITHUB_REF_NAME"
-          gh release upload "$GITHUB_REF_NAME" latest.json --clobber
+          gh release download "$TAG" --pattern latest.json --output latest.json --clobber
+          gh release view "$TAG" --json assets > assets.json
+          node scripts/updater-json.mjs latest.json assets.json "$GITHUB_REPOSITORY" "$TAG"
+          gh release upload "$TAG" latest.json --clobber
+          if [ "$CHANNEL" = "stable" ]; then
+            gh release edit "$TAG" --draft=false --latest
+          else
+            gh release edit "$TAG" --draft=false
+          fi

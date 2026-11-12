@@ -74,6 +74,7 @@ The front-end tests live next to the code (`*.test.ts`, `*.test.tsx`); those tha
 
 - Branches: `feat/<name>` for a feature, `fix/<name>` for a fix, `docs/<name>` for documentation.
 - Commits follow [Conventional Commits](https://www.conventionalcommits.org/), in English: `feat(review): send all remarks in one message`, `fix(shell): keep the usage meter clear of the search field`, `docs(readme): …`.
+- **The commit type decides the release.** When a push reaches `main`, a `feat` (or a `!` after the type, or a `BREAKING CHANGE:` line) cuts a minor version, a `fix` a patch, and `docs`, `chore`, `ci`, `test`, `perf` or `refactor` alone cut nothing. The word *release* in a commit or pull request title forces a minor release, so use it only when you mean to. [docs/RELEASING.md](docs/RELEASING.md) has the rest.
 - One logical change per commit; explain the why in the body when it isn't obvious.
 
 ## Pull requests
