@@ -83,6 +83,11 @@ export function markReported(nodeId: string) {
   reported.add(nodeId);
 }
 
+/** New work its parent gave it (message_agent): at work again, it holds a seat and the duplicate guard sees it. */
+export function unmarkReported(nodeId: string) {
+  reported.delete(nodeId);
+}
+
 /**
  * A sub-agent created, not stopped, not reported yet. Its report is kept with it (`lastReport`), the set above
  * only for this run: after a restart its resumed session is still a finished one, until new work clears it.

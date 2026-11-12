@@ -5,7 +5,7 @@ import { mockIPC } from "@tauri-apps/api/mocks";
 import { canvasStore } from "@/canvas/canvasStore";
 import { createNodeElement } from "@/canvas/nodeElement";
 import { wireActivityStore } from "@/canvas/wireActivity";
-import { markLaunching } from "@/agents/spawnFamily";
+import { atWork, markLaunching, markReported } from "@/agents/spawnFamily";
 import { spawnedTask } from "@/agents/taskSummary";
 import { withAgentLink, withWire } from "@/agents/wires";
 import { activeWork } from "@/mission/activeWork";
@@ -196,6 +196,14 @@ describe("new work for a sub-agent that reported", () => {
     expect(notify).toHaveBeenCalledWith("aquaman", expect.stringMatching(/^Message from Batman .*: Write the 007 tests for mint\.py, then report\.$/));
     expect(sendCommand).toHaveBeenCalledExactlyOnceWith("aquaman", "/rename 007 mint.py tests");
     expect(vi.mocked(notify).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(sendCommand).mock.invocationCallOrder[0]);
+  });
+
+  it("counts the re-tasked sub-agent at work again: it holds a seat once more", async () => {
+    // Its report was marked for the app's run when it reported.
+    markReported("aquaman");
+    expect(atWork("aquaman")).toBe(false);
+    await call("batman", "message_agent", { agent: "Aquaman", text: NEW_WORK, title: "007 mint.py tests" });
+    expect(atWork("aquaman")).toBe(true);
   });
 
   it("renames only a Claude session: a Codex sub-agent takes the title on its terminal alone", async () => {

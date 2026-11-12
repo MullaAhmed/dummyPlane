@@ -2,7 +2,7 @@ import { talk } from "@/agents/talkWires";
 import { AGENTS } from "@/agents/catalog";
 import { linkedAgentsOf, type LinkedAgent } from "@/agents/agentLinks";
 import { MAX_TITLE } from "@/agents/spawn";
-import { isLaunching, spawnedByOf } from "@/agents/spawnFamily";
+import { isLaunching, spawnedByOf, unmarkReported } from "@/agents/spawnFamily";
 import { clip } from "@/agents/taskSummary";
 import { messages } from "@/i18n";
 import { notify, sendCommand } from "@/mission/events";
@@ -142,7 +142,11 @@ function messageLinked(nodeId: string, args: Record<string, unknown>): ToolResul
   if (isLaunching(peer.nodeId)) return refused(l.starting(peer.name));
   // Before the message is typed: typing it clears the report that says its last task is done (`onNewWork`).
   const work = newWork(nodeId, peer.nodeId, text, args.title);
-  if (work) nodesStore.getState().update(peer.nodeId, work);
+  if (work) {
+    nodesStore.getState().update(peer.nodeId, work);
+    // Its report freed its seat for the app's run; working again, it takes one.
+    unmarkReported(peer.nodeId);
+  }
   // A Manager answers its team with write: it has no message_agent.
   notify(peer.nodeId, isManagerNode(peer.nodeId) ? l.toManager(nameOf(nodeId), text) : l.message(nameOf(nodeId), text));
   // Its Claude session, named after its title at its launch (`-n`), takes the new one: the name other sessions see.
