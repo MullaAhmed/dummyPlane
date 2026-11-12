@@ -169,6 +169,51 @@ export function AgentMenu({
     run(placeAt ?? undefined);
   };
 
+  /** An agent's row: its pick, greyed with the reason when its binary is missing, and its Install beside it. */
+  const agentRow = (id: AgentId) => {
+    const meta = AGENTS[id];
+    const usable = available(id);
+    return (
+      <div key={id} className="relative">
+        {/* Its title says why it is greyed: the row keeps the pointer while disabled. */}
+        <Button
+          type="button"
+          variant="ghost"
+          disabled={!usable}
+          data-agent-pick={id}
+          title={usable ? undefined : t.agentMenu.notFound(meta.binary)}
+          onClick={() => pick(id)}
+          className={cn(ROW, "disabled:pointer-events-auto disabled:cursor-not-allowed disabled:hover:bg-transparent")}
+        >
+          <span
+            className="grid size-7 place-items-center rounded-md"
+            style={{ backgroundColor: `color-mix(in srgb, ${meta.tint} 18%, transparent)`, color: agentInk(meta.tint) }}
+          >
+            <meta.Icon className="size-4" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-(length:--text-ui) font-medium text-dp-text">{meta.label}</span>
+            <span className="block text-xs text-dp-text-2">{meta.vendor}</span>
+          </span>
+          {id === fallback && <Check className="size-3.5 text-dp-accent-ink" />}
+        </Button>
+        {/* Beside the row and not inside it: the row is disabled, this button is not. */}
+        {missing(id) && (
+          <Button
+            type="button"
+            size="xs"
+            data-install={id}
+            aria-label={t.install.installAgent(meta.label)}
+            onClick={() => showView({ install: id }, `[data-install="${id}"]`)}
+            className="absolute right-2 top-1/2 h-auto -translate-y-1/2 border-0 bg-dp-accent-soft px-2 py-0.5 text-xs font-medium text-dp-accent-ink hover:bg-dp-accent/25"
+          >
+            {t.install.button}
+          </Button>
+        )}
+      </div>
+    );
+  };
+
   return (
     <Popover
       open={open}
@@ -199,50 +244,8 @@ export function AgentMenu({
             <Separator className="my-1.5" />
             <p className="dp-label px-2 pb-1 pt-1">{t.agentMenu.title}</p>
             <div ref={agentRows} className="flex flex-col">
-              {AGENT_ORDER.map((id) => {
-                const meta = AGENTS[id];
-                const usable = available(id);
-                return (
-                  <div key={id} className="relative">
-                    {/* Its title says why it is greyed: the row keeps the pointer while disabled. */}
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      disabled={!usable}
-                      data-agent-pick={id}
-                      title={usable ? undefined : t.agentMenu.notFound(meta.binary)}
-                      onClick={() => pick(id)}
-                      className={cn(ROW, "disabled:pointer-events-auto disabled:cursor-not-allowed disabled:hover:bg-transparent")}
-                    >
-                      <span
-                        className="grid size-7 place-items-center rounded-md"
-                        style={{ backgroundColor: `color-mix(in srgb, ${meta.tint} 18%, transparent)`, color: agentInk(meta.tint) }}
-                      >
-                        <meta.Icon className="size-4" />
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block text-(length:--text-ui) font-medium text-dp-text">{meta.label}</span>
-                        <span className="block text-xs text-dp-text-2">{meta.vendor}</span>
-                      </span>
-                      {id === fallback && <Check className="size-3.5 text-dp-accent-ink" />}
-                    </Button>
-                    {/* Beside the row and not inside it: the row is disabled, this button is not. */}
-                    {missing(id) && (
-                      <Button
-                        type="button"
-                        size="xs"
-                        data-install={id}
-                        aria-label={t.install.installAgent(meta.label)}
-                        onClick={() => showView({ install: id }, `[data-install="${id}"]`)}
-                        className="absolute right-2 top-1/2 h-auto -translate-y-1/2 border-0 bg-dp-accent-soft px-2 py-0.5 text-xs font-medium text-dp-accent-ink hover:bg-dp-accent/25"
-                      >
-                        {t.install.button}
-                      </Button>
-                    )}
-                  </div>
-                );
-              })}
-              <Separator className="my-1" />
+              {AGENT_ORDER.filter((id) => id !== "shell").map(agentRow)}
+              {/* New console starts the default agent: one more agent row. */}
               <Button
                 type="button"
                 variant="ghost"
@@ -257,6 +260,10 @@ export function AgentMenu({
                 </span>
                 <span className="min-w-0 flex-1 text-(length:--text-ui) font-medium text-dp-text">{t.agentMenu.newConsole}</span>
               </Button>
+              {/* What is not an agent: a plain Shell, a Fleet, a board (12 Nov: they sat among the agents). */}
+              <Separator className="my-1" />
+              <p data-not-agents className="dp-label px-2 pb-1 pt-1">{t.agentMenu.notAgents}</p>
+              {agentRow("shell")}
               {/* Placed the same way as an agent. */}
               <Button
                 type="button"

@@ -442,3 +442,14 @@ describe("the keyboard follows the menu's views (WCAG 2.4.3)", () => {
     expect(content.contains(document.activeElement)).toBe(true);
   });
 });
+
+it("lists the agents under their heading, and the Shell, the Fleet and the board apart: none is an agent (12 Nov)", async () => {
+  await openMenu();
+  const heading = document.body.querySelector("[data-not-agents]")!;
+  expect(heading.textContent).toBe("Not an agent");
+  const after = (node: Element) => Boolean(heading.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING);
+  expect(after(document.body.querySelector('[data-agent-pick="shell"]')!)).toBe(true);
+  expect(after(button("Fleet")!)).toBe(true);
+  expect(after(button("Kanban")!)).toBe(true);
+  for (const agent of ["claude", "codex", "custom"]) expect(after(document.body.querySelector(`[data-agent-pick="${agent}"]`)!), agent).toBe(false);
+});

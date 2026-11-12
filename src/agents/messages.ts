@@ -114,6 +114,8 @@ export const agentsMessages = defineMessages({
       title: "Launch an agent",
       notFound: (binary: string) => `${binary} not found in PATH`,
       newConsole: "New console",
+      /** The heading over the Shell, the Fleet and the board: none of them is an agent. */
+      notAgents: "Not an agent",
       fleet: "Fleet",
       fleetHint: "commands groups and agents",
       kanban: "Kanban",
