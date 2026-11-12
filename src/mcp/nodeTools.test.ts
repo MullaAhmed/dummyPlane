@@ -152,6 +152,18 @@ describe("show_output", () => {
       }
     });
 
+    it("goes on updating the output it showed, not a copy the user made of it", async () => {
+      const id = shownId(await call("batman", "show_output", { title: "v1", ui: UI }));
+      // A copy (src/agents/terminals.ts) keeps the payload, its source and updatedAt included, and is drawn after it.
+      const original = nodesStore.getState().nodes[id];
+      if (original?.kind !== "output") throw new Error("no output");
+      await nodesStore.getState().create("copy", { workspaceId: "w1", kind: "output", payload: { ...original.payload } });
+      scene.push({ ...scene.find((e) => e.id === id)!, id: "copy", x: 3000 });
+      expect(textOf(await call("batman", "show_output", { title: "v2", ui: UI }))).toContain(`Your latest output ${id} updated in place`);
+      expect(nodesStore.getState().nodes[id]).toMatchObject({ payload: { title: "v2" } });
+      expect(nodesStore.getState().nodes.copy).toMatchObject({ payload: { title: "v1" } });
+    });
+
     it("makes a new node when its latest output was closed, or is no longer on the canvas", async () => {
       const closed = shownId(await call("batman", "show_output", { title: "v1", ui: UI }));
       scene = scene.map((e) => (e.id === closed ? { ...e, isDeleted: true } : e));

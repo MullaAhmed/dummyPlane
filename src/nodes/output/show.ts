@@ -64,7 +64,9 @@ export function showOutput(sourceId: string, args: ShowArgs): Promise<ShowResult
 /**
  * The output `sourceId` showed or updated last, among those still on the
  * canvas (`elements`, its workspace's scene); null when none is. On a tie, the
- * one drawn last: the newer of two shown in the same millisecond.
+ * one drawn first: a copy the user made of an output (`@/agents/terminals`)
+ * keeps its payload, `updatedAt` included, and comes after it in the scene;
+ * the agent goes on updating the one it showed, wired to it.
  */
 export function latestOutputOf(sourceId: string, elements: readonly ExcalidrawElement[]): string | null {
   const nodes = nodesStore.getState().nodes;
@@ -74,7 +76,7 @@ export function latestOutputOf(sourceId: string, elements: readonly ExcalidrawEl
     const record = nodes[element.id];
     if (record?.kind !== "output" || record.payload.source !== sourceId) continue;
     const at = record.payload.updatedAt ?? 0;
-    if (!latest || at >= latest.at) latest = { id: element.id, at };
+    if (!latest || at > latest.at) latest = { id: element.id, at };
   }
   return latest?.id ?? null;
 }
