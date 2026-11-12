@@ -25,9 +25,8 @@ import { claudeLaunchDefaults, type ClaudeLaunchDefaults } from "@/ipc/claudeExt
 import { MANAGER_ROLE, type Permission, type ShellKind } from "@/ipc/pty";
 import { EFFORT_LEVELS, MODEL_CHOICES, modelLabel, readEffort, settingsModelLabel, type EffortLevel } from "@/mission/router";
 import { missionOf, setMission } from "@/mission/store";
-import { folderChange, folderLockOf, type FolderLock } from "@/nodes/terminal/folder";
+import { folderChange, folderLockOf, sameFolder, type FolderLock } from "@/nodes/terminal/folder";
 import { newConversation, SHELL_LABELS } from "@/nodes/terminal/launch";
-import { resumeTerminal } from "@/nodes/terminal/registry";
 import { StatusPill } from "@/nodes/terminal/StatusPill";
 import type { TerminalPayload } from "@/nodes/types";
 import { useActivity } from "@/store/agentActivity";
@@ -37,10 +36,10 @@ import { formatTokens } from "@/usage/usage";
 import { useNodeSession } from "@/usage/usageStore";
 import { IconButton } from "@/shell/buttons";
 import { ExtensionList, folderName, QUIET_BOX, useClaudeExtensions, useClaudeFolder, type ExtensionKind } from "./ExtensionList";
+import { announceFolderMove, restartTerminal } from "./folderMove";
 import { canvasMessages } from "./messages";
 import { keepCanvasFocus } from "./PanelAction";
-import { forgetStartedChoice } from "./startedChoice";
-import { forgetStartedLaunch, noteLaunchChange, useLaunchRestartPending, useStartedLaunch } from "./startedLaunch";
+import { useFolderMove, useLaunchRestartPending, useStartedLaunch, type FolderMove } from "./startedLaunch";
 
 /** The node alone on the selection, if the selection is exactly one terminal or one Fleet: the nodes that have an edit panel. */
 export function selectedEditId(selectedIds: readonly string[], nodes: Record<string, NodeRecord>): string | null {
@@ -179,6 +178,7 @@ function General({ nodeId, record, session, liveFolder }: { nodeId: string; reco
   const shells = useAgents((s) => s.shells);
   const profiles = useAccounts((s) => s.profiles);
   const restartPending = useLaunchRestartPending(nodeId, session);
+  const folderMove = useFolderMove(nodeId, session);
   const running = useTerminalStatus(nodeId).state === "running";
   const fleet = record.kind === "fleet";
   const name = nodeNameOf(record);
@@ -186,14 +186,15 @@ function General({ nodeId, record, session, liveFolder }: { nodeId: string; reco
   const ids = { name: useId(), model: useId(), permission: useId(), account: useId(), shell: useId(), command: useId() };
   const ownModel = useOwnModelLabel(nodeId, session, running);
   // Under the folder: why it is fixed, and while Claude runs in another one (started by hand after a `cd`), which:
-  // the lists follow it, the next launch doesn't.
+  // the lists follow it, the next launch doesn't. Not the folder it was moved from: the notice above says that one.
   const fixedFolder = lock && (lock === "fleet" ? t.folderFleet : t.folderMission);
-  const folderNote = (fixedFolder || liveFolder) && (
+  const otherFolder = liveFolder && !(folderMove && sameFolder(liveFolder, folderMove.from)) ? liveFolder : null;
+  const folderNote = (fixedFolder || otherFolder) && (
     <>
       {fixedFolder && <span className="block">{fixedFolder}</span>}
-      {liveFolder && (
-        <span data-running-folder title={liveFolder} className="block">
-          {t.runningFolder(folderName(liveFolder))}
+      {otherFolder && (
+        <span data-running-folder title={otherFolder} className="block">
+          {t.runningFolder(folderName(otherFolder))}
         </span>
       )}
     </>
@@ -205,12 +206,9 @@ function General({ nodeId, record, session, liveFolder }: { nodeId: string; reco
     if (fleet) renameFleet(nodeId, next);
     else nodesStore.getState().update(nodeId, { name: next });
   };
-  /** A setting read at the next launch: a running terminal keeps the one it started with, and offers a restart. */
+  /** A setting read at the next launch: a running terminal keeps the one it started with (`launched`), and offers a restart. */
   const setLaunch = (patch: Partial<TerminalPayload>) => {
-    const current = latestSession(nodeId);
-    if (!current) return;
-    noteLaunchChange(nodeId, current);
-    updateSession(nodeId, patch);
+    if (latestSession(nodeId)) updateSession(nodeId, patch);
   };
   const commitCommand = (value: string) => {
     const command = value.trim();
@@ -227,11 +225,7 @@ function General({ nodeId, record, session, liveFolder }: { nodeId: string; reco
     duplicateTerminal(record.workspaceId, nodeId).catch((error: unknown) => toastError(t.copyFailed, { error }));
   };
   const remove = () => (fleet ? requestCloseFleet(nodeId) : requestClose(nodeId));
-  const restart = () => {
-    forgetStartedChoice(nodeId);
-    forgetStartedLaunch(nodeId);
-    resumeTerminal(nodeId);
-  };
+  const restart = () => restartTerminal(nodeId);
   const account = session?.accountId && profiles.some((p) => p.id === session.accountId) ? session.accountId : NONE;
 
   // A field starts from the stored value again whenever the stored value changes (a rename from the header, an undo).
@@ -305,6 +299,7 @@ function General({ nodeId, record, session, liveFolder }: { nodeId: string; reco
               </Row>
             )}
             <Row label={t.folder} note={folderNote}>
+              {folderMove && <FolderMoveNotice move={folderMove} onRestart={restart} />}
               <FolderField nodeId={nodeId} session={session} lock={lock} />
             </Row>
             <Row label={t.shell} htmlFor={ids.shell}>
@@ -327,7 +322,8 @@ function General({ nodeId, record, session, liveFolder }: { nodeId: string; reco
           </Rows>
         </div>
       )}
-      {restartPending && (
+      {/* The other launch settings' offer; a move's is the Folder row's, which restarts with them all. */}
+      {restartPending && !folderMove && (
         <div className="flex items-center justify-between gap-3 border-t border-dp-line pt-2">
           <p className="min-w-0 truncate text-xs leading-7 text-dp-text-3">{t.launchChanged}</p>
           <Button type="button" variant="secondary" size="sm" onMouseDown={keepCanvasFocus} onClick={restart} className="text-xs font-normal text-dp-text-2 hover:text-dp-text">
@@ -632,10 +628,30 @@ function RemoteRow({ nodeId, wanted, running }: { nodeId: string; wanted: boolea
 }
 
 /**
+ * At the top of the Folder row while a running terminal was moved: the folder its process still runs in, and
+ * the restart that takes it to the new one. Nothing restarts without that click (or the toast's, the same).
+ */
+function FolderMoveNotice({ move, onRestart }: { move: FolderMove; onRestart: () => void }) {
+  const t = useMessages(canvasMessages).selection;
+  return (
+    <div data-folder-move className="flex min-w-0 flex-col items-start gap-1.5 rounded-md border border-dp-line px-2 py-1.5">
+      <p role="status" title={move.from} className="max-w-full truncate text-xs text-dp-text">
+        {t.stillRunningIn(folderName(move.from))}
+      </p>
+      <Button type="button" size="sm" title={move.to} onMouseDown={keepCanvasFocus} onClick={onRestart} className="max-w-full text-xs">
+        <RotateCw className="size-3.5" />
+        <span className="truncate">{t.restartIn(folderName(move.to))}</span>
+      </Button>
+    </div>
+  );
+}
+
+/**
  * The folder of a terminal: its path, a copy of it and, unless it is fixed
- * (`FolderLock`), "Change…", which picks another one for the next launch. A
- * Claude terminal that moves starts a new conversation (Claude keeps each one
- * with its folder): a toast says so when it happens, not before.
+ * (`FolderLock`), "Change…", which picks another one for the next launch. It
+ * is said when it happens (`announceFolderMove`): a running terminal stays in
+ * its folder until it restarts, with the restart offered; a Claude terminal
+ * that moves starts a new conversation (Claude keeps each one with its folder).
  */
 function FolderField({ nodeId, session, lock }: { nodeId: string; session: TerminalPayload; lock: FolderLock | null }) {
   const t = useMessages(canvasMessages).selection;
@@ -652,10 +668,9 @@ function FolderField({ nodeId, session, lock }: { nodeId: string; session: Termi
     const current = latestSession(nodeId);
     if (!current || folderLockOf(nodeId, nodesStore.getState().nodes)) return;
     const patch = folderChange(current, picked);
-    if (!patch) return;
-    noteLaunchChange(nodeId, current);
+    if (!patch?.cwd) return;
     updateSession(nodeId, patch);
-    if (current.agent === "claude") toast.info(t.folderNewConversation);
+    announceFolderMove(nodeId, current, patch.cwd);
   };
 
   return <FolderPath cwd={session.cwd} onChange={lock ? undefined : () => void change()} />;

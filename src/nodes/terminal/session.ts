@@ -1,11 +1,11 @@
 import { AppError } from "@/ipc/invoke";
 import { getScrollback, ptyAttach, ptyKill, ptySpawn } from "@/ipc/pty";
 import type { TerminalPayload } from "@/nodes/types";
-import { nodesStore } from "@/store/nodes";
+import { nodesStore, sessionOf, updateSession } from "@/store/nodes";
 import { isRunning, terminalStatusStore, waitForExit } from "@/store/terminalStatus";
 import { accountsStore, loadAccounts } from "@/accounts/store";
 import { markLaunch, markResumedLaunch } from "@/usage/usageStore";
-import { buildSpawnSpec, type LaunchMode } from "./launch";
+import { buildSpawnSpec, launchSettingsOf, sameLaunch, type LaunchMode } from "./launch";
 import { accountsMessages } from "@/accounts/messages";
 import { messages } from "@/i18n";
 import { nodesMessages } from "@/nodes/messages";
@@ -57,12 +57,28 @@ async function withAccount(nodeId: string, payload: TerminalPayload, mode: Launc
   return { ...payload, accountId: active };
 }
 
+/**
+ * Keeps with the node the launch settings its new process starts with (`launched`): from now on, a setting
+ * changed while it runs offers a restart, a webview reload included. Written only when they differ: most
+ * launches start with what the last one did.
+ */
+function noteLaunched(nodeId: string, payload: TerminalPayload) {
+  const launched = launchSettingsOf(payload);
+  const stored = sessionOf(nodesStore.getState().nodes[nodeId])?.launched;
+  if (!stored || !sameLaunch(stored, launched)) updateSession(nodeId, { launched });
+}
+
 export async function startSession(nodeId: string, term: TermSink, payload: TerminalPayload, mode: LaunchMode) {
   // "running" is set before spawning: ConPTY's cursor query arrives before the
   // spawn command returns, and xterm's answer must be let through.
   setStatus(nodeId, { state: "running" });
+  // Noted with the status, before anything is awaited: a restart never shows the old process's settings as this one's.
+  noteLaunched(nodeId, payload);
   try {
-    const spec = buildSpawnSpec(withConversationId(nodeId, await withAccount(nodeId, payload, mode)), mode);
+    const started = withConversationId(nodeId, await withAccount(nodeId, payload, mode));
+    // The account a new conversation was given meanwhile.
+    noteLaunched(nodeId, started);
+    const spec = buildSpawnSpec(started, mode);
     // A resumed conversation brings its earlier spending: the usage counts this launch's only.
     if (payload.agent === "claude" && mode !== "new") markResumedLaunch(nodeId);
     // What the previous run reported (its model, its tokens) no longer stands.

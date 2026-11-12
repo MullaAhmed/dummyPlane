@@ -1,7 +1,7 @@
 import { readExtensionChoice } from "@/ipc/claudeExtensions";
 import { STORED_FLEET_ROLE, type AgentId, type OllamaLaunch, type ShellKind, type SpawnSpec } from "@/ipc/pty";
 import { AGENTS } from "@/agents/catalog";
-import type { TerminalPayload } from "@/nodes/types";
+import { LAUNCH_SETTING_KEYS, type LaunchSettings, type TerminalPayload } from "@/nodes/types";
 import { profileNamed } from "@/accounts/store";
 import { messages } from "@/i18n";
 import { nodesMessages } from "@/nodes/messages";
@@ -55,6 +55,23 @@ export function newTerminalPayload(input: LaunchInput, name = ""): TerminalPaylo
   if (input.agent === "claude" && input.accountId) payload.accountId = input.accountId;
   return payload;
 }
+
+/** The launch settings a launch of `payload` reads. */
+export const launchSettingsOf = (payload: TerminalPayload): LaunchSettings => {
+  const claude = payload.agent === "claude";
+  return {
+    cwd: payload.cwd,
+    shell: payload.shell,
+    command: payload.agent === "custom" ? payload.command : "",
+    model: claude ? (payload.model ?? "") : "",
+    effort: claude ? (payload.effort ?? "") : "",
+    permission: claude ? (payload.permission ?? "") : "",
+    accountId: claude ? (payload.accountId ?? "") : "",
+  };
+};
+
+/** Whether two launches read the same settings. */
+export const sameLaunch = (a: LaunchSettings, b: LaunchSettings): boolean => LAUNCH_SETTING_KEYS.every((key) => a[key] === b[key]);
 
 /** A fresh conversation: Claude's own id, Codex's to come, none of the previous one's steps nor report. */
 export function newConversation(): Partial<TerminalPayload> {

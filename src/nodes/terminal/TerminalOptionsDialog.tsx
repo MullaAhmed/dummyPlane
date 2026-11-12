@@ -1,7 +1,6 @@
 import { useState, type FormEvent } from "react";
-import { toast } from "sonner";
+import { announceFolderMove } from "@/canvas/folderMove";
 import { canvasMessages } from "@/canvas/messages";
-import { noteLaunchChange } from "@/canvas/startedLaunch";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useAgents } from "@/agents/agentsStore";
@@ -35,10 +34,10 @@ export function TerminalOptionsDialog(props: { nodeId: string; payload: Terminal
 
   const apply = (event: FormEvent) => {
     event.preventDefault();
-    // The folder goes through the edit panel's rules: a locked one is not read, and a Claude terminal that
-    // moves starts a new conversation (it cannot resume one from another folder).
+    // The folder goes through the edit panel's rules: a locked one is not read, a Claude terminal that moves
+    // starts a new conversation (it cannot resume one from another folder), and a running one is offered the
+    // restart that takes it there.
     const moved = lock ? null : folderChange(payload, value.cwd);
-    if (moved && payload.agent === "claude") toast.info(canvas.folderNewConversation);
     // A title left as it was gives way to the one the move gives (a terminal named after its folder).
     const typed = value.title.trim();
     const patch = {
@@ -47,8 +46,8 @@ export function TerminalOptionsDialog(props: { nodeId: string; payload: Terminal
       title: typed && typed !== payload.title ? typed : (moved?.title ?? payload.title),
       ...(custom ? { command: value.command.trim() } : {}),
     };
-    noteLaunchChange(nodeId, payload);
     nodesStore.getState().update(nodeId, patch);
+    if (moved?.cwd) announceFolderMove(nodeId, payload, moved.cwd);
     onClose();
   };
 
