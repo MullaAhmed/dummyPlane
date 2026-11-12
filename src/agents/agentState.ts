@@ -28,8 +28,11 @@ export function agentStateOf(status: TerminalStatus | undefined, activity?: Agen
   return activity ? "ready" : "active";
 }
 
-/** The states of an agent whose process runs with the agent in it: what "active" counts. */
-const LIVE: ReadonlySet<AgentState> = new Set<AgentState>(["active", "working", "waiting", "ready", "done"]);
+/**
+ * The states of an agent whose process runs with the agent in it and that is not resting on a report: what
+ * "active" counts. An agent that reported (done, blocked or failed) is `done` and counted there, never also active.
+ */
+const LIVE: ReadonlySet<AgentState> = new Set<AgentState>(["active", "working", "waiting", "ready"]);
 
 export const isLive = (state: AgentState): boolean => LIVE.has(state);
 

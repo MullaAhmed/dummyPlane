@@ -238,7 +238,9 @@ pub fn node_ids(conn: &Connection, id: &str) -> AppResult<Vec<String>> {
 }
 
 /// The nodes of a project that hold an agent: its Fleets, and its terminals whose program is an agent,
-/// never a plain shell (the interface's `isAgentNode`). The home screen counts those whose process runs.
+/// never a plain shell (the interface's `isAgentNode`). Not those resting on their last report (done, blocked
+/// or failed): they are counted as done, never also as active (`isLive`). The home screen counts those whose
+/// process runs.
 pub fn agent_node_ids(conn: &Connection, id: &str) -> AppResult<Vec<String>> {
     let mut stmt = conn.prepare(
         "SELECT n.id, n.kind, n.payload_json FROM nodes n JOIN workspaces w ON w.id = n.workspace_id
@@ -254,11 +256,25 @@ pub fn agent_node_ids(conn: &Connection, id: &str) -> AppResult<Vec<String>> {
     let mut ids = Vec::new();
     for row in rows {
         let (node_id, kind, payload) = row?;
-        if holds_agent(&kind, &payload) {
+        if holds_agent(&kind, &payload) && !rests_on_report(&kind, &payload) {
             ids.push(node_id);
         }
     }
     Ok(ids)
+}
+
+/// Whether the agent has reported and been given no new work since (`lastReport` is cleared by new work): a
+/// terminal keeps it in its payload, a Fleet in its session's.
+fn rests_on_report(kind: &str, payload: &str) -> bool {
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(payload) else {
+        return false;
+    };
+    let report = if kind == nodes::STORED_FLEET_KIND {
+        value.pointer("/session/lastReport/status")
+    } else {
+        value.pointer("/lastReport/status")
+    };
+    report.is_some_and(serde_json::Value::is_string)
 }
 
 /// A Fleet always does; a terminal does when its agent, read as the interface reads it (`agent`, else the
@@ -473,6 +489,38 @@ mod tests {
                 let mut ids = agent_node_ids(conn, &project.id)?;
                 ids.sort();
                 assert_eq!(ids, vec!["claude", "codex", "fleet", "old"]);
+                Ok(())
+            })
+            .unwrap();
+    }
+
+    #[test]
+    fn leaves_out_the_agents_resting_on_their_report_they_are_done_not_active() {
+        Db::open_in_memory()
+            .unwrap()
+            .with(|conn| {
+                let project = create(conn, "C:\\a")?;
+                let first = workspaces::list(conn, &project.id)?.remove(0);
+                let terminal = nodes::NodeKind::Terminal;
+                nodes::save(conn, "at-work", &first.id, terminal, r#"{"agent":"claude"}"#)?;
+                for (id, status) in [("done", "done"), ("blocked", "blocked"), ("failed", "failed")] {
+                    let payload = format!(r#"{{"agent":"claude","lastReport":{{"status":"{status}","summary":"x"}}}}"#);
+                    nodes::save(conn, id, &first.id, terminal, &payload)?;
+                }
+                // A Fleet keeps its report in its session.
+                nodes::save(
+                    conn,
+                    "fleet-done",
+                    &first.id,
+                    nodes::NodeKind::Fleet,
+                    r#"{"name":"Atlas","session":{"agent":"claude","lastReport":{"status":"done","summary":"x"}}}"#,
+                )?;
+                nodes::save(conn, "fleet-busy", &first.id, nodes::NodeKind::Fleet, r#"{"name":"Zeus"}"#)?;
+                // A report that is not one (a null, a number) rests on nothing.
+                nodes::save(conn, "odd", &first.id, terminal, r#"{"agent":"claude","lastReport":null}"#)?;
+                let mut ids = agent_node_ids(conn, &project.id)?;
+                ids.sort();
+                assert_eq!(ids, vec!["at-work", "fleet-busy", "odd"]);
                 Ok(())
             })
             .unwrap();

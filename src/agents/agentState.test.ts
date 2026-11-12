@@ -117,9 +117,18 @@ describe("tallyAgents", () => {
     elsewhere: act("working"),
   };
 
-  it("counts the agents at work, waiting and live alike: Fleets in, shells and exited agents out", () => {
-    expect(tallyAgents(workspaceNodeIds(nodes, "w1"), nodes, statuses, activities)).toEqual({ working: 2, waiting: 2, active: 7 });
+  it("counts the agents at work, waiting and live alike: Fleets in, shells, exited agents and agents resting on a report out", () => {
+    // 6 active: working, waiting, ready, both Fleets and the one whose activity is unknown; `reported` rests on its report.
+    expect(tallyAgents(workspaceNodeIds(nodes, "w1"), nodes, statuses, activities)).toEqual({ working: 2, waiting: 2, active: 6 });
     expect(tallyAgents(workspaceNodeIds(nodes, "w2"), nodes, statuses, activities)).toEqual({ working: 1, waiting: 0, active: 1 });
+  });
+
+  it("never counts an agent twice: one that reported is done, not also active, until it has new work", () => {
+    expect(isLive(agentStateOf(RUNNING, act("idle"), "done"))).toBe(false);
+    expect(isLive(agentStateOf(RUNNING, undefined, "blocked"))).toBe(false);
+    expect(isLive(agentStateOf(RUNNING, act("idle"), undefined))).toBe(true);
+    // New work clears its report; until then, work shown by its activity wins.
+    expect(isLive(agentStateOf(RUNNING, act("working"), "done"))).toBe(true);
   });
 
   it("never counts more agents at work and waiting than active, whatever the states", () => {

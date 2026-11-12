@@ -16,7 +16,8 @@ export type PanelState = "working" | "waiting" | "active" | "idle" | "stopped";
 
 /**
  * What the panel's filters show, in their order. `active`: the live agents, the ones the title bar's
- * "N active" counts (`live`), so the counter opens on as many rows. `done`: not working and not waiting:
+ * "N active" counts (`live`), so the counter opens on as many rows; an agent resting on its report is under
+ * `done`, not here. `done`: not working and not waiting:
  * reported done, finished its turn (idle) or its process ended (stopped). A starting agent or a busy
  * console (state `active`) shows under `all` alone.
  */
@@ -43,7 +44,7 @@ export interface PanelAgent {
   name: string;
   agent: AgentId;
   state: PanelState;
-  /** An agent whose process runs with its agent in it (`isLive`, never a plain shell): what "N active" counts. */
+  /** An agent whose process runs with its agent in it and that has not reported (`isLive`, never a plain shell): what "N active" counts. */
   live: boolean;
   /** Since when the agent is in its state (running agents only). */
   since?: number;

@@ -103,14 +103,15 @@ it("counts and lists the agents by Active, Waiting, Working and Done; one that s
   }
   await act(async () => canvasStore.getState().setNodeIds(["ada", ...states.map(([id]) => id)]));
   const counts = () => [...host.querySelectorAll<HTMLButtonElement>("[data-filter]")].map((f) => f.textContent);
-  // Ada (stopped), Dee (Ready) and Eve (Done) are done; every running agent is active, Gus (activity unknown)
-  // included, as the title bar's "N active" counts them; Hal, starting, is in All alone.
-  expect(counts()).toEqual(["All8", "Active6", "Waiting1", "Working2", "Done3"]);
+  // Ada (stopped), Dee (Ready) and Eve (Done) are done; every running agent that has not reported is active, Gus
+  // (activity unknown) included, as the title bar's "N active" counts them: Eve, Done, is not also active.
+  // Hal, starting, is in All alone.
+  expect(counts()).toEqual(["All8", "Active5", "Waiting1", "Working2", "Done3"]);
   const shown = async (filter: string) => {
     await act(async () => agentsPanelStore.setState({ filter: filter as "all" }));
     return ["Ada", "Bob", "Cy", "Dee", "Eve", "Fay", "Gus", "Hal"].filter((name) => host.textContent?.includes(name));
   };
-  expect(await shown("active")).toEqual(["Bob", "Cy", "Dee", "Eve", "Fay", "Gus"]);
+  expect(await shown("active")).toEqual(["Bob", "Cy", "Dee", "Fay", "Gus"]);
   expect(await shown("waiting")).toEqual(["Cy"]);
   expect(await shown("working")).toEqual(["Bob", "Fay"]);
   expect(await shown("done")).toEqual(["Ada", "Dee", "Eve"]);
