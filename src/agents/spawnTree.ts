@@ -5,7 +5,7 @@ import { canvasStore } from "@/canvas/canvasStore";
 import { editStoredScene } from "@/canvas/sceneCache";
 import { isManagerNode, nodesStore } from "@/store/nodes";
 import { sceneAccess } from "./sceneAccess";
-import { isPinned, layoutSpawnTree } from "./spawnLayout";
+import { isDownTree, isPinned, layoutSpawnTree } from "./spawnLayout";
 import type { Point } from "./terminals";
 
 /** The terminal whose agent spawned `nodeId` (spawn_agent), closed ones included: their records stay. */
@@ -44,7 +44,8 @@ function withPins(elements: readonly ExcalidrawElement[], ids: ReadonlySet<strin
 /**
  * Lays out the spawn tree `nodeId` belongs to (`layoutSpawnTree`): a
  * flowchart, or downward from a Manager (the vertical tree of a mission's
- * team), from any of its nodes, closed ones included: the root stays, its
+ * team) or from a root Arrange laid out as a tree (`isDownTree`), from any of
+ * its nodes, closed ones included: the root stays, its
  * descendants move and their wires take their routes, out of the undo
  * history. `pin` first marks those nodes as moved by hand. For spawn_agent,
  * after it opens or closes a child, and for a mission's Manager once its team
@@ -55,7 +56,9 @@ export function reflowSpawnTree(workspaceId: string, nodeId: string, pin: readon
   if (!scene) return false;
   const before = scene.elements();
   const pinned = withPins(before, new Set(pin));
-  const next = layoutSpawnTree(pinned, spawnedBy, nodeId, isManagerNode) ?? (pinned === before ? null : pinned);
+  const byId = new Map(pinned.map((e) => [e.id, e]));
+  const isDownRoot = (id: string) => isManagerNode(id) || isDownTree(byId.get(id));
+  const next = layoutSpawnTree(pinned, spawnedBy, nodeId, isDownRoot) ?? (pinned === before ? null : pinned);
   if (!next) return false;
   if (!scene.shown) {
     editStoredScene(workspaceId, next);

@@ -205,6 +205,8 @@ export const agentsMessages = defineMessages({
       resumeAll: "Resume all",
       fold: "Fold the group",
       unfold: "Unfold the group",
+      /** Its members as a tree, whatever the "Arrange layout" setting (src/agents/arrangeTree.ts). */
+      arrangeTree: "Arrange as a tree",
       ungroup: "Ungroup",
       close: "Close the group",
       /** In a terminal's or a Fleet's "⋯", when it stands in a group. */
@@ -274,6 +276,8 @@ export const agentsMessages = defineMessages({
       show: "Show",
       mission: (names: readonly string[], where?: string) => `${whoJoined(names)} joined the mission${where ? ` in ${where}` : ""}`,
       spawn: (names: readonly string[], where?: string) => `${whoJoined(names)} joined as ${names.length === 1 ? "a sub-agent" : "sub-agents"}${where ? ` in ${where}` : ""}`,
+      /** The group an agent in no group gathers its sub-agents in (./spawnGroup.ts), named after it. */
+      familyGroup: (parent: string) => (parent ? `${parent}'s sub-agents` : "Sub-agents"),
     },
     resumeAll: {
       title: "Resume all conversations?",

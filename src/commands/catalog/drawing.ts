@@ -172,4 +172,14 @@ export const SCENE: readonly Command[] = [
       if (ctx.workspaceId && only.length > 0) arrangeWorkspace(ctx.workspaceId, { only, scope: "selection", undoable: true });
     },
   }),
+  // The same as a tree, whatever the "Arrange layout" setting: who opened whom, downward (src/agents/arrangeTree.ts). One undo.
+  command("scene.arrangeSelectionTree", {
+    section: scene,
+    available: inProject,
+    disabled: (ctx) => (selectionOf(ctx).length > 0 ? null : catalog().reasons.noSelection),
+    run: (ctx) => {
+      const only = selectionOf(ctx);
+      if (ctx.workspaceId && only.length > 0) arrangeWorkspace(ctx.workspaceId, { only, scope: "selection", layout: "tree", undoable: true });
+    },
+  }),
 ];

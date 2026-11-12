@@ -23,7 +23,7 @@ describe("the \"Arrange layout\" setting", () => {
   });
 
   it("reads back every layout saved, after a restart", async () => {
-    expect(ARRANGE_LAYOUTS).toEqual(["grid", "row", "column", "columns-2", "columns-3", "columns-4"]);
+    expect(ARRANGE_LAYOUTS).toEqual(["grid", "row", "column", "columns-2", "columns-3", "columns-4", "tree"]);
     for (const saved of ARRANGE_LAYOUTS) {
       vi.mocked(getSetting).mockResolvedValue(saved as never);
       await loadArrangeLayout();

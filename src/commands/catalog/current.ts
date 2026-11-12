@@ -211,6 +211,15 @@ export const CURRENT: readonly Command[] = [
       if (group && ctx.workspaceId) arrangeWorkspace(ctx.workspaceId, { only: [group.id], undoable: true });
     },
   }),
+  // The same, its members as a tree whatever the "Arrange layout" setting: who opened whom, downward (src/agents/arrangeTree.ts). One undo.
+  command("group.arrangeTree", {
+    section: groupSection,
+    available: hasGroup,
+    run: (ctx) => {
+      const group = groupOfCurrent(ctx);
+      if (group && ctx.workspaceId) arrangeWorkspace(ctx.workspaceId, { only: [group.id], layout: "tree", undoable: true });
+    },
+  }),
   command("group.fold", {
     label: (ctx) => (groupOfCurrent(ctx)?.group.folded ? catalog().unfoldGroup : catalog().foldGroup),
     section: groupSection,

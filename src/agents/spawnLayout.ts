@@ -16,6 +16,15 @@ export function isPinned(element: ExcalidrawElement): boolean {
   return element.customData?.pinned === true;
 }
 
+/**
+ * A spawn tree's root that Arrange laid out as a tree (./arrangeTree.ts): its
+ * tree lays out downward from it from then on, as a Manager's does, so the
+ * next sub-agent, a close or an undo keep the shape the user asked for.
+ */
+export function isDownTree(element: ExcalidrawElement | undefined): boolean {
+  return element?.customData?.downTree === true;
+}
+
 const random = () => Math.floor(Math.random() * 2 ** 31);
 
 /** `element` with `fields`, its version bumped as Excalidraw's newElementWith does (tests cannot load Excalidraw). */
