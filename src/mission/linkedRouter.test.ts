@@ -51,11 +51,11 @@ describe("a linked agent a pending plan names", () => {
     expect(routerAt(nodes(), "bob")).toEqual({ on: true });
     fleet(false);
     expect(routerAt(nodes(), "bob")).toEqual({ on: false, at: "fleet" });
-    expect(teamModel("fleet", missionNow(), bobsTask, bobNow())).toBeUndefined();
+    // Not routed: it keeps the model it has, never wiped.
+    expect(teamModel("fleet", missionNow(), bobsTask, bobNow())).toBe("claude-opus-5-5");
     setRouter("bob", true);
     expect(bobNow().router).toBe(true);
     expect(routerAt(nodes(), "bob")).toEqual({ on: true, at: "bob" });
-    expect(teamModel("fleet", missionNow(), { level: "eleve" }, bobNow())).toBe("claude-opus-5-5");
     expect(teamModel("fleet", missionNow(), { level: "faible" }, bobNow())).toBe("claude-haiku-5-5");
   });
 
@@ -80,12 +80,12 @@ describe("a linked agent a pending plan names", () => {
     });
     fleet(undefined);
     expect(routerAt(nodes(), "bob")).toEqual({ on: false, at: "pam" });
-    // Not routed, as it shows: it starts on its CLI's own model, as any agent the router does not route.
-    expect(teamModel("fleet", missionNow(), { level: "eleve" }, bobNow())).toBeUndefined();
+    // Not routed, as it shows: it keeps its own model, whatever the level.
+    expect(teamModel("fleet", missionNow(), { level: "faible" }, bobNow())).toBe("claude-opus-5-5");
     // Pam's veto lifted, Settings routes it.
     nodesStore.getState().update("pam", { router: undefined });
     expect(routerAt(nodes(), "bob")).toEqual({ on: true });
-    expect(teamModel("fleet", missionNow(), { level: "eleve" }, bobNow())).toBe("claude-opus-5-5");
+    expect(teamModel("fleet", missionNow(), { level: "faible" }, bobNow())).toBe("claude-haiku-5-5");
   });
 });
 

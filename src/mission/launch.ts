@@ -32,7 +32,7 @@ import { NEW_AGENT, NEW_MISSION, oneLine, pastTask, queuedTask, sameName, type M
 import { whenReady } from "./ready";
 import { modelRouterStore } from "@/app/modelRouterSetting";
 import { levelModel, modelLabel } from "./router";
-import { levelsRequired, teamAgent, teamModel } from "./teamModel";
+import { levelsRequired, routesLinked, teamAgent, teamModel } from "./teamModel";
 import { canvasKnown, linkedTeamAgents, linkedGroups, missionOf, missionRunner, fleetShown, releaseSpawnedPermission, setMission, updateMember, workspaceCanvas } from "./store";
 
 const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));
@@ -75,8 +75,8 @@ export function handoverText(from: Member): string {
 
 /**
  * A linked agent moves to `cwd` in a new conversation: a Claude session does
- * not resume from another folder. It takes `model`, the router's,
- * or none to go back to Claude's own; likewise for what its
+ * not resume from another folder. It takes `model`, the router's or
+ * the one it kept, or none to go back to its CLI's own; likewise for what its
  * mission lets it do unasked.
  */
 export function restartIn(nodeId: string, cwd: string, model?: string, permission?: Permission): Promise<void> {
@@ -157,7 +157,8 @@ async function formTeam(fleetId: string, workspaceId: string, project: string, m
       taken.push(name);
       const tree = await missionAddAgent(project, root.slug, name);
       made.push(tree);
-      const model = teamModel(fleetId, mission, task, terminalOf(nodesStore.getState().nodes[agent?.nodeId ?? ""]));
+      const linkedPayload = terminalOf(nodesStore.getState().nodes[agent?.nodeId ?? ""]);
+      const model = teamModel(fleetId, mission, task, linkedPayload);
       members.push({
         nodeId: agent?.nodeId ?? "",
         name,
@@ -167,6 +168,7 @@ async function formTeam(fleetId: string, workspaceId: string, project: string, m
         branch: tree.branch,
         worktree: tree.path,
         ...(model ? { model } : {}),
+        ...(linkedPayload && !routesLinked(mission, linkedPayload) ? { keptModel: true as const } : {}),
         ...(task.group ? { group: task.group.id } : {}),
       });
     }
@@ -353,11 +355,11 @@ export function endMission(fleetId: string, summary: string, ui?: string) {
   setMission(fleetId, { state: "terminee", summary, ...(ui ? { summaryUi: ui } : {}), endedAt: Date.now() });
   // The user hears it, if away (`@/shell/finishAlert`).
   signalFinish({ nodeId: fleetId, state: "done", summary });
-  // A linked agent goes back on its CLI's own model, but one whose own switch is off keeps its own, as through its sub-task.
+  // A linked agent the router routed goes back on its CLI's own model; one it did not route keeps its own, as through its sub-task.
   for (const member of mission.members) {
     if (!member.linked || !mission.project) continue;
     const own = terminalOf(nodesStore.getState().nodes[member.nodeId]);
-    void restartIn(member.nodeId, mission.project, own?.router === false ? own.model : undefined);
+    void restartIn(member.nodeId, mission.project, member.keptModel ? own?.model : undefined);
   }
   // Its own sub-agents (spawn_agent) stay open, without the night's permission: a later restart asks. So do its Manager's.
   releaseSpawnedPermission(fleetId, mission.permission);

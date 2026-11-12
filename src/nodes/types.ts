@@ -39,10 +39,10 @@ export interface TerminalPayload {
    * Its model router switch (its header, its edit panel), set: on routes this agent, off vetoes the router for it
    * and all it spawns; unset, it follows the setting above it, its mission's Fleet's, its spawner's, else the global
    * one (`@/mission/routerState`). Routed, a sub-task with a level starts it on the model that level names on its
-   * CLI, and so does each sub-agent it opens; a sub-task without a level leaves `model` as it is. Set off, a
-   * mission's sub-task leaves `model` as it is, through the mission and after it; not routed otherwise (off by what
-   * it follows), a sub-task starts it on its CLI's own model (`restartIn`). It is not a launch setting: switching it
-   * never offers a restart. Saved data from before the global setting has only `true`.
+   * CLI, and so does each sub-agent it opens; a sub-task without a level leaves `model` as it is. Not routed (set
+   * off, or off by what it follows), a mission's sub-task leaves `model` as it is, through the mission and after it
+   * (`restartIn`). It is not a launch setting: switching it never offers a restart. Saved data from before the global
+   * setting has only `true`.
    */
   router?: boolean;
   /** Claude's effort level (`--effort`), chosen in the edit panel; absent: Claude's own (its settings, the model's default). */

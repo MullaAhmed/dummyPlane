@@ -1652,7 +1652,7 @@ describe("the model router's switch in the Edit tab", () => {
     expect(host.querySelector(`label[for="${sw.id}"]`)?.textContent).toBe("Model router");
     const hint = document.getElementById(sw.getAttribute("aria-describedby")!)!;
     expect(hint.textContent).toBe(
-      `With it on, a sub-task a Fleet gives it starts it on the model of its level, and so does each sub-agent it opens, and theirs: ${ROUTER_LEVELS}; on Codex, the models set in Settings. A sub-task with no level leaves its model as it is, and so does a sub-task it gets with the switch off. Unset, it follows Settings, or the Fleet or agent it works under; turned on or off here, it stays so, for every agent under it too, until Follow`,
+      `With it on, a sub-task a Fleet gives it starts it on the model of its level, and so does each sub-agent it opens, and theirs: ${ROUTER_LEVELS}; on Codex, the models set in Settings. A sub-task with no level leaves its model as it is, and so does any sub-task while the router is off for it. Unset, it follows Settings, or the Fleet or agent it works under; turned on or off here, it stays so, for every agent under it too, until Follow`,
     );
     await act(async () => sw.click());
     expect(terminalPayload().router).toBe(true);

@@ -198,17 +198,32 @@ describe("the model router", () => {
     expect(terminalOf(nodesStore.getState().nodes.batman)).toMatchObject({ model: undefined, router: true });
   });
 
-  it("keeps the model of a linked agent whose router is on when its sub-task names no level, and off it goes back to Claude's own as before", async () => {
+  it("keeps the model of a linked agent whose router is on when its sub-task names no level, and of one the router does not route", async () => {
     await setup();
     nodesStore.getState().update("batman", { router: true, model: "claude-sonnet-5-5" });
     await launchMission("chef");
     expect(terminalOf(nodesStore.getState().nodes.batman)?.model).toBe("claude-sonnet-5-5");
     expect(missionNow().members[0].model).toBe("claude-sonnet-5-5");
+    expect(missionNow().members[0].keptModel).toBeUndefined();
     vi.mocked(relaunchTerminal).mockClear();
     nodesStore.getState().update("chef", { mission: { ...missionNow(), state: "plan", members: [] } });
+    // Its switch unset, with Settings and the Fleet's off: not routed, so dummyPlane wipes nothing either.
     nodesStore.getState().update("batman", { router: undefined });
     await launchMission("chef");
-    expect(terminalOf(nodesStore.getState().nodes.batman)?.model).toBeUndefined();
+    expect(terminalOf(nodesStore.getState().nodes.batman)?.model).toBe("claude-sonnet-5-5");
+    expect(missionNow().members[0]).toMatchObject({ model: "claude-sonnet-5-5", keptModel: true });
+  });
+
+  it("gives a linked agent the router does not route its own model back after the mission, a new agent none", async () => {
+    // Settings' router off, the switches unset: nobody is routed.
+    await setup({ plan: [{ ...plan[0], level: "eleve" }, { ...plan[1], level: "faible" }] });
+    nodesStore.getState().update("batman", { model: "claude-opus-5-5" });
+    await launchMission("chef");
+    expect(relaunchTerminal).toHaveBeenCalledWith("batman", expect.objectContaining({ model: "claude-opus-5-5" }), "new");
+    expect(vi.mocked(addTerminal).mock.calls[0][1].model).toBeUndefined();
+    endMission("chef", "Fini.");
+    expect(terminalOf(nodesStore.getState().nodes.batman)?.model).toBe("claude-opus-5-5");
+    expect(relaunchTerminal).toHaveBeenLastCalledWith("batman", expect.objectContaining({ cwd: "C:/code/proj", model: "claude-opus-5-5" }), "new");
   });
 
   it("never lets an agent whose own router is off veto the Fleet's: the mission's router still starts it on its level", async () => {

@@ -90,8 +90,10 @@ export interface Member {
   abandoned?: boolean;
   /** Sub-tasks it finished before taking another one (`reattribuer`). */
   done?: string[];
-  /** The model the router started it on. */
+  /** The model the router started it on, or the one it kept. */
   model?: string;
+  /** A linked agent the router did not route: it ran its own model, and keeps it after the mission (`endMission`). */
+  keptModel?: true;
   /** The existing group it joined; it closes alone at the end. */
   group?: string;
   /** The tasks it went through before this one. */
@@ -224,6 +226,7 @@ function readMember(raw: unknown): Member | null {
   if (r.abandoned === true) member.abandoned = true;
   if (Array.isArray(r.done)) member.done = r.done.filter((title): title is string => typeof title === "string");
   if (typeof r.model === "string" && r.model) member.model = r.model;
+  if (r.keptModel === true) member.keptModel = true;
   if (typeof r.group === "string") member.group = r.group;
   if (Array.isArray(r.past)) member.past = r.past.map(readPast).filter((p): p is PastTask => p !== null);
   return member;

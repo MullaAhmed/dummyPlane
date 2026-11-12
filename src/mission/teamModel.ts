@@ -32,17 +32,22 @@ function linkedRouted(mission: Mission, linked: TerminalPayload): boolean {
   return linked.spawnedBy ? routerAt(nodesStore.getState().nodes, linked.spawnedBy).on : modelRouterStore.getState().on;
 }
 
+/** Whether the router routes a linked agent's sub-task, as its switch shows it (`linkedRouted`). */
+export function routesLinked(mission: Mission, linked: TerminalPayload): boolean {
+  return linkedRouted(mission, linked);
+}
+
 /**
  * The router's model for a task, on the CLI of the agent that takes it: a linked agent's own, a new agent's the
- * team's. A linked agent whose own switch is set off keeps the model it has: the user turned the router off for it.
- * Else whether it is routed is read as its switch shows it (`linkedRouted`); a new agent follows the mission's
- * router (the Fleet's switch, else Settings). Routed, the task's level picks the model on that CLI (`@/mission/router`
- * levelModel: Claude's levels, Settings' map for another), and a linked agent keeps the model it has when the task
- * names no level or its CLI has no model for it. Not routed, none: the agent starts on its CLI's own model.
+ * team's. Whether a linked agent is routed is read as its switch shows it (`linkedRouted`); a new agent follows the
+ * mission's router (the Fleet's switch, else Settings). Routed, the task's level picks the model on that CLI
+ * (`@/mission/router` levelModel: Claude's levels, Settings' map for another), and a linked agent keeps the model it
+ * has when the task names no level or its CLI has no model for it. Not routed, for whatever reason (its own switch
+ * off, its Fleet's, a spawner's, Settings'), dummyPlane picks no model, so it wipes none either: a linked agent keeps
+ * the one it has, and only a new agent starts on its CLI's own.
  */
 export function teamModel(fleetId: string, mission: Mission, task: { level?: Level }, linked?: TerminalPayload): string | undefined {
-  if (linked?.router === false) return linked.model;
-  if (!(linked ? linkedRouted(mission, linked) : missionRouterOn(mission))) return undefined;
+  if (!(linked ? linkedRouted(mission, linked) : missionRouterOn(mission))) return linked?.model;
   const cli = linked?.agent ?? teamAgent(fleetId);
   return (task.level ? levelModel(cli, task.level, modelRouterStore.getState().levels) : undefined) ?? linked?.model;
 }

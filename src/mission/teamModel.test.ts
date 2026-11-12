@@ -39,6 +39,12 @@ describe("a mission's team under the model router", () => {
     // Off for it: it keeps the model it has, whatever the mission's router says.
     expect(teamModel("fleet", mission(true), { level: "eleve" }, linked({ router: false, model: "opus" }))).toBe("opus");
     expect(teamModel("fleet", mission(true), { level: "eleve" }, linked({ router: false }))).toBeUndefined();
+    // Off by what it follows (the Fleet's switch, Settings) it keeps its model too: only a new agent starts on its CLI's own.
+    expect(teamModel("fleet", mission(false), { level: "eleve" }, linked({ model: "opus" }))).toBe("opus");
+    modelRouterStore.setState({ on: false });
+    expect(teamModel("fleet", mission(), { level: "eleve" }, linked({ model: "opus" }))).toBe("opus");
+    expect(teamModel("fleet", mission(), { level: "eleve" })).toBeUndefined();
+    modelRouterStore.setState({ on: true });
     expect(teamModel("fleet", mission(), { level: "eleve" }, linked())).toBe("claude-opus-5-5");
     expect(teamModel("fleet", mission(), {}, linked({ model: "claude-haiku-5-5" }))).toBe("claude-haiku-5-5");
   });
