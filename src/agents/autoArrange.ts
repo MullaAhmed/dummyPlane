@@ -2,6 +2,8 @@ import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { AppState } from "@excalidraw/excalidraw/types";
 import { autoArrangeStore } from "@/app/autoArrangeSetting";
 import { nodeKindOf } from "@/canvas/nodeElement";
+import { sameInputs, sceneStamp, type SceneStamp } from "@/canvas/sceneChanges";
+import { nodesStore, type NodeRecord } from "@/store/nodes";
 
 /** How long the canvas stays still before it is tidied: a launch places its node and starts it first. */
 export const AUTO_ARRANGE_DELAY_MS = 350;
@@ -32,7 +34,10 @@ export function layoutSignature(elements: readonly ExcalidrawElement[], isMinimi
  * canvas is arranged AUTO_ARRANGE_DELAY_MS after the last such change (a
  * second one restarts the wait), never during a drag, a resize or a drawing. The first look at a canvas only takes
  * note: opening a workspace moves nothing. The canvas's own moves (the
- * arrangement itself) change no signature, so they do not call it again.
+ * arrangement itself) change no signature, so they do not call it again. The
+ * signature is worked out again only when the scene or the nodes (where a
+ * terminal keeps `minimized`, which isMinimized reads) changed: a pan's frames
+ * hand both again. `version` is the scene's (Canvas has it), summed here when not given.
  */
 export function createAutoArrangeWatch(options: {
   isMinimized: (nodeId: string) => boolean;
@@ -51,6 +56,7 @@ export function createAutoArrangeWatch(options: {
   let pending = false;
   let gesture: Gesture | null = null;
   let cancel: (() => void) | null = null;
+  let last: (SceneStamp & { nodes: Record<string, NodeRecord> }) | null = null;
 
   const fire = () => {
     cancel = null;
@@ -64,8 +70,12 @@ export function createAutoArrangeWatch(options: {
     if (enabled()) options.arrange();
   };
 
-  const watch = (elements: readonly ExcalidrawElement[], appState: Gesture) => {
+  const watch = (elements: readonly ExcalidrawElement[], appState: Gesture, version?: number) => {
     gesture = appState;
+    const inputs = { ...sceneStamp(elements, version), nodes: nodesStore.getState().nodes };
+    // The signature of the same scene and nodes, the one `seen` holds.
+    if (sameInputs(last, inputs)) return;
+    last = inputs;
     const signature = layoutSignature(elements, options.isMinimized);
     // onChange also fires as the pointer moves: only a new signature starts the wait, a gesture only holds it.
     if (seen === null || signature === seen) {

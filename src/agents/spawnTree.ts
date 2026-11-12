@@ -3,6 +3,7 @@ import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { AppState } from "@excalidraw/excalidraw/types";
 import { canvasStore } from "@/canvas/canvasStore";
 import { editStoredScene } from "@/canvas/sceneCache";
+import { sameInputs, sceneStamp, type SceneStamp } from "@/canvas/sceneChanges";
 import { isManagerNode, nodesStore } from "@/store/nodes";
 import { sceneAccess } from "./sceneAccess";
 import { isDownTree, isPinned, layoutSpawnTree } from "./spawnLayout";
@@ -90,12 +91,21 @@ export function reflowSpawnTreesOf(workspaceId: string, nodeIds: readonly string
  * pinned: later layouts leave it there and lay out its own children from it.
  * A spawner dragged takes its tree along. Both when the drag ends, a frame
  * later. Dragging a group's frame selects the frame, not its terminals: it
- * pins nothing.
+ * pins nothing. `version` is the scene's (Canvas has it), summed here when not given.
  */
 export function createSpawnDragWatch(workspaceId: string) {
   const dragged = new Set<string>();
-  return (elements: readonly ExcalidrawElement[], appState: Pick<AppState, "selectedElementIds" | "selectedElementsAreBeingDragged">) => {
+  // The scene and the drag of the last change: a pan's frames hand both again, and moved nothing.
+  let last: (SceneStamp & { dragging: boolean }) | null = null;
+  return (
+    elements: readonly ExcalidrawElement[],
+    appState: Pick<AppState, "selectedElementIds" | "selectedElementsAreBeingDragged">,
+    version?: number,
+  ) => {
     const dragging = appState.selectedElementsAreBeingDragged;
+    const seen = { ...sceneStamp(elements, version), dragging };
+    if (sameInputs(last, seen)) return;
+    last = seen;
     for (const e of elements) {
       if (e.isDeleted || e.type !== "embeddable") continue;
       const before = lastSeen.get(e.id);

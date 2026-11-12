@@ -254,15 +254,15 @@ function LoadedCanvas({ workspaceId, scene }: { workspaceId: string; scene: Load
       onNodesGone(workspaceId, verdict.dispose);
       // A closed spawned agent's tree closes up (flowchart layout).
       reflowSpawnTreesOf(workspaceId, verdict.dispose);
-      watchSpawnDrags(elements, appState);
-      watchLayout(elements, appState);
+      watchSpawnDrags(elements, appState, version);
+      watchLayout(elements, appState, version);
       watchNotes(elements, appState, version);
       activateNote(appState.activeEmbeddable);
       canvasStore.getState().setView(viewFrom(appState));
       derive(elements, version, appState.selectedElementIds);
       if (api) scheduleWireUpkeep(api, elements);
       // The eraser never erases a node: with it active, the nodes are locked, which it skips.
-      if (api) scheduleEraserGuard(api, elements, appState.activeTool.type === "eraser");
+      if (api) scheduleEraserGuard(api, elements, appState.activeTool.type === "eraser", version);
       const activated = trackActivation(appState.activeEmbeddable);
       if (activated) setActiveTerminal(activated);
       // Deferred: changing the view from inside onChange would re-enter it.

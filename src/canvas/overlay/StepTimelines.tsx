@@ -1,4 +1,4 @@
-import { memo, type ReactNode } from "react";
+import { memo } from "react";
 import { useNow } from "@/lib/useNow";
 import { cn } from "@/lib/utils";
 import { budgetBar, type BudgetTone } from "@/mission/mission";
@@ -8,7 +8,8 @@ import type { TerminalReportStatus } from "@/nodes/types";
 import { terminalOf, useNodes } from "@/store/nodes";
 import { useSubagents } from "@/store/subagents";
 import { useTerminalStatus } from "@/store/terminalStatus";
-import { useCanvas, useCanvasPlace } from "../canvasStore";
+import { useCanvas } from "../canvasStore";
+import { SceneLayer } from "./layers";
 import { BUDGET_COLOR, budgetTitle, dotsOf, TIMELINE_GAP } from "./timeline";
 
 /** The steps of a frieze that only has a bar: always this one array, so that its timeline is not drawn again for a new empty one. */
@@ -53,21 +54,6 @@ export function StepTimelines() {
           );
         })}
       </SceneLayer>
-    </div>
-  );
-}
-
-/**
- * The scene's own units, scrolled and scaled like the nodes: a point (x, y) of
- * the scene shows at ((x + scrollX) × zoom, (y + scrollY) × zoom), where
- * `screenRectOf` puts it. The friezes come in as `children`, made by the list:
- * a pan or a zoom draws this layer again, and leaves them as they are.
- */
-function SceneLayer({ children }: { children: ReactNode }) {
-  const { scrollX, scrollY, zoom } = useCanvasPlace();
-  return (
-    <div className="absolute left-0 top-0" style={{ transform: `scale(${zoom}) translate(${scrollX}px, ${scrollY}px)`, transformOrigin: "0 0" }}>
-      {children}
     </div>
   );
 }

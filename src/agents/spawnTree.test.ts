@@ -156,6 +156,34 @@ describe("createSpawnDragWatch", () => {
     expect(frames).toHaveLength(0);
   });
 
+  it("walks a scene once while only the view moves, and still pins the node dragged after it: a pan's frames", () => {
+    let walks = 0;
+    // The scene as Excalidraw hands it, each walk over it counted.
+    const counted = (elements: ExcalidrawElement[]) =>
+      new Proxy(elements, {
+        get: (target, key, receiver) => {
+          if (key === Symbol.iterator) walks++;
+          return Reflect.get(target, key, receiver);
+        },
+      });
+    const watch = createSpawnDragWatch("w");
+    const laid = [terminal("root", 0, 0), terminal("a", W + GROUP_GAP, 0)];
+    const still = counted(laid);
+    watch(still, dragging(["a"], false), 2);
+    expect(walks).toBe(1);
+    // A pan: the same scene, the same version, no drag, frame after frame.
+    for (let frame = 0; frame < 60; frame++) watch(still, dragging(["a"], false), 2);
+    expect(walks).toBe(1);
+    // Then a drag, and its end on a frame that hands the same scene: the drag's end is looked at.
+    const moved = counted([laid[0], { ...laid[1], x: 3000, y: 2000, version: laid[1].version + 1 }]);
+    watch(moved, dragging(["a"], true), 3);
+    scene.elements = moved;
+    watch(moved, dragging(["a"], false), 3);
+    expect(walks).toBe(3);
+    frames.forEach((cb) => cb(0));
+    expect(at(written().elements, "a").customData?.pinned).toBe(true);
+  });
+
   it("pins nothing when a node moves without a drag (undo, keyboard)", () => {
     const watch = createSpawnDragWatch("w");
     const laid = [terminal("root", 0, 0), terminal("a", W + GROUP_GAP, 0)];
