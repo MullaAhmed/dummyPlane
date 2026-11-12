@@ -178,6 +178,8 @@ export const agentMessages = defineMessages({
       summarize: "Sum up your work (summary).",
       unknownStatus: (status: string) => `Unknown status: ${status} (done, blocked or failed).`,
       reported: (name: string, status: string, summary: string) => `${name} reported (${status}): ${summary}`,
+      /** Added to a report a manager hears while a board is wired to it: dummyPlane moves no card for it, it is the manager's to move. */
+      boardNote: (status: string) => (status === "done" ? "its card on your board is yours to move: move_board_card to Done." : "its card on your board is yours to move: move_board_card to Blocked, not Done."),
       unheard: "Report saved, but the fleet is closed: nobody will read it for now.",
       sent: "Report passed on to the fleet.",
       sentToParent: (name: string) => `Report passed on to ${name}.`,

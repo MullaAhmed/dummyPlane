@@ -1,4 +1,5 @@
 import { signalWire } from "@/canvas/wireActivity";
+import { missionRunsBoard, wiredBoardsOf } from "@/agents/boardLinks";
 import { talk } from "@/agents/talkWires";
 import { messages } from "@/i18n";
 import { declaredSteps, markedSteps, MAX_STEPS } from "@/nodes/steps";
@@ -118,6 +119,17 @@ export async function spawnAgentTool(nodeId: string, args: Record<string, unknow
 }
 
 /**
+ * What a manager hears besides a sub-agent's report when a Kanban board is wired to it (one a mission does not run:
+ * its Manager's cards follow the reports by themselves): the card is its to move, and where. Nothing for a parent
+ * with no board, or whose scene was never read.
+ */
+function boardNote(parentId: string, status: ReportStatus): string {
+  const boards = wiredBoardsOf(parentId);
+  if (!boards?.some(({ nodeId }) => !missionRunsBoard(nodeId))) return "";
+  return ` — ${t().agent.boardNote(outReport(status))}`;
+}
+
+/**
  * A spawned agent's report, typed into the agent or the Fleet that spawned it
  * as a mission report is into its fleet: queued while that one is busy. Null
  * when nobody spawned it.
@@ -131,7 +143,7 @@ function reportToParent(nodeId: string, summary: string, status: ReportStatus): 
   markReported(nodeId);
   talk(nodeId, parentId);
   if (!sessionOf(nodes[parentId]) || !isRunning(parentId)) return said(t().agent.unheardParent);
-  notify(parentId, t().agent.reported(name, outReport(status), oneLine(summary)));
+  notify(parentId, `${t().agent.reported(name, outReport(status), oneLine(summary))}${boardNote(parentId, status)}`);
   return said(t().agent.sentToParent(nodeNameOf(nodes[parentId]) || "your parent agent"));
 }
 

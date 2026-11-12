@@ -7,12 +7,14 @@ import { notify } from "@/mission/events";
 import { nodesStore, terminalOf } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
 import { fleetSession } from "@/nodes/terminal/launch";
+import { missionRunsBoard, wiredBoardsOf } from "@/agents/boardLinks";
 import { agentTools, declareSteps, markStep, report, spawnAgentSpec } from "./agentTools";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
 vi.mock("@/kanban/fleetBoards", () => ({ finishMissionCard: vi.fn(() => Promise.resolve()), flagMissionCard: vi.fn() }));
 vi.mock("@/mission/queue", () => ({ afterReport: vi.fn(() => Promise.resolve()) }));
 vi.mock("@/mission/events", () => ({ notify: vi.fn() }));
+vi.mock("@/agents/boardLinks", () => ({ wiredBoardsOf: vi.fn(() => null), missionRunsBoard: vi.fn(() => false) }));
 
 const member: Member = { nodeId: "batman", name: "Batman", task: "t", budgetMin: 10, linked: false, branch: "b", worktree: "w", sentAt: 1 };
 const terminal = (name: string, spawnedBy?: string) => ({
@@ -164,6 +166,35 @@ describe("a Fleet's sub-agent (spawn_agent)", () => {
     expect(notify).toHaveBeenCalledWith("fleet", "Cyborg reported (done): Found it in src/mcp");
     expect(pulses().cyborg).toMatchObject({ direction: "toFleet", fleetId: "fleet" });
     expect(terminalOf(nodesStore.getState().nodes.cyborg)).toMatchObject({ lastReport: { status: "done", summary: "Found it in src/mcp" } });
+  });
+
+  describe("with a Kanban board wired to the Fleet", () => {
+    const wired = [{ nodeId: "board", board: { columns: [], cards: {} } }];
+    afterEach(() => {
+      vi.mocked(wiredBoardsOf).mockReturnValue(null);
+      vi.mocked(missionRunsBoard).mockReturnValue(false);
+    });
+
+    it("reminds the manager that its sub-agent's card is its to move, to Done on done and to Blocked otherwise", () => {
+      vi.mocked(wiredBoardsOf).mockReturnValue(wired);
+      report("cyborg", { resume: "Found it", statut: "termine" });
+      expect(notify).toHaveBeenLastCalledWith("fleet", "Cyborg reported (done): Found it — its card on your board is yours to move: move_board_card to Done.");
+      for (const [statut, word] of [["bloque", "blocked"], ["echec", "failed"]] as const) {
+        report("cyborg", { resume: "Not proven", statut });
+        expect(notify).toHaveBeenLastCalledWith("fleet", `Cyborg reported (${word}): Not proven — its card on your board is yours to move: move_board_card to Blocked, not Done.`);
+      }
+    });
+
+    it("says nothing for a board a mission runs (its cards follow the reports), nor for a Fleet with none", () => {
+      vi.mocked(wiredBoardsOf).mockReturnValue(wired);
+      vi.mocked(missionRunsBoard).mockReturnValue(true);
+      report("cyborg", { resume: "Found it", statut: "termine" });
+      expect(notify).toHaveBeenLastCalledWith("fleet", "Cyborg reported (done): Found it");
+      vi.mocked(wiredBoardsOf).mockReturnValue([]);
+      vi.mocked(missionRunsBoard).mockReturnValue(false);
+      report("cyborg", { resume: "Found it again", statut: "termine" });
+      expect(notify).toHaveBeenLastCalledWith("fleet", "Cyborg reported (done): Found it again");
+    });
   });
 
   it("lights the Fleet's wire when it declares or marks a step", () => {
