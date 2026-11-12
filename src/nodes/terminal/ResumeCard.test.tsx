@@ -3,6 +3,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { TerminalPayload } from "@/nodes/types";
+import { terminalStatusStore } from "@/store/terminalStatus";
 import { relaunchTerminal } from "./registry";
 import { ResumeCard } from "./ResumeCard";
 
@@ -54,6 +55,17 @@ it("over a shell whose Claude exited, offers the conversation back and says typi
   // Claude back in the shell: no card.
   await act(async () => root.render(<ResumeCard nodeId="n" payload={claude} status={{ state: "running" }} />));
   expect(host.textContent).toBe("");
+});
+
+it("is not offered while its terminal is being started again: its old process's exit is no stop, and a click would start a second one (review 12 Nov)", async () => {
+  await render(payload);
+  expect(host.querySelector("button")).not.toBeNull();
+  // As relaunchSession does from its call until the new process is spawned.
+  await act(async () => terminalStatusStore.getState().restart("n", 1));
+  expect(host.textContent).toBe("");
+  await act(async () => terminalStatusStore.getState().restart("n", -1));
+  await act(async () => host.querySelector("button")!.click());
+  expect(relaunchTerminal).toHaveBeenCalledTimes(1);
 });
 
 it("speaks English", async () => {

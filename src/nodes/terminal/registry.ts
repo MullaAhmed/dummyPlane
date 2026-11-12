@@ -6,7 +6,7 @@ import "@xterm/xterm/css/xterm.css";
 import { ptyKill, ptyResize, ptyWrite } from "@/ipc/pty";
 import type { TerminalPayload } from "@/nodes/types";
 import { nodesStore, sessionOf, updateSession } from "@/store/nodes";
-import { isRunning, statusOf, terminalStatusStore } from "@/store/terminalStatus";
+import { isRestarting, isRunning, statusOf, terminalStatusStore } from "@/store/terminalStatus";
 import { createAutostart } from "./autostart";
 import { currentPalette, themeStore } from "@/app/theme";
 import { followPalette, terminalThemeFor } from "./terminalTheme";
@@ -302,8 +302,13 @@ async function freshen(entry: Entry) {
   entry.lastOutput = undefined;
 }
 
-/** Starts a terminal again from a keystroke: a new conversation for Claude. */
+/**
+ * Starts a terminal again from a keystroke: a new conversation for Claude. Not while it is being started already
+ * (its menu, its resume card, a mission's relaunch): its old process's exit makes it look stopped, and a key typed
+ * then would start a second one, its new conversation's id written for nothing.
+ */
 async function startFresh(nodeId: string, entry: Entry) {
+  if (isRestarting(nodeId)) return;
   let payload = sessionOf(nodesStore.getState().nodes[nodeId]);
   if (!payload) return;
   if ((payload.agent === "claude" || payload.agent === "codex") && startsNewConversation(statusOf(nodeId))) {

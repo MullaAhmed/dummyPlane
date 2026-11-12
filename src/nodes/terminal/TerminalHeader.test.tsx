@@ -8,6 +8,7 @@ import { remoteStore } from "@/agents/remoteControl";
 import { canvasStore } from "@/canvas/canvasStore";
 import { leaveGroup } from "@/agents/groups";
 import { nodesStore } from "@/store/nodes";
+import { terminalStatusStore } from "@/store/terminalStatus";
 import type { TerminalPayload } from "@/nodes/types";
 import { quickNote } from "@/nodes/note/quickNote";
 import { relaunchTerminal, stopTerminal } from "./registry";
@@ -221,6 +222,30 @@ it("keeps the essentials on its row and the rest behind « ⋯ »: Review, Resta
   await act(async () => view.host.querySelector<HTMLButtonElement>('button[aria-label="Close"]')!.click());
   expect(onClose).toHaveBeenCalledOnce();
   await view.unmount();
+});
+
+it("holds its restart entries back while the terminal is being started again, and stores no new conversation for nothing (review 12 Nov)", async () => {
+  mockIPC(() => undefined);
+  await nodesStore.getState().create("batman", { workspaceId: "w1", kind: "terminal", payload: { ...claude, claudeSessionId: "s-old" } });
+  terminalStatusStore.getState().restart("batman", 1);
+  try {
+    const view = await mount(<TerminalHeader nodeId="batman" payload={{ ...claude, claudeSessionId: "s-old" }} status={{ state: "exited", code: 0 }} />);
+    const items = await openMore(view.host);
+    const restarts = items().filter((item) => ["Resume the session", "New session", "Latest in the folder"].includes(item.textContent ?? ""));
+    expect(restarts.map((item) => item.getAttribute("aria-disabled"))).toEqual(["true", "true", "true"]);
+    for (const item of restarts) await act(async () => item.click());
+    expect(relaunchTerminal).not.toHaveBeenCalled();
+    expect((nodesStore.getState().nodes.batman?.payload as { claudeSessionId?: string }).claudeSessionId).toBe("s-old");
+    // Once it is up, they are offered again.
+    await act(async () => terminalStatusStore.getState().restart("batman", -1));
+    const again = items().find((item) => item.textContent === "Resume the session")!;
+    expect(again.getAttribute("aria-disabled")).toBeNull();
+    await act(async () => again.click());
+    expect(relaunchTerminal).toHaveBeenCalledWith("batman", expect.objectContaining({ claudeSessionId: "s-old" }), "resume");
+    await view.unmount();
+  } finally {
+    terminalStatusStore.setState({ restarts: {} });
+  }
 });
 
 it("offers « Remove from group » in its menu when it stands in a group, and takes it out of the group", async () => {

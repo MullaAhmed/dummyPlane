@@ -51,6 +51,11 @@ export function isRestarting(nodeId: string): boolean {
   return (terminalStatusStore.getState().restarts[nodeId] ?? 0) > 0;
 }
 
+/** `isRestarting`, for a component: its restart entries wait while one is under way. */
+export function useRestarting(nodeId: string): boolean {
+  return useStore(terminalStatusStore, (s) => (s.restarts[nodeId] ?? 0) > 0);
+}
+
 export function useTerminalStatus(nodeId: string): TerminalStatus {
   return useStore(terminalStatusStore, (s) => s.statuses[nodeId] ?? STOPPED);
 }

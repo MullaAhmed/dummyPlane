@@ -74,6 +74,21 @@ it("resumes the top agent and the working sub-agent, and leaves the finished sub
   expect(vi.mocked(resumeTerminal).mock.calls.map(([nodeId]) => nodeId).sort()).toEqual([`${id}-top`, `${id}-working`]);
 });
 
+it("does not start a second time a terminal restarted before its turn came (review 12 Nov)", async () => {
+  const id = restored();
+  offerResumeAll(id);
+  await showOffer();
+  await act(async () => [...host.querySelectorAll("button")].find((button) => button.textContent === "Yes")!.click());
+  // Its menu restarted Flash while it waited for its turn in the stagger.
+  terminalStatusStore.getState().restart(`${id}-working`, 1);
+  try {
+    await act(async () => vi.runAllTimers());
+    expect(vi.mocked(resumeTerminal).mock.calls.map(([nodeId]) => nodeId)).toEqual([`${id}-top`]);
+  } finally {
+    terminalStatusStore.setState({ restarts: {} });
+  }
+});
+
 it("says what it leaves out, and the agents panel keeps a line more for it", async () => {
   const id = restored();
   offerResumeAll(id);

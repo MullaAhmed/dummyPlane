@@ -2,21 +2,25 @@ import { useEffect, useState } from "react";
 import { History, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { TerminalPayload } from "@/nodes/types";
-import type { TerminalStatus } from "@/store/terminalStatus";
+import { useRestarting, type TerminalStatus } from "@/store/terminalStatus";
 import { resumeOfferOf } from "./pill";
 import { canResume } from "./launch";
 import { relaunchTerminal } from "./registry";
+import { restartByHand } from "./restartByHand";
 import { useMessages } from "@/i18n";
 import { nodesMessages } from "@/nodes/messages";
 
 /**
  * Floating card over a stopped terminal, or over a shell
  * whose Claude exited (`left`): the click brings the agent back in a fresh process.
+ * Not while it is being started again: its old process's exit is no stop to
+ * offer a restart for, and a click would start a second one.
  */
 export function ResumeCard(props: { nodeId: string; payload: TerminalPayload; status: TerminalStatus; left?: boolean }) {
   const { nodeId, payload, status, left = false } = props;
   const t = useMessages(nodesMessages).resumeCard;
   const [dismissed, setDismissed] = useState(false);
+  const restarting = useRestarting(nodeId);
   const offer = resumeOfferOf(status, canResume(payload), left);
 
   // Hidden for this stop only: the next one shows the card again.
@@ -24,7 +28,7 @@ export function ResumeCard(props: { nodeId: string; payload: TerminalPayload; st
     if (!offer) setDismissed(false);
   }, [offer]);
 
-  if (!offer || dismissed) return null;
+  if (!offer || dismissed || restarting) return null;
   const resume = offer === "resume";
   return (
     <div className="absolute inset-x-3 top-3 z-10 flex items-center gap-2 rounded-lg border border-dp-line bg-dp-surface px-3 py-2 text-xs shadow-dp">
@@ -33,7 +37,7 @@ export function ResumeCard(props: { nodeId: string; payload: TerminalPayload; st
         type="button"
         variant="ghost"
         className="-my-1 -ml-1.5 h-auto min-w-0 flex-1 justify-start gap-2 rounded-md px-1.5 py-1 text-left text-xs font-normal whitespace-normal active:scale-100"
-        onClick={() => relaunchTerminal(nodeId, payload, resume ? "resume" : "new")}
+        onClick={() => restartByHand(nodeId, () => relaunchTerminal(nodeId, payload, resume ? "resume" : "new"))}
       >
         <History className="size-4 shrink-0 text-dp-accent-ink" />
         <span className="min-w-0">

@@ -144,6 +144,18 @@ describe("Terminal · <prénom> and Groupe · <nom>", () => {
     expect(ids(ctx("cyborg"))).toEqual(["terminal.rename", "terminal.duplicate", "terminal.review", "terminal.relaunch", "terminal.minimize", "terminal.note", "terminal.close", "terminal.copy", "terminal.paste"]);
   });
 
+  it("restarts nothing while the terminal is being started already: a second start would kill the first's session (review 12 Nov)", async () => {
+    terminalStatusStore.getState().restart("batman", 1);
+    try {
+      await find("terminal.relaunch").run(ctx("batman"));
+      expect(relaunchTerminal).not.toHaveBeenCalled();
+    } finally {
+      terminalStatusStore.getState().restart("batman", -1);
+    }
+    await find("terminal.relaunch").run(ctx("batman"));
+    expect(relaunchTerminal).toHaveBeenCalledTimes(1);
+  });
+
   it("acts on the terminal of the moment, as its header and the panel's row do", async () => {
     await find("terminal.duplicate").run(ctx("batman"));
     expect(duplicateTerminal).toHaveBeenCalledWith("w1", "batman");
