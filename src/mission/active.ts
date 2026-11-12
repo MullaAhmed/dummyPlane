@@ -34,8 +34,14 @@ export const seatsHeld = (fleetId: string) => seats.get(fleetId)?.size ?? 0;
  */
 export const relaunching = new Set<string>();
 
+/**
+ * Members whose seat reassign "new" holds for the agent it creates in their place: the held seat counts for both, once.
+ * Not counted while that agent is created, even if their terminal stops meanwhile.
+ */
+export const handingOver = new Set<string>();
+
 /** On a task: not handed over, and no report, or moving on to the next one. */
-const onTask = (m: Member) => !m.handedTo && (!m.report || moving.has(m.nodeId));
+const onTask = (m: Member) => !m.handedTo && !handingOver.has(m.nodeId) && (!m.report || moving.has(m.nodeId));
 
 /**
  * The members at work: not handed over, on a task (no report, or moving on to

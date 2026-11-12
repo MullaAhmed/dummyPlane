@@ -148,7 +148,7 @@ export const agentMessages = defineMessages({
         "Manager (or the Fleet of a mission run the old way). Start again the terminal of a mission agent that stopped (its terminal, or its agent back at its shell), on its own conversation. " +
         "Refused while it runs, for an agent that handed its sub-task over, for one whose terminal the user closed, and, while Max active agents are at work, for one whose terminal stopped after it got its sub-task and before it reported: stopped, it holds no seat. An agent back at its shell keeps its seat, and one that reported takes none: neither is refused for Max active agents. Once it is up, write tells it what is left; a sub-task it never got, dummyPlane types itself.",
       reassign: "Manager (or the Fleet of a mission run the old way). Give a sub-task to another mission agent that has reported, or to a \"new\" agent: it gets the previous agent's report and branch. " +
-        "While Max active agents are at work, \"new\" is refused, and so is an agent that has reported when the sub-task's holder holds no seat (it reported, or its terminal stopped after its sub-task).",
+        "While Max active agents are at work, a sub-task whose holder holds no seat (it reported, or its terminal stopped after its sub-task) is refused, to \"new\" and to an agent that has reported alike; from an agent at work, its seat goes with the sub-task.",
       merge: "Manager (or the Fleet of a mission run the old way). Merge into the mission's branch the branches of the agents that reported \"done\"; says what was merged and the conflicts.",
       finish: "Manager (or the Fleet of a mission run the old way). Close the mission with your summary: the agents created for it close, the linked agents go back to the project's folder.",
       managerFinish: "Manager. Close the mission with your summary once the board's work is merged and checked: the agents created for it close, the linked agents go back to the project's folder, and the Fleet hears that the board is finished, with your summary.",
@@ -537,7 +537,6 @@ export const agentMessages = defineMessages({
       notOther: (target: string) => `"${target}" is not another agent of the mission.`,
       notDone: (name: string) => `${name} has not finished its sub-task: choose an agent that has reported, or "new".`,
       targetStopped: (name: string) => `${name} is stopped: relaunch it first, or choose another agent.`,
-      teamFull: (max: number) => `${max} agents are already at work (Max active agents): reassign to an agent that has reported instead of "new", or wait for one to finish.`,
       newTeamFull: (task: string, max: number) => oneMore("a new agent", task, max),
       targetTeamFull: (name: string, task: string, max: number) => oneMore(`${name} back`, task, max),
       abandoned: (title: string, titles: readonly string[]) =>

@@ -26,7 +26,7 @@ import type { TerminalPayload } from "@/nodes/types";
 import { nodeNameOf, nodesStore, sessionOf, terminalOf } from "@/store/nodes";
 import { isRunning } from "@/store/terminalStatus";
 import { markLaunching } from "@/agents/spawnFamily";
-import { activeCount, freeSeat, hasSeat, holdSeat, oneAtATime } from "./active";
+import { activeCount, freeSeat, handingOver, hasSeat, holdSeat, oneAtATime } from "./active";
 import { notify } from "./events";
 import { missionFolder } from "./folder";
 import { addTeamMember, fleetNameOf, reflowTeam, removeManager, setUpBoard, undoSetup, type MissionSetup } from "./manager";
@@ -537,18 +537,20 @@ export async function reassignTask(fleetId: string, fromNodeId: string, target: 
   let to: Member;
   if (sameName(target, NEW_AGENT)) {
     if (!canvasKnown(fleetId)) return r.hidden;
-    // Max agents caps the agents at work, not the team: those who reported or handed over count no more.
-    if (activeCount(fleetId, mission) >= mission.maxAgents) {
-      // From an agent at work, one that reported can take it in its place; from one holding no seat, anyone would be one more.
-      return hasSeat(mission, from.nodeId) ? r.teamFull(mission.maxAgents) : r.newTeamFull(task.title, mission.maxAgents);
-    }
-    // Its seat is held while it is created, in turn with the queue's new agents: no name nor seat twice.
+    // Max agents caps the agents at work, not the team: those who reported or handed over count no more. From an
+    // agent at work, the new one takes its seat: only from one holding none would it be one more.
+    const seated = hasSeat(mission, from.nodeId);
+    if (!seated && activeCount(fleetId, mission) >= mission.maxAgents) return r.newTeamFull(task.title, mission.maxAgents);
+    // Its seat is held while it is created, in turn with the queue's new agents: no name nor seat twice. The one it
+    // replaces gives it its own: counted once, not twice, so a report meanwhile frees a seat the queue can fill.
     holdSeat(fleetId, `reassign:${task.title}`);
+    if (seated) handingOver.add(from.nodeId);
     let made: Member | string;
     try {
       made = await oneAtATime(fleetId, () => newMember(fleetId, record.workspaceId, missionOf(nodesStore.getState().nodes[fleetId]) ?? mission, task));
     } finally {
       freeSeat(fleetId, `reassign:${task.title}`);
+      handingOver.delete(from.nodeId);
     }
     if (typeof made === "string") return made;
     to = made;

@@ -312,8 +312,25 @@ describe("an agent that reports « blocked » or « failed »", () => {
     expect(activeCount("chef", missionNow())).toBe(2);
     // The tool says so, for "new" and for an agent that reported alike.
     expect(managerTools().find((tool) => tool.name === "reassign")?.description).toContain(
-      'While Max active agents are at work, "new" is refused, and so is an agent that has reported when the sub-task\'s holder holds no seat',
+      'a sub-task whose holder holds no seat (it reported, or its terminal stopped after its sub-task) is refused, to "new" and to an agent that has reported alike; from an agent at work, its seat goes with the sub-task.',
     );
+  });
+
+  it('counts once the agent reassign "new" replaces: a report while the new one is created gives its seat to the queue (review 12 Nov)', async () => {
+    // Max agents 3, two at work: one seat free, two tasks waiting.
+    await setup({ frameId: "f1", maxAgents: 3, queue: queued("API", "Lint"), members: [member("batman", "Batman"), member("cyborg", "Cyborg", { task: "Tests0" })] });
+    terminalStatusStore.getState().set("cyborg", { state: "running" });
+    vi.mocked(missionAddAgent).mockImplementationOnce(async (_project, slug, agent) => {
+      // While Batman's replacement is created, Cyborg reports "blocked": with the free one, two seats for the queue.
+      updateMember("chef", "cyborg", { report: stuck });
+      void afterReport("chef", "cyborg");
+      return { slug, branch: `dummyplane/${slug}-${agent.toLowerCase()}`, path: `C:/w/${agent.toLowerCase()}` };
+    });
+    expect(await reassignTask("chef", "batman", "nouveau")).toEqual({ name: expect.any(String) });
+    // Batman's replacement on Login, new agents on API and Lint: three at work, as many as Max agents.
+    await vi.waitFor(() => expect(created().map((m) => m.task).sort()).toEqual(["API", "Lint", "Login"]));
+    expect(missionNow().queue).toEqual([]);
+    expect(activeCount("chef", missionNow())).toBe(3);
   });
 
   it("starts a new agent in a new terminal when next_task asks for it, nothing merged, the old task abandoned", async () => {
