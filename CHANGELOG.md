@@ -13,6 +13,9 @@ dummyPlane's first release will be 0.1.0; until then, its changes are listed und
   - **Arrange layout:** a new submenu under *Auto-arrange* in Settings. Pick *Grid* (the tidy grid, still the default), *One row*, *One column*, or *2*, *3* or *4 columns*. Arrange, a group's Arrange and Auto-arrange all use it, and inside a group its terminals take the same shape. With Auto-arrange on, picking a layout re-arranges the canvas at once, and one undo takes it back.
   - **Arrange the whole canvas** and **Arrange the selection:** two new commands in the palette, next to *Arrange*. The first arranges everything, whatever is selected. The second arranges only what is selected, never the whole canvas, and is greyed out while nothing is selected.
 
+### Fixed
+- **A group's Arrange makes room:** with a layout that changes a group's shape (*One row* turns a column of terminals into one long row), the group's frame grew where it stood and covered the nodes, notes, outputs and groups beside it. Now what it grows over moves out of its way: what stood to its right goes right, what stood under it goes down, clear of it and with what is attached to it, and pushes on whatever it lands on in turn. What the frame doesn't reach stays put, it all takes one undo, and arranging again moves nothing.
+
 ## [0.1.0] - 2026-11-12
 
 ### Added

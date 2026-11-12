@@ -4,6 +4,7 @@ import { nodeKindOf } from "@/canvas/nodeElement";
 import { settleNotes } from "@/nodes/note/link";
 import { boxOf, containerOf, endsOf, followedArrow } from "./arrangeDrawings";
 import { columnHeightsOf, DEFAULT_ARRANGE_LAYOUT, perRowOf, type ArrangeLayout } from "./arrangeLayout";
+import { roomMade, type Body } from "./arrangeRoom";
 import type { Attachment } from "./attachments";
 import { COLUMN_GAP, GROUP_GAP, MAX_ROWS, NODE_GAP, PADDING, PADDING_BOTTOM, PADDING_TOP, ROW_GAP } from "./groupLayout";
 import type { ParentOf } from "./spawnLayout";
@@ -30,7 +31,10 @@ import { isWire } from "./wires";
  * MAX_ROWS, each as wide as its widest piece); the drawings go in rows under
  * it, the tabs under them. A folded group is left as it is (its terminals are
  * hidden), and so is one whose spawn tree reaches out of its frame (the
- * flowchart wins). Pure: the caller writes the scene.
+ * flowchart wins). A group's Arrange (the group alone) tidies it where it
+ * stands: when its frame grows over the blocks around it (a layout that
+ * changes its shape), those move out of its way, right or down, whole
+ * (./arrangeRoom.ts). Pure: the caller writes the scene.
  *
  * That is the `grid` layout, the default. The others (./arrangeLayout.ts) keep
  * all of the above but the shape: the blocks go in one row, in one column, or
@@ -84,6 +88,11 @@ interface Placed<T> {
   x: number;
   y: number;
 }
+
+/** Between two blocks side by side: a group's gap beside a group, a frame, a tree or a node with what belongs to it; a node's between two lone nodes. */
+const hGap = (a: Block, b: Block) => (a.compound || b.compound ? GROUP_GAP : NODE_GAP);
+/** Between two rows of blocks: a group's gap when one of them holds more than a lone node, else the frieze and air under a terminal. */
+const vGap = (above: readonly Block[], below: readonly Block[]) => ([...above, ...below].some((b) => b.compound) ? GROUP_GAP : ROW_GAP);
 
 const rectOf = (e: Rect): Rect => ({ x: e.x, y: e.y, width: e.width, height: e.height });
 
@@ -579,23 +588,20 @@ export function arrangedElements(input: ArrangeInput): { elements: ExcalidrawEle
     const to = targets.get(e.id);
     return to ? { x: box.x + to.x - e.x, y: box.y + to.y - e.y, width: box.width + to.width - e.width, height: box.height + to.height - e.height } : box;
   };
-  const blocks: Block[] = insideOne
-    ? []
-    : [...scope].map((unit) => {
-        const members = unitMembers.get(unit) ?? [];
-        const ids = new Set(members.map((m) => m.id));
-        const held = new Set(members.filter((m) => frameIds.has(m.id)).map((m) => m.id));
-        for (const e of live) if (e.frameId && held.has(e.frameId)) ids.add(e.id);
-        const unitNodes = hostsIn(members, nodeIds, anchorOf);
-        const lone = members.length === 1 && nodeIds.has(members[0].id);
-        const tab = held.size === 0 && unitNodes.length > 0 && unitNodes.every((n) => isMinimized(n.id));
-        return { ids, rect: boundsOf(members.map(boxNow)), compound: !lone, tab };
-      });
+  const blockOf = (unit: string): Block => {
+    const members = unitMembers.get(unit) ?? [];
+    const ids = new Set(members.map((m) => m.id));
+    const held = new Set(members.filter((m) => frameIds.has(m.id)).map((m) => m.id));
+    for (const e of live) if (e.frameId && held.has(e.frameId)) ids.add(e.id);
+    const unitNodes = hostsIn(members, nodeIds, anchorOf);
+    const lone = members.length === 1 && nodeIds.has(members[0].id);
+    const tab = held.size === 0 && unitNodes.length > 0 && unitNodes.every((n) => isMinimized(n.id));
+    return { ids, rect: boundsOf(members.map(boxNow)), compound: !lone, tab };
+  };
+  const blocks: Block[] = insideOne ? [] : [...scope].map(blockOf);
 
   if (blocks.length > 0) {
     const origin = boundsOf(blocks.map((b) => b.rect));
-    const hGap = (a: Block, b: Block) => (a.compound || b.compound ? GROUP_GAP : NODE_GAP);
-    const vGap = (above: readonly Block[], below: readonly Block[]) => ([...above, ...below].some((b) => b.compound) ? GROUP_GAP : ROW_GAP);
     const size = (b: Block) => b.rect;
     const full = readingOrder(
       blocks.filter((b) => !b.tab),
@@ -627,6 +633,34 @@ export function arrangedElements(input: ArrangeInput): { elements: ExcalidrawEle
         targets.set(id, { ...at, x: at.x + dx, y: at.y + dy });
       }
     }
+  }
+
+  // A group tidied where it stands, its frame grown over the blocks around it: those move out of its way (./arrangeRoom.ts).
+  const others = insideOne ? [...unitMembers.keys()].filter((unit) => !scope.has(unit)) : [];
+  if (others.length > 0) {
+    // A block's boxes: its frames, and what of it stands outside them (a frame covers what it holds).
+    const outline = (unit: string) =>
+      (unitMembers.get(unit) ?? []).filter((m) => {
+        const holder = groupFrameOf(m) ?? inFrame(m);
+        return !holder || unitOf(holder) !== unit;
+      });
+    const standing = (unit: string): Block & Body => {
+      const boxes = outline(unit);
+      return { ...blockOf(unit), was: boxes.map(boxOf), now: boxes.map(boxNow), fixed: scope.has(unit) };
+    };
+    const arranged = readingOrder([...scope].map(standing), (b) => b.rect);
+    const bodies = [...arranged, ...readingOrder(others.map(standing), (b) => b.rect)];
+    const shifts = roomMade(bodies, hGap, (above, below) => vGap([above], [below]));
+    bodies.forEach((body, i) => {
+      const { x: dx, y: dy } = shifts[i];
+      if (Math.abs(dx) <= 0.5 && Math.abs(dy) <= 0.5) return;
+      for (const id of body.ids) {
+        const e = byId.get(id);
+        if (!e) continue;
+        const at = rectNow(e);
+        targets.set(id, { ...at, x: at.x + dx, y: at.y + dy });
+      }
+    });
   }
 
   // Arrows that follow their ends: those a group left to them, and the drawn ones outside frames bound to something.
