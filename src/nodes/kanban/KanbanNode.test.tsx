@@ -533,6 +533,9 @@ async function mountPayload(id: string, payload: KanbanPayload) {
 }
 
 const dialog = () => document.querySelector<HTMLElement>('[role="dialog"]');
+const titleField = () => document.querySelector<HTMLInputElement>("#kanban-card-title")!;
+const notesField = () => document.querySelector<HTMLTextAreaElement>("#kanban-card-notes")!;
+const settle = () => act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
 
 it("reads a card as its title, its notes, then its facts, and keeps a long title or a long link inside it", async () => {
   const view = await mountPayload("card-order", {
@@ -629,6 +632,176 @@ it("gives a column one way to add a card, kept in view under its cards, and draw
   expect(column("done").getAttribute("aria-label")).toBe("Done");
   await act(async () => (well as HTMLButtonElement).click());
   expect(dialog()?.textContent).toContain("New card in Done");
+  await act(async () => button("Cancel").click());
+  await view.unmount();
+});
+
+it("keeps Save enabled without a title: it says what is missing under the field and takes the keyboard there", async () => {
+  const view = await mountPayload("dialog-title", { columns: [{ id: "todo", title: "To do", cardIds: [] }], cards: {} });
+  await act(async () => view.host.querySelector<HTMLButtonElement>("[data-new-card]")!.click());
+  const save = button("Save");
+  expect(save.disabled).toBe(false);
+  expect(titleField().getAttribute("aria-required")).toBe("true");
+  expect(titleField().hasAttribute("aria-invalid")).toBe(false);
+  button("Cancel").focus();
+  await act(async () => save.click());
+  expect(dialog()).not.toBeNull();
+  expect(view.board().columns[0].cardIds).toEqual([]);
+  expect(titleField().getAttribute("aria-invalid")).toBe("true");
+  expect(document.getElementById(titleField().getAttribute("aria-describedby")!)?.textContent).toBe("A card needs a title");
+  expect(document.activeElement).toBe(titleField());
+  // Spaces are not a title; a letter is, and the error goes at once.
+  await act(async () => type(titleField(), "   "));
+  expect(titleField().getAttribute("aria-invalid")).toBe("true");
+  await act(async () => type(titleField(), "Ship it"));
+  expect(titleField().hasAttribute("aria-invalid")).toBe(false);
+  expect(dialog()!.textContent).not.toContain("A card needs a title");
+  await act(async () => save.click());
+  expect(dialog()).toBeNull();
+  expect(Object.values(view.board().cards).map((c) => c.title)).toEqual(["Ship it"]);
+  await view.unmount();
+});
+
+it("saves from the notes with Ctrl+Enter or Cmd+Enter, where Enter alone adds a line, through the same check as Save", async () => {
+  const view = await mountPayload("dialog-keys", {
+    columns: [{ id: "todo", title: "To do", cardIds: ["c1"] }],
+    cards: { c1: { id: "c1", title: "Write", notes: "", priority: "none" } },
+  });
+  await view.openCard("c1");
+  await act(async () => type(notesField(), "First line"));
+  // Enter belongs to the notes.
+  const enter = await act(async () => press(notesField(), "Enter"));
+  expect(enter.defaultPrevented).toBe(false);
+  expect(dialog()).not.toBeNull();
+  expect(view.board().cards.c1.notes).toBe("");
+  const save = await act(async () => press(notesField(), "Enter", { ctrlKey: true }));
+  expect(save.defaultPrevented).toBe(true);
+  expect(dialog()).toBeNull();
+  expect(view.board().cards.c1.notes).toBe("First line");
+
+  // Cmd+Enter too, and an empty title stops it like the button.
+  await view.openCard("c1");
+  await act(async () => type(titleField(), ""));
+  await act(async () => press(notesField(), "Enter", { metaKey: true }));
+  expect(dialog()).not.toBeNull();
+  expect(titleField().getAttribute("aria-invalid")).toBe("true");
+  expect(document.activeElement).toBe(titleField());
+  expect(view.board().cards.c1.title).toBe("Write");
+  await act(async () => type(titleField(), "Rewrite"));
+  await act(async () => press(titleField(), "Enter", { metaKey: true }));
+  expect(dialog()).toBeNull();
+  expect(view.board().cards.c1.title).toBe("Rewrite");
+  await view.unmount();
+});
+
+it("closes on a click beside the dialog only while nothing was typed: a stray click does not cost the notes, Cancel still discards", async () => {
+  const view = await mountPayload("dialog-scrim", {
+    columns: [{ id: "todo", title: "To do", cardIds: ["c1"] }],
+    cards: { c1: { id: "c1", title: "Write", notes: "", priority: "none" } },
+  });
+  const clickBeside = async () => {
+    // The dialog starts listening for outside clicks a tick after it opens.
+    await settle();
+    const overlay = document.querySelector('[data-slot="dialog-overlay"]')!;
+    // A whole click, as the pointer makes it: the dialog answers a left press once its click has come.
+    for (const event of ["pointerdown", "mousedown", "pointerup", "mouseup", "click"]) {
+      await act(async () => overlay.dispatchEvent(new MouseEvent(event, { bubbles: true, cancelable: true, button: 0 })));
+    }
+    await settle();
+  };
+  await view.openCard("c1");
+  await clickBeside();
+  expect(dialog()).toBeNull();
+
+  await view.openCard("c1");
+  await act(async () => type(notesField(), "Half a thought"));
+  await clickBeside();
+  expect(dialog()).not.toBeNull();
+  expect(notesField().value).toBe("Half a thought");
+  // Typed back to what it was, there is nothing to lose again.
+  await act(async () => type(notesField(), ""));
+  await act(async () => type(notesField(), "Half a thought"));
+  await act(async () => button("Cancel").click());
+  expect(dialog()).toBeNull();
+  expect(view.board().cards.c1.notes).toBe("");
+  await view.unmount();
+});
+
+it("shows the date a preset stands for in the date field, and what the card carries under the dialog's title", async () => {
+  const view = await mountPayload("dialog-context", {
+    columns: [{ id: "todo", title: "To do", cardIds: ["c1", "c2"] }],
+    cards: {
+      c1: {
+        id: "c1",
+        title: "Bug",
+        notes: "",
+        priority: "none",
+        due: dueOf("tomorrow"),
+        github: { repo: "o/r", number: 7, url: "https://github.com/o/r/issues/7", state: "open" },
+        agent: "Batman",
+        agentStatus: "blocked",
+      },
+      c2: { id: "c2", title: "Plain", notes: "", priority: "none" },
+    },
+  });
+  const date = () => dialog()!.querySelector<HTMLInputElement>('input[type="date"]')!;
+  const pill = (text: string) => [...dialog()!.querySelectorAll<HTMLElement>('[data-slot="toggle-group-item"]')].find((p) => p.textContent === text)!;
+  await view.openCard("c1");
+  const description = dialog()!.querySelector('[data-slot="dialog-description"]')!;
+  expect(description.textContent).toBe("Issue o/r#7 · Batman is blocked");
+  expect(dialog()!.getAttribute("aria-describedby")).toBe(description.id);
+  // The preset is the chosen pill; the field beside it shows its day, without being drawn as chosen too.
+  expect(pill("Tomorrow").getAttribute("data-state")).toBe("on");
+  expect(date().value).toBe(dueOf("tomorrow"));
+  expect(date().className).not.toContain("border-dp-accent");
+  await act(async () => pill("Next week").click());
+  expect(date().value).toBe(dueOf("nextWeek"));
+  // A day no preset names: the field is the choice.
+  const other = isoDate(new Date(new Date().getFullYear() + 1, 5, 15));
+  await act(async () => type(date(), other));
+  expect(date().className).toContain("border-dp-accent");
+  expect(pill("Next week").getAttribute("data-state")).toBe("off");
+  await act(async () => pill("None").click());
+  expect(date().value).toBe("");
+  await act(async () => button("Cancel").click());
+
+  // A card with neither says nothing there, and the dialog names no description.
+  await view.openCard("c2");
+  expect(dialog()!.querySelector('[data-slot="dialog-description"]')).toBeNull();
+  expect(dialog()!.hasAttribute("aria-describedby")).toBe(false);
+  await act(async () => button("Cancel").click());
+  await view.unmount();
+});
+
+it("creates the card's issue from a row of the dialog, not a fourth button of its footer, saving what was typed first", async () => {
+  github.createIssueForCard.mockClear();
+  const view = await mountPayload("dialog-issue", {
+    columns: [{ id: "todo", title: "To do", cardIds: ["c1", "c2"] }],
+    cards: {
+      c1: { id: "c1", title: "Bug", notes: "", priority: "none" },
+      c2: { id: "c2", title: "Linked", notes: "", priority: "none", github: { repo: "o/r", number: 7, url: "https://github.com/o/r/issues/7", state: "open" } },
+    },
+    github: { repo: "o/r" },
+  });
+  await view.openCard("c1");
+  const create = button("Create the issue on GitHub");
+  const footer = dialog()!.querySelector('[data-slot="dialog-footer"]')!;
+  expect(footer.contains(create)).toBe(false);
+  expect([...footer.querySelectorAll("button")].map((b) => b.textContent)).toEqual(["Delete", "Cancel", "Save"]);
+  // Without a title there is nothing to make an issue of.
+  await act(async () => type(titleField(), ""));
+  await act(async () => create.click());
+  expect(github.createIssueForCard).not.toHaveBeenCalled();
+  expect(titleField().getAttribute("aria-invalid")).toBe("true");
+  await act(async () => type(titleField(), "Bug in the sync"));
+  await act(async () => create.click());
+  expect(view.board().cards.c1.title).toBe("Bug in the sync");
+  expect(github.createIssueForCard).toHaveBeenCalledWith("dialog-issue", "c1");
+  expect(dialog()).toBeNull();
+
+  // A card that has its issue is not offered another.
+  await view.openCard("c2");
+  expect(button("Create the issue on GitHub")).toBeUndefined();
   await act(async () => button("Cancel").click());
   await view.unmount();
 });

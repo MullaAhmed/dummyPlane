@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState, type ComponentProps, type DragEvent, type FormEvent } from "react";
+import { useEffect, useRef, useState, type ComponentProps, type DragEvent, type FormEvent, type KeyboardEvent } from "react";
 import { CaptureUpdateAction, newElementWith } from "@excalidraw/excalidraw";
 import { cn } from "@/lib/utils";
 import { Bot, Calendar, CircleDot, KanbanSquare, MoreHorizontal, Plus, RefreshCw, SignalHigh, SignalLow, SignalMedium, type LucideIcon } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -1013,29 +1013,84 @@ function CardDialog({
   const [due, setDue] = useState<string | undefined>(initial?.due);
   const [priority, setPriority] = useState<KanbanPriority>(initial?.priority ?? "none");
   const [creating, setCreating] = useState(false);
+  // Save found the title empty: said under the field until something is typed in it.
+  const [missing, setMissing] = useState(false);
+  const titleField = useRef<HTMLInputElement>(null);
+  const b = useMessages(kanbanBoardMessages);
   const presetLabel: Record<DuePreset, string> = { today: t.dueToday, tomorrow: t.dueTomorrow, nextWeek: t.dueNextWeek };
   const presets = DUE_PRESETS.map((preset) => ({ preset, date: dueOf(preset) }));
   const custom = due !== undefined && !presets.some((p) => p.date === due);
+  const dirty = name !== (initial?.title ?? "") || notes !== (initial?.notes ?? "") || due !== initial?.due || priority !== (initial?.priority ?? "none");
+
+  /** The one way to save, whatever asked for it: without a title it says so and takes the keyboard there. */
+  const save = (): boolean => {
+    if (!name.trim()) {
+      setMissing(true);
+      titleField.current?.focus();
+      return false;
+    }
+    onSave({ title: name.trim(), notes, due, priority });
+    return true;
+  };
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return;
-    onSave({ title: name.trim(), notes, due, priority });
+    save();
+  };
+
+  // Enter adds a line in the notes: Ctrl+Enter (Cmd on a Mac) saves from any field. Not the Enter that ends an IME composition.
+  const onKeyDown = (e: KeyboardEvent) => {
+    if (e.key !== "Enter" || !(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey || e.nativeEvent.isComposing) return;
+    e.preventDefault();
+    save();
   };
 
   // "None" and the presets are one choice; a date typed in the field is the choice of none of them.
   const dueChoice = due === undefined ? NO_DUE : (presets.find((p) => p.date === due)?.preset ?? "");
+  // What the card carries besides its fields, read-only here: its issue, and the agent on it.
+  const context = [
+    initial?.github && t.githubIssue(initial.github.repo, initial.github.number),
+    initial?.agent && (initial.agentStatus ? t.agentAlert[initial.agentStatus](initial.agent) : t.agentChip(initial.agent)),
+  ].filter(Boolean);
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
-      <DialogContent showCloseButton={false} className="sm:max-w-md">
-        <form onSubmit={submit} className="grid gap-4">
+      <DialogContent
+        showCloseButton={false}
+        className="sm:max-w-md"
+        // A click beside the dialog closes it, unless something was typed: a stray click must not cost the notes.
+        // Cancel and Escape still discard, on purpose.
+        onInteractOutside={(e) => {
+          if (dirty) e.preventDefault();
+        }}
+        {...(context.length === 0 ? { "aria-describedby": undefined } : {})}
+      >
+        <form onSubmit={submit} onKeyDown={onKeyDown} className="grid gap-4">
           <DialogHeader>
             <DialogTitle>{title}</DialogTitle>
+            {context.length > 0 && <DialogDescription className="text-xs">{context.join(" · ")}</DialogDescription>}
           </DialogHeader>
           <div className="grid gap-1.5">
             <Label htmlFor="kanban-card-title">{t.cardTitle}</Label>
-            <Input id="kanban-card-title" autoFocus value={name} placeholder={t.cardTitlePlaceholder} onChange={(e) => setName(e.target.value)} />
+            <Input
+              ref={titleField}
+              id="kanban-card-title"
+              autoFocus
+              value={name}
+              placeholder={t.cardTitlePlaceholder}
+              onChange={(e) => {
+                setName(e.target.value);
+                if (e.target.value.trim()) setMissing(false);
+              }}
+              aria-required
+              aria-invalid={missing || undefined}
+              aria-describedby={missing ? "kanban-card-title-error" : undefined}
+            />
+            {missing && (
+              <p id="kanban-card-title-error" className="text-xs text-dp-danger">
+                {b.titleRequired}
+              </p>
+            )}
           </div>
           <div className="grid gap-1.5">
             <Label htmlFor="kanban-card-notes">{t.notes}</Label>
@@ -1071,12 +1126,16 @@ function CardDialog({
                   </ToggleGroupItem>
                 ))}
               </ToggleGroup>
+              {/* Always the date itself, a preset's too ("Next week" is a day): chosen like a pill only when no preset is. */}
               <Input
                 type="date"
                 aria-label={t.dueDate}
-                value={custom ? due : ""}
+                value={due ?? ""}
                 onChange={(e) => setDue(e.target.value || undefined)}
-                className={cn("h-7 w-auto rounded-md px-2 text-xs md:text-xs", custom ? "border-dp-accent bg-dp-accent-soft text-dp-text" : "text-dp-text-2")}
+                className={cn(
+                  "h-7 w-auto rounded-md px-2 text-xs md:text-xs",
+                  custom ? "border-dp-accent bg-dp-accent-soft text-dp-text" : due ? "text-dp-text" : "text-dp-text-2",
+                )}
               />
             </div>
           </div>
@@ -1099,6 +1158,29 @@ function CardDialog({
               ))}
             </ToggleGroup>
           </div>
+          {/* A field of the card like the others, not a fourth button of the footer, where it crowded Save. */}
+          {onCreateIssue && (
+            <div className="grid gap-2">
+              <Label>{b.github}</Label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="justify-self-start"
+                disabled={creating}
+                onClick={async () => {
+                  // The issue is made from what the dialog shows: typed changes are saved first.
+                  if (!save()) return;
+                  setCreating(true);
+                  await onCreateIssue();
+                  setCreating(false);
+                }}
+              >
+                <CircleDot />
+                {creating ? t.github.creatingIssue : t.github.createIssue}
+              </Button>
+            </div>
+          )}
           <DialogFooter>
             {onDelete && (
               <Button type="button" variant="destructive" size="lg" className="sm:mr-auto" onClick={onDelete}>
@@ -1106,24 +1188,8 @@ function CardDialog({
               </Button>
             )}
             <QuietButton onClick={onClose}>{t.cancel}</QuietButton>
-            {onCreateIssue && (
-              <Button
-                type="button"
-                variant="outline"
-                size="lg"
-                disabled={creating}
-                onClick={async () => {
-                  // The issue is made from what the dialog shows: typed changes are saved first.
-                  if (name.trim()) onSave({ title: name.trim(), notes, due, priority });
-                  setCreating(true);
-                  await onCreateIssue();
-                  setCreating(false);
-                }}
-              >
-                {creating ? t.github.creatingIssue : t.github.createIssue}
-              </Button>
-            )}
-            <AccentButton type="submit" size="lg" disabled={!name.trim()}>
+            {/* Enabled: a save says what is missing and focuses the title, where a greyed button would not. */}
+            <AccentButton type="submit" size="lg" aria-keyshortcuts="Control+Enter Meta+Enter">
               {t.save}
             </AccentButton>
           </DialogFooter>
