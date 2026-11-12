@@ -93,11 +93,25 @@ const resumes = (ctx: CommandContext) => COMMANDS.find((c) => c.id === "terminal
  * a group's frame or members, or Excalidraw's groups of drawings: "Ungroup". Paste is dead there
  * anyway: it refuses to paste over a node (bridges.ts), and Ctrl+V and the canvas ring still paste.
  */
-const groups = (ctx: CommandContext) => COMMANDS.find((c) => c.id === "selection.group")?.available(ctx) ?? false;
-/** "Ungroup" comes first: a group's frame or members also make Group available, greyed ("a terminal is already in a group"). */
-const ungroups = (ctx: CommandContext) => COMMANDS.find((c) => c.id === "selection.ungroup")?.available(ctx) ?? false;
 type Grouping = "ungroup" | "group" | "paste";
-const groupingSlot = (ctx: CommandContext): Grouping => (ungroups(ctx) ? "ungroup" : groups(ctx) ? "group" : "paste");
+/** How a grouping command stands for the selection: it can run, it shows greyed with its reason, or it is not offered. */
+function standing(id: string, ctx: CommandContext): "runs" | "greyed" | null {
+  const command = COMMANDS.find((c) => c.id === id);
+  if (!command?.available(ctx)) return null;
+  return command.disabled?.(ctx) ? "greyed" : "runs";
+}
+/**
+ * "Ungroup" comes first: a group's frame or members also make Group available, greyed ("a terminal
+ * is already in a group"). But a greyed Ungroup never hides a Group that can run (loose terminals
+ * selected with a Fleet that sits in a group: the Fleet is no terminal, the two group all the same).
+ */
+function groupingSlot(ctx: CommandContext): Grouping {
+  const ungroup = standing("selection.ungroup", ctx);
+  const group = standing("selection.group", ctx);
+  if (ungroup === "runs") return "ungroup";
+  if (group === "runs") return "group";
+  return ungroup ? "ungroup" : group ? "group" : "paste";
+}
 const GROUPING: Record<Grouping, { command: string; icon: Icon }> = {
   ungroup: { command: "selection.ungroup", icon: Ungroup },
   group: { command: "selection.group", icon: Group },

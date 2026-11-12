@@ -268,6 +268,15 @@ describe("the selection ring's Ungroup", () => {
     expect(second().reason).toBe("something outside the group is selected");
   });
 
+  it("gives the place to a Group that can run rather than to a greyed Ungroup: loose terminals selected with a Fleet that sits in a group", () => {
+    // The Fleet is its group's member, so Ungroup is there, greyed (the terminals are outside); it is no terminal, so the two group all the same.
+    selecting("loose", "free", "chef");
+    expect(seen()).toEqual(["Group selection", "Group", Group, true, null]);
+    // Neither can run: Ungroup keeps the place, with its reason.
+    selecting("loose", "free", "a");
+    expect(seen()).toEqual(["Ungroup selection", "Ungroup", UngroupIcon, false, "something outside the group is selected"]);
+  });
+
   it("keeps Group for loose terminals, drawings or not, and Paste for a drawing in no group or a lone terminal with drawings", () => {
     selecting("loose", "free");
     expect(seen()).toEqual(["Group selection", "Group", Group, true, null]);
