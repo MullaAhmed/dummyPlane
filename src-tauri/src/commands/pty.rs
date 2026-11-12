@@ -7,7 +7,9 @@ use crate::commands::agents;
 use crate::db::{Db, scrollback};
 use crate::error::{AppError, AppResult};
 use crate::pty::session::OutputSink;
-use crate::pty::shell::{Agent, ShellKind, SpawnSpec, build_plan, fleet_tools, which_locate};
+use crate::pty::shell::{
+    Agent, ClaudeMode, ShellKind, SpawnSpec, build_plan, fleet_tools, which_locate,
+};
 use crate::pty::{PtyManager, pty_size};
 
 /// Forwards PTY output to the webview as raw bytes (an `ArrayBuffer` in JS).
@@ -27,6 +29,56 @@ struct PtyExitEvent {
     /// The process that exited, as `pty_spawn` returned it: an event whose pid
     /// is not the terminal's current one comes from an older process.
     pid: Option<u32>,
+}
+
+/// How a terminal starts, for the log: a conversation of an agent, new or
+/// resumed (Claude's `continue` too), or a plain process.
+fn mode_label(spec: &SpawnSpec) -> &'static str {
+    match spec.agent {
+        Agent::Claude => match spec.claude.as_ref().map(|claude| claude.mode) {
+            Some(ClaudeMode::New) => "new",
+            Some(ClaudeMode::Resume) => "resume",
+            Some(ClaudeMode::Continue) => "continue",
+            None => "plain",
+        },
+        Agent::Codex => match spec.codex.as_ref() {
+            Some(codex) if codex.session_id.is_some() => "resume",
+            Some(_) => "new",
+            None => "plain",
+        },
+        _ => "plain",
+    }
+}
+
+/// A path or program name on one line: a control character in it must not
+/// start a line of the log of its own.
+fn one_line(text: &str) -> String {
+    text.chars()
+        .map(|c| if c.is_control() { '?' } else { c })
+        .collect()
+}
+
+/// The log line of a terminal that started: where (the folder), with which
+/// shell (its program name, not its path), how (the agent and the launch mode),
+/// and whether it picks up the output saved by an earlier run. It takes the
+/// parts and not the plan: the command line, the environment and the prompt are
+/// not for the log.
+fn started_line(
+    node_id: &str,
+    spec: &SpawnSpec,
+    shell: &std::path::Path,
+    cwd: &std::path::Path,
+    relaunch: bool,
+) -> String {
+    let shell = shell.file_name().unwrap_or(shell.as_os_str());
+    format!(
+        "terminal {node_id} started: {:?}, mode {}, shell {}, folder \"{}\", relaunch {}",
+        spec.agent,
+        mode_label(spec),
+        one_line(&shell.to_string_lossy()),
+        one_line(&cwd.to_string_lossy()),
+        if relaunch { "yes" } else { "no" },
+    )
 }
 
 /// Re-reads Windows' PATH so an agent installed meanwhile is found.
@@ -111,14 +163,22 @@ pub async fn pty_spawn(
     agents::started(&app, &node_id);
     // A relaunch keeps what the terminal's screen still shows: the buffer starts
     // from the saved output, so its first save does not replace it (backlog R1).
-    match app
+    let relaunch = match app
         .state::<Db>()
         .with(|conn| scrollback::load(conn, &node_id))
     {
-        Ok(Some(history)) => pty.seed_history(&node_id, history),
-        Ok(None) => {}
-        Err(err) => log::warn!("saved output of {node_id} not read: {err}"),
-    }
+        Ok(Some(history)) => {
+            pty.seed_history(&node_id, history);
+            true
+        }
+        Ok(None) => false,
+        Err(err) => {
+            log::warn!("saved output of {node_id} not read: {err}");
+            false
+        }
+    };
+    // Built before the plan moves into the session.
+    let started = started_line(&node_id, &spec, &plan.program, &plan.cwd, relaunch);
     let spawned = pty.spawn(
         &node_id,
         plan,
@@ -150,7 +210,7 @@ pub async fn pty_spawn(
         },
     );
     match &spawned {
-        Ok(_) => log::info!("terminal {node_id} started: {:?}", spec.agent),
+        Ok(_) => log::info!("{started}"),
         Err(err) => {
             log::warn!("terminal {node_id} not started: {err}");
             agents::ended(&app, &node_id);
@@ -291,5 +351,124 @@ pub fn flush_scrollbacks(app: &AppHandle, all: bool) {
         if let Err(err) = saved {
             log::error!("scrollback of {node_id} not saved: {err}");
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    use super::*;
+    use crate::pty::shell::{ClaudeLaunch, CodexLaunch, Role};
+
+    const NODE: &str = "71629153-7cb7-497e-8ec9-908f7a4c5e7a";
+
+    fn spec(agent: Agent) -> SpawnSpec {
+        SpawnSpec {
+            cwd: "/work/app".into(),
+            shell: ShellKind::Default,
+            agent,
+            command: String::new(),
+            claude: None,
+            codex: None,
+            ollama: None,
+        }
+    }
+
+    fn claude(mode: ClaudeMode) -> ClaudeLaunch {
+        ClaudeLaunch {
+            mode,
+            session_id: "0b9c4b5e-6f1a-4c39-9d2e-8f6c2d1a7e10".into(),
+            title: "a secret title".into(),
+            role: Role::Agent,
+            remote_control: None,
+            model: None,
+            effort: None,
+            permission: None,
+            linear: false,
+            config_dir: None,
+            extensions: None,
+        }
+    }
+
+    fn line(spec: &SpawnSpec, relaunch: bool) -> String {
+        started_line(
+            NODE,
+            spec,
+            Path::new("/usr/local/bin/pwsh"),
+            Path::new("/work/my project"),
+            relaunch,
+        )
+    }
+
+    #[test]
+    fn the_started_line_names_the_folder_the_shell_and_the_mode() {
+        let mut resumed = spec(Agent::Claude);
+        resumed.claude = Some(claude(ClaudeMode::Resume));
+        assert_eq!(
+            line(&resumed, true),
+            format!(
+                "terminal {NODE} started: Claude, mode resume, shell pwsh, \
+                 folder \"/work/my project\", relaunch yes"
+            )
+        );
+        assert_eq!(
+            line(&spec(Agent::Shell), false),
+            format!(
+                "terminal {NODE} started: Shell, mode plain, shell pwsh, \
+                 folder \"/work/my project\", relaunch no"
+            )
+        );
+    }
+
+    #[test]
+    fn the_mode_follows_the_agent_launch() {
+        let mut new = spec(Agent::Claude);
+        new.claude = Some(claude(ClaudeMode::New));
+        let mut resumed = spec(Agent::Claude);
+        resumed.claude = Some(claude(ClaudeMode::Continue));
+        let mut codex_new = spec(Agent::Codex);
+        codex_new.codex = Some(CodexLaunch::default());
+        let mut codex_resumed = spec(Agent::Codex);
+        codex_resumed.codex = Some(CodexLaunch {
+            session_id: Some("thread".into()),
+            ..CodexLaunch::default()
+        });
+        assert_eq!(mode_label(&new), "new");
+        assert_eq!(mode_label(&resumed), "continue");
+        assert_eq!(mode_label(&codex_new), "new");
+        assert_eq!(mode_label(&codex_resumed), "resume");
+        // Without a launch, or for a plain program: no conversation.
+        assert_eq!(mode_label(&spec(Agent::Claude)), "plain");
+        assert_eq!(mode_label(&spec(Agent::Codex)), "plain");
+        assert_eq!(mode_label(&spec(Agent::Custom)), "plain");
+    }
+
+    #[test]
+    fn the_started_line_leaves_out_what_is_private() {
+        let mut custom = spec(Agent::Custom);
+        custom.command = "tool --token hunter2 --prompt 'do the thing'".into();
+        let mut claude_spec = spec(Agent::Claude);
+        claude_spec.claude = Some(claude(ClaudeMode::New));
+        for spec in [&custom, &claude_spec] {
+            let line = line(spec, false);
+            for secret in ["hunter2", "--token", "do the thing", "a secret title"] {
+                assert!(!line.contains(secret), "{secret} reached the log: {line}");
+            }
+            assert!(!line.contains("/usr/local/bin"), "the shell's path: {line}");
+        }
+    }
+
+    #[test]
+    fn a_control_character_in_the_folder_does_not_break_the_line() {
+        let line = started_line(
+            NODE,
+            &spec(Agent::Shell),
+            Path::new("pwsh"),
+            Path::new("/work/a\nb\u{1b}[0m"),
+            false,
+        );
+        assert!(!line.contains('\n') && !line.contains('\u{1b}'), "{line}");
+        assert!(line.contains("folder \"/work/a?b?[0m\""), "{line}");
     }
 }
