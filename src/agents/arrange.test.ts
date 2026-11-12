@@ -333,6 +333,18 @@ describe("arrange layouts", () => {
     });
   }
 
+  it("leaves no block over another on the whole canvas, in every layout: Arrange of everything, and Auto-arrange, lay every block out", () => {
+    for (const layout of ARRANGE_LAYOUTS) {
+      for (const aspect of [16 / 10, 1 / 2, 4]) {
+        const { elements, rest } = mixed();
+        const result = arrangedElements(input(elements, { ...rest, layout, aspect }));
+        // Every node and frame outside frames (the drawing s, outside frames, stays where it is, as ever).
+        const top = result!.elements.filter((e) => e.frameId === null && (e.type === "frame" || e.customData?.kind !== undefined));
+        for (const a of top) for (const b of top) if (a !== b) expect(overlap(a, b), `${layout} ${aspect} ${a.id} ${b.id}`).toBe(0);
+      }
+    }
+  });
+
   it("lays the grid out as before: the grid asked for is the default", () => {
     const { elements, rest } = mixed();
     for (const aspect of [16 / 10, 1 / 2, 4]) {
@@ -549,5 +561,33 @@ describe("a group's Arrange makes room", () => {
     expect(at(result, "h1")).toMatchObject({ x: hx + PADDING + dx, y: PADDING_TOP });
     expect(at(result, "hs")).toMatchObject({ x: hx + PADDING + dx, y: PADDING_TOP + H + ROW_GAP });
     expect(result!.movedNodeIds).toEqual(new Set(["m1", "m2", "m3", "g", "h", "h1"]));
+  });
+});
+
+describe("Arrange of a selection makes room", () => {
+  /** Three terminals one under the other at x 0, a terminal beside the first, and one far off; reading order a, u, b, c. */
+  const scene = () => [node("a", 0, 0), node("b", 0, H + ROW_GAP), node("c", 0, 2 * (H + ROW_GAP)), node("u", W + GROUP_GAP, 0), node("far", 9000, 9000)];
+  const same = (result: ReturnType<typeof arrangedElements>, id: string, elements: readonly ExcalidrawElement[]) =>
+    expect(result!.elements.find((e) => e.id === id), id).toBe(elements.find((e) => e.id === id));
+
+  for (const scope of ["auto", "selection"] as const) {
+    it(`pushes the terminal left out that One row now covers past the row, a node's gap from it (${scope})`, () => {
+      const elements = scene();
+      const result = arrangedElements(input(elements, { only: ["a", "b", "c"], scope, layout: "row" }));
+      [0, 1, 2].forEach((i) => expect(at(result, "abc"[i])).toMatchObject({ x: i * (W + NODE_GAP), y: 0 }));
+      // It stood right of them: it goes right, past c, the last one to cover it.
+      expect(at(result, "u")).toMatchObject({ x: 3 * (W + NODE_GAP), y: 0 });
+      same(result, "far", elements);
+      expect(arrangedElements(input(result!.elements, { only: ["a", "b", "c"], scope, layout: "row" }))).toBeNull();
+    });
+  }
+
+  it("leaves what the selection does not reach where it stands, in the grid as before", () => {
+    // The grid packs the three in two rows, a and b side by side: u, further right, is in nobody's way, nor is far.
+    const elements = [...scene().filter((e) => e.id !== "u"), node("u", 3 * (W + GROUP_GAP), 0)];
+    const result = arrangedElements(input(elements, { only: ["a", "b", "c"], layout: "grid" }));
+    expect(at(result, "b")).toMatchObject({ x: W + NODE_GAP, y: 0 });
+    same(result, "u", elements);
+    same(result, "far", elements);
   });
 });

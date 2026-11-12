@@ -15,6 +15,7 @@ dummyPlane's first release will be 0.1.0; until then, its changes are listed und
 
 ### Fixed
 - **A group's Arrange makes room:** with a layout that changes a group's shape (*One row* turns a column of terminals into one long row), the group's frame grew where it stood and covered the nodes, notes, outputs and groups beside it. Now what it grows over moves out of its way: what stood to its right goes right, what stood under it goes down, clear of it and with what is attached to it, and pushes on whatever it lands on in turn. What the frame doesn't reach stays put, it all takes one undo, and arranging again moves nothing.
+- **Arranging a selection makes room too:** a selection laid out (in one row, say) no longer lands on what was left unselected. What it covers moves out of its way the same way. Arranging the whole canvas, and Auto-arrange, lay every block out, so nothing there ends up on top of anything else.
 
 ## [0.1.0] - 2026-11-12
 

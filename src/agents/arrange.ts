@@ -32,9 +32,11 @@ import { isWire } from "./wires";
  * it, the tabs under them. A folded group is left as it is (its terminals are
  * hidden), and so is one whose spawn tree reaches out of its frame (the
  * flowchart wins). A group's Arrange (the group alone) tidies it where it
- * stands: when its frame grows over the blocks around it (a layout that
- * changes its shape), those move out of its way, right or down, whole
- * (./arrangeRoom.ts). Pure: the caller writes the scene.
+ * stands; a selection is laid out from the corner of where its blocks stood. When
+ * either now covers blocks it left out (a frame grown by a layout that
+ * changes its shape, a selection in one long row), those move out of its
+ * way, right or down, whole (./arrangeRoom.ts). Pure: the caller writes the
+ * scene.
  *
  * That is the `grid` layout, the default. The others (./arrangeLayout.ts) keep
  * all of the above but the shape: the blocks go in one row, in one column, or
@@ -635,8 +637,9 @@ export function arrangedElements(input: ArrangeInput): { elements: ExcalidrawEle
     }
   }
 
-  // A group tidied where it stands, its frame grown over the blocks around it: those move out of its way (./arrangeRoom.ts).
-  const others = insideOne ? [...unitMembers.keys()].filter((unit) => !scope.has(unit)) : [];
+  // What was arranged, over the blocks left out (a group tidied where it stands, its frame grown; a selection laid out over the rest):
+  // those move out of its way (./arrangeRoom.ts). The whole canvas leaves none out.
+  const others = [...unitMembers.keys()].filter((unit) => !scope.has(unit));
   if (others.length > 0) {
     // A block's boxes: its frames, and what of it stands outside them (a frame covers what it holds).
     const outline = (unit: string) =>

@@ -6,8 +6,10 @@ import type { Point } from "./terminals";
  * The room Arrange (./arrange.ts) makes when what it arranged now covers a
  * block it left alone: a group's Arrange tidies the group where it stands,
  * and a layout that changes the group's shape ("One row" makes a column of
- * terminals one long row) grows its frame over its neighbours. Those are
- * pushed out of its way:
+ * terminals one long row) grows its frame over its neighbours; a selection
+ * laid out from its corner lands on what was not selected. Those are pushed
+ * out of its way (the whole canvas leaves nothing out: every block is laid
+ * out, none over another):
  *
  * - Only what grew into a block pushes it: one of the boxes of a block that
  *   moved now covers more of one of its boxes than it did before Arrange. A
