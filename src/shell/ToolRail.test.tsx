@@ -67,7 +67,9 @@ it("holds the catalog, New console, Fleet and Kanban in its ＋", async () => {
   // The launch folder comes first (its Change… button), then the agents.
   expect(entries[0]).toBe("Change…");
   expect(entries[1]).toContain("Claude");
-  expect(entries.slice(-4, -1)).toEqual(["New console", expect.stringContaining("Fleet"), expect.stringContaining("Kanban")]);
+  // New console ends the agents; the Shell, the Fleet and the board come apart, under "Not an agent".
+  expect(entries).toContain("New console");
+  expect(entries.slice(-4, -1)).toEqual([expect.stringContaining("Shell"), expect.stringContaining("Fleet"), expect.stringContaining("Kanban")]);
   expect(entries).not.toContain("Launch 4 agents");
   const click = (text: string) =>
     [...document.querySelectorAll<HTMLButtonElement>('[data-slot="popover-content"] button')].find((b) => b.textContent === text)!.click();
