@@ -13,6 +13,7 @@ import { terminalStatusStore } from "@/store/terminalStatus";
 import { markForAutostart, mountTerminal } from "../terminal/registry";
 import { MISSING_GRACE_MS } from "../terminal/MissingNode";
 import { FleetNode } from "./FleetNode";
+import { modelRouterStore } from "@/app/modelRouterSetting";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
 vi.mock("../terminal/registry", () => ({
@@ -31,6 +32,11 @@ globalThis.ResizeObserver ??= class {
 } as unknown as typeof ResizeObserver;
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+beforeEach(() => {
+  // The router as before Settings had one: only a switch set on routes. The global setting has its own tests.
+  modelRouterStore.setState({ on: false, levels: {} });
+});
 
 it("opens its name editor on request (« Rename » of its radial menu)", async () => {
   mockIPC(() => undefined);
@@ -205,7 +211,7 @@ describe("its header, the same chrome as a terminal's", () => {
       expect(routerButton()!.getAttribute("aria-pressed")).toBe("true");
       expect(host.querySelector('[data-mission] [aria-label="Model router"]')?.getAttribute("aria-checked")).toBe("true");
       await act(async () => routerButton()!.click());
-      expect(missionRouter()).toBeUndefined();
+      expect(missionRouter()).toBe(false);
       expect(routerButton()!.getAttribute("aria-pressed")).toBe("false");
     });
 
@@ -218,13 +224,34 @@ describe("its header, the same chrome as a terminal's", () => {
       expect(missionRouter()).toBe(true);
     });
 
-    it("is there once the team is at work, and shows none on a Fleet whose session runs another CLI", async () => {
+    it("is there once the team is at work, and on a Fleet whose session runs Codex, whose team Settings' map routes", async () => {
       const mission = (nodesStore.getState().nodes.chef?.payload as FleetPayload).mission ?? NEW_MISSION;
       await act(async () => nodesStore.getState().update("chef", { mission: { ...mission, state: "en_cours", router: true } }));
       expect(routerButton()!.getAttribute("aria-pressed")).toBe("true");
       const session = sessionOf(nodesStore.getState().nodes.chef)!;
       await act(async () => nodesStore.getState().update("chef", { session: { ...session, agent: "codex" } }));
-      expect(routerButton()).toBeNull();
+      expect(routerButton()!.getAttribute("aria-pressed")).toBe("true");
+    });
+
+    it("shows Settings' router while the Fleet's switch is unset, and an off it sets vetoes it for the mission", async () => {
+      await act(async () => modelRouterStore.setState({ on: true }));
+      expect(routerButton()!.getAttribute("aria-pressed")).toBe("true");
+      expect(missionRouter()).toBeUndefined();
+      await act(async () => routerButton()!.click());
+      expect(missionRouter()).toBe(false);
+      expect(routerButton()!.getAttribute("aria-pressed")).toBe("false");
+      // Settings turned off and on again: the Fleet's own off holds.
+      await act(async () => modelRouterStore.setState({ on: false }));
+      await act(async () => modelRouterStore.setState({ on: true }));
+      expect(routerButton()!.getAttribute("aria-pressed")).toBe("false");
+      // On again is stored as set too; Follow Settings, in its ⋯ menu, unsets it.
+      await act(async () => routerButton()!.click());
+      expect(missionRouter()).toBe(true);
+      await act(async () => host.querySelector<HTMLButtonElement>('button[aria-label="Fleet menu"]')!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true })));
+      const follow = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((item) => item.textContent === "Follow Settings")!;
+      await act(async () => follow.click());
+      expect(missionRouter()).toBeUndefined();
+      expect(routerButton()!.getAttribute("aria-pressed")).toBe("true");
     });
   });
 

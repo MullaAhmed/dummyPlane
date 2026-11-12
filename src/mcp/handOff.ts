@@ -10,7 +10,11 @@ import { notify } from "@/mission/events";
 import { fleetNameOf } from "@/mission/manager";
 import { nightMin, oneLine, sameName, type Mission } from "@/mission/mission";
 import { pumpQueue } from "@/mission/queue";
-import { readLevel } from "@/mission/router";
+import { modelRouterStore } from "@/app/modelRouterSetting";
+import { unroutedText, type Unrouted } from "@/agents/spawnModel";
+import { levelsRequired, teamAgent } from "@/mission/teamModel";
+import { levelModel, modelLabel, readLevel, type Level } from "@/mission/router";
+import { missionRouterOn } from "@/mission/routerState";
 import { agentState, isFleetClosed, missionOf } from "@/mission/store";
 import { isManagerNode, nodesStore, sessionOf, terminalOf } from "@/store/nodes";
 import { isRunning } from "@/store/terminalStatus";
@@ -145,12 +149,29 @@ function noteCard(fleetId: string, cardId: string, from: string) {
   nodesStore.getState().update(found.nodeId, { cards: { ...found.board.cards, [cardId]: { ...card, notes } } });
 }
 
-/** The task as `add_tasks` reads it: a budget and, with the model router on, a level, both by default. */
-function queuedItem(mission: Mission, args: Record<string, unknown>) {
+/** The task as `add_tasks` reads it: a budget and, where the model router picks the team's model, a level, both by default. */
+function queuedItem(fleetId: string, mission: Mission, args: Record<string, unknown>) {
   const night = nightMin(mission);
   const budget = args.budget_min ?? Math.max(1, Math.min(DEFAULT_BUDGET_MIN, night ?? DEFAULT_BUDGET_MIN));
-  const level = args.niveau ?? (mission.router ? "moyen" : undefined);
+  const level = args.niveau ?? (levelsRequired(fleetId, mission) ? "moyen" : undefined);
   return { titre: args.titre, consigne: args.consigne, budget_min: budget, ...(level === undefined ? {} : { niveau: level }) };
+}
+
+/**
+ * What the caller hears of the model its queued task's new agent starts on (`@/mission/launch` teamModel): the one
+ * its level picks on the team's CLI, medium when it gave none; or why its level picks none (the Fleet's switch,
+ * Settings, no model for it on that CLI). Nothing when the task has no level.
+ */
+function queuedModelNote(nodeId: string, fleetId: string, mission: Mission, level: Level | undefined, given: boolean): string {
+  if (!level) return "";
+  const h = t().handOff;
+  const cli = teamAgent(fleetId);
+  const on = missionRouterOn(mission);
+  const model = on ? levelModel(cli, level, modelRouterStore.getState().levels) : undefined;
+  if (model) return h.queuedModel(modelLabel(model), given ? t().spawn.byLevel(outLevel(level)) : t().spawn.byDefault);
+  // The mission's router is its Fleet's switch when set, else Settings'.
+  const reason: Unrouted = on ? { cli } : { off: true, at: mission.router === false ? fleetId : undefined };
+  return h.queuedUnrouted(outLevel(level), unroutedText(reason, level, nodeId), AGENTS[cli].label);
 }
 
 /**
@@ -173,7 +194,7 @@ export function handOffTool(nodeId: string, args: Record<string, unknown>): Tool
   if (mission.state === "terminee") return refused(h.finished(fleet));
   if (mission.state === "en_cours" || mission.state === "lancement") {
     // Its own queue, as the Fleet's add_tasks: the title, the brief, a budget and a level; it becomes a card, and a seat frees up for it.
-    const added = enqueueTasks(fleetId, mission, { tasks: [queuedItem(mission, { ...args, titre: title, consigne: brief })] }, from);
+    const added = enqueueTasks(fleetId, mission, { tasks: [queuedItem(fleetId, mission, { ...args, titre: title, consigne: brief })] }, from);
     if (typeof added === "string") return refused(added);
     const task = added.tasks[0];
     if (task.card) noteCard(fleetId, task.card, from);
@@ -187,7 +208,8 @@ export function handOffTool(nodeId: string, args: Record<string, unknown>): Tool
       notify(latest.manager, h.cardLine(from, fleet, task.title));
     }
     void pumpQueue(fleetId);
-    return said(h.queued(task.title, task.card, added.queue.length) + (isRunning(fleetId) ? "" : h.queuedStopped(fleet)));
+    const model = queuedModelNote(nodeId, fleetId, latest, task.level, readLevel(args.niveau) !== undefined);
+    return said(h.queued(task.title, task.card, added.queue.length) + model + (isRunning(fleetId) ? "" : h.queuedStopped(fleet)));
   }
   // No mission yet: the Fleet plans it.
   if (!sessionOf(nodesStore.getState().nodes[fleetId]) || !isRunning(fleetId)) return refused(h.stopped(fleet));

@@ -1,9 +1,10 @@
 // @vitest-environment happy-dom
-import { beforeEach, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { mockIPC } from "@tauri-apps/api/mocks";
 import { nodesStore } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
 import { fleetTool } from "./fleetTools";
+import { modelRouterStore } from "@/app/modelRouterSetting";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
 vi.mock("@/mission/launch", () => ({ endMission: vi.fn(), mergeMission: vi.fn(), reassignTask: vi.fn(), deliveryPending: vi.fn(() => false) }));
@@ -24,6 +25,8 @@ vi.mock("@/mission/store", async (importOriginal) => ({
 const claude = { title: "Batgirl", name: "Batgirl", agent: "claude" as const, cwd: "C:/p", shell: "default" as const, command: "" };
 
 beforeEach(async () => {
+  // The router as before Settings had one: only a switch set on routes. The global setting has its own tests.
+  modelRouterStore.setState({ on: false, levels: {} });
   mockIPC(() => undefined);
   terminalStatusStore.getState().set("chef", { state: "running" });
   await nodesStore.getState().create("chef", {
@@ -41,4 +44,62 @@ it("mission() tells the Fleet which linked agents have their own model router on
   expect(linked.find((a) => a.name === "Batgirl")?.router).toBe(true);
   // Off, the field is not there at all: nothing is said of an agent that keeps its model.
   expect(linked.find((a) => a.name === "Robin")).not.toHaveProperty("router");
+});
+
+describe("with Settings' model router on", () => {
+  const view = async () => JSON.parse((await fleetTool("chef", "mission", {})).content[0].text) as { router: boolean; linked_agents: { name: string; router?: boolean }[]; plan: { model: string | null }[] | null };
+  const sub = (titre: string, extra: Record<string, unknown> = {}) => ({ titre, consigne: "Do it", agent: "nouveau", budget_min: 20, ...extra });
+  const plan = (...sous_taches: ReturnType<typeof sub>[]) => ({ nom: "Auth", tache: "Add the login", sous_taches });
+
+  beforeEach(() => modelRouterStore.setState({ on: true }));
+
+  it("tells the Fleet its router is on while its switch is unset, and off once it is set off", async () => {
+    expect((await view()).router).toBe(true);
+    nodesStore.getState().update("chef", { mission: { state: "plan", maxAgents: 4, members: [], router: false } });
+    expect((await view()).router).toBe(false);
+  });
+
+  it("names a linked agent's own switch only when it is set, off included", async () => {
+    nodesStore.getState().update("b2", { router: false });
+    const linked = (await view()).linked_agents;
+    expect(linked.find((a) => a.name === "Batgirl")?.router).toBe(true);
+    expect(linked.find((a) => a.name === "Robin")?.router).toBe(false);
+  });
+
+  it("needs a level for each sub-task of a Claude team, and says the model each picks", async () => {
+    const refused = await fleetTool("chef", "proposer_plan", plan(sub("Login")));
+    expect(refused.isError).toBe(true);
+    expect(refused.content[0].text).toContain("a level (low, medium, high or extreme)");
+    expect((await fleetTool("chef", "proposer_plan", plan(sub("Login", { niveau: "faible" })))).isError).toBeUndefined();
+    expect((await view()).plan?.[0].model).toBe("Haiku 5.5");
+  });
+
+  it("queues add_tasks' tasks with no level at medium, rather than refusing them, and says so", async () => {
+    const result = await fleetTool("chef", "add_tasks", { tasks: [{ titre: "Docs", consigne: "Write them", budget_min: 10 }, { titre: "Tests", consigne: "Write them", budget_min: 10, niveau: "eleve" }] });
+    expect(result.isError).toBeUndefined();
+    expect(result.content[0].text).toBe("2 tasks added. Waiting: 2. 1 task with no level takes the model router's medium level (Sonnet 5.5): give each task a level, its difficulty.");
+    const queue = (nodesStore.getState().nodes.chef?.payload as { mission: { queue: { level?: string }[] } }).mission.queue;
+    expect(queue.map((task) => task.level)).toEqual(["moyen", "eleve"]);
+    // With the Fleet's switch off, no level is given: none picks anything.
+    nodesStore.getState().update("chef", { mission: { state: "plan", maxAgents: 4, members: [], router: false } });
+    expect((await fleetTool("chef", "add_tasks", { tasks: [{ titre: "More", consigne: "b", budget_min: 5 }] })).content[0].text).toBe("1 task added. Waiting: 1.");
+  });
+
+  it("names, in the plan, the model the go-ahead gives each linked agent: its switch and its own model included", async () => {
+    nodesStore.getState().update("b2", { router: false, model: "claude-opus-5-5" });
+    nodesStore.getState().update("chef", { mission: { state: "plan", maxAgents: 4, members: [], router: false } });
+    const proposed = await fleetTool("chef", "proposer_plan", plan(sub("Login", { agent: "Batgirl", niveau: "faible" }), sub("Logout", { agent: "Robin", niveau: "faible" }), sub("Docs", { niveau: "faible" })));
+    expect(proposed.isError).toBeUndefined();
+    // Batgirl's own on routes her with the Fleet's off; Robin's off keeps his own model; a new agent follows the Fleet's off.
+    expect((await view()).plan?.map((s) => s.model)).toEqual(["Haiku 5.5", "Opus 5.5", null]);
+  });
+
+  it("plans a Codex team with nothing mapped as before, levels optional, and maps them once Settings has models", async () => {
+    nodesStore.getState().update("chef", { session: { ...claude, name: "Chef", role: "orchestrator", agent: "codex" } });
+    expect((await fleetTool("chef", "proposer_plan", plan(sub("Login")))).isError).toBeUndefined();
+    modelRouterStore.setState({ levels: { codex: { eleve: "gpt-big" } } });
+    expect((await fleetTool("chef", "proposer_plan", plan(sub("Login")))).isError).toBe(true);
+    expect((await fleetTool("chef", "proposer_plan", plan(sub("Login", { niveau: "eleve" })))).isError).toBeUndefined();
+    expect((await view()).plan?.[0].model).toBe("gpt-big");
+  });
 });

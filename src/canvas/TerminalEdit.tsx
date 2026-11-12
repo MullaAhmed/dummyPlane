@@ -22,15 +22,16 @@ import { switchRemote } from "@/agents/RemoteButton";
 import { requestCloseFleet, renameFleet } from "@/fleet/fleets";
 import { duplicateTerminal, requestClose } from "@/agents/terminals";
 import { claudeLaunchDefaults, type ClaudeLaunchDefaults } from "@/ipc/claudeExtensions";
-import { MANAGER_ROLE, type Permission, type ShellKind } from "@/ipc/pty";
+import type { Permission, ShellKind } from "@/ipc/pty";
 import { EFFORT_LEVELS, MODEL_CHOICES, modelLabel, readEffort, settingsModelLabel, type EffortLevel } from "@/mission/router";
-import { missionOf, setMission } from "@/mission/store";
+import { missionMessages } from "@/mission/messages";
+import { followRouter, hasRouterSwitch, setRouter, useRouterFollow, useRouterOn } from "@/mission/routerState";
 import { folderChange, folderLockOf, sameFolder, type FolderLock } from "@/nodes/terminal/folder";
 import { newConversation, SHELL_LABELS } from "@/nodes/terminal/launch";
 import { StatusPill } from "@/nodes/terminal/StatusPill";
 import type { TerminalPayload } from "@/nodes/types";
 import { useActivity } from "@/store/agentActivity";
-import { nodeNameOf, nodesStore, sessionOf, terminalOf, updateSession, useNodes, type NodeRecord } from "@/store/nodes";
+import { nodeNameOf, nodesStore, sessionOf, updateSession, useNodes, type NodeRecord } from "@/store/nodes";
 import { useTerminalStatus } from "@/store/terminalStatus";
 import { formatTokens } from "@/usage/usage";
 import { useNodeSession } from "@/usage/usageStore";
@@ -275,8 +276,8 @@ function General({ nodeId, record, session, liveFolder }: { nodeId: string; reco
           </div>
         </Row>
         {claude && <RemoteRow nodeId={nodeId} wanted={session.remoteControl === true} running={running} />}
-        {/* A Fleet's router is its mission's, a terminal's is its own; a Manager's has nothing to route (no plan gives it a sub-task). */}
-        {claude && session.role !== MANAGER_ROLE && <RouterRow nodeId={nodeId} fleet={fleet} />}
+        {/* A Fleet's router is its mission's, a terminal's is its own, on Claude or Codex; a Manager's has nothing to route (no plan gives it a sub-task). */}
+        {session && hasRouterSwitch(session) && <RouterRow nodeId={nodeId} fleet={fleet} />}
       </Rows>
       {session && (
         <div role="group" aria-labelledby={`${ids.model}-heading`} className="grid grid-cols-1 gap-2">
@@ -593,21 +594,21 @@ function remoteState(link: RemoteLink | undefined, wanted: boolean, running: boo
 
 /**
  * The model router: a Fleet's is its mission's (each agent of its team takes the model of its sub-task's level),
- * a terminal's is its own (a sub-task a Fleet gives it does). The same switch as its header's and, like Remote
- * Control, applied at once: it is no launch setting, so it never offers "Restart now". A real switch
- * (`role="switch"`) in the panel's checkbox, named by its visible label, described by the line under it.
+ * a terminal's is its own (a sub-task a Fleet gives it does, and its sub-agents). It shows the router as it stands
+ * there, set at the node or followed from above it or from Settings (`@/mission/routerState`). The same switch as its
+ * header's and, like Remote Control, applied at once: it is no launch setting, so it never offers "Restart now". A
+ * real switch (`role="switch"`) in the panel's checkbox, named by its visible label, described by the line under it.
  */
 function RouterRow({ nodeId, fleet }: { nodeId: string; fleet: boolean }) {
   const t = useMessages(canvasMessages).selection;
   const id = useId();
-  const on = useNodes((s) => (fleet ? missionOf(s.nodes[nodeId])?.router === true : terminalOf(s.nodes[nodeId])?.router === true));
-  const change = (next: boolean) => {
-    if (fleet) setMission(nodeId, { router: next || undefined });
-    else nodesStore.getState().update(nodeId, { router: next || undefined });
-  };
+  const on = useRouterOn(nodeId);
+  const follow = useRouterFollow(nodeId);
+  const followLabel = useMessages(missionMessages).routerFollow;
+  const change = (next: boolean) => setRouter(nodeId, next);
   return (
     <Row label={t.modelRouter} htmlFor={id} note={fleet ? t.modelRouterFleet : t.modelRouterAgent} noteId={`${id}-note`}>
-      <div className="flex h-7 items-center">
+      <div className="flex h-7 items-center gap-2">
         <Checkbox
           id={id}
           role="switch"
@@ -618,6 +619,12 @@ function RouterRow({ nodeId, fleet }: { nodeId: string; fleet: boolean }) {
           onMouseDown={keepCanvasFocus}
           className={QUIET_BOX}
         />
+        {/* Only while the switch is set, on or off: unsets it, so it follows Settings or the switch above it again. */}
+        {follow && (
+          <Button type="button" variant="secondary" size="sm" onMouseDown={keepCanvasFocus} onClick={() => followRouter(nodeId)} className="text-xs font-normal text-dp-text-2 hover:text-dp-text">
+            {followLabel[follow]}
+          </Button>
+        )}
       </div>
     </Row>
   );

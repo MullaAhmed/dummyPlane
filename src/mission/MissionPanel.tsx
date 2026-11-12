@@ -20,20 +20,23 @@ import { AccentButton, Hint, HintedButton } from "@/shell/buttons";
 import type { DotState } from "@/nodes/terminal/StatusDot";
 import { useActivities } from "@/store/agentActivity";
 import { FLEET_CAPABLE } from "@/fleet/capable";
-import { nodeNameOf, sessionOf, terminalOf, useNodes } from "@/store/nodes";
+import { nodeNameOf, terminalOf, useNodes } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
 import { openReview } from "@/review/reviewStore";
 import { uiStore, useUi } from "@/store/ui";
 import { confirmAction } from "@/components/confirm";
 import { cleanMission, launchMission } from "./launch";
+import { subTaskModel } from "./teamModel";
 import { stopMission } from "./stop";
-import { budgetBar, budgetOf, MAX_AGENTS, memberTime, nightMin, remainingGlobal, type Mission, type MissionState, type Report } from "./mission";
+import { budgetBar, budgetOf, MAX_AGENTS, memberTime, nightMin, remainingGlobal, type Mission, type MissionState, type Report, type SubTask } from "./mission";
 import { missionMessages } from "./messages";
 import { morningShown } from "./morning";
 import { NightSummary } from "./NightSummary";
 import { MorningReportView } from "./MorningReportView";
 import { OvernightDialog } from "./OvernightDialog";
-import { LEVELS, modelLabel } from "./router";
+import { useModelRouter } from "@/app/modelRouterSetting";
+import { modelLabel } from "./router";
+import { followRouter, setRouter, useRouterFollow, useRouterOn } from "./routerState";
 import { agentState, missionOf, setMission } from "./store";
 
 /** A number field of the panel: shadcn's Input at the panel's density, its figures aligned. */
@@ -99,7 +102,7 @@ function MissionView({ nodeId, mission }: { nodeId: string; mission: Mission }) 
       <div data-mission-body className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-3 pb-3 empty:hidden">
         {mission.overnight && mission.state !== "terminee" && <NightSummary nodeId={nodeId} mission={mission} />}
         {setup && <Setup nodeId={nodeId} mission={mission} />}
-        {mission.plan && (mission.state === "plan" || mission.state === "lancement") && <Plan mission={mission} />}
+        {mission.plan && (mission.state === "plan" || mission.state === "lancement") && <Plan nodeId={nodeId} mission={mission} />}
         {mission.error && (
           <p role="alert" className="text-dp-danger">
             {mission.error}
@@ -133,7 +136,7 @@ function Setup({ nodeId, mission }: { nodeId: string; mission: Mission }) {
   return (
     <div ref={block} className="flex flex-col">
       <TeamLink nodeId={nodeId} />
-      <RouterRow nodeId={nodeId} mission={mission} />
+      <RouterRow nodeId={nodeId} />
       {!mission.overnight && (
         <>
           <Button
@@ -161,22 +164,23 @@ function Setup({ nodeId, mission }: { nodeId: string; mission: Mission }) {
 
 /**
  * The model router, always in view: with it on, each sub-task's level picks its agent's model, so the user
- * must be able to see the switch without opening anything. Its levels name Claude's models: a team on another
- * CLI keeps its own, and the row is not there (`teamModel`, launch.ts).
+ * must be able to see the switch without opening anything. It shows the router as it stands for the mission, the
+ * Fleet's switch when set, else Settings' (`./routerState`); a Codex team takes the models Settings maps for Codex
+ * (`teamModel`, launch.ts).
  */
-function RouterRow({ nodeId, mission }: { nodeId: string; mission: Mission }) {
+function RouterRow({ nodeId }: { nodeId: string }) {
   const t = useMessages(missionMessages);
-  const claudeTeam = useNodes((s) => (sessionOf(s.nodes[nodeId])?.agent ?? "claude") === "claude");
+  const on = useRouterOn(nodeId);
+  const follow = useRouterFollow(nodeId);
   const router = useId();
-  if (!claudeTeam) return null;
   return (
     <div className="flex h-7 items-center gap-2">
       <Checkbox
         id={router}
         role="switch"
         aria-label={t.routerLabel}
-        checked={mission.router === true}
-        onCheckedChange={(checked) => setMission(nodeId, { router: checked === true || undefined })}
+        checked={on}
+        onCheckedChange={(checked) => setRouter(nodeId, checked === true)}
         className="after:-inset-1"
       />
       <Hint label={t.routerTitle} side="bottom">
@@ -184,6 +188,12 @@ function RouterRow({ nodeId, mission }: { nodeId: string; mission: Mission }) {
           {t.routerLabel}
         </label>
       </Hint>
+      {/* Only while the Fleet's switch is set: it unsets it, the mission follows Settings again. */}
+      {follow && (
+        <Button type="button" variant="ghost" size="xs" onClick={() => followRouter(nodeId)} className={cn(LINE_ACTION, "ml-auto")}>
+          {t.routerFollow[follow]}
+        </Button>
+      )}
     </div>
   );
 }
@@ -265,7 +275,19 @@ function NightButton({ nodeId }: { nodeId: string }) {
   );
 }
 
-function Plan({ mission }: { mission: Mission }) {
+/**
+ * The model a sub-task's agent starts on at the go-ahead (`subTaskModel`): a linked agent's as its switch and model
+ * stand, a new agent's as the mission's router does, Claude's levels or Settings' for a Codex team. It follows
+ * Settings and the switches as they change.
+ */
+function TaskModel({ nodeId, mission, task }: { nodeId: string; mission: Mission; task: SubTask }) {
+  useModelRouter((s) => s.on);
+  useModelRouter((s) => s.levels);
+  const model = useNodes(() => subTaskModel(nodeId, mission, task));
+  return model ? <>{` · ${modelLabel(model)}`}</> : null;
+}
+
+function Plan({ nodeId, mission }: { nodeId: string; mission: Mission }) {
   const t = useMessages(missionMessages);
   const plan = mission.plan ?? [];
   return (
@@ -279,7 +301,7 @@ function Plan({ mission }: { mission: Mission }) {
               {task.level && (
                 <span className="shrink-0 text-dp-text-3">
                   {t.level[task.level]}
-                  {mission.router ? ` · ${LEVELS[task.level].modelLabel}` : ""}
+                  <TaskModel nodeId={nodeId} mission={mission} task={task} />
                 </span>
               )}
               <span className="ml-auto shrink-0 font-mono text-dp-text-3 tabular-nums">

@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { STORED_FLEET_KIND } from "@/canvas/nodeElement";
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi, beforeEach } from "vitest";
 import { mockIPC } from "@tauri-apps/api/mocks";
 import { canvasStore } from "@/canvas/canvasStore";
 import { forgetScene, rememberScene } from "@/canvas/sceneCache";
@@ -19,6 +19,7 @@ import { missionOf, setMission, setFleetClosed, updateMember } from "@/mission/s
 import { workspacesStore } from "@/store/workspaces";
 import { agentActivityStore } from "@/store/agentActivity";
 import { terminalStatusStore } from "@/store/terminalStatus";
+import { modelRouterStore } from "@/app/modelRouterSetting";
 
 vi.mock("@/ipc/pty", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/ipc/pty")>()), ptySendText: vi.fn(() => Promise.resolve()) }));
 vi.mock("@/nodes/terminal/registry", () => ({ terminalText: vi.fn(() => "ligne 1\nligne 2"), relaunchTerminal: vi.fn(() => Promise.resolve()) }));
@@ -52,6 +53,11 @@ beforeAll(async () => {
     payload: { title: "", name: "Batman", agent: "claude", cwd: "C:/code", shell: "default", command: "" },
   });
   await nodesStore.getState().create("chef", { workspaceId: "w1", kind: "fleet", payload: { name: "chef" } });
+});
+
+beforeEach(() => {
+  // The router as before Settings had one: only a switch set on routes. The global setting has its own tests.
+  modelRouterStore.setState({ on: false, levels: {} });
 });
 
 describe("the notes tool", () => {

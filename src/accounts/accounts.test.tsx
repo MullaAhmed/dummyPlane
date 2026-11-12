@@ -9,6 +9,8 @@ import { AccountChip } from "@/nodes/terminal/TerminalHeader";
 import { AccountsDialog } from "./AccountsDialog";
 import { accountsStore, loadAccounts } from "./store";
 
+// The header's model router switch reads the mission store, which reaches the canvas.
+vi.mock("@excalidraw/excalidraw", () => ({}));
 vi.mock("@/nodes/terminal/registry", () => ({ relaunchTerminal: vi.fn(), stopTerminal: vi.fn(), terminalText: vi.fn(() => "") }));
 vi.mock("@/agents/quickActions", () => ({ launchLogin: vi.fn(() => Promise.resolve(true)) }));
 

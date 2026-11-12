@@ -5,6 +5,7 @@ import { messages } from "@/i18n";
 import { ptySendText } from "@/ipc/pty";
 import { missionFolder } from "@/mission/folder";
 import { deliveryPending, endMission, launchMission, mergeMission, reassignTask } from "@/mission/launch";
+import { levelsRequired, subTaskModel, teamAgent } from "@/mission/teamModel";
 import { budgetOf, memberTime, NEW_AGENT, nightMin, oneLine, proposedPlan, proposedTasks, reassignable, remainingGlobal, sameName, spentMin, type Member, type Mission, type QueuedTask } from "@/mission/mission";
 import { activeCount, relaunchTakesSeat } from "@/mission/active";
 import { stopMission } from "@/mission/stop";
@@ -14,7 +15,9 @@ import { giveNext, pumpQueue } from "@/mission/queue";
 import { boardView, todoColumnOf } from "@/kanban/missionLink";
 import { moveCard as movedCard } from "@/kanban/board";
 import { fleetNameOf, managerNameOf } from "@/mission/manager";
-import { LEVELS, modelLabel } from "@/mission/router";
+import { modelRouterStore } from "@/app/modelRouterSetting";
+import { levelModel, modelLabel, type Level } from "@/mission/router";
+import { missionRouterOn } from "@/mission/routerState";
 import { readTickets } from "@/mission/tickets";
 import { addTaskCards, linkedBoards, missionBoard, moveMissionCard } from "@/kanban/fleetBoards";
 import { agentGroup, agentState, linkedTeamAgents, linkedGroups, managedFleet, missionOf, canvasKnown, setMission, updateMember } from "@/mission/store";
@@ -83,7 +86,7 @@ function missionToolSpecs(manager: boolean) {
                 title: { type: "string", maxLength: 60 },
                 brief: { type: "string" },
                 budget_min: { type: "integer", minimum: 1 },
-                level: { type: "string", enum: ["low", "medium", "high", "extreme"], description: d.planLevel },
+                level: { type: "string", enum: ["low", "medium", "high", "extreme"], description: d.queueLevel },
                 group: { type: "string", description: d.taskGroup },
                 card: { type: "string", description: d.taskCard },
               },
@@ -232,11 +235,16 @@ function memberNamed(mission: Mission, raw: unknown): Member | string {
   return mission.members.find((m) => sameName(m.name, name)) ?? t().fleet.notMember(name);
 }
 
-function modelOfSubTask(mission: Mission, subtask: { title: string; level?: keyof typeof LEVELS }): string | null {
+/** The model a sub-task's agent has, once one holds it; before, the one the go-ahead will give it, a linked agent's included (`subTaskModel`). */
+function modelOfSubTask(fleetId: string, mission: Mission, subtask: { title: string; agent: string; level?: Level }): string | null {
   const holder = mission.members.find((m) => !m.handedTo && m.task === subtask.title);
   if (holder) return holder.model ? modelLabel(holder.model) : null;
-  return mission.router && subtask.level ? LEVELS[subtask.level].modelLabel : null;
+  const model = subTaskModel(fleetId, mission, subtask);
+  return model ? modelLabel(model) : null;
 }
+
+/** The mission as a plan or the queue reads its tasks: `router` on where they need a level (`levelsRequired`). */
+const asPlanned = (fleetId: string, mission: Mission): Mission => ({ ...mission, router: levelsRequired(fleetId, mission) });
 
 function describeMission(fleetId: string, mission: Mission): ToolResult {
   const team = new Set(mission.members.map((m) => m.nodeId));
@@ -250,7 +258,8 @@ function describeMission(fleetId: string, mission: Mission): ToolResult {
     away_min: nightMin(mission) ?? null,
     max_agents: mission.maxAgents,
     active_agents: mission.state === "en_cours" ? activeCount(fleetId, mission) : null,
-    router: mission.router === true,
+    // Its switch when set, else the global setting: on, each sub-task's level picks its agent's model.
+    router: missionRouterOn(mission),
     branch: mission.branch ?? null,
     plan:
       mission.plan?.map((s) => ({
@@ -261,14 +270,17 @@ function describeMission(fleetId: string, mission: Mission): ToolResult {
         budget_min: s.budgetMin,
         level: s.level ? outLevel(s.level) : null,
         // Once an agent holds the sub-task, its own model counts: reassign may have given it to one that keeps its own.
-        model: modelOfSubTask(mission, s),
+        model: modelOfSubTask(fleetId, mission, s),
         card: s.card ?? null,
       })) ?? null,
     linked_agents: canvasKnown(fleetId)
       ? linkedTeamAgents(fleetId)
           .filter((a) => !team.has(a.nodeId))
-          // `router: true`: its own model router is on, so a sub-task with a level starts it on that level's model.
-          .map((a) => ({ name: a.name, state: outAgentState(agentState(a.nodeId)), ...agentGroup(a.nodeId), ...(terminalOf(nodesStore.getState().nodes[a.nodeId])?.router ? { router: true } : {}) }))
+          // `router`: its own switch, set: true routes it with the mission's off, false keeps its own model with the mission's on.
+          .map((a) => {
+            const own = terminalOf(nodesStore.getState().nodes[a.nodeId])?.router;
+            return { name: a.name, state: outAgentState(agentState(a.nodeId)), ...agentGroup(a.nodeId), ...(own === undefined ? {} : { router: own }) };
+          })
       : null,
     linked_groups: canvasKnown(fleetId) ? linkedGroups(fleetId).map(({ name, speciality }) => ({ name, speciality })) : null,
     linked_agents_note: canvasKnown(fleetId) ? null : t().fleet.hiddenAgents,
@@ -309,7 +321,7 @@ async function proposePlan(fleetId: string, asked: Mission, args: Record<string,
   if (named && !canvasKnown(fleetId)) return failed(t().fleet.hiddenWorkspace);
   const cards = linkedBoards(fleetId).flatMap(({ board }) => Object.keys(board.cards));
   const linked = linkedTeamAgents(fleetId);
-  const result = proposedPlan(args, mission, linked.map((a) => a.name), linkedGroups(fleetId), cards);
+  const result = proposedPlan(args, asPlanned(fleetId, mission), linked.map((a) => a.name), linkedGroups(fleetId), cards);
   if (typeof result === "string") return failed(result);
   // The linked agents the plan names take their sub-task: whatever they hold is theirs to give up.
   const taking = linked.filter((a) => result.plan.some((s) => sameName(s.agent, a.name))).map((a) => a.nodeId);
@@ -357,7 +369,7 @@ export function enqueueTasks(fleetId: string, mission: Mission, args: Record<str
   const grouped = Array.isArray(args.tasks) && args.tasks.some((s) => Boolean((s as Record<string, unknown> | null)?.groupe));
   if (grouped && !canvasKnown(fleetId)) return t().fleet.hiddenWorkspace;
   const cards = linkedBoards(fleetId).flatMap(({ board }) => Object.keys(board.cards));
-  const proposed = proposedTasks(args, mission, linkedGroups(fleetId), cards);
+  const proposed = proposedTasks(args, asPlanned(fleetId, mission), linkedGroups(fleetId), cards);
   if (typeof proposed === "string") return proposed;
   // Before any card is written: a task another agent already works on is not queued again, from add_tasks or hand_off.
   const already = alreadyOnIt(fleetId, proposed, [fleetId, mission.manager]);
@@ -375,9 +387,27 @@ export function enqueueTasks(fleetId: string, mission: Mission, args: Record<str
  * card in its to-do column. The queue starts a new agent for each as seats free up, without waiting for anyone.
  * The Fleet's cards travel to the board, then to the Manager, who is told.
  */
-function addTasks(fleetId: string, mission: Mission, args: Record<string, unknown>, caller: string = fleetId): ToolResult {
+/**
+ * `add_tasks`' tasks with a level each where the router picks the team's model (`levelsRequired`): medium for want
+ * of one, as hand_off's and spawn_agent's, rather than a refusal now that the router is on unless turned off. A plan
+ * still needs one per sub-task: the Fleet rates them all at once. How many took medium, for the answer.
+ */
+function withDefaultLevels(fleetId: string, mission: Mission, args: Record<string, unknown>): { args: Record<string, unknown>; defaulted: number } {
+  if (!Array.isArray(args.tasks) || !levelsRequired(fleetId, mission)) return { args, defaulted: 0 };
+  let defaulted = 0;
+  const tasks = args.tasks.map((item: unknown) => {
+    const r = item as Record<string, unknown> | null;
+    if (typeof r !== "object" || r === null || (r.niveau !== undefined && r.niveau !== null)) return item;
+    defaulted++;
+    return { ...r, niveau: "moyen" };
+  });
+  return { args: { ...args, tasks }, defaulted };
+}
+
+function addTasks(fleetId: string, mission: Mission, asked: Record<string, unknown>, caller: string = fleetId): ToolResult {
   // Before enqueueTasks: it also serves hand_off, which checks the finished mission itself; here the refusal names who calls.
   if (mission.state === "terminee") return refused(caller === fleetId ? t().fleet.finishedAddTasks : t().fleet.finishedForManager);
+  const { args, defaulted } = withDefaultLevels(fleetId, mission, asked);
   const added = enqueueTasks(fleetId, mission, args);
   if (typeof added === "string") return refused(added);
   const { tasks, queue, latest } = added;
@@ -389,7 +419,8 @@ function addTasks(fleetId: string, mission: Mission, args: Record<string, unknow
     } else talk(caller, latest.board);
   }
   void pumpQueue(fleetId);
-  return said(t().fleet.queued(tasks.length, queue.length));
+  const medium = levelModel(teamAgent(fleetId), "moyen", modelRouterStore.getState().levels);
+  return said(t().fleet.queued(tasks.length, queue.length) + (defaulted ? t().fleet.defaultedLevels(defaulted, medium && modelLabel(medium)) : ""));
 }
 
 /**

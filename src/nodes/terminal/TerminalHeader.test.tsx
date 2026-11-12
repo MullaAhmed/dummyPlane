@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { act } from "react";
 import { createRoot } from "react-dom/client";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi, beforeEach } from "vitest";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { requestUi } from "@/commands/uiRequests";
 import { remoteStore } from "@/agents/remoteControl";
@@ -12,7 +12,10 @@ import type { TerminalPayload } from "@/nodes/types";
 import { quickNote } from "@/nodes/note/quickNote";
 import { relaunchTerminal, stopTerminal } from "./registry";
 import { TerminalHeader } from "./TerminalHeader";
+import { modelRouterStore } from "@/app/modelRouterSetting";
 
+// The model router switch reads the mission store, which reaches the canvas.
+vi.mock("@excalidraw/excalidraw", () => ({}));
 vi.mock("./registry", () => ({ relaunchTerminal: vi.fn(), stopTerminal: vi.fn(), terminalText: vi.fn(() => "") }));
 vi.mock("@/agents/groups", () => ({ leaveGroup: vi.fn() }));
 // "Quick note": the note's text, given the keyboard once it mounts, after the menu has gone (addNote, focusNote).
@@ -52,6 +55,13 @@ async function openMore(host: HTMLElement) {
 }
 
 const textOf = (items: HTMLElement[]) => items.map((item) => item.textContent);
+
+beforeEach(() => {
+  // The router as before Settings had one: only a switch set on routes. The global setting has its own tests.
+  modelRouterStore.setState({ on: false, levels: {} });
+  // A switch a test set stays with its node: each test starts with none.
+  nodesStore.setState({ nodes: {} });
+});
 
 it("opens its name editor on request, with the keyboard (« Rename » of the palette)", async () => {
   const view = await mount(<TerminalHeader nodeId="batman" payload={claude} status={{ state: "stopped" }} />);
@@ -189,6 +199,52 @@ describe("the model router's sticky switch", () => {
     await manager.unmount();
   });
 
+  it("is on a Codex terminal too, and shows Settings' router while its own switch is unset; each click stores its state", async () => {
+    mockIPC(() => undefined);
+    modelRouterStore.setState({ on: true });
+    await nodesStore.getState().create("batman", { workspaceId: "w1", kind: "terminal", payload: { ...claude, agent: "codex" } });
+    const view = await mount(shown({ agent: "codex" }));
+    expect(router(view.host)?.getAttribute("aria-pressed")).toBe("true");
+    await act(async () => router(view.host)!.click());
+    expect(payloadOf().router).toBe(false);
+    expect(router(view.host)?.getAttribute("aria-pressed")).toBe("false");
+    // On again is stored as set too, the state Settings gives: it holds when Settings is turned off.
+    await act(async () => router(view.host)!.click());
+    expect(payloadOf().router).toBe(true);
+    await act(async () => modelRouterStore.setState({ on: false }));
+    expect(router(view.host)?.getAttribute("aria-pressed")).toBe("true");
+    await view.unmount();
+  });
+
+  it("offers Follow Settings in its ⋯ menu only while it is set, and that unsets it", async () => {
+    mockIPC(() => undefined);
+    await nodesStore.getState().create("batman", { workspaceId: "w1", kind: "terminal", payload: claude });
+    const view = await mount(shown({}));
+    const follow = () => [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((item) => item.textContent === "Follow Settings");
+    await openMore(view.host);
+    expect(follow()).toBeUndefined();
+    await act(async () => document.querySelector<HTMLElement>('[role="menuitemcheckbox"]')!.click());
+    expect(payloadOf().router).toBe(true);
+    await openMore(view.host);
+    await act(async () => follow()!.click());
+    expect(payloadOf().router).toBeUndefined();
+    await view.unmount();
+  });
+
+  it("offers Follow the switch above for a sub-agent whose spawner's switch is set", async () => {
+    mockIPC(() => undefined);
+    await nodesStore.getState().create("pam", { workspaceId: "w1", kind: "terminal", payload: { ...claude, name: "Pam", router: false } });
+    await nodesStore.getState().create("batman", { workspaceId: "w1", kind: "terminal", payload: { ...claude, spawnedBy: "pam", router: true } });
+    const view = await mount(shown({}));
+    await openMore(view.host);
+    const follow = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((item) => item.textContent === "Follow the switch above")!;
+    await act(async () => follow.click());
+    expect(payloadOf().router).toBeUndefined();
+    // It follows Pam's off now.
+    expect(router(view.host)?.getAttribute("aria-pressed")).toBe("false");
+    await view.unmount();
+  });
+
   it("stays on until it is turned off, saved in the terminal's payload, and never asks for a restart", async () => {
     mockIPC(() => undefined);
     await nodesStore.getState().create("batman", { workspaceId: "w1", kind: "terminal", payload: { ...claude, model: "claude-haiku-5-5" } });
@@ -202,7 +258,7 @@ describe("the model router's sticky switch", () => {
     expect(router(view.host)?.getAttribute("data-router")).toBe("on");
     expect(relaunchTerminal).not.toHaveBeenCalled();
     await act(async () => router(view.host)!.click());
-    expect(payloadOf().router).toBeUndefined();
+    expect(payloadOf().router).toBe(false);
     await view.unmount();
   });
 });

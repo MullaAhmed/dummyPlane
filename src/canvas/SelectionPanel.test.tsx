@@ -19,6 +19,7 @@ import type { SessionUsage } from "@/usage/usage";
 import { markLaunch, usageStore } from "@/usage/usageStore";
 import { canvasStore, EMPTY_VIEW } from "./canvasStore";
 import { SelectionPanel } from "./SelectionPanel";
+import { modelRouterStore } from "@/app/modelRouterSetting";
 
 const { mutateElement } = vi.hoisted(() => ({ mutateElement: vi.fn() }));
 vi.mock("@excalidraw/excalidraw", () => ({ CaptureUpdateAction: { IMMEDIATELY: "immediately" }, mutateElement }));
@@ -81,6 +82,8 @@ let host: HTMLDivElement;
 let root: ReturnType<typeof createRoot>;
 
 beforeEach(() => {
+  // The router as before Settings had one: only a switch set on routes. The global setting has its own tests.
+  modelRouterStore.setState({ on: false, levels: {} });
   // A change to a node is saved a moment later; the save has nowhere to go in a test.
   mockIPC(() => undefined);
   mutateElement.mockClear();
@@ -1648,7 +1651,9 @@ describe("the model router's switch in the Edit tab", () => {
     expect(document.activeElement).toBe(sw);
     expect(host.querySelector(`label[for="${sw.id}"]`)?.textContent).toBe("Model router");
     const hint = document.getElementById(sw.getAttribute("aria-describedby")!)!;
-    expect(hint.textContent).toBe(`With it on, a sub-task a Fleet gives it starts it on the model of its level, and so does each sub-agent it opens, and theirs: ${ROUTER_LEVELS}. A sub-task with no level leaves its model as it is. Off, the router of the Fleet or the agent it works under still chooses its sub-agents' models`);
+    expect(hint.textContent).toBe(
+      `With it on, a sub-task a Fleet gives it starts it on the model of its level, and so does each sub-agent it opens, and theirs: ${ROUTER_LEVELS}; on Codex, the models set in Settings. A sub-task with no level leaves its model as it is, and so does any sub-task while the router is off for it. Unset, it follows Settings, or the Fleet or agent it works under; turned on or off here, it stays so, for every agent under it too, until Follow`,
+    );
     await act(async () => sw.click());
     expect(terminalPayload().router).toBe(true);
     expect(routerSwitch()!.getAttribute("aria-checked")).toBe("true");
@@ -1656,7 +1661,7 @@ describe("the model router's switch in the Edit tab", () => {
     expect(terminalPayload().model).toBe("claude-haiku-5-5");
     expect(restartNow()).toBeUndefined();
     await act(async () => routerSwitch()!.click());
-    expect(terminalPayload().router).toBeUndefined();
+    expect(terminalPayload().router).toBe(false);
     expect(routerSwitch()!.getAttribute("aria-checked")).toBe("false");
   });
 
@@ -1666,9 +1671,30 @@ describe("the model router's switch in the Edit tab", () => {
     expect(readTerminalPayload(JSON.parse(JSON.stringify(terminalPayload())))?.router).toBe(true);
   });
 
-  it("is offered to a Claude terminal only", async () => {
+  it("is offered to a Claude or a Codex terminal, whose sub-agents it routes, not to another CLI's", async () => {
     await mountTerminal(terminal({ agent: "codex" }));
+    expect(routerSwitch()).not.toBeNull();
+    await mountTerminal(terminal({ agent: "gemini" }));
     expect(routerSwitch()).toBeNull();
+  });
+
+  it("shows on while Settings' router is on, stores each click for that terminal alone, and Follow Settings unsets it", async () => {
+    modelRouterStore.setState({ on: true });
+    await mountTerminal(terminal());
+    const follow = () => [...host.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent === "Follow Settings");
+    expect(routerSwitch()!.getAttribute("aria-checked")).toBe("true");
+    expect(terminalPayload().router).toBeUndefined();
+    // Nothing to follow back to while it follows already.
+    expect(follow()).toBeUndefined();
+    await act(async () => routerSwitch()!.click());
+    expect(terminalPayload().router).toBe(false);
+    expect(routerSwitch()!.getAttribute("aria-checked")).toBe("false");
+    await act(async () => routerSwitch()!.click());
+    expect(terminalPayload().router).toBe(true);
+    await act(async () => follow()!.click());
+    expect(terminalPayload().router).toBeUndefined();
+    expect(routerSwitch()!.getAttribute("aria-checked")).toBe("true");
+    expect(follow()).toBeUndefined();
   });
 
   it("gives a Fleet back the mission's switch, in any state of its mission, and it writes the mission's router", async () => {
@@ -1676,7 +1702,9 @@ describe("the model router's switch in the Edit tab", () => {
     const sw = routerSwitch()!;
     expect(sw).not.toBeNull();
     expect(sw.getAttribute("aria-checked")).toBe("false");
-    expect(document.getElementById(sw.getAttribute("aria-describedby")!)?.textContent).toBe(`Each agent of its team, and each sub-agent it or they open, takes the model of its task's level, never a model they name: ${ROUTER_LEVELS}`);
+    expect(document.getElementById(sw.getAttribute("aria-describedby")!)?.textContent).toBe(
+      `With it on, each agent of its team, and each sub-agent it or they open, takes the model of its task's level, never a model they name: ${ROUTER_LEVELS}; on Codex, the models set in Settings. Unset, it follows Settings; turned on or off here, it stays so until Follow Settings`,
+    );
     await act(async () => sw.click());
     expect(fleetOf().mission?.router).toBe(true);
     expect(routerSwitch()!.getAttribute("aria-checked")).toBe("true");
@@ -1684,14 +1712,14 @@ describe("the model router's switch in the Edit tab", () => {
     await act(async () => nodesStore.getState().update("f1", { mission: { ...fleetOf().mission!, state: "en_cours" } }));
     expect(routerSwitch()!.getAttribute("aria-checked")).toBe("true");
     await act(async () => routerSwitch()!.click());
-    expect(fleetOf().mission?.router).toBeUndefined();
+    expect(fleetOf().mission?.router).toBe(false);
     // No second flag on the Fleet's session.
     expect(fleetOf().session?.router).toBeUndefined();
     expect(restartNow()).toBeUndefined();
   });
 
-  it("is not offered to a Fleet on another CLI: its levels name Claude's models", async () => {
+  it("is offered to a Codex Fleet too: its team takes the models Settings maps for Codex", async () => {
     await mountFleet({ name: "Fleet", session: fleetSession({ agent: "codex" }) });
-    expect(routerSwitch()).toBeNull();
+    expect(routerSwitch()).not.toBeNull();
   });
 });

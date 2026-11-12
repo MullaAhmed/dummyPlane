@@ -27,13 +27,16 @@ describe("readTerminalPayload", () => {
     expect(readTerminalPayload(payload)).toEqual(payload);
   });
 
-  it("keeps the model router's switch only when it is on, so it survives a reload", () => {
+  it("keeps the model router's switch when it is set, on or off, so it survives a reload; unset, it follows", () => {
     const batman = { title: "Batman", name: "Batman", agent: "claude", cwd: "C:/code", shell: "default", command: "" };
     expect(readTerminalPayload({ ...batman, router: true })?.router).toBe(true);
-    expect(readTerminalPayload({ ...batman, router: false })).toEqual(batman);
+    // Off is a veto the user set for it and its tree: it is kept, not read as unset.
+    expect(readTerminalPayload({ ...batman, router: false })?.router).toBe(false);
     expect(readTerminalPayload({ ...batman, router: "on" })).toEqual(batman);
+    expect(readTerminalPayload(batman)?.router).toBeUndefined();
     // Through the saved form too: what the canvas stores is what it reads back.
     expect(readTerminalPayload(JSON.parse(JSON.stringify({ ...batman, model: "claude-haiku-5-5", router: true })))).toEqual({ ...batman, model: "claude-haiku-5-5", router: true });
+    expect(readTerminalPayload(JSON.parse(JSON.stringify({ ...batman, router: false })))).toEqual({ ...batman, router: false });
   });
 
   it("keeps an agent's message bar open only when it was opened", () => {

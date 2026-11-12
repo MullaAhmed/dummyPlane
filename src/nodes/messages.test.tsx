@@ -13,6 +13,8 @@ import { TerminalHeader } from "./terminal/TerminalHeader";
 import { TerminalOptionsDialog } from "./terminal/TerminalOptionsDialog";
 import { ToolsUnavailable } from "./fleet/ToolsUnavailable";
 
+// The header's model router switch reads the mission store, which reaches the canvas.
+vi.mock("@excalidraw/excalidraw", () => ({}));
 vi.mock("./terminal/registry", () => ({ relaunchTerminal: vi.fn(), stopTerminal: vi.fn(), terminalText: vi.fn(() => "") }));
 vi.mock("@/app/logs", () => ({ openLogDir: vi.fn() }));
 

@@ -28,6 +28,7 @@ import { activeCount } from "./active";
 import { NEW_MISSION, type Member, type Mission } from "./mission";
 import { memberOf, missionOf, releaseTeamPermission, setMission, updateMember } from "./store";
 import { setUpBoard, undoSetup } from "./manager";
+import { modelRouterStore } from "@/app/modelRouterSetting";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
 vi.mock("@/ipc/mission", () => ({ missionPrepare: vi.fn(), missionAddAgent: vi.fn(), missionMerge: vi.fn(), missionCleanup: vi.fn(), missionDiscard: vi.fn(() => Promise.resolve({ removed: [], kept: [] })) }));
@@ -98,6 +99,8 @@ async function setup(mission: Partial<Mission> = {}) {
 }
 
 beforeEach(() => {
+  // The router as before Settings had one: only a switch set on routes. The global setting has its own tests.
+  modelRouterStore.setState({ on: false, levels: {} });
   mockIPC(() => undefined);
   vi.clearAllMocks();
   vi.mocked(userIsTyping).mockReturnValue(false);
@@ -196,17 +199,32 @@ describe("the model router", () => {
     expect(terminalOf(nodesStore.getState().nodes.batman)).toMatchObject({ model: undefined, router: true });
   });
 
-  it("keeps the model of a linked agent whose router is on when its sub-task names no level, and off it goes back to Claude's own as before", async () => {
+  it("keeps the model of a linked agent whose router is on when its sub-task names no level, and of one the router does not route", async () => {
     await setup();
     nodesStore.getState().update("batman", { router: true, model: "claude-sonnet-5-5" });
     await launchMission("chef");
     expect(terminalOf(nodesStore.getState().nodes.batman)?.model).toBe("claude-sonnet-5-5");
     expect(missionNow().members[0].model).toBe("claude-sonnet-5-5");
+    expect(missionNow().members[0].keptModel).toBeUndefined();
     vi.mocked(relaunchTerminal).mockClear();
     nodesStore.getState().update("chef", { mission: { ...missionNow(), state: "plan", members: [] } });
+    // Its switch unset, with Settings and the Fleet's off: not routed, so dummyPlane wipes nothing either.
     nodesStore.getState().update("batman", { router: undefined });
     await launchMission("chef");
-    expect(terminalOf(nodesStore.getState().nodes.batman)?.model).toBeUndefined();
+    expect(terminalOf(nodesStore.getState().nodes.batman)?.model).toBe("claude-sonnet-5-5");
+    expect(missionNow().members[0]).toMatchObject({ model: "claude-sonnet-5-5", keptModel: true });
+  });
+
+  it("gives a linked agent the router does not route its own model back after the mission, a new agent none", async () => {
+    // Settings' router off, the switches unset: nobody is routed.
+    await setup({ plan: [{ ...plan[0], level: "eleve" }, { ...plan[1], level: "faible" }] });
+    nodesStore.getState().update("batman", { model: "claude-opus-5-5" });
+    await launchMission("chef");
+    expect(relaunchTerminal).toHaveBeenCalledWith("batman", expect.objectContaining({ model: "claude-opus-5-5" }), "new");
+    expect(vi.mocked(addTerminal).mock.calls[0][1].model).toBeUndefined();
+    endMission("chef", "Fini.");
+    expect(terminalOf(nodesStore.getState().nodes.batman)?.model).toBe("claude-opus-5-5");
+    expect(relaunchTerminal).toHaveBeenLastCalledWith("batman", expect.objectContaining({ cwd: "C:/code/proj", model: "claude-opus-5-5" }), "new");
   });
 
   it("never lets an agent whose own router is off veto the Fleet's: the mission's router still starts it on its level", async () => {
@@ -222,6 +240,36 @@ describe("the model router", () => {
     expect(vi.mocked(addTerminal).mock.calls[0][1].model).toBeUndefined();
     expect(terminalOf(nodesStore.getState().nodes.batman)?.model).toBeUndefined();
     expect(missionNow().members.map((m) => m.model)).toEqual([undefined, undefined]);
+  });
+
+  it("keeps a linked agent's own model through its sub-task and after it when its own switch is off, the mission's on", async () => {
+    await setup({ router: true, plan: [{ ...plan[0], level: "faible" }, { ...plan[1], level: "faible" }] });
+    nodesStore.getState().update("batman", { router: false, model: "claude-opus-5-5" });
+    await launchMission("chef");
+    expect(relaunchTerminal).toHaveBeenCalledWith("batman", expect.objectContaining({ model: "claude-opus-5-5" }), "new");
+    expect(missionNow().members.map((m) => m.model)).toEqual(["claude-opus-5-5", "claude-haiku-5-5"]);
+    endMission("chef", "Fini.");
+    expect(terminalOf(nodesStore.getState().nodes.batman)).toMatchObject({ model: "claude-opus-5-5", router: false });
+    expect(relaunchTerminal).toHaveBeenLastCalledWith("batman", expect.objectContaining({ cwd: "C:/code/proj", model: "claude-opus-5-5" }), "new");
+  });
+
+  it("follows Settings' router while the Fleet's switch is unset: levels are needed, and the team takes their models", async () => {
+    modelRouterStore.setState({ on: true });
+    await setup({});
+    await launchMission("chef");
+    expect(missionPrepare).not.toHaveBeenCalled();
+    expect(missionNow()).toMatchObject({ state: "plan", error: expect.stringContaining("level") });
+    await setup({ plan: [{ ...plan[0], level: "eleve" }, { ...plan[1], level: "faible" }] });
+    await launchMission("chef");
+    expect(missionNow().members.map((m) => m.model)).toEqual(["claude-opus-5-5", "claude-haiku-5-5"]);
+  });
+
+  it("starts no agent on a level's model once the Fleet's switch is set off, Settings' router on", async () => {
+    modelRouterStore.setState({ on: true });
+    await setup({ router: false, plan: [{ ...plan[0], level: "eleve" }, { ...plan[1], level: "faible" }] });
+    await launchMission("chef");
+    expect(missionNow().members.map((m) => m.model)).toEqual([undefined, undefined]);
+    expect(vi.mocked(addTerminal).mock.calls[0][1].model).toBeUndefined();
   });
 });
 
@@ -837,6 +885,13 @@ it("keeps the router setting when the mission is cleaned (backlog 27 oct)", asyn
   vi.mocked(missionCleanup).mockResolvedValue({ removed: [], kept: [] });
   await cleanMission("chef");
   expect(missionNow()).toMatchObject({ state: "redaction", router: true });
+});
+
+it("keeps a Fleet's switch set off when the mission is cleaned: the veto holds for the next mission", async () => {
+  await setup({ state: "terminee", maxAgents: 3, router: false, project: "C:/code/proj", slug: "auth", summary: "ok", members: [member("batman", "Batman", true)] });
+  vi.mocked(missionCleanup).mockResolvedValue({ removed: [], kept: [] });
+  await cleanMission("chef");
+  expect(missionNow()).toMatchObject({ state: "redaction", router: false });
 });
 
 describe("what the final review of H2 found", () => {

@@ -90,8 +90,10 @@ export interface Member {
   abandoned?: boolean;
   /** Sub-tasks it finished before taking another one (`reattribuer`). */
   done?: string[];
-  /** The model the router started it on. */
+  /** The model the router started it on, or the one it kept. */
   model?: string;
+  /** A linked agent the router did not route: it ran its own model, and keeps it after the mission (`endMission`). */
+  keptModel?: true;
   /** The existing group it joined; it closes alone at the end. */
   group?: string;
   /** The tasks it went through before this one. */
@@ -126,7 +128,10 @@ export interface Mission {
   endedAt?: number;
   /** The end of the night was told. */
   globalOverdue?: boolean;
-  /** Each agent gets the model of its sub-task's level. */
+  /**
+   * The Fleet's model router switch, set: on, each agent gets the model of its sub-task's level, off vetoes the
+   * router for the whole mission; unset, it follows the global setting (`@/mission/routerState`).
+   */
   router?: boolean;
   /** Tasks beyond the team, in order; a new agent, in a new terminal, takes the next one. */
   queue?: QueuedTask[];
@@ -221,6 +226,7 @@ function readMember(raw: unknown): Member | null {
   if (r.abandoned === true) member.abandoned = true;
   if (Array.isArray(r.done)) member.done = r.done.filter((title): title is string => typeof title === "string");
   if (typeof r.model === "string" && r.model) member.model = r.model;
+  if (r.keptModel === true) member.keptModel = true;
   if (typeof r.group === "string") member.group = r.group;
   if (Array.isArray(r.past)) member.past = r.past.map(readPast).filter((p): p is PastTask => p !== null);
   return member;
@@ -271,7 +277,7 @@ export function readMission(raw: unknown): Mission | undefined {
   if (typeof r.startedAt === "number") mission.startedAt = r.startedAt;
   if (typeof r.endedAt === "number") mission.endedAt = r.endedAt;
   if (r.globalOverdue === true) mission.globalOverdue = true;
-  if (r.router === true) mission.router = true;
+  if (typeof r.router === "boolean") mission.router = r.router;
   if (r.overnight === true) mission.overnight = true;
   if (r.windDownTold === true) mission.windDownTold = true;
   const tickets = readTicketSource(r.tickets);
@@ -283,7 +289,11 @@ export function readMission(raw: unknown): Mission | undefined {
   return mission;
 }
 
-/** What a sub-task of the plan and a queued task share, read from internal names, or what is wrong. */
+/**
+ * What a sub-task of the plan and a queued task share, read from internal names, or what is wrong. `mission.router`
+ * is read as its caller resolved it (`@/mission/launch` levelsRequired): on, where a level picks the team's model,
+ * every task needs one.
+ */
 function readTaskFields(r: Record<string, unknown>, n: number, mission: Mission): Omit<QueuedTask, "group"> | string {
   const e = messages(agentMessages).plan;
   const title = text(r.titre);

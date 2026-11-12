@@ -9,6 +9,7 @@ import { nodesStore } from "@/store/nodes";
 import { workspacesStore } from "@/store/workspaces";
 import { fleetTool } from "./fleetTools";
 import { internalCall } from "./protocol";
+import { modelRouterStore } from "@/app/modelRouterSetting";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
 vi.mock("@/mission/launch", () => ({ endMission: vi.fn(), mergeMission: vi.fn(), reassignTask: vi.fn(), launchMission: vi.fn(() => Promise.resolve()), deliveryPending: vi.fn(() => false) }));
@@ -31,6 +32,8 @@ async function setup(mission: Partial<Mission>) {
 }
 
 beforeEach(() => {
+  // The router as before Settings had one: only a switch set on routes. The global setting has its own tests.
+  modelRouterStore.setState({ on: false, levels: {} });
   mockIPC(() => undefined);
   vi.clearAllMocks();
   workspacesStore.setState({ activeId: "w1" });

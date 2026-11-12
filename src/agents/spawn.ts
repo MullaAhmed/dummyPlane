@@ -4,7 +4,7 @@ import { framesFromScene, groupOf } from "@/canvas/groups";
 import { signalWire } from "@/canvas/wireActivity";
 import { messages } from "@/i18n";
 import { readExtensionChoice } from "@/ipc/claudeExtensions";
-import { ptySendText, ptyWrite } from "@/ipc/pty";
+import { ptySendText, ptyWrite, type AgentId } from "@/ipc/pty";
 import { agentMessages } from "@/mcp/messages";
 import { outLevel } from "@/mcp/protocol";
 import { duplicateWork } from "@/mission/activeWork";
@@ -12,19 +12,20 @@ import { notify } from "@/mission/events";
 import { oneLine } from "@/mission/mission";
 import { missionFolder } from "@/mission/folder";
 import { whenReady } from "@/mission/ready";
-import { modelLabel, readLevel } from "@/mission/router";
+import { MODEL_ID, modelLabel, readLevel } from "@/mission/router";
 import { newTerminalPayload } from "@/nodes/terminal/launch";
 import { freshText, quietFor } from "@/nodes/terminal/registry";
 import { MAX_STORED_TASK, type TerminalPayload } from "@/nodes/types";
 import { isManagerNode, nodeNameOf, nodesStore, terminalOf, type NodeRecord } from "@/store/nodes";
 import { isRunning } from "@/store/terminalStatus";
 import { quietly } from "./arrivals";
+import { AGENTS } from "./catalog";
 import { NODE_GAP } from "./groupLayout";
 import { agentsMessages } from "./messages";
 import { nameForNewAgent, pantheonForNewGroup } from "./naming";
 import { sceneAccess } from "./sceneAccess";
 import { fullRect } from "./selectionGroup";
-import { spawnModel, type SpawnModel } from "./spawnModel";
+import { spawnModel, unroutedText, type SpawnModel } from "./spawnModel";
 import { MAX_SPAWN_DEPTH, markLaunching, spawnDepth, spawnedAtWork } from "./spawnFamily";
 import { withFamilyGroup, type FamilyOptions } from "./spawnGroup";
 import { reflowSpawnTree, spawnedBy } from "./spawnTree";
@@ -41,8 +42,6 @@ import { withWire } from "./wires";
 
 /** A title longer than this is cut: spawn_agent's, and message_agent's for new work (`@/mcp/linkTools`). */
 export const MAX_TITLE = 60;
-/** A model alias (opus, sonnet…) or id: nothing a command line could misread. */
-const MODEL = /^[A-Za-z0-9][A-Za-z0-9._:[\]-]{0,79}$/;
 
 const t = () => messages(agentMessages).spawn;
 
@@ -124,18 +123,26 @@ function familyOptions(pantheon: string): FamilyOptions {
   };
 }
 
-/** What the spawner hears about its sub-agent's model: the level that chose it, a model set aside, a level that chose nothing. */
-function modelNote(routed: SpawnModel): { why?: string; after?: string } {
+/**
+ * What the spawner hears about its sub-agent's model: the level that chose it, a model set aside, or a level that
+ * chose nothing, why (the router off at its switch, above it or in Settings; no model for that level on the
+ * sub-agent's CLI) and what it runs instead.
+ */
+function modelNote(parentId: string, child: AgentId, routed: SpawnModel): { why?: string; after?: string } {
   const why = routed.level && (routed.defaulted ? t().byDefault : t().byLevel(outLevel(routed.level)));
-  const after = routed.dropped ? t().modelDropped(routed.dropped) : routed.unused ? t().levelUnused : undefined;
-  return { why, after };
+  if (routed.dropped) return { why, after: t().modelDropped(routed.dropped) };
+  if (!routed.unused) return { why };
+  const { level, why: reason } = routed.unused;
+  const runs = routed.model ? t().runsNamed : t().runsDefault(AGENTS[child].label);
+  return { after: t().levelUnused(outLevel(level), unroutedText(reason, level, parentId), runs) };
 }
 
 async function spawnNow(parentId: string, args: SpawnArgs): Promise<SpawnResult> {
   const task = typeof args.task === "string" ? args.task.trim() : "";
   if (!task) return refuse(t().task);
   const model = typeof args.model === "string" ? args.model.trim() : "";
-  if (model && !MODEL.test(model)) return refuse(t().model(model));
+  // The launch's own rule (`checked_model`): a model it would refuse is refused here, before a terminal opens.
+  if (model && !MODEL_ID.test(model)) return refuse(t().model(model));
   // No level, or an empty one, is none, as for the model.
   const asked = args.niveau == null || args.niveau === "" ? undefined : args.niveau;
   const level = asked === undefined ? undefined : readLevel(asked);
@@ -185,7 +192,7 @@ async function spawnNow(parentId: string, args: SpawnArgs): Promise<SpawnResult>
   // Element, spawnedBy and wire all there: the tree takes its flowchart layout, the wire rerouted.
   reflowSpawnTree(workspaceId, childId);
   void deliver(parentId, childId, name, t().brief(parent.name || "your parent agent", task));
-  return { text: t().spawned(name, routed.model && modelLabel(routed.model), modelNote(routed)) };
+  return { text: t().spawned(name, routed.model && modelLabel(routed.model), modelNote(parentId, payload.agent, routed)) };
 }
 
 /**

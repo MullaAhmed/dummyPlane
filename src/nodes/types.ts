@@ -36,13 +36,15 @@ export interface TerminalPayload {
   /** Claude's model, chosen by a mission's router or in the edit panel. */
   model?: string;
   /**
-   * Claude only: the model router is on for this agent, a sticky switch (its header, its edit panel). A mission that
-   * gives it a sub-task with a level starts it on the model that level names (`modelFor`); a sub-task without a
-   * level leaves `model` as it is. Off, the mission does as it always did: the Fleet's own router if that is on,
-   * else the agent goes back to Claude's own model (`restartIn`). It is not a launch setting: switching it never
-   * offers a restart.
+   * Its model router switch (its header, its edit panel), set: on routes this agent, off vetoes the router for it
+   * and all it spawns; unset, it follows the setting above it, its mission's Fleet's, its spawner's, else the global
+   * one (`@/mission/routerState`). Routed, a sub-task with a level starts it on the model that level names on its
+   * CLI, and so does each sub-agent it opens; a sub-task without a level leaves `model` as it is. Not routed (set
+   * off, or off by what it follows), a mission's sub-task leaves `model` as it is, through the mission and after it
+   * (`restartIn`). It is not a launch setting: switching it never offers a restart. Saved data from before the global
+   * setting has only `true`.
    */
-  router?: true;
+  router?: boolean;
   /** Claude's effort level (`--effort`), chosen in the edit panel; absent: Claude's own (its settings, the model's default). */
   effort?: EffortLevel;
   /** What its mission lets it do unasked; on a fleet's session, its night. */
@@ -334,7 +336,7 @@ export function readTerminalPayload(raw: unknown): TerminalPayload | null {
   }
   if (r.remoteControl === true) payload.remoteControl = true;
   if (typeof r.model === "string" && r.model) payload.model = r.model;
-  if (r.router === true) payload.router = true;
+  if (typeof r.router === "boolean") payload.router = r.router;
   const effort = readEffort(r.effort);
   if (effort) payload.effort = effort;
   if (r.permission === "ask" || r.permission === "edits" || r.permission === "work") payload.permission = r.permission;

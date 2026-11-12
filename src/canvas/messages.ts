@@ -107,10 +107,11 @@ export const canvasMessages = defineMessages(
       // The model router, a switch of the first group: it applies at once and is no launch setting, so it never offers a restart.
       modelRouter: "Model router",
       // Under a Fleet's switch: it routes the whole team of its mission, and every sub-agent opened under the Fleet or its team with spawn_agent, theirs too.
-      modelRouterFleet: `Each agent of its team, and each sub-agent it or they open, takes the model of its task's level, never a model they name: ${ROUTER_LEVELS}`,
+      // Unset, it follows Settings' "Model router"; turned on or off here, it holds for the whole mission until "Follow Settings".
+      modelRouterFleet: `With it on, each agent of its team, and each sub-agent it or they open, takes the model of its task's level, never a model they name: ${ROUTER_LEVELS}; on Codex, the models set in Settings. Unset, it follows Settings; turned on or off here, it stays so until Follow Settings`,
       // Under a terminal's switch: a sub-task a Fleet gives it, with its level; one without a level leaves its model as it is. Its spawn_agent sub-agents too, and
-      // theirs; a sub-agent's own switch stays off while a router above it routes it, which the last sentence says.
-      modelRouterAgent: `With it on, a sub-task a Fleet gives it starts it on the model of its level, and so does each sub-agent it opens, and theirs: ${ROUTER_LEVELS}. A sub-task with no level leaves its model as it is. Off, the router of the Fleet or the agent it works under still chooses its sub-agents' models`,
+      // theirs. Unset, it shows what it inherits (Settings, the Fleet or the agent it works under); turned on or off here, it holds, for every agent under it too, until "Follow".
+      modelRouterAgent: `With it on, a sub-task a Fleet gives it starts it on the model of its level, and so does each sub-agent it opens, and theirs: ${ROUTER_LEVELS}; on Codex, the models set in Settings. A sub-task with no level leaves its model as it is, and so does any sub-task while the router is off for it. Unset, it follows Settings, or the Fleet or agent it works under; turned on or off here, it stays so, for every agent under it too, until Follow`,
       remoteControl: "Remote Control",
       // Beside its box: where Remote Control stands; it applies to a running session at once.
       remoteStates: { on: "On", connecting: "Connecting…", pending: "At the end of its turn", requested: "Requested", nextStart: "At next start" },

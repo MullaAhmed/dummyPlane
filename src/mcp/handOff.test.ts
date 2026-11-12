@@ -17,6 +17,7 @@ import { nodesStore } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
 import { workspacesStore } from "@/store/workspaces";
 import { answer } from "./router";
+import { modelRouterStore } from "@/app/modelRouterSetting";
 
 vi.mock("@excalidraw/excalidraw", () => ({ CaptureUpdateAction: { IMMEDIATELY: "immediately" } }));
 vi.mock("@/nodes/terminal/registry", () => ({ terminalText: vi.fn(() => "line 1") }));
@@ -69,6 +70,8 @@ beforeAll(async () => {
 });
 
 beforeEach(() => {
+  // The router as before Settings had one: only a switch set on routes. The global setting has its own tests.
+  modelRouterStore.setState({ on: false, levels: {} });
   // Batgirl is wired to the Fleet, as "+ Link" then a click on the Fleet wires her.
   scene = withWire(nodes, "chef", "batgirl");
   setMission({});
@@ -172,7 +175,10 @@ describe("hand_off while the mission runs", () => {
     const [task] = queueOf();
     expect(task).toMatchObject({ title: "Fix the login", brief: "The form loses its state.\nSee auth.ts.", budgetMin: 20, level: "eleve", handedBy: "Batgirl" });
     expect(task.card).toBeTruthy();
-    expect(textOf(result)).toBe(`Queued as card ${task.card} ("Fix the login"). Waiting: 1. A new agent takes it as a seat frees up; the Fleet is told.`);
+    // Its level picks no model with the router off (in Settings here), and the answer says so and what its agent runs.
+    expect(textOf(result)).toBe(
+      `Queued as card ${task.card} ("Fix the login"). Waiting: 1. A new agent takes it as a seat frees up; the Fleet is told. Its level (high) picks no model: the model router is off in dummyPlane's Settings. Its agent starts on Claude's own default model.`,
+    );
     expect(board().columns[0].cardIds).toEqual([task.card]);
     expect(board().cards[task.card!]).toMatchObject({ title: "Fix the login", notes: "The form loses its state. See auth.ts.\n\nHanded off by Batgirl." });
     expect(pumpQueue).toHaveBeenCalledWith("chef");
@@ -254,6 +260,27 @@ describe("hand_off while the mission runs", () => {
     expect(textOf(result)).toContain("Chef's mission is finished");
     expect(queueOf()).toEqual([]);
     expect(notify).not.toHaveBeenCalled();
+  });
+});
+
+describe("hand_off with Settings' model router on", () => {
+  beforeEach(() => modelRouterStore.setState({ on: true }));
+
+  it("says the model its agent starts on: the level's, or medium for want of one", async () => {
+    const rated = await call("batgirl", "hand_off", { title: "Fix the login", brief: "b", level: "high" });
+    expect(textOf(rated)).toContain("Its agent starts on Opus 5.5 (the model router's high level).");
+    const unrated = await call("batgirl", "hand_off", { title: "Fix the logout", brief: "b" });
+    expect(queueOf()[1].level).toBe("moyen");
+    expect(textOf(unrated)).toContain("Its agent starts on Sonnet 5.5 (the model router's medium level, as you gave no level");
+  });
+
+  it("says why a level picks nothing once the Fleet's switch is set off", async () => {
+    setMission({ router: false });
+    const result = await call("batgirl", "hand_off", { title: "Fix the login", brief: "b", level: "low" });
+    expect(textOf(result)).toContain("Its level (low) picks no model: the user turned the model router off at Chef, for it and every agent under it. Its agent starts on Claude's own default model.");
+    // No level asked for where the router is off: none is given by default.
+    await call("batgirl", "hand_off", { title: "Fix the logout", brief: "b" });
+    expect(queueOf()[1].level).toBeUndefined();
   });
 });
 

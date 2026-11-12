@@ -8,7 +8,6 @@ import { closeGroup, closeStoredGroup, launchGroup, showGroups } from "@/agents/
 import { defaultLaunchOptions } from "@/agents/launchAgent";
 import { nextName } from "@/agents/names";
 import { namesInWorkspace, pantheonForNewGroup } from "@/agents/naming";
-import { fleetAgent } from "@/fleet/fleetAgent";
 import { linkFleet } from "@/fleet/fleets";
 import { sceneAccess } from "@/agents/sceneAccess";
 import { addTerminal, removeFromStoredScene, removeNodes } from "@/agents/terminals";
@@ -16,13 +15,11 @@ import { messages } from "@/i18n";
 import { missionAddAgent, missionCleanup, missionDiscard, missionMerge, missionPrepare, type Cleanup, type Worktree } from "@/ipc/mission";
 import { readExtensionChoice, type ExtensionChoice } from "@/ipc/claudeExtensions";
 import { ptySendText, ptyWrite, type AgentId, type Permission } from "@/ipc/pty";
-import { FLEET_CAPABLE } from "@/fleet/capable";
 import { newConversation, newTerminalPayload } from "@/nodes/terminal/launch";
 import { freshText, quietFor, relaunchTerminal, stopTerminal } from "@/nodes/terminal/registry";
 import { addTaskCards, linkedBoards, reassignMissionCard, startMissionCards } from "@/kanban/fleetBoards";
 import { agentMessages } from "@/mcp/messages";
 import { outReport } from "@/mcp/protocol";
-import type { TerminalPayload } from "@/nodes/types";
 import { nodeNameOf, nodesStore, sessionOf, terminalOf } from "@/store/nodes";
 import { isRunning } from "@/store/terminalStatus";
 import { markLaunching } from "@/agents/spawnFamily";
@@ -33,7 +30,9 @@ import { addTeamMember, fleetNameOf, reflowTeam, removeManager, setUpBoard, undo
 import { nightSession } from "./overnight";
 import { NEW_AGENT, NEW_MISSION, oneLine, pastTask, queuedTask, reassignable, sameName, type Member, type Mission, type SubTask } from "./mission";
 import { whenReady } from "./ready";
-import { modelFor } from "./router";
+import { modelRouterStore } from "@/app/modelRouterSetting";
+import { levelModel, modelLabel } from "./router";
+import { levelsRequired, routesLinked, teamAgent, teamModel } from "./teamModel";
 import { canvasKnown, linkedTeamAgents, linkedGroups, missionOf, missionRunner, fleetShown, releaseSpawnedPermission, setMission, updateMember, workspaceCanvas } from "./store";
 
 const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));
@@ -76,8 +75,8 @@ export function handoverText(from: Member): string {
 
 /**
  * A linked agent moves to `cwd` in a new conversation: a Claude session does
- * not resume from another folder. It takes `model`, the router's,
- * or none to go back to Claude's own; likewise for what its
+ * not resume from another folder. It takes `model`, the router's or
+ * the one it kept, or none to go back to its CLI's own; likewise for what its
  * mission lets it do unasked.
  */
 export function restartIn(nodeId: string, cwd: string, model?: string, permission?: Permission): Promise<void> {
@@ -101,23 +100,6 @@ function besideFleet(fleetId: string, workspaceId: string, count: number) {
 }
 
 const frameCenter = (frame: { x: number; y: number; width: number; height: number }) => ({ x: frame.x + frame.width / 2, y: frame.y + frame.height / 2 });
-
-/** The CLI a fleet's team runs on: the fleet's own (fleet/fleetAgent.ts). */
-export function teamAgent(fleetId: string): AgentId {
-  const agent = sessionOf(nodesStore.getState().nodes[fleetId])?.agent;
-  return agent && FLEET_CAPABLE.includes(agent) ? agent : fleetAgent();
-}
-
-/**
- * The router's model for a task: its levels name Claude's models, which another CLI would refuse. The mission's
- * router routes the team of a Claude Fleet; a linked Claude agent whose own router is on (`linked`) takes it on a
- * Fleet of another CLI too, and keeps the model it has when the task names no level.
- */
-function teamModel(fleetId: string, mission: Mission, task: SubTask, linked?: TerminalPayload): string | undefined {
-  const byMission = teamAgent(fleetId) === "claude" && mission.router === true;
-  const own = linked?.agent === "claude" && linked.router === true;
-  return modelFor({ router: byMission }, task, { router: own }) ?? (own ? linked?.model : undefined);
-}
 
 /** What the Fleet's own Edit tab turned off (skills, plugins, MCP servers, subagents): its new agents start without them too. */
 const fleetExtensions = (fleetId: string): ExtensionChoice | undefined => readExtensionChoice(sessionOf(nodesStore.getState().nodes[fleetId])?.extensions);
@@ -175,7 +157,8 @@ async function formTeam(fleetId: string, workspaceId: string, project: string, m
       taken.push(name);
       const tree = await missionAddAgent(project, root.slug, name);
       made.push(tree);
-      const model = teamModel(fleetId, mission, task, terminalOf(nodesStore.getState().nodes[agent?.nodeId ?? ""]));
+      const linkedPayload = terminalOf(nodesStore.getState().nodes[agent?.nodeId ?? ""]);
+      const model = teamModel(fleetId, mission, task, linkedPayload);
       members.push({
         nodeId: agent?.nodeId ?? "",
         name,
@@ -185,6 +168,7 @@ async function formTeam(fleetId: string, workspaceId: string, project: string, m
         branch: tree.branch,
         worktree: tree.path,
         ...(model ? { model } : {}),
+        ...(linkedPayload && !routesLinked(mission, linkedPayload) ? { keptModel: true as const } : {}),
         ...(task.group ? { group: task.group.id } : {}),
       });
     }
@@ -315,14 +299,23 @@ export async function launchMission(fleetId: string): Promise<void> {
   const mission = missionOf(record);
   const session = sessionOf(record);
   if (!record || !mission || !session || mission.state !== "plan" || !mission.plan?.length) return;
-  // The router was turned on after the plan: without levels, every agent would get Claude's default model.
-  if (mission.router && [...mission.plan, ...(mission.queue ?? [])].some((task) => !task.level)) {
-    const error = t().lines.levelsMissing;
+  // The router was turned on after the plan (its switch, or Settings): without levels, every agent would get its CLI's default model.
+  const required = levelsRequired(fleetId, mission);
+  const unrated = required ? mission.plan.filter((task) => !task.level) : [];
+  if (unrated.length > 0) {
+    const error = t().lines.levelsMissing(unrated.map((task) => task.title));
     setMission(fleetId, { error });
     notify(fleetId, t().lines.proposeLevels(error));
     return;
   }
-  setMission(fleetId, { state: "lancement", error: undefined });
+  // A task queued with no level, before the router was on, takes medium as add_tasks gives it now: proposing the plan
+  // again would not rate it, so refusing would loop.
+  const levelless = required ? (mission.queue ?? []).filter((task) => !task.level) : [];
+  setMission(fleetId, { state: "lancement", error: undefined, ...(levelless.length > 0 ? { queue: (mission.queue ?? []).map((task) => (task.level ? task : { ...task, level: "moyen" as const })) } : {}) });
+  if (levelless.length > 0) {
+    const medium = levelModel(teamAgent(fleetId), "moyen", modelRouterStore.getState().levels);
+    notify(fleetId, t().lines.queuedMedium(levelless.map((task) => task.title), medium && modelLabel(medium)));
+  }
   // Max agents start at once; the plan's other sub-tasks wait at the head of the queue for a seat.
   const plan = mission.plan.slice(0, mission.maxAgents);
   const waiting = mission.plan.slice(mission.maxAgents).map(queuedTask);
@@ -362,7 +355,12 @@ export function endMission(fleetId: string, summary: string, ui?: string) {
   setMission(fleetId, { state: "terminee", summary, ...(ui ? { summaryUi: ui } : {}), endedAt: Date.now() });
   // The user hears it, if away (`@/shell/finishAlert`).
   signalFinish({ nodeId: fleetId, state: "done", summary });
-  for (const member of mission.members) if (member.linked && mission.project) void restartIn(member.nodeId, mission.project);
+  // A linked agent the router routed goes back on its CLI's own model; one it did not route keeps its own, as through its sub-task.
+  for (const member of mission.members) {
+    if (!member.linked || !mission.project) continue;
+    const own = terminalOf(nodesStore.getState().nodes[member.nodeId]);
+    void restartIn(member.nodeId, mission.project, member.keptModel ? own?.model : undefined);
+  }
   // Its own sub-agents (spawn_agent) stay open, without the night's permission: a later restart asks. So do its Manager's.
   releaseSpawnedPermission(fleetId, mission.permission);
   // Those who joined a group go alone: it stays, with its own agents. Under a
@@ -442,8 +440,8 @@ async function cleanMissionNow(fleetId: string): Promise<Cleanup | string> {
   // A night's length is that night's absence, no setting for the next mission; the fleet's session goes back to its day.
   const next: Mission = { ...NEW_MISSION, maxAgents: mission.maxAgents };
   if (mission.overnight) void nightSession(fleetId, { linear: false }).catch((error: unknown) => console.warn("fleet session not restored after the night", error));
-  // The router is a setting like Max agents: the next mission keeps it checked.
-  if (mission.router) next.router = true;
+  // The router's switch is a setting like Max agents: the next mission keeps it as set, on or off, or following Settings.
+  if (mission.router !== undefined) next.router = mission.router;
   // Its Manager goes with it; its board stays, still the Fleet's: the next mission runs on it.
   removeManager(fleetId);
   try {
