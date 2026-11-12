@@ -225,6 +225,25 @@ describe("the model router", () => {
     expect(terminalOf(nodesStore.getState().nodes.batman)?.model).toBeUndefined();
     expect(missionNow().members.map((m) => m.model)).toEqual([undefined, undefined]);
   });
+
+  it("follows Settings' router while the Fleet's switch is unset: levels are needed, and the team takes their models", async () => {
+    modelRouterStore.setState({ on: true });
+    await setup({});
+    await launchMission("chef");
+    expect(missionPrepare).not.toHaveBeenCalled();
+    expect(missionNow()).toMatchObject({ state: "plan", error: expect.stringContaining("level") });
+    await setup({ plan: [{ ...plan[0], level: "eleve" }, { ...plan[1], level: "faible" }] });
+    await launchMission("chef");
+    expect(missionNow().members.map((m) => m.model)).toEqual(["claude-opus-5-5", "claude-haiku-5-5"]);
+  });
+
+  it("starts no agent on a level's model once the Fleet's switch is set off, Settings' router on", async () => {
+    modelRouterStore.setState({ on: true });
+    await setup({ router: false, plan: [{ ...plan[0], level: "eleve" }, { ...plan[1], level: "faible" }] });
+    await launchMission("chef");
+    expect(missionNow().members.map((m) => m.model)).toEqual([undefined, undefined]);
+    expect(vi.mocked(addTerminal).mock.calls[0][1].model).toBeUndefined();
+  });
 });
 
 describe("launchMission", () => {
@@ -839,6 +858,13 @@ it("keeps the router setting when the mission is cleaned (backlog 27 oct)", asyn
   vi.mocked(missionCleanup).mockResolvedValue({ removed: [], kept: [] });
   await cleanMission("chef");
   expect(missionNow()).toMatchObject({ state: "redaction", router: true });
+});
+
+it("keeps a Fleet's switch set off when the mission is cleaned: the veto holds for the next mission", async () => {
+  await setup({ state: "terminee", maxAgents: 3, router: false, project: "C:/code/proj", slug: "auth", summary: "ok", members: [member("batman", "Batman", true)] });
+  vi.mocked(missionCleanup).mockResolvedValue({ removed: [], kept: [] });
+  await cleanMission("chef");
+  expect(missionNow()).toMatchObject({ state: "redaction", router: false });
 });
 
 describe("what the final review of H2 found", () => {

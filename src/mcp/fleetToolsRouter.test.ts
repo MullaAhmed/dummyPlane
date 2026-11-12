@@ -74,6 +74,17 @@ describe("with Settings' model router on", () => {
     expect((await view()).plan?.[0].model).toBe("Haiku 5.5");
   });
 
+  it("queues add_tasks' tasks with no level at medium, rather than refusing them, and says so", async () => {
+    const result = await fleetTool("chef", "add_tasks", { tasks: [{ titre: "Docs", consigne: "Write them", budget_min: 10 }, { titre: "Tests", consigne: "Write them", budget_min: 10, niveau: "eleve" }] });
+    expect(result.isError).toBeUndefined();
+    expect(result.content[0].text).toBe("2 tasks added. Waiting: 2. 1 task with no level takes the model router's medium level (Sonnet 5.5): give each task a level, its difficulty.");
+    const queue = (nodesStore.getState().nodes.chef?.payload as { mission: { queue: { level?: string }[] } }).mission.queue;
+    expect(queue.map((task) => task.level)).toEqual(["moyen", "eleve"]);
+    // With the Fleet's switch off, no level is given: none picks anything.
+    nodesStore.getState().update("chef", { mission: { state: "plan", maxAgents: 4, members: [], router: false } });
+    expect((await fleetTool("chef", "add_tasks", { tasks: [{ titre: "More", consigne: "b", budget_min: 5 }] })).content[0].text).toBe("1 task added. Waiting: 1.");
+  });
+
   it("plans a Codex team with nothing mapped as before, levels optional, and maps them once Settings has models", async () => {
     nodesStore.getState().update("chef", { session: { ...claude, name: "Chef", role: "orchestrator", agent: "codex" } });
     expect((await fleetTool("chef", "proposer_plan", plan(sub("Login")))).isError).toBeUndefined();

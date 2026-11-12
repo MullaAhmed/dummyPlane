@@ -86,7 +86,7 @@ function missionToolSpecs(manager: boolean) {
                 title: { type: "string", maxLength: 60 },
                 brief: { type: "string" },
                 budget_min: { type: "integer", minimum: 1 },
-                level: { type: "string", enum: ["low", "medium", "high", "extreme"], description: d.planLevel },
+                level: { type: "string", enum: ["low", "medium", "high", "extreme"], description: d.queueLevel },
                 group: { type: "string", description: d.taskGroup },
                 card: { type: "string", description: d.taskCard },
               },
@@ -387,9 +387,27 @@ export function enqueueTasks(fleetId: string, mission: Mission, args: Record<str
  * card in its to-do column. The queue starts a new agent for each as seats free up, without waiting for anyone.
  * The Fleet's cards travel to the board, then to the Manager, who is told.
  */
-function addTasks(fleetId: string, mission: Mission, args: Record<string, unknown>, caller: string = fleetId): ToolResult {
+/**
+ * `add_tasks`' tasks with a level each where the router picks the team's model (`levelsRequired`): medium for want
+ * of one, as hand_off's and spawn_agent's, rather than a refusal now that the router is on unless turned off. A plan
+ * still needs one per sub-task: the Fleet rates them all at once. How many took medium, for the answer.
+ */
+function withDefaultLevels(fleetId: string, mission: Mission, args: Record<string, unknown>): { args: Record<string, unknown>; defaulted: number } {
+  if (!Array.isArray(args.tasks) || !levelsRequired(fleetId, mission)) return { args, defaulted: 0 };
+  let defaulted = 0;
+  const tasks = args.tasks.map((item: unknown) => {
+    const r = item as Record<string, unknown> | null;
+    if (typeof r !== "object" || r === null || (r.niveau !== undefined && r.niveau !== null)) return item;
+    defaulted++;
+    return { ...r, niveau: "moyen" };
+  });
+  return { args: { ...args, tasks }, defaulted };
+}
+
+function addTasks(fleetId: string, mission: Mission, asked: Record<string, unknown>, caller: string = fleetId): ToolResult {
   // Before enqueueTasks: it also serves hand_off, which checks the finished mission itself; here the refusal names who calls.
   if (mission.state === "terminee") return refused(caller === fleetId ? t().fleet.finishedAddTasks : t().fleet.finishedForManager);
+  const { args, defaulted } = withDefaultLevels(fleetId, mission, asked);
   const added = enqueueTasks(fleetId, mission, args);
   if (typeof added === "string") return refused(added);
   const { tasks, queue, latest } = added;
@@ -401,7 +419,8 @@ function addTasks(fleetId: string, mission: Mission, args: Record<string, unknow
     } else talk(caller, latest.board);
   }
   void pumpQueue(fleetId);
-  return said(t().fleet.queued(tasks.length, queue.length));
+  const medium = levelModel(teamAgent(fleetId), "moyen", modelRouterStore.getState().levels);
+  return said(t().fleet.queued(tasks.length, queue.length) + (defaulted ? t().fleet.defaultedLevels(defaulted, medium && modelLabel(medium)) : ""));
 }
 
 /**
