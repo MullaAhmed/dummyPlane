@@ -1,10 +1,12 @@
 import { CaptureUpdateAction, newElementWith } from "@excalidraw/excalidraw";
 import type { ExcalidrawArrowElement, ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
-import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
+import type { AppState, ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { currentPalette } from "@/app/theme";
 import { nodesStore, terminalOf } from "@/store/nodes";
 import {
+  faceWires,
   isWire,
+  misfacedWires,
   missingSpawnWires,
   orphanReason,
   orphanWires,
@@ -41,12 +43,20 @@ function relisted(element: ExcalidrawElement, gone: ReadonlySet<string>, back: r
 /** An upkeep is already programmed for the next frame: further changes wait for it, not queue behind it. */
 let pending = false;
 
+/** What the user is in the middle of: no wire changes sides under the pointer, only once it lets go. */
+type Gesture = Pick<AppState, "selectedElementsAreBeingDragged" | "isResizing" | "isRotating" | "newElement" | "editingFrame">;
+const busy = ({ selectedElementsAreBeingDragged, isResizing, isRotating, newElement, editingFrame }: Gesture) =>
+  Boolean(selectedElementsAreBeingDragged || isResizing || isRotating || newElement || editingFrame);
+
 /**
  * Hand-drawn wires get their mark, wires left without an end go and wires in
  * another palette's color take the current palette's accent; a deleted wire leaves its ends' lists and a revived one is listed
  * again; then each sub-agent whose spawner is in the scene gets its spawn wire
  * back when none joins them (`missingSpawnWires`), a wire just deleted as
- * orphaned included: a fresh one, bound to both. Outside the undo history, a
+ * orphaned included: a fresh one, bound to both; and each wire whose ends no
+ * longer face each other, a node having been dragged past its neighbour, drawn
+ * again between the sides that do (`faceWires`), once the user lets go.
+ * Outside the undo history, a
  * frame after the change: changing the scene from inside `onChange` would
  * re-enter it. One upkeep at a time, each reading the scene (and the palette)
  * as it is then.
@@ -54,6 +64,7 @@ let pending = false;
 export function scheduleWireUpkeep(api: ExcalidrawImperativeAPI, elements: readonly ExcalidrawElement[], spawnerOf: SpawnerOf = spawnedBy) {
   if (pending) return;
   const nothingToDo =
+    (busy(api.getAppState()) || misfacedWires(elements).length === 0) &&
     unmarkedWires(elements).length === 0 &&
     orphanWires(elements).length === 0 &&
     revivableWires(elements).length === 0 &&
@@ -97,7 +108,9 @@ export function scheduleWireUpkeep(api: ExcalidrawImperativeAPI, elements: reado
     const healed = withSpawnWires(kept, spawnerOf, palette);
     // The trigger that leaves a spawn wire without an end is still unknown: each one re-created is logged.
     for (const { parentId, childId } of healed.added) console.warn(`spawn wire re-created: child ${childId}, parent ${parentId}`);
-    if (healed.added.length === 0 && kept.every((e, i) => e === current[i])) return;
-    api.updateScene({ elements: healed.elements, captureUpdate: CaptureUpdateAction.NEVER });
+    // A node moved past its neighbour: its wires leave and enter by the sides that now face each other.
+    const faced = busy(api.getAppState()) ? healed.elements : faceWires(healed.elements);
+    if (healed.added.length === 0 && faced === healed.elements && kept.every((e, i) => e === current[i])) return;
+    api.updateScene({ elements: faced, captureUpdate: CaptureUpdateAction.NEVER });
   });
 }

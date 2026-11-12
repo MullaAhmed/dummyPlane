@@ -6,6 +6,7 @@ import { createGroupFrame } from "@/canvas/groups";
 import { createNodeElement } from "@/canvas/nodeElement";
 import { scheduleWireUpkeep } from "./wireUpkeep";
 import { createWire, wireColor, withWire } from "./wires";
+import type { ExcalidrawElbowArrowElement } from "@excalidraw/excalidraw/element/types";
 
 vi.mock("@/ipc/db", () => ({ getSetting: vi.fn(), setSetting: vi.fn().mockResolvedValue(undefined) }));
 
@@ -307,5 +308,38 @@ describe("wire colors follow the palette", () => {
     const { wire, scene } = wireIn("expressive");
     const endless = scene.filter((e) => e.id !== frame.id);
     expect(upkeep(endless)!.find((e) => e.id === wire.id)!.isDeleted).toBe(true);
+  });
+});
+
+describe("a node moved past its neighbour", () => {
+  const wire = createWire(fleet, lone);
+  const beside = { ...lone, x: 3000, y: 100 } as ExcalidrawElement;
+  const elements = [fleet, beside, wire];
+  const sides = (e: ExcalidrawElement) => {
+    const { startBinding, endBinding } = e as ExcalidrawElbowArrowElement;
+    return [startBinding!.fixedPoint![0] > 1 ? "right" : "other", endBinding!.fixedPoint![0] < 0 ? "left" : "other"];
+  };
+  const during = (dragging: Record<string, unknown>) => ({ getSceneElementsIncludingDeleted: () => elements, getAppState: () => ({ ...appState, ...dragging }), updateScene }) as unknown as ExcalidrawImperativeAPI;
+
+  it("has its wire drawn again between the sides that face, once the user lets go, outside the undo history", () => {
+    scheduleWireUpkeep(during({}), elements);
+    expect(frames).toHaveLength(1);
+    frames.shift()!(0);
+    const update = updateScene.mock.calls[0][0];
+    expect(update.captureUpdate).toBe("never");
+    expect(sides(update.elements.find((e: ExcalidrawElement) => e.id === wire.id))).toEqual(["right", "left"]);
+  });
+
+  it("waits while the pointer drags, resizes or draws: nothing moves under it", () => {
+    for (const gesture of [{ selectedElementsAreBeingDragged: true }, { isResizing: true }, { isRotating: true }, { newElement: { id: "n" } }, { editingFrame: "f" }]) {
+      scheduleWireUpkeep(during(gesture), elements);
+      expect(frames).toHaveLength(0);
+    }
+  });
+
+  it("does nothing for a wire that already faces", () => {
+    const facing = [fleet, lone, wire];
+    scheduleWireUpkeep({ getSceneElementsIncludingDeleted: () => facing, getAppState: () => appState, updateScene } as unknown as ExcalidrawImperativeAPI, facing);
+    expect(frames).toHaveLength(0);
   });
 });

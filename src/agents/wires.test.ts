@@ -25,6 +25,8 @@ import {
   orphanReason,
   orphanWires,
   outdatedWires,
+  faceWires,
+  misfacedWires,
   rerouteWires,
   revivableWires,
   unmarkedWires,
@@ -483,6 +485,64 @@ describe("revivableWires", () => {
     const fresh = createWire(lone, child, "calm", true);
     expect(revivableWires([lone, child, dropped, fresh])).toEqual([]);
     expect(revivableWires([lone, child, dropped])).toEqual([old.id]);
+  });
+});
+
+/** The side of a box a wire's fixed point is on, read from the point as stored. */
+const sideOf = ([rx, ry]: readonly number[]) => (rx <= 0 ? "left" : rx >= 1 ? "right" : ry <= 0 ? "top" : "bottom");
+const sidesOfWire = (wire: ExcalidrawElement) => {
+  const { startBinding, endBinding } = wire as ExcalidrawElbowArrowElement;
+  return [sideOf(startBinding!.fixedPoint!), sideOf(endBinding!.fixedPoint!)];
+};
+
+describe("misfacedWires and faceWires (a node dragged past its neighbour: its wire changes sides)", () => {
+  const below = createWire(fleet, lone);
+  const moved = (to: Partial<ExcalidrawElement>) => ({ ...lone, ...to }) as ExcalidrawElement;
+
+  it("leaves a wire that faces as it is, and says so", () => {
+    const elements = [fleet, lone, below];
+    expect(sidesOfWire(below)).toEqual(["bottom", "top"]);
+    expect(misfacedWires(elements)).toEqual([]);
+    expect(faceWires(elements)).toBe(elements);
+  });
+
+  it("takes the left and right sides once the node stands beside the other, and the top and bottom once above or below again", () => {
+    const beside = [fleet, moved({ x: 3000, y: 100 }), below];
+    expect(misfacedWires(beside)).toEqual([below.id]);
+    const right = faceWires(beside);
+    expect(sidesOfWire(right[2])).toEqual(["right", "left"]);
+    expect(orthogonal((right[2] as ExcalidrawElbowArrowElement).points)).toBe(true);
+    expect(right[2]).toMatchObject({ id: below.id, version: below.version + 1, startBinding: { elementId: fleet.id }, endBinding: { elementId: lone.id }, customData: { dummyplane: { kind: "wire" } } });
+    // Drawn from the sides it now has, to where the node stands.
+    expect(ends(right[2] as ExcalidrawArrowElement).end.x).toBeCloseTo(fixedOnScene(right[1], (right[2] as ExcalidrawElbowArrowElement).endBinding!.fixedPoint!).x);
+    [0, 1].forEach((i) => expect(right[i]).toBe(beside[i]));
+    // Nothing more to do once it has: one pass is enough.
+    expect(misfacedWires(right)).toEqual([]);
+    expect(faceWires(right)).toBe(right);
+    // Over on the left, then above: each side that faces.
+    expect(sidesOfWire(faceWires([fleet, moved({ x: -3000, y: 100 }), right[2]])[2])).toEqual(["left", "right"]);
+    expect(sidesOfWire(faceWires([fleet, moved({ x: 0, y: -2000 }), right[2]])[2])).toEqual(["top", "bottom"]);
+  });
+
+  it("keeps a vertical tree's wire out of the bottom and into the top while the child is below, and lets it go once it is not", () => {
+    const tree = createWire(fleet, lone, undefined, { spawn: true, down: true });
+    // Still below, even off to the side: the tree's route.
+    expect(misfacedWires([fleet, moved({ x: 4000, y: 900 }), tree])).toEqual([]);
+    const above = faceWires([fleet, moved({ x: 0, y: -2000 }), tree]);
+    expect(sidesOfWire(above[2])).toEqual(["top", "bottom"]);
+    expect(above[2]).toMatchObject({ customData: { dummyplane: { kind: "wire", spawn: true, down: true } } });
+  });
+
+  it("never touches what is no live wire to two live ends, nor a side it cannot read", () => {
+    const hand = handDrawn(fleet, lone);
+    const gone = { ...below, isDeleted: true } as ExcalidrawElement;
+    const inside = { ...below, startBinding: { ...(below as ExcalidrawElbowArrowElement).startBinding!, fixedPoint: [0.5, 0.5] } } as ExcalidrawElement;
+    for (const elements of [[fleet, moved({ x: 3000 }), hand], [fleet, moved({ x: 3000 }), gone], [fleet, { ...moved({ x: 3000 }), isDeleted: true } as ExcalidrawElement, below], [moved({ x: 3000 }), below]]) {
+      expect(misfacedWires(elements)).toEqual([]);
+      expect(faceWires(elements)).toBe(elements);
+    }
+    // Its start is inside the box: unreadable, left; its end side is still wrong, so it is the end that is read.
+    expect(sidesOfWire(faceWires([fleet, moved({ x: 3000, y: 100 }), inside])[2])[1]).toBe("left");
   });
 });
 

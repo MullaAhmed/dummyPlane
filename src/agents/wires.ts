@@ -214,6 +214,21 @@ function wireSides(from: Box, to: Box): [Side, Side] {
   return [side, side];
 }
 
+/** Whether a vertical tree's wire still leaves the bottom of `from` for the top of `to`: flagged so, and `to` below `from`. */
+const runsDown = (from: Box, to: Box, tree: TreeRoute): boolean => tree.down === true && to.y >= from.y + from.height + 2 * GAP;
+
+/** The sides a wire joins: a tree's run down, else the ones that face each other. */
+const sidesOf = (from: Box, to: Box, down: boolean): [Side, Side] => (down ? ["bottom", "top"] : wireSides(from, to));
+
+/** The side of its box a fixed point stands on; null for a point inside the box, which names none. */
+function sideOfFixedPoint([ratioX, ratioY]: FixedPoint): Side | null {
+  if (ratioX <= 0) return "left";
+  if (ratioX >= 1) return "right";
+  if (ratioY <= 0) return "top";
+  if (ratioY >= 1) return "bottom";
+  return null;
+}
+
 /** Excalidraw's fixed point for the middle of a side, GAP out: ratios of the box's width and height. */
 function fixedPointOf(box: Box, side: Side): FixedPoint {
   const out = (size: number) => GAP / (size || 1);
@@ -314,9 +329,8 @@ export type ElbowForm = Pick<
  * face each other (`treeRoute`), as long as `to` is below `from`.
  */
 export function elbowForm(from: ExcalidrawElement, to: ExcalidrawElement, tree: TreeRoute = {}): ElbowForm {
-  const below: [Side, Side] = ["bottom", "top"];
-  const down = tree.down === true && to.y >= from.y + from.height + 2 * GAP;
-  const sides = down ? below : wireSides(from, to);
+  const down = runsDown(from, to, tree);
+  const sides = sidesOf(from, to, down);
   const startPoint = fixedPointOf(from, sides[0]);
   const endPoint = fixedPointOf(to, sides[1]);
   const start = scenePoint(from, startPoint);
@@ -441,6 +455,53 @@ export function rerouteWires(elements: readonly ExcalidrawElement[], nodeIds: Re
     const to = byId.get(end);
     if (!from || !to || from.isDeleted || to.isDeleted) return element;
     changed = true;
+    const elbow: ExcalidrawElbowArrowElement = { ...wire, ...elbowForm(from, to, wireFlagsOf(wire)), version: wire.version + 1, versionNonce: random(), updated: Date.now() };
+    return elbow;
+  });
+  return changed ? next : elements;
+}
+
+/** A live wire with the two live elements it joins, and whether it still leaves and enters them by the sides that face. */
+function facingOf(element: ExcalidrawElement, byId: ReadonlyMap<string, ExcalidrawElement>): { wire: ExcalidrawArrowElement; from: ExcalidrawElement; to: ExcalidrawElement; facing: boolean } | null {
+  if (element.isDeleted || element.type !== "arrow" || !isWire(element)) return null;
+  const wire = element as ExcalidrawArrowElement;
+  const start = wire.startBinding;
+  const end = wire.endBinding;
+  const from = start && byId.get(start.elementId);
+  const to = end && byId.get(end.elementId);
+  if (!start || !end || !from || !to || from.isDeleted || to.isDeleted) return null;
+  const wanted = sidesOf(from, to, runsDown(from, to, wireFlagsOf(wire)));
+  const stands = [start, end].map((binding) => ("fixedPoint" in binding && binding.fixedPoint ? sideOfFixedPoint(binding.fixedPoint as FixedPoint) : null));
+  // A side it cannot read is left as it is: the wire is not guessed at, and never rewritten over and over.
+  const facing = stands.every((side, i) => side === null || side === wanted[i]);
+  return { wire, from, to, facing };
+}
+
+/**
+ * The wires that no longer join the sides that face each other: a node dragged past its neighbour leaves
+ * its wire coming in by a side that is now behind it, since Excalidraw routes a moved end from the sides
+ * it was bound by.
+ */
+export function misfacedWires(elements: readonly ExcalidrawElement[]): string[] {
+  const byId = new Map(elements.map((e) => [e.id, e]));
+  return elements.flatMap((element) => {
+    const found = facingOf(element, byId);
+    return found && !found.facing ? [element.id] : [];
+  });
+}
+
+/**
+ * The wires of `misfacedWires` drawn again between the sides that face each other, as a new wire is: their
+ * mark, color and stroke kept. The scene itself when every wire faces.
+ */
+export function faceWires(elements: readonly ExcalidrawElement[]): readonly ExcalidrawElement[] {
+  const byId = new Map(elements.map((e) => [e.id, e]));
+  let changed = false;
+  const next = elements.map((element) => {
+    const found = facingOf(element, byId);
+    if (!found || found.facing) return element;
+    changed = true;
+    const { wire, from, to } = found;
     const elbow: ExcalidrawElbowArrowElement = { ...wire, ...elbowForm(from, to, wireFlagsOf(wire)), version: wire.version + 1, versionNonce: random(), updated: Date.now() };
     return elbow;
   });
