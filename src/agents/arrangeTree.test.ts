@@ -164,3 +164,57 @@ describe("Arrange as a tree", () => {
     expect(isDownTree(kept.find((e) => e.id === "root")!)).toBe(false);
   });
 });
+
+describe("the user's Arrange in another layout, after the tree", () => {
+  /** The flowchart arranged as a tree: laid out downward, its root marked. */
+  const laidDown = () => arranged(tree({ elements: flowchart() }));
+  /** The user's Arrange in the grid; Auto-arrange's has no `clearTreeMarks`. */
+  const grid = (rest: Partial<ArrangeInput> = {}) => tree({ layout: "grid", clearTreeMarks: true, ...rest });
+  const marks = (elements: readonly ExcalidrawElement[]) => elements.filter((e) => !e.isDeleted && isDownTree(e)).map((e) => e.id);
+  const shape = (elements: readonly ExcalidrawElement[]) =>
+    Object.fromEntries(["k1", "k2", "k3"].map((id) => [id, { x: at(elements, id).x - at(elements, "root").x, y: at(elements, id).y - at(elements, "root").y }]));
+
+  it("lays the tree out as a flowchart again and takes its mark off, in the same change", () => {
+    const down = laidDown();
+    const after = arranged(grid({ elements: down }));
+    expect(marks(after)).toEqual([]);
+    // Right of its parent again: the flowchart reads left to right.
+    const root = at(after, "root");
+    expect(at(after, "k1")).toEqual({ x: root.x + W + GROUP_GAP, y: root.y });
+    expect(at(after, "k3").x).toBeGreaterThan(at(after, "k1").x);
+    for (const wire of after.filter((e) => e.type === "arrow")) expect(wireFlagsOf(wire).down, wire.id).toBeFalsy();
+    // What the next sub-agent, a close or an undo would lay out: the same, nothing moves.
+    expect(reflow(after, "root")).toBeNull();
+    expect(arrangedElements(grid({ elements: after }))).toBeNull();
+  });
+
+  it("leaves the tree downward and marked for Auto-arrange: a group arranged as a tree stays one", () => {
+    const down = laidDown();
+    const kept = arrangedElements(tree({ elements: down, layout: "grid" }))?.elements ?? down;
+    expect(marks(kept)).toEqual(["root"]);
+    expect(shape(kept)).toEqual(shape(down));
+  });
+
+  it("keeps the mark and the shape of a tree a selection leaves out", () => {
+    const down = laidDown();
+    const scene = [...down, node("terminal", "a", 9000, 0), node("terminal", "b", 14000, 6000)];
+    const kept = arrangedElements(grid({ elements: scene, only: ["a", "b"], scope: "selection" }))?.elements ?? scene;
+    expect(marks(kept)).toEqual(["root"]);
+    for (const id of ["root", "k1", "k2", "k3"]) expect(at(kept, id), id).toEqual(at(down, id));
+  });
+
+  it("keeps a Manager's tree downward, as its next sub-agent would, and takes the mark off though nothing moves", () => {
+    const down = laidDown();
+    const result = arrangedElements(grid({ elements: down, isDownRoot: (id) => id === "root" }));
+    expect(result).not.toBeNull();
+    expect(marks(result!.elements)).toEqual([]);
+    for (const id of ["root", "k1", "k2", "k3"]) expect(at(result!.elements, id), id).toEqual(at(down, id));
+  });
+
+  it("takes off a mark down the tree too: a root an undo put under its spawner again", () => {
+    const down = laidDown().map((e) => (e.id === "k1" ? ({ ...e, customData: { ...e.customData, downTree: true } } as ExcalidrawElement) : e));
+    const after = arranged(grid({ elements: down }));
+    expect(marks(after)).toEqual([]);
+    expect(reflow(after, "root")).toBeNull();
+  });
+});

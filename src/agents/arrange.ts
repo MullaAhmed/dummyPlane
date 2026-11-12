@@ -5,10 +5,10 @@ import { settleNotes } from "@/nodes/note/link";
 import { boxOf, containerOf, endsOf, followedArrow } from "./arrangeDrawings";
 import { columnHeightsOf, DEFAULT_ARRANGE_LAYOUT, perRowOf, type ArrangeLayout } from "./arrangeLayout";
 import { roomMade, type Body } from "./arrangeRoom";
-import { treesLaidDown, treesOf, wireParents } from "./arrangeTree";
+import { treesLaidBack, treesLaidDown, treesOf, wireParents } from "./arrangeTree";
 import type { Attachment } from "./attachments";
 import { COLUMN_GAP, GROUP_GAP, MAX_ROWS, NODE_GAP, PADDING, PADDING_BOTTOM, PADDING_TOP, ROW_GAP } from "./groupLayout";
-import type { ParentOf } from "./spawnLayout";
+import { isDownTree, type ParentOf } from "./spawnLayout";
 import type { Point } from "./terminals";
 import { isWire } from "./wires";
 
@@ -45,7 +45,9 @@ import { isWire } from "./wires";
  * or N columns. The tabs still gather in rows under the rest. The `tree` lays
  * each spawn tree out downward first, then hangs the blocks (in a group, its
  * pieces) under one another by their wires, the trees side by side
- * (./arrangeTree.ts).
+ * (./arrangeTree.ts). The user's Arrange in another layout lays the trees the
+ * tree laid out downward back into their flowchart, their mark taken off, in
+ * the same change (`clearTreeMarks`).
  */
 
 export interface ArrangeInput {
@@ -67,6 +69,15 @@ export interface ArrangeInput {
   layout?: ArrangeLayout;
   /** Width over height the layout aims at: the view's. */
   aspect?: number;
+  /**
+   * The user's Arrange, in a layout other than the tree: the spawn trees it arranges lose the tree's mark
+   * (`isDownTree`), and those it tidies around are laid out as a flowchart again first (./arrangeTree.ts
+   * `treesLaidBack`), so their next sub-agent keeps that shape. Auto-arrange leaves them as they stand: a group
+   * arranged as a tree stays one.
+   */
+  clearTreeMarks?: boolean;
+  /** A node whose tree lays out downward whatever the layout: a mission's Manager (`reflowSpawnTree`'s). */
+  isDownRoot?: (nodeId: string) => boolean;
 }
 
 /**
@@ -628,32 +639,49 @@ function arrange(input: ArrangeInput, treesLaid: boolean): { elements: Excalidra
   //   frame (the flowchart wins there) or stands in a frame drawn by hand;
   // - or all of it outside frames, its block holding nothing else (not a mission's Fleet, board and Manager, whose block
   //   keeps its shape). Any other tree stays as it stands, as in the other layouts.
+  const tidied = (rootId: string): boolean => {
+    const members = nodes.filter((n) => n.id === rootId || hasAncestor(n.id, rootId, liveParent));
+    const ids = new Set(members.map((m) => m.id));
+    const note = (e: ExcalidrawElement) => {
+      const attachment = attachmentOf(e);
+      return attachment?.beside === true && ids.has(attachment.anchor);
+    };
+    if (live.some((e) => !ids.has(e.id) && ids.has(anchorOf(e) ?? "") && !note(e))) return false;
+    const home = inFrame(byId.get(rootId)!);
+    if (members.some((m) => inFrame(m) !== home)) return false;
+    if (home) {
+      const info = groupInfoOf(byId.get(home)!);
+      return info !== null && !info.folded && (!insideOne || home === insideOne);
+    }
+    return !insideOne && (unitMembers.get(unitOf(rootId)) ?? []).every((e) => ids.has(e.id) || note(e));
+  };
+  let laid: { elements: readonly ExcalidrawElement[]; moved: Set<string> } | null = null;
   if (layout === "tree" && !treesLaid) {
     const spawners = new Set(nodes.map((n) => liveParent(n.id)).filter((id): id is string => id !== null));
-    const tidied = (rootId: string): boolean => {
-      const members = nodes.filter((n) => n.id === rootId || hasAncestor(n.id, rootId, liveParent));
-      const ids = new Set(members.map((m) => m.id));
-      const note = (e: ExcalidrawElement) => {
-        const attachment = attachmentOf(e);
-        return attachment?.beside === true && ids.has(attachment.anchor);
-      };
-      if (live.some((e) => !ids.has(e.id) && ids.has(anchorOf(e) ?? "") && !note(e))) return false;
-      const home = inFrame(byId.get(rootId)!);
-      if (members.some((m) => inFrame(m) !== home)) return false;
-      if (home) {
-        const info = groupInfoOf(byId.get(home)!);
-        return info !== null && !info.folded && (!insideOne || home === insideOne);
-      }
-      return !insideOne && (unitMembers.get(unitOf(rootId)) ?? []).every((e) => ids.has(e.id) || note(e));
-    };
     const roots = [...spawners].filter((id) => liveParent(id) === null && scope.has(unitOf(id)) && tidied(id));
-    const laid = treesLaidDown(elements, roots, parentOf);
-    if (laid.elements !== elements) {
-      const inner = arrange({ ...input, elements: laid.elements }, true);
-      if (!inner) return { elements: [...laid.elements], movedNodeIds: laid.moved };
-      for (const id of laid.moved) inner.movedNodeIds.add(id);
-      return inner;
-    }
+    laid = treesLaidDown(elements, roots, parentOf);
+  } else if (input.clearTreeMarks && !treesLaid) {
+    // The user's Arrange in another layout: what the tree laid out downward loses its mark, and the trees the rest is tidied
+    // around go back to their flowchart, as the next sub-agent would lay them out, before the rest moves them whole. Any
+    // other marked tree loses its mark alone and stands as it is: its next sub-agent lays it out as a flowchart.
+    const marked = nodes.filter((n) => isDownTree(n) && scope.has(unitOf(n.id)));
+    const rootOf = (nodeId: string) => {
+      const seen = new Set([nodeId]);
+      let root = nodeId;
+      for (let up = liveParent(root); up && !seen.has(up); up = liveParent(up)) {
+        seen.add(up);
+        root = up;
+      }
+      return root;
+    };
+    const roots = [...new Set(marked.map((n) => rootOf(n.id)))].filter(tidied);
+    laid = treesLaidBack(elements, new Set(marked.map((n) => n.id)), roots, parentOf, input.isDownRoot ?? (() => false));
+  }
+  if (laid && laid.elements !== elements) {
+    const inner = arrange({ ...input, elements: laid.elements }, true);
+    if (!inner) return { elements: [...laid.elements], movedNodeIds: laid.moved };
+    for (const id of laid.moved) inner.movedNodeIds.add(id);
+    return inner;
   }
 
   const targets = new Map<string, Rect>();

@@ -2,7 +2,7 @@ import type { ExcalidrawArrowElement, ExcalidrawElement } from "@excalidraw/exca
 import { nodeKindOf } from "@/canvas/nodeElement";
 import { notesByHost } from "@/nodes/note/link";
 import type { Size } from "./flowLayout";
-import { isDownTree, isPinned, layoutSpawnTree, spawnTreeOf, type ParentOf } from "./spawnLayout";
+import { isDownTree, isPinned, layoutSpawnTree, spawnTreeOf, type ParentOf, type SpawnTree } from "./spawnLayout";
 import type { Point } from "./terminals";
 import { downLayout } from "./treeLayout";
 import { isSpawnWire, isTalkWire, isWire, wireReading } from "./wires";
@@ -18,7 +18,8 @@ import { isSpawnWire, isTalkWire, isWire, wireReading } from "./wires";
  *   the next sub-agent, a close or an undo lay it out downward again instead
  *   of back into a flowchart; the nodes the user had moved by hand are no
  *   longer pinned: the tree is laid out whole. It then moves whole, as in the
- *   other layouts.
+ *   other layouts. The user's Arrange in another layout takes the mark off
+ *   and lays the tree out as a flowchart again (`treesLaidBack`).
  * - What the tree arranges side by side (the blocks of the canvas, the pieces
  *   of a group) hang under one another by the wires between them, for the
  *   nodes no agent opened: a Fleet's link to its group or its agents, an
@@ -46,6 +47,37 @@ function withoutMarks(customData: ExcalidrawElement["customData"]): ExcalidrawEl
   return rest;
 }
 
+/** `customData` without the tree arrange's mark, its pin kept: a node moved by hand stays where the user put it. */
+function withoutDownTree(customData: ExcalidrawElement["customData"]): ExcalidrawElement["customData"] {
+  const { downTree: _downTree, ...rest } = customData ?? {};
+  return rest;
+}
+
+/**
+ * `scene` with the spawn tree `tree` laid out again alone (only its nodes,
+ * their quick notes and the wires between them: what stands around it moves
+ * after, with the rest of the arrange), downward from the nodes `isDownRoot`
+ * names; the nodes that moved added to `moved`.
+ */
+function laidAlone(scene: readonly ExcalidrawElement[], tree: SpawnTree, parentOf: ParentOf, isDownRoot: (nodeId: string) => boolean, moved: Set<string>): readonly ExcalidrawElement[] {
+  const byHost = notesByHost(scene);
+  const notes = new Set([...tree.ids].flatMap((id) => (byHost.get(id) ?? []).map((n) => n.id)));
+  const joins = (e: ExcalidrawElement) => {
+    const { startBinding, endBinding } = e as ExcalidrawArrowElement;
+    return isWire(e) && startBinding != null && endBinding != null && tree.ids.has(startBinding.elementId) && tree.ids.has(endBinding.elementId);
+  };
+  const alone = scene.filter((e) => !e.isDeleted && (tree.ids.has(e.id) || notes.has(e.id) || joins(e)));
+  const laid = layoutSpawnTree(alone, parentOf, tree.rootId, isDownRoot);
+  if (!laid) return scene;
+  const byId = new Map(laid.map((e) => [e.id, e]));
+  return scene.map((e) => {
+    const next = byId.get(e.id);
+    if (!next || next === e) return e;
+    if (tree.ids.has(e.id) && (Math.abs(next.x - e.x) > 0.5 || Math.abs(next.y - e.y) > 0.5)) moved.add(e.id);
+    return next;
+  });
+}
+
 /**
  * The scene with the spawn trees of `rootIds` laid out downward, each alone
  * (only its nodes, their quick notes and the wires between them: what stands
@@ -70,22 +102,35 @@ export function treesLaidDown(
       return isPinned(e) || isDownTree(e) ? changed(e, { customData: withoutMarks(e.customData) }) : e;
     });
     if (marked.some((e, i) => e !== scene[i])) scene = marked;
-    const byHost = notesByHost(scene);
-    const notes = new Set([...tree.ids].flatMap((id) => (byHost.get(id) ?? []).map((n) => n.id)));
-    const joins = (e: ExcalidrawElement) => {
-      const { startBinding, endBinding } = e as ExcalidrawArrowElement;
-      return isWire(e) && startBinding != null && endBinding != null && tree.ids.has(startBinding.elementId) && tree.ids.has(endBinding.elementId);
-    };
-    const alone = scene.filter((e) => !e.isDeleted && (tree.ids.has(e.id) || notes.has(e.id) || joins(e)));
-    const laid = layoutSpawnTree(alone, parentOf, rootId, (id) => id === rootId);
-    if (!laid) continue;
-    const byId = new Map(laid.map((e) => [e.id, e]));
-    scene = scene.map((e) => {
-      const next = byId.get(e.id);
-      if (!next || next === e) return e;
-      if (tree.ids.has(e.id) && (Math.abs(next.x - e.x) > 0.5 || Math.abs(next.y - e.y) > 0.5)) moved.add(e.id);
-      return next;
-    });
+    scene = laidAlone(scene, tree, parentOf, (id) => id === rootId, moved);
+  }
+  return { elements: scene, moved };
+}
+
+/**
+ * What the user's Arrange in another layout does to what the tree arranged:
+ * the marks of `markedIds` taken off (`isDownTree`), and the spawn trees of
+ * `rootIds` laid out again, each alone, as the next sub-agent, close or undo
+ * would lay them out once unmarked (`reflowSpawnTree`): a flowchart, downward
+ * from a node `isDownRoot` names (a mission's Manager) or one still marked.
+ * A pinned node stays where the user put it. The scene itself when nothing
+ * changes; `moved` holds the nodes that moved, as for `treesLaidDown`.
+ */
+export function treesLaidBack(
+  elements: readonly ExcalidrawElement[],
+  markedIds: ReadonlySet<string>,
+  rootIds: readonly string[],
+  parentOf: ParentOf,
+  isDownRoot: (nodeId: string) => boolean,
+): { elements: readonly ExcalidrawElement[]; moved: Set<string> } {
+  const unmarked = elements.map((e) => (!e.isDeleted && markedIds.has(e.id) && isDownTree(e) ? changed(e, { customData: withoutDownTree(e.customData) }) : e));
+  let scene = unmarked.some((e, i) => e !== elements[i]) ? unmarked : elements;
+  const moved = new Set<string>();
+  for (const rootId of rootIds) {
+    const tree = spawnTreeOf(scene, parentOf, rootId);
+    if (!tree || tree.rootId !== rootId || !tree.children[rootId]?.length) continue;
+    const byId = new Map(scene.map((e) => [e.id, e]));
+    scene = laidAlone(scene, tree, parentOf, (id) => isDownRoot(id) || isDownTree(byId.get(id)), moved);
   }
   return { elements: scene, moved };
 }
