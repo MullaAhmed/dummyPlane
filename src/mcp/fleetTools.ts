@@ -642,11 +642,8 @@ async function relaunch(fleetId: string, mission: Mission, args: Record<string, 
   // A refused spawn leaves its error on the terminal, it does not throw.
   const status = statusOf(member.nodeId);
   if (failure === undefined && status.state === "error") failure = status.message;
-  if (failure !== undefined) {
-    // The seat it held while starting is free again: a task the queue held back for it starts now.
-    void pumpQueue(fleetId);
-    return refused(f.relaunchFailed(member.name, failure));
-  }
+  // The seat it held while starting is free again: the queue moves on (`@/mission/restartWatch`).
+  if (failure !== undefined) return refused(f.relaunchFailed(member.name, failure));
   const now = missionOf(nodesStore.getState().nodes[fleetId])?.members.find((m) => m.nodeId === member.nodeId);
   return said(now?.sentAt === undefined && now?.brief ? f.relaunchedBrief(member.name) : f.relaunched(member.name));
 }

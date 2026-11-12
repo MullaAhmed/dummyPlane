@@ -12,7 +12,8 @@ import { relaunchSession } from "@/nodes/terminal/session";
 import type { TerminalPayload } from "@/nodes/types";
 import { agentActivityStore } from "@/store/agentActivity";
 import { nodesStore, terminalOf } from "@/store/nodes";
-import { isRunning, terminalStatusStore } from "@/store/terminalStatus";
+import { isRunning, statusOf, terminalStatusStore } from "@/store/terminalStatus";
+import { toast } from "sonner";
 import { workspacesStore } from "@/store/workspaces";
 import { notify } from "./events";
 import { launchMission, mergeMember, reassignTask } from "./launch";
@@ -21,6 +22,7 @@ import { morningReport } from "./morning";
 import { afterReport, giveNext, pumpQueue } from "./queue";
 import { missionOf, updateMember } from "./store";
 import { activeCount } from "./active";
+import { installRestartWatch } from "./restartWatch";
 import { fleetTool, managerTools } from "@/mcp/fleetTools";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
@@ -38,6 +40,7 @@ vi.mock("@/agents/broadcast", () => ({ pauseAgents: vi.fn(() => Promise.resolve(
 vi.mock("@/canvas/arrive", () => ({ showNode: vi.fn() }));
 vi.mock("./ready", () => ({ whenReady: vi.fn(() => Promise.resolve(true)) }));
 vi.mock("./events", () => ({ notify: vi.fn() }));
+vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { warning: vi.fn(), error: vi.fn(), success: vi.fn(), info: vi.fn() }) }));
 // The board and its Manager are scene work (`./manager.test.ts`): a go-ahead here gets board b1 and Manager m1.
 vi.mock("./manager", async (importOriginal) => {
   const original = await importOriginal<typeof import("./manager")>();
@@ -905,21 +908,67 @@ describe("relaunch keeps the team within Max agents while the queue fills (revie
     expect(activeCount("chef", missionNow())).toBe(3);
   });
 
-  it("starts the task it held back once a relaunch fails: the seat it was starting into is free again", async () => {
-    await team("hulk", "Hulk", queued("API"));
-    terminalStatusStore.getState().set("hulk", { state: "exited", code: 0 });
-    pty(() => {
-      throw new Error("claude not found");
+  for (const [by, restart] of [
+    ["relaunch", async (gap: () => Promise<void>) => {
+      toolRestarts(gap);
+      const failed = await fleetTool("chef", "relaunch", { agent: "Hulk" });
+      expect(failed.content[0].text).toContain("Hulk could not start again: ");
+      expect(failed.content[0].text).toContain("claude not found");
+    }],
+    ["its terminal's menu", (gap: () => Promise<void>) => restartByHand("hulk", gap)],
+  ] as const) {
+    it(`starts the task it held back once a restart by ${by} fails: the seat it was starting into is free again`, async () => {
+      await team("hulk", "Hulk", queued("API"));
+      terminalStatusStore.getState().set("hulk", { state: "exited", code: 0 });
+      pty(() => {
+        throw new Error("claude not found");
+      });
+      const stop = installRestartWatch();
+      try {
+        // A pump while it starts: Batman, Cyborg and Hulk on its way fill the team, the task waits.
+        await restart(async () => {
+          await pumpQueue("chef");
+          expect(created()).toEqual([]);
+        });
+        expect(statusOf("hulk").state).toBe("error");
+        await vi.waitFor(() => expect(created().map((m) => m.task)).toEqual(["API"]));
+      } finally {
+        stop();
+      }
     });
-    // A pump while it starts: Batman, Cyborg and Hulk on its way fill the team, the task waits.
-    toolRestarts(async () => {
+  }
+
+  it("lets the user restart stopped agents on a full team: the queue starts no one past Max agents, and the runner and the user hear it once (review 12 Nov)", async () => {
+    // Batman and Cyborg at work, Max agents 2: full. Hulk and Flash stopped after their sub-task, holding no seat.
+    await setup({
+      frameId: "f1",
+      maxAgents: 2,
+      queue: queued("API"),
+      members: [member("batman", "Batman"), member("hulk", "Hulk", { task: "Docs0" }), member("flash", "Flash", { task: "Lint0" }), member("cyborg", "Cyborg", { task: "Tests0" })],
+    });
+    for (const [id, name] of [["hulk", "Hulk"], ["flash", "Flash"]]) {
+      await nodesStore.getState().create(id, { workspaceId: "w1", kind: "terminal", payload: { ...session, role: undefined, name } });
+      terminalStatusStore.getState().set(id, { state: "exited", code: 0 });
+    }
+    terminalStatusStore.getState().set("cyborg", { state: "running" });
+    pty();
+    const stop = installRestartWatch();
+    try {
+      // "Resume all": one after the other, each the user's.
+      await restartByHand("hulk");
+      await restartByHand("flash");
+      expect([isRunning("hulk"), isRunning("flash")]).toEqual([true, true]);
+      // Theirs to start: four at work now. The queue starts nobody until fewer than two are.
+      expect(activeCount("chef", missionNow())).toBe(4);
       await pumpQueue("chef");
       expect(created()).toEqual([]);
-    });
-    const failed = await fleetTool("chef", "relaunch", { agent: "Hulk" });
-    expect(failed.content[0].text).toContain("Hulk could not start again: ");
-    expect(failed.content[0].text).toContain("claude not found");
-    await vi.waitFor(() => expect(created().map((m) => m.task)).toEqual(["API"]));
+      // Told once, by the restart that took the team past Max agents.
+      const told = "The user started Hulk again while the team was full: 3 agents are at work, past Max active agents (2). The queue starts no new agent until fewer than 2 are at work; nothing to do meanwhile.";
+      expect(vi.mocked(notify).mock.calls).toEqual([["chef", told]]);
+      expect(vi.mocked(toast).mock.calls).toEqual([["Hulk started again: 3 agents are at work in mission Auth, past its Max agents (2). No new agent starts until fewer are at work."]]);
+    } finally {
+      stop();
+    }
   });
 });
 

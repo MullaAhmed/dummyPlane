@@ -518,6 +518,8 @@ export const agentMessages = defineMessages({
       boardFinished: (summary: string) => `The board is finished: ${summary}`,
       needsUser: (manager: string, reason: string) => `${manager} needs the user: ${reason}`,
       managerStopped: (manager: string) => `${manager} stopped: its terminal is no longer running. The board waits: relaunch it from its node, or stop_mission.`,
+      pastMaxAgents: (name: string, active: number, max: number) =>
+        `The user started ${name} again while the team was full: ${active} agents are at work, past Max active agents (${max}). The queue starts no new agent until fewer than ${max} are at work; nothing to do meanwhile.`,
     },
     merge: {
       noBranch: "The mission has no branch.",
