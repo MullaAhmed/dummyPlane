@@ -249,10 +249,14 @@ export function taskExcerpt(task: string, max = MAX_EXCERPT): string {
   return clip(text, max);
 }
 
-/** What a spawned terminal shows under its name, and what its tooltip says; null for any other terminal. */
-export function spawnedTask(payload: Pick<TerminalPayload, "spawnedBy" | "task" | "title">): { line: string; detail: string } | null {
+/**
+ * What a spawned terminal shows under its name, and what its tooltip says; null for any other terminal. The line
+ * says what it works on now: the duplicate guard reads it too (`@/mission/activeWork`).
+ */
+export function spawnedTask(payload: Pick<TerminalPayload, "spawnedBy" | "task" | "title" | "staleTitle">): { line: string; detail: string } | null {
   if (!payload.spawnedBy && !payload.task) return null;
-  const title = payload.title.trim();
+  // A title that names a task it has finished says nothing of the one it is on: its task does.
+  const title = payload.task && payload.staleTitle ? "" : payload.title.trim();
   // Its title is the spawner's own, or already said from its task (spawn.ts); one saved before then was the task's raw start.
   const line = payload.task ? title || taskSummary(payload.task) : title && taskSummary(title);
   if (!line) return null;

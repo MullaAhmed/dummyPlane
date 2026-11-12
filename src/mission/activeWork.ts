@@ -1,4 +1,5 @@
 import { atWork, isLaunching } from "@/agents/spawnFamily";
+import { spawnedTask } from "@/agents/taskSummary";
 import { nodeNameOf, nodesStore, terminalOf } from "@/store/nodes";
 import { statusOf } from "@/store/terminalStatus";
 import { findDuplicateWork, type ActiveWork, type Candidate, type WorkState } from "./duplicateTask";
@@ -62,7 +63,9 @@ export function activeWork(workspaceId: string | undefined, exclude: readonly (s
     const payload = terminalOf(record);
     // Opened with spawn_agent, its task given, no report yet.
     if (!payload?.spawnedBy || !payload.task || payload.lastReport || !atWork(id)) continue;
-    found.push({ agentId: id, name: nodeNameOf(record) || "A sub-agent", state: stateOf(id, isLaunching(id)), title: payload.title, brief: payload.task });
+    // Its line, not its title: given new work with no title of its own, its title names the task it finished.
+    const title = spawnedTask(payload)?.line ?? payload.title;
+    found.push({ agentId: id, name: nodeNameOf(record) || "A sub-agent", state: stateOf(id, isLaunching(id)), title, brief: payload.task });
   }
   return found;
 }

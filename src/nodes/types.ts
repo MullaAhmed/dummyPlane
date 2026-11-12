@@ -54,8 +54,16 @@ export interface TerminalPayload {
   /** A command to run once, an install: only an explicit gesture runs it again. */
   oneShot?: boolean;
   /** Node id of the terminal whose agent spawned this one (spawn_agent). */ spawnedBy?: string;
-  /** The task its spawner gave it (spawn_agent), its start only: said in a line under its name (`@/agents/taskSummary`). */
+  /**
+   * The task its spawner gave it (spawn_agent), its start only: said in a line under its name (`@/agents/taskSummary`).
+   * New work its spawner gives it once it reported (message_agent) takes its place (`@/mcp/linkTools`).
+   */
   task?: string;
+  /**
+   * Its title names a task it has finished: its spawner gave it new work with message_agent and no title. Its line
+   * says its task instead (`spawnedTask`); the title stays, as its Claude session's name does.
+   */
+  staleTitle?: true;
   /** Shrunk to a card: its process and screen go on (`./terminal/minimize.ts`). */
   minimized?: boolean;
   /** Its height before it was minimized, given back when it expands. */
@@ -333,6 +341,7 @@ export function readTerminalPayload(raw: unknown): TerminalPayload | null {
   if (typeof r.accountId === "string" && r.accountId) payload.accountId = r.accountId;
   if (typeof r.spawnedBy === "string" && r.spawnedBy) payload.spawnedBy = r.spawnedBy;
   if (typeof r.task === "string" && r.task.trim()) payload.task = r.task.slice(0, MAX_STORED_TASK);
+  if (r.staleTitle === true) payload.staleTitle = true;
   if (r.minimized === true) payload.minimized = true;
   if (r.inputOpen === true) payload.inputOpen = true;
   if (typeof r.expandedHeight === "number" && Number.isFinite(r.expandedHeight) && r.expandedHeight > 0) payload.expandedHeight = r.expandedHeight;

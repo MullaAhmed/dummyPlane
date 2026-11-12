@@ -201,8 +201,8 @@ export function TerminalHeader(props: {
   const running = status.state === "running";
   const shown = payload.name || meta.label;
   // A sub-agent says under its name what it was asked (spawn_agent); its tooltip says the rest.
-  const { spawnedBy, task, title } = payload;
-  const spawned = useMemo(() => spawnedTask({ spawnedBy, task, title }), [spawnedBy, task, title]);
+  const { spawnedBy, task, title, staleTitle } = payload;
+  const spawned = useMemo(() => spawnedTask({ spawnedBy, task, title, staleTitle }), [spawnedBy, task, title, staleTitle]);
   const name = (
     <NameField
       value={shown}

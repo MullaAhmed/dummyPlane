@@ -6,11 +6,13 @@ import { canvasStore } from "@/canvas/canvasStore";
 import { createNodeElement } from "@/canvas/nodeElement";
 import { wireActivityStore } from "@/canvas/wireActivity";
 import { markLaunching } from "@/agents/spawnFamily";
+import { spawnedTask } from "@/agents/taskSummary";
 import { withAgentLink, withWire } from "@/agents/wires";
+import { activeWork } from "@/mission/activeWork";
 import { notify } from "@/mission/events";
 import { terminalText } from "@/nodes/terminal/registry";
 import { agentActivityStore } from "@/store/agentActivity";
-import { nodesStore } from "@/store/nodes";
+import { nodesStore, terminalOf } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
 import { workspacesStore } from "@/store/workspaces";
 import { answer } from "./router";
@@ -163,5 +165,81 @@ describe("linked agents' tools", () => {
       markLaunching("aquaman", false);
     }
     expect(textOf(await call("batman", "message_agent", { agent: "Aquaman", text: "hi" }))).toContain("Sent to Aquaman");
+  });
+});
+
+describe("new work for a sub-agent that reported", () => {
+  const payloadOf = (id: string) => terminalOf(nodesStore.getState().nodes[id])!;
+  const FINISHED = { title: "005 W1 mint.py implementer", task: "Implement mint.py for W1.", lastReport: { status: "done" as const, summary: "mint.py is in." } };
+  const NEW_WORK = "Write the 007 tests for mint.py, then report.";
+
+  beforeEach(() => {
+    scene = withWire(nodes, "batman", "aquaman", "calm", true);
+    terminalStatusStore.getState().set("aquaman", { state: "running" });
+    nodesStore.getState().update("aquaman", { spawnedBy: "batman", ...FINISHED });
+    // As in the app, where the typed message clears the report (`onNewWork`): its work is read before it is sent.
+    vi.mocked(notify).mockImplementation((id) => nodesStore.getState().update(id, { lastReport: undefined }));
+  });
+  afterEach(() => {
+    vi.mocked(notify).mockImplementation(() => undefined);
+    nodesStore.getState().update("aquaman", { spawnedBy: undefined, title: "", task: undefined, lastReport: undefined, staleTitle: undefined });
+    nodesStore.getState().update("cyborg", { title: "", task: undefined, lastReport: undefined });
+  });
+
+  it("takes the title its parent gives, and the message as its task", async () => {
+    expect(textOf(await call("batman", "message_agent", { agent: "Aquaman", text: NEW_WORK, title: "007 mint.py tests" }))).toContain("Sent to Aquaman");
+    expect(payloadOf("aquaman")).toMatchObject({ title: "007 mint.py tests", task: NEW_WORK });
+    expect(payloadOf("aquaman").staleTitle).toBeUndefined();
+    expect(spawnedTask(payloadOf("aquaman"))?.line).toBe("007 mint.py tests");
+    // The message itself goes as any other.
+    expect(notify).toHaveBeenCalledWith("aquaman", expect.stringMatching(/^Message from Batman .*: Write the 007 tests for mint\.py, then report\.$/));
+  });
+
+  it("without a title keeps it, but its line and the duplicate guard say the new task", async () => {
+    await call("batman", "message_agent", { agent: "Aquaman", text: NEW_WORK });
+    expect(payloadOf("aquaman")).toMatchObject({ title: "005 W1 mint.py implementer", task: NEW_WORK, staleTitle: true });
+    const line = spawnedTask(payloadOf("aquaman"))?.line;
+    expect(line).toBe("Write the 007 tests for mint.py, then report");
+    // Its report cleared by the message, it is at work again, on the new task.
+    expect(payloadOf("aquaman").lastReport).toBeUndefined();
+    expect(activeWork("w1", ["batman"])).toEqual([expect.objectContaining({ agentId: "aquaman", title: line, brief: NEW_WORK })]);
+  });
+
+  it("takes a title given with later work, cut as spawn_agent cuts one", async () => {
+    await call("batman", "message_agent", { agent: "Aquaman", text: NEW_WORK });
+    nodesStore.getState().update("aquaman", { lastReport: FINISHED.lastReport });
+    await call("batman", "message_agent", { agent: "Aquaman", text: "Fix the 008 bug.", title: `008 ${"x".repeat(80)}` });
+    expect(payloadOf("aquaman").title).toHaveLength(60);
+    expect(payloadOf("aquaman")).toMatchObject({ task: "Fix the 008 bug." });
+    expect(payloadOf("aquaman").staleTitle).toBeUndefined();
+  });
+
+  it("changes nothing for a sub-agent still on its task, nor for a message not sent", async () => {
+    nodesStore.getState().update("aquaman", { lastReport: undefined });
+    await call("batman", "message_agent", { agent: "Aquaman", text: NEW_WORK, title: "007 mint.py tests" });
+    expect(payloadOf("aquaman")).toMatchObject({ title: FINISHED.title, task: FINISHED.task });
+    nodesStore.getState().update("aquaman", { lastReport: FINISHED.lastReport });
+    terminalStatusStore.getState().set("aquaman", { state: "stopped" });
+    expect((await call("batman", "message_agent", { agent: "Aquaman", text: NEW_WORK, title: "007 mint.py tests" })).isError).toBe(true);
+    expect(payloadOf("aquaman")).toMatchObject({ title: FINISHED.title, task: FINISHED.task });
+  });
+
+  it("changes nothing between linked peers, nor from a sub-agent to its parent", async () => {
+    scene = withAgentLink(nodes, "batman", "cyborg");
+    nodesStore.getState().update("cyborg", FINISHED);
+    await call("batman", "message_agent", { agent: "Cyborg", text: NEW_WORK, title: "007 mint.py tests" });
+    expect(payloadOf("cyborg")).toMatchObject({ title: FINISHED.title, task: FINISHED.task });
+    expect(payloadOf("cyborg").staleTitle).toBeUndefined();
+    expect(notify).toHaveBeenCalledWith("cyborg", expect.stringContaining(NEW_WORK));
+    // The other way along a spawn wire: a parent is no sub-agent of its child.
+    scene = withWire(nodes, "batman", "aquaman", "calm", true);
+    nodesStore.getState().update("batman", { lastReport: FINISHED.lastReport });
+    try {
+      await call("aquaman", "message_agent", { agent: "Batman", text: NEW_WORK, title: "007 mint.py tests" });
+      expect(payloadOf("batman")).toMatchObject({ title: "" });
+      expect(payloadOf("batman").task).toBeUndefined();
+    } finally {
+      nodesStore.getState().update("batman", { lastReport: undefined });
+    }
   });
 });
