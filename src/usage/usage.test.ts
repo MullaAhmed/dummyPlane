@@ -20,6 +20,7 @@ describe("readStatus", () => {
       nodeId: "batman",
       model: { id: "claude-haiku-5-5", name: "Haiku 5.5" },
       effort: "medium",
+      folder: null,
       costUsd: 0.00738418,
       apiMs: 1588,
       wallMs: 26007,
@@ -44,6 +45,19 @@ describe("readStatus", () => {
     expect(limits?.models).toEqual([{ key: "seven_day_fable", label: "Fable", limit: { usedPercent: 12, resetsAt: 1000 } }]);
   });
 
+  it("reads the folder Claude was launched in, not the one a Bash cd took it to", () => {
+    const status = { ...STATUS, cwd: "D:/work/wt/upload/src", workspace: { current_dir: "D:/work/wt/upload/src", project_dir: "D:/work/wt/upload" } };
+    expect(readStatus(status, "batman", 0).session?.folder).toBe("D:/work/wt/upload");
+  });
+
+  it("has no folder when Claude Code sends no project_dir", () => {
+    expect(readStatus(STATUS, "batman", 0).session?.folder).toBeNull();
+    expect(readStatus({ ...STATUS, cwd: "D:/work/api" }, "batman", 0).session?.folder).toBeNull();
+    for (const workspace of [{ current_dir: "D:/work/api" }, { project_dir: "" }, { project_dir: 42 }, "D:/work/api", null]) {
+      expect(readStatus({ ...STATUS, workspace }, "batman", 0).session?.folder).toBeNull();
+    }
+  });
+
   it("has no limits before the first answer, and nothing without a session id", () => {
     expect(readStatus({ ...STATUS, rate_limits: undefined }, "batman", 0).limits).toBeNull();
     expect(readStatus({ cost: {} }, "batman", 0)).toEqual({ session: null, limits: null });
@@ -57,6 +71,7 @@ describe("totals", () => {
     nodeId: id,
     model: { id: model, name },
     effort: null,
+    folder: null,
     costUsd: cost,
     apiMs: 1000,
     wallMs: 60_000,
@@ -126,7 +141,7 @@ it("writes costs the English way", () => {
 });
 
 it("names a session without a model", () => {
-  const unknown: SessionUsage = { sessionId: "a", nodeId: "n", model: null, effort: null, costUsd: 1, apiMs: 0, wallMs: 0, linesAdded: 0, linesRemoved: 0, inputTokens: 1, outputTokens: 1, contextPercent: null, cache: null, at: 0 };
+  const unknown: SessionUsage = { sessionId: "a", nodeId: "n", model: null, effort: null, folder: null, costUsd: 1, apiMs: 0, wallMs: 0, linesAdded: 0, linesRemoved: 0, inputTokens: 1, outputTokens: 1, contextPercent: null, cache: null, at: 0 };
   expect(totals([unknown]).byModel[0].name).toBe("Unknown model");
 });
 

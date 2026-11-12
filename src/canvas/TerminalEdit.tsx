@@ -36,7 +36,7 @@ import { useTerminalStatus } from "@/store/terminalStatus";
 import { formatTokens } from "@/usage/usage";
 import { useNodeSession } from "@/usage/usageStore";
 import { IconButton } from "@/shell/buttons";
-import { ExtensionList, QUIET_BOX, useClaudeExtensions, type ExtensionKind } from "./ExtensionList";
+import { ExtensionList, folderName, QUIET_BOX, useClaudeExtensions, useClaudeFolder, type ExtensionKind } from "./ExtensionList";
 import { canvasMessages } from "./messages";
 import { keepCanvasFocus } from "./PanelAction";
 import { forgetStartedChoice } from "./startedChoice";
@@ -102,10 +102,13 @@ export function TerminalEdit({ nodeId, onFold }: { nodeId: string; onFold: () =>
   const name = nodeNameOf(record);
   const claude = session?.agent === "claude";
   const shown: Tab = claude ? tab : "general";
-  const { lists, retry } = useClaudeExtensions(session?.cwd ?? "", session?.accountId, claude && shown !== "general");
+  // The four lists follow the folder Claude runs in while a run is live (a `claude` started by hand after a `cd`),
+  // else the saved one. The next launch still starts in the saved folder.
+  const { folder, live } = useClaudeFolder(nodeId, session?.cwd ?? "");
+  const { lists, retry } = useClaudeExtensions(folder, session?.accountId, claude && shown !== "general");
   if (!record) return null;
 
-  const general = <General nodeId={nodeId} record={record} session={session} />;
+  const general = <General nodeId={nodeId} record={record} session={session} liveFolder={claude ? live : null} />;
   return (
     <section aria-label={t.edit} className="flex min-h-0 flex-col gap-3">
       {/* The panel's head: its title in the primary text, a step above the field labels; the chevron quiet until pointed at. */}
@@ -147,7 +150,7 @@ export function TerminalEdit({ nodeId, onFold }: { nodeId: string; onFold: () =>
             </PanelTabsContent>
             {KINDS.map((kind) => (
               <PanelTabsContent key={kind} value={kind} className="min-h-0 flex-1">
-                <ExtensionList nodeId={nodeId} kind={kind} cwd={session.cwd} choice={session.extensions} lists={lists} onRetry={retry} />
+                <ExtensionList nodeId={nodeId} kind={kind} cwd={folder} choice={session.extensions} lists={lists} onRetry={retry} />
               </PanelTabsContent>
             ))}
           </PanelTabs>
@@ -170,7 +173,7 @@ const SCROLLS = "-m-1 min-h-0 overflow-y-auto p-1";
  * (its name, Remote Control), and what its next launch reads. Each setting is
  * one row, its label beside it.
  */
-function General({ nodeId, record, session }: { nodeId: string; record: NodeRecord; session: TerminalPayload | undefined }) {
+function General({ nodeId, record, session, liveFolder }: { nodeId: string; record: NodeRecord; session: TerminalPayload | undefined; liveFolder: string | null }) {
   const t = useMessages(canvasMessages).selection;
   const lock = useNodes((s) => folderLockOf(nodeId, s.nodes));
   const shells = useAgents((s) => s.shells);
@@ -182,6 +185,19 @@ function General({ nodeId, record, session }: { nodeId: string; record: NodeReco
   const claude = session?.agent === "claude";
   const ids = { name: useId(), model: useId(), permission: useId(), account: useId(), shell: useId(), command: useId() };
   const ownModel = useOwnModelLabel(nodeId, session, running);
+  // Under the folder: why it is fixed, and while Claude runs in another one (started by hand after a `cd`), which:
+  // the lists follow it, the next launch doesn't.
+  const fixedFolder = lock && (lock === "fleet" ? t.folderFleet : t.folderMission);
+  const folderNote = (fixedFolder || liveFolder) && (
+    <>
+      {fixedFolder && <span className="block">{fixedFolder}</span>}
+      {liveFolder && (
+        <span data-running-folder title={liveFolder} className="block">
+          {t.runningFolder(folderName(liveFolder))}
+        </span>
+      )}
+    </>
+  );
 
   const commitName = (input: HTMLInputElement) => {
     const next = keepStored(input, name);
@@ -288,7 +304,7 @@ function General({ nodeId, record, session }: { nodeId: string; record: NodeReco
                 <AccountSelect id={ids.account} value={account} disabled={lock === "mission"} onChange={setAccount} />
               </Row>
             )}
-            <Row label={t.folder} note={lock && (lock === "fleet" ? t.folderFleet : t.folderMission)}>
+            <Row label={t.folder} note={folderNote}>
               <FolderField nodeId={nodeId} session={session} lock={lock} />
             </Row>
             <Row label={t.shell} htmlFor={ids.shell}>

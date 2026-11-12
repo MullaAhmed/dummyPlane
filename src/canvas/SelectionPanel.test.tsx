@@ -295,6 +295,7 @@ const reported = (patch: Partial<SessionUsage> = {}): SessionUsage => ({
   nodeId: "t1",
   model: { id: "claude-sonnet-5-5", name: "Sonnet 5.5" },
   effort: null,
+  folder: null,
   costUsd: 0,
   apiMs: 0,
   wallMs: 0,
@@ -801,6 +802,78 @@ it("reads the lists again when the terminal's folder or profile changes", async 
     { cwd: "D:/work/web", configDir: null },
     { cwd: "D:/work/web", configDir: "C:/profiles/work" },
   ]);
+});
+
+// A `claude` started by hand after a `cd`: its status line names the folder it was launched in.
+const runningNote = () => host.querySelector("[data-running-folder]");
+
+it("reads the four lists from the folder Claude runs in while its run is live, and from the saved folder once Claude left its shell", async () => {
+  serveExtensions(() => ({ skills: [], plugins: [], mcp: [], agents: [] }));
+  terminalStatusStore.getState().set("t1", { state: "running" });
+  usageStore.setState({ sessions: { s1: reported({ folder: "D:/work/wt/upload" }) } });
+  await mountTerminal(terminal());
+  // The Folder row keeps the saved folder (the next launch starts there) and says where Claude runs.
+  expect(host.querySelector("[data-folder]")?.textContent).toBe("D:/work/api");
+  expect(runningNote()?.textContent).toBe("Claude is running in upload");
+  expect(runningNote()?.getAttribute("title")).toBe("D:/work/wt/upload");
+  await openTab("Skills");
+  expect(listCalls).toEqual([{ cwd: "D:/work/wt/upload", configDir: null }]);
+  // The empty list names the folder it was read from.
+  expect(host.textContent).toContain("No skills in upload or your Claude folder");
+  for (const kind of ["Plugins", "MCP", "Subagents"]) await openTab(kind);
+  expect(host.textContent).toContain("No subagents in upload or your Claude folder");
+  // One call brings the four lists: they all come from the live folder.
+  expect(listCalls).toHaveLength(1);
+
+  // Claude exits; its shell lives on (SessionEnd): the saved folder again, though the terminal still runs.
+  await act(async () => agentActivityStore.setState({ activities: { t1: { activity: "idle", since: Date.now(), left: true } } }));
+  await settle();
+  expect(listCalls).toEqual([
+    { cwd: "D:/work/wt/upload", configDir: null },
+    { cwd: "D:/work/api", configDir: null },
+  ]);
+  expect(host.textContent).toContain("No subagents in api or your Claude folder");
+  await openTab("General");
+  expect(runningNote()).toBeNull();
+});
+
+it("reads the saved folder when the terminal stopped, or before the live run's first status line", async () => {
+  serveExtensions();
+  usageStore.setState({ sessions: { s1: reported({ folder: "D:/work/wt/upload" }) } });
+  // Stopped: what its last run reported no longer says where Claude runs.
+  await mountTerminal(terminal());
+  expect(runningNote()).toBeNull();
+  await openTab("Skills");
+  expect(listCalls).toEqual([{ cwd: "D:/work/api", configDir: null }]);
+  // Relaunched from the app: nothing it reported before counts until the new run's first status line.
+  await act(async () => {
+    markLaunch("t1", 10);
+    terminalStatusStore.getState().set("t1", { state: "running" });
+  });
+  await settle();
+  expect(listCalls).toHaveLength(1);
+  // The new run reports another folder: the lists follow it.
+  await act(async () => usageStore.setState({ sessions: { ...usageStore.getState().sessions, s2: reported({ sessionId: "s2", folder: "D:/work/web", at: 20 }) } }));
+  await settle();
+  expect(listCalls).toEqual([
+    { cwd: "D:/work/api", configDir: null },
+    { cwd: "D:/work/web", configDir: null },
+  ]);
+  // The terminal stops: the saved folder again.
+  await act(async () => terminalStatusStore.getState().set("t1", { state: "exited", code: 0 }));
+  await settle();
+  expect(listCalls[listCalls.length - 1]).toEqual({ cwd: "D:/work/api", configDir: null });
+});
+
+it("keeps the saved folder when Claude names it spelled otherwise: no second read, no note", async () => {
+  serveExtensions();
+  terminalStatusStore.getState().set("t1", { state: "running" });
+  usageStore.setState({ sessions: { s1: reported({ folder: "D:\\Work\\API\\" }) } });
+  await mountTerminal(terminal());
+  expect(runningNote()).toBeNull();
+  await openTab("Skills");
+  await openTab("MCP");
+  expect(listCalls).toEqual([{ cwd: "D:/work/api", configDir: null }]);
 });
 
 it("turns a skill off for this terminal alone, and a plugin the user's settings leave off on", async () => {
