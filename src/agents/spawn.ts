@@ -29,7 +29,7 @@ import { MAX_SPAWN_DEPTH, markLaunching, spawnDepth, spawnedAtWork } from "./spa
 import { withFamilyGroup, type FamilyOptions } from "./spawnGroup";
 import { reflowSpawnTree, spawnedBy } from "./spawnTree";
 import { clip, taskSummary } from "./taskSummary";
-import { addTerminal } from "./terminals";
+import { addTerminal, placeTerminal, type PlaceTerminal } from "./terminals";
 import { withWire } from "./wires";
 
 /**
@@ -169,17 +169,19 @@ async function spawnNow(parentId: string, args: SpawnArgs): Promise<SpawnResult>
   const routed = spawnModel(parentId, payload.agent, { model, level });
   if (routed.needsLevel) return refuse(t().levelNotModel(routed.needsLevel));
   if (routed.model) payload.model = routed.model;
-  // The family's group, made now that nothing refuses: read again, the scene may have changed while the name was chosen
-  // (something now in its way: the sub-agent opens beside its parent). Nothing selected, scrolled to nor named: it arrives quietly too.
-  const current = familyPantheon ? sceneAccess(workspaceId) : null;
-  const family = current ? withFamilyGroup(current.elements(), parentId, spawnedBy, familyOptions(familyPantheon!)) : null;
-  if (current && family) current.write(family.elements);
+  // One write, one undo step: a Ctrl+Z takes the sub-agent, its spawn wire and the group made for its family back
+  // together, its parent loose again. The family's group is made from the scene as it is once the sub-agent's node
+  // exists (something may now stand in its way: the sub-agent then opens beside its parent). Nothing selected,
+  // scrolled to nor named: the group arrives quietly, as its agent does.
+  const place: PlaceTerminal = (elements, child) => {
+    const family = familyPantheon ? withFamilyGroup(elements, parentId, spawnedBy, familyOptions(familyPantheon)) : null;
+    const placed = placeTerminal(family?.elements ?? elements, child, group?.id ?? family?.frameId ?? null);
+    return withWire(placed, parentId, child.id, undefined, true);
+  };
   // It arrives on its own: the user may be typing, so it neither scrolls the view nor takes the keyboard.
-  const childId = await addTerminal(workspaceId, payload, center, group?.id ?? family?.frameId ?? null, quietly("spawn"));
+  const childId = await addTerminal(workspaceId, payload, center, group?.id ?? null, quietly("spawn"), place);
   if (!childId) return refuse(t().failed);
   markLaunching(childId, true);
-  const now = sceneAccess(workspaceId);
-  if (now) now.write(withWire(now.elements(), parentId, childId, undefined, true));
   // Element, spawnedBy and wire all there: the tree takes its flowchart layout, the wire rerouted.
   reflowSpawnTree(workspaceId, childId);
   void deliver(parentId, childId, name, t().brief(parent.name || "your parent agent", task));

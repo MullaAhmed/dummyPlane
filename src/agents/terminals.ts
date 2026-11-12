@@ -40,11 +40,25 @@ export function startArrival(nodeId: string, payload: TerminalPayload, shown: bo
   else startUnseen(nodeId, payload);
 }
 
+/** How a new terminal goes into the scene, as it stands once the node exists: the scene written, in one step. */
+export type PlaceTerminal = (elements: readonly ExcalidrawElement[], element: ExcalidrawElement) => readonly ExcalidrawElement[];
+
+/**
+ * `elements` with `element` in the first free cell of the group `groupId` (grown if it was full), or, in none,
+ * at the nearest spot clear of the nodes and group frames: where a new terminal goes.
+ */
+export function placeTerminal(elements: readonly ExcalidrawElement[], element: ExcalidrawElement, groupId: string | null): ExcalidrawElement[] {
+  const frame = groupId ? elements.find((e) => e.id === groupId && !e.isDeleted && groupInfoOf(e)) : undefined;
+  return frame ? joinGroup(elements, element, frame) : [...elements, placeFree(elements, element)];
+}
+
 /**
  * Adds a terminal centered on `center` (scene coordinates), or in the first
  * free cell of the group `groupId`, and starts it. It comes
  * into view unless `arrival` says it arrives on its own: then the view stays,
- * the keyboard too, and a notice tells of it.
+ * the keyboard too, and a notice tells of it. `place` writes it into the
+ * scene with what goes with it, one undo step (spawn_agent's group and wire);
+ * `placeTerminal` by default.
  */
 export async function addTerminal(
   workspaceId: string,
@@ -52,6 +66,7 @@ export async function addTerminal(
   center: Point,
   groupId: string | null = null,
   arrival: Arrival = IN_VIEW,
+  place: PlaceTerminal = (elements, element) => placeTerminal(elements, element, groupId),
 ): Promise<string | null> {
   if (!sceneAccess(workspaceId)) return null;
   const element = createNodeElement("terminal", center);
@@ -61,9 +76,7 @@ export async function addTerminal(
   // Read after the wait: the scene may have changed meanwhile, and the user may have left it.
   const scene = sceneAccess(workspaceId);
   if (!scene) return null;
-  const elements = scene.elements();
-  const frame = groupId ? elements.find((e) => e.id === groupId && !e.isDeleted && groupInfoOf(e)) : undefined;
-  scene.write(frame ? joinGroup(elements, element, frame) : [...elements, placeFree(elements, element)]);
+  scene.write(place(scene.elements(), element));
   // Out of sight, Excalidraw would neither show it nor start its agent; in another workspace nothing mounts it at all.
   if (scene.shown && arrival.reveal) {
     revealNode(element.id);

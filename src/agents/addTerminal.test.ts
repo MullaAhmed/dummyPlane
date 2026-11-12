@@ -65,3 +65,19 @@ it("two launches at the same center, outside any group, do not overlap one anoth
   const overlaps = first.x < second.x + second.width && second.x < first.x + first.width && first.y < second.y + second.height && second.y < first.y + first.height;
   expect(overlaps).toBe(false);
 });
+
+it("writes the scene `place` makes with the new terminal, in one undoable write: spawn_agent's group and wire go with it", async () => {
+  const updateScene = vi.fn(({ elements }: { elements?: typeof scene }) => {
+    if (elements) scene = elements;
+  });
+  canvasStore.setState({ api: { ...canvasStore.getState().api!, updateScene } as unknown as ExcalidrawImperativeAPI });
+  scene = [{ id: "parent" }];
+  let made: { id: string }[] = [];
+  const place = vi.fn((elements: readonly { id: string }[], element: { id: string }) => (made = [...elements, element, { id: "wire" }]));
+  const payload = { title: "T", name: "T", agent: "claude", cwd: "C:/code", shell: "default", command: "" } as const;
+  const id = await addTerminal("w1", payload, { x: 9000, y: 0 }, null, quietly("spawn"), place as never);
+  expect(place).toHaveBeenCalledTimes(1);
+  expect(place.mock.calls[0][1].id).toBe(id);
+  expect(updateScene).toHaveBeenCalledTimes(1);
+  expect(updateScene.mock.calls[0][0]).toMatchObject({ elements: made, captureUpdate: "i" });
+});
