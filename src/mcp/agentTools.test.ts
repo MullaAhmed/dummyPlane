@@ -111,10 +111,11 @@ it("offers spawn_agent to every Claude session, its task required", () => {
   expect(spawn.description).toContain("3 levels");
 });
 
-it("sends an agent and the Fleet to spawn_agent rather than a Workflow, which dummyPlane refuses like the Agent/Task tool", () => {
+it("sends an agent to spawn_agent rather than a Workflow, which dummyPlane refuses like the Agent/Task tool", () => {
   const agent = agentTools().find((tool) => tool.name === "spawn_agent")!;
   expect(agent.description).toContain("instead of the built-in Agent/Task tool or a Workflow: one call per sub-agent");
-  expect(spawnAgentSpec(true).description).toContain("instead of built-in sub-agents or a Workflow");
+  // The Fleet's stays worded for any CLI (a Codex fleet reads it too): a Claude fleet's prompt names the Workflow.
+  expect(spawnAgentSpec(true).description).not.toContain("Workflow");
 });
 
 it("minimizes a spawned agent that reports its work done, its parent told all the same", () => {

@@ -33,7 +33,7 @@ export const agentMessages = defineMessages({
       fleetSpawnAgent: (depth: number) =>
         "For ad-hoc work outside your mission's queue (a lookup, a check, a one-off task): a sub-agent opens as a new terminal beside you, in your workspace's folder, running your CLI. " +
         "It is a regular agent, not a manager: it edits files and runs commands, with the user's usual permissions (overnight, what the night lets the team do). The user can watch it and type into it. " +
-        "A mission's work still goes through propose_plan or add_tasks. Use it instead of built-in sub-agents or a Workflow. It returns at once: do not wait or poll. " +
+        "A mission's work still goes through propose_plan or add_tasks. Use it instead of built-in sub-agents. It returns at once: do not wait or poll. " +
         "When the sub-agent is done it calls report, and its summary is typed into your terminal as \"[dummyPlane] <name> reported (<status>): <summary>\"; it is not on your team: no merge, reassign or next_task for it. " +
         "Give level on every call, the difficulty of this task: with your model router on (mission: router), it picks the sub-agent's model as a sub-task's level does, and a model named with no level is refused. " +
         `A sub-agent can spawn its own, ${depth} levels below you at most; the number running at once is capped by a setting.`,
