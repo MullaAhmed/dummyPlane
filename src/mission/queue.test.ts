@@ -20,7 +20,7 @@ import { morningReport } from "./morning";
 import { afterReport, giveNext, pumpQueue } from "./queue";
 import { missionOf, updateMember } from "./store";
 import { activeCount } from "./active";
-import { fleetTool } from "@/mcp/fleetTools";
+import { fleetTool, managerTools } from "@/mcp/fleetTools";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
 vi.mock("@/ipc/mission", () => ({ missionPrepare: vi.fn(), missionAddAgent: vi.fn(), missionMerge: vi.fn(), missionCleanup: vi.fn(), missionDiscard: vi.fn() }));
@@ -310,6 +310,10 @@ describe("an agent that reports « blocked » or « failed »", () => {
     // From an agent at work, its seat goes with the sub-task: still two at work, it is not refused.
     expect(await reassignTask("chef", "cyborg", "Aquaman")).toEqual({ name: "Aquaman" });
     expect(activeCount("chef", missionNow())).toBe(2);
+    // The tool says so, for "new" and for an agent that reported alike.
+    expect(managerTools().find((tool) => tool.name === "reassign")?.description).toContain(
+      'While Max active agents are at work, "new" is refused, and so is an agent that has reported when the sub-task\'s holder holds no seat',
+    );
   });
 
   it("starts a new agent in a new terminal when next_task asks for it, nothing merged, the old task abandoned", async () => {

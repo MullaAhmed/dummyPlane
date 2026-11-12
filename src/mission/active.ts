@@ -49,14 +49,14 @@ export function activeMembers(mission: Mission): Member[] {
 }
 
 /** Whether a member holds a seat now: it counts against Max agents. */
-export const holdsSeat = (mission: Mission, nodeId: string) => activeMembers(mission).some((m) => m.nodeId === nodeId);
+export const hasSeat = (mission: Mission, nodeId: string) => activeMembers(mission).some((m) => m.nodeId === nodeId);
 
 /**
  * Whether starting a member's terminal again takes one more seat: on its task, it holds none now (stopped after
  * its sub-task was typed, so the queue may have filled its place), and one once it runs.
  */
 export function relaunchTakesSeat(mission: Mission, member: Member): boolean {
-  return onTask(member) && !holdsSeat(mission, member.nodeId);
+  return onTask(member) && !hasSeat(mission, member.nodeId);
 }
 
 /** The seats taken: the members at work, and the new agents on their way. */
