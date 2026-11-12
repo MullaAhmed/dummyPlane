@@ -25,7 +25,7 @@ export const agentMessages = defineMessages({
       finishSummary: "Markdown, or OpenUI Lang (root = Stack([...]); see output_guide) for a table or figures: dummyPlane draws it in your panel.",
       spawnAgent: (depth: number) =>
         "Delegate a task to a sub-agent that opens as a new Claude terminal beside yours, in your folder (same worktree): the user can watch it and type into it. " +
-        "Use it instead of the built-in Agent/Task tool, several calls to work in parallel. It returns at once: do not wait or poll. " +
+        "Use it instead of the built-in Agent/Task tool or a Workflow: one call per sub-agent, several calls to work in parallel. It returns at once: do not wait or poll. " +
         "When the sub-agent is done it calls report, and its summary is typed into your terminal as \"[dummyPlane] <name> reported (<status>): <summary>\". " +
         "To give a sub-agent that reported new work, message it with message_agent and pass a title for that work: without one, its terminal still bears the title of the task it finished. " +
         "Give level on every call, the difficulty of this task: when a model router is on for you (the user's switch on your terminal, or on the Fleet or the agent you work under), it picks the sub-agent's model, and a model named with no level is refused. " +

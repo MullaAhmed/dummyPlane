@@ -7,14 +7,11 @@ use std::path::{Path, PathBuf};
 
 use serde_json::{Value, json};
 
-use super::hooks_server::{manager_hook_url, valid_node_id};
+use super::hooks_server::{BUILTIN_SUBAGENT_TOOLS, manager_hook_url, valid_node_id};
 use crate::pty::shell::{Permission, Role};
 
 const NOTIFICATIONS: &str =
     "permission_prompt|elicitation_dialog|elicitation_url_dialog|agent_needs_input|idle_prompt";
-
-/// Claude's built-in sub-agent tool, under its old name and its current one.
-const BUILTIN_SUBAGENTS: &str = "Task|Agent";
 
 pub fn settings_json(url: &str, role: Role) -> Value {
     let hook = json!({ "type": "http", "url": url, "timeout": 2 });
@@ -44,8 +41,9 @@ pub fn settings_json(url: &str, role: Role) -> Value {
             // Always asked, decided at each call: the user's "Sub-agents open as
             // terminals" reaches the sessions already running. A fleet's go to
             // spawn_agent too, as regular agents in terminals of their own; a
-            // Manager's team starts from the queue.
-            "PreToolUse": [{ "matcher": BUILTIN_SUBAGENTS, "hooks": [pre_tool] }],
+            // Manager's team starts from the queue. The matcher names exactly the
+            // tools the hook server refuses, the Workflow tool among them.
+            "PreToolUse": [{ "matcher": BUILTIN_SUBAGENT_TOOLS.join("|"), "hooks": [pre_tool] }],
         },
         "permissions": permissions,
     })
@@ -354,7 +352,7 @@ mod tests {
         let agent = settings_json(URL, Role::Agent);
         assert_eq!(
             agent["hooks"]["PreToolUse"],
-            json!([{ "matcher": "Task|Agent", "hooks": [hook] }])
+            json!([{ "matcher": "Task|Agent|Workflow", "hooks": [hook] }])
         );
         // A fleet has spawn_agent too: its built-in sub-agents are asked about the same way,
         // and the hook server answers it as an agent (`hooks_server::pre_tool_use`); only a
@@ -363,6 +361,23 @@ mod tests {
         assert_eq!(manager["hooks"], agent["hooks"]);
         // Only its rails differ: it neither edits nor runs commands itself.
         assert_ne!(manager["permissions"], agent["permissions"]);
+    }
+
+    /// Regression: the matcher named Task and Agent only, so a Workflow's sub-agents
+    /// ran unasked with "Sub-agents as terminals" on, drawn as read-only mirrors.
+    #[test]
+    fn the_settings_file_asks_dummyplane_before_a_workflow_too() {
+        let dir = tempfile::tempdir().unwrap();
+        for role in [Role::Agent, Role::Fleet, Role::Manager] {
+            let path = write(dir.path(), "n1", URL, role, None, None).unwrap();
+            let read: Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
+            let matcher = read["hooks"]["PreToolUse"][0]["matcher"].as_str().unwrap();
+            assert_eq!(
+                matcher.split('|').collect::<Vec<_>>(),
+                ["Task", "Agent", "Workflow"],
+                "{role:?}"
+            );
+        }
     }
 
     #[test]
@@ -759,7 +774,7 @@ until [ -e release ] || [ ! -e statusline.sh ]; do sleep 0.05; done\n\
         assert_eq!(
             manager["hooks"]["PreToolUse"],
             json!([{
-                "matcher": "Task|Agent",
+                "matcher": "Task|Agent|Workflow",
                 "hooks": [{ "type": "http", "url": format!("{URL}&role=manager"), "timeout": 2 }]
             }])
         );
