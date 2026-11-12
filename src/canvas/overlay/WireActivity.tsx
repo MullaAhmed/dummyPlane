@@ -1,4 +1,5 @@
-import { useCanvas } from "../canvasStore";
+import type { ReactNode } from "react";
+import { useCanvas, useCanvasPlace } from "../canvasStore";
 import { useWireActivity, type WirePulse } from "../wireActivity";
 import { activeWires, pathData } from "./wirePaths";
 
@@ -18,7 +19,6 @@ export function WireActivity() {
 function ActiveWires({ pulses }: { pulses: Record<string, WirePulse> }) {
   const wires = useCanvas((s) => s.wires);
   const frames = useCanvas((s) => s.frames);
-  const view = useCanvas((s) => s.view);
   const active = activeWires(wires, frames, pulses);
   if (active.length === 0) return null;
   return (
@@ -30,8 +30,7 @@ function ActiveWires({ pulses }: { pulses: Record<string, WirePulse> }) {
       // the light runs on the wire, never over a node.
       style={{ zIndex: 1 }}
     >
-      {/* Scene coordinates, drawn at the view's scale like the wire under it. */}
-      <g transform={`scale(${view.zoom}) translate(${view.scrollX} ${view.scrollY})`}>
+      <SceneGroup>
         {active.map(({ wire, direction, at }) => {
           const d = pathData(wire.points, direction);
           return (
@@ -44,7 +43,16 @@ function ActiveWires({ pulses }: { pulses: Record<string, WirePulse> }) {
             </g>
           );
         })}
-      </g>
+      </SceneGroup>
     </svg>
   );
+}
+
+/**
+ * Scene coordinates, drawn at the view's scale like the wire under it. The lights
+ * come in as `children`: a pan or a zoom draws this group again, not the paths.
+ */
+function SceneGroup({ children }: { children: ReactNode }) {
+  const { scrollX, scrollY, zoom } = useCanvasPlace();
+  return <g transform={`scale(${zoom}) translate(${scrollX} ${scrollY})`}>{children}</g>;
 }

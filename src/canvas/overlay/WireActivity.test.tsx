@@ -7,6 +7,13 @@ import type { SceneFrame } from "../groups";
 import { readSource } from "@/theme/cssBlocks";
 import { clearWirePulses, signalWire, WIRE_PULSE_MS } from "../wireActivity";
 import { WireActivity } from "./WireActivity";
+import { pathData } from "./wirePaths";
+
+// Each light works out its path once per render: the count of their renders.
+vi.mock("./wirePaths", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./wirePaths")>();
+  return { ...actual, pathData: vi.fn(actual.pathData) };
+});
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
 
@@ -83,4 +90,20 @@ it("runs the light at one speed, fades it on the house curve, and under reduced 
   expect(reduce).toMatch(new RegExp(String.raw`\.dp-wire-glow \{[^}]*display: inline;[^}]*animation: dp-wire-glow ${WIRE_PULSE_MS}ms var\(--dp-ease-out\) both;`));
   expect(reduce).toMatch(/\.dp-wire-packet \{\s*display: none;\s*\}/);
   expect(/@keyframes dp-wire-glow \{([\s\S]*?)\n\}/.exec(css)![1]).not.toMatch(/transform|stroke-dashoffset/);
+});
+
+it("a pan or a zoom moves the lights' group and draws no light again; a new message does", async () => {
+  await act(async () => signalWire("batman", "toFleet", "chef"));
+  const drawn = () => vi.mocked(pathData).mock.calls.length;
+  const once = drawn();
+  expect(once).toBe(1);
+  for (let frame = 1; frame <= 30; frame++) {
+    await act(async () => canvasStore.setState((s) => ({ view: { ...s.view, scrollX: 100 - frame * 10, zoom: 0.5 + frame / 100 } })));
+  }
+  expect(drawn()).toBe(once);
+  const svg = host.querySelector<SVGSVGElement>("[data-wire-activity]")!;
+  expect(svg.querySelector("g")!.getAttribute("transform")).toBe("scale(0.8) translate(-200 -20)");
+  await act(async () => signalWire("shazam", "toAgent", "chef"));
+  expect(drawn()).toBeGreaterThan(once);
+  expect(svg.querySelectorAll("[data-wire]")).toHaveLength(2);
 });

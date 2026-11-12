@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { memo, useEffect, useRef } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,10 +13,11 @@ import { useNodes } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
 import { useStore } from "zustand";
 import { uiStore, useUi } from "@/store/ui";
-import { canvasStore, useCanvas, useCanvasPlace, type CanvasPlace } from "../canvasStore";
+import { canvasStore, useCanvas } from "../canvasStore";
 import { groupBeingRenamed, isGroup, type SceneGroup } from "../groups";
 import { useMessages } from "@/i18n";
 import { canvasMessages } from "../messages";
+import { scrollLayerPlace, ScrollLayer } from "./layers";
 
 /** The label sits on the frame's top edge, 16 px from its corner, like a tab. */
 const LABEL_INSET = 16;
@@ -30,10 +31,12 @@ const LABEL_HEIGHT = 24;
  * `.excalidraw` makes no stacking context, so its layers compete with ours:
  * at z-index 3, placed before Excalidraw in the DOM, the labels cover frame
  * names and nodes (2) but stay under its text editor (3) and its panels (4).
+ * Placed at the view's zoom in a layer that scrolls: a pan moves that layer and
+ * draws no label again. A label is drawn again when what it shows changed.
  */
 export function GroupLabels() {
   const frames = useCanvas((s) => s.frames);
-  const view = useCanvasPlace();
+  const zoom = useCanvas((s) => s.view.zoom);
   const editingFrame = useCanvas((s) => s.view.editingFrame);
   const activities = useActivities();
   const statuses = useStore(terminalStatusStore, (s) => s.statuses);
@@ -56,26 +59,28 @@ export function GroupLabels() {
   return (
     <div className="pointer-events-none absolute inset-0 z-[3] overflow-hidden">
       <style>{groups.map((g) => `.excalidraw [id$="-frame-name-${CSS.escape(g.id)}"]{color:transparent!important}`).join("\n")}</style>
-      {groups.map((group) =>
-        group.id === editingFrame ? null : (
-          <GroupLabel
-            key={group.id}
-            group={group}
-            view={view}
-            renaming={group.id === renaming}
-            working={members(group, "working")}
-            waiting={members(group, "waiting")}
-          />
-        ),
-      )}
+      <ScrollLayer>
+        {groups.map((group) =>
+          group.id === editingFrame ? null : (
+            <GroupLabel
+              key={group.id}
+              group={group}
+              zoom={zoom}
+              renaming={group.id === renaming}
+              working={members(group, "working")}
+              waiting={members(group, "waiting")}
+            />
+          ),
+        )}
+      </ScrollLayer>
     </div>
   );
 }
 
-function GroupLabel(props: { group: SceneGroup; view: CanvasPlace; working: number; waiting: number; renaming: boolean }) {
-  const { group, view, working, waiting, renaming } = props;
+const GroupLabel = memo(function GroupLabel(props: { group: SceneGroup; zoom: number; working: number; waiting: number; renaming: boolean }) {
+  const { group, zoom, working, waiting, renaming } = props;
   const waits = waitingText(waiting);
-  const rect = screenRectOf(group, view);
+  const rect = screenRectOf(group, scrollLayerPlace(zoom));
   const { role: roleId, speciality, folded } = group.group;
   const t = useMessages(canvasMessages);
   const role = ROLES[roleId];
@@ -118,7 +123,7 @@ function GroupLabel(props: { group: SceneGroup; view: CanvasPlace; working: numb
       <GroupMenu groupId={group.id} />
     </div>
   );
-}
+});
 
 /** The group's name, edited in place: Enter or a click elsewhere keeps it, Escape cancels. */
 function NameField({ name, onDone }: { name: string; onDone: (name: string | null) => void }) {
