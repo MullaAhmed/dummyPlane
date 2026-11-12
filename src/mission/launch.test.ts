@@ -226,6 +226,17 @@ describe("the model router", () => {
     expect(missionNow().members.map((m) => m.model)).toEqual([undefined, undefined]);
   });
 
+  it("keeps a linked agent's own model through its sub-task and after it when its own switch is off, the mission's on", async () => {
+    await setup({ router: true, plan: [{ ...plan[0], level: "faible" }, { ...plan[1], level: "faible" }] });
+    nodesStore.getState().update("batman", { router: false, model: "claude-opus-5-5" });
+    await launchMission("chef");
+    expect(relaunchTerminal).toHaveBeenCalledWith("batman", expect.objectContaining({ model: "claude-opus-5-5" }), "new");
+    expect(missionNow().members.map((m) => m.model)).toEqual(["claude-opus-5-5", "claude-haiku-5-5"]);
+    endMission("chef", "Fini.");
+    expect(terminalOf(nodesStore.getState().nodes.batman)).toMatchObject({ model: "claude-opus-5-5", router: false });
+    expect(relaunchTerminal).toHaveBeenLastCalledWith("batman", expect.objectContaining({ cwd: "C:/code/proj", model: "claude-opus-5-5" }), "new");
+  });
+
   it("follows Settings' router while the Fleet's switch is unset: levels are needed, and the team takes their models", async () => {
     modelRouterStore.setState({ on: true });
     await setup({});

@@ -353,7 +353,12 @@ export function endMission(fleetId: string, summary: string, ui?: string) {
   setMission(fleetId, { state: "terminee", summary, ...(ui ? { summaryUi: ui } : {}), endedAt: Date.now() });
   // The user hears it, if away (`@/shell/finishAlert`).
   signalFinish({ nodeId: fleetId, state: "done", summary });
-  for (const member of mission.members) if (member.linked && mission.project) void restartIn(member.nodeId, mission.project);
+  // A linked agent goes back on its CLI's own model, but one whose own switch is off keeps its own, as through its sub-task.
+  for (const member of mission.members) {
+    if (!member.linked || !mission.project) continue;
+    const own = terminalOf(nodesStore.getState().nodes[member.nodeId]);
+    void restartIn(member.nodeId, mission.project, own?.router === false ? own.model : undefined);
+  }
   // Its own sub-agents (spawn_agent) stay open, without the night's permission: a later restart asks. So do its Manager's.
   releaseSpawnedPermission(fleetId, mission.permission);
   // Those who joined a group go alone: it stays, with its own agents. Under a

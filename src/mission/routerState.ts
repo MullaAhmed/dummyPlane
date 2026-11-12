@@ -3,6 +3,8 @@ import { modelRouterStore } from "@/app/modelRouterSetting";
 import { MAX_SPAWN_DEPTH } from "@/agents/spawnFamily";
 import { FLEET_CAPABLE } from "@/fleet/capable";
 import { MANAGER_ROLE, type AgentId } from "@/ipc/pty";
+import { AGENTS } from "@/agents/catalog";
+import type { TerminalPayload } from "@/nodes/types";
 import { nodesStore, terminalOf, useNodes, type NodeRecord } from "@/store/nodes";
 import { NEW_AGENT, sameName } from "./mission";
 import { linkedTeamAgents, memberOf, missionOf, setMission } from "./store";
@@ -43,12 +45,15 @@ function fleetOver(nodes: Nodes, nodeId: string): string | undefined {
   const payload = terminalOf(nodes[nodeId]);
   if (!payload) return undefined;
   if (payload.role === MANAGER_ROLE && payload.fleet) return payload.fleet;
-  return memberOf(nodeId)?.fleetId ?? planningFleet(nodes, nodeId, payload.name);
+  return memberOf(nodeId)?.fleetId ?? planningFleet(nodes, nodeId, payload);
 }
 
-/** The Fleet whose pending plan names this linked agent, read from the plan's names then its Fleet's wires. */
-function planningFleet(nodes: Nodes, nodeId: string, name: string): string | undefined {
-  if (!name) return undefined;
+/**
+ * The Fleet whose pending plan names this linked agent, read from the plan's names then its Fleet's wires; an agent
+ * with no name goes by its CLI's label, as `linkedTeamAgents` lists it and a plan names it.
+ */
+function planningFleet(nodes: Nodes, nodeId: string, payload: TerminalPayload): string | undefined {
+  const name = payload.name || AGENTS[payload.agent].label;
   for (const [fleetId, record] of Object.entries(nodes)) {
     const mission = missionOf(record);
     if (mission?.state !== "plan" && mission?.state !== "lancement") continue;
