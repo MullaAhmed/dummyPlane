@@ -4,8 +4,8 @@ import { createNodeElement } from "@/canvas/nodeElement";
 import { nodesStore } from "@/store/nodes";
 import { arrangedElements } from "./arrange";
 import { anchorsOf, missionAnchor } from "./attachments";
-import { COLUMN_GAP, GROUP_GAP } from "./groupLayout";
-import { layoutSpawnTree } from "./spawnLayout";
+import { COLUMN_GAP, GROUP_GAP, overlap } from "./groupLayout";
+import { isDownTree, layoutSpawnTree } from "./spawnLayout";
 import { rerouteWires, wireFlagsOf, withWire, withWireBetween } from "./wires";
 
 vi.mock("@/ipc/db", () => ({ getSetting: vi.fn(), setSetting: vi.fn().mockResolvedValue(undefined), saveNode: vi.fn().mockResolvedValue(undefined) }));
@@ -103,5 +103,34 @@ describe("Arrange with a mission on the canvas", () => {
     expect(wireFlagsOf(at(after, before.find((e) => (e as ExcalidrawArrowElement).endBinding?.elementId === "m4")!.id))).toMatchObject({ down: true, riser: true });
     // The tree as Arrange left it is laid out already.
     expect(layoutSpawnTree(after, parentOf, "mgr", isManager)).toBeNull();
+  });
+});
+
+describe("Arrange as a tree with a mission on the canvas", () => {
+  /** The Fleet also opened two sub-agents of its own with spawn_agent: its flowchart right of it, around the board. */
+  const fleetKids: Record<string, string> = { f1: "fleet", f2: "fleet" };
+  const withFleetKids = (id: string) => fleetKids[id] ?? parentOf(id);
+
+  function scene(): ExcalidrawElement[] {
+    let elements = [...missionScene(), node("terminal", "f1", 30000, 0), node("terminal", "f2", 30000, 0)];
+    for (const [child, parent] of Object.entries(fleetKids)) elements = withWire(elements, parent, child, "calm", true);
+    return layoutSpawnTree(elements, withFleetKids, "fleet", isManager)!;
+  }
+
+  it("keeps the mission's block as it stands, both its trees laid out already, nothing over anything", () => {
+    const before = scene();
+    const result = arrangedElements({ elements: before, parentOf: withFleetKids, isMinimized: () => false, attachedTo: anchorsOf(before), aspect: 16 / 10, layout: "tree" });
+    const after = result ? rerouteWires(result.elements, result.movedNodeIds) : before;
+    const at = (elements: readonly ExcalidrawElement[], id: string) => elements.find((e) => e.id === id)!;
+    const shift = { x: at(after, "fleet").x - at(before, "fleet").x, y: at(after, "fleet").y - at(before, "fleet").y };
+    for (const id of ["board", "mgr", "f1", "f2", ...Object.keys(spawned)]) {
+      expect({ x: at(after, id).x - at(before, id).x, y: at(after, id).y - at(before, id).y }, id).toEqual(shift);
+    }
+    const nodes = after.filter((e) => !e.isDeleted && e.type === "embeddable");
+    for (const a of nodes) for (const b of nodes) if (a !== b) expect(overlap(a, b), `${a.id} ${b.id}`).toBe(0);
+    const byId = new Map(after.map((e) => [e.id, e]));
+    const isDownRoot = (id: string) => isManager(id) || isDownTree(byId.get(id));
+    expect(layoutSpawnTree(after, withFleetKids, "fleet", isDownRoot)).toBeNull();
+    expect(layoutSpawnTree(after, withFleetKids, "mgr", isDownRoot)).toBeNull();
   });
 });

@@ -622,14 +622,31 @@ function arrange(input: ArrangeInput, treesLaid: boolean): { elements: Excalidra
   const scope = insideOne ? new Set([unitOf(insideOne)]) : selectedUnits.size >= 2 || asked === "selection" ? selectedUnits : new Set(unitMembers.keys());
 
   // The tree: first, each spawn tree of what is arranged laid out downward from its root, alone (./arrangeTree.ts); then the
-  // rest as for any layout, each tree moving whole. Not a tree that reaches out of its group's frame: the flowchart wins there.
+  // rest as for any layout, each tree moving whole. Only a tree the rest of the arrange tidies around it, which carries
+  // nothing but quick notes (the layout makes room for those; an output it showed would be left where it was):
+  // - all of it directly in one unfolded group: a folded one is left as it is, and so is a tree that reaches out of its
+  //   frame (the flowchart wins there) or stands in a frame drawn by hand;
+  // - or all of it outside frames, its block holding nothing else (not a mission's Fleet, board and Manager, whose block
+  //   keeps its shape). Any other tree stays as it stands, as in the other layouts.
   if (layout === "tree" && !treesLaid) {
     const spawners = new Set(nodes.map((n) => liveParent(n.id)).filter((id): id is string => id !== null));
-    const homeOf = (id: string) => groupFrameOf(byId.get(id)!) ?? inFrame(byId.get(id)!);
-    const inOneFrame = (rootId: string) => nodes.every((n) => !hasAncestor(n.id, rootId, liveParent) || homeOf(n.id) === homeOf(rootId));
-    const roots = [...spawners].filter(
-      (id) => liveParent(id) === null && (insideOne ? groupFrameOf(byId.get(id)!) === insideOne : scope.has(unitOf(id))) && inOneFrame(id),
-    );
+    const tidied = (rootId: string): boolean => {
+      const members = nodes.filter((n) => n.id === rootId || hasAncestor(n.id, rootId, liveParent));
+      const ids = new Set(members.map((m) => m.id));
+      const note = (e: ExcalidrawElement) => {
+        const attachment = attachmentOf(e);
+        return attachment?.beside === true && ids.has(attachment.anchor);
+      };
+      if (live.some((e) => !ids.has(e.id) && ids.has(anchorOf(e) ?? "") && !note(e))) return false;
+      const home = inFrame(byId.get(rootId)!);
+      if (members.some((m) => inFrame(m) !== home)) return false;
+      if (home) {
+        const info = groupInfoOf(byId.get(home)!);
+        return info !== null && !info.folded && (!insideOne || home === insideOne);
+      }
+      return !insideOne && (unitMembers.get(unitOf(rootId)) ?? []).every((e) => ids.has(e.id) || note(e));
+    };
+    const roots = [...spawners].filter((id) => liveParent(id) === null && scope.has(unitOf(id)) && tidied(id));
     const laid = treesLaidDown(elements, roots, parentOf);
     if (laid.elements !== elements) {
       const inner = arrange({ ...input, elements: laid.elements }, true);

@@ -3,6 +3,7 @@ import type { ExcalidrawArrowElement, ExcalidrawElement } from "@excalidraw/exca
 import { createGroupFrame } from "@/canvas/groups";
 import { createNodeElement, NODE_SIZE } from "@/canvas/nodeElement";
 import { arrangedElements, type ArrangeInput } from "./arrange";
+import { anchorsOf } from "./attachments";
 import { COLUMN_GAP, GROUP_GAP, NODE_GAP, PADDING, PADDING_BOTTOM, PADDING_TOP } from "./groupLayout";
 import { isDownTree, isPinned, layoutSpawnTree } from "./spawnLayout";
 import { rerouteWires, wireFlagsOf, withWire, withWireBetween } from "./wires";
@@ -138,5 +139,28 @@ describe("Arrange as a tree", () => {
     });
     expect(reflow(after, "root")).toBeNull();
     expect(arrangedElements(tree({ elements: after, only: [frame.id], aspect: 4 }))).toBeNull();
+  });
+
+  it("leaves a folded group as it is: its hidden family is neither laid out nor marked", () => {
+    const frame = createGroupFrame({ x: 0, y: 0, width: 4000, height: 3000 }, "Batman's sub-agents", { role: "general", pantheon: "norse" }) as unknown as ExcalidrawElement;
+    const folded = { ...frame, customData: { dummyplane: { ...(frame.customData!.dummyplane as object), folded: true } } } as ExcalidrawElement;
+    const scene = [...flowchart().map((e) => (e.type === "arrow" ? e : { ...e, x: e.x + PADDING, y: e.y + PADDING_TOP, frameId: frame.id, locked: true })), folded];
+    expect(arrangedElements(tree({ elements: scene, only: [frame.id] }))).toBeNull();
+    const canvas = arrangedElements(tree({ elements: [...scene, node("terminal", "far", 9000, 9000)] }));
+    const kept = canvas?.elements ?? scene;
+    const shift = { x: at(kept, "root").x - at(scene, "root").x, y: at(kept, "root").y - at(scene, "root").y };
+    for (const id of ["k1", "k2", "k3"]) expect(at(kept, id), id).toEqual({ x: at(scene, id).x + shift.x, y: at(scene, id).y + shift.y });
+    expect(isDownTree(kept.find((e) => e.id === "root")!)).toBe(false);
+  });
+
+  it("keeps a tree that carries an output as it stands: the layout would leave the output behind, over a sibling", () => {
+    const output = node("kanban", "out", 3 * (W + GROUP_GAP), 0, { customData: { ...createNodeElement("kanban", { x: 0, y: 0 }).customData, attachedTo: "k3" } });
+    const scene = [...flowchart(), output];
+    const result = arrangedElements(tree({ elements: scene, attachedTo: anchorsOf(scene) }));
+    const kept = result?.elements ?? scene;
+    for (const id of ["k1", "k2", "k3", "out"]) {
+      expect({ x: at(kept, id).x - at(kept, "root").x, y: at(kept, id).y - at(kept, "root").y }, id).toEqual({ x: at(scene, id).x - at(scene, "root").x, y: at(scene, id).y - at(scene, "root").y });
+    }
+    expect(isDownTree(kept.find((e) => e.id === "root")!)).toBe(false);
   });
 });
