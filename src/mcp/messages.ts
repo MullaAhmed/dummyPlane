@@ -465,6 +465,11 @@ export const agentMessages = defineMessages({
       teamNote: (manager: string) =>
         `${manager} runs this mission: message it or a teammate with message_agent (linked_agents lists them), and report to it with report.`,
       stopSummary: (fleet: string, reason: string) => `Stopped by ${fleet}: ${reason}`,
+      // The user stopped it from the Fleet's panel: the summary, the Manager's line, the Fleet's (which did not ask).
+      userStopSummary: "Stopped by the user.",
+      userStopped: "The user stopped the mission from the Fleet's panel.",
+      userStoppedFleet:
+        "The user stopped the mission from your panel. Its summary is there; the user merges the mission's branch into their own, then the mission is cleaned up (clean_up_mission, or the user from the panel).",
       boardFinished: (summary: string) => `The board is finished: ${summary}`,
       needsUser: (manager: string, reason: string) => `${manager} needs the user: ${reason}`,
       managerStopped: (manager: string) => `${manager} stopped: its terminal is no longer running. The board waits: relaunch it from its node, or stop_mission.`,

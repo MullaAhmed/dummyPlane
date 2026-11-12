@@ -24,7 +24,9 @@ import { nodeNameOf, sessionOf, terminalOf, useNodes } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
 import { openReview } from "@/review/reviewStore";
 import { uiStore, useUi } from "@/store/ui";
+import { confirmAction } from "@/components/confirm";
 import { cleanMission, launchMission } from "./launch";
+import { stopMission } from "./stop";
 import { budgetBar, budgetOf, MAX_AGENTS, memberTime, nightMin, remainingGlobal, type Mission, type MissionState, type Report } from "./mission";
 import { missionMessages } from "./messages";
 import { morningShown } from "./morning";
@@ -111,6 +113,7 @@ function MissionView({ nodeId, mission }: { nodeId: string; mission: Mission }) 
       </div>
       {/* Actions stay out of the scrolling body, so they are always visible. */}
       {mission.plan && (mission.state === "plan" || mission.state === "lancement") && <PlanActions nodeId={nodeId} mission={mission} />}
+      {mission.state === "en_cours" && <RunningActions nodeId={nodeId} mission={mission} />}
       {mission.state === "terminee" && <SummaryActions nodeId={nodeId} />}
     </section>
   );
@@ -457,6 +460,27 @@ function BudgetTime({ spent, budget }: { spent: number; budget: number }) {
     <span className="shrink-0 font-mono tabular-nums" style={{ color: BUDGET_COLOR[budgetBar(spent, budget).tone] }}>
       {t.spent(Math.floor(spent), budget)}
     </span>
+  );
+}
+
+/**
+ * "Stop the mission", where "Clean up the mission" stands once it is over: the user's own stop, as the Fleet's
+ * stop_mission (`stopMission`). It asks first, saying what stopping does. Ended meanwhile (the Fleet finished or
+ * stopped it), a yes does nothing.
+ */
+function RunningActions({ nodeId, mission }: { nodeId: string; mission: Mission }) {
+  const t = useMessages(missionMessages);
+  const stop = async () => {
+    const m = messages(missionMessages);
+    const yes = await confirmAction({ title: m.stopTitle(mission.name ?? ""), description: m.stopDescription(mission.manager !== undefined), confirm: m.stop, cancel: m.stopCancel, destructive: true });
+    if (yes) stopMission(nodeId, { by: "user" });
+  };
+  return (
+    <footer data-mission-actions className="flex shrink-0 justify-end border-t border-dp-line px-3 py-2">
+      <Button variant="outline" size="sm" onClick={() => void stop()}>
+        {t.stop}
+      </Button>
+    </footer>
   );
 }
 

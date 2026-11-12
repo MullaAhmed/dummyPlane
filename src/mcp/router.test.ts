@@ -14,6 +14,7 @@ import { ptySendText } from "@/ipc/pty";
 import { terminalText } from "@/nodes/terminal/registry";
 import { notify } from "@/mission/events";
 import { endMission, reassignTask } from "@/mission/launch";
+import { stopMission } from "@/mission/stop";
 import { missionOf, setMission, setFleetClosed, updateMember } from "@/mission/store";
 import { workspacesStore } from "@/store/workspaces";
 import { agentActivityStore } from "@/store/agentActivity";
@@ -591,6 +592,33 @@ describe("a mission its Manager runs", () => {
     expect(textOf(await call("babysitter", "stop_mission", { reason: "The user changed their mind" }))).toContain("Mission stopped");
     expect(endMission).toHaveBeenCalledWith("babysitter", "Stopped by Chef: The user changed their mind");
     expect(lines("boss")).toEqual(["Chef stopped the mission: The user changed their mind"]);
+    // The Fleet asked: no line tells it what it did.
+    expect(lines("babysitter")).toEqual([]);
+  });
+
+  it("stops the mission the same way for the user's \"Stop the mission\": the Manager and the Fleet told", () => {
+    vi.mocked(notify).mockClear();
+    vi.mocked(endMission).mockClear();
+    expect(stopMission("babysitter", { by: "user" })).toBe(true);
+    expect(endMission).toHaveBeenCalledWith("babysitter", "Stopped by the user.");
+    expect(lines("boss")).toEqual(["The user stopped the mission from the Fleet's panel."]);
+    expect(lines("babysitter")).toEqual([
+      "The user stopped the mission from your panel. Its summary is there; the user merges the mission's branch into their own, then the mission is cleaned up (clean_up_mission, or the user from the panel).",
+    ]);
+  });
+
+  it("stops nothing, and tells nobody, when no mission runs", () => {
+    vi.mocked(notify).mockClear();
+    vi.mocked(endMission).mockClear();
+    setMission("babysitter", { state: "terminee" });
+    try {
+      expect(stopMission("babysitter", { by: "user" })).toBe(false);
+      expect(stopMission("babysitter", { by: "fleet", reason: "Again" })).toBe(false);
+    } finally {
+      setMission("babysitter", { state: "en_cours" });
+    }
+    expect(endMission).not.toHaveBeenCalled();
+    expect(notify).not.toHaveBeenCalled();
   });
 
   it("gives a Codex Fleet and its Codex Manager the same tools, Remote Control aside (Claude's)", async () => {
