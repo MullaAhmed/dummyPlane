@@ -115,6 +115,7 @@ fn shown(path: &Path, home: &str) -> String {
 }
 
 /// ProductName says "Windows 10" on Windows 11: the build tells them apart.
+#[cfg(any(windows, test))]
 fn os_label(product: &str, build: &str) -> String {
     let name = match build.parse::<u32>() {
         Ok(number) if number >= 22000 => "Windows 11",

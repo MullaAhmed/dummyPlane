@@ -9,6 +9,7 @@ static REFRESHED: RwLock<Option<OsString>> = RwLock::new(None);
 
 /// Expands `%NAME%` references like a `REG_EXPAND_SZ` value; an unknown
 /// variable, or a lone `%`, stays as written.
+#[cfg(any(windows, test))]
 pub fn expand(raw: &str, var: impl Fn(&str) -> Option<String>) -> String {
     let mut out = String::with_capacity(raw.len());
     let mut rest = raw;
@@ -39,6 +40,7 @@ pub fn expand(raw: &str, var: impl Fn(&str) -> Option<String>) -> String {
 /// A variable for `expand`: the process's, else the registry's, where an
 /// installer may just have created it (its own `%…%` expanded from the
 /// process's). Names compare case-insensitively, as Windows does.
+#[cfg(any(windows, test))]
 pub fn lookup(
     name: &str,
     process: impl Fn(&str) -> Option<String>,
@@ -52,12 +54,14 @@ pub fn lookup(
     })
 }
 
+#[cfg(any(windows, test))]
 fn same_folder(entry: &str) -> String {
     entry.trim_end_matches(['\\', '/']).to_lowercase()
 }
 
 /// A quoted entry (`"C:\Program Files\x"`) names the same folder as its
 /// unquoted form; the quotes must go, or the folder is not found.
+#[cfg(any(windows, test))]
 fn unquote(entry: &str) -> &str {
     entry
         .strip_prefix('"')
@@ -68,6 +72,7 @@ fn unquote(entry: &str) -> &str {
 /// This process's PATH in its order, then the registry's entries it lacks,
 /// machine then user (as Windows orders them): a new install is found and
 /// what dummyPlane was started with still comes first (final review R5d).
+#[cfg(any(windows, test))]
 pub fn merge(machine: &str, user: &str, process: &str) -> String {
     let mut seen = std::collections::HashSet::new();
     let mut entries: Vec<&str> = Vec::new();

@@ -172,7 +172,7 @@ impl PtyManager {
         self.require(node_id)?.interrupt()
     }
 
-    #[cfg(test)]
+    #[cfg(all(test, windows))]
     fn pastes_bracketed(&self, node_id: &str) -> bool {
         self.get(node_id)
             .is_some_and(|session| session.pastes_bracketed())
