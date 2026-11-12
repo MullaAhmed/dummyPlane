@@ -8,6 +8,8 @@ dummyPlane's first release will be 0.1.0; until then, its changes are listed und
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-11-12
+
 ### Added
 - **The Fleet cleans up for you:** a finished mission no longer waits for your click on *Clean up the mission*. `propose_plan` cleans it up first, with the panel's own cleanup, and the new `clean_up_mission` tool does it on its own, with a quiet *Mission … cleaned up* toast. It refuses while a mission runs, after an overnight run, and while anything is unsaved (a branch not merged, uncommitted work in a worktree, a card not done, a task still waiting): the Fleet then says what, and you decide from the panel.
 - **Ungroup everywhere:**
