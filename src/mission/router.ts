@@ -1,3 +1,5 @@
+import type { AgentId } from "@/ipc/pty";
+
 /** How hard a sub-task is: with the router on, it chooses the agent's model. */
 export type Level = "faible" | "moyen" | "eleve" | "extreme";
 
@@ -32,12 +34,63 @@ export function readLevel(raw: unknown): Level | undefined {
 export const ROUTER_LEVELS = (Object.values(LEVELS) as { label: string; modelLabel: string }[]).map((l) => `${l.label} ${l.modelLabel}`).join(", ");
 
 /**
- * The model of a sub-task: only with a router on and a level given. The router is the mission's (the Fleet's
- * switch) or the agent's own (a terminal's switch, `TerminalPayload.router`): either one routes, and an agent whose
- * own is off never vetoes the mission's.
+ * The CLIs besides Claude that dummyPlane passes a model to, whose levels the user maps in Settings: Codex alone
+ * (`-m`). Claude's levels are LEVELS'. Ollama's model is what its terminal launches, never a sub-agent's or a team
+ * agent's, and the other CLIs take no model from dummyPlane.
  */
-export function modelFor(mission: { router?: boolean }, task: { level?: Level }, agent?: { router?: boolean }): string | undefined {
-  return (mission.router || agent?.router) && task.level ? LEVELS[task.level].model : undefined;
+export const MAPPED_CLIS = ["codex"] as const;
+export type MappedCli = (typeof MAPPED_CLIS)[number];
+const LEVEL_KEYS = Object.keys(LEVELS) as Level[];
+
+/** A model for each level of a mapped CLI, as the user wrote it in Settings; a level left out is not routed on that CLI. */
+export type CliLevels = Partial<Record<MappedCli, Partial<Record<Level, string>>>>;
+
+/**
+ * A model id another CLI is started with: what Rust's `checked_model` lets into a command line (64 characters at
+ * most, a letter or digit first, then letters, digits and `-._[]`), never a Claude name, which a non-Claude terminal
+ * is never given (`@/nodes/terminal/launch`).
+ */
+const CLI_MODEL = /^[A-Za-z0-9][A-Za-z0-9._[\]-]{0,63}$/;
+/** A Claude model or alias (opus, claude-sonnet-5-5…): never passed to another CLI. */
+export const CLAUDE_MODEL_NAME = /^(claude|haiku|sonnet|opus|fable)/i;
+
+/** A model typed for a mapped CLI, trimmed, or undefined when empty or not one its command line would take. */
+export function readCliModel(raw: unknown): string | undefined {
+  const model = typeof raw === "string" ? raw.trim() : "";
+  return CLI_MODEL.test(model) && !CLAUDE_MODEL_NAME.test(model) ? model : undefined;
+}
+
+/** A stored level map, checked: an unknown CLI, an unknown level or a model no command line would take is dropped. */
+export function readCliLevels(raw: unknown): CliLevels {
+  const levels: CliLevels = {};
+  if (typeof raw !== "object" || raw === null) return levels;
+  for (const cli of MAPPED_CLIS) {
+    const stored = (raw as Record<string, unknown>)[cli];
+    if (typeof stored !== "object" || stored === null) continue;
+    const models: Partial<Record<Level, string>> = {};
+    for (const level of LEVEL_KEYS) {
+      const model = readCliModel((stored as Record<string, unknown>)[level]);
+      if (model) models[level] = model;
+    }
+    if (Object.keys(models).length) levels[cli] = models;
+  }
+  return levels;
+}
+
+const isMapped = (cli: AgentId): cli is MappedCli => (MAPPED_CLIS as readonly string[]).includes(cli);
+
+/**
+ * The model a level picks on `cli`: Claude's from LEVELS, another CLI's from the user's map (`levels`); none when
+ * that CLI has no model for the level, or takes none from dummyPlane.
+ */
+export function levelModel(cli: AgentId, level: Level, levels: CliLevels): string | undefined {
+  if (cli === "claude") return LEVELS[level].model;
+  return isMapped(cli) ? levels[cli]?.[level] : undefined;
+}
+
+/** Whether any level picks a model on `cli`: always on Claude, on another CLI once the user mapped one. */
+export function cliRouted(cli: AgentId, levels: CliLevels): boolean {
+  return LEVEL_KEYS.some((level) => levelModel(cli, level, levels) !== undefined);
 }
 
 /** The models a terminal's edit panel offers for its next launch (`--model`): the current family, lightest first. */

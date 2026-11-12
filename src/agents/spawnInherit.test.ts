@@ -14,6 +14,7 @@ import { nodesStore, terminalOf } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
 import { spawnAgent } from "./spawn";
 import { addTerminal } from "./terminals";
+import { modelRouterStore } from "@/app/modelRouterSetting";
 
 /**
  * The model router and spawn_agent, past the first hop: who a router governs (a Fleet's whole spawn tree, its
@@ -73,6 +74,8 @@ const payloadOf = (id: string) => terminalOf(nodesStore.getState().nodes[id])!;
 let created = 0;
 
 beforeEach(() => {
+  // The router as before Settings had one: only a switch set on routes. The global setting has its own tests.
+  modelRouterStore.setState({ on: false, levels: {} });
   mockIPC(() => undefined);
   vi.clearAllMocks();
   scene = [];
@@ -145,12 +148,13 @@ describe("what spawn_agent answers about the model", () => {
     expect(rated.text).not.toContain("set aside");
   });
 
-  it("says a level did nothing when no router is on", async () => {
+  it("says a level picked nothing when no router is on, why, and what the sub-agent runs instead", async () => {
     await addFleet(false);
     const result = await spawnAgent("fleet", { task: "Fix the bug", niveau: "eleve" });
     expect(lastModel()).toBeUndefined();
-    expect(result.text).toContain("No model router chose this sub-agent's model");
+    expect(result.text).toContain("Its level (high) picked no model: the model router is off in dummyPlane's Settings. It runs Claude's own default model.");
     expect((await spawnAgent("fleet", { task: "Fix it twice" })).text).not.toContain("model router");
+    expect((await spawnAgent("fleet", { task: "Fix it thrice", niveau: "faible", model: "opus" })).text).toContain("It runs the model you named.");
   });
 
   it("takes an empty or null level as none, as it does a model", async () => {
@@ -213,17 +217,19 @@ describe("a model router down the spawn tree", () => {
     expect(payloadOf("batman").router).toBeUndefined();
   });
 
-  it("leaves a team agent's sub-agents alone with the Fleet's router off, or on a Codex Fleet, whose router routes no Claude agent", async () => {
+  it("leaves a team agent's sub-agents alone with the Fleet's router off; on, a Codex Fleet routes its Claude agent's by Claude's levels", async () => {
     await addFleet(false, "claude", onTheTeam());
     await addAgent();
     await spawnAgent("batman", { task: "Write the tests" });
     expect(lastModel()).toBeUndefined();
     nodesStore.setState({ nodes: {} });
     scene = [];
+    // The router's state is the Fleet's, whatever its CLI; the model is the one the level names on the sub-agent's.
     await addFleet(true, "codex", onTheTeam());
     await addAgent();
     await spawnAgent("batman", { task: "Write the docs" });
-    expect(lastModel()).toBeUndefined();
+    expect(lastPayload().agent).toBe("claude");
+    expect(lastModel()).toBe("claude-sonnet-5-5");
   });
 });
 

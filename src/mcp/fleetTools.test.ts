@@ -12,6 +12,7 @@ import type { Member, Mission } from "@/mission/mission";
 import { deliveryPending } from "@/mission/launch";
 import { missionOf } from "@/mission/store";
 import { fleetTool } from "./fleetTools";
+import { modelRouterStore } from "@/app/modelRouterSetting";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
 vi.mock("@/mission/launch", () => ({ endMission: vi.fn(), mergeMission: vi.fn(), reassignTask: vi.fn(), deliveryPending: vi.fn(() => false) }));
@@ -31,6 +32,8 @@ async function setup(members: Member[]) {
 }
 
 beforeEach(() => {
+  // The router as before Settings had one: only a switch set on routes. The global setting has its own tests.
+  modelRouterStore.setState({ on: false, levels: {} });
   mockIPC(() => undefined);
   terminalStatusStore.getState().set("chef", { state: "running" });
 });

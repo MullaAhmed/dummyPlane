@@ -5,6 +5,7 @@ import { messages } from "@/i18n";
 import { ptySendText } from "@/ipc/pty";
 import { missionFolder } from "@/mission/folder";
 import { deliveryPending, endMission, launchMission, mergeMission, reassignTask } from "@/mission/launch";
+import { levelsRequired, teamAgent } from "@/mission/teamModel";
 import { budgetOf, memberTime, NEW_AGENT, nightMin, oneLine, proposedPlan, proposedTasks, remainingGlobal, sameName, spentMin, type Member, type Mission, type QueuedTask } from "@/mission/mission";
 import { activeCount } from "@/mission/active";
 import { stopMission } from "@/mission/stop";
@@ -14,7 +15,9 @@ import { giveNext, pumpQueue } from "@/mission/queue";
 import { boardView, todoColumnOf } from "@/kanban/missionLink";
 import { moveCard as movedCard } from "@/kanban/board";
 import { fleetNameOf, managerNameOf } from "@/mission/manager";
-import { LEVELS, modelLabel } from "@/mission/router";
+import { modelRouterStore } from "@/app/modelRouterSetting";
+import { levelModel, modelLabel, type Level } from "@/mission/router";
+import { missionRouterOn } from "@/mission/routerState";
 import { readTickets } from "@/mission/tickets";
 import { addTaskCards, linkedBoards, missionBoard, moveMissionCard } from "@/kanban/fleetBoards";
 import { agentGroup, agentState, linkedTeamAgents, linkedGroups, managedFleet, missionOf, canvasKnown, setMission, updateMember } from "@/mission/store";
@@ -232,11 +235,16 @@ function memberNamed(mission: Mission, raw: unknown): Member | string {
   return mission.members.find((m) => sameName(m.name, name)) ?? t().fleet.notMember(name);
 }
 
-function modelOfSubTask(mission: Mission, subtask: { title: string; level?: keyof typeof LEVELS }): string | null {
+/** The model a sub-task's agent has, once one holds it; before, the one its level picks on the team's CLI with the router on. */
+function modelOfSubTask(fleetId: string, mission: Mission, subtask: { title: string; level?: Level }): string | null {
   const holder = mission.members.find((m) => !m.handedTo && m.task === subtask.title);
   if (holder) return holder.model ? modelLabel(holder.model) : null;
-  return mission.router && subtask.level ? LEVELS[subtask.level].modelLabel : null;
+  const model = missionRouterOn(mission) && subtask.level ? levelModel(teamAgent(fleetId), subtask.level, modelRouterStore.getState().levels) : undefined;
+  return model ? modelLabel(model) : null;
 }
+
+/** The mission as a plan or the queue reads its tasks: `router` on where they need a level (`levelsRequired`). */
+const asPlanned = (fleetId: string, mission: Mission): Mission => ({ ...mission, router: levelsRequired(fleetId, mission) });
 
 function describeMission(fleetId: string, mission: Mission): ToolResult {
   const team = new Set(mission.members.map((m) => m.nodeId));
@@ -250,7 +258,8 @@ function describeMission(fleetId: string, mission: Mission): ToolResult {
     away_min: nightMin(mission) ?? null,
     max_agents: mission.maxAgents,
     active_agents: mission.state === "en_cours" ? activeCount(fleetId, mission) : null,
-    router: mission.router === true,
+    // Its switch when set, else the global setting: on, each sub-task's level picks its agent's model.
+    router: missionRouterOn(mission),
     branch: mission.branch ?? null,
     plan:
       mission.plan?.map((s) => ({
@@ -261,14 +270,17 @@ function describeMission(fleetId: string, mission: Mission): ToolResult {
         budget_min: s.budgetMin,
         level: s.level ? outLevel(s.level) : null,
         // Once an agent holds the sub-task, its own model counts: reassign may have given it to one that keeps its own.
-        model: modelOfSubTask(mission, s),
+        model: modelOfSubTask(fleetId, mission, s),
         card: s.card ?? null,
       })) ?? null,
     linked_agents: canvasKnown(fleetId)
       ? linkedTeamAgents(fleetId)
           .filter((a) => !team.has(a.nodeId))
-          // `router: true`: its own model router is on, so a sub-task with a level starts it on that level's model.
-          .map((a) => ({ name: a.name, state: outAgentState(agentState(a.nodeId)), ...agentGroup(a.nodeId), ...(terminalOf(nodesStore.getState().nodes[a.nodeId])?.router ? { router: true } : {}) }))
+          // `router`: its own switch, set: true routes it with the mission's off, false keeps its own model with the mission's on.
+          .map((a) => {
+            const own = terminalOf(nodesStore.getState().nodes[a.nodeId])?.router;
+            return { name: a.name, state: outAgentState(agentState(a.nodeId)), ...agentGroup(a.nodeId), ...(own === undefined ? {} : { router: own }) };
+          })
       : null,
     linked_groups: canvasKnown(fleetId) ? linkedGroups(fleetId).map(({ name, speciality }) => ({ name, speciality })) : null,
     linked_agents_note: canvasKnown(fleetId) ? null : t().fleet.hiddenAgents,
@@ -309,7 +321,7 @@ async function proposePlan(fleetId: string, asked: Mission, args: Record<string,
   if (named && !canvasKnown(fleetId)) return failed(t().fleet.hiddenWorkspace);
   const cards = linkedBoards(fleetId).flatMap(({ board }) => Object.keys(board.cards));
   const linked = linkedTeamAgents(fleetId);
-  const result = proposedPlan(args, mission, linked.map((a) => a.name), linkedGroups(fleetId), cards);
+  const result = proposedPlan(args, asPlanned(fleetId, mission), linked.map((a) => a.name), linkedGroups(fleetId), cards);
   if (typeof result === "string") return failed(result);
   // The linked agents the plan names take their sub-task: whatever they hold is theirs to give up.
   const taking = linked.filter((a) => result.plan.some((s) => sameName(s.agent, a.name))).map((a) => a.nodeId);
@@ -357,7 +369,7 @@ export function enqueueTasks(fleetId: string, mission: Mission, args: Record<str
   const grouped = Array.isArray(args.tasks) && args.tasks.some((s) => Boolean((s as Record<string, unknown> | null)?.groupe));
   if (grouped && !canvasKnown(fleetId)) return t().fleet.hiddenWorkspace;
   const cards = linkedBoards(fleetId).flatMap(({ board }) => Object.keys(board.cards));
-  const proposed = proposedTasks(args, mission, linkedGroups(fleetId), cards);
+  const proposed = proposedTasks(args, asPlanned(fleetId, mission), linkedGroups(fleetId), cards);
   if (typeof proposed === "string") return proposed;
   // Before any card is written: a task another agent already works on is not queued again, from add_tasks or hand_off.
   const already = alreadyOnIt(fleetId, proposed, [fleetId, mission.manager]);

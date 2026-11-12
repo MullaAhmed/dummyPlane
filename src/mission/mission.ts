@@ -126,7 +126,10 @@ export interface Mission {
   endedAt?: number;
   /** The end of the night was told. */
   globalOverdue?: boolean;
-  /** Each agent gets the model of its sub-task's level. */
+  /**
+   * The Fleet's model router switch, set: on, each agent gets the model of its sub-task's level, off vetoes the
+   * router for the whole mission; unset, it follows the global setting (`@/mission/routerState`).
+   */
   router?: boolean;
   /** Tasks beyond the team, in order; a new agent, in a new terminal, takes the next one. */
   queue?: QueuedTask[];
@@ -271,7 +274,7 @@ export function readMission(raw: unknown): Mission | undefined {
   if (typeof r.startedAt === "number") mission.startedAt = r.startedAt;
   if (typeof r.endedAt === "number") mission.endedAt = r.endedAt;
   if (r.globalOverdue === true) mission.globalOverdue = true;
-  if (r.router === true) mission.router = true;
+  if (typeof r.router === "boolean") mission.router = r.router;
   if (r.overnight === true) mission.overnight = true;
   if (r.windDownTold === true) mission.windDownTold = true;
   const tickets = readTicketSource(r.tickets);
@@ -283,7 +286,11 @@ export function readMission(raw: unknown): Mission | undefined {
   return mission;
 }
 
-/** What a sub-task of the plan and a queued task share, read from internal names, or what is wrong. */
+/**
+ * What a sub-task of the plan and a queued task share, read from internal names, or what is wrong. `mission.router`
+ * is read as its caller resolved it (`@/mission/launch` levelsRequired): on, where a level picks the team's model,
+ * every task needs one.
+ */
 function readTaskFields(r: Record<string, unknown>, n: number, mission: Mission): Omit<QueuedTask, "group"> | string {
   const e = messages(agentMessages).plan;
   const title = text(r.titre);

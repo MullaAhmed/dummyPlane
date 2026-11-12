@@ -20,6 +20,7 @@ import { morningReport } from "./morning";
 import { afterReport, giveNext, pumpQueue } from "./queue";
 import { missionOf } from "./store";
 import { fleetTool } from "@/mcp/fleetTools";
+import { modelRouterStore } from "@/app/modelRouterSetting";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
 vi.mock("@/ipc/mission", () => ({ missionPrepare: vi.fn(), missionAddAgent: vi.fn(), missionMerge: vi.fn(), missionCleanup: vi.fn(), missionDiscard: vi.fn() }));
@@ -90,6 +91,8 @@ async function setup(mission: Partial<Mission>) {
 }
 
 beforeEach(() => {
+  // The router as before Settings had one: only a switch set on routes. The global setting has its own tests.
+  modelRouterStore.setState({ on: false, levels: {} });
   mockIPC(() => undefined);
   vi.clearAllMocks();
   vi.mocked(missionMerge).mockResolvedValue({ merge: { kind: "merged" }, uncommitted: false });

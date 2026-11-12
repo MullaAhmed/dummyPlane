@@ -4,7 +4,7 @@ import { groupOf } from "@/canvas/groups";
 import { signalWire } from "@/canvas/wireActivity";
 import { messages } from "@/i18n";
 import { readExtensionChoice } from "@/ipc/claudeExtensions";
-import { ptySendText, ptyWrite } from "@/ipc/pty";
+import { ptySendText, ptyWrite, type AgentId } from "@/ipc/pty";
 import { agentMessages } from "@/mcp/messages";
 import { outLevel } from "@/mcp/protocol";
 import { duplicateWork } from "@/mission/activeWork";
@@ -20,10 +20,11 @@ import { MAX_STORED_TASK, type TerminalPayload } from "@/nodes/types";
 import { nodeNameOf, nodesStore, terminalOf, type NodeRecord } from "@/store/nodes";
 import { isRunning } from "@/store/terminalStatus";
 import { quietly } from "./arrivals";
+import { AGENTS } from "./catalog";
 import { NODE_GAP } from "./groupLayout";
 import { nameForNewAgent } from "./naming";
 import { sceneAccess } from "./sceneAccess";
-import { spawnModel, type SpawnModel } from "./spawnModel";
+import { spawnModel, unroutedText, type SpawnModel } from "./spawnModel";
 import { MAX_SPAWN_DEPTH, markLaunching, spawnDepth, spawnedAtWork } from "./spawnFamily";
 import { reflowSpawnTree } from "./spawnTree";
 import { clip, taskSummary } from "./taskSummary";
@@ -112,11 +113,18 @@ export function childPayload(parent: TerminalPayload, parentId: string, name: st
   return payload;
 }
 
-/** What the spawner hears about its sub-agent's model: the level that chose it, a model set aside, a level that chose nothing. */
-function modelNote(routed: SpawnModel): { why?: string; after?: string } {
+/**
+ * What the spawner hears about its sub-agent's model: the level that chose it, a model set aside, or a level that
+ * chose nothing, why (the router off at its switch, above it or in Settings; no model for that level on the
+ * sub-agent's CLI) and what it runs instead.
+ */
+function modelNote(parentId: string, child: AgentId, routed: SpawnModel): { why?: string; after?: string } {
   const why = routed.level && (routed.defaulted ? t().byDefault : t().byLevel(outLevel(routed.level)));
-  const after = routed.dropped ? t().modelDropped(routed.dropped) : routed.unused ? t().levelUnused : undefined;
-  return { why, after };
+  if (routed.dropped) return { why, after: t().modelDropped(routed.dropped) };
+  if (!routed.unused) return { why };
+  const { level, why: reason } = routed.unused;
+  const runs = routed.model ? t().runsNamed : t().runsDefault(AGENTS[child].label);
+  return { after: t().levelUnused(outLevel(level), unroutedText(reason, level, parentId), runs) };
 }
 
 async function spawnNow(parentId: string, args: SpawnArgs): Promise<SpawnResult> {
@@ -163,7 +171,7 @@ async function spawnNow(parentId: string, args: SpawnArgs): Promise<SpawnResult>
   // Element, spawnedBy and wire all there: the tree takes its flowchart layout, the wire rerouted.
   reflowSpawnTree(workspaceId, childId);
   void deliver(parentId, childId, name, t().brief(parent.name || "your parent agent", task));
-  return { text: t().spawned(name, routed.model && modelLabel(routed.model), modelNote(routed)) };
+  return { text: t().spawned(name, routed.model && modelLabel(routed.model), modelNote(parentId, payload.agent, routed)) };
 }
 
 /**

@@ -10,6 +10,7 @@ import { nodesStore } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
 import { workspacesStore } from "@/store/workspaces";
 import { fleetTool, fleetTools, managerTool } from "./fleetTools";
+import { modelRouterStore } from "@/app/modelRouterSetting";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
 vi.mock("sonner", () => ({ toast: Object.assign(vi.fn(), { error: vi.fn() }) }));
@@ -53,6 +54,8 @@ async function setup(mission: Partial<Mission>) {
 }
 
 beforeEach(() => {
+  // The router as before Settings had one: only a switch set on routes. The global setting has its own tests.
+  modelRouterStore.setState({ on: false, levels: {} });
   unsaved = [];
   asked = [];
   mockIPC((command, args) => {

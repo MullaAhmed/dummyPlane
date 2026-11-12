@@ -202,6 +202,8 @@ describe("each sub-task's level", () => {
     expect(readMission(saved)).toEqual(saved);
     expect(readMission({ ...saved, router: "oui", plan: [{ ...saved.plan[0], level: "x" }] })).toMatchObject({ plan: [{ title: "Login" }] });
     expect(readMission({ ...saved, router: "oui" })?.router).toBeUndefined();
+    // A Fleet's switch set off is a veto for its mission: kept, not read as unset (which follows Settings).
+    expect(readMission({ ...saved, router: false })?.router).toBe(false);
     expect(readMission({ ...saved, plan: [{ ...saved.plan[0], level: "x" }] })?.plan?.[0].level).toBeUndefined();
   });
 });

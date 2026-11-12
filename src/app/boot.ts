@@ -31,6 +31,7 @@ import { loadFollowWaiting } from "./followWaitingSetting";
 import { loadFinishAlerts } from "./finishAlertsSetting";
 import { loadFleetAgent } from "@/fleet/fleetAgent";
 import { loadNativeNotifications } from "./nativeNotifications";
+import { loadModelRouter } from "./modelRouterSetting";
 import { loadSubagentSettings } from "./subagentSettings";
 import { loadUpdateSettings, startUpdateChecks } from "./updates";
 import { syncWindowTitle } from "./windowTitle";
@@ -53,6 +54,7 @@ export function boot(): Promise<void> {
     await loadArrangeLayout();
     await loadFleetAgent();
     await loadSubagentSettings();
+    await loadModelRouter();
     await loadAgentsPanel();
     await onPtyExit(({ nodeId, exitCode }) => {
       forgetLivePty(nodeId);

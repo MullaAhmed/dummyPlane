@@ -12,6 +12,7 @@ import { nodesStore } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
 import { spawnAgent } from "./spawn";
 import { addTerminal } from "./terminals";
+import { modelRouterStore } from "@/app/modelRouterSetting";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
 vi.mock("@/ipc/pty", async (importOriginal) => ({
@@ -59,6 +60,8 @@ const lastModel = () => lastPayload().model;
 let created = 0;
 
 beforeEach(() => {
+  // The router as before Settings had one: only a switch set on routes. The global setting has its own tests.
+  modelRouterStore.setState({ on: false, levels: {} });
   mockIPC(() => undefined);
   vi.clearAllMocks();
   scene = [];

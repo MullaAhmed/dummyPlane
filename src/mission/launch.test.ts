@@ -27,6 +27,7 @@ import { installRedelivery } from "./redeliver";
 import { NEW_MISSION, type Member, type Mission } from "./mission";
 import { memberOf, missionOf, releaseTeamPermission, setMission, updateMember } from "./store";
 import { setUpBoard, undoSetup } from "./manager";
+import { modelRouterStore } from "@/app/modelRouterSetting";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
 vi.mock("@/ipc/mission", () => ({ missionPrepare: vi.fn(), missionAddAgent: vi.fn(), missionMerge: vi.fn(), missionCleanup: vi.fn(), missionDiscard: vi.fn(() => Promise.resolve({ removed: [], kept: [] })) }));
@@ -97,6 +98,8 @@ async function setup(mission: Partial<Mission> = {}) {
 }
 
 beforeEach(() => {
+  // The router as before Settings had one: only a switch set on routes. The global setting has its own tests.
+  modelRouterStore.setState({ on: false, levels: {} });
   mockIPC(() => undefined);
   vi.clearAllMocks();
   vi.mocked(userIsTyping).mockReturnValue(false);

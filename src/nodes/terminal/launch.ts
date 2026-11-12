@@ -4,6 +4,7 @@ import { AGENTS } from "@/agents/catalog";
 import { LAUNCH_SETTING_KEYS, type LaunchSettings, type TerminalPayload } from "@/nodes/types";
 import { profileNamed } from "@/accounts/store";
 import { messages } from "@/i18n";
+import { CLAUDE_MODEL_NAME } from "@/mission/router";
 import { nodesMessages } from "@/nodes/messages";
 
 /** How "Relancer" starts a Claude terminal; other agents ignore it. */
@@ -113,14 +114,13 @@ export function buildSpawnSpec(payload: TerminalPayload, mode: LaunchMode): Spaw
     if (mode !== "new" && payload.codexSessionId) spec.codex.sessionId = payload.codexSessionId;
     if (payload.permission) spec.codex.permission = payload.permission;
     if (payload.linear) spec.codex.linear = true;
-    if (payload.model && !CLAUDE_MODEL.test(payload.model)) spec.codex.model = payload.model;
+    // A Claude model (an edit panel's, kept from a Claude past) is never Codex's: its own model, or the router's from Settings' map.
+    if (payload.model && !CLAUDE_MODEL_NAME.test(payload.model)) spec.codex.model = payload.model;
   }
   if (payload.agent === "ollama" && payload.ollama) spec.ollama = payload.ollama;
   return spec;
 }
 
-/** A Claude model or alias (a mission's router gives these): never passed to another CLI. */
-const CLAUDE_MODEL = /^(claude|haiku|sonnet|opus|fable)/i;
 
 /** A fleet's brain: its CLI (Claude or Codex: fleet/fleetAgent.ts) in the project folder, with the manager's role. */
 export function fleetSession(name: string, options: { cwd: string; shell: ShellKind }, agent: AgentId = "claude"): TerminalPayload {

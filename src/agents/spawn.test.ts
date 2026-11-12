@@ -21,6 +21,7 @@ import { isLaunching, markLaunching, markReported, runningSpawned } from "./spaw
 import { reflowSpawnTree } from "./spawnTree";
 import { addTerminal } from "./terminals";
 import { isSpawnWire } from "./wires";
+import { modelRouterStore } from "@/app/modelRouterSetting";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
 vi.mock("@/ipc/pty", async (importOriginal) => ({
@@ -68,6 +69,8 @@ const running = (id: string) => terminalStatusStore.getState().set(id, { state: 
 let created = 0;
 
 beforeEach(async () => {
+  // The router as before Settings had one: only a switch set on routes. The global setting has its own tests.
+  modelRouterStore.setState({ on: false, levels: {} });
   mockIPC(() => undefined);
   vi.clearAllMocks();
   clearWirePulses();
