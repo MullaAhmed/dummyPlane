@@ -162,7 +162,7 @@ export const agentMessages = defineMessages({
       byDefault: "the model router's medium level, as you gave no level: give level on every call, the difficulty of the task",
       /** After the answer's first sentence: a model named beside a level, a level given with no router on. */
       modelDropped: (model: string) => `The model you named (${model}) was set aside: with a model router on, level chooses.`,
-      levelUnused: "No model router is on for you, so level chose nothing.",
+      levelUnused: "No model router chose this sub-agent's model, so level did nothing.",
       spawned: (name: string, model?: string, note: { why?: string; after?: string } = {}) =>
         `${name} opened beside you${model ? ` on ${model}${note.why ? ` (${note.why})` : ""}` : ""} and gets the task as soon as its Claude is ready.${note.after ? ` ${note.after}` : ""} Its report will be typed into your terminal: carry on, do not wait for it.`,
       brief: (parent: string, task: string) =>

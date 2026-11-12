@@ -149,7 +149,7 @@ describe("what spawn_agent answers about the model", () => {
     await addFleet(false);
     const result = await spawnAgent("fleet", { task: "Fix the bug", niveau: "eleve" });
     expect(lastModel()).toBeUndefined();
-    expect(result.text).toContain("No model router is on");
+    expect(result.text).toContain("No model router chose this sub-agent's model");
     expect((await spawnAgent("fleet", { task: "Fix it twice" })).text).not.toContain("model router");
   });
 
