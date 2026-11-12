@@ -165,5 +165,5 @@ export const missionMessages = defineMessages({
     overBudgetTwice: (name: string, budget: number) => `${name} has gone over twice its budget (${budget} min) without reporting`,
     // The toast when the user starts a mission's agent again while the team is full (`./restartWatch.ts`).
     pastMaxAgents: (name: string, mission: string, active: number, max: number) =>
-      `${name} started again: ${active} agents are at work${mission ? ` in mission ${mission}` : ""}, past its Max agents (${max}). No new agent starts until fewer are at work.`,
+      `${name} started again: ${active} agents are at work${mission ? ` in mission ${mission}` : ""}, past its Max active agents (${max}). No new agent starts until fewer are at work.`,
   });

@@ -965,7 +965,7 @@ describe("relaunch keeps the team within Max agents while the queue fills (revie
       // Told once, by the restart that took the team past Max agents.
       const told = "The user started Hulk again while the team was full: 3 agents are at work, past Max active agents (2). The queue starts no new agent until fewer than 2 are at work; nothing to do meanwhile.";
       expect(vi.mocked(notify).mock.calls).toEqual([["chef", told]]);
-      expect(vi.mocked(toast).mock.calls).toEqual([["Hulk started again: 3 agents are at work in mission Auth, past its Max agents (2). No new agent starts until fewer are at work."]]);
+      expect(vi.mocked(toast).mock.calls).toEqual([["Hulk started again: 3 agents are at work in mission Auth, past its Max active agents (2). No new agent starts until fewer are at work."]]);
     } finally {
       stop();
     }
