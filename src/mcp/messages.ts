@@ -533,6 +533,9 @@ export const agentMessages = defineMessages({
       notDone: (name: string) => `${name} has not finished its sub-task: choose an agent that has reported, or "new".`,
       targetStopped: (name: string) => `${name} is stopped: relaunch it first, or choose another agent.`,
       teamFull: (max: number) => `${max} agents are already at work (Max active agents): reassign to an agent that has reported instead of "new", or wait for one to finish.`,
+      targetTeamFull: (name: string, task: string, max: number) =>
+        `"${task}" would put ${name} back to work while ${plural(max, "agent is", "agents are")} already at work (Max active agents), and the agent it takes it from holds no seat now. ` +
+        "Reassign it once a seat is free (queue: active_agents below max_agents); a seat a report frees goes to the queue's next task first.",
       abandoned: (title: string, titles: readonly string[]) =>
         `"${title}" was abandoned by next_task: it stays with its agent's report, and nobody takes it over. ${reassignTakes("The sub-tasks reassign takes:", titles)}`,
       notMerged: (name: string, task: string) => `${name} finished "${task}" but its branch is not merged: call merge first.`,

@@ -26,7 +26,7 @@ import type { TerminalPayload } from "@/nodes/types";
 import { nodeNameOf, nodesStore, sessionOf, terminalOf } from "@/store/nodes";
 import { isRunning } from "@/store/terminalStatus";
 import { markLaunching } from "@/agents/spawnFamily";
-import { activeCount, freeSeat, holdSeat, oneAtATime } from "./active";
+import { activeCount, freeSeat, holdSeat, holdsSeat, oneAtATime } from "./active";
 import { notify } from "./events";
 import { missionFolder } from "./folder";
 import { addTeamMember, fleetNameOf, reflowTeam, removeManager, setUpBoard, undoSetup, type MissionSetup } from "./manager";
@@ -558,6 +558,9 @@ export async function reassignTask(fleetId: string, fromNodeId: string, target: 
     // Its entry takes the new sub-task: its finished work must be in the mission's branch first (final review H3).
     const finished = found.report.status === "termine";
     if (finished && !found.merged) return r.notMerged(found.name, found.task);
+    // Back to work, it takes a seat: one more, unless it or the agent it takes over from holds one now, which it frees.
+    const addsSeat = !holdsSeat(mission, found.nodeId) && !holdsSeat(mission, from.nodeId);
+    if (addsSeat && activeCount(fleetId, mission) >= mission.maxAgents) return r.targetTeamFull(found.name, task.title, mission.maxAgents);
     to = {
       ...found,
       task: task.title,

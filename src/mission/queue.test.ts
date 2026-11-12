@@ -293,6 +293,25 @@ describe("an agent that reports « blocked » or « failed »", () => {
     expect(await reassignTask("chef", "batman", "Aquaman")).toEqual({ name: "Aquaman" });
   });
 
+  it("is not reassigned to an agent that reported past Max agents: the one it takes over from holds no seat (review 12 Nov)", async () => {
+    const plan = ["Login", "Docs", "Tests", "Lint"].map((title) => ({ title, brief: "b", agent: "x", budgetMin: 20 }));
+    await setup({
+      maxAgents: 2,
+      plan,
+      members: [member("batman", "Batman", { report: stuck }), member("aquaman", "Aquaman", { task: "Docs", report: done, merged: true }), member("cyborg", "Cyborg", { task: "Tests" }), member("flash", "Flash", { task: "Lint" })],
+    });
+    for (const id of ["cyborg", "flash"]) terminalStatusStore.getState().set(id, { state: "running" });
+    expect(await reassignTask("chef", "batman", "Aquaman")).toBe(
+      '"Login" would put Aquaman back to work while 2 agents are already at work (Max active agents), and the agent it takes it from holds no seat now. ' +
+        "Reassign it once a seat is free (queue: active_agents below max_agents); a seat a report frees goes to the queue's next task first.",
+    );
+    expect(missionNow().members.find((m) => m.name === "Aquaman")?.task).toBe("Docs");
+    expect(missionNow().members.find((m) => m.name === "Batman")?.handedTo).toBeUndefined();
+    // From an agent at work, its seat goes with the sub-task: still two at work, it is not refused.
+    expect(await reassignTask("chef", "cyborg", "Aquaman")).toEqual({ name: "Aquaman" });
+    expect(activeCount("chef", missionNow())).toBe(2);
+  });
+
   it("starts a new agent in a new terminal when next_task asks for it, nothing merged, the old task abandoned", async () => {
     await setup({ members: [member("batman", "Batman", { report: stuck })] });
     const result = await giveNext("chef", missionNow().members[0]);
