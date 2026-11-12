@@ -1,5 +1,6 @@
 import { expect, it } from "vitest";
 import { accountsMessages } from "@/accounts/messages";
+import { agentsMessages } from "@/agents/messages";
 import { appMessages } from "@/app/messages";
 import { catalogMessages } from "@/commands/catalog/messages";
 import { missionMessages } from "@/mission/messages";
@@ -24,6 +25,8 @@ it("counts in proper English", () => {
   expect(messages(missionMessages).linked(2)).toBe("2 agents linked");
   expect(messages(reviewMessages).moreLines(1)).toBe("… 1 more line");
   expect(messages(reviewMessages).moreLines(3)).toBe("… 3 more lines");
+  expect(messages(agentsMessages).resumeAll.stayStopped(1)).toBe("1 finished sub-agent stays stopped");
+  expect(messages(agentsMessages).resumeAll.stayStopped(3)).toBe("3 finished sub-agents stay stopped");
 });
 
 it("tells that the local server is down, and names a new Fleet", () => {

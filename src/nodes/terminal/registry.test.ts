@@ -113,3 +113,13 @@ it("tells the process the grid its xterm has once it runs: a resize during the s
   startUnseen(node, payload);
   await vi.waitFor(() => expect(ptyResize).toHaveBeenCalledWith(node, 80, 24));
 });
+
+// Pins what a restart already does: only a node marked at its creation starts on its own.
+it("after a restart, a finished sub-agent's first mount shows its saved screen and starts nothing", () => {
+  const finished: TerminalPayload = { ...payload, spawnedBy: "top", lastReport: { status: "done", summary: "Fixed." } };
+  mountTerminal(node, host(), finished, 1);
+  startUnseen(node, finished);
+  expect(restoreSession).toHaveBeenCalledTimes(1);
+  expect(startSession).not.toHaveBeenCalled();
+  expect(reattachSession).not.toHaveBeenCalled();
+});
