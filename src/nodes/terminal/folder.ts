@@ -1,6 +1,6 @@
 import type { TerminalPayload } from "@/nodes/types";
 import type { NodeRecord } from "@/store/nodes";
-import { newConversation } from "./launch";
+import { defaultTitle, newConversation } from "./launch";
 
 /** Why a node's folder cannot be changed: a Fleet stays in the project, a mission's agent in its worktree. */
 export type FolderLock = "fleet" | "mission";
@@ -38,11 +38,18 @@ export function sameFolder(a: string, b: string): boolean {
  * What moving a terminal to `cwd` changes, null when it is already there. Claude
  * keeps its conversations per folder: resuming one from another folder starts
  * nothing (it falls back to the bare shell), so a Claude terminal moves with a
- * conversation of its own, stored with the folder so the two never part. Only
- * that: its model, permission and profile stay as they are.
+ * conversation of its own, stored with the folder so the two never part. A
+ * title still named after the old folder ("Claude · api") follows it: Claude
+ * names the new conversation after it (`-n`) and shows it on its prompt. Only
+ * that: a title of the user's, the model, permission and profile stay as they are.
  */
 export function folderChange(payload: TerminalPayload, cwd: string): Partial<TerminalPayload> | null {
   const next = cwd.trim();
   if (!next || sameFolder(next, payload.cwd)) return null;
-  return { cwd: next, ...(payload.agent === "claude" ? newConversation() : {}) };
+  const named = payload.title === defaultTitle(payload.agent, payload.cwd);
+  return {
+    cwd: next,
+    ...(named ? { title: defaultTitle(payload.agent, next) } : {}),
+    ...(payload.agent === "claude" ? newConversation() : {}),
+  };
 }

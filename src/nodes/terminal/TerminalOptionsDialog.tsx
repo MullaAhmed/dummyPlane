@@ -39,10 +39,12 @@ export function TerminalOptionsDialog(props: { nodeId: string; payload: Terminal
     // moves starts a new conversation (it cannot resume one from another folder).
     const moved = lock ? null : folderChange(payload, value.cwd);
     if (moved && payload.agent === "claude") toast.info(canvas.folderNewConversation);
+    // A title left as it was gives way to the one the move gives (a terminal named after its folder).
+    const typed = value.title.trim();
     const patch = {
       ...moved,
       shell: value.shell,
-      title: value.title.trim() || payload.title,
+      title: typed && typed !== payload.title ? typed : (moved?.title ?? payload.title),
       ...(custom ? { command: value.command.trim() } : {}),
     };
     noteLaunchChange(nodeId, payload);
