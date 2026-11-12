@@ -88,6 +88,13 @@ describe("reflowSpawnTree", () => {
     expect(reflowSpawnTree("w", "m1")).toBe(false);
     expect(updateScene).not.toHaveBeenCalled();
   });
+
+  it("lays a tree Arrange laid out as a tree out downward again, from its marked root (./arrangeTree.ts)", () => {
+    const root = { ...terminal("root", 0, 0), customData: { ...terminal("root").customData, downTree: true } } as ExcalidrawElement;
+    scene.elements = withWire([root, terminal("a")], "root", "a", "calm", true);
+    expect(reflowSpawnTree("w", "a")).toBe(true);
+    expect({ x: at(written().elements, "a").x, y: at(written().elements, "a").y }).toEqual({ x: 0, y: NODE_SIZE.terminal.height + GROUP_GAP });
+  });
 });
 
 describe("reflowSpawnTreesOf", () => {

@@ -257,6 +257,14 @@ describe("arrange layouts", () => {
       [2, 0],
       [3, 0],
     ],
+    // Five members nothing joins: five roots side by side, in rows packed to the view's shape.
+    tree: [
+      [0, 0],
+      [1, 0],
+      [2, 0],
+      [0, 1],
+      [1, 1],
+    ],
   };
 
   for (const layout of ARRANGE_LAYOUTS) {

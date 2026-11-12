@@ -203,6 +203,8 @@ export const agentsMessages = defineMessages({
       resumeAll: "Resume all",
       fold: "Fold the group",
       unfold: "Unfold the group",
+      /** Its members as a tree, whatever the "Arrange layout" setting (src/agents/arrangeTree.ts). */
+      arrangeTree: "Arrange as a tree",
       ungroup: "Ungroup",
       close: "Close the group",
       /** In a terminal's or a Fleet's "⋯", when it stands in a group. */

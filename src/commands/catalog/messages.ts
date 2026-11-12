@@ -115,6 +115,7 @@ export const catalogMessages = defineMessages({
       "group.fold": e("Fold or unfold the group", "group", "fold", "unfold", "collapse", "expand"),
       "group.ungroup": e("Ungroup", "group", "ungroup"),
       "group.arrange": e("Arrange the group", "arrange", "tidy", "layout", "grid", "organize", "align", "group"),
+      "group.arrangeTree": e("Arrange the group as a tree", "arrange", "tree", "hierarchy", "spawn", "sub-agents", "layout", "organize", "group"),
       "group.close": e("Close the group", "group", "close"),
       "group.pause": e("Pause group", "group", "pause"),
       "group.resume": e("Resume group", "group", "resume"),
@@ -146,6 +147,7 @@ export const catalogMessages = defineMessages({
       "scene.arrange": e("Arrange", "arrange", "tidy", "layout", "grid", "organize", "align", "terminals", "auto"),
       "scene.arrangeCanvas": e("Arrange the whole canvas", "arrange", "tidy", "layout", "grid", "organize", "align", "canvas", "all", "everything"),
       "scene.arrangeSelection": e("Arrange the selection", "arrange", "tidy", "layout", "grid", "organize", "align", "selection", "selected"),
+      "scene.arrangeSelectionTree": e("Arrange the selection as a tree", "arrange", "tree", "hierarchy", "spawn", "sub-agents", "layout", "organize", "selection", "selected"),
 
       "project.add": e("Add a project", "project", "folder", "add"),
       "window.minimize": e("Minimize", "window", "minimize"),

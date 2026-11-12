@@ -111,6 +111,7 @@ export const shellMessages = defineMessages(
         "columns-2": "2 columns",
         "columns-3": "3 columns",
         "columns-4": "4 columns",
+        tree: "Tree",
       } satisfies Record<ArrangeLayout, string>,
       subagentTerminals: "Sub-agents as terminals",
       maxSpawned: "Sub-agents at once",
