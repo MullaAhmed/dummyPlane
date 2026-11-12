@@ -120,15 +120,6 @@ impl ModeTracker {
         self.fed += bytes.len() as u64;
     }
 
-    /// Counts the bytes that come before `from` (a count of bytes fed) without
-    /// reading them, then reads the rest: the output of a previous process, whose
-    /// modes the terminal no longer has, is skipped so.
-    pub fn feed_from(&mut self, from: u64, bytes: &[u8]) {
-        let skipped = from.saturating_sub(self.fed).min(bytes.len() as u64);
-        self.fed += skipped;
-        self.feed(&bytes[skipped as usize..]);
-    }
-
     #[cfg(test)]
     pub fn modes(&self) -> Modes {
         self.modes
@@ -180,6 +171,51 @@ impl ModeTracker {
         out
     }
 
+    /// The sequences that bring a terminal in these modes back to a fresh one's,
+    /// nothing when it is already there: what follows the output of a process
+    /// that ended (or was killed) with modes on, before the next one's. A sequence
+    /// left unfinished is cancelled first, so the next output does not finish it.
+    /// Only what is on is switched off: `?1049l` and `ESC[r` move the cursor.
+    pub fn leave(&self) -> Vec<u8> {
+        let modes = &self.modes;
+        let mut out = Vec::new();
+        if self.state != State::Ground {
+            out.push(CAN);
+        }
+        if modes.alt_screen {
+            // Its margins go with it.
+            out.extend_from_slice(b"\x1b[?1049l");
+        }
+        if modes.normal_margins.is_some() {
+            out.extend_from_slice(b"\x1b[r");
+        }
+        if modes.app_cursor_keys {
+            out.extend_from_slice(b"\x1b[?1l");
+        }
+        if modes.cursor_hidden {
+            out.extend_from_slice(b"\x1b[?25h");
+        }
+        if modes.bracketed_paste {
+            out.extend_from_slice(b"\x1b[?2004l");
+        }
+        if modes.focus_events {
+            out.extend_from_slice(b"\x1b[?1004l");
+        }
+        out.extend_from_slice(match modes.mouse {
+            MouseProtocol::None => b"",
+            MouseProtocol::X10 => b"\x1b[?9l",
+            MouseProtocol::Vt200 => b"\x1b[?1000l",
+            MouseProtocol::Drag => b"\x1b[?1002l",
+            MouseProtocol::Any => b"\x1b[?1003l",
+        });
+        out.extend_from_slice(match modes.encoding {
+            MouseEncoding::Default => b"",
+            MouseEncoding::Sgr => b"\x1b[?1006l",
+            MouseEncoding::SgrPixels => b"\x1b[?1016l",
+        });
+        out
+    }
+
     /// One byte outside the ground state; `at` counts the bytes fed up to it, included.
     fn step(&mut self, byte: u8, at: u64) {
         match byte {
@@ -194,7 +230,9 @@ impl ModeTracker {
             }
             // Other controls are executed without ending the sequence, DEL is ignored.
             0x00..=0x1f | 0x7f => return,
-            // Not C1 controls (the output is UTF-8): no sequence has them.
+            // A UTF-8 byte ends the sequence, as any non-ASCII character does in
+            // xterm.js. Its C1 controls (U+009B as CSI…) are not followed: no
+            // program writes them, and ConPTY never does.
             0x80.. => {
                 self.state = State::Ground;
                 return;
@@ -214,9 +252,13 @@ impl ModeTracker {
                     self.full = false;
                 }
                 0x20..=0x2f => self.state = State::EscapeIntermediate,
-                // RIS.
+                // RIS. xterm.js 6 resets everything but the cursor's visibility
+                // (`CoreService.reset` leaves `isCursorHidden` alone).
                 b'c' => {
-                    self.modes = Modes::default();
+                    self.modes = Modes {
+                        cursor_hidden: self.modes.cursor_hidden,
+                        ..Modes::default()
+                    };
                     self.state = State::Ground;
                 }
                 // Another escape, or a string whose body is read as text.
@@ -520,9 +562,17 @@ mod tests {
     }
 
     #[test]
-    fn ris_resets_everything() {
-        let modes = modes_of(b"\x1b[?1049h\x1b[3;9r\x1b[?1003;1006;1004;2004;1h\x1b[?25l\x1bc");
+    fn ris_resets_everything_but_a_hidden_cursor() {
+        let modes = modes_of(b"\x1b[?1049h\x1b[3;9r\x1b[?1003;1006;1004;2004;1h\x1bc");
         assert_eq!(modes, Modes::default());
+        // xterm.js 6 keeps the cursor hidden across a reset (checked against it).
+        assert_eq!(
+            modes_of(b"\x1b[?1049h\x1b[?1003;2004h\x1b[?25l\x1bc"),
+            Modes {
+                cursor_hidden: true,
+                ..Modes::default()
+            }
+        );
         // Not RIS: `c` after an intermediate.
         assert!(modes_of(b"\x1b[?1049h\x1b(c").alt_screen);
     }
@@ -608,6 +658,59 @@ mod tests {
         let mut x10 = ModeTracker::default();
         x10.feed(b"\x1b[?9h");
         assert_eq!(x10.restore(0), b"\x1b[?9h");
+    }
+
+    #[test]
+    fn leaving_switches_off_what_is_on_and_nothing_else() {
+        assert!(ModeTracker::default().leave().is_empty());
+        let mut tracker = ModeTracker::default();
+        tracker.feed(b"plain shell output\r\n\x1b[31mred\x1b[0m\x1b[?25l\x1b[?25h");
+        assert!(tracker.leave().is_empty());
+        // A program killed on the alternate screen, the mouse on.
+        tracker.feed(
+            b"\x1b[2;20r\x1b[?1049h\x1b[3r\x1b[?1h\x1b[?25l\x1b[?2004h\x1b[?1004h\x1b[?1003h\x1b[?1016h",
+        );
+        assert_eq!(
+            String::from_utf8_lossy(&tracker.leave()),
+            "\x1b[?1049l\x1b[r\x1b[?1l\x1b[?25h\x1b[?2004l\x1b[?1004l\x1b[?1003l\x1b[?1016l"
+        );
+        let leave = tracker.leave();
+        tracker.feed(&leave);
+        assert_eq!(tracker.modes(), Modes::default());
+        assert!(tracker.leave().is_empty());
+        // Each mouse protocol and encoding by its own number.
+        for (on, off) in [
+            (&b"\x1b[?9h"[..], &b"\x1b[?9l"[..]),
+            (b"\x1b[?1000h", b"\x1b[?1000l"),
+            (b"\x1b[?1002h", b"\x1b[?1002l"),
+            (b"\x1b[?1006h", b"\x1b[?1006l"),
+            (b"\x1b[?1004h", b"\x1b[?1004l"),
+        ] {
+            let mut tracker = ModeTracker::default();
+            tracker.feed(on);
+            assert_eq!(tracker.leave(), off);
+        }
+    }
+
+    #[test]
+    fn leaving_cancels_a_sequence_left_unfinished() {
+        for unfinished in [
+            &b"\x1b"[..],
+            b"\x1b[",
+            b"\x1b[?10",
+            b"\x1b[?1049$",
+            b"\x1b(",
+        ] {
+            let mut tracker = ModeTracker::default();
+            tracker.feed(b"\x1b[?2004h");
+            tracker.feed(unfinished);
+            let leave = tracker.leave();
+            assert_eq!(leave, b"\x18\x1b[?2004l");
+            tracker.feed(&leave);
+            // What comes next is not read as the end of it.
+            tracker.feed(b"49h");
+            assert_eq!(tracker.modes(), Modes::default());
+        }
     }
 
     #[test]

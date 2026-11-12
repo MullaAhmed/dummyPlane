@@ -40,14 +40,12 @@ pub struct Scrollback {
     capacity: usize,
     truncated: bool,
     dirty: bool,
-    /// The modes (alternate screen, mouse…) as the dropped output of the current
-    /// process left them: the state at the cut, which the bytes kept carry on from.
+    /// The modes (alternate screen, mouse…) as the dropped output left them: the
+    /// state at the cut, which the bytes kept carry on from.
     cut: ModeTracker,
-    /// Bytes pushed so far, that count when the terminal last changed size, and
-    /// the bytes of the previous run's output the buffer started with.
+    /// Bytes pushed so far, and that count when the terminal last changed size.
     pushed: u64,
     resized_at: u64,
-    history_end: u64,
 }
 
 impl Scrollback {
@@ -60,20 +58,23 @@ impl Scrollback {
             cut: ModeTracker::default(),
             pushed: 0,
             resized_at: 0,
-            history_end: 0,
         }
     }
 
     /// A buffer that starts with the output a previous run of the terminal left
     /// in the database: the relaunch's first save then keeps it, as the screen does.
     /// Not dirty until the new process prints something. The new process starts
-    /// on a new PTY, in a fresh terminal's modes (the front leaves the alternate
-    /// screen, or starts a new xterm): the modes the history set are not restored
-    /// once it is cut. While some of it is kept, it is replayed as it is.
+    /// on a new PTY, in a fresh terminal's modes, and the front puts its xterm
+    /// back in them (`freshScreen`): the history is followed by what switches off
+    /// the modes it left on (a program killed on the alternate screen, the mouse
+    /// on), so that a replay does the same, whether the history is still whole,
+    /// cut or gone. Nothing is added after a history that left none on.
     pub fn with_history(capacity: usize, history: &[u8]) -> Self {
         let mut buffer = Self::new(capacity);
-        buffer.history_end = history.len() as u64;
         buffer.push(history);
+        let mut left = ModeTracker::default();
+        left.feed(history);
+        buffer.push(&left.leave());
         buffer.dirty = false;
         buffer
     }
@@ -87,7 +88,7 @@ impl Scrollback {
         if bytes.len() >= self.capacity {
             self.evict(self.buf.len());
             let dropped = bytes.len() - self.capacity;
-            self.cut.feed_from(self.history_end, &bytes[..dropped]);
+            self.cut.feed(&bytes[..dropped]);
             self.buf.extend(&bytes[dropped..]);
             self.truncated = true;
             return;
@@ -110,9 +111,8 @@ impl Scrollback {
     fn evict(&mut self, count: usize) {
         let (front, back) = self.buf.as_slices();
         let from_front = count.min(front.len());
-        self.cut.feed_from(self.history_end, &front[..from_front]);
-        self.cut
-            .feed_from(self.history_end, &back[..count - from_front]);
+        self.cut.feed(&front[..from_front]);
+        self.cut.feed(&back[..count - from_front]);
         self.buf.drain(..count);
     }
 
@@ -133,7 +133,7 @@ impl Scrollback {
         };
         // A copy: the skipped bytes are still in the buffer, to be dropped later.
         let mut at_cut = self.cut.clone();
-        at_cut.feed_from(self.history_end, &data[..start]);
+        at_cut.feed(&data[..start]);
         let modes = at_cut.restore(self.resized_at);
         let mut out = Vec::with_capacity(RESET_ATTRIBUTES.len() + modes.len() + data.len() - start);
         out.extend_from_slice(RESET_ATTRIBUTES);
@@ -323,29 +323,57 @@ mod tests {
     }
 
     /// A shell relaunched where a fullscreen program was killed (its output, the
-    /// history, ends on the alternate screen with the mouse): once the history is
-    /// cut, a replay is the shell's alone, on the normal screen, the mouse off.
+    /// history, ends on the alternate screen with the mouse): a replay leaves that
+    /// screen and the mouse where the history ends, as the front did in its xterm,
+    /// whether the history is still whole, cut or gone.
     #[test]
     fn a_relaunched_shell_gets_none_of_the_modes_of_the_program_killed_before() {
-        let history = b"\x1b[?1049h\x1b[?1000;1006hkilled\n";
-        let mut sb = Scrollback::with_history(32, history);
+        let history = b"$ claude\n\x1b[?1049h\x1b[?1000;1006hkilled\n";
+        let leave = b"\x1b[?1049l\x1b[?1000l\x1b[?1006l";
+        // Whole: the history as it was saved, then the way out of its modes.
+        let mut sb = Scrollback::with_history(128, history);
         assert!(!sb.take_dirty());
-        assert_eq!(sb.snapshot(), history);
-        // The cut reaches the end of the history, the first newline right there.
+        assert_eq!(text(&sb.snapshot()), text(&[&history[..], leave].concat()));
         sb.push(b"PS C:\\> dir\r\n");
-        assert_eq!(sb.snapshot(), b"\x1b[0mPS C:\\> dir\r\n");
+        assert!(sb.take_dirty());
+        assert_eq!(
+            text(&sb.snapshot()),
+            text(&[&history[..], leave, b"PS C:\\> dir\r\n"].concat())
+        );
+        assert_eq!(modes_of(&sb.snapshot()), Modes::default());
+        // Cut inside the history, as it is loaded: its modes at the cut, then the way out.
+        let mut sb = Scrollback::with_history(40, history);
+        assert!(!sb.take_dirty());
+        assert_eq!(
+            text(&sb.snapshot()),
+            "\x1b[0m\x1b[?1049h\x1b[?1000h\x1b[?1006h\x1b[?1049l\x1b[?1000l\x1b[?1006l"
+        );
+        sb.push(b"PS C:\\> dir\r\n");
+        assert_eq!(
+            text(&sb.snapshot()),
+            "\x1b[0m\x1b[?1049h\x1b[?1000h\x1b[?1006h\x1b[?1049l\x1b[?1000l\x1b[?1006lPS C:\\> dir\r\n"
+        );
+        // Gone: the shell's output alone, on the normal screen, the mouse off.
         sb.push(b" a.txt\r\n b.txt\r\nPS C:\\> ");
         assert_eq!(sb.snapshot(), b"\x1b[0m a.txt\r\n b.txt\r\nPS C:\\> ");
     }
 
     #[test]
-    fn a_cut_inside_the_history_is_replayed_as_before() {
-        // Larger than the buffer: the history is cut as it is loaded.
-        let mut sb =
-            Scrollback::with_history(32, b"\x1b[?1049h\x1b[?1002hhistory one\nhistory two\n");
-        assert_eq!(sb.snapshot(), b"\x1b[0mhistory two\n");
-        sb.push(b"new\n");
-        assert_eq!(sb.snapshot(), b"\x1b[0mhistory two\nnew\n");
+    fn a_history_that_left_no_mode_on_is_replayed_as_it_is() {
+        // A shell's: what it switched on, it switched off.
+        let history: &[u8] = b"PS C:\\> vim\r\n\x1b[?1049h\x1b[?1000h\x1b[?25l\x1b[2;9r\x1b[r\x1b[?25h\x1b[?1000l\x1b[?1049lPS C:\\> ";
+        let mut sb = Scrollback::with_history(256, history);
+        assert_eq!(sb.snapshot(), history);
+        sb.push(b"dir\r\n");
+        assert_eq!(sb.snapshot(), [history, b"dir\r\n"].concat());
+        // ConPTY asks for focus events when it starts, and the next one asks again:
+        // the history of a shell killed with the app ends with them on.
+        let history: &[u8] = b"\x1b[6n\x1b[?9001h\x1b[?1004h\x1b[mPS C:\\> ";
+        let sb = Scrollback::with_history(256, history);
+        assert_eq!(
+            text(&sb.snapshot()),
+            text(&[history, b"\x1b[?1004l"].concat())
+        );
     }
 
     #[test]
@@ -357,23 +385,22 @@ mod tests {
     }
 
     #[test]
-    fn the_new_run_is_read_from_the_first_byte_after_the_history() {
-        // The history dropped to its last byte, by a chunk as large as the buffer.
-        let mut sb = Scrollback::with_history(20, b"\x1b[?1049hhist\n");
-        sb.push(b"\x1b[?2004hnew\nkept 12\n");
-        assert_eq!(sb.snapshot(), b"\x1b[0m\x1b[?2004hkept 12\n");
-        // The head skipped to the first newline spans the end of the history.
-        let mut sb = Scrollback::with_history(24, b"\x1b[?1049hhistory");
-        sb.push(b"\x1b[?1000hnew\nkept\n");
-        assert_eq!(sb.snapshot(), b"\x1b[0m\x1b[?1000hkept\n");
-        // A sequence the history left unfinished is not finished by the new run.
+    fn a_sequence_the_history_left_unfinished_is_not_finished_by_the_new_run() {
+        let mut sb = Scrollback::with_history(64, b"old\n\x1b[?10");
+        sb.push(b"49h new run\nkept\n");
+        // Cancelled where the history ends.
+        assert_eq!(sb.snapshot(), b"old\n\x1b[?10\x1849h new run\nkept\n");
+        assert_eq!(modes_of(&sb.snapshot()), Modes::default());
         let mut sb = Scrollback::with_history(16, b"old\n\x1b[?10");
         sb.push(b"49h new run\nkept\n");
         assert_eq!(sb.snapshot(), b"\x1b[0mkept\n");
     }
 
+    /// A long fullscreen session is saved from a cut buffer, with the modes it was
+    /// in set at its head. Relaunched as a shell, it must not come back on the
+    /// alternate screen with the mouse on at the next reload.
     #[test]
-    fn a_history_saved_from_a_cut_buffer_is_replayed_as_it_was_saved() {
+    fn a_history_saved_from_a_cut_buffer_is_left_like_any_other() {
         let mut first = Scrollback::new(32);
         first.push(b"\x1b[?1049h\x1b[?1000;1006h\n");
         first.push(b"0123456789012345678901234567\nscreen line\n");
@@ -382,13 +409,24 @@ mod tests {
             saved,
             b"\x1b[0m\x1b[?1049h\x1b[?1000h\x1b[?1006hscreen line\n"
         );
-        assert_eq!(Scrollback::with_history(64, &saved).snapshot(), saved);
+        let leave = b"\x1b[?1049l\x1b[?1000l\x1b[?1006l";
+        let mut sb = Scrollback::with_history(128, &saved);
+        assert!(!sb.take_dirty());
+        assert_eq!(text(&sb.snapshot()), text(&[&saved[..], leave].concat()));
+        sb.push(b"PS C:\\> ");
+        assert_eq!(modes_of(&sb.snapshot()), Modes::default());
         // Larger than the buffer: the history is cut as it is loaded.
         let mut sb = Scrollback::with_history(24, &saved);
         assert!(!sb.take_dirty());
-        assert_eq!(sb.snapshot(), b"\x1b[0m");
-        sb.push(b"\x1b[?1006lnew\n");
-        assert_eq!(sb.snapshot(), b"\x1b[0m\x1b[?1006lnew\n");
+        assert_eq!(modes_of(&sb.snapshot()), Modes::default());
+        sb.push(b"\x1b[?2004hnew\n");
+        assert_eq!(
+            modes_of(&sb.snapshot()),
+            Modes {
+                bracketed_paste: true,
+                ..Modes::default()
+            }
+        );
     }
 
     #[test]
@@ -403,39 +441,19 @@ mod tests {
         assert_eq!(modes_of(&sb.snapshot()), Modes::default());
     }
 
-    /// The snapshot as it was before modes were followed.
-    fn unprefixed_snapshot(sb: &Scrollback) -> Vec<u8> {
-        let data: Vec<u8> = sb.buf.iter().copied().collect();
-        if !sb.truncated {
-            return data;
-        }
-        [RESET_ATTRIBUTES, &data[skipped_head(&data)..]].concat()
-    }
-
-    fn skipped_head(data: &[u8]) -> usize {
-        match data.iter().position(|&b| b == b'\n') {
-            Some(newline) => newline + 1,
-            None => data.iter().position(|&b| b == 0x1b).unwrap_or(0),
-        }
-    }
-
-    /// No byte of the history is replayed any more.
-    fn past_the_history(sb: &Scrollback) -> bool {
-        let data: Vec<u8> = sb.buf.iter().copied().collect();
-        let head = if sb.truncated { skipped_head(&data) } else { 0 };
-        sb.pushed - data.len() as u64 + head as u64 >= sb.history_end
-    }
-
     /// Replaying any cut of the output, written in any chunks, leaves a terminal in
-    /// the modes the whole output left it in; after a relaunch, in those of the new
-    /// run's output once the history is cut, as before while some of it is kept.
+    /// the modes the whole output left it in. After a relaunch, those are the new
+    /// run's alone, wherever the cut falls: in the history, in what follows it to
+    /// leave its modes, or in the new run's output.
     #[test]
     fn a_replay_ends_in_the_modes_of_the_whole_output_wherever_the_cut() {
-        let histories: [&[u8]; 3] = [
+        let histories: [&[u8]; 4] = [
             b"",
             b"$ vim\n\x1b[?1049h\x1b[?1000;1006h\x1b[2;20r\x1b[?25l\x1b[?2004hediting\nkilled\n",
             // Saved from a cut buffer, then cut in a sequence.
             b"\x1b[0m\x1b[?1049h\x1b[?1002h\x1b[?1006hsaved screen\n\x1b[?10",
+            // A scroll region and the cursor keys left on the normal screen.
+            b"$ less\n\x1b[3;12r\x1b[?1h\x1b[?1004h\x1b[?1003h\x1b[?1016hpaging\n",
         ];
         let stream: Vec<u8> = [
             &b"$ claude\n\x1b[?1004h\x1b[?2004h"[..],
@@ -449,27 +467,25 @@ mod tests {
         ]
         .concat();
         for history in histories {
-            for capacity in 40..history.len() + stream.len() {
+            let mut left = ModeTracker::default();
+            left.feed(history);
+            let seam = left.leave();
+            assert_eq!(history.is_empty(), seam.is_empty());
+            for capacity in 40..history.len() + seam.len() + stream.len() {
                 for chunk in [1, 2, 5, 13, stream.len()] {
+                    let at = format!(
+                        "history {}, capacity {capacity}, chunks of {chunk}",
+                        history.len()
+                    );
                     let mut sb = Scrollback::with_history(capacity, history);
+                    // The new process starts in a fresh terminal's modes.
+                    assert_eq!(modes_of(&sb.snapshot()), Modes::default(), "{at}");
                     let mut new_run = ModeTracker::default();
                     for piece in stream.chunks(chunk) {
                         sb.push(piece);
                         new_run.feed(piece);
                         // At every point of the output, not only at its end.
-                        let at = format!(
-                            "history {}, capacity {capacity}, chunks of {chunk}",
-                            history.len()
-                        );
-                        if past_the_history(&sb) {
-                            assert_eq!(modes_of(&sb.snapshot()), new_run.modes(), "{at}");
-                        } else {
-                            assert_eq!(
-                                text(&sb.snapshot()),
-                                text(&unprefixed_snapshot(&sb)),
-                                "{at}"
-                            );
-                        }
+                        assert_eq!(modes_of(&sb.snapshot()), new_run.modes(), "{at}");
                     }
                 }
             }
