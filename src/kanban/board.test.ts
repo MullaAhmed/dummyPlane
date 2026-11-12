@@ -149,6 +149,13 @@ describe("readKanbanPayload", () => {
     expect(readKanbanPayload(JSON.parse(JSON.stringify(b)))).toEqual(b);
   });
 
+  it("keeps the name an agent gave its board (open_board), and drops a blank one", () => {
+    const columns = [{ id: "c1", title: "To do", cardIds: [] }];
+    expect(readKanbanPayload({ title: " Issues ", columns, cards: {} })).toEqual({ title: "Issues", columns, cards: {} });
+    expect(readKanbanPayload({ title: "  ", columns, cards: {} })).toEqual({ columns, cards: {} });
+    expect(readKanbanPayload({ title: 7, columns, cards: {} })).toEqual({ columns, cards: {} });
+  });
+
   it("drops what it cannot read", () => {
     expect(
       readKanbanPayload({

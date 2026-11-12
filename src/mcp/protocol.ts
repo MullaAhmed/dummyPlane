@@ -38,6 +38,7 @@ const TOOLS: Record<string, string> = {
   linked_boards: "linked_boards",
   add_board_card: "add_board_card",
   move_board_card: "move_board_card",
+  open_board: "open_board",
   show_output: "show_output",
   output_guide: "output_guide",
   read_node: "read_node",
