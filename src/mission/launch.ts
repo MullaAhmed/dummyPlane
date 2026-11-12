@@ -31,7 +31,7 @@ import { notify } from "./events";
 import { missionFolder } from "./folder";
 import { addTeamMember, fleetNameOf, reflowTeam, removeManager, setUpBoard, undoSetup, type MissionSetup } from "./manager";
 import { nightSession } from "./overnight";
-import { NEW_AGENT, NEW_MISSION, oneLine, pastTask, queuedTask, sameName, type Member, type Mission, type SubTask } from "./mission";
+import { NEW_AGENT, NEW_MISSION, oneLine, pastTask, queuedTask, reassignable, sameName, type Member, type Mission, type SubTask } from "./mission";
 import { whenReady } from "./ready";
 import { modelFor } from "./router";
 import { canvasKnown, linkedTeamAgents, linkedGroups, missionOf, missionRunner, fleetShown, releaseSpawnedPermission, setMission, updateMember, workspaceCanvas } from "./store";
@@ -525,9 +525,12 @@ export async function reassignTask(fleetId: string, fromNodeId: string, target: 
   const mission = missionOf(record);
   if (!record || mission?.state !== "en_cours") return r.noMission;
   // A task `next_task` abandoned stays with its agent's report: nobody takes it over.
-  const from = mission.members.find((m) => m.nodeId === fromNodeId && !m.handedTo && !m.abandoned);
+  const open = reassignable(mission);
+  const from = open.find((m) => m.nodeId === fromNodeId);
   const task = mission.plan?.find((s) => s.title === from?.task);
-  if (!from || !task) return r.notFound;
+  // The titles it takes, as `reassign` names them, so that the call can be made again right.
+  const held = mission.members.find((m) => m.nodeId === fromNodeId)?.task ?? "";
+  if (!from || !task) return t().fleet.noSubtask(held, open.map((m) => m.task));
   let to: Member;
   if (sameName(target, NEW_AGENT)) {
     if (!canvasKnown(fleetId)) return r.hidden;

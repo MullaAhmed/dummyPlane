@@ -5,7 +5,7 @@ import { messages } from "@/i18n";
 import { ptySendText } from "@/ipc/pty";
 import { missionFolder } from "@/mission/folder";
 import { deliveryPending, endMission, launchMission, mergeMission, reassignTask } from "@/mission/launch";
-import { budgetOf, memberTime, NEW_AGENT, nightMin, oneLine, proposedPlan, proposedTasks, remainingGlobal, sameName, spentMin, type Member, type Mission, type QueuedTask } from "@/mission/mission";
+import { budgetOf, memberTime, NEW_AGENT, nightMin, oneLine, proposedPlan, proposedTasks, reassignable, remainingGlobal, sameName, spentMin, type Member, type Mission, type QueuedTask } from "@/mission/mission";
 import { activeCount, freeSeat, holdSeat, relaunchTakesSeat } from "@/mission/active";
 import { stopMission } from "@/mission/stop";
 import { duplicateWork } from "@/mission/activeWork";
@@ -655,7 +655,7 @@ async function reassign(fleetId: string, mission: Mission, args: Record<string, 
   const title = typeof args.sous_tache === "string" ? args.sous_tache : "";
   const from = mission.members.find((m) => !m.handedTo && sameName(m.task, title));
   // The titles reassign takes, so that a call that passed something else (a whole brief) can be made again right.
-  if (!from) return refused(t().fleet.noSubtask(echoed(title), mission.members.filter((m) => !m.handedTo && !m.abandoned).map((m) => m.task)));
+  if (!from) return refused(t().fleet.noSubtask(echoed(title), reassignable(mission).map((m) => m.task)));
   const result = await reassignTask(fleetId, from.nodeId, typeof args.agent === "string" ? args.agent : "");
   return typeof result === "string" ? refused(result) : said(t().fleet.handedTo(from.task, result.name));
 }

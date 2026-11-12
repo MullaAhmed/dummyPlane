@@ -526,7 +526,6 @@ export const agentMessages = defineMessages({
     },
     reassign: {
       noMission: "No mission under way.",
-      notFound: "Sub-task not found.",
       hidden: "The fleet's workspace is not on screen: no agent can be created there.",
       notOther: (target: string) => `"${target}" is not another agent of the mission.`,
       notDone: (name: string) => `${name} has not finished its sub-task: choose an agent that has reported, or "new".`,

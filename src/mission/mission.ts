@@ -409,8 +409,11 @@ export function pastTask(member: Member, report: Report): PastTask {
   };
 }
 
+/** The sub-tasks `reassign` takes, by the members holding them: not handed over, nor left by `next_task`. */
+export const reassignable = (mission: Mission) => mission.members.filter((m) => !m.handedTo && !m.abandoned);
+
 /** A member's budget with its extensions. */
-export const budgetOf = (member: Member) => member.budgetMin + (member.extraMin ?? 0);
+export const budgetOf =(member: Member) => member.budgetMin + (member.extraMin ?? 0);
 
 /** Minutes a member has spent: from its sub-task's sending to its report, in real time. */
 export function spentMin(member: Member, now: number): number {
