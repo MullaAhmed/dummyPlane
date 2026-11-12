@@ -1,25 +1,30 @@
-import { screenRectOf } from "@/agents/placement";
+import { memo, type ReactNode } from "react";
 import { useNow } from "@/lib/useNow";
 import { cn } from "@/lib/utils";
 import { budgetBar, type BudgetTone } from "@/mission/mission";
-import { memberBudgets, type MemberBudget } from "@/mission/store";
+import { memberBudgets } from "@/mission/store";
 import { settledSteps, type Step } from "@/nodes/steps";
+import type { TerminalReportStatus } from "@/nodes/types";
 import { terminalOf, useNodes } from "@/store/nodes";
 import { useSubagents } from "@/store/subagents";
 import { useTerminalStatus } from "@/store/terminalStatus";
-import { useCanvas, useCanvasPlace, type CanvasPlace } from "../canvasStore";
-import type { Rect } from "../groups";
+import { useCanvas, useCanvasPlace } from "../canvasStore";
 import { BUDGET_COLOR, budgetTitle, dotsOf, TIMELINE_GAP } from "./timeline";
+
+/** The steps of a frieze that only has a bar: always this one array, so that its timeline is not drawn again for a new empty one. */
+const NO_STEPS: Step[] = [];
 
 /**
  * Each Claude terminal's steps, under it. Like the
  * group backdrops, the layer sits under the nodes and takes no pointer: a
- * frieze never covers nor blocks the header of the row below it. It is drawn
- * at the scene's size and scaled like the nodes.
+ * frieze never covers nor blocks the header of the row below it. The friezes
+ * are placed in scene units in one layer, scrolled and scaled like the nodes:
+ * a pan or a zoom moves that layer and draws no frieze again. A frieze is
+ * drawn again only when what it shows changed (its steps, its bar, its place),
+ * not when another node or another terminal's frieze did.
  */
 export function StepTimelines() {
   const rects = useCanvas((s) => s.nodeRects);
-  const view = useCanvasPlace();
   const nodes = useNodes((s) => s.nodes);
   // The budget bars move with time, not only with the canvas. Not memoised on its
   // arguments: a fleet closed (mission store) takes its bars away without changing them.
@@ -27,39 +32,88 @@ export function StepTimelines() {
   const budgets = memberBudgets(nodes, now);
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden">
-      {Object.entries(rects).map(([id, rect]) => {
-        const payload = terminalOf(nodes[id]);
-        // A reported agent's frieze reads as finished even where its steps were not settled with its report.
-        const steps = settledSteps(payload?.steps ?? [], payload?.lastReport?.status);
-        const budget = budgets[id];
-        return steps.length || budget ? <Timeline key={id} nodeId={id} steps={steps} budget={budget} rect={rect} view={view} /> : null;
-      })}
+      <SceneLayer>
+        {Object.entries(rects).map(([id, rect]) => {
+          const payload = terminalOf(nodes[id]);
+          const steps = payload?.steps ?? NO_STEPS;
+          const budget = budgets[id];
+          if (!steps.length && !budget) return null;
+          return (
+            <Timeline
+              key={id}
+              nodeId={id}
+              steps={steps}
+              report={payload?.lastReport?.status}
+              x={rect.x}
+              // Under the terminal, TIMELINE_GAP below its bottom edge.
+              y={rect.y + rect.height + TIMELINE_GAP}
+              width={rect.width}
+              bar={budget && { ...budgetBar(budget.spent, budget.budget, budget.report), title: budgetTitle(budget) }}
+            />
+          );
+        })}
+      </SceneLayer>
     </div>
   );
 }
 
-function Timeline(props: { nodeId: string; steps: Step[]; budget?: MemberBudget; rect: Rect; view: CanvasPlace }) {
-  const { nodeId, steps, budget, rect, view } = props;
+/**
+ * The scene's own units, scrolled and scaled like the nodes: a point (x, y) of
+ * the scene shows at ((x + scrollX) × zoom, (y + scrollY) × zoom), where
+ * `screenRectOf` puts it. The friezes come in as `children`, made by the list:
+ * a pan or a zoom draws this layer again, and leaves them as they are.
+ */
+function SceneLayer({ children }: { children: ReactNode }) {
+  const { scrollX, scrollY, zoom } = useCanvasPlace();
+  return (
+    <div className="absolute left-0 top-0" style={{ transform: `scale(${zoom}) translate(${scrollX}px, ${scrollY}px)`, transformOrigin: "0 0" }}>
+      {children}
+    </div>
+  );
+}
+
+/** A budget bar as it is drawn: how full, in which tone, and its title. */
+interface Bar {
+  ratio: number;
+  tone: BudgetTone;
+  title: string;
+}
+
+interface TimelineProps {
+  nodeId: string;
+  /** The terminal's steps as its node keeps them, and its report: the frieze settles them. */
+  steps: Step[];
+  report?: TerminalReportStatus;
+  /** Where the frieze starts and how wide it is, in scene units. */
+  x: number;
+  y: number;
+  width: number;
+  bar?: Bar;
+}
+
+const sameBar = (a: Bar | undefined, b: Bar | undefined) =>
+  a === b || (a !== undefined && b !== undefined && a.ratio === b.ratio && a.tone === b.tone && a.title === b.title);
+
+/** The list makes each bar anew on every pass: a frieze is drawn again when its bar shows something else, as for its other props. */
+function sameTimeline(before: TimelineProps, after: TimelineProps): boolean {
+  const { bar: barBefore, ...propsBefore } = before;
+  const { bar: barAfter, ...propsAfter } = after;
+  const keys = Object.keys(propsAfter) as (keyof typeof propsAfter)[];
+  return keys.length === Object.keys(propsBefore).length && keys.every((key) => propsBefore[key] === propsAfter[key]) && sameBar(barBefore, barAfter);
+}
+
+const Timeline = memo(function Timeline({ nodeId, steps: kept, report, x, y, width, bar }: TimelineProps) {
   const running = useSubagents(nodeId);
   // A step "en cours" is only marked as live under a process that runs (not after an interruption or a crash).
   const alive = useTerminalStatus(nodeId).state === "running";
-  const screen = screenRectOf(rect, view);
-  const dots = dotsOf(steps, rect.width);
+  // A reported agent's frieze reads as finished even where its steps were not settled with its report.
+  const steps = settledSteps(kept, report);
+  const dots = dotsOf(steps, width);
   return (
     // No height of its own: everything in it is placed from its top. It takes 8 + 1 + 12 = TIMELINE_HEIGHT (21),
     // and with TIMELINE_GAP the TIMELINE_ROOM (24) that ROW_GAP keeps free under every terminal.
-    <div
-      data-steps={nodeId}
-      className="absolute"
-      style={{
-        left: screen.x,
-        top: screen.y + screen.height + TIMELINE_GAP * view.zoom,
-        width: rect.width,
-        transform: `scale(${view.zoom})`,
-        transformOrigin: "0 0",
-      }}
-    >
-      {budget && <BudgetBar {...budgetBar(budget.spent, budget.budget, budget.report)} title={budgetTitle(budget)} />}
+    <div data-steps={nodeId} className="absolute" style={{ left: x, top: y, width }}>
+      {bar && <BudgetBar {...bar} />}
       {/* Through the middle of the 8px dots. */}
       {steps.length > 0 && <div className="absolute inset-x-0 top-1 h-px -translate-y-1/2 bg-dp-line" />}
       {dots.map((dot, i) => (
@@ -79,10 +133,10 @@ function Timeline(props: { nodeId: string; steps: Step[]; budget?: MemberBudget;
       ))}
     </div>
   );
-}
+}, sameTimeline);
 
 /** Time spent over budget, in the gap between the terminal and its steps; complete once the agent reported. */
-function BudgetBar({ ratio, tone, title }: { ratio: number; tone: BudgetTone; title: string }) {
+function BudgetBar({ ratio, tone, title }: Bar) {
   return (
     // In the TIMELINE_GAP between the terminal and its frieze, against the terminal's edge.
     <div className="absolute inset-x-0 h-0.5 bg-dp-line" style={{ top: -TIMELINE_GAP }} aria-label={title}>

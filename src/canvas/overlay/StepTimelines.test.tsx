@@ -6,12 +6,28 @@ import { mockIPC } from "@tauri-apps/api/mocks";
 import { canvasStore, EMPTY_VIEW } from "@/canvas/canvasStore";
 import { NEW_MISSION } from "@/mission/mission";
 import { nodesStore } from "@/store/nodes";
-import { subagentsStore } from "@/store/subagents";
+import { subagentsStore, useSubagents } from "@/store/subagents";
 import { StepTimelines } from "./StepTimelines";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
 
+// Each frieze reads its running subagents once per render: the count of its renders.
+vi.mock("@/store/subagents", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/store/subagents")>();
+  return { ...actual, useSubagents: vi.fn(actual.useSubagents) };
+});
+
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+/** How many times a terminal's frieze was drawn so far. */
+const renders = (nodeId: string) => vi.mocked(useSubagents).mock.calls.filter(([id]) => id === nodeId).length;
+
+/** Where a frieze shows on screen: its scene place through its layer's scale and scroll. */
+function onScreen(frieze: HTMLElement) {
+  const layer = frieze.parentElement!;
+  const [, scale, scrollX, scrollY] = layer.style.transform.match(/^scale\(([-\d.]+)\) translate\(([-\d.]+)px, ([-\d.]+)px\)$/)!.map(Number);
+  return { left: (parseFloat(frieze.style.left) + scrollX) * scale, top: (parseFloat(frieze.style.top) + scrollY) * scale, scale };
+}
 
 it("draws each terminal's steps under it, following the view, with its running subagents", async () => {
   mockIPC(() => undefined);
@@ -32,9 +48,10 @@ it("draws each terminal's steps under it, following the view, with its running s
   await act(async () => root.render(<StepTimelines />));
   const friezes = host.querySelectorAll<HTMLElement>("[data-steps]");
   expect([...friezes].map((f) => f.dataset.steps)).toEqual(["batman"]);
-  // (0 + 100) * 0.5 = 50; 400 * 0.5 = 200 below the top, then the gap at the view's scale;
-  // drawn at the scene's size (800 wide) and scaled like the nodes (final review H1).
-  expect([friezes[0].style.left, friezes[0].style.top, friezes[0].style.width, friezes[0].style.transform]).toEqual(["50px", "201.5px", "800px", "scale(0.5)"]);
+  // Placed in scene units (400 + 3 gap below the top), in a layer scrolled and scaled like the nodes:
+  // (0 + 100) * 0.5 = 50; (400 + 3) * 0.5 = 201.5. Drawn at the scene's size (800 wide) and scaled like the nodes (final review H1).
+  expect([friezes[0].style.left, friezes[0].style.top, friezes[0].style.width]).toEqual(["0px", "403px", "800px"]);
+  expect(onScreen(friezes[0])).toEqual({ left: 50, top: 201.5, scale: 0.5 });
   // Under the nodes, never in the way of a header below it: no layer above them, no click taken.
   const layer = host.firstElementChild as HTMLElement;
   expect(layer.className).not.toMatch(/z-/);
@@ -105,6 +122,87 @@ describe("the frieze and the bar of an agent that reported", () => {
     expect(view.bar.getAttribute("aria-label")).toBe(title);
     const fill = view.bar.firstElementChild as HTMLElement;
     expect([fill.style.width, fill.style.backgroundColor]).toEqual(["100%", color]);
+    await view.unmount();
+  });
+});
+
+describe("what draws a frieze again", () => {
+  const min = 60_000;
+  const claude = { title: "", agent: "claude" as const, cwd: "C:/code", shell: "default" as const, command: "" };
+  const steps = [
+    { title: "Plan", state: "fait" as const },
+    { title: "Code", state: "en_cours" as const },
+  ];
+  const rect = (x: number) => ({ x, y: 0, width: 800, height: 400 });
+
+  /**
+   * Flash, a terminal with its steps; Nightwing, a mission's agent that reported with a step still under way and
+   * a budget (its frieze settled and its bar made anew on every pass of the list); Raven, a terminal with none.
+   */
+  async function show() {
+    mockIPC(() => undefined);
+    await nodesStore.getState().create("flash", { workspaceId: "w1", kind: "terminal", payload: { ...claude, name: "Flash", steps } });
+    await nodesStore.getState().create("nightwing", { workspaceId: "w1", kind: "terminal", payload: { ...claude, name: "Nightwing", steps, lastReport: { status: "done", summary: "s" } } });
+    await nodesStore.getState().create("raven", { workspaceId: "w1", kind: "terminal", payload: { ...claude, name: "Raven" } });
+    await nodesStore.getState().create("oracle", {
+      workspaceId: "w1",
+      kind: "fleet",
+      payload: {
+        name: "Oracle",
+        mission: {
+          ...NEW_MISSION,
+          state: "en_cours",
+          members: [{ nodeId: "nightwing", name: "Nightwing", task: "t", budgetMin: 50, linked: false, branch: "b", worktree: "w", sentAt: 0, report: { summary: "s", status: "termine", at: 22 * min } }],
+        },
+      },
+    });
+    canvasStore.setState({ view: { ...EMPTY_VIEW, zoom: 0.5, scrollX: 100 }, nodeRects: { flash: rect(0), nightwing: rect(900), raven: rect(1800) } });
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+    await act(async () => root.render(<StepTimelines />));
+    vi.mocked(useSubagents).mockClear();
+    return {
+      frieze: (id: string) => host.querySelector<HTMLElement>(`[data-steps="${id}"]`)!,
+      unmount: async () => {
+        await act(async () => root.unmount());
+        host.remove();
+      },
+    };
+  }
+
+  it("a pan or a zoom moves their one layer, and draws no frieze again", async () => {
+    const view = await show();
+    for (let frame = 1; frame <= 30; frame++) {
+      await act(async () => canvasStore.setState((s) => ({ view: { ...s.view, scrollX: 100 - frame * 10, scrollY: frame * 4, zoom: 0.5 + frame / 100 } })));
+    }
+    expect([renders("flash"), renders("nightwing")]).toEqual([0, 0]);
+    // Each frieze still shows under its terminal: (x + scrollX) * zoom, (400 + 3 + scrollY) * zoom.
+    expect(onScreen(view.frieze("flash"))).toEqual({ left: (0 - 200) * 0.8, top: (403 + 120) * 0.8, scale: 0.8 });
+    expect(onScreen(view.frieze("nightwing"))).toEqual({ left: (900 - 200) * 0.8, top: (403 + 120) * 0.8, scale: 0.8 });
+    await view.unmount();
+  });
+
+  it("a change to another node, or to what a frieze does not show, draws none again; a change to its steps draws that one alone", async () => {
+    const view = await show();
+    await act(async () => nodesStore.getState().update("raven", { title: "Another task" }));
+    await act(async () => nodesStore.getState().update("flash", { title: "Its title, not its steps" }));
+    expect([renders("flash"), renders("nightwing")]).toEqual([0, 0]);
+    await act(async () => nodesStore.getState().update("flash", { steps: [...steps, { title: "Ship", state: "a_venir" }] }));
+    expect([renders("flash"), renders("nightwing")]).toEqual([1, 0]);
+    expect(view.frieze("flash").textContent).toContain("Ship");
+    // Nightwing's frieze and bar, as they were: settled, and done in 22 min of 50.
+    expect([...view.frieze("nightwing").querySelectorAll("[data-step]")].map((dot) => dot.getAttribute("data-step"))).toEqual(["fait", "fait"]);
+    expect(view.frieze("nightwing").querySelector("[aria-label]")!.getAttribute("aria-label")).toBe("Done in 22 min of 50");
+    await view.unmount();
+  });
+
+  it("a node dragged draws its own frieze again, not the others'", async () => {
+    const view = await show();
+    // As setNodeRects hands them: every rectangle a new object, one of them moved.
+    await act(async () => canvasStore.setState({ nodeRects: { flash: { ...rect(0), y: 50 }, nightwing: rect(900), raven: rect(1800) } }));
+    expect([renders("flash"), renders("nightwing")]).toEqual([1, 0]);
+    expect(onScreen(view.frieze("flash")).top).toBe((50 + 403 + 0) * 0.5);
     await view.unmount();
   });
 });
