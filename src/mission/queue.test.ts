@@ -18,8 +18,9 @@ import { launchMission, mergeMember, reassignTask } from "./launch";
 import type { Member, Mission, QueuedTask } from "./mission";
 import { morningReport } from "./morning";
 import { afterReport, giveNext, pumpQueue } from "./queue";
-import { missionOf } from "./store";
-import { fleetTool } from "@/mcp/fleetTools";
+import { missionOf, updateMember } from "./store";
+import { activeCount } from "./active";
+import { fleetTool, managerTools } from "@/mcp/fleetTools";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
 vi.mock("@/ipc/mission", () => ({ missionPrepare: vi.fn(), missionAddAgent: vi.fn(), missionMerge: vi.fn(), missionCleanup: vi.fn(), missionDiscard: vi.fn() }));
@@ -292,6 +293,29 @@ describe("an agent that reports « blocked » or « failed »", () => {
     expect(await reassignTask("chef", "batman", "Aquaman")).toEqual({ name: "Aquaman" });
   });
 
+  it("is not reassigned to an agent that reported past Max agents: the one it takes over from holds no seat (review 12 Nov)", async () => {
+    const plan = ["Login", "Docs", "Tests", "Lint"].map((title) => ({ title, brief: "b", agent: "x", budgetMin: 20 }));
+    await setup({
+      maxAgents: 2,
+      plan,
+      members: [member("batman", "Batman", { report: stuck }), member("aquaman", "Aquaman", { task: "Docs", report: done, merged: true }), member("cyborg", "Cyborg", { task: "Tests" }), member("flash", "Flash", { task: "Lint" })],
+    });
+    for (const id of ["cyborg", "flash"]) terminalStatusStore.getState().set(id, { state: "running" });
+    expect(await reassignTask("chef", "batman", "Aquaman")).toBe(
+      '"Login" would put Aquaman back to work while 2 agents are already at work (Max active agents), and the agent it takes it from holds no seat now. ' +
+        "Reassign it once a seat is free (queue: active_agents below max_agents); a seat a report frees goes to the queue's next task first.",
+    );
+    expect(missionNow().members.find((m) => m.name === "Aquaman")?.task).toBe("Docs");
+    expect(missionNow().members.find((m) => m.name === "Batman")?.handedTo).toBeUndefined();
+    // From an agent at work, its seat goes with the sub-task: still two at work, it is not refused.
+    expect(await reassignTask("chef", "cyborg", "Aquaman")).toEqual({ name: "Aquaman" });
+    expect(activeCount("chef", missionNow())).toBe(2);
+    // The tool says so, for "new" and for an agent that reported alike.
+    expect(managerTools().find((tool) => tool.name === "reassign")?.description).toContain(
+      'While Max active agents are at work, "new" is refused, and so is an agent that has reported when the sub-task\'s holder holds no seat',
+    );
+  });
+
   it("starts a new agent in a new terminal when next_task asks for it, nothing merged, the old task abandoned", async () => {
     await setup({ members: [member("batman", "Batman", { report: stuck })] });
     const result = await giveNext("chef", missionNow().members[0]);
@@ -315,7 +339,10 @@ describe("an agent that reports « blocked » or « failed »", () => {
   it("no longer lets reassign find an abandoned task, nor next_task leave it twice", async () => {
     await setup({ queue: queued("API", "Docs"), members: [member("batman", "Batman", { report: stuck })] });
     await giveNext("chef", missionNow().members[0]);
-    expect(await reassignTask("chef", "batman", "new")).toBe("Sub-task not found.");
+    // Its refusal says next_task left it, not that the title is wrong, and names the sub-tasks reassign does take (review 12 Nov).
+    const left = '"Login" was abandoned by next_task: it stays with its agent\'s report, and nobody takes it over. The sub-tasks reassign takes: "API".';
+    expect(await reassignTask("chef", "batman", "new")).toBe(left);
+    expect((await fleetTool("chef", "reattribuer", { sous_tache: "Login", agent: "nouveau" })).content[0].text).toBe(left);
     expect(await giveNext("chef", missionNow().members[0])).toEqual({ refused: "Batman already left its task to a new agent." });
     expect(created().map((m) => m.task)).toEqual(["API"]);
   });
@@ -788,6 +815,65 @@ describe("Max agents caps the agents at work, not the team", () => {
     await pumpQueue("chef");
     expect(created().map((m) => m.task)).toEqual(["Docs"]);
     expect(missionNow().queue?.map((t) => t.title)).toEqual(["Tests", "Lint"]);
+  });
+});
+
+describe("relaunch keeps the team within Max agents while the queue fills (review 12 Nov)", () => {
+  const stuck = { summary: "Bloqué", status: "bloque" as const, at: 60_000 };
+
+  /** Batman, Cyborg and `restarted` on a task each, Max agents 3, two tasks waiting; `restarted` has a terminal relaunch can start. */
+  async function team(restarted: string, name: string, queue: QueuedTask[] = queued("API", "Lint")) {
+    await setup({ frameId: "f1", maxAgents: 3, queue, members: [member("batman", "Batman"), member(restarted, name, { task: "Docs0" }), member("cyborg", "Cyborg", { task: "Tests0" })] });
+    await nodesStore.getState().create(restarted, { workspaceId: "w1", kind: "terminal", payload: { ...session, role: undefined, name } });
+    terminalStatusStore.getState().set("cyborg", { state: "running" });
+    canvasStore.setState({ api: { getSceneElements: () => [], getSceneElementsIncludingDeleted: () => ["batman", restarted, "cyborg"].map((id) => ({ id, isDeleted: false })) } as never });
+  }
+
+  it("starts one new agent, not two, when an agent reports while one back at its shell restarts: its old process's exit frees no seat", async () => {
+    await team("aquaman", "Aquaman");
+    // Aquaman's agent exited: its shell runs on, and it holds its seat. Batman, Aquaman, Cyborg: the team is full.
+    agentActivityStore.getState().apply({ nodeId: "aquaman", activity: "idle", since: 1, left: true });
+    vi.mocked(relaunchTerminal).mockImplementationOnce(async (nodeId) => {
+      // As relaunchSession: the old process is killed and its exit comes in; Batman reports "blocked" before the new one starts.
+      terminalStatusStore.getState().set(nodeId, { state: "exited", code: null });
+      updateMember("chef", "batman", { report: stuck });
+      await afterReport("chef", "batman");
+      terminalStatusStore.getState().set(nodeId, { state: "running" });
+    });
+    expect((await fleetTool("chef", "relaunch", { agent: "Aquaman" })).isError).not.toBe(true);
+    // Batman's seat went to one new agent: with Aquaman and Cyborg, three at work.
+    expect(created().map((m) => m.task)).toEqual(["API"]);
+    expect(missionNow().queue?.map((t) => t.title)).toEqual(["Lint"]);
+    expect(activeCount("chef", missionNow())).toBe(3);
+  });
+
+  it("gives the queue the seat an agent's report frees while a stopped agent restarts: the restarted one counts once", async () => {
+    await team("hulk", "Hulk", queued("API"));
+    // Hulk stopped after its sub-task: Batman and Cyborg at work, one seat free for it.
+    terminalStatusStore.getState().set("hulk", { state: "exited", code: 0 });
+    vi.mocked(relaunchTerminal).mockImplementationOnce(async (nodeId) => {
+      // As startSession: "running" before its spawn returns; Batman reports "blocked" meanwhile.
+      terminalStatusStore.getState().set(nodeId, { state: "running" });
+      updateMember("chef", "batman", { report: stuck });
+      await afterReport("chef", "batman");
+    });
+    expect((await fleetTool("chef", "relaunch", { agent: "Hulk" })).isError).not.toBe(true);
+    expect(created().map((m) => m.task)).toEqual(["API"]);
+    expect(activeCount("chef", missionNow())).toBe(3);
+  });
+
+  it("starts the task it held back once a relaunch fails: the seat it was starting into is free again", async () => {
+    await team("hulk", "Hulk", queued("API"));
+    terminalStatusStore.getState().set("hulk", { state: "exited", code: 0 });
+    vi.mocked(relaunchTerminal).mockImplementationOnce(async (nodeId) => {
+      // A pump while it starts: Batman, Cyborg and Hulk on its way fill the team, the task waits.
+      await pumpQueue("chef");
+      expect(created()).toEqual([]);
+      terminalStatusStore.getState().set(nodeId, { state: "error", message: "claude not found" });
+    });
+    const failed = await fleetTool("chef", "relaunch", { agent: "Hulk" });
+    expect(failed.content[0].text).toBe("Hulk could not start again: claude not found");
+    await vi.waitFor(() => expect(created().map((m) => m.task)).toEqual(["API"]));
   });
 });
 

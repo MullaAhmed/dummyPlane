@@ -945,7 +945,11 @@ describe("reassignTask", () => {
     // Its sub-task not typed yet, Shazam's terminal is still starting: it holds its seat.
     const members = [member("batman", "Batman", true, { task: "Login", report: blocked }), member("n1", "Aquaman", false, { task: "API" }), member("n2", "Shazam", false, { task: "Docs", sentAt: undefined })];
     await setup({ state: "en_cours", maxAgents: 2, project: "C:/code/proj", slug: "auth", frameId: "f1", members });
-    expect(await reassignTask("chef", "batman", "nouveau")).toContain("Max active agents");
+    // Batman holds no seat: reassigning to an agent that reported would be one more too, so the refusal does not point there (review 12 Nov).
+    expect(await reassignTask("chef", "batman", "nouveau")).toBe(
+      '"Login" would put a new agent to work while 2 agents are already at work (Max active agents), and the agent it takes it from holds no seat now. ' +
+        "Reassign it once a seat is free (queue: active_agents below max_agents); a seat a report frees goes to the queue's next task first.",
+    );
     expect(missionAddAgent).not.toHaveBeenCalled();
   });
 
