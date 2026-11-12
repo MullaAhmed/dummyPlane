@@ -95,6 +95,21 @@ describe("the Auto-arrange watch", () => {
     expect(arrange).toHaveBeenCalledTimes(2);
   });
 
+  it("arranges once a drag ends on a frame of the same scene, which works no signature out", () => {
+    const { watch, arrange, tick, minimized } = setup();
+    const isMinimized = vi.spyOn(minimized, "has");
+    watch([node("a", { version: 1 })], still, 1);
+    const opened = [node("a", { version: 1 }), node("b", { version: 1 })];
+    watch(opened, { ...still, selectedElementsAreBeingDragged: true }, 2);
+    tick();
+    expect(arrange).not.toHaveBeenCalled();
+    const worked = isMinimized.mock.calls.length;
+    watch(opened, still, 2);
+    expect(isMinimized).toHaveBeenCalledTimes(worked);
+    tick();
+    expect(arrange).toHaveBeenCalledTimes(1);
+  });
+
   it("waits for a drag or a resize to end", () => {
     const { watch, arrange, tick, timers } = setup();
     watch([node("a")], still);

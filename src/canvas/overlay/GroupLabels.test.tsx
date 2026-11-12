@@ -6,6 +6,7 @@ import { mockIPC } from "@tauri-apps/api/mocks";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { screenRectOf } from "@/agents/placement";
 import { terminalStatusStore } from "@/store/terminalStatus";
+import { uiStore } from "@/store/ui";
 import { canvasStore, EMPTY_VIEW } from "../canvasStore";
 import { GroupBackdrops } from "./GroupBackdrops";
 import { GroupLabels } from "./GroupLabels";
@@ -100,5 +101,10 @@ it("a pan moves the outlines' and the labels' layers and draws none of them agai
   // A zoom resizes them: both drawn again.
   await act(async () => canvasStore.setState((s) => ({ view: { ...s.view, zoom: 0.8 } })));
   expect(drawn()).toBe(once + 2);
+  // What a label shows: renamed in place, that label alone is drawn again.
+  await act(async () => uiStore.getState().setRenamingGroup("g"));
+  expect(drawn()).toBe(once + 3);
+  expect(host.querySelector('input[aria-label]')).not.toBeNull();
+  await act(async () => uiStore.getState().setRenamingGroup(null));
   await act(async () => root.unmount());
 });

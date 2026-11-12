@@ -381,6 +381,19 @@ describe("scheduling", () => {
     expect(once).toBeGreaterThan(0);
     for (let frame = 0; frame < 60; frame++) scheduleEraserGuard(quiet.api, quiet.elements(), false);
     expect(checks()).toBe(once);
+    // The eraser picked on a frame of the same scene: checked, the terminal locked a frame later.
+    quiet.state.activeTool = { type: "eraser" };
+    scheduleEraserGuard(quiet.api, quiet.elements(), true);
+    expect(frames).toHaveLength(1);
+    frames.splice(0).forEach((callback) => callback(0));
+    expect(quiet.elements()[0].locked).toBe(true);
+    // And left on a frame of the locked scene: unlocked a frame later.
+    scheduleEraserGuard(quiet.api, quiet.elements(), true);
+    quiet.state.activeTool = { type: "selection" };
+    scheduleEraserGuard(quiet.api, quiet.elements(), false);
+    expect(frames).toHaveLength(1);
+    frames.splice(0).forEach((callback) => callback(0));
+    expect(quiet.elements()[0].locked).toBe(false);
     // The eraser picked: the nodes get locked on the next frame, then the locked scene needs nothing.
     const erasing = fakeApi([node("terminal", 0, 0)], "eraser");
     scheduleEraserGuard(erasing.api, erasing.elements(), true);
