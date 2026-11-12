@@ -40,7 +40,7 @@ const marked: string[] = [];
 beforeEach(() => {
   for (const id of Object.keys(scenes)) delete scenes[id];
   nodesStore.setState({ nodes: {} });
-  terminalStatusStore.setState({ statuses: {} });
+  terminalStatusStore.setState({ statuses: {}, restarts: {} });
 });
 afterEach(() => {
   for (const id of marked.splice(0)) markLaunching(id, false);
@@ -168,6 +168,25 @@ describe("runningSpawned", () => {
     expect(runningSpawned()).toBe(2);
     markLaunching("starfire", false);
     expect(runningSpawned()).toBe(1);
+  });
+
+  it("counts a sub-agent whose terminal is being started again: its old process's exit frees no seat (review 12 Nov)", () => {
+    status("batman", "running");
+    expect(runningSpawned()).toBe(1);
+    // As relaunchSession does: restarting from its call, then the old process's exit, as boot's pty-exit handler records it.
+    terminalStatusStore.getState().restart("batman", 1);
+    terminalStatusStore.getState().set("batman", { state: "exited", code: null });
+    expect(runningSpawned()).toBe(1);
+    // Its restart ended without a process (its spawn failed): its seat is free.
+    terminalStatusStore.getState().restart("batman", -1);
+    expect(runningSpawned()).toBe(0);
+  });
+
+  it("does not count a restarting sub-agent that has reported: its seat stays free", () => {
+    const done = { status: "done" as const, summary: "Reviewed." };
+    nodesStore.setState((s) => ({ nodes: { ...s.nodes, raven: { ...terminal("Raven", "robin"), payload: { ...terminal("Raven", "robin").payload, lastReport: done } } as NodeRecord } }));
+    terminalStatusStore.getState().restart("raven", 1);
+    expect(runningSpawned()).toBe(0);
   });
 
   it("frees the seat of a sub-agent that reported, though its terminal still runs", () => {

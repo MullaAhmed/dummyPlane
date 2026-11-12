@@ -938,6 +938,21 @@ describe("relaunch keeps the team within Max agents while the queue fills (revie
     });
   }
 
+  it("starts no second agent on a task whose agent is restarting: it still holds it through its old process's exit (review 12 Nov)", async () => {
+    // Seats to spare: only the duplicate guard keeps a second agent off "Login form".
+    const login = { title: "Login form", brief: "b", agent: "Batman", budgetMin: 20 };
+    await setup({ frameId: "f1", maxAgents: 4, plan: [login], members: [member("batman", "Batman", { task: "Login form" })], queue: [{ ...next, title: "Login form", brief: "b" }] });
+    agentActivityStore.getState().apply({ nodeId: "batman", activity: "working", since: 1 });
+    await pumpQueue("chef");
+    expect(created()).toEqual([]);
+    pty();
+    // Its old process gone, its new one not started yet: the queue moves meanwhile.
+    await restartByHand("batman", () => pumpQueue("chef"));
+    expect(isRunning("batman")).toBe(true);
+    expect(created()).toEqual([]);
+    expect(missionNow().queue?.map((t) => t.title)).toEqual(["Login form"]);
+  });
+
   it("lets the user restart stopped agents on a full team: the queue starts no one past Max agents, and the runner and the user hear it once (review 12 Nov)", async () => {
     // Batman and Cyborg at work, Max agents 2: full. Hulk and Flash stopped after their sub-task, holding no seat.
     await setup({

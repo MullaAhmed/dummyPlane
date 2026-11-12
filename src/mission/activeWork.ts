@@ -1,7 +1,7 @@
 import { atWork, isLaunching } from "@/agents/spawnFamily";
 import { spawnedTask } from "@/agents/taskSummary";
 import { nodeNameOf, nodesStore, terminalOf } from "@/store/nodes";
-import { statusOf } from "@/store/terminalStatus";
+import { isRestarting, statusOf } from "@/store/terminalStatus";
 import { findDuplicateWork, type ActiveWork, type Candidate, type WorkState } from "./duplicateTask";
 import { budgetOf, spentMin, type Member } from "./mission";
 import { agentState, missionOf } from "./store";
@@ -13,10 +13,14 @@ import { agentState, missionOf } from "./store";
  * Apart from `./queue`, which reads it.
  */
 
-/** An agent's state from its terminal and its activity: a stopped one holds no task; an idle one, its turn ended with no report, still does. */
+/**
+ * An agent's state from its terminal and its activity: a stopped one holds no task; an idle one, its turn ended with
+ * no report, still does. One whose terminal is being started again is starting on its task: its old process's exit
+ * does not free it for a second agent.
+ */
 function stateOf(nodeId: string, launching: boolean): WorkState {
   const status = statusOf(nodeId).state;
-  if (launching || status === "starting") return "starting";
+  if (launching || status === "starting" || isRestarting(nodeId)) return "starting";
   if (status !== "running") return "stopped";
   const state = agentState(nodeId);
   return state === "travaille" ? "working" : state === "attend" ? "waiting" : state === "arrêté" ? "stopped" : "idle";
