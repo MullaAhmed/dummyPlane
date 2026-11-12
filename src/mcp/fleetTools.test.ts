@@ -279,6 +279,36 @@ describe("relaunch", () => {
       expect(seatsHeld("chef")).toBe(0);
     });
 
+    it("refuses a second relaunch while the first is under way, in its gap and during its spawn: one spawn, never two (review 12 Nov)", async () => {
+      const answers: string[] = [];
+      let spawns = 0;
+      const once = new Set<string>();
+      // The Manager calls relaunch again, once at each moment of the first restart.
+      const again = async (moment: string) => {
+        if (once.has(moment)) return;
+        once.add(moment);
+        const result = await fleetTool("chef", "relaunch", { agent: "Sif" });
+        answers.push(result.isError ? result.content[0].text : "started");
+      };
+      mockIPC(async (cmd, args) => {
+        const nodeId = (args as { nodeId?: string }).nodeId ?? "";
+        if (cmd === "pty_kill") terminalStatusStore.getState().set(nodeId, { state: "exited", code: null });
+        if (cmd !== "pty_spawn") return undefined;
+        spawns += 1;
+        await again("spawn");
+        return 1;
+      });
+      vi.mocked(relaunchTerminal).mockImplementation((nodeId, payload, mode) => relaunchSession(nodeId, term, { ...payload, agent: "shell" }, mode, () => again("gap")));
+      try {
+        expect((await fleetTool("chef", "relaunch", { agent: "Sif" })).isError).not.toBe(true);
+      } finally {
+        vi.mocked(relaunchTerminal).mockImplementation(() => Promise.resolve());
+      }
+      const underWay = "Sif is already starting again: nothing to relaunch. Once it is up (team, read_output), write tells it what is left.";
+      expect(answers).toEqual([underWay, underWay]);
+      expect(spawns).toBe(1);
+    });
+
     it("frees the seat of a relaunch that fails", async () => {
       const counts: number[] = [];
       restartLikeTheApp(counts, () => {
