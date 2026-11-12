@@ -6,6 +6,7 @@ import { notify } from "@/mission/events";
 import { oneLine, type ReportStatus } from "@/mission/mission";
 import { finishMissionCard, flagMissionCard } from "@/kanban/fleetBoards";
 import { afterReport } from "@/mission/queue";
+import { LEVELS } from "@/mission/router";
 import { isFleetClosed, memberOf, missionOf, missionRunner, updateMember } from "@/mission/store";
 import { spawnAgent } from "@/agents/spawn";
 import { markReported, MAX_SPAWN_DEPTH, spawnedByOf } from "@/agents/spawnFamily";
@@ -74,6 +75,7 @@ export function spawnAgentSpec(fleet = false) {
         task: { type: "string", description: d.spawnTask },
         title: { type: "string", maxLength: 60, description: d.spawnTitle },
         model: { type: "string", description: d.spawnModel },
+        level: { type: "string", enum: Object.values(LEVELS).map((l) => l.label), description: d.spawnLevel },
       },
       required: ["task"],
     },

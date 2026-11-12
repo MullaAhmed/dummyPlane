@@ -102,10 +102,10 @@ export const canvasMessages = defineMessages(
       account: "Account",
       // The model router, a switch of the first group: it applies at once and is no launch setting, so it never offers a restart.
       modelRouter: "Model router",
-      // Under a Fleet's switch: it routes the whole team of its mission.
-      modelRouterFleet: `Each agent of its team takes the model of its sub-task's level: ${ROUTER_LEVELS}`,
-      // Under a terminal's switch, on: a sub-task a Fleet gives it, with its level; one without a level leaves its model as it is.
-      modelRouterAgent: `With it on, a sub-task a Fleet gives it starts it on the model of its level: ${ROUTER_LEVELS}. A sub-task with no level leaves its model as it is`,
+      // Under a Fleet's switch: it routes the whole team of its mission, and the sub-agents the Fleet opens with spawn_agent.
+      modelRouterFleet: `Each agent of its team, and each sub-agent it opens, takes the model of its task's level: ${ROUTER_LEVELS}`,
+      // Under a terminal's switch, on: a sub-task a Fleet gives it, with its level; one without a level leaves its model as it is. Its spawn_agent sub-agents too.
+      modelRouterAgent: `With it on, a sub-task a Fleet gives it starts it on the model of its level, and so does each sub-agent it opens: ${ROUTER_LEVELS}. A sub-task with no level leaves its model as it is`,
       remoteControl: "Remote Control",
       // Beside its box: where Remote Control stands; it applies to a running session at once.
       remoteStates: { on: "On", connecting: "Connecting…", pending: "At the end of its turn", requested: "Requested", nextStart: "At next start" },

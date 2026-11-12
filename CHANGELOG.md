@@ -16,6 +16,9 @@ dummyPlane's first release will be 0.1.0; until then, its changes are listed und
 ### Changed
 - **The model router's `extreme` level runs Claude Fable 5.2,** the Fable the Edit tab offers, instead of Fable 5.1. The router's levels and the Edit tab's models now come from one table. A terminal still on an older Claude model names it by family and version, for example "Fable 5.1".
 
+### Fixed
+- **The model router now picks the model of sub-agents opened with `spawn_agent`.** Before, a Fleet with its router on still opened every `spawn_agent` sub-agent on the model it named, or on your own default model when it named none. With the router on, the model now comes from the sub-agent's new `level` (`low`, `medium`, `high` or `extreme`), and is `medium` when no level and no model are given. The tool's answer says which model the sub-agent got. With the router off, nothing changes.
+
 ## [0.1.0] - 2026-11-12
 
 ### Added

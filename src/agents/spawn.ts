@@ -5,11 +5,13 @@ import { signalWire } from "@/canvas/wireActivity";
 import { messages } from "@/i18n";
 import { ptySendText, ptyWrite } from "@/ipc/pty";
 import { agentMessages } from "@/mcp/messages";
+import { outLevel } from "@/mcp/protocol";
 import { duplicateWork } from "@/mission/activeWork";
 import { notify } from "@/mission/events";
 import { oneLine } from "@/mission/mission";
 import { missionFolder } from "@/mission/folder";
 import { whenReady } from "@/mission/ready";
+import { modelLabel, readLevel } from "@/mission/router";
 import { workspaceCanvas } from "@/mission/store";
 import { newTerminalPayload } from "@/nodes/terminal/launch";
 import { freshText, quietFor } from "@/nodes/terminal/registry";
@@ -20,6 +22,7 @@ import { quietly } from "./arrivals";
 import { NODE_GAP } from "./groupLayout";
 import { nameForNewAgent } from "./naming";
 import { sceneAccess } from "./sceneAccess";
+import { spawnModel } from "./spawnModel";
 import { MAX_SPAWN_DEPTH, markLaunching, runningSpawned, spawnDepth } from "./spawnFamily";
 import { reflowSpawnTree } from "./spawnTree";
 import { clip, taskSummary } from "./taskSummary";
@@ -44,6 +47,8 @@ export interface SpawnArgs {
   task?: unknown;
   title?: unknown;
   model?: unknown;
+  /** The task's difficulty, as `@/mcp/protocol` hands it (`faible`…): with the spawner's router on, it picks the model. */
+  niveau?: unknown;
 }
 
 /** What spawn_agent answers: a text for the agent, an error when it refused. */
@@ -108,6 +113,8 @@ async function spawnNow(parentId: string, args: SpawnArgs): Promise<SpawnResult>
   if (!task) return refuse(t().task);
   const model = typeof args.model === "string" ? args.model.trim() : "";
   if (model && !MODEL.test(model)) return refuse(t().model(model));
+  const level = args.niveau === undefined ? undefined : readLevel(args.niveau);
+  if (args.niveau !== undefined && !level) return refuse(t().level(String(args.niveau)));
   const record = nodesStore.getState().nodes[parentId];
   const parent = spawnerOf(record, parentId);
   if (!record || !parent) return refuse(t().gone);
@@ -129,8 +136,12 @@ async function spawnNow(parentId: string, args: SpawnArgs): Promise<SpawnResult>
   const name = await nameForNewAgent(workspaceId, group?.group.pantheon);
   // Right of the parent, NODE_GAP apart; addTerminal then moves it clear of any neighbour.
   const center = { x: element.x + element.width * 1.5 + NODE_GAP, y: element.y + element.height / 2 };
+  const payload = childPayload(parent, parentId, name, titleOf(args.title, task), undefined, task);
+  // The spawner's model router, when on, chooses the model from the task's level (`./spawnModel`).
+  const routed = spawnModel(record, payload.agent, { model, level });
+  if (routed.model) payload.model = routed.model;
   // It arrives on its own: the user may be typing, so it neither scrolls the view nor takes the keyboard.
-  const childId = await addTerminal(workspaceId, childPayload(parent, parentId, name, titleOf(args.title, task), model || undefined, task), center, group?.id ?? null, quietly("spawn"));
+  const childId = await addTerminal(workspaceId, payload, center, group?.id ?? null, quietly("spawn"));
   if (!childId) return refuse(t().failed);
   markLaunching(childId, true);
   const now = sceneAccess(workspaceId);
@@ -138,7 +149,7 @@ async function spawnNow(parentId: string, args: SpawnArgs): Promise<SpawnResult>
   // Element, spawnedBy and wire all there: the tree takes its flowchart layout, the wire rerouted.
   reflowSpawnTree(workspaceId, childId);
   void deliver(parentId, childId, name, t().brief(parent.name || "your parent agent", task));
-  return { text: t().spawned(name) };
+  return { text: t().spawned(name, routed.model && modelLabel(routed.model), routed.level && outLevel(routed.level)) };
 }
 
 /** Types the task into the sub-agent once its Claude is up, as a mission's `assign` does; its parent hears of a failure. */

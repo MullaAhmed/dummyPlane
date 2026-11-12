@@ -36,7 +36,8 @@ export const agentMessages = defineMessages({
         `A sub-agent can spawn its own, ${depth} levels below you at most; the number running at once is capped by a setting.`,
       spawnTask: "The complete instructions: the sub-agent starts from nothing and knows only this.",
       spawnTitle: "A short title for its terminal.",
-      spawnModel: "Optional Claude model (opus, sonnet, haiku, or a model id); by default Claude's own.",
+      spawnModel: "Optional Claude model (opus, sonnet, haiku, or a model id); by default Claude's own. With your model router on, a level chooses instead.",
+      spawnLevel: `Optional difficulty of the task. With your model router on (a Fleet's switch, or your terminal's own), it chooses the sub-agent's model: ${ROUTER_LEVELS}; over a model named, and medium when you name neither. With the router off it changes nothing.`,
       linkedAgents:
         "The agents linked to yours by a wire on the canvas (the user draws one with \"+ Link\" under a terminal; spawn_agent's wire to a sub-agent counts too) and, in a mission its Manager runs, your Manager and your teammates, and the Fleet the user linked you to (relation \"fleet\": message_agent reaches it, hand_off hands it a task, read_agent does not read it): name, id, state and relation. Only these can be messaged or read; the first message to one with no wire draws one.",
       messageAgent:
@@ -140,6 +141,7 @@ export const agentMessages = defineMessages({
     spawn: {
       task: "Give the sub-agent its task (task): the complete instructions.",
       model: (model: string) => `Unknown model "${model}": opus, sonnet, haiku, or a model id.`,
+      level: (level: string) => `Unknown level "${level}": low, medium, high or extreme.`,
       gone: "Your terminal is no longer on the canvas.",
       noCanvas: "Your workspace's canvas is not loaded: open it in dummyPlane, then try again.",
       tooDeep: (max: number) => `Too deep: a sub-agent can only be spawned ${max} levels below a top agent. Do this task yourself.`,
@@ -147,7 +149,8 @@ export const agentMessages = defineMessages({
         `${plural(running, "sub-agent is", "sub-agents are")} already running, the most at once is ${max} (dummyPlane's Settings). Wait for one to report, or do this task yourself.`,
       failed: "The sub-agent's terminal could not be created.",
       duplicate: (who: Holder) => `${holder(who)} Message or read that agent instead of starting another.`,
-      spawned: (name: string) => `${name} opened beside you and gets the task as soon as its Claude is ready. Its report will be typed into your terminal: carry on, do not wait for it.`,
+      spawned: (name: string, model?: string, level?: string) =>
+        `${name} opened beside you${model ? ` on ${model}${level ? ` (your model router's ${level} level)` : ""}` : ""} and gets the task as soon as its Claude is ready. Its report will be typed into your terminal: carry on, do not wait for it.`,
       brief: (parent: string, task: string) =>
         `[dummyPlane · sub-agent of ${parent}] ${task}\n\nWhen you are done, commit if you changed files, then call report (summary, status): ${parent} reads it.`,
       notStarted: (name: string) => `${name} did not start: its task is not sent.`,

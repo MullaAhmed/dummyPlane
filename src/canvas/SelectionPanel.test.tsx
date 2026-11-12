@@ -1555,7 +1555,7 @@ describe("the model router's switch in the Edit tab", () => {
     expect(document.activeElement).toBe(sw);
     expect(host.querySelector(`label[for="${sw.id}"]`)?.textContent).toBe("Model router");
     const hint = document.getElementById(sw.getAttribute("aria-describedby")!)!;
-    expect(hint.textContent).toBe(`With it on, a sub-task a Fleet gives it starts it on the model of its level: ${ROUTER_LEVELS}. A sub-task with no level leaves its model as it is`);
+    expect(hint.textContent).toBe(`With it on, a sub-task a Fleet gives it starts it on the model of its level, and so does each sub-agent it opens: ${ROUTER_LEVELS}. A sub-task with no level leaves its model as it is`);
     await act(async () => sw.click());
     expect(terminalPayload().router).toBe(true);
     expect(routerSwitch()!.getAttribute("aria-checked")).toBe("true");
@@ -1583,7 +1583,7 @@ describe("the model router's switch in the Edit tab", () => {
     const sw = routerSwitch()!;
     expect(sw).not.toBeNull();
     expect(sw.getAttribute("aria-checked")).toBe("false");
-    expect(document.getElementById(sw.getAttribute("aria-describedby")!)?.textContent).toBe(`Each agent of its team takes the model of its sub-task's level: ${ROUTER_LEVELS}`);
+    expect(document.getElementById(sw.getAttribute("aria-describedby")!)?.textContent).toBe(`Each agent of its team, and each sub-agent it opens, takes the model of its task's level: ${ROUTER_LEVELS}`);
     await act(async () => sw.click());
     expect(fleetOf().mission?.router).toBe(true);
     expect(routerSwitch()!.getAttribute("aria-checked")).toBe("true");
