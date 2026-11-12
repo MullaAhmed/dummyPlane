@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { arrangedElements, columnOrder, readingOrder, type ArrangeInput } from "./arrange";
 import { ARRANGE_LAYOUTS, columnHeightsOf, type ArrangeLayout } from "./arrangeLayout";
-import { COLUMN_GAP, GROUP_GAP, MAX_ROWS, NODE_GAP, PADDING, PADDING_BOTTOM, PADDING_TOP, ROW_GAP } from "./groupLayout";
+import { anchorsOf } from "./attachments";
+import { COLUMN_GAP, GROUP_GAP, MAX_ROWS, NODE_GAP, overlap, PADDING, PADDING_BOTTOM, PADDING_TOP, ROW_GAP } from "./groupLayout";
 
 const W = 720;
 const H = 440;
@@ -332,6 +333,18 @@ describe("arrange layouts", () => {
     });
   }
 
+  it("leaves no block over another on the whole canvas, in every layout: Arrange of everything, and Auto-arrange, lay every block out", () => {
+    for (const layout of ARRANGE_LAYOUTS) {
+      for (const aspect of [16 / 10, 1 / 2, 4]) {
+        const { elements, rest } = mixed();
+        const result = arrangedElements(input(elements, { ...rest, layout, aspect }));
+        // Every node and frame outside frames (the drawing s, outside frames, stays where it is, as ever).
+        const top = result!.elements.filter((e) => e.frameId === null && (e.type === "frame" || e.customData?.kind !== undefined));
+        for (const a of top) for (const b of top) if (a !== b) expect(overlap(a, b), `${layout} ${aspect} ${a.id} ${b.id}`).toBe(0);
+      }
+    }
+  });
+
   it("lays the grid out as before: the grid asked for is the default", () => {
     const { elements, rest } = mixed();
     for (const aspect of [16 / 10, 1 / 2, 4]) {
@@ -390,5 +403,206 @@ describe("arrange scope", () => {
     for (const only of [["a", "b"], ["a"], []]) {
       expect(geometry(arrangedElements(input(elements(), { only, scope: "auto" }))), only.join()).toEqual(geometry(arrangedElements(input(elements(), { only }))));
     }
+  });
+});
+
+describe("a group's Arrange makes room", () => {
+  /** A group of four terminals in the grid's one column, as the grid leaves it, its corner at (0, 0). */
+  const columnWidth = 2 * PADDING + W;
+  const columnHeight = PADDING_TOP + 4 * H + 3 * ROW_GAP + PADDING_BOTTOM;
+  const column = () => [frame("g", 0, 0, columnWidth, columnHeight), ...[0, 1, 2, 3].map((i) => node(`m${i}`, PADDING, PADDING_TOP + i * (H + ROW_GAP), { frameId: "g" }))];
+  /** The frame "One row" makes of the same four. */
+  const rowWidth = 2 * PADDING + 4 * W + 3 * COLUMN_GAP;
+  const rowHeight = PADDING_TOP + H + PADDING_BOTTOM;
+  /** The same four already in one row. */
+  const row = () => [frame("g", 0, 0, rowWidth, rowHeight), ...[0, 1, 2, 3].map((i) => node(`m${i}`, PADDING + i * (W + COLUMN_GAP), PADDING_TOP, { frameId: "g" }))];
+
+  /** A quick note beside `host`, as src/nodes/note writes it. */
+  const quickNote = (id: string, host: string, x: number, y: number) =>
+    node(id, x, y, { width: 280, height: 200, link: `dummyplane://note/${id}`, customData: { kind: "note", note: { of: host, x: "right", dx: 16, y: "top", dy: 0 } } });
+  /** An item attached to `anchor` (`customData.attachedTo`), as an output is to its agent: it moves with it, and nothing re-seats it afterwards. */
+  const attachedItem = (id: string, anchor: string, x: number, y: number) =>
+    node(id, x, y, { width: 560, height: 520, link: `dummyplane://output/${id}`, customData: { kind: "output", attachedTo: anchor } });
+
+  /** The group's Arrange (its frame's ring, or the group selected): `only` the group. */
+  const arrange = (elements: ExcalidrawElement[], rest: Partial<ArrangeInput> = {}) => arrangedElements(input(elements, { attachedTo: anchorsOf(elements), only: ["g"], ...rest }));
+  const offset = (result: ReturnType<typeof arrangedElements>, a: string, b: string) => ({ x: at(result, b).x - at(result, a).x, y: at(result, b).y - at(result, a).y });
+  /** `element` left as it was: the very same object, not a moved copy. */
+  const same = (result: ReturnType<typeof arrangedElements>, element: ExcalidrawElement) => expect(result!.elements.find((e) => e.id === element.id), element.id).toBe(element);
+
+  it("pushes a neighbour the One-row frame now covers out of its way, with its quick note and its output", () => {
+    const below = node("below", 0, columnHeight + GROUP_GAP);
+    const elements = [
+      ...column(),
+      node("n", columnWidth + GROUP_GAP, 0),
+      quickNote("q", "n", columnWidth + GROUP_GAP + W + 16, 0),
+      attachedItem("o", "n", columnWidth + GROUP_GAP, H + ROW_GAP),
+      below,
+    ];
+    const result = arrange(elements, { layout: "row" });
+    const g = at(result, "g");
+    expect(g).toEqual({ x: 0, y: 0, width: rowWidth, height: rowHeight });
+    // Clear of the grown frame, on the side it stood, by the gap canvas Arrange keeps beside a group (more than NODE_GAP).
+    const n = at(result, "n");
+    expect(n.x - (g.x + g.width)).toBeGreaterThanOrEqual(NODE_GAP);
+    expect(n).toMatchObject({ x: rowWidth + GROUP_GAP, y: 0 });
+    // What is attached to it went with it.
+    expect(offset(result, "n", "o")).toEqual({ x: 0, y: H + ROW_GAP });
+    expect(offset(result, "n", "q")).toEqual({ x: W + 16, y: 0 });
+    for (const id of ["n", "q", "o"]) expect(overlap(at(result, id), g), id).toBe(0);
+    expect(result!.movedNodeIds.has("n")).toBe(true);
+    // The row frame is shorter than the column was: what stood under it is in nobody's way.
+    same(result, below);
+  });
+
+  it("leaves a neighbour the frame does not reach exactly where it stands", () => {
+    const below = node("below", 0, columnHeight + GROUP_GAP);
+    const beyond = node("beyond", rowWidth + 10, 0);
+    const result = arrange([...column(), below, beyond], { layout: "row" });
+    expect(at(result, "g")).toMatchObject({ width: rowWidth, height: rowHeight });
+    same(result, below);
+    same(result, beyond);
+    expect(result!.movedNodeIds.has("beyond")).toBe(false);
+  });
+
+  it("gives the grid layout today's result: a frame that grew into nothing moves nothing else", () => {
+    // Four terminals out of place in a big frame, about one column (m0 to m3 top to bottom); the grid makes it a column, narrower and shorter.
+    const messy = () => [
+      frame("g", 0, 0, 3000, 3000),
+      node("m0", 40, 60, { frameId: "g" }),
+      node("m1", 100, 900, { frameId: "g" }),
+      node("m2", 60, 1500, { frameId: "g" }),
+      node("m3", 150, 2400, { frameId: "g" }),
+    ];
+    const right = node("right", 3000 + GROUP_GAP, 0);
+    // A loose terminal the frame already covered part of: the column covers less of it, so it stays, as today.
+    const over = node("over", columnWidth - 100, 1000);
+    const alone = arrange(messy(), { layout: "grid" });
+    const result = arrange([...messy(), right, over], { layout: "grid" });
+    expect(at(result, "g")).toEqual({ x: 0, y: 0, width: columnWidth, height: columnHeight });
+    [0, 1, 2, 3].forEach((i) => expect(at(result, `m${i}`)).toMatchObject({ x: PADDING, y: PADDING_TOP + i * (H + ROW_GAP) }));
+    expect(geometry(result).filter((e) => e.id !== "right" && e.id !== "over")).toEqual(geometry(alone));
+    same(result, right);
+    same(result, over);
+    expect(result!.movedNodeIds).toEqual(new Set(["g", "m0", "m1", "m2", "m3"]));
+  });
+
+  it("moves nothing the second time, in every layout", () => {
+    for (const layout of ARRANGE_LAYOUTS) {
+      for (const [name, start, width, height] of [
+        ["column", column, columnWidth, columnHeight],
+        ["row", row, rowWidth, rowHeight],
+      ] as const) {
+        // Beside the frame: a terminal with its quick note, then another one; under it, a third.
+        const elements = [
+          ...start(),
+          node("n", width + GROUP_GAP, 0),
+          quickNote("q", "n", width + GROUP_GAP + W + 16, 0),
+          node("c", width + GROUP_GAP + W + 16 + 280 + NODE_GAP, 0),
+          node("d", 0, height + GROUP_GAP),
+        ];
+        const first = arrange(elements, { layout });
+        expect(arrange(first ? first.elements : elements, { layout }), `${layout} from a ${name}`).toBeNull();
+      }
+    }
+  });
+
+  it("pushes on down the chain: a pushed neighbour pushes the one it lands on, the same way", () => {
+    // b stands beside the column; c past where the row frame ends, which the frame never reaches: b lands on it.
+    const b = node("b", columnWidth + GROUP_GAP, 0);
+    const c = node("c", rowWidth + 100, 0);
+    const dx = rowWidth + GROUP_GAP + W + NODE_GAP + W + 200;
+    const d = node("d", dx, 0);
+    const result = arrange([...column(), b, c, d], { layout: "row" });
+    expect(at(result, "b")).toMatchObject({ x: rowWidth + GROUP_GAP, y: 0 });
+    // Right of b, as it stood, a node's gap from it (two lone terminals: NODE_GAP, as canvas Arrange keeps them).
+    expect(at(result, "c")).toMatchObject({ x: rowWidth + GROUP_GAP + W + NODE_GAP, y: 0 });
+    // d is in nobody's way once c has moved: it stays.
+    same(result, d);
+  });
+
+  it("keeps the order and the gaps of a row of neighbours it covers", () => {
+    const xs = [0, 1, 2].map((i) => columnWidth + GROUP_GAP + i * (W + NODE_GAP));
+    const result = arrange([...column(), ...xs.map((x, i) => node(`r${i}`, x, 0))], { layout: "row" });
+    [0, 1, 2].forEach((i) => expect(at(result, `r${i}`), `r${i}`).toMatchObject({ x: rowWidth + GROUP_GAP + i * (W + NODE_GAP), y: 0 }));
+  });
+
+  it("pushes down what stands under a frame One column makes taller, and leaves what stood beside it", () => {
+    const under = node("under", 0, rowHeight + GROUP_GAP);
+    const beside = node("beside", rowWidth + GROUP_GAP, 0);
+    const result = arrange([...row(), under, beside], { layout: "column" });
+    expect(at(result, "g")).toEqual({ x: 0, y: 0, width: columnWidth, height: columnHeight });
+    expect(at(result, "under")).toMatchObject({ x: 0, y: columnHeight + GROUP_GAP });
+    same(result, beside);
+  });
+
+  it("makes room for an output that rides right with the frame's side, as well as for the frame", () => {
+    // m0's output stands right of the frame, outside it: it goes right as far as the frame grows, and lands where n stood beyond it.
+    const ox = columnWidth + GROUP_GAP;
+    const nx = ox + 560 + GROUP_GAP;
+    const elements = [...column(), attachedItem("o", "m0", ox, 0), node("n", nx, 0)];
+    const result = arrange(elements, { layout: "row" });
+    const g = at(result, "g");
+    expect(at(result, "o")).toMatchObject({ x: ox + rowWidth - columnWidth, y: 0 });
+    // n stood right of the output: right of it again, a group's gap from it (the output is the group's).
+    expect(at(result, "n")).toMatchObject({ x: at(result, "o").x + 560 + GROUP_GAP, y: 0 });
+    for (const id of ["o", "n"]) expect(overlap(at(result, id), g), id).toBe(0);
+    expect(overlap(at(result, "n"), at(result, "o"))).toBe(0);
+    expect(arrange(result!.elements, { layout: "row" })).toBeNull();
+  });
+
+  it("settles a pile of neighbours the frame grows over: all clear of it, none covering more of another than before", () => {
+    // A pile the user left beside the column, each terminal on the one before it.
+    const pile = [0, 1, 2, 3, 4].map((i) => node(`p${i}`, columnWidth + GROUP_GAP + 10 * i, 10 * i));
+    const result = arrange([...column(), ...pile], { layout: "row" });
+    const g = at(result, "g");
+    for (const p of pile) expect(overlap(at(result, p.id), g), p.id).toBe(0);
+    for (const p of pile) for (const q of pile) if (p !== q) expect(overlap(at(result, p.id), at(result, q.id)), `${p.id} ${q.id}`).toBeLessThanOrEqual(overlap(p, q));
+    expect(at(result, "p0")).toMatchObject({ x: rowWidth + GROUP_GAP, y: 0 });
+    expect(arrange(result!.elements, { layout: "row" })).toBeNull();
+  });
+
+  it("moves another group it covers whole: its frame, its members and the drawings in it", () => {
+    const hx = columnWidth + GROUP_GAP;
+    const elements = [
+      ...column(),
+      frame("h", hx, 0, 2 * PADDING + W, PADDING_TOP + H + ROW_GAP + 50 + PADDING_BOTTOM),
+      node("h1", hx + PADDING, PADDING_TOP, { frameId: "h" }),
+      shape("hs", hx + PADDING, PADDING_TOP + H + ROW_GAP, { frameId: "h" }),
+    ];
+    const result = arrange(elements, { layout: "row" });
+    const dx = rowWidth + GROUP_GAP - hx;
+    expect(at(result, "h")).toMatchObject({ x: hx + dx, y: 0 });
+    expect(at(result, "h1")).toMatchObject({ x: hx + PADDING + dx, y: PADDING_TOP });
+    expect(at(result, "hs")).toMatchObject({ x: hx + PADDING + dx, y: PADDING_TOP + H + ROW_GAP });
+    expect(result!.movedNodeIds).toEqual(new Set(["m1", "m2", "m3", "g", "h", "h1"]));
+  });
+});
+
+describe("Arrange of a selection makes room", () => {
+  /** Three terminals one under the other at x 0, a terminal beside the first, and one far off; reading order a, u, b, c. */
+  const scene = () => [node("a", 0, 0), node("b", 0, H + ROW_GAP), node("c", 0, 2 * (H + ROW_GAP)), node("u", W + GROUP_GAP, 0), node("far", 9000, 9000)];
+  const same = (result: ReturnType<typeof arrangedElements>, id: string, elements: readonly ExcalidrawElement[]) =>
+    expect(result!.elements.find((e) => e.id === id), id).toBe(elements.find((e) => e.id === id));
+
+  for (const scope of ["auto", "selection"] as const) {
+    it(`pushes the terminal left out that One row now covers past the row, a node's gap from it (${scope})`, () => {
+      const elements = scene();
+      const result = arrangedElements(input(elements, { only: ["a", "b", "c"], scope, layout: "row" }));
+      [0, 1, 2].forEach((i) => expect(at(result, "abc"[i])).toMatchObject({ x: i * (W + NODE_GAP), y: 0 }));
+      // It stood right of them: it goes right, past c, the last one to cover it.
+      expect(at(result, "u")).toMatchObject({ x: 3 * (W + NODE_GAP), y: 0 });
+      same(result, "far", elements);
+      expect(arrangedElements(input(result!.elements, { only: ["a", "b", "c"], scope, layout: "row" }))).toBeNull();
+    });
+  }
+
+  it("leaves what the selection does not reach where it stands, in the grid as before", () => {
+    // The grid packs the three in two rows, a and b side by side: u, further right, is in nobody's way, nor is far.
+    const elements = [...scene().filter((e) => e.id !== "u"), node("u", 3 * (W + GROUP_GAP), 0)];
+    const result = arrangedElements(input(elements, { only: ["a", "b", "c"], layout: "grid" }));
+    expect(at(result, "b")).toMatchObject({ x: W + NODE_GAP, y: 0 });
+    same(result, "u", elements);
+    same(result, "far", elements);
   });
 });

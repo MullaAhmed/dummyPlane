@@ -202,7 +202,7 @@ export const CURRENT: readonly Command[] = [
       await addFleetToGroup(id);
     }),
   }),
-  // Its members laid out again inside its frame, which stays where it is (scene.arrange of the group alone). One undo.
+  // Its members laid out again inside its frame, which stays where it is (scene.arrange of the group alone); what the frame grows over moves out of its way. One undo.
   command("group.arrange", {
     section: groupSection,
     available: hasGroup,

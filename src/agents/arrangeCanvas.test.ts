@@ -89,6 +89,28 @@ describe("arrangeWorkspace", () => {
     expect(row.k.x).toBeGreaterThan(row.t.x);
   });
 
+  it("makes room for a group One row widens in the same undoable step: the neighbour it would cover moves with it", () => {
+    const { width: w, height: h } = NODE_SIZE.terminal;
+    // A group of two terminals, one under the other, and a terminal beside it, which the row would cover.
+    const grouped = () => [
+      element("g", "frame", 0, 0, 2 * 32 + w, 48 + 2 * h + 56 + 56, { customData: { dummyplane: { kind: "group", role: "general", pantheon: "olympus" } } }),
+      node("t1", "terminal", 32, 48),
+      node("t2", "terminal", 32, 48 + h + 56),
+      element("n", "embeddable", 2 * 32 + w + 96, 0, w, h, { customData: { kind: toStoredKind("terminal") } }),
+    ];
+    arrangeLayoutStore.setState({ layout: "row" });
+    scene = grouped();
+    expect(arrangeWorkspace("w", { only: ["g"], undoable: true })).toBe(true);
+    expect(updateScene).toHaveBeenCalledTimes(1);
+    const { elements, captureUpdate } = updateScene.mock.calls[0][0] as { elements: ExcalidrawElement[]; captureUpdate: string };
+    expect(captureUpdate).toBe("IMMEDIATELY");
+    const now = where(elements);
+    expect(now.t2).toMatchObject({ y: now.t1.y });
+    expect(now.n.x).toBeGreaterThanOrEqual(now.g.x + now.g.width + NODE_GAP);
+    // Undo restores the scene before it, the neighbour included.
+    expect(where(scene).n).toEqual({ x: 2 * 32 + w + 96, y: 0, width: w, height: h });
+  });
+
   it("passes the scope on: the whole canvas whatever is selected, or the selection alone", () => {
     scene = looseTerminals();
     arrangeWorkspace("w", { undoable: true });
