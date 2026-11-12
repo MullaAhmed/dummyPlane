@@ -47,6 +47,10 @@ export const canvasMessages = defineMessages(
       folder: "Folder",
       // Under the folder, while Claude runs in another one (started by hand after a `cd`): the lists show that folder's.
       runningFolder: (folder: string) => `Claude is running in ${folder}`,
+      // Under that note, unless the folder is fixed: that folder becomes the terminal's, on the conversation Claude runs
+      // there; nothing restarts. Then said once (a move says "new conversation"; this one keeps it).
+      adoptFolder: (folder: string) => `Make ${folder} this terminal's folder`,
+      folderAdopted: (folder: string) => `${folder} is this terminal's folder now: its next launch resumes the conversation running there`,
       copyPath: "Copy the path",
       pathCopied: "Path copied",
       copyPathFailed: "Could not copy the path",
@@ -158,6 +162,9 @@ export const canvasMessages = defineMessages(
         agents: "Claude Code's built-in subagents aren't listed here",
       },
       appliesOnRestart: "Changes apply when the terminal restarts",
+      // Under the lists of the folder Claude runs in, started by hand, instead: a choice is kept on the terminal by name
+      // and read at its next launch, in its saved folder. A name that folder lacks changes nothing there, harmlessly.
+      liveChoice: (saved: string) => `Saved by name for the next launch, which starts in ${saved}: only items of the same name change there`,
       appliesOnRestartFleet: "Changes apply when the fleet restarts",
       // Beside "Restart now": the running session still has the choices it started with.
       runningOldChoice: "Running with the old choices",

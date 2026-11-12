@@ -36,7 +36,7 @@ import { formatTokens } from "@/usage/usage";
 import { useNodeSession } from "@/usage/usageStore";
 import { IconButton } from "@/shell/buttons";
 import { ExtensionList, folderName, QUIET_BOX, useClaudeExtensions, useClaudeFolder, type ExtensionKind } from "./ExtensionList";
-import { announceFolderMove, restartTerminal } from "./folderMove";
+import { adoptLiveFolder, announceFolderMove, restartTerminal } from "./folderMove";
 import { canvasMessages } from "./messages";
 import { keepCanvasFocus } from "./PanelAction";
 import { useFolderMove, useLaunchRestartPending, useStartedLaunch, type FolderMove } from "./startedLaunch";
@@ -149,7 +149,7 @@ export function TerminalEdit({ nodeId, onFold }: { nodeId: string; onFold: () =>
             </PanelTabsContent>
             {KINDS.map((kind) => (
               <PanelTabsContent key={kind} value={kind} className="min-h-0 flex-1">
-                <ExtensionList nodeId={nodeId} kind={kind} cwd={folder} choice={session.extensions} lists={lists} onRetry={retry} />
+                <ExtensionList nodeId={nodeId} kind={kind} cwd={folder} saved={live ? session.cwd : null} choice={session.extensions} lists={lists} onRetry={retry} />
               </PanelTabsContent>
             ))}
           </PanelTabs>
@@ -186,7 +186,8 @@ function General({ nodeId, record, session, liveFolder }: { nodeId: string; reco
   const ids = { name: useId(), model: useId(), permission: useId(), account: useId(), shell: useId(), command: useId() };
   const ownModel = useOwnModelLabel(nodeId, session, running);
   // Under the folder: why it is fixed, and while Claude runs in another one (started by hand after a `cd`), which:
-  // the lists follow it, the next launch doesn't. Not the folder it was moved from: the notice above says that one.
+  // the lists follow it, the next launch doesn't, unless that folder is made the terminal's (a folder that is fixed
+  // stays). Not the folder it was moved from: the notice above says that one.
   const fixedFolder = lock && (lock === "fleet" ? t.folderFleet : t.folderMission);
   const otherFolder = liveFolder && !(folderMove && sameFolder(liveFolder, folderMove.from)) ? liveFolder : null;
   const folderNote = (fixedFolder || otherFolder) && (
@@ -196,6 +197,20 @@ function General({ nodeId, record, session, liveFolder }: { nodeId: string; reco
         <span data-running-folder title={otherFolder} className="block">
           {t.runningFolder(folderName(otherFolder))}
         </span>
+      )}
+      {otherFolder && !lock && (
+        // As quiet as "Change…"; its label wraps rather than lose the folder's name.
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          title={otherFolder}
+          onMouseDown={keepCanvasFocus}
+          onClick={() => adoptLiveFolder(nodeId, otherFolder)}
+          className="mt-1 h-auto min-h-7 max-w-full justify-start py-1 text-left text-xs font-normal whitespace-normal text-dp-text-2 hover:text-dp-text"
+        >
+          {t.adoptFolder(folderName(otherFolder))}
+        </Button>
       )}
     </>
   );

@@ -8,8 +8,12 @@ import { accountsStore } from "@/accounts/store";
 import { TerminalOptionsDialog } from "@/nodes/terminal/TerminalOptionsDialog";
 import { disposeTerminal, resumeTerminal } from "@/nodes/terminal/registry";
 import type { TerminalPayload } from "@/nodes/types";
+import { agentActivityStore } from "@/store/agentActivity";
 import { nodesStore, terminalOf } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
+import type { SessionUsage } from "@/usage/usage";
+import { usageStore } from "@/usage/usageStore";
+import { restartTerminal } from "./folderMove";
 import { TerminalEdit } from "./TerminalEdit";
 
 // The real registry and session: a restart kills the process, waits for its exit and spawns the new one through IPC.
@@ -59,7 +63,7 @@ const claudeIn = (cwd: string, patch: Partial<TerminalPayload> = {}): TerminalPa
   ...patch,
 });
 
-type Spec = { cwd: string; claude?: { sessionId: string } };
+type Spec = { cwd: string; claude?: { mode: string; sessionId: string } };
 let spawns: Spec[];
 let host: HTMLDivElement;
 let root: Root | undefined;
@@ -92,6 +96,8 @@ afterEach(async () => {
   vi.restoreAllMocks();
   nodesStore.setState({ nodes: {} });
   terminalStatusStore.setState({ statuses: {} });
+  agentActivityStore.setState({ activities: {} });
+  usageStore.setState({ sessions: {}, launchedAt: {} });
   accountsStore.setState({ profiles: [], active: null, loaded: false, unread: false });
   document.body.replaceChildren();
 });
@@ -279,5 +285,114 @@ it("offers the restart again after a webview reload, while its process still run
   // Once it no longer runs, nothing is offered.
   await React.act(async () => fresh.statuses.getState().set("t1", { state: "exited", code: 0 }));
   expect(notice()).toBeNull();
+  await React.act(async () => reloaded.unmount());
+});
+
+// A `claude` started by hand in the shell after a `cd`: its status line says where it runs, and on which conversation.
+const HAND_STARTED = "6c1f0e2a-3b4d-4e5f-8a9b-0c1d2e3f4a5b";
+const runningNote = () => host.querySelector("[data-running-folder]");
+const adoptButton = () => buttonNamed("Make upload this terminal's folder");
+
+/** t1's Claude reports from `folder`, on `sessionId`: after the terminal's start, so it is its current run's. */
+async function claudeRunsIn(folder: string, sessionId = HAND_STARTED) {
+  const at = Date.now();
+  const report: SessionUsage = {
+    sessionId,
+    nodeId: "t1",
+    model: null,
+    effort: null,
+    folder,
+    costUsd: 0,
+    apiMs: 0,
+    wallMs: 0,
+    linesAdded: 0,
+    linesRemoved: 0,
+    inputTokens: 0,
+    outputTokens: 0,
+    contextPercent: null,
+    cache: null,
+    at,
+  };
+  await act(async () => usageStore.setState((s) => ({ sessions: { ...s.sessions, [sessionId]: report } })));
+}
+
+it("resumes the conversation Claude runs by hand in another folder there, once that folder is made the terminal's", async () => {
+  const info = vi.spyOn(toast, "info");
+  await startedIn("D:/work/api", { title: "Claude · api" });
+  await showEdit();
+  await claudeRunsIn("D:/work/upload");
+  expect(runningNote()?.textContent).toBe("Claude is running in upload");
+  await act(async () => adoptButton()!.click());
+  expect(stored()).toMatchObject({ cwd: "D:/work/upload", title: "Claude · upload", claudeSessionId: HAND_STARTED });
+  // Claude runs there: no "Still running in api", no other restart offered, no note.
+  expect(notice()).toBeNull();
+  expect(buttonNamed("Restart now")).toBeUndefined();
+  expect(runningNote()).toBeNull();
+  expect(adoptButton()).toBeUndefined();
+  // Nothing restarted, nor said of a new conversation.
+  expect(spawns).toHaveLength(1);
+  expect(info.mock.calls).toEqual([["upload is this terminal's folder now: its next launch resumes the conversation running there"]]);
+
+  // Its next start resumes that conversation, in that folder.
+  restartTerminal("t1");
+  await until(() => spawns.length === 2 && terminalStatusStore.getState().statuses.t1?.state === "running");
+  expect(spawns[1]).toMatchObject({ cwd: "D:/work/upload", claude: { mode: "resume", sessionId: HAND_STARTED } });
+});
+
+it("keeps the terminal's own conversation when that is the one Claude runs by hand in the other folder", async () => {
+  await startedIn("D:/work/api");
+  const own = stored().claudeSessionId!;
+  await showEdit();
+  await claudeRunsIn("D:/work/upload", own);
+  await act(async () => adoptButton()!.click());
+  expect(stored()).toMatchObject({ cwd: "D:/work/upload", title: "Batman", claudeSessionId: own });
+  restartTerminal("t1");
+  await until(() => spawns.length === 2);
+  expect(spawns[1]).toMatchObject({ cwd: "D:/work/upload", claude: { mode: "resume", sessionId: own } });
+});
+
+it("takes the move's offer away when the folder Claude runs in is made the terminal's", async () => {
+  const dismiss = vi.spyOn(toast, "dismiss");
+  await startedIn("D:/work/api");
+  await showEdit();
+  await pickFolder("D:/work/web");
+  expect(notice()).not.toBeNull();
+  await claudeRunsIn("D:/work/upload");
+  expect(runningNote()?.textContent).toBe("Claude is running in upload");
+  dismiss.mockClear();
+  await act(async () => adoptButton()!.click());
+  // The move's new conversation gives way to the one Claude runs.
+  expect(stored()).toMatchObject({ cwd: "D:/work/upload", claudeSessionId: HAND_STARTED });
+  expect(notice()).toBeNull();
+  expect(buttonNamed("Restart in web")).toBeUndefined();
+  expect(dismiss).toHaveBeenCalledWith("folder-move:t1");
+});
+
+it("offers no restart after a webview reload either, before Claude's next status line", async () => {
+  await startedIn("D:/work/api");
+  await showEdit();
+  await claudeRunsIn("D:/work/upload");
+  await act(async () => adoptButton()!.click());
+  const payloadJson = JSON.stringify(nodesStore.getState().nodes.t1.payload);
+  await act(async () => root!.unmount());
+  root = undefined;
+
+  // The webview reloads: the node comes back from the database, the usage (kept in memory) is gone.
+  vi.resetModules();
+  const React = await import("react");
+  const { createRoot: freshRoot } = await import("react-dom/client");
+  const fresh = {
+    nodes: (await import("@/store/nodes")).nodesStore,
+    statuses: (await import("@/store/terminalStatus")).terminalStatusStore,
+    TerminalEdit: (await import("./TerminalEdit")).TerminalEdit,
+  };
+  fresh.nodes.getState().hydrate("w", [{ id: "t1", kind: "terminal", payloadJson }]);
+  fresh.statuses.getState().set("t1", { state: "running" });
+  const reloaded = freshRoot(host);
+  await React.act(async () => reloaded.render(React.createElement(fresh.TerminalEdit, { nodeId: "t1", onFold: () => undefined })));
+  expect(host.querySelector("[data-folder]")?.textContent).toBe("D:/work/upload");
+  expect(notice()).toBeNull();
+  expect(buttonNamed("Restart now")).toBeUndefined();
+  expect(host.textContent).not.toContain("Still running in");
   await React.act(async () => reloaded.unmount());
 });

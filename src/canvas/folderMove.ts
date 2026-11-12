@@ -1,10 +1,13 @@
 import { toast } from "sonner";
 import { messages } from "@/i18n";
-import { sameFolder } from "@/nodes/terminal/folder";
+import { folderAdoption, folderLockOf, sameFolder } from "@/nodes/terminal/folder";
 import { resumeTerminal } from "@/nodes/terminal/registry";
 import type { TerminalPayload } from "@/nodes/types";
-import { nodesStore, sessionOf } from "@/store/nodes";
+import { agentActivityStore } from "@/store/agentActivity";
+import { nodesStore, sessionOf, updateSession } from "@/store/nodes";
 import { isRunning } from "@/store/terminalStatus";
+import { nodeSession, type SessionUsage } from "@/usage/usage";
+import { usageStore } from "@/usage/usageStore";
 import { folderName } from "./ExtensionList";
 import { canvasMessages } from "./messages";
 import { forgetStartedChoice } from "./startedChoice";
@@ -51,4 +54,33 @@ export function announceFolderMove(nodeId: string, before: TerminalPayload, cwd:
     action: { label: t.restartIn(to), onClick: () => restartTerminal(nodeId) },
     duration: OFFER_MS,
   });
+}
+
+/**
+ * What the run of Claude live in a terminal last said in its status line: while the terminal runs, its Claude hasn't
+ * left its shell, and it reported since its last launch. The same run `useClaudeFolder` reads its folder from.
+ */
+function liveRun(nodeId: string): SessionUsage | undefined {
+  if (!isRunning(nodeId) || agentActivityStore.getState().activities[nodeId]?.left) return undefined;
+  const { sessions, launchedAt } = usageStore.getState();
+  return nodeSession(sessions, nodeId, launchedAt[nodeId]);
+}
+
+/**
+ * "Make upload this terminal's folder": `folder`, where the `claude` started by hand in the terminal's shell runs,
+ * becomes the terminal's own, on the conversation Claude runs there (`folderAdoption`). Nothing restarts. A move's
+ * offer goes: the terminal is where its Claude runs. Read as the stores are now, as a move reads them after its
+ * picker; false when Claude no longer runs there or the folder is fixed.
+ */
+export function adoptLiveFolder(nodeId: string, folder: string): boolean {
+  const { nodes } = nodesStore.getState();
+  const current = sessionOf(nodes[nodeId]);
+  const run = liveRun(nodeId);
+  if (!current || !run?.folder || !sameFolder(run.folder, folder) || folderLockOf(nodeId, nodes)) return false;
+  const patch = folderAdoption(current, run.folder, run.sessionId);
+  if (!patch?.cwd) return false;
+  updateSession(nodeId, patch);
+  toast.dismiss(toastId(nodeId));
+  toast.info(messages(canvasMessages).selection.folderAdopted(folderName(patch.cwd)));
+  return true;
 }
