@@ -15,7 +15,15 @@ import { MISSING_GRACE_MS } from "../terminal/MissingNode";
 import { FleetNode } from "./FleetNode";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
-vi.mock("../terminal/registry", () => ({ mountTerminal: vi.fn(), layoutTerminal: vi.fn(), markForAutostart: vi.fn(), relaunchTerminal: vi.fn(), focusTerminal: vi.fn() }));
+vi.mock("../terminal/registry", () => ({
+  mountTerminal: vi.fn(),
+  unmountTerminal: vi.fn(),
+  layoutTerminal: vi.fn(),
+  canvasMoved: vi.fn(),
+  markForAutostart: vi.fn(),
+  relaunchTerminal: vi.fn(),
+  focusTerminal: vi.fn(),
+}));
 // happy-dom may lack it; the node observes its terminal's host.
 globalThis.ResizeObserver ??= class {
   observe() {}
