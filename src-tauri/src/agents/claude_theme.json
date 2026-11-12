@@ -10,6 +10,7 @@
     "diffRemoved": "ansi256(52)",
     "diffRemovedDimmed": "ansi256(52)",
     "diffAddedWord": "ansi256(28)",
-    "diffRemovedWord": "ansi256(196)"
+    "diffRemovedWord": "ansi256(196)",
+    "selectionBg": "ansi256(238)"
   }
 }

@@ -8,7 +8,9 @@
 //! palette, hence the dark base. On top of it, `claude_theme.json` moves the
 //! backgrounds `dark-ansi` paints in the bright black (the palette's dim text
 //! colour, too light under its text) to the body a step lighter, and its diff
-//! lines to dark 256-colour greens and reds. src/nodes/terminal/claudeTheme.test.ts
+//! lines to dark 256-colour greens and reds. Its selection highlight moves from the
+//! palette's blue, unreadable under the text, to a grey of the 256-colour ramp.
+//! src/nodes/terminal/claudeTheme.test.ts
 //! computes each text-on-background pair in every palette.
 //!
 //! Claude reads custom themes from `<config dir>/themes/<slug>.json` and is
