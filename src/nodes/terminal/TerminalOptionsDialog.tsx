@@ -40,10 +40,13 @@ export function TerminalOptionsDialog(props: { nodeId: string; payload: Terminal
     const moved = lock ? null : folderChange(payload, value.cwd);
     // A title left as it was gives way to the one the move gives (a terminal named after its folder).
     const typed = value.title.trim();
+    const retitled = Boolean(typed) && typed !== payload.title;
     const patch = {
       ...moved,
       shell: value.shell,
-      title: typed && typed !== payload.title ? typed : (moved?.title ?? payload.title),
+      title: retitled ? typed : (moved?.title ?? payload.title),
+      // A title the user gives says what the terminal does now, though its old one named a finished task.
+      ...(retitled && payload.staleTitle ? { staleTitle: undefined } : {}),
       ...(custom ? { command: value.command.trim() } : {}),
     };
     nodesStore.getState().update(nodeId, patch);

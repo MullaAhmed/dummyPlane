@@ -27,6 +27,7 @@ export const agentMessages = defineMessages({
         "Delegate a task to a sub-agent that opens as a new Claude terminal beside yours, in your folder (same worktree): the user can watch it and type into it. " +
         "Use it instead of the built-in Agent/Task tool, several calls to work in parallel. It returns at once: do not wait or poll. " +
         "When the sub-agent is done it calls report, and its summary is typed into your terminal as \"[dummyPlane] <name> reported (<status>): <summary>\". " +
+        "To give a sub-agent that reported new work, message it with message_agent and pass a title for that work: without one, its terminal still bears the title of the task it finished. " +
         "Give level on every call, the difficulty of this task: when a model router is on for you (the user's switch on your terminal, or on the Fleet or the agent you work under), it picks the sub-agent's model, and a model named with no level is refused. " +
         `A sub-agent can spawn its own, ${depth} levels below a top agent at most; the number running at once is capped by a setting.`,
       fleetSpawnAgent: (depth: number) =>
@@ -47,9 +48,12 @@ export const agentMessages = defineMessages({
         "The agents linked to yours by a wire on the canvas (the user draws one with \"+ Link\" under a terminal; spawn_agent's wire to a sub-agent counts too) and, in a mission its Manager runs, your Manager and your teammates, and the Fleet the user linked you to (relation \"fleet\": message_agent reaches it, hand_off hands it a task, read_agent does not read it): name, id, state and relation. Only these can be messaged or read; the first message to one with no wire draws one.",
       messageAgent:
         "Send a message to a linked agent: it is typed into its terminal and submitted, as \"[dummyPlane] Message from <your name> …: <text>\". " +
-        "An answer, if any, arrives in your terminal the same way: do not wait or poll for it.",
+        "An answer, if any, arrives in your terminal the same way: do not wait or poll for it. " +
+        "To give new work to a sub-agent of yours that has reported, pass a title for that work: its terminal then shows the new task, not the one it finished.",
       linkedAgent: "The linked agent's name (or its id), as linked_agents gives it.",
       messageText: "The message, on one line.",
+      messageTitle:
+        "Only for new work given to a sub-agent of yours (spawn_agent) that has reported: a short title for it, which becomes its terminal's title and its session's name, the message becoming its task. Ignored otherwise.",
       readAgent: "The end of a linked agent's terminal, as plain text.",
       readLines: "How many lines, 50 by default.",
       linkedBoards:

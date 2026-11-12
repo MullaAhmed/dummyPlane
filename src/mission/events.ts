@@ -10,8 +10,8 @@ import { remoteBusy } from "@/agents/remoteControl";
 import { whenReady } from "./ready";
 import { managedFleet, memberOf, missionOf, missionRunner } from "./store";
 
-/** Lines waiting for their fleet to be free. */
-const queues = new Map<string, { line: string; typed?: () => void }[]>();
+/** Lines waiting for their fleet to be free; a command (`sendCommand`) is typed as is, with no `[dummyPlane]` tag. */
+const queues = new Map<string, { line: string; typed?: () => void; command?: true }[]>();
 /** Fleets just (re)started whose CLI's prompt is not up yet (final review H2). */
 const starting = new Set<string>();
 
@@ -44,7 +44,7 @@ function flush(fleetId: string) {
   queues.delete(fleetId);
   // ptySendText keeps a node's writes in order; Claude queues what comes while it works.
   for (const entry of queue) {
-    void ptySendText(fleetId, `[dummyPlane] ${entry.line}`).then(
+    void ptySendText(fleetId, entry.command ? entry.line : `[dummyPlane] ${entry.line}`).then(
       () => entry.typed?.(),
       () => {
         // Not typed (its session ended meanwhile): back in line for its next start.
@@ -76,6 +76,15 @@ function awaitPrompt(fleetId: string) {
 export function notify(fleetId: string, line: string, typed?: () => void) {
   queues.set(fleetId, [...(queues.get(fleetId) ?? []), { line, typed }]);
   flush(fleetId);
+}
+
+/**
+ * Types a command of the agent's CLI (Claude's `/rename …`) in its terminal, as is, in line with the `[dummyPlane]`
+ * lines: it waits as they do for a dialog, a Remote Control flow or the user's typing, which it must not land in.
+ */
+export function sendCommand(nodeId: string, command: string) {
+  queues.set(nodeId, [...(queues.get(nodeId) ?? []), { line: command, command: true }]);
+  flush(nodeId);
 }
 
 export function pendingEvents(fleetId: string): readonly string[] {

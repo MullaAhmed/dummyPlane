@@ -37,8 +37,8 @@ import { withWire } from "./wires";
  * and cannot be). The sub-agent's report is typed back into its parent.
  */
 
-/** A title longer than this is cut. */
-const MAX_TITLE = 60;
+/** A title longer than this is cut: spawn_agent's, and message_agent's for new work (`@/mcp/linkTools`). */
+export const MAX_TITLE = 60;
 /** A model alias (opus, sonnet…) or id: nothing a command line could misread. */
 const MODEL = /^[A-Za-z0-9][A-Za-z0-9._:[\]-]{0,79}$/;
 

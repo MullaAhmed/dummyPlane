@@ -138,6 +138,12 @@ describe("spawnedTask", () => {
     expect(spawnedTask({ title: "Write the tests", spawnedBy: "batman", task: "Write the tests" })).toEqual({ line: "Write the tests", detail: "Write the tests" });
   });
 
+  it("says its new task, not a title that names the task it finished", () => {
+    const retasked = { title: "005 W1 mint.py implementer", spawnedBy: "hulk", task: "Write the 007 tests for mint.py.", staleTitle: true as const };
+    expect(spawnedTask(retasked)).toEqual({ line: "Write the 007 tests for mint.py", detail: "Write the 007 tests for mint.py." });
+    expect(spawnedTask({ ...retasked, staleTitle: undefined })?.line).toBe("005 W1 mint.py implementer");
+  });
+
   it("says in a line the raw title of a terminal spawned before tasks were kept", () => {
     const title = "You are fixing a readability problem in dummyPlane (Tauri…";
     expect(spawnedTask({ title, spawnedBy: "superman" })).toEqual({ line: "Fixing a readability problem in dummyPlane", detail: title });

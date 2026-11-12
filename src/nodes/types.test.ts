@@ -51,6 +51,12 @@ describe("readTerminalPayload", () => {
     expect(readTerminalPayload({ ...robin, task: 42 })?.task).toBeUndefined();
   });
 
+  it("keeps across a restart that a sub-agent's title names a task it finished", () => {
+    const robin = { title: "Tests", name: "Robin", agent: "claude", cwd: "C:/code", shell: "default", command: "", spawnedBy: "batman", task: "Fix the bug" };
+    expect(readTerminalPayload({ ...robin, staleTitle: true })).toEqual({ ...robin, staleTitle: true });
+    expect(readTerminalPayload({ ...robin, staleTitle: "yes" })).toEqual(robin);
+  });
+
   it("rejects what cannot be launched", () => {
     expect(readTerminalPayload(null)).toBeNull();
     expect(readTerminalPayload({ agent: "vim", cwd: "C:/" })).toBeNull();

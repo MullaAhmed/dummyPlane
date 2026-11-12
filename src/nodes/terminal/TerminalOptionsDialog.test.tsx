@@ -88,6 +88,19 @@ it("shows a Custom terminal's command first, says what runs it, and saves it tri
   expect(stored()).toMatchObject({ agent: "custom", command: "pnpm dev --port 3000", cwd: "C:/code", title: "Dev server" });
 });
 
+it("takes a title typed for a sub-agent whose title named a finished task as its title again; one left as it was stays stale", async () => {
+  const retasked = terminal({ title: "005 W1 mint.py implementer", spawnedBy: "hulk", task: "Write the 007 tests.", staleTitle: true });
+  await openFor(retasked);
+  await apply();
+  expect(stored().staleTitle).toBe(true);
+  await act(async () => root.unmount());
+  await openFor(retasked);
+  await type(field("Title")!, "007 mint.py tests");
+  await apply();
+  expect(stored()).toMatchObject({ title: "007 mint.py tests" });
+  expect(stored().staleTitle).toBeUndefined();
+});
+
 it("changes nothing on Cancel", async () => {
   await openFor(terminal({ agent: "custom", command: "npm run dev" }));
   await type(field("Command to run")!, "rm -rf dist");

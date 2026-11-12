@@ -7,7 +7,7 @@ import { remoteBusy } from "@/agents/remoteControl";
 import { agentActivityStore } from "@/store/agentActivity";
 import { nodesStore } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
-import { installMissionEvents, notify, pendingEvents } from "./events";
+import { installMissionEvents, notify, pendingEvents, sendCommand } from "./events";
 import { whenReady } from "./ready";
 import type { Member } from "./mission";
 
@@ -65,6 +65,16 @@ describe("events to the fleet", () => {
     await vi.advanceTimersByTimeAsync(4000);
     expect(sent()).toEqual(["chef: [dummyPlane] Batman a rendu compte"]);
     vi.useRealTimers();
+  });
+
+  it("types a command as is, in line with the [dummyPlane] lines and held as they are", async () => {
+    activity("chef", "waiting");
+    notify("chef", "Message from Hulk: write the 007 tests");
+    sendCommand("chef", "/rename 007 mint.py tests");
+    expect(sent()).toEqual([]);
+    activity("chef", "working");
+    await tick();
+    expect(sent()).toEqual(["chef: [dummyPlane] Message from Hulk: write the 007 tests", "chef: /rename 007 mint.py tests"]);
   });
 
   it("types a line in a free fleet at once", () => {
