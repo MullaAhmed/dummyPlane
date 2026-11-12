@@ -5,11 +5,15 @@ import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { canvasStore } from "@/canvas/canvasStore";
 import { framesFromScene, groupInfoOf, groupOf } from "@/canvas/groups";
-import { createNodeElement } from "@/canvas/nodeElement";
+import { createNodeElement, NODE_SIZE } from "@/canvas/nodeElement";
+import { linkFor, withNoteLink } from "@/nodes/note/link";
+import { newNoteRect } from "@/nodes/note/placement";
 import { nodesStore } from "@/store/nodes";
 import { uiStore } from "@/store/ui";
 import { workspacesStore } from "@/store/workspaces";
-import { PADDING, PADDING_BOTTOM, PADDING_TOP } from "./groupLayout";
+import { arrangedElements } from "./arrange";
+import { anchorsOf } from "./attachments";
+import { boundsOf, overlap, PADDING, PADDING_BOTTOM, PADDING_TOP } from "./groupLayout";
 import { PANTHEONS } from "./names";
 import { groupingOf, groupSelection } from "./selectionGroup";
 import { isSpawnWire, orphanWires, withWire } from "./wires";
@@ -23,6 +27,19 @@ const rectangle = (id: string): ExcalidrawElement => ({ ...createNodeElement("no
 /** A fleet, 640 x 760, with its top-left corner at (x, y). */
 const fleet = (id: string, x: number, y: number) => ({ ...createNodeElement("fleet", { x: 0, y: 0 }), id, x, y }) as ExcalidrawElement;
 const frame = (id: string, fields: Record<string, unknown> = {}) => ({ id, type: "frame", isDeleted: false, frameId: null, x: 9000, y: 9000, width: 400, height: 300, ...fields }) as unknown as ExcalidrawElement;
+
+/** A quick note beside `host` at (x, y), as src/nodes/note writes it: in no frame, its host and its place from it in its link. */
+const noteAt = (id: string, host: ExcalidrawElement, x: number, y: number) => {
+  const base = { ...createNodeElement("note", { x: 0, y: 0 }), id, x, y };
+  return { ...base, customData: withNoteLink(base.customData, linkFor(host.id, base, host)) } as ExcalidrawElement;
+};
+/** The note "Quick note" writes for `host` in `elements`: where the real placement puts it. */
+const quickNote = (id: string, host: ExcalidrawElement, elements: readonly ExcalidrawElement[]) => {
+  const spot = newNoteRect(elements, host, NODE_SIZE.note);
+  return noteAt(id, host, spot.x, spot.y);
+};
+const output = (id: string, x: number, y: number) => ({ ...createNodeElement("output", { x: 0, y: 0 }), id, x, y }) as ExcalidrawElement;
+const boxOfAll = (elements: readonly ExcalidrawElement[], ...ids: string[]) => boundsOf(elements.filter((e) => ids.includes(e.id)));
 
 interface UpdateArgs {
   elements: ExcalidrawElement[];
@@ -98,6 +115,78 @@ describe("what a selection can be grouped into", () => {
   it("ignores closed terminals", () => {
     const elements = [terminal("a", 0, 0), terminal("b", 800, 0, { isDeleted: true })];
     expect(groupingOf(elements, ["a", "b"]).terminals.map((t) => t.id)).toEqual(["a"]);
+  });
+});
+
+describe("grouping terminals that carry quick notes", () => {
+  it("is not stopped by a selected terminal's own note, written where Quick note puts it, between the two", () => {
+    const a = terminal("a", 0, 0);
+    const b = terminal("b", 1120, 0);
+    const note = quickNote("n", a, [a, b]);
+    // The real placement: right of its host, so inside the box of the two.
+    expect(note).toMatchObject({ x: 736, y: 0, frameId: null });
+    expect(overlap(note, boxOfAll([a, b], "a", "b"))).toBeGreaterThan(0);
+    expect(groupingOf([a, b, note], ["a", "b"]).blocked).toBeNull();
+    // Selected with them or not (a box selection takes it too).
+    expect(groupingOf([a, b, note], ["a", "b", "n"]).blocked).toBeNull();
+  });
+
+  it("groups what Arrange laid out: it puts a terminal's note right of it, between it and the next terminal", () => {
+    const a = terminal("a", 0, 0);
+    const before = [a, noteAt("n", a, 736, 0), terminal("b", 3000, 2000), terminal("c", 6000, 4000)];
+    const arranged = arrangedElements({ elements: before, parentOf: () => null, isMinimized: () => false, attachedTo: anchorsOf(before), aspect: 16 / 10 })!.elements;
+    const at = (id: string) => arranged.find((e) => e.id === id)!;
+    // One row, the note kept beside its host: it stands in the box of A and B, and of all three.
+    expect(at("a").y).toBe(at("b").y);
+    expect(at("n").x).toBe(at("a").x + 736);
+    expect(at("b").x).toBeGreaterThan(at("n").x + at("n").width);
+    expect(overlap(at("n"), boxOfAll(arranged, "a", "b"))).toBeGreaterThan(0);
+    expect(groupingOf(arranged, ["a", "b"]).blocked).toBeNull();
+    expect(groupingOf(arranged, ["a", "b", "c"]).blocked).toBeNull();
+  });
+
+  it("still refuses what the terminals do not carry: another terminal's note, an agent's output, a note whose host is gone", async () => {
+    const a = terminal("a", 0, 0);
+    const b = terminal("b", 1120, 0);
+    const far = terminal("far", 0, 3000);
+    // Another terminal's note, moved by hand between the two: a drag of the group would leave it behind.
+    expect(groupingOf([a, b, far, noteAt("n", far, 736, 0)], ["a", "b"])).toMatchObject({ blocked: "inTheWay" });
+    // What A showed (show_output) is attached to it, but nothing keeps it beside A.
+    await nodesStore.getState().create("o", { workspaceId: "w1", kind: "output", payload: { title: "", source: "a", ui: "", updatedAt: 0 } });
+    const shown = output("o", 736, 0);
+    expect(anchorsOf([a, b, shown])(shown)).toEqual({ anchor: "a" });
+    expect(groupingOf([a, b, shown], ["a", "b"])).toMatchObject({ blocked: "inTheWay" });
+    // Its host closed: the note stays where it is, no terminal's any more.
+    const gone = terminal("gone", 0, 3000, { isDeleted: true });
+    expect(groupingOf([a, b, gone, noteAt("n", gone, 736, 0)], ["a", "b"])).toMatchObject({ blocked: "inTheWay" });
+  });
+
+  it("refuses a node beside a carried note that pokes out of the terminals' box: the frame goes around the note, so around that node too", () => {
+    const a = terminal("a", 0, 0);
+    const b = terminal("b", 1120, 0);
+    // A's stack of three: the third runs from 432 to 632, past the terminals' 440.
+    const notes = [noteAt("n1", a, 736, 0), noteAt("n2", a, 736, 216), noteAt("n3", a, 736, 432)];
+    expect(groupingOf([a, b, ...notes], ["a", "b"]).blocked).toBeNull();
+    // Under B, level with the third note: inside the frame that holds that note.
+    expect(groupingOf([a, b, ...notes, terminal("under", 1120, 500)], ["a", "b"])).toMatchObject({ blocked: "inTheWay" });
+    // Without the third note the box ends at 440: that terminal stays outside.
+    expect(groupingOf([a, b, notes[0], notes[1], terminal("under", 1120, 500)], ["a", "b"]).blocked).toBeNull();
+  });
+
+  it("fits the frame around the terminals and the notes they carry in their box; a note stays in no frame, as beside any terminal", () => {
+    const a = terminal("a", 0, 0);
+    const b = terminal("b", 1120, 0);
+    const notes = [noteAt("n1", a, 736, 0), noteAt("n2", a, 736, 216), noteAt("n3", a, 736, 432)];
+    // B's own note, right of the box: the frame is not stretched to it, as before.
+    const right = noteAt("r", b, 1120 + 720 + 16, 0);
+    scene = [a, b, ...notes, right];
+    const id = groupSelection(["a", "b"])!;
+    const made = scene.find((e) => e.id === id)!;
+    // The terminals end at 440, the third note at 632.
+    expect([made.x, made.y, made.width, made.height]).toEqual([-PADDING, -PADDING_TOP, 1840 + 2 * PADDING, 632 + PADDING_TOP + PADDING_BOTTOM]);
+    expect(framesFromScene(scene).find((f) => f.id === id)).toMatchObject({ memberIds: ["a", "b"] });
+    // The notes are untouched: the note watch keeps each beside its host, and takes any note out of a frame.
+    for (const note of [...notes, right]) expect(scene).toContain(note);
   });
 });
 
