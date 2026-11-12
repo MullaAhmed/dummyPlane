@@ -1,8 +1,14 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { AppState, BinaryFiles } from "@excalidraw/excalidraw/types";
-import { createNodeElement } from "./nodeElement";
+import { createNodeElement, nodeKindOf } from "./nodeElement";
 import { createSceneSync, liveNodeIds, liveNodeRects } from "./sceneSync";
+
+// Listing the nodes reads each element's kind: the count of that work.
+vi.mock("./nodeElement", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./nodeElement")>();
+  return { ...actual, nodeKindOf: vi.fn(actual.nodeKindOf) };
+});
 
 const appState = (zoom = 1) => ({ scrollX: 0, scrollY: 0, zoom: { value: zoom } }) as unknown as AppState;
 const noFiles = {} as BinaryFiles;
@@ -92,4 +98,38 @@ it("liveNodeRects gives the scene rectangle of each live node, the frieze's anch
   expect(liveNodeRects([node, drawing, { ...node, id: "x", isDeleted: true }])).toEqual({
     [node.id]: { x: node.x, y: node.y, width: node.width, height: node.height },
   });
+});
+
+it("lists the nodes of a scene once while only the view moves, and saves that view all the same: a pan's frames", () => {
+  const keep = createNodeElement("terminal", { x: 0, y: 0 });
+  const elements = [keep, { id: "r", type: "rectangle", version: 1, isDeleted: false } as unknown as ExcalidrawElement];
+  const { deps, sync } = setup();
+  sync.onChange(elements, appState(), noFiles, 2);
+  expect(deps.onNodesAdded).toHaveBeenCalledWith([keep.id]);
+  const listed = vi.mocked(nodeKindOf).mock.calls.length;
+  expect(listed).toBeGreaterThan(0);
+  // A pan: the same array and version, the view moving frame after frame.
+  for (let frame = 1; frame <= 60; frame++) sync.onChange(elements, { ...appState(), scrollX: -frame * 10 } as AppState, noFiles, 2);
+  expect(vi.mocked(nodeKindOf).mock.calls.length).toBe(listed);
+  vi.advanceTimersByTime(500);
+  expect(deps.saveScene).toHaveBeenCalledTimes(1);
+  const [, appStateJson, nodeIds] = deps.saveScene.mock.calls[0] as unknown as [string, string, string[]];
+  expect(JSON.parse(appStateJson).scrollX).toBe(-600);
+  expect(nodeIds).toEqual([keep.id]);
+  expect(deps.onNodesAdded).toHaveBeenCalledTimes(1);
+});
+
+it("lists them again when the scene changes: a node added, and one closed in place", () => {
+  const keep = createNodeElement("terminal", { x: 0, y: 0 });
+  const { deps, sync } = setup();
+  const elements = [keep];
+  sync.onChange(elements, appState(), noFiles, 1);
+  const added = createNodeElement("fleet", { x: 900, y: 0 });
+  const more = [keep, added];
+  sync.onChange(more, appState(), noFiles, 2);
+  expect(deps.onNodesAdded).toHaveBeenLastCalledWith([added.id]);
+  // Closed in place: the same array, the element deleted and its version bumped.
+  Object.assign(more[1], { isDeleted: true, version: added.version + 1 });
+  sync.onChange(more, appState(), noFiles, 3);
+  expect(deps.onNodesRemoved).toHaveBeenCalledWith([added.id]);
 });

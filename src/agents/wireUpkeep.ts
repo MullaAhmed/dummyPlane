@@ -2,6 +2,7 @@ import { CaptureUpdateAction, newElementWith } from "@excalidraw/excalidraw";
 import type { ExcalidrawArrowElement, ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { AppState, ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { currentPalette, type ThemeChoice } from "@/app/theme";
+import { sameInputs, sceneStamp, type SceneStamp } from "@/canvas/sceneChanges";
 import { nodesStore, terminalOf, type NodeRecord } from "@/store/nodes";
 import {
   faceWires,
@@ -48,23 +49,14 @@ type Gesture = Pick<AppState, "selectedElementsAreBeingDragged" | "isResizing" |
 const busy = ({ selectedElementsAreBeingDragged, isResizing, isRotating, newElement, editingFrame }: Gesture) =>
   Boolean(selectedElementsAreBeingDragged || isResizing || isRotating || newElement || editingFrame);
 
-/**
- * Everything the scans read: the scene (the array; its version, the sum of its
- * elements' versions, which an edit in place bumps; its length), the gesture,
- * the palette and who spawned whom (the nodes the default spawnerOf reads).
- */
-interface ScanInputs {
+/** Everything the scans read: the scene, the gesture, the palette and who spawned whom (the nodes the default spawnerOf reads). */
+interface ScanInputs extends SceneStamp {
   api: ExcalidrawImperativeAPI;
-  elements: readonly ExcalidrawElement[];
-  version: number;
-  length: number;
   busy: boolean;
   palette: ThemeChoice;
   spawnerOf: SpawnerOf;
   nodes: Record<string, NodeRecord>;
 }
-
-const sameInputs = (a: ScanInputs, b: ScanInputs) => (Object.keys(b) as (keyof ScanInputs)[]).every((key) => a[key] === b[key]);
 
 /**
  * The inputs of the last check that found nothing to do. Excalidraw calls
@@ -90,16 +82,14 @@ let clean: ScanInputs | null = null;
 export function scheduleWireUpkeep(api: ExcalidrawImperativeAPI, elements: readonly ExcalidrawElement[], spawnerOf: SpawnerOf = spawnedBy) {
   if (pending) return;
   const inputs: ScanInputs = {
+    ...sceneStamp(elements),
     api,
-    elements,
-    version: elements.reduce((sum, e) => sum + e.version, 0),
-    length: elements.length,
     busy: busy(api.getAppState()),
     palette: currentPalette(),
     spawnerOf,
     nodes: nodesStore.getState().nodes,
   };
-  if (clean && sameInputs(clean, inputs)) return;
+  if (sameInputs(clean, inputs)) return;
   const nothingToDo =
     (inputs.busy || misfacedWires(elements).length === 0) &&
     unmarkedWires(elements).length === 0 &&
