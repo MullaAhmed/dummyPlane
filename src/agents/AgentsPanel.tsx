@@ -29,7 +29,7 @@ import { countsText } from "./groupSummary";
 import { agentsMessages } from "./messages";
 import { OutsideNamesMenu } from "./NamesMenu";
 import { newConsole } from "./quickActions";
-import { RESUME_OFFER_ROOM, resumeOfferStore } from "./ResumeAllToast";
+import { resumeOfferRoom, resumeOfferStore } from "./ResumeAllToast";
 
 const OUTSIDE = "outside";
 
@@ -43,7 +43,8 @@ const CHEVRON = "size-3.5 text-dp-text-2 transition-[rotate] duration-(--dp-dur-
 export function AgentsPanel() {
   const t = useMessages(agentsMessages).panel;
   const filter = useAgentsPanel((s) => s.filter);
-  const offer = useStore(resumeOfferStore, (s) => s.open);
+  // The room the Resume offer takes, a line more when it names the finished sub-agents it leaves stopped.
+  const offerRoom = useStore(resumeOfferStore, resumeOfferRoom);
   const [folded, setFolded] = useState<ReadonlySet<string>>(new Set());
   const now = useNow(15_000);
   const nodeIds = useCanvas((s) => s.nodeIds);
@@ -94,7 +95,7 @@ export function AgentsPanel() {
   return (
     <aside
       className="dp-glass-strong absolute right-18 z-30 flex w-80 flex-col overflow-hidden rounded-xl"
-      style={{ top: TOP_ROW_HEIGHT + 14, maxHeight: `calc(100% - ${TOP_ROW_HEIGHT + 14 + (offer ? RESUME_OFFER_ROOM : BOTTOM_BAR_HEIGHT) + 14}px)` }}
+      style={{ top: TOP_ROW_HEIGHT + 14, maxHeight: `calc(100% - ${TOP_ROW_HEIGHT + 14 + (offerRoom ?? BOTTOM_BAR_HEIGHT) + 14}px)` }}
     >
       {/* The header of the other panels (Git, Review): icon, title, then the actions, the close last. */}
       <header className="flex h-10 shrink-0 items-center gap-2 border-b border-dp-line px-3">

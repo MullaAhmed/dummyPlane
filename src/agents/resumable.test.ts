@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
+import { MANAGER_ROLE } from "@/ipc/pty";
+import type { TerminalPayload } from "@/nodes/types";
 import type { NodeRecord } from "@/store/nodes";
 import type { TerminalStatus } from "@/store/terminalStatus";
-import { resumableTerminals } from "./resumable";
+import { isFinishedSubAgent, resumableTerminals, workspaceResumeOffer } from "./resumable";
 
 const node = (workspaceId: string) => ({ workspaceId, kind: "terminal", payload: {} }) as unknown as NodeRecord;
+const terminal = (payload: Partial<TerminalPayload>, workspaceId = "w1") => ({ workspaceId, kind: "terminal", payload }) as unknown as NodeRecord;
+const report = { status: "done", summary: "Fixed." } as const;
 
 describe("resumableTerminals", () => {
   it("lists the stopped terminals of a workspace, unknown status counting as stopped", () => {
@@ -32,5 +36,51 @@ describe("resumableTerminals", () => {
   it("skips terminals closed from the canvas, whose record stays in memory for undo", () => {
     const nodes = { kept: node("w1"), closed: node("w1") };
     expect(resumableTerminals(nodes, {}, "w1", new Set(), new Set(["kept"]))).toEqual(["kept"]);
+  });
+});
+
+describe("after a restart, finished sub-agents stay stopped", () => {
+  // A top agent, its sub-agents (one at work, one that reported) and a Fleet's, a mission's Manager and its team.
+  const nodes: Record<string, NodeRecord> = {
+    top: terminal({ name: "Batman" }),
+    reportedTop: terminal({ name: "Robin", lastReport: report }),
+    working: terminal({ name: "Flash", spawnedBy: "top" }),
+    done: terminal({ name: "Cyborg", spawnedBy: "top", lastReport: report }),
+    fleet: { workspaceId: "w1", kind: "fleet", payload: { name: "Fleet", mission: { state: "en_cours", maxAgents: 3, members: [{ nodeId: "orphan" }] } } } as unknown as NodeRecord,
+    fleetChild: terminal({ name: "Storm", spawnedBy: "fleet", lastReport: report }),
+    manager: terminal({ name: "Zeus", role: MANAGER_ROLE, fleet: "fleet" }),
+    member: terminal({ name: "Hera", spawnedBy: "manager", lastReport: report }),
+    // A team member whose Manager was closed: its Fleet's mission still names it.
+    orphan: terminal({ name: "Ares", spawnedBy: "gone", lastReport: report }),
+  };
+  const all = new Set(Object.keys(nodes));
+
+  it("tells a finished sub-agent from a working one, a top agent and a mission's team", () => {
+    expect(isFinishedSubAgent(nodes, "done")).toBe(true);
+    expect(isFinishedSubAgent(nodes, "fleetChild")).toBe(true);
+    for (const id of ["top", "reportedTop", "working", "manager", "member", "orphan", "fleet", "missing"]) {
+      expect(isFinishedSubAgent(nodes, id), id).toBe(false);
+    }
+  });
+
+  it("resumes the top agents, the working sub-agents and the mission's team, and sets the finished sub-agents apart", () => {
+    expect(workspaceResumeOffer(nodes, {}, "w1", new Set(), all)).toEqual({
+      resume: ["top", "reportedTop", "working", "manager", "member", "orphan"],
+      stayStopped: ["done", "fleetChild"],
+    });
+    expect(resumableTerminals(nodes, {}, "w1", new Set(), all)).not.toContain("done");
+  });
+
+  it("counts only the finished sub-agents the offer would otherwise have resumed: stopped, on this canvas, in this workspace", () => {
+    const more: Record<string, NodeRecord> = {
+      ...nodes,
+      elsewhere: terminal({ spawnedBy: "top", lastReport: report }, "w2"),
+      closed: terminal({ spawnedBy: "top", lastReport: report }),
+      running: terminal({ spawnedBy: "top", lastReport: report }),
+      reattached: terminal({ spawnedBy: "top", lastReport: report }),
+    };
+    const onScene = new Set([...all, "elsewhere", "running", "reattached"]);
+    const offer = workspaceResumeOffer(more, { running: { state: "running" } }, "w1", new Set(["reattached"]), onScene);
+    expect(offer.stayStopped).toEqual(["done", "fleetChild"]);
   });
 });

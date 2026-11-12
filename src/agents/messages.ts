@@ -278,6 +278,8 @@ export const agentsMessages = defineMessages({
     resumeAll: {
       title: "Resume all conversations?",
       body: (count: number) => `${plural(count, "console can resume its", "consoles can resume their")} last conversation`,
+      /** Sub-agents that reported: "Resume all" leaves them on their saved screen; their own node still restarts them. */
+      stayStopped: (count: number) => `${plural(count, "finished sub-agent stays", "finished sub-agents stay")} stopped`,
       yes: "Yes",
       no: "No",
       close: "Close",
