@@ -23,7 +23,7 @@ export const missionMessages = defineMessages({
     maxAgents: "Max active agents",
     maxAgentsHint: "The most agents working at once",
     routerLabel: "Model router",
-    routerTitle: `Each agent takes the model of its sub-task's level: ${ROUTER_LEVELS}`,
+    routerTitle: `Each agent takes the model of its sub-task's level: ${ROUTER_LEVELS}; on Codex, the models set in Settings. It follows Settings' Model router until you set it here`,
     // The switch beside a header's chips: its name stays, its state is aria-pressed's.
     routerSwitch: "Model router",
     linked: (count: number) => plural(count, "agent linked", "agents linked"),

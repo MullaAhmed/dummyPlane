@@ -1,8 +1,10 @@
 import { Route } from "lucide-react";
 import { useMessages } from "@/i18n";
 import { cn } from "@/lib/utils";
+import { DropdownMenuCheckboxItem } from "@/components/ui/dropdown-menu";
 import { IconButton } from "@/shell/buttons";
 import { missionMessages } from "./messages";
+import { setRouter, useRouterOn } from "./routerState";
 
 /**
  * The model router as a sticky switch in a node's header, a terminal's or a Fleet's: the same 28px icon button as
@@ -23,5 +25,26 @@ export function RouterToggle({ on, onChange }: { on: boolean; onChange: (on: boo
     >
       <Route />
     </IconButton>
+  );
+}
+
+/**
+ * A node's switch as the router stands there (`@/mission/routerState`): on or off, set at the node or inherited from
+ * the Fleet or agent above it, else Settings. Turning it stores the node's own state, or clears it when that is
+ * what it would inherit anyway.
+ */
+export function NodeRouterToggle({ nodeId }: { nodeId: string }) {
+  const on = useRouterOn(nodeId);
+  return <RouterToggle on={on} onChange={(next) => setRouter(nodeId, next)} />;
+}
+
+/** The same switch in a node's "⋯" menu, at any width. */
+export function RouterMenuItem({ nodeId }: { nodeId: string }) {
+  const t = useMessages(missionMessages);
+  const on = useRouterOn(nodeId);
+  return (
+    <DropdownMenuCheckboxItem checked={on} onCheckedChange={(next) => setRouter(nodeId, next === true)}>
+      {t.routerSwitch}
+    </DropdownMenuCheckboxItem>
   );
 }

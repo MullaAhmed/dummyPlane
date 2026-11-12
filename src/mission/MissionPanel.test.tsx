@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeAll, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, expect, it, vi, beforeEach } from "vitest";
 import { mockIPC } from "@tauri-apps/api/mocks";
 import { toast } from "sonner";
 import type { AgentId } from "@/ipc/pty";
@@ -14,6 +14,7 @@ import { focusNode } from "@/canvas/focusNode";
 import { answerConfirm } from "@/components/confirm";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { notify } from "./events";
+import { modelRouterStore } from "@/app/modelRouterSetting";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
 // The real endMission: "Stop the mission" ends the mission through it (./stop.ts).
@@ -86,6 +87,11 @@ async function openSettings() {
 /** The model router's checkbox: in plain view, no fold to open first. */
 const routerSwitch = () => host.querySelector<HTMLButtonElement>('[aria-label="Model router"]');
 
+beforeEach(() => {
+  // The router as before Settings had one: only a switch set on routes. The global setting has its own tests.
+  modelRouterStore.setState({ on: false, levels: {} });
+});
+
 it("sets the mission's team size before the plan, and no global budget any more", async () => {
   await show();
   await openSettings();
@@ -128,14 +134,13 @@ it("shows the model router as its own row while the mission is set up, before an
   await show();
 });
 
-it("shows the model router for a Fleet whose session runs Claude, not for one on another CLI (its levels name Claude's models)", async () => {
+it("shows the model router for a Fleet on Claude and on Codex, whose team takes the models Settings maps", async () => {
   await show({}, "claude");
   expect(routerSwitch()).not.toBeNull();
   await act(async () => root.unmount());
   host.remove();
   await show({}, "codex");
-  expect(routerSwitch()).toBeNull();
-  expect(host.textContent).not.toContain("Model router");
+  expect(routerSwitch()).not.toBeNull();
   // Its other settings stay.
   expect(settingsToggle().textContent).toBe("Settingsup to 4 agents at once");
 });

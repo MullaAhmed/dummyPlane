@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { act } from "react";
 import { createRoot } from "react-dom/client";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi, beforeEach } from "vitest";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { requestUi } from "@/commands/uiRequests";
 import { remoteStore } from "@/agents/remoteControl";
@@ -12,7 +12,10 @@ import type { TerminalPayload } from "@/nodes/types";
 import { quickNote } from "@/nodes/note/quickNote";
 import { relaunchTerminal, stopTerminal } from "./registry";
 import { TerminalHeader } from "./TerminalHeader";
+import { modelRouterStore } from "@/app/modelRouterSetting";
 
+// The model router switch reads the mission store, which reaches the canvas.
+vi.mock("@excalidraw/excalidraw", () => ({}));
 vi.mock("./registry", () => ({ relaunchTerminal: vi.fn(), stopTerminal: vi.fn(), terminalText: vi.fn(() => "") }));
 vi.mock("@/agents/groups", () => ({ leaveGroup: vi.fn() }));
 // "Quick note": the note's text, given the keyboard once it mounts, after the menu has gone (addNote, focusNote).
@@ -52,6 +55,11 @@ async function openMore(host: HTMLElement) {
 }
 
 const textOf = (items: HTMLElement[]) => items.map((item) => item.textContent);
+
+beforeEach(() => {
+  // The router as before Settings had one: only a switch set on routes. The global setting has its own tests.
+  modelRouterStore.setState({ on: false, levels: {} });
+});
 
 it("opens its name editor on request, with the keyboard (« Rename » of the palette)", async () => {
   const view = await mount(<TerminalHeader nodeId="batman" payload={claude} status={{ state: "stopped" }} />);
@@ -187,6 +195,20 @@ describe("the model router's sticky switch", () => {
     await openMore(manager.host);
     expect(entry()).toBeNull();
     await manager.unmount();
+  });
+
+  it("is on a Codex terminal too, and shows Settings' router while its own switch is unset; off is stored for it", async () => {
+    mockIPC(() => undefined);
+    modelRouterStore.setState({ on: true });
+    await nodesStore.getState().create("batman", { workspaceId: "w1", kind: "terminal", payload: { ...claude, agent: "codex" } });
+    const view = await mount(shown({ agent: "codex" }));
+    expect(router(view.host)?.getAttribute("aria-pressed")).toBe("true");
+    await act(async () => router(view.host)!.click());
+    expect(payloadOf().router).toBe(false);
+    expect(router(view.host)?.getAttribute("aria-pressed")).toBe("false");
+    await act(async () => router(view.host)!.click());
+    expect(payloadOf().router).toBeUndefined();
+    await view.unmount();
   });
 
   it("stays on until it is turned off, saved in the terminal's payload, and never asks for a restart", async () => {
