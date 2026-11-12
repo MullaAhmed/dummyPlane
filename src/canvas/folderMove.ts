@@ -9,18 +9,20 @@ import { folderName } from "./ExtensionList";
 import { canvasMessages } from "./messages";
 import { forgetStartedChoice } from "./startedChoice";
 
+/** The one toast a terminal's move offers its restart in: a second move replaces it, a move back or a restart takes it away. */
+const toastId = (nodeId: string) => `folder-move:${nodeId}`;
+
 /**
  * Restarts a terminal with what is stored now: its folder, its launch settings and its extension choice.
  * Claude resumes its conversation (a moved one, the conversation its move gave it). "Restart now", the
- * Folder row's "Restart in …" and the toast's all do this.
+ * Folder row's "Restart in …" and the toast's all do this. The toast's offer goes with it: clicked later,
+ * it would restart the session that just started.
  */
 export function restartTerminal(nodeId: string) {
+  toast.dismiss(toastId(nodeId));
   forgetStartedChoice(nodeId);
   resumeTerminal(nodeId);
 }
-
-/** The one toast a terminal's move offers its restart in: a second move replaces it, a move back takes it away. */
-const toastId = (nodeId: string) => `folder-move:${nodeId}`;
 
 /** Long enough to read where it runs and to decide: the Folder row keeps the offer after it. */
 const OFFER_MS = 10_000;

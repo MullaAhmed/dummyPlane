@@ -172,6 +172,8 @@ it("offers the restart in the toast of any agent, without a conversation to spea
 });
 
 it("shows at the top of the Folder row where it still runs, with a real restart button, until it restarts there", async () => {
+  const info = vi.spyOn(toast, "info");
+  const dismiss = vi.spyOn(toast, "dismiss");
   await startedIn("D:/work/api");
   await showEdit();
   expect(notice()).toBeNull();
@@ -185,7 +187,11 @@ it("shows at the top of the Folder row where it still runs, with a real restart 
   const path = host.querySelector("[data-folder]")!;
   expect(notice()!.compareDocumentPosition(path) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
+  const offer = (info.mock.calls[0][1] as { id?: string }).id;
+  expect(offer).toBeDefined();
   await act(async () => buttonNamed("Restart in web")!.click());
+  // The toast's offer goes with it: clicked later, it would restart the session that just started.
+  expect(dismiss).toHaveBeenCalledWith(offer);
   await until(() => spawns.length === 2 && terminalStatusStore.getState().statuses.t1?.state === "running");
   expect(spawns[1].cwd).toBe("D:/work/web");
   expect(notice()).toBeNull();
