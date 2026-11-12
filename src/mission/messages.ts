@@ -158,7 +158,7 @@ export const missionMessages = defineMessages({
     stopTitle: (name: string) => (name ? `Stop the mission “${name}”?` : "Stop the mission?"),
     // `manager`: a Manager runs it (a mission run the old way has none).
     stopDescription: (manager: boolean) =>
-      `The agents created for it close, and linked agents go back to the project folder.${manager ? " Its Manager stays." : ""} Its worktrees stay until you clean the mission up; its branches stay after that too.`,
+      `The agents created for it close, and linked agents go back to the project folder.${manager ? " Its Manager stays." : ""} Its branches and worktrees stay: cleaning the mission up later removes only the worktrees whose work is merged.`,
     stopCancel: "Cancel",
     // The quiet toast when the Fleet cleaned a finished mission up itself (`./cleanup.ts`).
     cleanedByFleet: (name: string) => (name ? `Mission ${name} cleaned up` : "Mission cleaned up"),

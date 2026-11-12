@@ -491,7 +491,7 @@ it("stops the mission once the user says yes, as the Fleet's stop_mission does: 
   expect(dialog()?.textContent).toContain("Stop the mission “Auth”?");
   expect(dialog()?.textContent).toContain("The agents created for it close, and linked agents go back to the project folder.");
   expect(dialog()?.textContent).toContain("Its Manager stays.");
-  expect(dialog()?.textContent).toContain("Its worktrees stay until you clean the mission up; its branches stay after that too.");
+  expect(dialog()?.textContent).toContain("Its branches and worktrees stay: cleaning the mission up later removes only the worktrees whose work is merged.");
   expect(missionOf(nodesStore.getState().nodes.chef)?.state).toBe("en_cours");
   await act(async () => dialogButton("Stop the mission").click());
   expect(dialog()).toBeNull();
