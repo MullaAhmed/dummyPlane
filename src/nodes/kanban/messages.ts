@@ -49,7 +49,7 @@ export const kanbanNodeMessages = defineMessages<{
     moved: (column: string, position: number, count: number) => string;
     openIssue: string;
   };
-  fleet: { plan: string; create: string; linked: (name: string) => string };
+  fleet: { plan: string; create: string; linked: (name: string) => string; numbered: (name: string, rank: number) => string; noCards: string };
   github: {
     boardMenu: string;
     link: string;
@@ -99,7 +99,7 @@ export const kanbanNodeMessages = defineMessages<{
       moved: (column, position, count) => `Moved to ${column}, ${position} of ${count}`,
       openIssue: "Open the issue on GitHub",
     },
-    fleet: { plan: "Plan with the fleet", create: "New fleet", linked: (name) => `${name} (linked)` },
+    fleet: { plan: "Plan with the fleet", create: "New fleet", linked: (name) => `${name} (linked)`, numbered: (name, rank) => `${name} #${rank}`, noCards: "no cards" },
     doubleClickRename: "Double-click to rename",
     cardCount: (count) => `${count} card${count === 1 ? "" : "s"}`,
     newCard: "New card",
