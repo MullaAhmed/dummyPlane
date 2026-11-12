@@ -114,7 +114,8 @@ export type Ungrouping =
  *   (as Excalidraw ungroups a group from any of its elements). Greyed when the selection spans
  *   several groups (`manyGroups`) or holds something outside the frame (`outsideGroup`). What
  *   else sits in the frame (a drawing, a quick note) is not a member: selected with members it
- *   is not outside either; alone, it ungroups as a drawing.
+ *   is not outside either; alone, it ungroups as a drawing. Nor is a member's quick note outside,
+ *   though it is in no frame: a box around the group takes it with the rest.
  * - Else Excalidraw's groups of drawings, with no terminal in the selection: the outermost
  *   group of each selected element, as Excalidraw's own Ungroup takes them (`editingGroupId`,
  *   the group entered by a double-click, and those around it are kept), a group of one
@@ -138,7 +139,14 @@ export function ungroupingOf(elements: readonly ExcalidrawElement[], ids: readon
   if (homes.size > 1) return { kind: "group", groupId: null, blocked: "manyGroups" };
   if (homes.size === 1) {
     const [groupId] = homes;
-    const outside = selected.some((e) => e.id !== groupId && e.frameId !== groupId);
+    // A member's quick note is in no frame (src/nodes/note), yet stands beside it and goes with it: not outside.
+    const anchorOf = anchorsOf(live);
+    const byId = new Map(live.map((e) => [e.id, e]));
+    const carried = (e: ExcalidrawElement) => {
+      const attachment = anchorOf(e);
+      return attachment?.beside === true && byId.get(attachment.anchor)?.frameId === groupId;
+    };
+    const outside = selected.some((e) => e.id !== groupId && e.frameId !== groupId && !carried(e));
     return outside ? { kind: "group", groupId, blocked: "outsideGroup" } : { kind: "group", groupId, blocked: null };
   }
   if (selected.some((e) => nodeKindOf(e) === "terminal")) return null;

@@ -15,7 +15,7 @@ import { arrangedElements } from "./arrange";
 import { anchorsOf } from "./attachments";
 import { boundsOf, overlap, PADDING, PADDING_BOTTOM, PADDING_TOP } from "./groupLayout";
 import { PANTHEONS } from "./names";
-import { groupingOf, groupSelection } from "./selectionGroup";
+import { groupingOf, groupSelection, ungroupingOf } from "./selectionGroup";
 import { isSpawnWire, orphanWires, withWire } from "./wires";
 import { wirePaths } from "@/canvas/overlay/wirePaths";
 
@@ -187,6 +187,28 @@ describe("grouping terminals that carry quick notes", () => {
     expect(framesFromScene(scene).find((f) => f.id === id)).toMatchObject({ memberIds: ["a", "b"] });
     // The notes are untouched: the note watch keeps each beside its host, and takes any note out of a frame.
     for (const note of [...notes, right]) expect(scene).toContain(note);
+  });
+});
+
+describe("ungrouping a group whose terminals carry quick notes", () => {
+  const group = (id: string) => frame(id, { x: -32, y: -48, width: 1904, height: 600, groupIds: [], customData: { dummyplane: { kind: "group", role: "general", pantheon: "egyptian" } } });
+  const a = terminal("a", 0, 0, { frameId: "g" });
+  const b = terminal("b", 1120, 0, { frameId: "g" });
+  const loose = terminal("loose", 5000, 0);
+  // In no frame, as every quick note: A's stands in the group's frame, between its terminals.
+  const elements = [a, b, group("g"), noteAt("n", a, 736, 0), loose, noteAt("m", loose, 5736, 0)];
+
+  it("does not count a member's note as outside the group: a box around the group takes it too", () => {
+    expect(elements.find((e) => e.id === "n")!.frameId).toBeNull();
+    for (const ids of [["a", "n"], ["g", "n"], ["g", "a", "b", "n"]]) {
+      expect(ungroupingOf(elements, ids), ids.join()).toEqual({ kind: "group", groupId: "g", blocked: null });
+    }
+  });
+
+  it("still never ungroups from a note alone, and still refuses a terminal outside the group or its note", () => {
+    expect(ungroupingOf(elements, ["n"])).toBeNull();
+    expect(ungroupingOf(elements, ["a", "loose"])).toMatchObject({ blocked: "outsideGroup" });
+    expect(ungroupingOf(elements, ["a", "m"])).toMatchObject({ blocked: "outsideGroup" });
   });
 });
 
