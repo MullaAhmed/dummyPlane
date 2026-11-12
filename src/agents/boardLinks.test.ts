@@ -5,6 +5,7 @@ import { mockIPC } from "@tauri-apps/api/mocks";
 import { canvasStore } from "@/canvas/canvasStore";
 import { createNodeElement, type NodeKind } from "@/canvas/nodeElement";
 import type { Mission } from "@/mission/mission";
+import { setFleetClosed } from "@/mission/store";
 import { nodesStore } from "@/store/nodes";
 import { workspacesStore } from "@/store/workspaces";
 import { boardLinkable, linkAgentToBoard, missionRunsBoard, wiredBoardsOf } from "./boardLinks";
@@ -110,4 +111,17 @@ it("says a board is a mission's while its mission is under way, and only then", 
     expect(missionRunsBoard("b1"), state).toBe(false);
   }
   nodesStore.getState().update("chef", { mission: undefined });
+});
+
+it("frees the board of a Fleet deleted from the canvas, its mission kept for an undo; the undo locks it again", () => {
+  nodesStore.getState().update("chef", { mission: mission("en_cours", "b1") });
+  setFleetClosed("chef", true);
+  try {
+    expect(missionRunsBoard("b1")).toBe(false);
+    setFleetClosed("chef", false);
+    expect(missionRunsBoard("b1")).toBe(true);
+  } finally {
+    setFleetClosed("chef", false);
+    nodesStore.getState().update("chef", { mission: undefined });
+  }
 });

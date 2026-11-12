@@ -1,5 +1,5 @@
 import type { KanbanPayload } from "@/nodes/types";
-import { missionOf } from "@/mission/store";
+import { isFleetClosed, missionOf } from "@/mission/store";
 import { isManagerNode, nodesStore } from "@/store/nodes";
 import { workspacesStore } from "@/store/workspaces";
 import { linkableAgent } from "./agentLinks";
@@ -53,11 +53,13 @@ export function wiredBoardsOf(nodeId: string): WiredBoard[] | null {
 
 /**
  * Whether a mission under way runs this board with its Manager: its cards are the Manager's to move (and the Fleet's to
- * add through the queue), whoever else the user wired to it. Reading is open; writing is refused.
+ * add through the queue), whoever else the user wired to it. Reading is open; writing is refused. A Fleet deleted from
+ * the canvas keeps its record and mission for an undo, but runs nothing: its board is free again (12 Nov, a board stayed
+ * locked to a deleted Fleet's mission until a restart).
  */
 export function missionRunsBoard(boardId: string): boolean {
-  return Object.values(nodesStore.getState().nodes).some((record) => {
-    if (record.kind !== "fleet") return false;
+  return Object.entries(nodesStore.getState().nodes).some(([id, record]) => {
+    if (record.kind !== "fleet" || isFleetClosed(id)) return false;
     const mission = missionOf(record);
     return mission?.board === boardId && (mission.state === "lancement" || mission.state === "en_cours");
   });
