@@ -154,4 +154,22 @@ export const SCENE: readonly Command[] = [
       if (ctx.workspaceId) arrangeWorkspace(ctx.workspaceId, { only: selectionOf(ctx), undoable: true });
     },
   }),
+  // Everything on the canvas, whatever is selected; one undo.
+  command("scene.arrangeCanvas", {
+    section: scene,
+    available: inProject,
+    run: (ctx) => {
+      if (ctx.workspaceId) arrangeWorkspace(ctx.workspaceId, { scope: "canvas", undoable: true });
+    },
+  }),
+  // The selection alone, never the whole canvas (one group selected: tidied inside); greyed, with its reason, with nothing selected. One undo.
+  command("scene.arrangeSelection", {
+    section: scene,
+    available: inProject,
+    disabled: (ctx) => (selectionOf(ctx).length > 0 ? null : catalog().reasons.noSelection),
+    run: (ctx) => {
+      const only = selectionOf(ctx);
+      if (ctx.workspaceId && only.length > 0) arrangeWorkspace(ctx.workspaceId, { only, scope: "selection", undoable: true });
+    },
+  }),
 ];

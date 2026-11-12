@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
+import { arrangeLayoutStore } from "@/app/arrangeLayoutSetting";
 import { NODE_SIZE, toStoredKind, type NodeKind } from "@/canvas/nodeElement";
 import { arrangeWorkspace } from "./arrangeCanvas";
+import { NODE_GAP } from "./groupLayout";
 
 vi.mock("@excalidraw/excalidraw", () => ({ CaptureUpdateAction: { IMMEDIATELY: "IMMEDIATELY", NEVER: "NEVER" } }));
 vi.mock("@/nodes/terminal/minimize", () => ({ isMinimized: () => false }));
@@ -42,11 +44,62 @@ function messyGroup(): ExcalidrawElement[] {
   ];
 }
 
+/** Four loose terminals, out of place: a and b on top, c and d under them. */
+const looseTerminals = () =>
+  ["a", "b", "c", "d"].map((id, i) =>
+    element(id, "embeddable", (i % 2) * 5000, Math.floor(i / 2) * 5000, NODE_SIZE.terminal.width, NODE_SIZE.terminal.height, { customData: { kind: toStoredKind("terminal") } }),
+  );
+const written = () => updateScene.mock.calls[updateScene.mock.calls.length - 1][0].elements as ExcalidrawElement[];
+const where = (elements: readonly ExcalidrawElement[]) => Object.fromEntries(elements.map((e) => [e.id, { x: e.x, y: e.y, width: e.width, height: e.height }]));
+
 describe("arrangeWorkspace", () => {
   beforeEach(() => {
     updateScene.mockClear();
     write.mockClear();
     shown = true;
+    arrangeLayoutStore.setState(arrangeLayoutStore.getInitialState());
+  });
+
+  it("lays the canvas out in the layout chosen in the settings, for Arrange and Auto-arrange alike", () => {
+    // The grid: four terminals in two rows of two at the view's 16:10.
+    scene = looseTerminals();
+    arrangeWorkspace("w", { undoable: true });
+    expect(new Set(written().map((e) => e.y)).size).toBe(2);
+    arrangeLayoutStore.setState({ layout: "row" });
+    for (const undoable of [true, false]) {
+      scene = looseTerminals();
+      expect(arrangeWorkspace("w", { undoable })).toBe(true);
+      const row = written().sort((p, q) => p.x - q.x);
+      expect(row.map((e) => e.id)).toEqual(["a", "b", "c", "d"]);
+      expect(row.every((e) => e.y === 0)).toBe(true);
+      expect(row.map((e) => e.x)).toEqual([0, 1, 2, 3].map((i) => i * (NODE_SIZE.terminal.width + NODE_GAP)));
+    }
+  });
+
+  it("gives a group's Arrange the chosen layout too: its members side by side in one row", () => {
+    scene = messyGroup();
+    arrangeWorkspace("w", { only: ["g"], undoable: true });
+    const grid = where(written());
+    expect(grid.t.x).toBe(grid.k.x);
+    arrangeLayoutStore.setState({ layout: "row" });
+    scene = messyGroup();
+    arrangeWorkspace("w", { only: ["g"], undoable: true });
+    const row = where(written());
+    expect(row.t.y).toBe(row.k.y);
+    expect(row.k.x).toBeGreaterThan(row.t.x);
+  });
+
+  it("passes the scope on: the whole canvas whatever is selected, or the selection alone", () => {
+    scene = looseTerminals();
+    arrangeWorkspace("w", { undoable: true });
+    const all = where(written());
+    arrangeWorkspace("w", { only: ["a", "b"], scope: "canvas", undoable: true });
+    expect(where(written())).toEqual(all);
+    // One block selected: in `auto` the whole canvas moves, alone it stays as it is.
+    updateScene.mockClear();
+    expect(arrangeWorkspace("w", { only: ["a"], scope: "selection", undoable: true })).toBe(false);
+    expect(updateScene).not.toHaveBeenCalled();
+    expect(arrangeWorkspace("w", { only: ["a"], undoable: true })).toBe(true);
   });
 
   it("arranges a group's every member in one undoable step, leaving the scene before it intact for the undo", () => {

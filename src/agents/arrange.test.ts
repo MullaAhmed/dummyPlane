@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { arrangedElements, columnOrder, readingOrder, type ArrangeInput } from "./arrange";
-import { COLUMN_GAP, GROUP_GAP, NODE_GAP, PADDING, PADDING_BOTTOM, PADDING_TOP, ROW_GAP } from "./groupLayout";
+import { ARRANGE_LAYOUTS, columnHeightsOf, type ArrangeLayout } from "./arrangeLayout";
+import { COLUMN_GAP, GROUP_GAP, MAX_ROWS, NODE_GAP, PADDING, PADDING_BOTTOM, PADDING_TOP, ROW_GAP } from "./groupLayout";
 
 const W = 720;
 const H = 440;
@@ -178,5 +179,216 @@ describe("arrangedElements", () => {
   it("ignores deleted elements and leaves the scene alone when there is nothing to move", () => {
     expect(arrangedElements(input([node("a", 0, 0)]))).toBeNull();
     expect(arrangedElements(input([node("a", 0, 0), node("gone", 5000, 5000, { isDeleted: true })]))).toBeNull();
+  });
+});
+
+const geometry = (result: ReturnType<typeof arrangedElements>) => result!.elements.map((e) => ({ id: e.id, ...at(result, e.id) }));
+
+describe("arrange layouts", () => {
+  /** Five loose terminals, out of place; reading order a, b (first row), c, d, e; the first stood at (50, 100). */
+  const loose = () => [node("a", 100, 100), node("b", 3000, 120), node("c", 50, 2000), node("d", 4000, 2600), node("e", 7000, 5000)];
+  const ids = ["a", "b", "c", "d", "e"];
+  const slot = (column: number, row: number) => ({ x: 50 + column * (W + NODE_GAP), y: 100 + row * (H + ROW_GAP) });
+
+  /** Each layout but the grid: the column and row of the i-th block in reading order. */
+  const canvasCells: [ArrangeLayout, (i: number) => [number, number]][] = [
+    ["row", (i) => [i, 0]],
+    ["column", (i) => [0, i]],
+    ["columns-2", (i) => [i % 2, Math.floor(i / 2)]],
+    ["columns-3", (i) => [i % 3, Math.floor(i / 3)]],
+    ["columns-4", (i) => [i % 4, Math.floor(i / 4)]],
+  ];
+
+  for (const [layout, cell] of canvasCells) {
+    it(`lays loose terminals out in ${layout}, whatever the view's shape, from where the first one stood`, () => {
+      for (const aspect of [16 / 10, 1 / 3, 6]) {
+        const result = arrangedElements(input(loose(), { layout, aspect }));
+        ids.forEach((id, i) => expect(at(result, id), `${layout} ${aspect} ${id}`).toMatchObject(slot(...cell(i))));
+      }
+    });
+  }
+
+  /** A group of five terminals, about one column out of place (m1 to m5 top to bottom), alone on the canvas. */
+  const group = () => [frame("g", 0, 0, 3000, 3000), ...[1, 2, 3, 4, 5].map((i) => node(`m${i}`, 40 + (i % 2) * 7, 60 + (i - 1) * 560, { frameId: "g" }))];
+  const memberCell = (column: number, row: number) => ({ x: PADDING + column * (W + COLUMN_GAP), y: PADDING_TOP + row * (H + ROW_GAP) });
+
+  /** Each layout: the column and row of m1 to m5 in the group's grid, filled top to bottom then left to right. */
+  const groupCells: Record<ArrangeLayout, [number, number][]> = {
+    grid: [
+      [0, 0],
+      [0, 1],
+      [0, 2],
+      [0, 3],
+      [1, 0],
+    ],
+    row: [
+      [0, 0],
+      [1, 0],
+      [2, 0],
+      [3, 0],
+      [4, 0],
+    ],
+    column: [
+      [0, 0],
+      [0, 1],
+      [0, 2],
+      [0, 3],
+      [0, 4],
+    ],
+    "columns-2": [
+      [0, 0],
+      [0, 1],
+      [0, 2],
+      [1, 0],
+      [1, 1],
+    ],
+    "columns-3": [
+      [0, 0],
+      [0, 1],
+      [1, 0],
+      [1, 1],
+      [2, 0],
+    ],
+    "columns-4": [
+      [0, 0],
+      [0, 1],
+      [1, 0],
+      [2, 0],
+      [3, 0],
+    ],
+  };
+
+  for (const layout of ARRANGE_LAYOUTS) {
+    it(`gives a group's grid the ${layout} layout and fits the frame to it`, () => {
+      const result = arrangedElements(input(group(), { layout }));
+      const cells = groupCells[layout];
+      cells.forEach(([column, row], i) => expect(at(result, `m${i + 1}`), `${layout} m${i + 1}`).toMatchObject(memberCell(column, row)));
+      const columns = Math.max(...cells.map(([c]) => c)) + 1;
+      const rows = Math.max(...cells.map(([, r]) => r)) + 1;
+      expect(at(result, "g")).toEqual({
+        x: 0,
+        y: 0,
+        width: 2 * PADDING + columns * W + (columns - 1) * COLUMN_GAP,
+        height: PADDING_TOP + rows * H + (rows - 1) * ROW_GAP + PADDING_BOTTOM,
+      });
+    });
+  }
+
+  it("cuts a group's columns: the grid's of MAX_ROWS, one row, one column, or N as even as they go", () => {
+    // The grid, as before: columns of MAX_ROWS, the last one shorter.
+    for (let count = 1; count <= 13; count++) {
+      const rows = Math.min(count, MAX_ROWS);
+      const before = Array.from({ length: Math.ceil(count / rows) }, (_, c) => Math.min(rows, count - c * rows));
+      expect(columnHeightsOf(count, "grid", MAX_ROWS)).toEqual(before);
+    }
+    expect(columnHeightsOf(5, "row", MAX_ROWS)).toEqual([1, 1, 1, 1, 1]);
+    expect(columnHeightsOf(5, "column", MAX_ROWS)).toEqual([5]);
+    // N columns as soon as there are N pieces: 9 in 4 columns, not 3 of 3; 4 in 3 columns, not 2 of 2.
+    expect(columnHeightsOf(9, "columns-4", MAX_ROWS)).toEqual([3, 2, 2, 2]);
+    expect(columnHeightsOf(4, "columns-3", MAX_ROWS)).toEqual([2, 1, 1]);
+    expect(columnHeightsOf(2, "columns-4", MAX_ROWS)).toEqual([1, 1]);
+    for (const layout of ARRANGE_LAYOUTS) {
+      expect(columnHeightsOf(0, layout, MAX_ROWS)).toEqual([]);
+      for (let count = 1; count <= 13; count++) {
+        const heights = columnHeightsOf(count, layout, MAX_ROWS);
+        expect(
+          heights.reduce((a, b) => a + b, 0),
+          `${layout} ${count}`,
+        ).toBe(count);
+        expect(heights.every((h) => h >= 1)).toBe(true);
+      }
+    }
+  });
+
+  /** Loose terminals, a group of five with a tab in it, loose tabs, a spawn tree and a drawing outside frames, all out of place. */
+  function mixed(): { elements: ExcalidrawElement[]; rest: Partial<ArrangeInput> } {
+    const tab = (id: string, x: number, y: number, fields: Record<string, unknown> = {}) => node(id, x, y, { width: 280, height: 68, ...fields });
+    const parents: Record<string, string> = { kid: "root" };
+    return {
+      elements: [
+        ...loose(),
+        frame("g", 9000, 0, 3000, 3000),
+        ...[1, 2, 3, 4, 5].map((i) => node(`m${i}`, 9040, 60 + (i - 1) * 560, { frameId: "g" })),
+        tab("tg", 9500, 2850, { frameId: "g" }),
+        tab("t1", 500, 8000),
+        tab("t2", 12000, -300),
+        tab("t3", 3000, 9000),
+        node("root", 15000, 0),
+        node("kid", 15000 + W + GROUP_GAP, 300),
+        shape("s", -4000, -4000),
+      ],
+      rest: { isMinimized: (id) => id.startsWith("t"), parentOf: (id) => parents[id] ?? null },
+    };
+  }
+
+  for (const layout of ARRANGE_LAYOUTS) {
+    it(`moves nothing a second time in the ${layout} layout`, () => {
+      for (const aspect of [16 / 10, 1 / 2, 4]) {
+        const { elements, rest } = mixed();
+        const first = arrangedElements(input(elements, { ...rest, layout, aspect }));
+        expect(first, `${layout} ${aspect}`).not.toBeNull();
+        expect(arrangedElements(input(first!.elements, { ...rest, layout, aspect })), `${layout} ${aspect}`).toBeNull();
+      }
+    });
+  }
+
+  it("lays the grid out as before: the grid asked for is the default", () => {
+    const { elements, rest } = mixed();
+    for (const aspect of [16 / 10, 1 / 2, 4]) {
+      expect(geometry(arrangedElements(input(elements, { ...rest, layout: "grid", aspect })))).toEqual(geometry(arrangedElements(input(elements, { ...rest, aspect }))));
+    }
+    // The default, pinned: four loose terminals in two rows of two at 16:10 (as in "packs loose terminals into a grid").
+    const four = arrangedElements(input(loose().slice(0, 4), { layout: "grid" }));
+    expect(at(four, "d")).toMatchObject({ x: 50 + W + NODE_GAP, y: 100 + H + ROW_GAP });
+  });
+
+  it("keeps the tabs in rows under the rest, as wide as it", () => {
+    const tab = (id: string, x: number, y: number) => node(id, x, y, { width: 280, height: 68 });
+    const elements = [...loose().slice(0, 2), tab("t1", 5000, -500), tab("t2", 100, 9000), tab("t3", 200, 9500)];
+    const result = arrangedElements(input(elements, { layout: "column", isMinimized: (id) => id.startsWith("t") }));
+    // One column of terminals, 720 wide, from the corner of all that stood (x 100 of a and t2, y -500 of t1): two tabs side by side under it, the third under them.
+    const tabsTop = -500 + 2 * H + ROW_GAP + ROW_GAP;
+    expect(at(result, "a")).toMatchObject({ x: 100, y: -500 });
+    expect(at(result, "b")).toMatchObject({ x: 100, y: -500 + H + ROW_GAP });
+    expect(at(result, "t1")).toMatchObject({ x: 100, y: tabsTop });
+    expect(at(result, "t2")).toMatchObject({ x: 100 + 280 + NODE_GAP, y: tabsTop });
+    expect(at(result, "t3")).toMatchObject({ x: 100, y: tabsTop + 68 + ROW_GAP });
+  });
+});
+
+describe("arrange scope", () => {
+  const elements = () => [node("a", 0, 0), node("b", 5000, 0), node("c", 0, 5000), shape("s", 9000, 9000)];
+
+  it("arranges the whole canvas when asked to, whatever is selected", () => {
+    const all = arrangedElements(input(elements()));
+    for (const only of [["a", "b"], ["a"], [], ["s"]]) {
+      expect(geometry(arrangedElements(input(elements(), { only, scope: "canvas" }))), only.join()).toEqual(geometry(all));
+    }
+  });
+
+  it("arranges the selection alone when asked to, never falling back to the whole canvas", () => {
+    const some = arrangedElements(input(elements(), { only: ["a", "b"], scope: "selection" }));
+    expect(at(some, "b")).toMatchObject({ x: W + NODE_GAP, y: 0 });
+    expect(at(some, "c")).toMatchObject({ x: 0, y: 5000 });
+    // One block, nothing, or drawings outside groups alone: nothing to arrange, nothing moves (in `auto`, the whole canvas would).
+    for (const only of [["a"], [], ["s"]]) {
+      expect(arrangedElements(input(elements(), { only, scope: "selection" })), only.join()).toBeNull();
+      expect(arrangedElements(input(elements(), { only, scope: "auto" })), only.join()).not.toBeNull();
+    }
+  });
+
+  it("tidies inside a group when the selection asked for is that group or some of its members", () => {
+    const scene = [node("m1", 1500, 700, { frameId: "g" }), node("m2", 40, 60, { frameId: "g" }), frame("g", 0, 0, 3000, 1500), node("far", 9000, 9000)];
+    for (const only of [["m1"], ["g"]]) {
+      const result = arrangedElements(input(scene, { only, scope: "selection" }));
+      expect(at(result, "m2"), only.join()).toMatchObject({ x: PADDING, y: PADDING_TOP });
+      expect(at(result, "far"), only.join()).toMatchObject({ x: 9000, y: 9000 });
+    }
+  });
+
+  it("arranges as before when no scope is given", () => {
+    for (const only of [["a", "b"], ["a"], []]) {
+      expect(geometry(arrangedElements(input(elements(), { only, scope: "auto" }))), only.join()).toEqual(geometry(arrangedElements(input(elements(), { only }))));
+    }
   });
 });

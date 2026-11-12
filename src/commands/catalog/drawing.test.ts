@@ -329,7 +329,7 @@ describe("Dessin, sur la sélection", () => {
 
 describe("Scene", () => {
   it("exports, imports and saves a PNG as the settings menu does", async () => {
-    expect(SCENE.map((c) => labelOf(c, busy))).toEqual(["Export scene…", "Import scene…", "Export as PNG…", "Arrange"]);
+    expect(SCENE.map((c) => labelOf(c, busy))).toEqual(["Export scene…", "Import scene…", "Export as PNG…", "Arrange", "Arrange the whole canvas", "Arrange the selection"]);
     for (const command of SCENE.slice(0, 3)) await command.run(busy);
     expect([exportCurrentScene, importIntoScene, exportCurrentPng].every((f) => vi.mocked(f).mock.calls.length === 1)).toBe(true);
   });
@@ -339,5 +339,44 @@ describe("Scene", () => {
     await arrange.run({ ...busy, selectionIds: ["a", "b"] });
     expect(arrangeWorkspace).toHaveBeenLastCalledWith("w1", { only: ["a", "b"], undoable: true });
     expect(arrange.available({ ...busy, project: false })).toBe(false);
+  });
+
+  it("lists Arrange the whole canvas and Arrange the selection in the Scene section, next to Arrange", () => {
+    const ids = SCENE.map((c) => c.id);
+    expect(ids.slice(ids.indexOf("scene.arrange"))).toEqual(["scene.arrange", "scene.arrangeCanvas", "scene.arrangeSelection"]);
+    for (const id of ["scene.arrangeCanvas", "scene.arrangeSelection"]) {
+      const command = SCENE.find((c) => c.id === id)!;
+      expect(sectionOf(command, busy)).toBe("Scene");
+      expect(command.keywords).toContain("arrange");
+      expect(command.available({ ...busy, project: false })).toBe(false);
+    }
+  });
+
+  it("arranges the whole canvas, whatever is selected, as one undoable step", async () => {
+    const whole = SCENE.find((c) => c.id === "scene.arrangeCanvas")!;
+    expect([whole.available(busy), whole.disabled?.(busy) ?? null]).toEqual([true, null]);
+    await whole.run({ ...busy, selectionIds: ["a", "b"] });
+    expect(arrangeWorkspace).toHaveBeenLastCalledWith("w1", { scope: "canvas", undoable: true });
+  });
+
+  it("greys Arrange the selection, with its reason, while nothing is selected, and then does nothing", async () => {
+    const selection = SCENE.find((c) => c.id === "scene.arrangeSelection")!;
+    vi.mocked(arrangeWorkspace).mockClear();
+    expect([selection.available(busy), selection.disabled?.(busy)]).toEqual([true, "nothing selected"]);
+    expect(selection.disabled?.({ ...busy, selectionIds: [] })).toBe("nothing selected");
+    await selection.run(busy);
+    expect(arrangeWorkspace).not.toHaveBeenCalled();
+  });
+
+  it("arranges the selection alone, the ring's or else Excalidraw's, as one undoable step", async () => {
+    const selection = SCENE.find((c) => c.id === "scene.arrangeSelection")!;
+    const ring = { ...busy, selectionIds: ["a", "b"] };
+    expect(selection.disabled?.(ring)).toBeNull();
+    await selection.run(ring);
+    expect(arrangeWorkspace).toHaveBeenLastCalledWith("w1", { only: ["a", "b"], scope: "selection", undoable: true });
+    canvasStore.setState({ api: { getAppState: () => ({ selectedElementIds: { c: true, d: false } }), getSceneElements: () => [] } as unknown as ExcalidrawImperativeAPI });
+    expect(selection.disabled?.(busy)).toBeNull();
+    await selection.run(busy);
+    expect(arrangeWorkspace).toHaveBeenLastCalledWith("w1", { only: ["c"], scope: "selection", undoable: true });
   });
 });

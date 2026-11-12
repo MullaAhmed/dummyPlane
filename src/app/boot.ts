@@ -24,6 +24,7 @@ import { projectsStore, setForgetWorkspaces } from "@/store/projects";
 import { saveBeforeClose } from "./close";
 import { forgetWorkspaces } from "./forget";
 import { loadThemeSettings } from "./theme";
+import { loadArrangeLayout } from "./arrangeLayoutSetting";
 import { loadAutoArrange } from "./autoArrangeSetting";
 import { loadFollowWaiting } from "./followWaitingSetting";
 import { loadFinishAlerts } from "./finishAlertsSetting";
@@ -48,6 +49,7 @@ export function boot(): Promise<void> {
     await loadFollowWaiting();
     await loadFinishAlerts();
     await loadAutoArrange();
+    await loadArrangeLayout();
     await loadFleetAgent();
     await loadSubagentSettings();
     await loadAgentsPanel();
