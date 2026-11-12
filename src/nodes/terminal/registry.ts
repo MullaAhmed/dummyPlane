@@ -21,6 +21,7 @@ import { newConversation, relaunchMode, type LaunchMode } from "./launch";
 import { onNewWork } from "./minimize";
 import { isTypingKey, startsNewConversation, startsOnKeystroke } from "./pill";
 import { acceptsInput, reattachSession, relaunchSession, restoreSession, startSession, type SessionState } from "./session";
+import { createWebglPool } from "./webglPool";
 
 // Terminals live outside React: Excalidraw unmounts embeddables on a
 // workspace switch, and the xterm instance must survive it. Remounting moves the
@@ -40,6 +41,8 @@ interface Entry {
   lastInput?: number;
   /** Where the current session's output starts; above it is the previous session's (final review H2). */
   since?: IMarker;
+  /** Its WebGL renderer, while the pool lends it a context (./webglPool.ts); xterm's DOM renderer otherwise. */
+  webgl?: WebglAddon;
 }
 
 const FONT_FAMILY = "'Cascadia Code', Consolas, monospace";
@@ -51,6 +54,19 @@ let watchingScale = false;
 
 // Subscribed once for the module's life; a disposed terminal leaves `entries`, so nothing is kept alive.
 followPalette(themeStore, () => Array.from(entries.values(), (entry) => entry.term));
+
+// WebGL for the terminals on screen, within the browser's limit of contexts (./webglPool.ts).
+const webglPool = createWebglPool({
+  // A terminal leaves the pool before it leaves `entries`: one is always there.
+  attach: (id) => {
+    const entry = entries.get(id);
+    return entry ? attachWebgl(id, entry) : true;
+  },
+  detach: (id) => {
+    const entry = entries.get(id);
+    if (entry) detachWebgl(entry);
+  },
+});
 
 /** A process ended: it no longer awaits re-attachment. */
 export function forgetLivePty(nodeId: string) {
@@ -135,15 +151,38 @@ function create(nodeId: string): Entry {
   return entry;
 }
 
-function loadWebgl(term: Terminal) {
+/** Loads the WebGL renderer the pool lends; false when WebGL is not available (xterm keeps its DOM renderer). */
+function attachWebgl(nodeId: string, entry: Entry): boolean {
   try {
     const webgl = new WebglAddon();
-    // Browsers keep about 16 WebGL contexts; past that, fall back to the DOM renderer.
-    webgl.onContextLoss(() => webgl.dispose());
-    term.loadAddon(webgl);
+    // Lost all the same (a GPU reset): xterm waited 3 s for it to come back; the DOM renderer takes over.
+    webgl.onContextLoss(() => {
+      if (entry.webgl !== webgl) return;
+      detachWebgl(entry);
+      webglPool.lost(nodeId);
+    });
+    entry.term.loadAddon(webgl);
+    entry.webgl = webgl;
+    return true;
   } catch {
-    // No WebGL: xterm keeps its DOM renderer.
+    return false;
   }
+}
+
+/** Back to xterm's DOM renderer, which draws the same buffer; the context is freed now, not when collected. */
+function detachWebgl(entry: Entry) {
+  const webgl = entry.webgl;
+  if (!webgl) return;
+  entry.webgl = undefined;
+  const gl = webglContextOf(webgl);
+  webgl.dispose();
+  // xterm drops its canvas but not the context, which counts against the browser's limit until it is collected.
+  if (gl && !gl.isContextLost()) gl.getExtension("WEBGL_lose_context")?.loseContext();
+}
+
+/** The addon's context, which xterm does not expose (addon-webgl 0.19: WebglAddon._renderer._gl). */
+function webglContextOf(webgl: WebglAddon): WebGL2RenderingContext | undefined {
+  return (webgl as unknown as { _renderer?: { _gl?: WebGL2RenderingContext } })._renderer?._gl;
 }
 
 /**
@@ -155,8 +194,12 @@ function loadWebgl(term: Terminal) {
  */
 export function layoutTerminal(nodeId: string, host: HTMLElement, zoom: number) {
   const entry = entries.get(nodeId);
+  if (!entry) return;
   const box = { width: host.clientWidth, height: host.clientHeight };
-  if (!entry || box.width === 0 || box.height === 0) return;
+  const onScreen = box.width > 0 && box.height > 0;
+  // Excalidraw hides a node scrolled out of the view, and a minimized card hides its host: its WebGL context may go to one on screen.
+  if (entry.opened && entry.host === host) webglPool.show(nodeId, onScreen);
+  if (!onScreen) return;
   const dpr = window.devicePixelRatio || 1;
   measure ??= canvasMeasure(FONT_FAMILY);
   entry.zoom = zoom;
@@ -191,13 +234,33 @@ export function mountTerminal(nodeId: string, host: HTMLElement, payload: Termin
   if (!entry.opened) {
     entry.term.open(entry.screen);
     entry.opened = true;
-    loadWebgl(entry.term);
   }
+  // Also tells the WebGL pool it is on screen: it draws with the DOM renderer until the pool lends it a context.
   layoutTerminal(nodeId, host, zoom);
   if (existing) return;
   if (runAutostart(nodeId, () => entry, payload)) return;
   if (livePtys.delete(nodeId)) void reattachSession(nodeId, entry.term, entry.session);
   else void restoreSession(nodeId, entry.term, entry.session);
+}
+
+/**
+ * `host` no longer shows the terminal (its node left the canvas: a workspace
+ * switch, a folded group): its WebGL context may go to a terminal on screen.
+ * Its xterm lives on, and a later mount shows it again.
+ */
+export function unmountTerminal(nodeId: string, host: HTMLElement) {
+  const entry = entries.get(nodeId);
+  if (entry?.opened && entry.host === host) webglPool.show(nodeId, false);
+}
+
+/** The canvas moves: WebGL contexts are made once it is still (./webglPool.ts). */
+export function canvasMoved() {
+  webglPool.busy();
+}
+
+/** The terminals drawing with WebGL, for tests. */
+export function webglHolders(): string[] {
+  return webglPool.holders();
 }
 
 /**
@@ -347,6 +410,8 @@ export function pasteImageIntoTerminal(nodeId: string, data: DataTransfer): bool
 /** Stops the process and frees the terminal of a node removed from the canvas. */
 export function disposeTerminal(nodeId: string) {
   stopTerminal(nodeId);
+  // Before the xterm: its context is freed now, and the pool does not lend it again.
+  webglPool.forget(nodeId);
   entries.get(nodeId)?.term.dispose();
   entries.delete(nodeId);
   autostart.cancel(nodeId);
