@@ -139,7 +139,7 @@ export const agentMessages = defineMessages({
       interrupt: "Manager (or the Fleet of a mission run the old way). Stop the turn of an agent at work (Esc), like \"Pause\"; write \"continue\" resumes it.",
       relaunch:
         "Manager (or the Fleet of a mission run the old way). Start again the terminal of a mission agent that stopped (its terminal, or its agent back at its shell), on its own conversation. " +
-        "Refused while it runs, for an agent that handed its sub-task over, and for one whose terminal the user closed. Once it is up, write tells it what is left; a sub-task it never got, dummyPlane types itself.",
+        "Refused while it runs, for an agent that handed its sub-task over, for one whose terminal the user closed, and, while Max active agents are at work, for one that got its sub-task and has not reported (stopped, it holds no seat). Once it is up, write tells it what is left; a sub-task it never got, dummyPlane types itself.",
       reassign: "Manager (or the Fleet of a mission run the old way). Give a sub-task to another mission agent that has reported, or to a \"new\" agent: it gets the previous agent's report and branch.",
       merge: "Manager (or the Fleet of a mission run the old way). Merge into the mission's branch the branches of the agents that reported \"done\"; says what was merged and the conflicts.",
       finish: "Manager (or the Fleet of a mission run the old way). Close the mission with your summary: the agents created for it close, the linked agents go back to the project's folder.",
@@ -408,6 +408,8 @@ export const agentMessages = defineMessages({
       relaunchHanded: (name: string, to: string) => `${name} handed its sub-task to ${to}: nothing to relaunch.`,
       relaunchClosed: (name: string) =>
         `${name}'s terminal is no longer on the canvas: the user closed it. Reassign its sub-task to another agent, or ask the user whether to bring it back.`,
+      relaunchTeamFull: (name: string, max: number) =>
+        `${name} cannot start again yet: ${plural(max, "agent is", "agents are")} already at work (Max active agents), and a stopped agent holds no seat. Relaunch it once one of them reports.`,
       relaunchFailed: (name: string, error: string) => `${name} could not start again: ${error}`,
       relaunched: (name: string) => `${name} is starting again on its own conversation. Once it is up (team, read_output), write tells it what is left.`,
       relaunchedBrief: (name: string) =>

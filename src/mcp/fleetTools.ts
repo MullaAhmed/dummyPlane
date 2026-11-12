@@ -6,7 +6,7 @@ import { ptySendText } from "@/ipc/pty";
 import { missionFolder } from "@/mission/folder";
 import { deliveryPending, endMission, launchMission, mergeMission, reassignTask } from "@/mission/launch";
 import { budgetOf, memberTime, NEW_AGENT, nightMin, oneLine, proposedPlan, proposedTasks, remainingGlobal, sameName, spentMin, type Member, type Mission, type QueuedTask } from "@/mission/mission";
-import { activeCount } from "@/mission/active";
+import { activeCount, freeSeat, holdSeat, relaunchTakesSeat } from "@/mission/active";
 import { stopMission } from "@/mission/stop";
 import { duplicateWork } from "@/mission/activeWork";
 import { cleanUpFinished } from "@/mission/cleanup";
@@ -630,10 +630,18 @@ async function relaunch(fleetId: string, mission: Mission, args: Record<string, 
   if (closedByUser(member.nodeId)) return refused(f.relaunchClosed(member.name));
   const payload = terminalOf(nodesStore.getState().nodes[member.nodeId]);
   if (!payload) return refused(f.relaunchClosed(member.name));
+  // Stopped once its sub-task was typed, it holds no seat (`@/mission/active`): the queue may have taken it, and Max agents caps the agents at work.
+  const takesSeat = relaunchTakesSeat(mission, member);
+  if (takesSeat && activeCount(fleetId, mission) >= mission.maxAgents) return refused(f.relaunchTeamFull(member.name, mission.maxAgents));
+  // Its seat is held until its terminal runs: a report meanwhile must not give it to the queue.
+  const seat = `relaunch:${member.nodeId}`;
+  if (takesSeat) holdSeat(fleetId, seat);
   try {
     await relaunchTerminal(member.nodeId, payload, relaunchMode(payload));
   } catch (error) {
     return refused(f.relaunchFailed(member.name, error instanceof Error ? error.message : String(error)));
+  } finally {
+    if (takesSeat) freeSeat(fleetId, seat);
   }
   // A refused spawn leaves its error on the terminal, it does not throw.
   const status = statusOf(member.nodeId);

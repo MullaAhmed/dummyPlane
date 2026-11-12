@@ -10,7 +10,8 @@ import { terminalStatusStore } from "@/store/terminalStatus";
 import { workspacesStore } from "@/store/workspaces";
 import type { Member, Mission } from "@/mission/mission";
 import { deliveryPending } from "@/mission/launch";
-import { missionOf } from "@/mission/store";
+import { activeCount, seatsHeld } from "@/mission/active";
+import { missionOf, setMission, updateMember } from "@/mission/store";
 import { fleetTool } from "./fleetTools";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
@@ -195,6 +196,46 @@ describe("relaunch", () => {
     const result = await fleetTool("chef", "relaunch", { agent: "Hulk" });
     expect(result.isError).not.toBe(true);
     expect(relaunchTerminal).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses a stopped agent that got its sub-task while Max agents are at work: the queue took its seat (12 Nov)", async () => {
+    // Thor and Sif run, Freya waits for her sub-task: three seats. Hulk, stopped after its sub-task, holds none.
+    setMission("chef", { maxAgents: 3 });
+    const full = await fleetTool("chef", "relaunch", { agent: "Hulk" });
+    expect(full.isError).toBe(true);
+    expect(full.content[0].text).toBe("Hulk cannot start again yet: 3 agents are already at work (Max active agents), and a stopped agent holds no seat. Relaunch it once one of them reports.");
+    expect(relaunchTerminal).not.toHaveBeenCalled();
+    expect(seatsHeld("chef")).toBe(0);
+    // Those that hold their seat start again all the same: one never sent its sub-task, one back at its shell.
+    expect((await fleetTool("chef", "relaunch", { agent: "Freya" })).isError).not.toBe(true);
+    expect((await fleetTool("chef", "relaunch", { agent: "Sif" })).isError).not.toBe(true);
+    // Once one reports, its seat is free: Hulk takes it.
+    updateMember("chef", "t1", { report: { summary: "ok", status: "termine", at: 1 } });
+    expect((await fleetTool("chef", "relaunch", { agent: "Hulk" })).isError).not.toBe(true);
+    expect(vi.mocked(relaunchTerminal).mock.calls.map(([id]) => id)).toEqual(["f1", "s1", "h1"]);
+  });
+
+  it("starts an agent that has reported whatever Max agents says: it takes no seat", async () => {
+    setMission("chef", { maxAgents: 3 });
+    updateMember("chef", "h1", { report: { summary: "blocked on the API", status: "bloque", at: 1 } });
+    const result = await fleetTool("chef", "relaunch", { agent: "Hulk" });
+    expect(result.isError).not.toBe(true);
+    expect(relaunchTerminal).toHaveBeenCalledWith("h1", expect.anything(), "resume");
+  });
+
+  it("holds the seat it takes while its terminal starts, and frees it once started or failed", async () => {
+    const seatsWhileStarting: number[] = [];
+    vi.mocked(relaunchTerminal).mockImplementationOnce(async () => {
+      seatsWhileStarting.push(activeCount("chef", missionOf(nodesStore.getState().nodes.chef)!));
+    });
+    expect((await fleetTool("chef", "relaunch", { agent: "Hulk" })).isError).not.toBe(true);
+    // Thor, Freya, Sif, and Hulk on its way: a report meanwhile cannot give Hulk's seat to the queue.
+    expect(seatsWhileStarting).toEqual([4]);
+    expect(seatsHeld("chef")).toBe(0);
+    vi.mocked(relaunchTerminal).mockRejectedValueOnce(new Error("spawn refused"));
+    const failed = await fleetTool("chef", "relaunch", { agent: "Hulk" });
+    expect(failed.content[0].text).toBe("Hulk could not start again: spawn refused");
+    expect(seatsHeld("chef")).toBe(0);
   });
 
   it("says why when its terminal could not start, and refuses an agent outside the mission", async () => {

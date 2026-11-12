@@ -28,6 +28,9 @@ export function freeSeat(fleetId: string, title: string) {
 export const seatHeld = (fleetId: string, title: string) => seats.get(fleetId)?.has(title) === true;
 export const seatsHeld = (fleetId: string) => seats.get(fleetId)?.size ?? 0;
 
+/** On a task: not handed over, and no report, or moving on to the next one. */
+const onTask = (m: Member) => !m.handedTo && (!m.report || moving.has(m.nodeId));
+
 /**
  * The members at work: not handed over, on a task (no report, or moving on to
  * the next one) and running. A member whose task is not typed yet counts too:
@@ -35,7 +38,15 @@ export const seatsHeld = (fleetId: string) => seats.get(fleetId)?.size ?? 0;
  * that never starts keeps its seat until its task is reassigned.
  */
 export function activeMembers(mission: Mission): Member[] {
-  return mission.members.filter((m) => !m.handedTo && (!m.report || moving.has(m.nodeId)) && (m.sentAt === undefined || isRunning(m.nodeId)));
+  return mission.members.filter((m) => onTask(m) && (m.sentAt === undefined || isRunning(m.nodeId)));
+}
+
+/**
+ * Whether starting a member's terminal again takes one more seat: on its task, it holds none now (stopped after
+ * its sub-task was typed, so the queue may have filled its place), and one once it runs.
+ */
+export function relaunchTakesSeat(mission: Mission, member: Member): boolean {
+  return onTask(member) && !activeMembers(mission).some((m) => m.nodeId === member.nodeId);
 }
 
 /** The seats taken: the members at work, and the new agents on their way. */
