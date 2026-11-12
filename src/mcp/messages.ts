@@ -365,7 +365,7 @@ export const agentMessages = defineMessages({
         `Plan proposed: ${plural(count, "sub-task", "sub-tasks")}.${count > max ? ` The first ${max} start at the go-ahead, the rest wait in the queue for a seat.` : ""} It waits for the user's go-ahead ("Launch the mission" in the fleet's panel).`,
       emptyTerminal: "(empty terminal)",
       nothingToWrite: "Nothing to write (text).",
-      stopped: (name: string) => `${name} is stopped.`,
+      stopped: (name: string) => `${name} is stopped: relaunch starts it again on its own conversation, then write reaches it.`,
       waiting: (name: string) => `${name} is waiting for the user's answer: that dialog is for them, tell them about it.`,
       written: (name: string) => `Written to ${name}.`,
       notYetSent: (name: string) =>
@@ -500,7 +500,7 @@ export const agentMessages = defineMessages({
       hidden: "The fleet's workspace is not on screen: no agent can be created there.",
       notOther: (target: string) => `"${target}" is not another agent of the mission.`,
       notDone: (name: string) => `${name} has not finished its sub-task: choose an agent that has reported, or "new".`,
-      targetStopped: (name: string) => `${name} is stopped: restart it first, or choose another agent.`,
+      targetStopped: (name: string) => `${name} is stopped: relaunch it first, or choose another agent.`,
       teamFull: (max: number) => `${max} agents are already at work (Max active agents): reassign to an agent that has reported instead of "new", or wait for one to finish.`,
       notMerged: (name: string, task: string) => `${name} finished "${task}" but its branch is not merged: call merge first.`,
       createFailed: "The new agent could not be created.",

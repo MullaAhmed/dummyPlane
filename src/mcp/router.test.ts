@@ -387,7 +387,7 @@ describe("the fleet's tools", () => {
 
     it("writes to an agent that runs, never into a dialog meant for the user", async () => {
       terminalStatusStore.getState().set("batman", { state: "stopped" });
-      expect(textOf(await call("chef", "write", { agent: "Batman", text: "Relance" }))).toBe("Batman is stopped.");
+      expect(textOf(await call("chef", "write", { agent: "Batman", text: "Relance" }))).toBe("Batman is stopped: relaunch starts it again on its own conversation, then write reaches it.");
       terminalStatusStore.getState().set("batman", { state: "running" });
       agentActivityStore.getState().apply({ nodeId: "batman", activity: "waiting", since: 0 });
       expect(await call("chef", "write", { agent: "Batman", text: "Relance" })).toMatchObject({ isError: true });
