@@ -536,6 +536,21 @@ describe("a group's Arrange makes room", () => {
     same(result, beside);
   });
 
+  it("makes room for an output that rides right with the frame's side, as well as for the frame", () => {
+    // m0's output stands right of the frame, outside it: it goes right as far as the frame grows, and lands where n stood beyond it.
+    const ox = columnWidth + GROUP_GAP;
+    const nx = ox + 560 + GROUP_GAP;
+    const elements = [...column(), attachedItem("o", "m0", ox, 0), node("n", nx, 0)];
+    const result = arrange(elements, { layout: "row" });
+    const g = at(result, "g");
+    expect(at(result, "o")).toMatchObject({ x: ox + rowWidth - columnWidth, y: 0 });
+    // n stood right of the output: right of it again, a group's gap from it (the output is the group's).
+    expect(at(result, "n")).toMatchObject({ x: at(result, "o").x + 560 + GROUP_GAP, y: 0 });
+    for (const id of ["o", "n"]) expect(overlap(at(result, id), g), id).toBe(0);
+    expect(overlap(at(result, "n"), at(result, "o"))).toBe(0);
+    expect(arrange(result!.elements, { layout: "row" })).toBeNull();
+  });
+
   it("settles a pile of neighbours the frame grows over: all clear of it, none covering more of another than before", () => {
     // A pile the user left beside the column, each terminal on the one before it.
     const pile = [0, 1, 2, 3, 4].map((i) => node(`p${i}`, columnWidth + GROUP_GAP + 10 * i, 10 * i));

@@ -15,7 +15,9 @@ import type { Point } from "./terminals";
  *   moved now covers more of one of its boxes than it did before Arrange. A
  *   block nothing grew into stays exactly where it is, a frame that grew into
  *   nothing changes nothing, and arranging again moves nothing (nothing grows
- *   the second time). An overlap that was there before is left as it was.
+ *   the second time). An overlap that was there before is left alone, unless
+ *   a push makes it worse: then the two are pulled apart, the later one the
+ *   shorter way (a pile the frame pushes ends up spread out, not piled).
  * - A pushed block keeps its side: the one that stood to the right goes right,
  *   the one that stood below goes down (right when both), just clear of what
  *   pushed it, by the gap canvas Arrange keeps between the two (`hGap`, `vGap`:
