@@ -5,9 +5,10 @@ import { settleNotes } from "@/nodes/note/link";
 import { boxOf, containerOf, endsOf, followedArrow } from "./arrangeDrawings";
 import { columnHeightsOf, DEFAULT_ARRANGE_LAYOUT, perRowOf, type ArrangeLayout } from "./arrangeLayout";
 import { roomMade, type Body } from "./arrangeRoom";
+import { treesLaidBack, treesLaidDown, treesOf, wireParents } from "./arrangeTree";
 import type { Attachment } from "./attachments";
 import { COLUMN_GAP, GROUP_GAP, MAX_ROWS, NODE_GAP, PADDING, PADDING_BOTTOM, PADDING_TOP, ROW_GAP } from "./groupLayout";
-import type { ParentOf } from "./spawnLayout";
+import { isDownTree, type ParentOf } from "./spawnLayout";
 import type { Point } from "./terminals";
 import { isWire } from "./wires";
 
@@ -41,7 +42,12 @@ import { isWire } from "./wires";
  * That is the `grid` layout, the default. The others (./arrangeLayout.ts) keep
  * all of the above but the shape: the blocks go in one row, in one column, or
  * N to a row, whatever the view's shape; a group's grid is one row, one column
- * or N columns. The tabs still gather in rows under the rest.
+ * or N columns. The tabs still gather in rows under the rest. The `tree` lays
+ * each spawn tree out downward first, then hangs the blocks (in a group, its
+ * pieces) under one another by their wires, the trees side by side
+ * (./arrangeTree.ts). The user's Arrange in another layout lays the trees the
+ * tree laid out downward back into their flowchart, their mark taken off, in
+ * the same change (`clearTreeMarks`).
  */
 
 export interface ArrangeInput {
@@ -63,6 +69,15 @@ export interface ArrangeInput {
   layout?: ArrangeLayout;
   /** Width over height the layout aims at: the view's. */
   aspect?: number;
+  /**
+   * The user's Arrange, in a layout other than the tree: the spawn trees it arranges lose the tree's mark
+   * (`isDownTree`), and those it tidies around are laid out as a flowchart again first (./arrangeTree.ts
+   * `treesLaidBack`), so their next sub-agent keeps that shape. Auto-arrange leaves them as they stand: a group
+   * arranged as a tree stays one.
+   */
+  clearTreeMarks?: boolean;
+  /** A node whose tree lays out downward whatever the layout: a mission's Manager (`reflowSpawnTree`'s). */
+  isDownRoot?: (nodeId: string) => boolean;
 }
 
 /**
@@ -374,8 +389,9 @@ function tidyGroup(frame: ExcalidrawElement, members: readonly ExcalidrawElement
   // Its nodes, not counting what is attached to another of them (a note beside a minimized terminal is a tab's).
   const nodesOf = (p: Piece) => hostsIn(p.elements, nodeIds, anchorOf);
   const boxOfPiece = (p: Piece) => p.box;
-  // The grid fills column by column: read back that way, a tidy group stays as it is.
-  const grid = columnOrder(
+  // The grid fills column by column: read back that way, a tidy group stays as it is. The tree's rows read row by row.
+  const tree = scene.layout === "tree";
+  const grid = (tree ? readingOrder : columnOrder)(
     all.filter((p) => nodesOf(p).some((n) => !isMinimized(n.id))),
     boxOfPiece,
   );
@@ -396,10 +412,21 @@ function tidyGroup(frame: ExcalidrawElement, members: readonly ExcalidrawElement
   // Each band starts under the one above it: its friezes, then air.
   const nextBand = () => (bottom > top ? bottom + ROW_GAP : top);
 
+  // The tree: its pieces hung under one another by their wires, the trees side by side (./arrangeTree.ts).
+  if (tree && grid.length > 0) {
+    const pieceOf = new Map(grid.flatMap((piece) => piece.elements.map((e) => [e.id, piece] as const)));
+    const parents = wireParents(grid, (id) => pieceOf.get(id), scene.live, (id) => nodeIds.has(id) && liveParent(id) !== null);
+    const trees = treesOf(grid, parents, boxOfPiece);
+    const packed = bestShelves(trees, (t) => t, scene.aspect, () => COLUMN_GAP, () => ROW_GAP);
+    for (const { item: laid, x: tx, y: ty } of packed.placed) for (const [piece, p] of laid.placed) at.set(piece, { x: left + tx + p.x, y: top + ty + p.y });
+    width = packed.width;
+    bottom = top + packed.height;
+  }
+
   // The group's grid: top to bottom, a new column to the right after MAX_ROWS (or as the layout cuts it: one row, one column, N columns).
   let x = left;
   let next = 0;
-  for (const rows of columnHeightsOf(grid.length, scene.layout, MAX_ROWS)) {
+  for (const rows of tree ? [] : columnHeightsOf(grid.length, scene.layout, MAX_ROWS)) {
     const column = grid.slice(next, next + rows);
     next += rows;
     let y = top;
@@ -411,7 +438,7 @@ function tidyGroup(frame: ExcalidrawElement, members: readonly ExcalidrawElement
     bottom = Math.max(bottom, y);
     x += Math.max(...column.map((p) => p.box.width)) + COLUMN_GAP;
   }
-  if (grid.length > 0) width = x - COLUMN_GAP - left;
+  if (grid.length > 0 && !tree) width = x - COLUMN_GAP - left;
 
   // Its drawings in rows under the grid, as wide as it (alone, about the view's shape).
   if (drawings.length > 0) {
@@ -464,6 +491,43 @@ function hostsIn(elements: readonly ExcalidrawElement[], nodeIds: ReadonlySet<st
   return elements.filter((e) => nodeIds.has(e.id) && !ids.has(anchorOf(e) ?? ""));
 }
 
+/** Whether `ancestorId` is up `nodeId`'s chain of live spawners. */
+function hasAncestor(nodeId: string, ancestorId: string, liveParent: (nodeId: string) => string | null): boolean {
+  const seen = new Set([nodeId]);
+  for (let up = liveParent(nodeId); up && !seen.has(up); up = liveParent(up)) {
+    if (up === ancestorId) return true;
+    seen.add(up);
+  }
+  return false;
+}
+
+/** How much wider a group, a frame or a tree stands in the tree's rows on each side: a group's gap beside it, as on the grid. */
+const COMPOUND_MARGIN = (GROUP_GAP - COLUMN_GAP) / 2;
+
+/**
+ * The canvas's blocks as the tree lays them out (./arrangeTree.ts): hung under
+ * one another by their wires, each tree downward, the trees side by side in
+ * rows packed to the view's shape, as the grid packs its blocks. Positions
+ * relative to the layout's corner.
+ */
+function forest(blocks: readonly Block[], live: readonly ExcalidrawElement[], spawned: (nodeId: string) => boolean, aspect: number): { placed: Placed<Block>[]; width: number; height: number } {
+  const blockOf = new Map(blocks.flatMap((block) => [...block.ids].map((id) => [id, block] as const)));
+  const parents = wireParents(blocks, (id) => blockOf.get(id), live, spawned);
+  const trees = treesOf(blocks, parents, (b) => b.rect, (b) => (b.compound ? COMPOUND_MARGIN : 0)).map((laid) => ({
+    laid,
+    block: { ids: new Set<string>(), rect: { x: 0, y: 0, width: laid.width, height: laid.height }, compound: laid.items.length > 1 || laid.items.some((b) => b.compound), tab: false },
+  }));
+  const packed = bestShelves(
+    trees,
+    (t) => t.block.rect,
+    aspect,
+    (a, b) => hGap(a.block, b.block),
+    (above, below) => vGap(above.map((t) => t.block), below.map((t) => t.block)),
+  );
+  const placed = packed.placed.flatMap(({ item, x, y }) => item.laid.items.map((block) => ({ item: block, x: x + item.laid.placed.get(block)!.x, y: y + item.laid.placed.get(block)!.y })));
+  return { placed, width: packed.width, height: packed.height };
+}
+
 const random = () => Math.floor(Math.random() * 2 ** 31);
 
 /** `element` with `fields`, its version bumped as Excalidraw's newElementWith does (tests cannot load Excalidraw). */
@@ -479,6 +543,11 @@ const differs = (a: Rect, b: Rect) => Math.abs(a.x - b.x) > 0.5 || Math.abs(a.y 
  * moved, for their wires to be routed again. Null when nothing moves.
  */
 export function arrangedElements(input: ArrangeInput): { elements: ExcalidrawElement[]; movedNodeIds: Set<string> } | null {
+  return arrange(input, false);
+}
+
+/** `arrangedElements`; `treesLaid` once the tree's spawn trees are laid out downward (./arrangeTree.ts). */
+function arrange(input: ArrangeInput, treesLaid: boolean): { elements: ExcalidrawElement[]; movedNodeIds: Set<string> } | null {
   const { elements, parentOf, isMinimized } = input;
   const aspect = input.aspect && Number.isFinite(input.aspect) && input.aspect > 0 ? input.aspect : DEFAULT_ASPECT;
   const layout = input.layout ?? DEFAULT_ARRANGE_LAYOUT;
@@ -563,6 +632,58 @@ export function arrangedElements(input: ArrangeInput): { elements: ExcalidrawEle
   // The selection alone when asked for, even of one block (it stays where it is); in `auto`, only from two blocks.
   const scope = insideOne ? new Set([unitOf(insideOne)]) : selectedUnits.size >= 2 || asked === "selection" ? selectedUnits : new Set(unitMembers.keys());
 
+  // The tree: first, each spawn tree of what is arranged laid out downward from its root, alone (./arrangeTree.ts); then the
+  // rest as for any layout, each tree moving whole. Only a tree the rest of the arrange tidies around it, which carries
+  // nothing but quick notes (the layout makes room for those; an output it showed would be left where it was):
+  // - all of it directly in one unfolded group: a folded one is left as it is, and so is a tree that reaches out of its
+  //   frame (the flowchart wins there) or stands in a frame drawn by hand;
+  // - or all of it outside frames, its block holding nothing else (not a mission's Fleet, board and Manager, whose block
+  //   keeps its shape). Any other tree stays as it stands, as in the other layouts.
+  const tidied = (rootId: string): boolean => {
+    const members = nodes.filter((n) => n.id === rootId || hasAncestor(n.id, rootId, liveParent));
+    const ids = new Set(members.map((m) => m.id));
+    const note = (e: ExcalidrawElement) => {
+      const attachment = attachmentOf(e);
+      return attachment?.beside === true && ids.has(attachment.anchor);
+    };
+    if (live.some((e) => !ids.has(e.id) && ids.has(anchorOf(e) ?? "") && !note(e))) return false;
+    const home = inFrame(byId.get(rootId)!);
+    if (members.some((m) => inFrame(m) !== home)) return false;
+    if (home) {
+      const info = groupInfoOf(byId.get(home)!);
+      return info !== null && !info.folded && (!insideOne || home === insideOne);
+    }
+    return !insideOne && (unitMembers.get(unitOf(rootId)) ?? []).every((e) => ids.has(e.id) || note(e));
+  };
+  let laid: { elements: readonly ExcalidrawElement[]; moved: Set<string> } | null = null;
+  if (layout === "tree" && !treesLaid) {
+    const spawners = new Set(nodes.map((n) => liveParent(n.id)).filter((id): id is string => id !== null));
+    const roots = [...spawners].filter((id) => liveParent(id) === null && scope.has(unitOf(id)) && tidied(id));
+    laid = treesLaidDown(elements, roots, parentOf);
+  } else if (input.clearTreeMarks && !treesLaid) {
+    // The user's Arrange in another layout: what the tree laid out downward loses its mark, and the trees the rest is tidied
+    // around go back to their flowchart, as the next sub-agent would lay them out, before the rest moves them whole. Any
+    // other marked tree loses its mark alone and stands as it is: its next sub-agent lays it out as a flowchart.
+    const marked = nodes.filter((n) => isDownTree(n) && scope.has(unitOf(n.id)));
+    const rootOf = (nodeId: string) => {
+      const seen = new Set([nodeId]);
+      let root = nodeId;
+      for (let up = liveParent(root); up && !seen.has(up); up = liveParent(up)) {
+        seen.add(up);
+        root = up;
+      }
+      return root;
+    };
+    const roots = [...new Set(marked.map((n) => rootOf(n.id)))].filter(tidied);
+    laid = treesLaidBack(elements, new Set(marked.map((n) => n.id)), roots, parentOf, input.isDownRoot ?? (() => false));
+  }
+  if (laid && laid.elements !== elements) {
+    const inner = arrange({ ...input, elements: laid.elements }, true);
+    if (!inner) return { elements: [...laid.elements], movedNodeIds: laid.moved };
+    for (const id of laid.moved) inner.movedNodeIds.add(id);
+    return inner;
+  }
+
   const targets = new Map<string, Rect>();
   const followers = new Set<string>();
 
@@ -615,7 +736,12 @@ export function arrangedElements(input: ArrangeInput): { elements: ExcalidrawEle
     );
     // The grid packs to the view's shape; the other layouts cut the rows at their count, whatever the view.
     const perRow = perRowOf(layout);
-    const main = perRow === null ? bestShelves(full, size, aspect, hGap, vGap) : shelves(full, size, Infinity, hGap, vGap, perRow);
+    const main =
+      layout === "tree"
+        ? forest(full, live, (id) => nodeIds.has(id) && liveParent(id) !== null, aspect)
+        : perRow === null
+          ? bestShelves(full, size, aspect, hGap, vGap)
+          : shelves(full, size, Infinity, hGap, vGap, perRow);
     const tabTop = main.height > 0 ? main.height + (full.some((b) => b.compound) ? GROUP_GAP : ROW_GAP) : 0;
     const tabRows =
       tabs.length === 0

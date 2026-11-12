@@ -11,6 +11,7 @@ import { installMissionClock } from "@/mission/clock";
 import { installKeepAwake } from "@/mission/keepAwake";
 import { installMissionEvents } from "@/mission/events";
 import { installRedelivery } from "@/mission/redeliver";
+import { installRestartWatch } from "@/mission/restartWatch";
 import { installSubagentNodes } from "@/nodes/subagent/sync";
 import { forgetLivePty, setLivePtys } from "@/nodes/terminal/registry";
 import { installFollowWaiting } from "@/agents/followWaiting";
@@ -76,6 +77,8 @@ export function boot(): Promise<void> {
     installMissionEvents();
     // A sub-task dummyPlane had not typed before it restarted goes once its agent's terminal runs again.
     installRedelivery();
+    // A mission member's restart, whoever asks for it: a full team it takes past Max agents is told, a failed one frees its seat.
+    installRestartWatch();
     installMissionClock();
     installKeepAwake();
     installWaitingAlerts();

@@ -4,7 +4,7 @@ import type { StoredFile } from "@/ipc/db";
 import { debounce } from "@/lib/debounce";
 import type { Rect } from "./groups";
 import { nodeKindOf } from "./nodeElement";
-import { createChangeDetector } from "./sceneChanges";
+import { createChangeDetector, sameInputs, sceneStamp, type SceneStamp } from "./sceneChanges";
 
 /** Viewport saved with the scene. */
 export type SavedAppState = Pick<AppState, "scrollX" | "scrollY" | "zoom">;
@@ -45,6 +45,9 @@ export function createSceneSync(
   deps: SceneSyncDeps,
 ) {
   let knownNodes = new Set(liveNodeIds(initial.elements));
+  // The last scene seen and its live nodes: a pan's frames hand the same scene, and its nodes are not listed again.
+  let liveIds: string[] = [];
+  let lastScene: SceneStamp | null = null;
   const savedFiles = new Set(initial.savedFileIds);
   const hasChanged = createChangeDetector(
     (version: number, appState: SavedAppState) => `${version}:${appState.scrollX}:${appState.scrollY}:${appState.zoom.value}`,
@@ -60,13 +63,17 @@ export function createSceneSync(
     files: BinaryFiles,
     sceneVersion: number,
   ) => {
-    const live = liveNodeIds(elements);
-    const liveSet = new Set(live);
-    const added = live.filter((id) => !knownNodes.has(id));
-    const removed = [...knownNodes].filter((id) => !liveSet.has(id));
-    knownNodes = liveSet;
-    if (added.length) deps.onNodesAdded(added);
-    if (removed.length) deps.onNodesRemoved(removed);
+    const scene = sceneStamp(elements, sceneVersion);
+    if (!sameInputs(lastScene, scene)) {
+      lastScene = scene;
+      liveIds = liveNodeIds(elements);
+      const liveSet = new Set(liveIds);
+      const added = liveIds.filter((id) => !knownNodes.has(id));
+      const removed = [...knownNodes].filter((id) => !liveSet.has(id));
+      knownNodes = liveSet;
+      if (added.length) deps.onNodesAdded(added);
+      if (removed.length) deps.onNodesRemoved(removed);
+    }
 
     const newFiles = Object.values(files).filter((f) => !savedFiles.has(f.id));
     if (newFiles.length) {
@@ -82,7 +89,7 @@ export function createSceneSync(
     const view: SavedAppState = { scrollX: appState.scrollX, scrollY: appState.scrollY, zoom: appState.zoom };
     if (!hasChanged(sceneVersion, view)) return;
     deps.onSceneChanged(elements, view, files, [...savedFiles]);
-    persist(elements, view, live);
+    persist(elements, view, liveIds);
   };
 
   return {

@@ -23,12 +23,12 @@ import { outReport } from "@/mcp/protocol";
 import { nodeNameOf, nodesStore, sessionOf, terminalOf } from "@/store/nodes";
 import { isRunning } from "@/store/terminalStatus";
 import { markLaunching } from "@/agents/spawnFamily";
-import { activeCount, freeSeat, holdSeat, oneAtATime } from "./active";
+import { activeCount, freeSeat, handingOver, hasSeat, holdSeat, oneAtATime } from "./active";
 import { notify } from "./events";
 import { missionFolder } from "./folder";
 import { addTeamMember, fleetNameOf, reflowTeam, removeManager, setUpBoard, undoSetup, type MissionSetup } from "./manager";
 import { nightSession } from "./overnight";
-import { NEW_AGENT, NEW_MISSION, oneLine, pastTask, queuedTask, sameName, type Member, type Mission, type SubTask } from "./mission";
+import { NEW_AGENT, NEW_MISSION, oneLine, pastTask, queuedTask, reassignable, sameName, type Member, type Mission, type SubTask } from "./mission";
 import { whenReady } from "./ready";
 import { modelRouterStore } from "@/app/modelRouterSetting";
 import { levelModel, modelLabel } from "./router";
@@ -522,22 +522,33 @@ export async function reassignTask(fleetId: string, fromNodeId: string, target: 
   const record = nodesStore.getState().nodes[fleetId];
   const mission = missionOf(record);
   if (!record || mission?.state !== "en_cours") return r.noMission;
-  // A task `next_task` abandoned stays with its agent's report: nobody takes it over.
-  const from = mission.members.find((m) => m.nodeId === fromNodeId && !m.handedTo && !m.abandoned);
+  const open = reassignable(mission);
+  const from = open.find((m) => m.nodeId === fromNodeId);
   const task = mission.plan?.find((s) => s.title === from?.task);
-  if (!from || !task) return r.notFound;
+  if (!from || !task) {
+    // The titles it takes, as `reassign` names them, so that the call can be made again right.
+    const titles = open.map((m) => m.task);
+    const holder = mission.members.find((m) => m.nodeId === fromNodeId);
+    // A task `next_task` abandoned stays with its agent's report: nobody takes it over.
+    return holder?.abandoned ? r.abandoned(holder.task, titles) : t().fleet.noSubtask(holder?.task ?? "", titles);
+  }
   let to: Member;
   if (sameName(target, NEW_AGENT)) {
     if (!canvasKnown(fleetId)) return r.hidden;
-    // Max agents caps the agents at work, not the team: those who reported or handed over count no more.
-    if (activeCount(fleetId, mission) >= mission.maxAgents) return r.teamFull(mission.maxAgents);
-    // Its seat is held while it is created, in turn with the queue's new agents: no name nor seat twice.
+    // Max agents caps the agents at work, not the team: those who reported or handed over count no more. From an
+    // agent at work, the new one takes its seat: only from one holding none would it be one more.
+    const seated = hasSeat(mission, from.nodeId);
+    if (!seated && activeCount(fleetId, mission) >= mission.maxAgents) return r.newTeamFull(task.title, mission.maxAgents);
+    // Its seat is held while it is created, in turn with the queue's new agents: no name nor seat twice. The one it
+    // replaces gives it its own: counted once, not twice, so a report meanwhile frees a seat the queue can fill.
     holdSeat(fleetId, `reassign:${task.title}`);
+    if (seated) handingOver.add(from.nodeId);
     let made: Member | string;
     try {
       made = await oneAtATime(fleetId, () => newMember(fleetId, record.workspaceId, missionOf(nodesStore.getState().nodes[fleetId]) ?? mission, task));
     } finally {
       freeSeat(fleetId, `reassign:${task.title}`);
+      handingOver.delete(from.nodeId);
     }
     if (typeof made === "string") return made;
     to = made;
@@ -550,6 +561,9 @@ export async function reassignTask(fleetId: string, fromNodeId: string, target: 
     // Its entry takes the new sub-task: its finished work must be in the mission's branch first (final review H3).
     const finished = found.report.status === "termine";
     if (finished && !found.merged) return r.notMerged(found.name, found.task);
+    // Back to work, it takes a seat: one more, unless it or the agent it takes over from holds one now, which it frees.
+    const addsSeat = !hasSeat(mission, found.nodeId) && !hasSeat(mission, from.nodeId);
+    if (addsSeat && activeCount(fleetId, mission) >= mission.maxAgents) return r.targetTeamFull(found.name, task.title, mission.maxAgents);
     to = {
       ...found,
       task: task.title,

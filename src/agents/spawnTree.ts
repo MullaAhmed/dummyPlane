@@ -3,9 +3,10 @@ import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { AppState } from "@excalidraw/excalidraw/types";
 import { canvasStore } from "@/canvas/canvasStore";
 import { editStoredScene } from "@/canvas/sceneCache";
+import { sameInputs, sceneStamp, type SceneStamp } from "@/canvas/sceneChanges";
 import { isManagerNode, nodesStore } from "@/store/nodes";
 import { sceneAccess } from "./sceneAccess";
-import { isPinned, layoutSpawnTree } from "./spawnLayout";
+import { isDownTree, isPinned, layoutSpawnTree } from "./spawnLayout";
 import type { Point } from "./terminals";
 
 /** The terminal whose agent spawned `nodeId` (spawn_agent), closed ones included: their records stay. */
@@ -44,7 +45,8 @@ function withPins(elements: readonly ExcalidrawElement[], ids: ReadonlySet<strin
 /**
  * Lays out the spawn tree `nodeId` belongs to (`layoutSpawnTree`): a
  * flowchart, or downward from a Manager (the vertical tree of a mission's
- * team), from any of its nodes, closed ones included: the root stays, its
+ * team) or from a root Arrange laid out as a tree (`isDownTree`), from any of
+ * its nodes, closed ones included: the root stays, its
  * descendants move and their wires take their routes, out of the undo
  * history. `pin` first marks those nodes as moved by hand. For spawn_agent,
  * after it opens or closes a child, and for a mission's Manager once its team
@@ -55,7 +57,9 @@ export function reflowSpawnTree(workspaceId: string, nodeId: string, pin: readon
   if (!scene) return false;
   const before = scene.elements();
   const pinned = withPins(before, new Set(pin));
-  const next = layoutSpawnTree(pinned, spawnedBy, nodeId, isManagerNode) ?? (pinned === before ? null : pinned);
+  const byId = new Map(pinned.map((e) => [e.id, e]));
+  const isDownRoot = (id: string) => isManagerNode(id) || isDownTree(byId.get(id));
+  const next = layoutSpawnTree(pinned, spawnedBy, nodeId, isDownRoot) ?? (pinned === before ? null : pinned);
   if (!next) return false;
   if (!scene.shown) {
     editStoredScene(workspaceId, next);
@@ -87,12 +91,21 @@ export function reflowSpawnTreesOf(workspaceId: string, nodeIds: readonly string
  * pinned: later layouts leave it there and lay out its own children from it.
  * A spawner dragged takes its tree along. Both when the drag ends, a frame
  * later. Dragging a group's frame selects the frame, not its terminals: it
- * pins nothing.
+ * pins nothing. `version` is the scene's (Canvas has it), summed here when not given.
  */
 export function createSpawnDragWatch(workspaceId: string) {
   const dragged = new Set<string>();
-  return (elements: readonly ExcalidrawElement[], appState: Pick<AppState, "selectedElementIds" | "selectedElementsAreBeingDragged">) => {
+  // The scene and the drag of the last change: a pan's frames hand both again, and moved nothing.
+  let last: (SceneStamp & { dragging: boolean }) | null = null;
+  return (
+    elements: readonly ExcalidrawElement[],
+    appState: Pick<AppState, "selectedElementIds" | "selectedElementsAreBeingDragged">,
+    version?: number,
+  ) => {
     const dragging = appState.selectedElementsAreBeingDragged;
+    const seen = { ...sceneStamp(elements, version), dragging };
+    if (sameInputs(last, seen)) return;
+    last = seen;
     for (const e of elements) {
       if (e.isDeleted || e.type !== "embeddable") continue;
       const before = lastSeen.get(e.id);

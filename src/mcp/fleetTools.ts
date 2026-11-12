@@ -6,8 +6,8 @@ import { ptySendText } from "@/ipc/pty";
 import { missionFolder } from "@/mission/folder";
 import { deliveryPending, endMission, launchMission, mergeMission, reassignTask } from "@/mission/launch";
 import { levelsRequired, subTaskModel, teamAgent } from "@/mission/teamModel";
-import { budgetOf, memberTime, NEW_AGENT, nightMin, oneLine, proposedPlan, proposedTasks, remainingGlobal, sameName, spentMin, type Member, type Mission, type QueuedTask } from "@/mission/mission";
-import { activeCount } from "@/mission/active";
+import { budgetOf, memberTime, NEW_AGENT, nightMin, oneLine, proposedPlan, proposedTasks, reassignable, remainingGlobal, sameName, spentMin, type Member, type Mission, type QueuedTask } from "@/mission/mission";
+import { activeCount, relaunchTakesSeat } from "@/mission/active";
 import { stopMission } from "@/mission/stop";
 import { duplicateWork } from "@/mission/activeWork";
 import { cleanUpFinished } from "@/mission/cleanup";
@@ -661,14 +661,20 @@ async function relaunch(fleetId: string, mission: Mission, args: Record<string, 
   if (closedByUser(member.nodeId)) return refused(f.relaunchClosed(member.name));
   const payload = terminalOf(nodesStore.getState().nodes[member.nodeId]);
   if (!payload) return refused(f.relaunchClosed(member.name));
+  // Stopped once its sub-task was typed, it holds no seat (`@/mission/active`): the queue may have taken it, and Max agents caps the agents at work.
+  if (relaunchTakesSeat(mission, member) && activeCount(fleetId, mission) >= mission.maxAgents) return refused(f.relaunchTeamFull(member.name, mission.maxAgents));
+  // Counted at work, once, from here until its new process runs (`relaunchSession` marks it restarting at once).
+  let failure: string | undefined;
   try {
     await relaunchTerminal(member.nodeId, payload, relaunchMode(payload));
   } catch (error) {
-    return refused(f.relaunchFailed(member.name, error instanceof Error ? error.message : String(error)));
+    failure = error instanceof Error ? error.message : String(error);
   }
   // A refused spawn leaves its error on the terminal, it does not throw.
   const status = statusOf(member.nodeId);
-  if (status.state === "error") return refused(f.relaunchFailed(member.name, status.message));
+  if (failure === undefined && status.state === "error") failure = status.message;
+  // The seat it held while starting is free again: the queue moves on (`@/mission/restartWatch`).
+  if (failure !== undefined) return refused(f.relaunchFailed(member.name, failure));
   const now = missionOf(nodesStore.getState().nodes[fleetId])?.members.find((m) => m.nodeId === member.nodeId);
   return said(now?.sentAt === undefined && now?.brief ? f.relaunchedBrief(member.name) : f.relaunched(member.name));
 }
@@ -676,9 +682,10 @@ async function relaunch(fleetId: string, mission: Mission, args: Record<string, 
 async function reassign(fleetId: string, mission: Mission, args: Record<string, unknown>): Promise<ToolResult> {
   if (mission.state !== "en_cours") return refused(t().fleet.noMission);
   const title = typeof args.sous_tache === "string" ? args.sous_tache : "";
-  const from = mission.members.find((m) => !m.handedTo && sameName(m.task, title));
+  // The holder reassign takes first: a title an abandoned task shares is not that one.
+  const from = reassignable(mission).find((m) => sameName(m.task, title)) ?? mission.members.find((m) => !m.handedTo && sameName(m.task, title));
   // The titles reassign takes, so that a call that passed something else (a whole brief) can be made again right.
-  if (!from) return refused(t().fleet.noSubtask(echoed(title), mission.members.filter((m) => !m.handedTo && !m.abandoned).map((m) => m.task)));
+  if (!from) return refused(t().fleet.noSubtask(echoed(title), reassignable(mission).map((m) => m.task)));
   const result = await reassignTask(fleetId, from.nodeId, typeof args.agent === "string" ? args.agent : "");
   return typeof result === "string" ? refused(result) : said(t().fleet.handedTo(from.task, result.name));
 }

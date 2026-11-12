@@ -17,15 +17,23 @@ import { useUiRequest } from "@/commands/uiRequests";
 import { messages, useMessages } from "@/i18n";
 import { GroupNotesItem } from "@/notes/GroupNotesItem";
 import { uiStore } from "@/store/ui";
+import { workspacesStore } from "@/store/workspaces";
 import { useAgents } from "./agentsStore";
 import { pauseAll, resumeAll } from "./broadcast";
 import { agentInk, AGENTS, AGENTS_WITHOUT_OPTIONS } from "./catalog";
+import { arrangeWorkspace } from "./arrangeCanvas";
 import { agentsMessages } from "./messages";
 import { addAgentToGroup, groupMembers, requestCloseGroup, setGroupFolded, setGroupPantheon, ungroup } from "./groups";
 import { NamesMenu } from "./NamesMenu";
 import { addFleetToGroup } from "@/fleet/fleets";
 import { setRemoteControlAll } from "./remoteControl";
 import { SpecialityMenu } from "./SpecialityMenu";
+
+/** "Arrange as a tree": the group's members inside its frame, in the shown workspace, whatever layout the setting holds. */
+function arrangeGroupAsTree(groupId: string) {
+  const workspaceId = workspacesStore.getState().activeId;
+  if (workspaceId) arrangeWorkspace(workspaceId, { only: [groupId], layout: "tree", undoable: true });
+}
 
 /**
  * The menu of a group: the `⌄` of its label on the canvas, or `trigger`, the ⋯ of its header in the agents panel.
@@ -133,6 +141,8 @@ export function GroupMenu({ groupId, trigger, answersRequests = false }: { group
         <DropdownMenuItem onSelect={() => void setRemoteControlAll(groupMembers(groupId), false)}>{t.remote.turnOff}</DropdownMenuItem>
         <GroupNotesItem groupId={groupId} />
         <DropdownMenuSeparator />
+        {/* Who opened whom, downward, inside its frame: one undo, as the group's Arrange (src/agents/arrangeTree.ts). */}
+        <DropdownMenuItem onSelect={() => arrangeGroupAsTree(groupId)}>{t.groupMenu.arrangeTree}</DropdownMenuItem>
         <DropdownMenuItem onSelect={() => setGroupFolded(groupId, !folded)}>{folded ? t.groupMenu.unfold : t.groupMenu.fold}</DropdownMenuItem>
         <DropdownMenuItem onSelect={() => ungroup(groupId)}>{t.groupMenu.ungroup}</DropdownMenuItem>
         <DropdownMenuItem variant="destructive" onSelect={() => requestCloseGroup(groupId)}>

@@ -5,10 +5,13 @@ import { expect, it, vi } from "vitest";
 import { mockIPC } from "@tauri-apps/api/mocks";
 import { canvasStore } from "@/canvas/canvasStore";
 import { GroupMenu } from "./GroupMenu";
+import { workspacesStore } from "@/store/workspaces";
+import { arrangeWorkspace } from "./arrangeCanvas";
 import { setGroupFolded } from "./groups";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
 vi.mock("./groups", async (importOriginal) => ({ ...(await importOriginal<typeof import("./groups")>()), setGroupFolded: vi.fn() }));
+vi.mock("./arrangeCanvas", () => ({ arrangeWorkspace: vi.fn(() => true) }));
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 const frame = (folded: boolean) => ({ id: "g", name: "G", x: 0, y: 0, width: 1, height: 1, group: { role: "general", pantheon: "greek", ...(folded ? { folded } : {}) }, memberIds: [] });
@@ -74,6 +77,23 @@ it("gives focus back to the panel's ⋯ when it closes, but not to the canvas la
   await escape();
   expect(document.activeElement).not.toBe(chevron);
 
+  await act(async () => root.unmount());
+  document.body.replaceChildren();
+});
+
+it("arranges the group as a tree, inside its frame in the shown workspace, as one undoable step", async () => {
+  mockIPC(() => []);
+  canvasStore.setState({ frames: [frame(false)] as never });
+  workspacesStore.setState({ activeId: "w1" });
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = createRoot(host);
+  await act(async () => root.render(<GroupMenu groupId="g" />));
+  await act(async () => host.querySelector("button")!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+  const item = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((i) => i.textContent === "Arrange as a tree");
+  expect(item).toBeDefined();
+  await act(async () => item!.click());
+  expect(arrangeWorkspace).toHaveBeenLastCalledWith("w1", { only: ["g"], layout: "tree", undoable: true });
   await act(async () => root.unmount());
   document.body.replaceChildren();
 });

@@ -60,6 +60,22 @@ describe("arrangeWorkspace", () => {
     arrangeLayoutStore.setState(arrangeLayoutStore.getInitialState());
   });
 
+  it("takes a tree arrange's mark off in the user's Arrange, in its one undoable step, and leaves it to Auto-arrange", () => {
+    arrangeLayoutStore.setState({ layout: "grid" });
+    const marked = () => looseTerminals().map((e) => (e.id === "a" ? ({ ...e, customData: { ...e.customData, downTree: true } } as ExcalidrawElement) : e));
+    scene = marked();
+    updateScene.mockClear();
+    expect(arrangeWorkspace("w", { undoable: true })).toBe(true);
+    expect(updateScene).toHaveBeenCalledTimes(1);
+    expect(updateScene.mock.calls[0][0].captureUpdate).toBe("IMMEDIATELY");
+    expect(written().find((e) => e.id === "a")!.customData?.downTree).toBeUndefined();
+    scene = marked();
+    updateScene.mockClear();
+    expect(arrangeWorkspace("w", { undoable: false })).toBe(true);
+    expect(updateScene.mock.calls[0][0].captureUpdate).toBe("NEVER");
+    expect(written().find((e) => e.id === "a")!.customData?.downTree).toBe(true);
+  });
+
   it("lays the canvas out in the layout chosen in the settings, for Arrange and Auto-arrange alike", () => {
     // The grid: four terminals in two rows of two at the view's 16:10.
     scene = looseTerminals();

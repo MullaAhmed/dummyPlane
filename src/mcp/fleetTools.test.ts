@@ -6,12 +6,14 @@ import { clearWirePulses, wireActivityStore } from "@/canvas/wireActivity";
 import { relaunchTerminal } from "@/nodes/terminal/registry";
 import { agentActivityStore } from "@/store/agentActivity";
 import { nodesStore } from "@/store/nodes";
-import { terminalStatusStore } from "@/store/terminalStatus";
+import { isRestarting, terminalStatusStore } from "@/store/terminalStatus";
 import { workspacesStore } from "@/store/workspaces";
 import type { Member, Mission } from "@/mission/mission";
-import { deliveryPending } from "@/mission/launch";
-import { missionOf } from "@/mission/store";
-import { fleetTool } from "./fleetTools";
+import { deliveryPending, reassignTask } from "@/mission/launch";
+import { activeCount, seatsHeld } from "@/mission/active";
+import { relaunchSession } from "@/nodes/terminal/session";
+import { missionOf, setMission, updateMember } from "@/mission/store";
+import { fleetTool, managerTools } from "./fleetTools";
 import { modelRouterStore } from "@/app/modelRouterSetting";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
@@ -36,6 +38,8 @@ beforeEach(() => {
   modelRouterStore.setState({ on: false, levels: {} });
   mockIPC(() => undefined);
   terminalStatusStore.getState().set("chef", { state: "running" });
+  // A test that failed mid-restart leaves no terminal restarting behind it.
+  terminalStatusStore.setState({ restarts: {} });
 });
 
 it("refuses to extend an agent that handed its sub-task over or has already reported (backlog H3)", async () => {
@@ -132,6 +136,14 @@ it("reassign names the sub-tasks it takes when the call passed something else, a
   expect(text).not.toContain("\n");
 });
 
+it("reassign takes the sub-task from the agent still on it when an abandoned one shares its title (review 12 Nov)", async () => {
+  await setup([member("rd", "Hulk", { task: "Login", abandoned: true }), member("ra", "Batman", { task: "Login" })]);
+  vi.mocked(reassignTask).mockResolvedValueOnce({ name: "Aquaman" });
+  const result = await fleetTool("chef", "reattribuer", { sous_tache: "Login", agent: "nouveau" });
+  expect(result.isError).not.toBe(true);
+  expect(reassignTask).toHaveBeenLastCalledWith("chef", "ra", "nouveau");
+});
+
 describe("relaunch", () => {
   const terminal = (name: string, extra: Record<string, unknown> = {}) => ({ title: name, name, agent: "claude" as const, cwd: `C:/w/${name}`, shell: "default" as const, command: "", ...extra });
   const scene = (deleted: string[] = []) =>
@@ -198,6 +210,89 @@ describe("relaunch", () => {
     const result = await fleetTool("chef", "relaunch", { agent: "Hulk" });
     expect(result.isError).not.toBe(true);
     expect(relaunchTerminal).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses a stopped agent that got its sub-task while Max agents are at work: the queue took its seat (12 Nov)", async () => {
+    // Thor and Sif run, Freya waits for her sub-task: three seats. Hulk, stopped after its sub-task, holds none.
+    setMission("chef", { maxAgents: 3 });
+    const full = await fleetTool("chef", "relaunch", { agent: "Hulk" });
+    expect(full.isError).toBe(true);
+    expect(full.content[0].text).toBe("Hulk cannot start again yet: 3 agents are already at work (Max active agents), and a stopped agent holds no seat. Relaunch it once a seat is free (queue: active_agents below max_agents); a seat a report frees goes to the queue's next task first.");
+    expect(relaunchTerminal).not.toHaveBeenCalled();
+    expect(seatsHeld("chef")).toBe(0);
+    // Those that hold their seat start again all the same: one never sent its sub-task, one back at its shell, as the tool says.
+    expect((await fleetTool("chef", "relaunch", { agent: "Freya" })).isError).not.toBe(true);
+    expect((await fleetTool("chef", "relaunch", { agent: "Sif" })).isError).not.toBe(true);
+    expect(managerTools().find((tool) => tool.name === "relaunch")?.description).toContain(
+      "An agent back at its shell keeps its seat, and one that reported takes none: neither is refused for Max active agents.",
+    );
+    // Once one reports, its seat is free: Hulk takes it.
+    updateMember("chef", "t1", { report: { summary: "ok", status: "termine", at: 1 } });
+    expect((await fleetTool("chef", "relaunch", { agent: "Hulk" })).isError).not.toBe(true);
+    expect(vi.mocked(relaunchTerminal).mock.calls.map(([id]) => id)).toEqual(["f1", "s1", "h1"]);
+  });
+
+  it("starts an agent that has reported whatever Max agents says: it takes no seat", async () => {
+    setMission("chef", { maxAgents: 3 });
+    updateMember("chef", "h1", { report: { summary: "blocked on the API", status: "bloque", at: 1 } });
+    const result = await fleetTool("chef", "relaunch", { agent: "Hulk" });
+    expect(result.isError).not.toBe(true);
+    expect(relaunchTerminal).toHaveBeenCalledWith("h1", expect.anything(), "resume");
+  });
+
+  describe("counts the agent once all through its restart (review 12 Nov)", () => {
+    const seats = () => activeCount("chef", missionOf(nodesStore.getState().nodes.chef)!);
+    const term = { cols: 80, rows: 24, write: () => undefined };
+    /**
+     * The app's own restart: `relaunchSession`, its old process's kill answered by its exit as boot's pty-exit handler
+     * records it. The count is read in the gap (`beforeStart`), while the new process spawns (already "running"), and after.
+     */
+    const restartLikeTheApp = (counts: number[], spawn: () => unknown = () => 1) => {
+      mockIPC((cmd, args) => {
+        const nodeId = (args as { nodeId?: string }).nodeId ?? "";
+        if (cmd === "pty_kill") terminalStatusStore.getState().set(nodeId, { state: "exited", code: null });
+        if (cmd !== "pty_spawn") return undefined;
+        counts.push(seats());
+        return spawn();
+      });
+      vi.mocked(relaunchTerminal).mockImplementationOnce(async (nodeId, payload, mode) => {
+        await relaunchSession(nodeId, term, { ...payload, agent: "shell" }, mode, () => void counts.push(seats()));
+        counts.push(seats());
+      });
+    };
+
+    it("keeps an agent back at its shell in its seat while its old process is gone and its new one not yet up", async () => {
+      const counts: number[] = [];
+      restartLikeTheApp(counts);
+      expect(seats()).toBe(3);
+      expect((await fleetTool("chef", "relaunch", { agent: "Sif" })).isError).not.toBe(true);
+      // Thor, Freya and Sif throughout: no report meanwhile can give Sif's seat to the queue.
+      expect(counts).toEqual([3, 3, 3]);
+      expect(seats()).toBe(3);
+    });
+
+    it("counts a stopped agent that takes a seat once, not twice, once its new process runs", async () => {
+      const counts: number[] = [];
+      restartLikeTheApp(counts);
+      expect(seats()).toBe(3);
+      expect((await fleetTool("chef", "relaunch", { agent: "Hulk" })).isError).not.toBe(true);
+      // Thor, Freya, Sif, and Hulk from the call on: a report meanwhile leaves the queue no seat fewer than there is.
+      expect(counts).toEqual([4, 4, 4]);
+      expect(seats()).toBe(4);
+      expect(seatsHeld("chef")).toBe(0);
+    });
+
+    it("frees the seat of a relaunch that fails", async () => {
+      const counts: number[] = [];
+      restartLikeTheApp(counts, () => {
+        throw new Error("spawn refused");
+      });
+      const failed = await fleetTool("chef", "relaunch", { agent: "Hulk" });
+      expect(failed.content[0].text).toContain("Hulk could not start again: ");
+      expect(failed.content[0].text).toContain("spawn refused");
+      expect(isRestarting("h1")).toBe(false);
+      expect(seats()).toBe(3);
+    });
   });
 
   it("says why when its terminal could not start, and refuses an agent outside the mission", async () => {

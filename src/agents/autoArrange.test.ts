@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
+import { nodesStore } from "@/store/nodes";
 import { AUTO_ARRANGE_DELAY_MS, createAutoArrangeWatch, layoutSignature } from "./autoArrange";
 
 const node = (id: string, fields: Record<string, unknown> = {}) =>
@@ -70,6 +71,43 @@ describe("the Auto-arrange watch", () => {
     watch([node("a")], still);
     tick();
     expect(arrange).toHaveBeenCalledTimes(3);
+  });
+
+  it("works its signature out once while only the view moves, and again when a terminal is minimized: a pan's frames", () => {
+    const { watch, arrange, minimized, tick } = setup();
+    const isMinimized = vi.spyOn(minimized, "has");
+    const scene = [node("a", { version: 1 }), node("b", { version: 1 })];
+    watch(scene, still, 2);
+    expect(isMinimized).toHaveBeenCalledTimes(2);
+    // A pan: the same scene, the same version, the same nodes, frame after frame.
+    for (let frame = 0; frame < 60; frame++) watch(scene, still, 2);
+    expect(isMinimized).toHaveBeenCalledTimes(2);
+    // Minimized: its node says so before its element shrinks, and a frame of the same scene sees it.
+    minimized.add("a");
+    nodesStore.setState({ nodes: { ...nodesStore.getState().nodes } });
+    watch(scene, still, 2);
+    expect(isMinimized).toHaveBeenCalledTimes(4);
+    tick();
+    expect(arrange).toHaveBeenCalledTimes(1);
+    // A node opened: the scene changed.
+    watch([...scene, node("c", { version: 1 })], still, 3);
+    tick();
+    expect(arrange).toHaveBeenCalledTimes(2);
+  });
+
+  it("arranges once a drag ends on a frame of the same scene, which works no signature out", () => {
+    const { watch, arrange, tick, minimized } = setup();
+    const isMinimized = vi.spyOn(minimized, "has");
+    watch([node("a", { version: 1 })], still, 1);
+    const opened = [node("a", { version: 1 }), node("b", { version: 1 })];
+    watch(opened, { ...still, selectedElementsAreBeingDragged: true }, 2);
+    tick();
+    expect(arrange).not.toHaveBeenCalled();
+    const worked = isMinimized.mock.calls.length;
+    watch(opened, still, 2);
+    expect(isMinimized).toHaveBeenCalledTimes(worked);
+    tick();
+    expect(arrange).toHaveBeenCalledTimes(1);
   });
 
   it("waits for a drag or a resize to end", () => {

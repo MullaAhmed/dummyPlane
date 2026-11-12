@@ -40,11 +40,25 @@ export function startArrival(nodeId: string, payload: TerminalPayload, shown: bo
   else startUnseen(nodeId, payload);
 }
 
+/** How a new terminal goes into the scene, as it stands once the node exists: the scene written, in one step. */
+export type PlaceTerminal = (elements: readonly ExcalidrawElement[], element: ExcalidrawElement) => readonly ExcalidrawElement[];
+
+/**
+ * `elements` with `element` in the first free cell of the group `groupId` (grown if it was full), or, in none,
+ * at the nearest spot clear of the nodes and group frames: where a new terminal goes.
+ */
+export function placeTerminal(elements: readonly ExcalidrawElement[], element: ExcalidrawElement, groupId: string | null): ExcalidrawElement[] {
+  const frame = groupId ? elements.find((e) => e.id === groupId && !e.isDeleted && groupInfoOf(e)) : undefined;
+  return frame ? joinGroup(elements, element, frame) : [...elements, placeFree(elements, element)];
+}
+
 /**
  * Adds a terminal centered on `center` (scene coordinates), or in the first
  * free cell of the group `groupId`, and starts it. It comes
  * into view unless `arrival` says it arrives on its own: then the view stays,
- * the keyboard too, and a notice tells of it.
+ * the keyboard too, and a notice tells of it. `place` writes it into the
+ * scene with what goes with it, one undo step (spawn_agent's group and wire);
+ * `placeTerminal` by default.
  */
 export async function addTerminal(
   workspaceId: string,
@@ -52,6 +66,7 @@ export async function addTerminal(
   center: Point,
   groupId: string | null = null,
   arrival: Arrival = IN_VIEW,
+  place: PlaceTerminal = (elements, element) => placeTerminal(elements, element, groupId),
 ): Promise<string | null> {
   if (!sceneAccess(workspaceId)) return null;
   const element = createNodeElement("terminal", center);
@@ -61,9 +76,7 @@ export async function addTerminal(
   // Read after the wait: the scene may have changed meanwhile, and the user may have left it.
   const scene = sceneAccess(workspaceId);
   if (!scene) return null;
-  const elements = scene.elements();
-  const frame = groupId ? elements.find((e) => e.id === groupId && !e.isDeleted && groupInfoOf(e)) : undefined;
-  scene.write(frame ? joinGroup(elements, element, frame) : [...elements, placeFree(elements, element)]);
+  scene.write(place(scene.elements(), element));
   // Out of sight, Excalidraw would neither show it nor start its agent; in another workspace nothing mounts it at all.
   if (scene.shown && arrival.reveal) {
     revealNode(element.id);
@@ -210,17 +223,20 @@ function alignCopies(elements: readonly ExcalidrawElement[], copyIds: ReadonlySe
 
 /**
  * Deletes elements in one step, their closing confirmed or needing none: the
- * removal guard lets them go. Undo brings them back, stopped.
+ * removal guard lets them go. Undo brings them back, stopped. `release` are
+ * nodes taken out of a group deleted with them, in that step: they stay.
  */
-export function removeNodes(ids: readonly string[]) {
+export function removeNodes(ids: readonly string[], release: readonly string[] = []) {
   const api = canvasStore.getState().api;
   if (!api) return;
   const elements = api.getSceneElementsIncludingDeleted();
   // Only those really leaving: the guard forgets a pass when a node goes, so one already gone would keep its pass for later.
   const removed = new Set(elements.filter((e) => ids.includes(e.id) && !e.isDeleted).map((e) => e.id));
+  // Taken out of a group that goes with them, in the same step: they stay, in no group.
+  const freed = new Set(elements.filter((e) => release.includes(e.id) && !e.isDeleted && !removed.has(e.id) && e.frameId !== null && removed.has(e.frameId)).map((e) => e.id));
   allowRemoval(removed);
   api.updateScene({
-    elements: elements.map((e) => (removed.has(e.id) ? newElementWith(e, { isDeleted: true }) : e)),
+    elements: elements.map((e) => (removed.has(e.id) ? newElementWith(e, { isDeleted: true }) : freed.has(e.id) ? newElementWith(e, { frameId: null }) : e)),
     captureUpdate: CaptureUpdateAction.IMMEDIATELY,
   });
 }

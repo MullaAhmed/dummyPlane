@@ -329,7 +329,7 @@ describe("Dessin, sur la sélection", () => {
 
 describe("Scene", () => {
   it("exports, imports and saves a PNG as the settings menu does", async () => {
-    expect(SCENE.map((c) => labelOf(c, busy))).toEqual(["Export scene…", "Import scene…", "Export as PNG…", "Arrange", "Arrange the whole canvas", "Arrange the selection"]);
+    expect(SCENE.map((c) => labelOf(c, busy))).toEqual(["Export scene…", "Import scene…", "Export as PNG…", "Arrange", "Arrange the whole canvas", "Arrange the selection", "Arrange the selection as a tree"]);
     for (const command of SCENE.slice(0, 3)) await command.run(busy);
     expect([exportCurrentScene, importIntoScene, exportCurrentPng].every((f) => vi.mocked(f).mock.calls.length === 1)).toBe(true);
   });
@@ -343,8 +343,8 @@ describe("Scene", () => {
 
   it("lists Arrange the whole canvas and Arrange the selection in the Scene section, next to Arrange", () => {
     const ids = SCENE.map((c) => c.id);
-    expect(ids.slice(ids.indexOf("scene.arrange"))).toEqual(["scene.arrange", "scene.arrangeCanvas", "scene.arrangeSelection"]);
-    for (const id of ["scene.arrangeCanvas", "scene.arrangeSelection"]) {
+    expect(ids.slice(ids.indexOf("scene.arrange"))).toEqual(["scene.arrange", "scene.arrangeCanvas", "scene.arrangeSelection", "scene.arrangeSelectionTree"]);
+    for (const id of ["scene.arrangeCanvas", "scene.arrangeSelection", "scene.arrangeSelectionTree"]) {
       const command = SCENE.find((c) => c.id === id)!;
       expect(sectionOf(command, busy)).toBe("Scene");
       expect(command.keywords).toContain("arrange");
@@ -378,5 +378,17 @@ describe("Scene", () => {
     expect(selection.disabled?.(busy)).toBeNull();
     await selection.run(busy);
     expect(arrangeWorkspace).toHaveBeenLastCalledWith("w1", { only: ["c"], scope: "selection", undoable: true });
+  });
+
+  it("arranges the selection alone as a tree, whatever the setting holds, greyed with nothing selected; one undo", async () => {
+    const tree = SCENE.find((c) => c.id === "scene.arrangeSelectionTree")!;
+    vi.mocked(arrangeWorkspace).mockClear();
+    expect(tree.disabled?.({ ...busy, selectionIds: [] })).toBe("nothing selected");
+    await tree.run({ ...busy, selectionIds: [] });
+    expect(arrangeWorkspace).not.toHaveBeenCalled();
+    const ring = { ...busy, selectionIds: ["a", "b"] };
+    expect(tree.disabled?.(ring)).toBeNull();
+    await tree.run(ring);
+    expect(arrangeWorkspace).toHaveBeenLastCalledWith("w1", { only: ["a", "b"], scope: "selection", layout: "tree", undoable: true });
   });
 });

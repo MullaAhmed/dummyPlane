@@ -140,7 +140,11 @@ export async function reattachSession(nodeId: string, term: TermSink, state: Ses
 
 /**
  * Stops the process if it runs, waits for its exit, then starts it again.
- * `beforeStart` runs in between: what follows is the new session's.
+ * `beforeStart` runs in between: what follows is the new session's. Every
+ * restart comes here (its menu, its resume card, a keystroke, "Resume all", a
+ * mission's relaunch): from the call until the new process is spawned, the
+ * terminal is restarting (`isRestarting`), so that the old process's exit does
+ * not end its work for whoever counts it (a mission's Max agents).
  */
 export async function relaunchSession(
   nodeId: string,
@@ -149,11 +153,17 @@ export async function relaunchSession(
   mode: LaunchMode,
   beforeStart?: () => void | Promise<void>,
 ) {
-  if (isRunning(nodeId)) {
-    await ptyKill(nodeId);
-    await waitForExit(nodeId);
+  // Before anything is awaited: the caller's next line already sees it.
+  terminalStatusStore.getState().restart(nodeId, 1);
+  try {
+    if (isRunning(nodeId)) {
+      await ptyKill(nodeId);
+      await waitForExit(nodeId);
+    }
+    await beforeStart?.();
+    term.write(`\r\n\x1b[2m${messages(nodesMessages).session.restartMarker}\x1b[0m\r\n`);
+    await startSession(nodeId, term, payload, mode);
+  } finally {
+    terminalStatusStore.getState().restart(nodeId, -1);
   }
-  await beforeStart?.();
-  term.write(`\r\n\x1b[2m${messages(nodesMessages).session.restartMarker}\x1b[0m\r\n`);
-  await startSession(nodeId, term, payload, mode);
 }

@@ -1,8 +1,9 @@
 import { CaptureUpdateAction, newElementWith } from "@excalidraw/excalidraw";
 import type { ExcalidrawArrowElement, ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { AppState, ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
-import { currentPalette } from "@/app/theme";
-import { nodesStore, terminalOf } from "@/store/nodes";
+import { currentPalette, type ThemeChoice } from "@/app/theme";
+import { sameInputs, sceneStamp, type SceneStamp } from "@/canvas/sceneChanges";
+import { nodesStore, terminalOf, type NodeRecord } from "@/store/nodes";
 import {
   faceWires,
   isWire,
@@ -48,6 +49,23 @@ type Gesture = Pick<AppState, "selectedElementsAreBeingDragged" | "isResizing" |
 const busy = ({ selectedElementsAreBeingDragged, isResizing, isRotating, newElement, editingFrame }: Gesture) =>
   Boolean(selectedElementsAreBeingDragged || isResizing || isRotating || newElement || editingFrame);
 
+/** Everything the scans read: the scene, the gesture, the palette and who spawned whom (the nodes the default spawnerOf reads). */
+interface ScanInputs extends SceneStamp {
+  api: ExcalidrawImperativeAPI;
+  busy: boolean;
+  palette: ThemeChoice;
+  spawnerOf: SpawnerOf;
+  nodes: Record<string, NodeRecord>;
+}
+
+/**
+ * The inputs of the last check that found nothing to do. Excalidraw calls
+ * onChange on every frame of a pan or a zoom with the same scene, and the same
+ * inputs would find nothing again: those frames scan nothing. Only a clean
+ * check is kept: one that found work checks again, as before.
+ */
+let clean: ScanInputs | null = null;
+
 /**
  * Hand-drawn wires get their mark, wires left without an end go and wires in
  * another palette's color take the current palette's accent; a deleted wire leaves its ends' lists and a revived one is listed
@@ -63,14 +81,24 @@ const busy = ({ selectedElementsAreBeingDragged, isResizing, isRotating, newElem
  */
 export function scheduleWireUpkeep(api: ExcalidrawImperativeAPI, elements: readonly ExcalidrawElement[], spawnerOf: SpawnerOf = spawnedBy) {
   if (pending) return;
+  const inputs: ScanInputs = {
+    ...sceneStamp(elements),
+    api,
+    busy: busy(api.getAppState()),
+    palette: currentPalette(),
+    spawnerOf,
+    nodes: nodesStore.getState().nodes,
+  };
+  if (sameInputs(clean, inputs)) return;
   const nothingToDo =
-    (busy(api.getAppState()) || misfacedWires(elements).length === 0) &&
+    (inputs.busy || misfacedWires(elements).length === 0) &&
     unmarkedWires(elements).length === 0 &&
     orphanWires(elements).length === 0 &&
     revivableWires(elements).length === 0 &&
-    outdatedWires(elements, currentPalette()).length === 0 &&
+    outdatedWires(elements, inputs.palette).length === 0 &&
     staleWireBindings(elements).length === 0 &&
     missingSpawnWires(elements, spawnerOf).length === 0;
+  clean = nothingToDo ? inputs : null;
   if (nothingToDo) return;
   pending = true;
   requestAnimationFrame(() => {

@@ -63,6 +63,21 @@ describe("the removal guard (Annuler never ends a running agent unasked)", () =>
     expect(verdict.ask).toEqual({ agents: ["robin"], remove: ["robin"] });
   });
 
+  it("puts a parent the undo of its first sub-agent let out of their group back in it, and asks for the sub-agent, not the group", () => {
+    running.add("robin");
+    const group = frame("g");
+    const batman = element("batman", { frameId: "g" });
+    const robin = element("robin", { frameId: "g" });
+    const check = createRemovalGuard(isRunning, [batman, robin, group]);
+    // One step undone: the sub-agent and the group gone, the parent loose again.
+    const verdict = check([element("batman", { version: 2 }), gone(robin), gone(group)], ["robin"]);
+    expect(ids(verdict.restore)).toEqual(["batman", "g", "robin"]);
+    expect(verdict.restore.find((e) => e.id === "batman")!.frameId).toBe("g");
+    expect(verdict.dispose).toEqual([]);
+    // Closing the group would close the parent too: the closing is the sub-agent's, the parent let out of the group then.
+    expect(verdict.ask).toEqual({ agents: ["robin"], remove: ["robin", "g"], release: ["batman"] });
+  });
+
   it("asks for all the running agents at once when several left, without their group", () => {
     running.add("batman").add("cyborg");
     const loose = [element("batman"), element("cyborg"), element("flash")];

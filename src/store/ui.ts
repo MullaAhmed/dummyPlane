@@ -5,9 +5,10 @@ import type { LaunchOptions } from "@/agents/launchAgent";
 /**
  * The running agents whose closing waits for confirmation, and what goes with
  * them once confirmed; `children`, the sub-agents they opened with
- * spawn_agent, go too if the user leaves "Also close" ticked.
+ * spawn_agent, go too if the user leaves "Also close" ticked; `release`, the
+ * nodes taken out of a group that goes with them, stay, in no group.
  */
-export type ClosingAgents = { agents: string[]; remove: string[]; children?: string[] };
+export type ClosingAgents = { agents: string[]; remove: string[]; children?: string[]; release?: string[] };
 
 /** An agent, or a fleet, chosen in the menu and waiting for a click on the canvas. */
 export type Placement = { agent: AgentId; options: LaunchOptions } | { fleet: true };

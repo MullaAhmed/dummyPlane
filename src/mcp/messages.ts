@@ -5,6 +5,13 @@ import { ROUTER_LEVELS } from "@/mission/router";
 const holder = (who: { name: string; title?: string; state: string; spentMin?: number; budgetMin?: number }) =>
   `${who.name} is already working on "${who.title || "that task"}" (${who.state === "idle" ? "between two turns" : who.state}${who.spentMin !== undefined && who.budgetMin !== undefined ? `, ${who.spentMin} of ${who.budgetMin} min` : ""}).`;
 type Holder = Parameters<typeof holder>[0];
+/** The titles `reassign` takes, after `lead`, for a call to be made again right; or that it takes none now. */
+const reassignTakes = (lead: string, titles: readonly string[]) =>
+  titles.length > 0 ? `${lead} ${titles.map((t) => `"${t}"`).join(", ")}.` : "No sub-task can be reassigned now.";
+/** `reassign` refused on a full team: `who` would be one more agent at work, its sub-task's holder holding no seat. */
+const oneMore = (who: string, task: string, max: number) =>
+  `"${task}" would put ${who} to work while ${plural(max, "agent is", "agents are")} already at work (Max active agents), and the agent it takes it from holds no seat now. ` +
+  "Reassign it once a seat is free (queue: active_agents below max_agents); a seat a report frees goes to the queue's next task first.";
 /** Tasks `add_tasks` or `propose_plan` refused, each with who is on it already. */
 const taken = (found: readonly { n: number; title: string; who: Holder }[]) => found.map(({ n, title, who }) => `Task ${n} ("${title}"): ${holder(who)}`).join(" ");
 
@@ -25,7 +32,7 @@ export const agentMessages = defineMessages({
       finishSummary: "Markdown, or OpenUI Lang (root = Stack([...]); see output_guide) for a table or figures: dummyPlane draws it in your panel.",
       spawnAgent: (depth: number) =>
         "Delegate a task to a sub-agent that opens as a new Claude terminal beside yours, in your folder (same worktree): the user can watch it and type into it. " +
-        "Use it instead of the built-in Agent/Task tool, several calls to work in parallel. It returns at once: do not wait or poll. " +
+        "Use it instead of the built-in Agent/Task tool or a Workflow: one call per sub-agent, several calls to work in parallel. It returns at once: do not wait or poll. " +
         "When the sub-agent is done it calls report, and its summary is typed into your terminal as \"[dummyPlane] <name> reported (<status>): <summary>\". " +
         "To give a sub-agent that reported new work, message it with message_agent and pass a title for that work: without one, its terminal still bears the title of the task it finished. " +
         "Give level on every call, the difficulty of this task: the model router, on unless the user turned it off (in Settings, or with the switch on your terminal or on the Fleet or the agent you work under), picks the sub-agent's model from it, and the answer names the model it picked, or why none. While it is on, a Claude model named with no level is refused. " +
@@ -140,8 +147,9 @@ export const agentMessages = defineMessages({
       interrupt: "Manager (or the Fleet of a mission run the old way). Stop the turn of an agent at work (Esc), like \"Pause\"; write \"continue\" resumes it.",
       relaunch:
         "Manager (or the Fleet of a mission run the old way). Start again the terminal of a mission agent that stopped (its terminal, or its agent back at its shell), on its own conversation. " +
-        "Refused while it runs, for an agent that handed its sub-task over, and for one whose terminal the user closed. Once it is up, write tells it what is left; a sub-task it never got, dummyPlane types itself.",
-      reassign: "Manager (or the Fleet of a mission run the old way). Give a sub-task to another mission agent that has reported, or to a \"new\" agent: it gets the previous agent's report and branch.",
+        "Refused while it runs, for an agent that handed its sub-task over, for one whose terminal the user closed, and, while Max active agents are at work, for one whose terminal stopped after it got its sub-task and before it reported: stopped, it holds no seat. An agent back at its shell keeps its seat, and one that reported takes none: neither is refused for Max active agents. Once it is up, write tells it what is left; a sub-task it never got, dummyPlane types itself.",
+      reassign: "Manager (or the Fleet of a mission run the old way). Give a sub-task to another mission agent that has reported, or to a \"new\" agent: it gets the previous agent's report and branch. " +
+        "While Max active agents are at work, a sub-task whose holder holds no seat (it reported, or its terminal stopped after its sub-task) is refused, to \"new\" and to an agent that has reported alike; from an agent at work, its seat goes with the sub-task.",
       merge: "Manager (or the Fleet of a mission run the old way). Merge into the mission's branch the branches of the agents that reported \"done\"; says what was merged and the conflicts.",
       finish: "Manager (or the Fleet of a mission run the old way). Close the mission with your summary: the agents created for it close, the linked agents go back to the project's folder.",
       managerFinish: "Manager. Close the mission with your summary once the board's work is merged and checked: the agents created for it close, the linked agents go back to the project's folder, and the Fleet hears that the board is finished, with your summary.",
@@ -420,12 +428,13 @@ export const agentMessages = defineMessages({
       notWorking: (name: string) => `${name} is not at work: nothing to interrupt.`,
       interrupted: (name: string) => `${name}'s turn interrupted. write "continue" resumes it.`,
       noSubtask: (title: string, titles: readonly string[]) =>
-        `No sub-task "${title}" in the team. ` +
-        (titles.length > 0 ? `Give its title as team gives it (subtask), one of: ${titles.map((t) => `"${t}"`).join(", ")}.` : "No sub-task can be reassigned now."),
+        `No sub-task "${title}" in the team. ${reassignTakes("Give its title as team gives it (subtask), one of:", titles)}`,
       relaunchRunning: (name: string) => `${name} is running: nothing to relaunch.`,
       relaunchHanded: (name: string, to: string) => `${name} handed its sub-task to ${to}: nothing to relaunch.`,
       relaunchClosed: (name: string) =>
         `${name}'s terminal is no longer on the canvas: the user closed it. Reassign its sub-task to another agent, or ask the user whether to bring it back.`,
+      relaunchTeamFull: (name: string, max: number) =>
+        `${name} cannot start again yet: ${plural(max, "agent is", "agents are")} already at work (Max active agents), and a stopped agent holds no seat. Relaunch it once a seat is free (queue: active_agents below max_agents); a seat a report frees goes to the queue's next task first.`,
       relaunchFailed: (name: string, error: string) => `${name} could not start again: ${error}`,
       relaunched: (name: string) => `${name} is starting again on its own conversation. Once it is up (team, read_output), write tells it what is left.`,
       relaunchedBrief: (name: string) =>
@@ -530,6 +539,8 @@ export const agentMessages = defineMessages({
       boardFinished: (summary: string) => `The board is finished: ${summary}`,
       needsUser: (manager: string, reason: string) => `${manager} needs the user: ${reason}`,
       managerStopped: (manager: string) => `${manager} stopped: its terminal is no longer running. The board waits: relaunch it from its node, or stop_mission.`,
+      pastMaxAgents: (name: string, active: number, max: number) =>
+        `The user started ${name} again while the team was full: ${active} agents are at work, past Max active agents (${max}). The queue starts no new agent until fewer than ${max} are at work; nothing to do meanwhile.`,
     },
     merge: {
       noBranch: "The mission has no branch.",
@@ -545,12 +556,14 @@ export const agentMessages = defineMessages({
     },
     reassign: {
       noMission: "No mission under way.",
-      notFound: "Sub-task not found.",
       hidden: "The fleet's workspace is not on screen: no agent can be created there.",
       notOther: (target: string) => `"${target}" is not another agent of the mission.`,
       notDone: (name: string) => `${name} has not finished its sub-task: choose an agent that has reported, or "new".`,
       targetStopped: (name: string) => `${name} is stopped: relaunch it first, or choose another agent.`,
-      teamFull: (max: number) => `${max} agents are already at work (Max active agents): reassign to an agent that has reported instead of "new", or wait for one to finish.`,
+      newTeamFull: (task: string, max: number) => oneMore("a new agent", task, max),
+      targetTeamFull: (name: string, task: string, max: number) => oneMore(`${name} back`, task, max),
+      abandoned: (title: string, titles: readonly string[]) =>
+        `"${title}" was abandoned by next_task: it stays with its agent's report, and nobody takes it over. ${reassignTakes("The sub-tasks reassign takes:", titles)}`,
       notMerged: (name: string, task: string) => `${name} finished "${task}" but its branch is not merged: call merge first.`,
       createFailed: "The new agent could not be created.",
     },
