@@ -11,12 +11,18 @@ import { NEW_MISSION, type Mission } from "./mission";
 import { MissionPanel } from "./MissionPanel";
 import { missionOf } from "./store";
 import { focusNode } from "@/canvas/focusNode";
+import { answerConfirm } from "@/components/confirm";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { notify } from "./events";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
-vi.mock("./launch", () => ({
+// The real endMission: "Stop the mission" ends the mission through it (./stop.ts).
+vi.mock("./launch", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./launch")>()),
   launchMission: vi.fn(() => Promise.resolve()),
   cleanMission: vi.fn(() => Promise.resolve({ removed: ["auth-batman", "auth"], kept: [] })),
 }));
+vi.mock("./events", async (importOriginal) => ({ ...(await importOriginal<typeof import("./events")>()), notify: vi.fn() }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/canvas/focusNode", () => ({ focusNode: vi.fn() }));
 
@@ -24,10 +30,19 @@ vi.mock("@/canvas/focusNode", () => ({ focusNode: vi.fn() }));
 
 let host: HTMLDivElement;
 let root: Root;
+/** The app's confirm dialog, mounted by the tests that answer it. */
+let dialogRoot: Root | null = null;
 beforeAll(() => mockIPC(() => undefined));
 afterEach(async () => {
   await act(async () => root.unmount());
   host.remove();
+  // The question store is the module's: a question left open would answer the next test's.
+  answerConfirm(false);
+  if (dialogRoot) {
+    const mounted = dialogRoot;
+    dialogRoot = null;
+    await act(async () => mounted.unmount());
+  }
 });
 
 
@@ -430,4 +445,79 @@ it("says who runs a mission its Manager runs, the Manager and the board a click 
 it("says nothing of a Manager for a mission run the old way", async () => {
   await show({ state: "en_cours", frameId: "f1", members: [] });
   expect(host.querySelector("[data-run-by]")).toBeNull();
+});
+
+/** The app's confirm dialog beside the panel, as App mounts it. */
+async function showDialog() {
+  const box = document.createElement("div");
+  document.body.append(box);
+  dialogRoot = createRoot(box);
+  const mounted = dialogRoot;
+  await act(async () => mounted.render(<ConfirmDialog />));
+}
+const dialog = () => document.querySelector<HTMLElement>('[role="dialog"]');
+const dialogButton = (label: string) => [...(dialog()?.querySelectorAll("button") ?? [])].find((b) => b.textContent === label)!;
+const stopButton = () => [...host.querySelectorAll("button")].find((b) => b.textContent === "Stop the mission") ?? null;
+
+it("offers to stop the mission only while it runs, where the cleanup stands once it is over", async () => {
+  const states: Partial<Mission>[] = [
+    {},
+    { state: "plan", plan: [{ title: "Login", brief: "b", agent: "Batman", budgetMin: 20 }] },
+    { state: "lancement", plan: [{ title: "Login", brief: "b", agent: "Batman", budgetMin: 20 }] },
+    { state: "terminee", summary: "Fini.", members: [] },
+  ];
+  for (const mission of states) {
+    await show(mission);
+    expect(stopButton()).toBeNull();
+    await act(async () => root.unmount());
+    host.remove();
+  }
+  await show({ state: "en_cours", name: "Auth", members: [] });
+  const stop = stopButton()!;
+  expect(stop).not.toBeNull();
+  // In the actions' footer, outside the scrolling body, as the go-ahead and the cleanup.
+  expect(host.querySelector("[data-mission-body]")!.contains(stop)).toBe(false);
+  expect(stop.closest("[data-mission-actions]")?.className).toContain("shrink-0");
+  expect(host.textContent).not.toContain("Clean up the mission");
+});
+
+it("stops the mission once the user says yes, as the Fleet's stop_mission does: the Manager and the Fleet told", async () => {
+  vi.mocked(notify).mockClear();
+  await nodesStore.getState().create("boss", { workspaceId: "w1", kind: "terminal", payload: { title: "Manager", name: "Manager", agent: "claude", cwd: "C:/p", shell: "default", command: "", role: "manager", fleet: "chef" } });
+  await show({ state: "en_cours", name: "Auth", manager: "boss", members: [] });
+  await showDialog();
+  await act(async () => stopButton()!.click());
+  // It asks first, saying what stopping does and what stays.
+  expect(dialog()?.textContent).toContain("Stop the mission “Auth”?");
+  expect(dialog()?.textContent).toContain("The agents created for it close, and linked agents go back to the project folder.");
+  expect(dialog()?.textContent).toContain("Its Manager stays.");
+  expect(dialog()?.textContent).toContain("Its branches and worktrees stay: cleaning the mission up later removes only the worktrees whose work is merged.");
+  expect(missionOf(nodesStore.getState().nodes.chef)?.state).toBe("en_cours");
+  await act(async () => dialogButton("Stop the mission").click());
+  expect(dialog()).toBeNull();
+  expect(missionOf(nodesStore.getState().nodes.chef)).toMatchObject({ state: "terminee", summary: "Stopped by the user." });
+  expect(vi.mocked(notify).mock.calls).toEqual([
+    ["boss", "The user stopped the mission from the Fleet's panel."],
+    ["chef", expect.stringContaining("The user stopped the mission from your panel.")],
+  ]);
+  // Its cleanup is there as after any mission.
+  expect(stopButton()).toBeNull();
+  expect(host.textContent).toContain("Stopped by the user.");
+  await act(async () => button("Clean up the mission").click());
+  expect(cleanMission).toHaveBeenCalledWith("chef");
+});
+
+it("leaves the mission running when the user cancels, and names no Manager for a mission run the old way", async () => {
+  vi.mocked(notify).mockClear();
+  await show({ state: "en_cours", name: "Auth", frameId: "f1", members: [] });
+  await showDialog();
+  await act(async () => stopButton()!.click());
+  expect(dialog()?.textContent).not.toContain("Manager");
+  await act(async () => dialogButton("Cancel").click());
+  expect(dialog()).toBeNull();
+  const mission = missionOf(nodesStore.getState().nodes.chef);
+  expect(mission?.state).toBe("en_cours");
+  expect(mission?.summary).toBeUndefined();
+  expect(notify).not.toHaveBeenCalled();
+  expect(stopButton()).not.toBeNull();
 });

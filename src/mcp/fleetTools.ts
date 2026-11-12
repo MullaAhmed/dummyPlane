@@ -7,6 +7,7 @@ import { missionFolder } from "@/mission/folder";
 import { deliveryPending, endMission, launchMission, mergeMission, reassignTask } from "@/mission/launch";
 import { budgetOf, memberTime, NEW_AGENT, nightMin, oneLine, proposedPlan, proposedTasks, remainingGlobal, sameName, spentMin, type Member, type Mission, type QueuedTask } from "@/mission/mission";
 import { activeCount } from "@/mission/active";
+import { stopMission } from "@/mission/stop";
 import { duplicateWork } from "@/mission/activeWork";
 import { cleanUpFinished } from "@/mission/cleanup";
 import { giveNext, pumpQueue } from "@/mission/queue";
@@ -438,21 +439,12 @@ function prioritize(fleetId: string, mission: Mission, args: Record<string, unkn
   return said(said_.join(" "));
 }
 
-/** `stop_mission` (the Fleet): the user wants it stopped. It ends as finish ends it; its Manager is told. */
-function stopMission(fleetId: string, mission: Mission, args: Record<string, unknown>): ToolResult {
+/** `stop_mission` (the Fleet): the user wants it stopped. It ends as the panel's "Stop the mission" ends it (`stopMission`). */
+function stopMissionTool(fleetId: string, mission: Mission, args: Record<string, unknown>): ToolResult {
   if (mission.state !== "en_cours") return refused(t().fleet.noMission);
   const reason = typeof args.reason === "string" ? oneLine(args.reason) : "";
   if (!reason) return refused(t().fleet.stopReasonMissing);
-  const fleet = fleetNameOf(fleetId);
-  endMission(fleetId, t().lines.stopSummary(fleet, reason));
-  if (mission.manager) {
-    if (mission.board) {
-      talk(fleetId, mission.board);
-      talk(mission.board, mission.manager);
-    }
-    notify(mission.manager, t().lines.stoppedBy(fleet, reason));
-  }
-  return said(t().fleet.missionStopped);
+  return stopMission(fleetId, { by: "fleet", reason }) ? said(t().fleet.missionStopped) : refused(t().fleet.noMission);
 }
 
 /** `move_card` (the Manager): a card of the mission's board to a column, by its id or its title. */
@@ -723,7 +715,7 @@ export async function fleetTool(fleetId: string, name: string, args: Record<stri
     case "prioritize":
       return prioritize(fleetId, mission, args);
     case "stop_mission":
-      return stopMission(fleetId, mission, args);
+      return stopMissionTool(fleetId, mission, args);
     case "clean_up_mission":
       return cleanUpMission(fleetId);
     default:
