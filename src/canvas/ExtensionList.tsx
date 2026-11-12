@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
+import { useStore } from "zustand";
 import { ListChecks, ListX, RotateCw, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -17,15 +18,20 @@ import {
 } from "@/ipc/claudeExtensions";
 import { cn } from "@/lib/utils";
 import { useNativeKeyDown } from "@/lib/useNativeKeyDown";
+import { sameFolder } from "@/nodes/terminal/folder";
 import { resumeTerminal } from "@/nodes/terminal/registry";
+import { agentActivityStore } from "@/store/agentActivity";
 import { nodesStore, sessionOf, updateSession, useNodes } from "@/store/nodes";
+import { terminalStatusStore } from "@/store/terminalStatus";
+import { useNodeFolder } from "@/usage/usageStore";
 import { canvasMessages } from "./messages";
 import { keepCanvasFocus } from "./PanelAction";
 import { forgetStartedChoice, noteChoiceChange, useRestartPending } from "./startedChoice";
 
 /*
  * The skills, plugins, MCP servers and subagents a Claude terminal can turn
- * off or on, from its folder, its profile, its claude.ai account and its
+ * off or on, from its folder (the one its Claude runs in, while it runs:
+ * useClaudeFolder), its profile, its claude.ai account and its
  * plugins. A plugin's skills, MCP servers and subagents are listed (source
  * "plugin") and are on only while their plugin is; its skills are fixed to its
  * switch in Plugins (`skillOverrides` doesn't reach them). dummyPlane's own MCP
@@ -74,6 +80,22 @@ export function useClaudeExtensions(cwd: string, accountId: string | undefined, 
   return { lists: result?.token === token ? result : { state: "loading" }, retry: () => setAttempt((n) => n + 1) };
 }
 
+/**
+ * The folder a Claude terminal's lists are read from (`folder`), and the folder its Claude runs in when that is
+ * another one than the saved folder (`live`). While a run of Claude is live, the folder its status line says it
+ * was launched in: a user who `cd`s in the shell and starts `claude` by hand gets that folder's lists. A run is
+ * live while the terminal runs and Claude hasn't left its shell (`left`, its session ended); what an earlier
+ * launch reported doesn't count (useNodeFolder). Otherwise, and until the run's first status line, the saved
+ * folder, kept too when Claude names it spelled otherwise (backslashes, case): the lists aren't read again.
+ */
+export function useClaudeFolder(nodeId: string, saved: string): { folder: string; live: string | null } {
+  const running = useStore(terminalStatusStore, (s) => s.statuses[nodeId]?.state === "running");
+  const left = useStore(agentActivityStore, (s) => s.activities[nodeId]?.left === true);
+  const reported = useNodeFolder(nodeId);
+  const live = running && !left && reported && !sameFolder(reported, saved) ? reported : null;
+  return { folder: live ?? saved, live };
+}
+
 /** Over a list, the wheel scrolls it. Ctrl or Cmd held still zooms the canvas. A ref callback: it returns its cleanup. */
 function keepListWheel(node: HTMLElement | null): (() => void) | undefined {
   if (!node) return undefined;
@@ -84,7 +106,7 @@ function keepListWheel(node: HTMLElement | null): (() => void) | undefined {
   return () => node.removeEventListener("wheel", onWheel);
 }
 
-const folderName = (cwd: string) => cwd.split(/[\\/]/).filter(Boolean).pop() ?? cwd;
+export const folderName = (cwd: string) => cwd.split(/[\\/]/).filter(Boolean).pop() ?? cwd;
 
 /**
  * One kind's list in the edit panel of a Claude terminal, or of a Fleet (its

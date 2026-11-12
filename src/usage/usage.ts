@@ -30,6 +30,11 @@ export interface SessionUsage {
   model: { id: string; name: string } | null;
   /** Claude's effort level now (`/effort`), when Claude Code sends it. */
   effort: string | null;
+  /**
+   * The folder Claude was launched in (`workspace.project_dir`), when Claude Code sends it: a user may `cd` in the
+   * shell and start `claude` by hand somewhere else than the terminal's folder. Not `cwd`, which follows Bash `cd`s.
+   */
+  folder: string | null;
   costUsd: number;
   apiMs: number;
   wallMs: number;
@@ -114,6 +119,7 @@ export function readStatus(raw: unknown, nodeId: string, now: number): { session
     nodeId,
     model: model && text(model.id) ? { id: text(model.id)!, name: text(model.display_name) ?? text(model.id)! } : null,
     effort: text(object(r.effort)?.level),
+    folder: text(object(r.workspace)?.project_dir),
     costUsd: number(cost.total_cost_usd) ?? 0,
     apiMs: number(cost.total_api_duration_ms) ?? 0,
     wallMs: number(cost.total_duration_ms) ?? 0,

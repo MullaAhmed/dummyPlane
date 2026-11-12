@@ -55,6 +55,14 @@ export function useNodeSession(nodeId: string): SessionUsage | undefined {
   return useUsage((s) => nodeSession(s.sessions, nodeId, s.launchedAt[nodeId]));
 }
 
+/**
+ * The folder the terminal's current run of Claude was launched in, as its status line says; null before its first
+ * status line. A text, not the session: a panel that reads it doesn't render again at every status line.
+ */
+export function useNodeFolder(nodeId: string): string | null {
+  return useUsage((s) => nodeSession(s.sessions, nodeId, s.launchedAt[nodeId])?.folder ?? null);
+}
+
 /** For the app's whole life: every status line updates the usage. */
 export async function installUsage() {
   await onClaudeStatus((event) => usageStore.getState().apply(event, Date.now()));

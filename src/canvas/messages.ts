@@ -45,6 +45,8 @@ export const canvasMessages = defineMessages(
       // Over the settings read when the terminal next starts: said once, here.
       nextLaunch: "Next launch",
       folder: "Folder",
+      // Under the folder, while Claude runs in another one (started by hand after a `cd`): the lists show that folder's.
+      runningFolder: (folder: string) => `Claude is running in ${folder}`,
       copyPath: "Copy the path",
       pathCopied: "Path copied",
       copyPathFailed: "Could not copy the path",
