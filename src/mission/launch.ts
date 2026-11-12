@@ -30,6 +30,8 @@ import { addTeamMember, fleetNameOf, reflowTeam, removeManager, setUpBoard, undo
 import { nightSession } from "./overnight";
 import { NEW_AGENT, NEW_MISSION, oneLine, pastTask, queuedTask, sameName, type Member, type Mission, type SubTask } from "./mission";
 import { whenReady } from "./ready";
+import { modelRouterStore } from "@/app/modelRouterSetting";
+import { levelModel, modelLabel } from "./router";
 import { levelsRequired, teamAgent, teamModel } from "./teamModel";
 import { canvasKnown, linkedTeamAgents, linkedGroups, missionOf, missionRunner, fleetShown, releaseSpawnedPermission, setMission, updateMember, workspaceCanvas } from "./store";
 
@@ -296,13 +298,22 @@ export async function launchMission(fleetId: string): Promise<void> {
   const session = sessionOf(record);
   if (!record || !mission || !session || mission.state !== "plan" || !mission.plan?.length) return;
   // The router was turned on after the plan (its switch, or Settings): without levels, every agent would get its CLI's default model.
-  if (levelsRequired(fleetId, mission) && [...mission.plan, ...(mission.queue ?? [])].some((task) => !task.level)) {
-    const error = t().lines.levelsMissing;
+  const required = levelsRequired(fleetId, mission);
+  const unrated = required ? mission.plan.filter((task) => !task.level) : [];
+  if (unrated.length > 0) {
+    const error = t().lines.levelsMissing(unrated.map((task) => task.title));
     setMission(fleetId, { error });
     notify(fleetId, t().lines.proposeLevels(error));
     return;
   }
-  setMission(fleetId, { state: "lancement", error: undefined });
+  // A task queued with no level, before the router was on, takes medium as add_tasks gives it now: proposing the plan
+  // again would not rate it, so refusing would loop.
+  const levelless = required ? (mission.queue ?? []).filter((task) => !task.level) : [];
+  setMission(fleetId, { state: "lancement", error: undefined, ...(levelless.length > 0 ? { queue: (mission.queue ?? []).map((task) => (task.level ? task : { ...task, level: "moyen" as const })) } : {}) });
+  if (levelless.length > 0) {
+    const medium = levelModel(teamAgent(fleetId), "moyen", modelRouterStore.getState().levels);
+    notify(fleetId, t().lines.queuedMedium(levelless.map((task) => task.title), medium && modelLabel(medium)));
+  }
   // Max agents start at once; the plan's other sub-tasks wait at the head of the queue for a seat.
   const plan = mission.plan.slice(0, mission.maxAgents);
   const waiting = mission.plan.slice(mission.maxAgents).map(queuedTask);

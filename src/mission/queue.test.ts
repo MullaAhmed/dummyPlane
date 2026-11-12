@@ -579,10 +579,66 @@ describe("what the fleet hears when nobody is left working", () => {
   });
 });
 
-it("does not launch a queued task without a level with the router on: it would run on the default model", async () => {
-  await setup({ state: "plan", router: true, plan: [{ title: "Login", brief: "b", agent: "Batman", budgetMin: 20, level: "faible" }], queue: [next], members: [] });
-  await launchMission("chef");
-  expect(missionNow()).toMatchObject({ state: "plan", error: expect.stringContaining("level") });
+describe("the go-ahead with the router on", () => {
+  beforeEach(() => vi.mocked(missionPrepare).mockResolvedValue({ slug: "auth", branch: "dummyplane/auth", path: "C:/w/auth" }));
+
+  it("gives a queued task with no level medium, and tells the Fleet so, rather than refusing the go-ahead", async () => {
+    await setup({ state: "plan", router: true, plan: [{ title: "Login", brief: "b", agent: "nouveau", budgetMin: 20, level: "faible" }], queue: [next], members: [] });
+    await launchMission("chef");
+    await vi.waitFor(() => expect(missionNow().state).toBe("en_cours"));
+    expect(missionNow().queue?.find((task) => task.title === "API")?.level).toBe("moyen");
+    expect(vi.mocked(notify).mock.calls).toContainEqual(["chef", `Queued with no level, "API" takes the model router's medium level (Sonnet 5.5). Give add_tasks a level per task, its difficulty.`]);
+  });
+
+  it("still needs a level on each sub-task of the plan, and names those without one", async () => {
+    await setup({ state: "plan", router: true, plan: [{ title: "Login", brief: "b", agent: "nouveau", budgetMin: 20 }, { title: "Logout", brief: "b", agent: "nouveau", budgetMin: 20, level: "faible" }], queue: [], members: [] });
+    await launchMission("chef");
+    expect(missionNow()).toMatchObject({ state: "plan", error: 'The model router is on but this sub-task of the plan has no level: "Login".' });
+    expect(missionPrepare).not.toHaveBeenCalled();
+  });
+
+  it("launches a mission planned before the upgrade, its queue filled with the router off, once Settings turns it on", async () => {
+    // Before: the router off, add_tasks with no level. After: on by default, and the Fleet proposes its plan again with levels.
+    await setup({ state: "plan", plan: [{ title: "Login", brief: "b", agent: "nouveau", budgetMin: 20 }], queue: [], members: [] });
+    expect((await fleetTool("chef", "add_tasks", { tasks: [{ titre: "Docs", consigne: "Write them", budget_min: 10 }] })).isError).toBeUndefined();
+    expect(missionNow().queue?.[0].level).toBeUndefined();
+    modelRouterStore.setState({ on: true });
+    const proposed = await fleetTool("chef", "proposer_plan", { nom: "Auth", tache: "Add the login", sous_taches: [{ titre: "Login", consigne: "Do it", agent: "nouveau", budget_min: 20, niveau: "moyen" }] });
+    expect(proposed.isError).toBeUndefined();
+    await launchMission("chef");
+    await vi.waitFor(() => expect(missionNow().state).toBe("en_cours"));
+    expect(missionNow().error).toBeUndefined();
+    expect(missionNow().queue?.find((task) => task.title === "Docs")?.level).toBe("moyen");
+  });
+});
+
+it("starts an overnight mission by itself with the router on by default: the plan needs levels, and its agents take their models", async () => {
+  vi.mocked(missionPrepare).mockResolvedValue({ slug: "auth", branch: "dummyplane/auth", path: "C:/w/auth" });
+  modelRouterStore.setState({ on: true });
+  await setup({ state: "redaction", overnight: true, autoLaunch: true, budgetMin: 480, plan: undefined, queue: [], members: [], frameId: undefined });
+  const sub = (niveau?: string) => ({ titre: "Night work", consigne: "Do it", agent: "nouveau", budget_min: 60, ...(niveau ? { niveau } : {}) });
+  // No level: refused, the plan rated before the night starts.
+  expect((await fleetTool("chef", "proposer_plan", { nom: "Night", tache: "T", sous_taches: [sub()] })).isError).toBe(true);
+  expect((await fleetTool("chef", "proposer_plan", { nom: "Night", tache: "T", sous_taches: [sub("eleve")] })).isError).toBeUndefined();
+  await vi.waitFor(() => expect(missionNow().state).toBe("en_cours"));
+  expect(missionNow().members.map((m) => [m.task, m.model])).toEqual([["Night work", "claude-opus-5-5"]]);
+  expect(vi.mocked(addTerminal).mock.calls[0][1]).toMatchObject({ model: "claude-opus-5-5", spawnedBy: "m1" });
+});
+
+it("starts a queue's new agent on its level's model with the router on by default, no switch turned on", async () => {
+  modelRouterStore.setState({ on: true });
+  await setup({ queue: [{ ...next, level: "eleve" }] });
+  expect(missionNow().router).toBeUndefined();
+  await pumpQueue("chef");
+  expect(created().map((m) => [m.task, m.model])).toEqual([["API", "claude-opus-5-5"]]);
+  expect(addTerminal).toHaveBeenCalledWith("w1", expect.objectContaining({ model: "claude-opus-5-5" }), expect.anything(), "f1", { reveal: false, source: "mission" });
+});
+
+it("starts a queue's new agent on its CLI's own model once the Fleet's switch is set off, Settings' router on", async () => {
+  modelRouterStore.setState({ on: true });
+  await setup({ router: false, queue: [{ ...next, level: "eleve" }] });
+  await pumpQueue("chef");
+  expect(created().map((m) => [m.task, m.model])).toEqual([["API", undefined]]);
 });
 
 it("keeps the task an agent finished when reassign gives it another one", async () => {

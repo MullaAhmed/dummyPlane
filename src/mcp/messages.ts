@@ -198,7 +198,7 @@ export const agentMessages = defineMessages({
       /** The switch of a node above the caller, or of the Fleet a task goes to. */
       at: (name: string) => `the user turned the model router off at ${name}, for it and every agent under it`,
       settings: "the model router is off in dummyPlane's Settings",
-      noModel: (cli: string, level: string) => `${cli} has no model for the ${level} level (dummyPlane's Settings, Model router levels)`,
+      noModel: (cli: string, level: string) => `${cli} has no model for the ${level} level (Settings › Models by level…)`,
     },
     agent: {
       declared: (count: number) => `${plural(count, "step", "steps")} declared.`,
@@ -498,7 +498,10 @@ export const agentMessages = defineMessages({
       slow: (name: string) =>
         `${name}'s session has not opened after a minute: a question may be waiting for the user in its terminal (read_output; only the user answers it). dummyPlane types its sub-task as soon as the session opens: do not type it yourself.`,
       sentLate: (name: string) => `${name}'s session opened: its sub-task is sent now.`,
-      levelsMissing: "The model router is on but the plan has no level for every sub-task.",
+      levelsMissing: (titles: readonly string[]) => `The model router is on but ${titles.length === 1 ? "this sub-task of the plan has" : "these sub-tasks of the plan have"} no level: ${titles.map((title) => `"${title}"`).join(", ")}.`,
+      /** At the go-ahead: tasks queued with no level (before the router was on) take medium, as add_tasks gives them now. */
+      queuedMedium: (titles: readonly string[], model?: string) =>
+        `Queued with no level, ${titles.map((title) => `"${title}"`).join(", ")} ${titles.length === 1 ? "takes" : "take"} the model router's medium level${model ? ` (${model})` : ""}. Give add_tasks a level per task, its difficulty.`,
       proposeLevels: (error: string) => `${error} Propose the plan again with a level (low, medium, high, extreme) per sub-task.`,
       couldNotStart: (error: string) => `The mission could not start: ${error}`,
       goAhead: (names: string, branch: string) => `Go-ahead: the team is formed — ${names}. Mission branch: ${branch}. Each agent gets its sub-task as soon as its terminal is ready.`,

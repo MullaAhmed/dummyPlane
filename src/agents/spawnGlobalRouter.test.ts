@@ -6,7 +6,7 @@ import { modelRouterStore } from "@/app/modelRouterSetting";
 import { subagentSettingsStore } from "@/app/subagentSettings";
 import { createNodeElement } from "@/canvas/nodeElement";
 import { NEW_MISSION, type Mission } from "@/mission/mission";
-import { routerAt, setRouter } from "@/mission/routerState";
+import { followRouter, routerAt, setRouter } from "@/mission/routerState";
 import { fleetSession } from "@/nodes/terminal/launch";
 import type { TerminalPayload } from "@/nodes/types";
 import { nodesStore, terminalOf } from "@/store/nodes";
@@ -129,11 +129,17 @@ describe("a switch set off", () => {
     const below = await spawnAgent("child1", { task: "Find the failing test", niveau: "faible" });
     expect(lastModel()).toBeUndefined();
     expect(below.text).toContain("the user turned the model router off at Batman, for it and every agent under it");
-    // Turned back on, Batman follows Settings again (stored as unset), and the tree below routes on its next spawn.
-    setRouter("batman", true);
+    // Follow Settings unsets it: Batman follows Settings again, and the tree below routes on its next spawn.
+    followRouter("batman");
     expect(payloadOf("batman").router).toBeUndefined();
     await spawnAgent("child1", { task: "Read the log", niveau: "faible" });
     expect(lastModel()).toBe("claude-haiku-5-5");
+    // Turned on, it is stored as set: it holds with Settings off.
+    setRouter("batman", true);
+    expect(payloadOf("batman").router).toBe(true);
+    modelRouterStore.setState({ on: false });
+    await spawnAgent("child1", { task: "Read it again", niveau: "eleve" });
+    expect(lastModel()).toBe("claude-opus-5-5");
   });
 
   it("gives way to a switch set on nearer the spawner: the nearest switch set wins", async () => {
@@ -193,7 +199,7 @@ describe("a Codex sub-agent", () => {
     await addFleet(undefined, "codex");
     const result = await spawnAgent("fleet", { task: "Fix the bug", niveau: "moyen" });
     expect(lastModel()).toBeUndefined();
-    expect(result.text).toContain("Its level (medium) picked no model: Codex has no model for the medium level (dummyPlane's Settings, Model router levels). It runs Codex's own default model.");
+    expect(result.text).toContain("Its level (medium) picked no model: Codex has no model for the medium level (Settings › Models by level…). It runs Codex's own default model.");
     // No level: medium, which the map leaves empty too.
     expect((await spawnAgent("fleet", { task: "Fix another bug" })).text).toContain("Codex has no model for the medium level");
   });
