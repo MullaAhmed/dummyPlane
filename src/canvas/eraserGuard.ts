@@ -4,6 +4,7 @@ import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { ERASER_MARK, isMarked } from "./eraserLock";
 import { groupInfoOf } from "./groups";
 import { nodeKindOf } from "./nodeElement";
+import { sameInputs, sceneStamp, type SceneStamp } from "./sceneChanges";
 
 /**
  * What the eraser must not take: the nodes, the frames that hold one (Excalidraw
@@ -84,11 +85,24 @@ export function releaseEraserLocks(api: ExcalidrawImperativeAPI) {
 let pending = false;
 
 /**
+ * The inputs of the last check that found nothing to change: the scene, the tool
+ * and what the guard locked. A pan's frames hand them again, and would find
+ * nothing again: they check nothing. One that found a change keeps nothing.
+ */
+let clean: (SceneStamp & { eraserActive: boolean; remembered: ReadonlySet<string> }) | null = null;
+
+/**
  * Locks or unlocks the nodes as the tool asks, outside the undo history, a frame
  * after the change: changing the scene from inside `onChange` would re-enter it.
+ * `version` is the scene's (Canvas has it), summed here when not given.
  */
-export function scheduleEraserGuard(api: ExcalidrawImperativeAPI, elements: readonly ExcalidrawElement[], eraserActive: boolean) {
-  if (pending || !eraserGuard(elements, eraserActive, remembered)) return;
+export function scheduleEraserGuard(api: ExcalidrawImperativeAPI, elements: readonly ExcalidrawElement[], eraserActive: boolean, version?: number) {
+  if (pending) return;
+  const inputs = { ...sceneStamp(elements, version), eraserActive, remembered };
+  if (sameInputs(clean, inputs)) return;
+  const changes = eraserGuard(elements, eraserActive, remembered);
+  clean = changes ? null : inputs;
+  if (!changes) return;
   pending = true;
   requestAnimationFrame(() => {
     pending = false;

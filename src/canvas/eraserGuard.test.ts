@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { eraserGuard, releaseEraserLocks, scheduleEraserGuard } from "./eraserGuard";
-import { lockedByEraser } from "./eraserLock";
+import { isMarked, lockedByEraser } from "./eraserLock";
 import { createNodeElement, NODE_SIZE, type NodeKind } from "./nodeElement";
 import { createRemovalGuard } from "./removalGuard";
 
@@ -15,6 +15,12 @@ vi.mock("@excalidraw/excalidraw", () => ({
     return changed || force ? { ...e, ...patch, version: e.version + 1 } : e;
   },
 }));
+
+// The guard reads each element's mark as it checks a scene: the count of that work.
+vi.mock("./eraserLock", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./eraserLock")>();
+  return { ...actual, isMarked: vi.fn(actual.isMarked) };
+});
 
 const node = (kind: NodeKind, x: number, y: number): ExcalidrawElement => {
   const { width, height } = NODE_SIZE[kind];
@@ -364,6 +370,30 @@ describe("scheduling", () => {
     const busy = fakeApi([node("terminal", 0, 0)], "eraser");
     scheduleEraserGuard(busy.api, busy.elements(), true);
     scheduleEraserGuard(busy.api, busy.elements(), true);
+    expect(frames).toHaveLength(1);
+  });
+
+  it("checks a scene once while only the view moves, the eraser picked or not, and again when the scene changes: a pan's frames", () => {
+    const checks = () => vi.mocked(isMarked).mock.calls.length;
+    const quiet = fakeApi([node("terminal", 0, 0), rectangle("drawn", 900, 0)], "selection");
+    scheduleEraserGuard(quiet.api, quiet.elements(), false);
+    const once = checks();
+    expect(once).toBeGreaterThan(0);
+    for (let frame = 0; frame < 60; frame++) scheduleEraserGuard(quiet.api, quiet.elements(), false);
+    expect(checks()).toBe(once);
+    // The eraser picked: the nodes get locked on the next frame, then the locked scene needs nothing.
+    const erasing = fakeApi([node("terminal", 0, 0)], "eraser");
+    scheduleEraserGuard(erasing.api, erasing.elements(), true);
+    frames.splice(0).forEach((callback) => callback(0));
+    scheduleEraserGuard(erasing.api, erasing.elements(), true);
+    expect(frames).toHaveLength(0);
+    const locked = checks();
+    for (let frame = 0; frame < 60; frame++) scheduleEraserGuard(erasing.api, erasing.elements(), true);
+    expect(checks()).toBe(locked);
+    // A terminal opened while the eraser is on: checked, and locked a frame later.
+    erasing.set([...erasing.elements(), node("terminal", 900, 0)]);
+    scheduleEraserGuard(erasing.api, erasing.elements(), true);
+    expect(checks()).toBeGreaterThan(locked);
     expect(frames).toHaveLength(1);
   });
 
