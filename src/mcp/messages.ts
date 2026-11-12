@@ -61,12 +61,14 @@ export const agentMessages = defineMessages({
       moveBoardCardCard: "The card's id, as linked_boards gives it (its title works when it is unique).",
       moveBoardCardColumn: "The column's id or title.",
       showOutput: (components: string) =>
-        "Show the user a result (report, summary, comparison, table, figures, chart) as an output node beside your terminal, instead of a wall of text. " +
+        "Show the user a result (report, summary, comparison, table, figures, chart) in an output node beside your terminal, instead of a wall of text. " +
+        "A call without output updates your latest output in place; output: <id> updates that one; new: true shows another one beside it. " +
         `Written in OpenUI Lang: root = Stack([...]), then one name = Component(args) per line. Components: ${components}. ` +
         "Call output_guide once for their arguments and an example. Answers the output's id and link, or the errors to fix.",
       showTitle: "A short title for the output's header.",
       showUi: "The OpenUI Lang program, whole.",
-      showOutputId: "To update an output you showed before instead of making a new one: its id (or link), as show_output gave it.",
+      showOutputId: "The output to update: its id (or link), as show_output gave it. Without it, your latest output is updated.",
+      showNew: "true to show another output beside the ones you showed, instead of updating your latest.",
       outputGuide: "The guide to show_output's OpenUI Lang: its syntax, each component's arguments, an example.",
       readNode:
         "Read a dummyPlane node from its link: a dummyplane://… link the user pasted is read with this tool, no wire needed. " +
@@ -203,10 +205,15 @@ export const agentMessages = defineMessages({
         `Not taken: your summary starts like OpenUI Lang (root = …) but cannot be drawn. Fix it and call again, or write it in Markdown.\n- ${errors.join("\n- ")}\nCall output_guide for the components and the syntax.`,
       gone: "Your terminal is no longer on the canvas.",
       noCanvas: "Your workspace's canvas is not loaded: open it in dummyPlane, then try again.",
-      noSuchOutput: (id: string) => `No output "${id}" on the canvas (it was closed, or it is not an output). Call show_output without output to show a new one.`,
-      notYours: (id: string) => `Output "${id}" was shown by another agent: you can only update your own. Call show_output without output to show a new one.`,
-      shown: (id: string, link: string) => `Shown beside your terminal as output ${id} (${link}). To change it, call show_output again with output "${id}" and the whole new ui.`,
+      noSuchOutput: (id: string) =>
+        `No output "${id}" on the canvas (it was closed, or it is not an output). Call show_output without output to update your latest output, or with new: true to show a new one.`,
+      notYours: (id: string) =>
+        `Output "${id}" was shown by another agent: you can only update your own. Call show_output without output to update your latest output, or with new: true to show a new one.`,
+      shown: (id: string, link: string) =>
+        `Shown beside your terminal as a new output ${id} (${link}). To change it, call show_output again with the whole new ui: without output, a call updates your latest output; new: true shows another one beside it.`,
       updated: (id: string, link: string) => `Output ${id} updated (${link}).`,
+      updatedLatest: (id: string, link: string) =>
+        `Your latest output ${id} updated in place (${link}), no new node made. To show another one beside it instead, call show_output with new: true.`,
     },
     /** read_node (`./nodeTools.ts`). */
     read: {

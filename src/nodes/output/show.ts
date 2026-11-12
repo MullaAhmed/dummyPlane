@@ -17,6 +17,10 @@ import { nodesStore, terminalOf } from "@/store/nodes";
  * wired to it, or updates one it showed before. The content is OpenUI Lang,
  * checked before anything is drawn: an agent gets its errors back in plain
  * words and calls again.
+ *
+ * A call without `output` updates the agent's latest output in place: an agent
+ * that lost the id (after /clear, or in a loop) does not pile up new nodes.
+ * `new: true` shows another one beside it.
  */
 
 const MAX_TITLE = 80;
@@ -26,7 +30,10 @@ const t = () => messages(agentMessages).output;
 export interface ShowArgs {
   title?: unknown;
   ui?: unknown;
+  /** The id or link of the output to update. */
   output?: unknown;
+  /** true: show another output, never update the latest. */
+  new?: unknown;
 }
 
 export interface ShowResult {
@@ -54,6 +61,24 @@ export function showOutput(sourceId: string, args: ShowArgs): Promise<ShowResult
   return run;
 }
 
+/**
+ * The output `sourceId` showed or updated last, among those still on the
+ * canvas (`elements`, its workspace's scene); null when none is. On a tie, the
+ * one drawn last: the newer of two shown in the same millisecond.
+ */
+export function latestOutputOf(sourceId: string, elements: readonly ExcalidrawElement[]): string | null {
+  const nodes = nodesStore.getState().nodes;
+  let latest: { id: string; at: number } | null = null;
+  for (const element of elements) {
+    if (element.isDeleted) continue;
+    const record = nodes[element.id];
+    if (record?.kind !== "output" || record.payload.source !== sourceId) continue;
+    const at = record.payload.updatedAt ?? 0;
+    if (!latest || at >= latest.at) latest = { id: element.id, at };
+  }
+  return latest?.id ?? null;
+}
+
 /** `element` moved to the nearest spot right of the source that covers no node nor group frame. */
 function placed(elements: readonly ExcalidrawElement[], element: ExcalidrawElement): ExcalidrawElement {
   const obstacles = elements.filter((e) => !e.isDeleted && (nodeKindOf(e) !== null || e.type === "frame")).map(({ x, y, width, height }) => ({ x, y, width, height }));
@@ -75,6 +100,11 @@ async function showNow(sourceId: string, args: ShowArgs): Promise<ShowResult> {
   if (!scene) return refuse(t().noCanvas);
   const warnings = check.warnings.length ? ` ${t().warnings(check.warnings)}` : "";
   const payload: OutputPayload = { title, source: sourceId, ui, updatedAt: Date.now() };
+  /** `id`, an output of the source on the canvas, shows the new content in place. */
+  const update = (id: string) => {
+    nodesStore.getState().update(id, { title, ui, updatedAt: payload.updatedAt });
+    signalWire(id, "toAgent", sourceId);
+  };
 
   const wanted = outputIdOf(args.output);
   if (wanted) {
@@ -82,9 +112,15 @@ async function showNow(sourceId: string, args: ShowArgs): Promise<ShowResult> {
     const element = scene.elements().find((e) => e.id === wanted);
     if (existing?.kind !== "output" || !element || element.isDeleted) return refuse(t().noSuchOutput(wanted));
     if (existing.payload.source !== sourceId) return refuse(t().notYours(wanted));
-    nodesStore.getState().update(wanted, { title, ui, updatedAt: payload.updatedAt });
-    signalWire(wanted, "toAgent", sourceId);
+    update(wanted);
     return { text: t().updated(wanted, nodeLink("output", wanted)) + warnings, id: wanted };
+  }
+
+  // Without an id, the latest output it shows is updated, unless it asks for another one.
+  const latest = args.new === true || args.new === "true" ? null : latestOutputOf(sourceId, scene.elements());
+  if (latest) {
+    update(latest);
+    return { text: t().updatedLatest(latest, nodeLink("output", latest)) + warnings, id: latest };
   }
 
   const source = scene.elements().find((e) => e.id === sourceId && !e.isDeleted);

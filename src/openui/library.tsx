@@ -178,7 +178,7 @@ export function outputGuide(): string {
       "Pick the component that fits: Table to compare, Stat and Row for figures, KeyValue for facts, Callout for what needs attention, Code for code, Markdown for prose.",
       "Strings are double-quoted; write \\n for a line break inside Markdown or Code text.",
       "Do not use Query(), Mutation(), $variables or @actions: output is static.",
-      "show_output answers with the errors to fix, if any; call it again with the whole program. Pass output (the id it gave) to update that output instead of making a new one.",
+      "show_output answers with the errors to fix, if any; call it again with the whole program. A call without output updates your latest output in place; pass output (the id it gave) to update that one, or new: true to show another one beside it.",
     ],
     examples: [EXAMPLE],
   });

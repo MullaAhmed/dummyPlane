@@ -100,6 +100,85 @@ describe("show_output", () => {
     expect(textOf(await call("batman", "show_output", { title: "v3", ui: UI, output: "batman" }))).toContain('No output "batman"');
   });
 
+  describe("without an output id", () => {
+    const outputs = () => scene.filter((e) => nodeKindOf(e) === "output" && !e.isDeleted);
+    const shownId = (result: { content: { text: string }[] }) => /new output ([\w-]+) \(/.exec(textOf(result))![1];
+
+    it("updates its latest output in place, and makes no second node", async () => {
+      const id = shownId(await call("batman", "show_output", { title: "v1", ui: UI }));
+      const writes = write.mock.calls.length;
+      const v2 = UI.replace("Tests", "Tests, again");
+      const again = await call("batman", "show_output", { title: "v2", ui: v2 });
+      expect(again.isError).toBeUndefined();
+      expect(textOf(again)).toBe(
+        `Your latest output ${id} updated in place (dummyplane://output/${id}), no new node made. To show another one beside it instead, call show_output with new: true.`,
+      );
+      expect(outputs().map((e) => e.id)).toEqual([id]);
+      expect(Object.values(nodesStore.getState().nodes).filter((n) => n.kind === "output")).toHaveLength(1);
+      expect(nodesStore.getState().nodes[id]).toMatchObject({ payload: { title: "v2", ui: v2, source: "batman" } });
+      // In place: the scene is left as it is, no wire added.
+      expect(write.mock.calls.length).toBe(writes);
+    });
+
+    it("shows another one beside it with new: true", async () => {
+      const first = shownId(await call("batman", "show_output", { title: "one", ui: UI }));
+      const second = await call("batman", "show_output", { title: "two", ui: UI, new: true });
+      expect(textOf(second)).toContain("Shown beside your terminal as a new output");
+      const id = shownId(second);
+      expect(id).not.toBe(first);
+      expect(outputs().map((e) => e.id).sort()).toEqual([first, id].sort());
+      expect(nodesStore.getState().nodes[first]).toMatchObject({ payload: { title: "one" } });
+      // Each is wired to its agent.
+      const ends = scene.filter((e) => e.type === "arrow").map((e) => (e as ExcalidrawArrowElement).endBinding?.elementId);
+      expect(ends.sort()).toEqual([first, id].sort());
+    });
+
+    it("updates the output shown or updated last, not the one made last", async () => {
+      const now = vi.spyOn(Date, "now");
+      try {
+        now.mockReturnValue(1_000);
+        const a = shownId(await call("batman", "show_output", { title: "a", ui: UI }));
+        now.mockReturnValue(2_000);
+        const b = shownId(await call("batman", "show_output", { title: "b", ui: UI, new: true }));
+        now.mockReturnValue(3_000);
+        await call("batman", "show_output", { title: "a2", ui: UI, output: a });
+        now.mockReturnValue(4_000);
+        expect(textOf(await call("batman", "show_output", { title: "a3", ui: UI }))).toContain(`Your latest output ${a} updated in place`);
+        expect(nodesStore.getState().nodes[a]).toMatchObject({ payload: { title: "a3", updatedAt: 4_000 } });
+        expect(nodesStore.getState().nodes[b]).toMatchObject({ payload: { title: "b", updatedAt: 2_000 } });
+        expect(outputs()).toHaveLength(2);
+      } finally {
+        now.mockRestore();
+      }
+    });
+
+    it("makes a new node when its latest output was closed, or is no longer on the canvas", async () => {
+      const closed = shownId(await call("batman", "show_output", { title: "v1", ui: UI }));
+      scene = scene.map((e) => (e.id === closed ? { ...e, isDeleted: true } : e));
+      const second = await call("batman", "show_output", { title: "v2", ui: UI });
+      const id = shownId(second);
+      expect(id).not.toBe(closed);
+      expect(nodesStore.getState().nodes[closed]).toMatchObject({ payload: { title: "v1" } });
+      // Its element gone from the scene, its row still in the store: not reused either.
+      scene = scene.filter((e) => e.id !== id);
+      expect(nodesStore.getState().nodes[id]).toBeDefined();
+      const third = shownId(await call("batman", "show_output", { title: "v3", ui: UI }));
+      expect([closed, id]).not.toContain(third);
+      expect(outputs().map((e) => e.id)).toEqual([third]);
+    });
+
+    it("never updates another terminal's output", async () => {
+      const robins = shownId(await call("robin", "show_output", { title: "Robin's", ui: UI }));
+      const batmans = await call("batman", "show_output", { title: "Batman's", ui: UI });
+      expect(textOf(batmans)).toContain("Shown beside your terminal as a new output");
+      expect(shownId(batmans)).not.toBe(robins);
+      expect(nodesStore.getState().nodes[robins]).toMatchObject({ payload: { title: "Robin's", source: "robin" } });
+      // Robin's next call updates Robin's own, not Batman's newer one.
+      expect(textOf(await call("robin", "show_output", { title: "Robin's, again", ui: UI }))).toContain(`Your latest output ${robins} updated in place`);
+      expect(nodesStore.getState().nodes[shownId(batmans)]).toMatchObject({ payload: { title: "Batman's" } });
+    });
+  });
+
   it("is an agent's tool: a fleet is refused it, and output_guide gives the whole language", async () => {
     await nodesStore.getState().create("chef", { workspaceId: "w1", kind: "fleet", payload: { name: "Fleet" } });
     expect(textOf(await call("chef", "show_output", { title: "T", ui: UI }))).toBe("This tool is for agents.");
@@ -112,6 +191,13 @@ describe("show_output", () => {
     const list = (await answer({ callId: 1, nodeId: "batman", method: "tools/list", params: {} })) as { tools: { name: string; description: string }[] };
     const show = list.tools.find((t) => t.name === "show_output")!;
     for (const name of ["Stack", "Table", "Callout", "BarChart", "Button"]) expect(show.description).toContain(name);
+    // What a call does, said plainly: an agent that lost an output's id updates it rather than piling up new ones.
+    for (const said of ["A call without output updates your latest output in place", "output: <id> updates that one", "new: true shows another one beside it"]) {
+      expect(show.description).toContain(said);
+    }
+    const schema = (show as unknown as { inputSchema: { properties: Record<string, { type: string }>; required: string[] } }).inputSchema;
+    expect(schema.properties.new.type).toBe("boolean");
+    expect(schema.required).toEqual(["title", "ui"]);
     // Every session pays for it: a few lines, the full guide behind output_guide.
     expect(show.description.length).toBeLessThan(700);
     expect(list.tools.find((t) => t.name === "read_node")!.description).toContain("link the user pasted");
