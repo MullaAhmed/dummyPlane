@@ -28,6 +28,12 @@ export function freeSeat(fleetId: string, title: string) {
 export const seatHeld = (fleetId: string, title: string) => seats.get(fleetId)?.has(title) === true;
 export const seatsHeld = (fleetId: string) => seats.get(fleetId)?.size ?? 0;
 
+/**
+ * The members `relaunch` is starting again: at work from the call on. Their old process is killed first, and the new
+ * one runs only later: in between, nothing else would count them.
+ */
+export const relaunching = new Set<string>();
+
 /** On a task: not handed over, and no report, or moving on to the next one. */
 const onTask = (m: Member) => !m.handedTo && (!m.report || moving.has(m.nodeId));
 
@@ -35,18 +41,22 @@ const onTask = (m: Member) => !m.handedTo && (!m.report || moving.has(m.nodeId))
  * The members at work: not handed over, on a task (no report, or moving on to
  * the next one) and running. A member whose task is not typed yet counts too:
  * its terminal is still starting, or relaunching for a new conversation. One
- * that never starts keeps its seat until its task is reassigned.
+ * that never starts keeps its seat until its task is reassigned. One that
+ * `relaunch` starts again counts while it does.
  */
 export function activeMembers(mission: Mission): Member[] {
-  return mission.members.filter((m) => onTask(m) && (m.sentAt === undefined || isRunning(m.nodeId)));
+  return mission.members.filter((m) => onTask(m) && (m.sentAt === undefined || isRunning(m.nodeId) || relaunching.has(m.nodeId)));
 }
+
+/** Whether a member holds a seat now: it counts against Max agents. */
+export const holdsSeat = (mission: Mission, nodeId: string) => activeMembers(mission).some((m) => m.nodeId === nodeId);
 
 /**
  * Whether starting a member's terminal again takes one more seat: on its task, it holds none now (stopped after
  * its sub-task was typed, so the queue may have filled its place), and one once it runs.
  */
 export function relaunchTakesSeat(mission: Mission, member: Member): boolean {
-  return onTask(member) && !activeMembers(mission).some((m) => m.nodeId === member.nodeId);
+  return onTask(member) && !holdsSeat(mission, member.nodeId);
 }
 
 /** The seats taken: the members at work, and the new agents on their way. */
