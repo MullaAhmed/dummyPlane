@@ -10,6 +10,7 @@ import { accountsStore } from "@/accounts/store";
 import type { ClaudeExtensions, ExtensionItem } from "@/ipc/claudeExtensions";
 import { agentsStore } from "@/agents/agentsStore";
 import { ROUTER_LEVELS } from "@/mission/router";
+import { launchSettingsOf } from "@/nodes/terminal/launch";
 import { readTerminalPayload, type FleetPayload, type TerminalPayload } from "@/nodes/types";
 import { nodesStore } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
@@ -288,6 +289,8 @@ const terminal = (overrides: Partial<TerminalPayload> = {}): TerminalPayload => 
   command: "",
   ...overrides,
 });
+/** A terminal whose running process started with its settings as they are: its start kept them (`startSession`). */
+const started = (payload: TerminalPayload): TerminalPayload => ({ ...payload, launched: launchSettingsOf(payload) });
 
 /** What t1's Claude reported in its status line. */
 const reported = (patch: Partial<SessionUsage> = {}): SessionUsage => ({
@@ -548,7 +551,7 @@ it("names the model a session running on Claude's own pick reports, not the one 
 
 it("says which model and effort the running session really uses, from its status line, and offers to restart on another", async () => {
   terminalStatusStore.getState().set("t1", { state: "running" });
-  await mountTerminal(terminal());
+  await mountTerminal(started(terminal()));
   expect(host.querySelector("[data-running-model]")).toBeNull();
   expect(host.querySelector("[data-running-effort]")).toBeNull();
   await act(async () => usageStore.setState({ sessions: { s1: reported({ model: { id: "claude-opus-5-5", name: "Opus 5.5" }, effort: "high" }) } }));
@@ -614,7 +617,7 @@ it("keeps the effort thumb on the stored level after a key's step: an undo moves
 
 it("offers a running terminal a restart once its effort changes, and gives a fleet's session its own", async () => {
   terminalStatusStore.getState().set("t1", { state: "running" });
-  await mountTerminal(terminal({ effort: "high" }));
+  await mountTerminal(started(terminal({ effort: "high" })));
   expect(effortThumb()!.getAttribute("aria-valuetext")).toBe("High");
   expect(restartNow()).toBeUndefined();
   await pressOnEffort("ArrowRight");
@@ -1343,16 +1346,23 @@ it("keeps the conversation when the folder picked is the one it is in, whatever 
   expect(payloadOf().claudeSessionId).toBe("old-conversation");
 });
 
-it("offers to restart a running terminal that was moved, and not a stopped one", async () => {
+it("offers to restart a running terminal that was moved, in its Folder row, and not a stopped one", async () => {
+  const restartIn = (folder: string) => [...host.querySelectorAll("button")].find((b) => b.textContent === `Restart in ${folder}`);
   await mountTerminal(terminal({ claudeSessionId: "old-conversation" }));
   await pickFolder("D:/work/web");
+  expect(restartIn("web")).toBeUndefined();
   expect(restartNow()).toBeUndefined();
-  terminalStatusStore.getState().set("t1", { state: "running" });
+  // It starts in web: its start keeps that folder.
+  await act(async () => {
+    nodesStore.getState().update("t1", { launched: launchSettingsOf(payloadOf()) });
+    terminalStatusStore.getState().set("t1", { state: "running" });
+  });
   await pickFolder("D:/work/docs");
-  expect(host.textContent).toContain("Running with the old launch settings");
-  await act(async () => restartNow()!.click());
-  expect(resumeTerminal).toHaveBeenCalledWith("t1");
+  expect(host.querySelector("[data-folder-move]")?.textContent).toContain("Still running in web");
+  // One offer, the Folder row's: it restarts with every setting stored.
   expect(restartNow()).toBeUndefined();
+  await act(async () => restartIn("docs")!.click());
+  expect(resumeTerminal).toHaveBeenCalledWith("t1");
 });
 
 const mission = (state: "en_cours" | "terminee") => ({
@@ -1449,7 +1459,7 @@ it("counts the steps done once none is under way, and shows no spending for a st
 
 it("picks what Claude may do unasked at the next launch, and says what it opens", async () => {
   terminalStatusStore.getState().set("t1", { state: "running" });
-  await mountTerminal(terminal());
+  await mountTerminal(started(terminal()));
   // None given: Claude as the user set it up, nothing to say.
   expect(select("Permissions")!.textContent).toBe("Claude's settings");
   expect(await optionsOf("Permissions")).toEqual(["Claude's settings", "Ask first", "Files unasked", "Files and commands unasked"]);

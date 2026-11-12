@@ -68,6 +68,45 @@ export interface TerminalPayload {
   inputOpen?: boolean;
   /** Claude only: the skills, plugins, MCP servers and subagents it turns off or on, read at its next launch. */
   extensions?: ExtensionChoice;
+  /**
+   * The launch settings its latest process started with, kept when it starts (`startSession`). Its process outlives
+   * a webview reload, so this is stored with the node: while it runs, a setting changed since (its folder above all)
+   * is still offered a restart after a reload. Read only while it runs: a stopped terminal starts with what is stored.
+   */
+  launched?: LaunchSettings;
+}
+
+/**
+ * What a launch reads from a terminal's payload: a running terminal keeps the values it started with.
+ * Not the title: Claude gets it only when a new conversation starts (`-n`), and "Restart now" resumes the
+ * one it has; the other agents never get it. A title changed while it runs is no reason to restart.
+ */
+export interface LaunchSettings {
+  cwd: string;
+  shell: string;
+  /** Only a Custom terminal runs its command; the others ignore it. */
+  command: string;
+  /** Claude only, like the next three: its `--model`, "" for the model Claude picks itself. */
+  model: string;
+  /** `--effort`, "" for Claude's own level. */
+  effort: string;
+  /**
+   * `--permission-mode`, "" for none. Not the same launch as "ask": any permission given also blocks
+   * `git push` in the session's settings (`apply_permission`), none leaves Claude as the user set it up.
+   */
+  permission: string;
+  /** The profile whose folder it starts with, "" for the default account. */
+  accountId: string;
+}
+
+export const LAUNCH_SETTING_KEYS = ["cwd", "shell", "command", "model", "effort", "permission", "accountId"] as const satisfies readonly (keyof LaunchSettings)[];
+
+/** Launch settings as saved, or undefined when one of them is missing or not text (a payload from before them). */
+function readLaunchSettings(raw: unknown): LaunchSettings | undefined {
+  if (typeof raw !== "object" || raw === null) return undefined;
+  const r = raw as Record<string, unknown>;
+  if (!LAUNCH_SETTING_KEYS.every((key) => typeof r[key] === "string")) return undefined;
+  return Object.fromEntries(LAUNCH_SETTING_KEYS.map((key) => [key, r[key]])) as unknown as LaunchSettings;
 }
 
 export type TerminalReportStatus = "done" | "blocked" | "failed";
@@ -299,6 +338,8 @@ export function readTerminalPayload(raw: unknown): TerminalPayload | null {
   if (lastReport) payload.lastReport = lastReport;
   const extensions = readExtensionChoice(r.extensions);
   if (extensions) payload.extensions = extensions;
+  const launched = readLaunchSettings(r.launched);
+  if (launched) payload.launched = launched;
   return payload;
 }
 

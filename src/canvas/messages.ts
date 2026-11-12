@@ -59,6 +59,13 @@ export const canvasMessages = defineMessages(
       folderMission: "Fixed while its mission runs: this agent works in its own worktree",
       // Claude keeps a conversation with the folder it started in (it cannot resume one from another folder): said when it moves.
       folderNewConversation: "New folder, new conversation: Claude keeps each conversation with its folder",
+      // A running terminal moved: its process stays in the folder it started in until it restarts. Said in a toast
+      // that offers the restart (`restartIn`), and at the top of its Folder row (`stillRunningIn`) until then.
+      folderMoveRunning: (from: string) => `Still running in ${from} until it restarts`,
+      folderMoveConversation: (to: string) => `It starts in ${to} on a new conversation: Claude keeps each conversation with its folder`,
+      folderMoveNext: (to: string) => `It starts in ${to} when it restarts`,
+      stillRunningIn: (from: string) => `Still running in ${from}`,
+      restartIn: (to: string) => `Restart in ${to}`,
       // The same with a profile: its conversations live in the profile's folder.
       accountNewConversation: "New account, new conversation: Claude keeps each conversation with its account",
       command: "Command",
@@ -102,7 +109,7 @@ export const canvasMessages = defineMessages(
       remoteControl: "Remote Control",
       // Beside its box: where Remote Control stands; it applies to a running session at once.
       remoteStates: { on: "On", connecting: "Connecting…", pending: "At the end of its turn", requested: "Requested", nextStart: "At next start" },
-      // Beside "Restart now": the running session still has the settings it started with.
+      // Beside "Restart now": the running session still has the settings it started with (its folder aside: the Folder row says that one).
       launchChanged: "Running with the old launch settings",
       tabs: { general: "General", skills: "Skills", plugins: "Plugins", mcp: "MCP", agents: "Subagents" },
       claudeOnly: "Skills, plugins and MCP servers can be chosen for Claude terminals",
