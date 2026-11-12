@@ -193,9 +193,12 @@ mod tests {
     fn shortens_a_path_inside_the_home_folder() {
         let home = r"C:\Users\Me";
         assert_eq!(shorten_home(r"C:\Users\Me\AppData\x", home), r"~\AppData\x");
-        assert_eq!(shorten_home("C:/Users/Me/bin", home), "~/bin");
         if cfg!(windows) {
+            // Windows reads both slashes, and any case, as the same folder.
+            assert_eq!(shorten_home("C:/Users/Me/bin", home), "~/bin");
             assert_eq!(shorten_home("c:/users/me/bin", home), "~/bin");
+        } else {
+            assert_eq!(shorten_home("/Users/me/bin", "/Users/me"), "~/bin");
         }
         assert_eq!(shorten_home(r"C:\Users\Me", home), "~");
         assert_eq!(shorten_home(r"C:\Users\Me\", home), r"~\");

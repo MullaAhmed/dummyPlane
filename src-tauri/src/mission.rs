@@ -537,6 +537,16 @@ mod tests {
         let hooks = parent.path().join("hooks");
         std::fs::create_dir(&hooks).unwrap();
         std::fs::write(hooks.join("pre-merge-commit"), "#!/bin/sh\nexit 1\n").unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            // Git runs a hook only when it is executable.
+            std::fs::set_permissions(
+                hooks.join("pre-merge-commit"),
+                std::fs::Permissions::from_mode(0o755),
+            )
+            .unwrap();
+        }
         run(
             &proj,
             &["config", "core.hooksPath", &hooks.to_string_lossy()],

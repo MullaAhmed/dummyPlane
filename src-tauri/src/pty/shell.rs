@@ -2335,7 +2335,12 @@ mod tests {
             ShellSyntax::PowerShell => ("powershell.exe", vec!["-NoLogo".to_string()]),
             ShellSyntax::Cmd => ("cmd.exe", vec![]),
             ShellSyntax::Posix => (
-                r"C:\Program Files\Git\bin\bash.exe",
+                // Off Windows, only the last component of a path names the shell.
+                if cfg!(windows) {
+                    r"C:\Program Files\Git\bin\bash.exe"
+                } else {
+                    "/bin/bash"
+                },
                 vec!["--login".to_string(), "-i".to_string()],
             ),
         };

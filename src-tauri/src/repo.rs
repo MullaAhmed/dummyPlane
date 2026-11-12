@@ -767,6 +767,16 @@ mod tests {
             "#!/bin/sh\necho no way >&2\nexit 1\n",
         )
         .unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            // Git runs a hook only when it is executable.
+            fs::set_permissions(
+                root.join(".git/hooks/pre-commit"),
+                fs::Permissions::from_mode(0o755),
+            )
+            .unwrap();
+        }
         assert_eq!(commit(&root, &[chosen], "refused").unwrap_err(), "no way");
     }
 
