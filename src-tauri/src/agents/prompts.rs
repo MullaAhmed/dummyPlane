@@ -450,9 +450,15 @@ mod tests {
     #[test]
     fn spawn_agent_takes_a_level_the_model_router_turns_into_a_model() {
         // With the router on, a sub-agent spawned with no model ran the user's default: the level is how the router routes it.
-        assert!(AGENT_EN.contains("spawn_agent (arguments task, title, optional model, optional level)"));
+        assert!(
+            AGENT_EN
+                .contains("spawn_agent (arguments task, title, optional model, optional level)")
+        );
         assert!(AGENT_EN.contains("Give level on every call, the task's difficulty (low, medium, high or extreme; medium suits most work): when a model router is on for you (the user's switch on your terminal, or on the fleet or the agent you work under; you cannot see it), level picks the sub-agent's model, medium with no level, and a model named with no level is refused."));
-        assert!(FLEET_EN.contains("spawn_agent (arguments task, title, optional model, optional level)"));
+        assert!(
+            FLEET_EN
+                .contains("spawn_agent (arguments task, title, optional model, optional level)")
+        );
         assert!(FLEET_EN.contains("Give level on every call, the task's difficulty (low, medium, high or extreme; medium suits most work): when the model router is on (mission: router), level picks the sub-agent's model as it does a sub-task's, medium with no level, and a model named with no level is refused; name a model only while the router is off."));
     }
 
