@@ -5,7 +5,7 @@ import { MAX_TITLE } from "@/agents/spawn";
 import { isLaunching, spawnedByOf } from "@/agents/spawnFamily";
 import { clip } from "@/agents/taskSummary";
 import { messages } from "@/i18n";
-import { notify } from "@/mission/events";
+import { notify, sendCommand } from "@/mission/events";
 import { oneLine, sameName } from "@/mission/mission";
 import { agentState, missionPeers } from "@/mission/store";
 import { terminalText } from "@/nodes/terminal/registry";
@@ -145,6 +145,10 @@ function messageLinked(nodeId: string, args: Record<string, unknown>): ToolResul
   if (work) nodesStore.getState().update(peer.nodeId, work);
   // A Manager answers its team with write: it has no message_agent.
   notify(peer.nodeId, isManagerNode(peer.nodeId) ? l.toManager(nameOf(nodeId), text) : l.message(nameOf(nodeId), text));
+  // Its Claude session, named after its title at its launch (`-n`), takes the new one: the name other sessions see.
+  // After the message, in line with it: whatever the command leaves on screen can never swallow the work itself,
+  // and `/rename` runs at once even while Claude works on it.
+  if (work?.title && terminalOf(nodesStore.getState().nodes[peer.nodeId])?.agent === "claude") sendCommand(peer.nodeId, `/rename ${work.title}`);
   // The message draws its wire when none joins them yet, and the light runs along it from the sender.
   talk(nodeId, peer.nodeId);
   const waiting = agentActivityStore.getState().activities[peer.nodeId]?.activity === "waiting";

@@ -9,7 +9,7 @@ import { markLaunching } from "@/agents/spawnFamily";
 import { spawnedTask } from "@/agents/taskSummary";
 import { withAgentLink, withWire } from "@/agents/wires";
 import { activeWork } from "@/mission/activeWork";
-import { notify } from "@/mission/events";
+import { notify, sendCommand } from "@/mission/events";
 import { terminalText } from "@/nodes/terminal/registry";
 import { agentActivityStore } from "@/store/agentActivity";
 import { nodesStore, terminalOf } from "@/store/nodes";
@@ -19,7 +19,7 @@ import { answer } from "./router";
 
 vi.mock("@excalidraw/excalidraw", () => ({ CaptureUpdateAction: { IMMEDIATELY: "immediately" } }));
 vi.mock("@/nodes/terminal/registry", () => ({ terminalText: vi.fn(() => "line 1\nline 2") }));
-vi.mock("@/mission/events", () => ({ notify: vi.fn() }));
+vi.mock("@/mission/events", () => ({ notify: vi.fn(), sendCommand: vi.fn() }));
 
 const call = (nodeId: string, name: string, args: Record<string, unknown> = {}) =>
   answer({ callId: 1, nodeId, method: "tools/call", params: { name, arguments: args } }) as Promise<{ content: { text: string }[]; isError?: boolean }>;
@@ -179,10 +179,11 @@ describe("new work for a sub-agent that reported", () => {
     nodesStore.getState().update("aquaman", { spawnedBy: "batman", ...FINISHED });
     // As in the app, where the typed message clears the report (`onNewWork`): its work is read before it is sent.
     vi.mocked(notify).mockImplementation((id) => nodesStore.getState().update(id, { lastReport: undefined }));
+    vi.mocked(sendCommand).mockClear();
   });
   afterEach(() => {
     vi.mocked(notify).mockImplementation(() => undefined);
-    nodesStore.getState().update("aquaman", { spawnedBy: undefined, title: "", task: undefined, lastReport: undefined, staleTitle: undefined });
+    nodesStore.getState().update("aquaman", { spawnedBy: undefined, title: "", task: undefined, lastReport: undefined, staleTitle: undefined, agent: "claude" });
     nodesStore.getState().update("cyborg", { title: "", task: undefined, lastReport: undefined });
   });
 
@@ -191,13 +192,24 @@ describe("new work for a sub-agent that reported", () => {
     expect(payloadOf("aquaman")).toMatchObject({ title: "007 mint.py tests", task: NEW_WORK });
     expect(payloadOf("aquaman").staleTitle).toBeUndefined();
     expect(spawnedTask(payloadOf("aquaman"))?.line).toBe("007 mint.py tests");
-    // The message itself goes as any other.
+    // The message itself goes as any other; then its Claude session takes the title as its name.
     expect(notify).toHaveBeenCalledWith("aquaman", expect.stringMatching(/^Message from Batman .*: Write the 007 tests for mint\.py, then report\.$/));
+    expect(sendCommand).toHaveBeenCalledExactlyOnceWith("aquaman", "/rename 007 mint.py tests");
+    expect(vi.mocked(notify).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(sendCommand).mock.invocationCallOrder[0]);
+  });
+
+  it("renames only a Claude session: a Codex sub-agent takes the title on its terminal alone", async () => {
+    nodesStore.getState().update("aquaman", { agent: "codex" });
+    await call("batman", "message_agent", { agent: "Aquaman", text: NEW_WORK, title: "007 mint.py tests" });
+    expect(payloadOf("aquaman").title).toBe("007 mint.py tests");
+    expect(sendCommand).not.toHaveBeenCalled();
   });
 
   it("without a title keeps it, but its line and the duplicate guard say the new task", async () => {
     await call("batman", "message_agent", { agent: "Aquaman", text: NEW_WORK });
     expect(payloadOf("aquaman")).toMatchObject({ title: "005 W1 mint.py implementer", task: NEW_WORK, staleTitle: true });
+    // No title, no new name: its session keeps the one it has.
+    expect(sendCommand).not.toHaveBeenCalled();
     const line = spawnedTask(payloadOf("aquaman"))?.line;
     expect(line).toBe("Write the 007 tests for mint.py, then report");
     // Its report cleared by the message, it is at work again, on the new task.
@@ -222,6 +234,7 @@ describe("new work for a sub-agent that reported", () => {
     terminalStatusStore.getState().set("aquaman", { state: "stopped" });
     expect((await call("batman", "message_agent", { agent: "Aquaman", text: NEW_WORK, title: "007 mint.py tests" })).isError).toBe(true);
     expect(payloadOf("aquaman")).toMatchObject({ title: FINISHED.title, task: FINISHED.task });
+    expect(sendCommand).not.toHaveBeenCalled();
   });
 
   it("changes nothing between linked peers, nor from a sub-agent to its parent", async () => {
@@ -231,6 +244,7 @@ describe("new work for a sub-agent that reported", () => {
     expect(payloadOf("cyborg")).toMatchObject({ title: FINISHED.title, task: FINISHED.task });
     expect(payloadOf("cyborg").staleTitle).toBeUndefined();
     expect(notify).toHaveBeenCalledWith("cyborg", expect.stringContaining(NEW_WORK));
+    expect(sendCommand).not.toHaveBeenCalled();
     // The other way along a spawn wire: a parent is no sub-agent of its child.
     scene = withWire(nodes, "batman", "aquaman", "calm", true);
     nodesStore.getState().update("batman", { lastReport: FINISHED.lastReport });

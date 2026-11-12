@@ -53,7 +53,7 @@ export const agentMessages = defineMessages({
       linkedAgent: "The linked agent's name (or its id), as linked_agents gives it.",
       messageText: "The message, on one line.",
       messageTitle:
-        "Only for new work given to a sub-agent of yours (spawn_agent) that has reported: a short title for it, which becomes its terminal's title, the message becoming its task. Ignored otherwise.",
+        "Only for new work given to a sub-agent of yours (spawn_agent) that has reported: a short title for it, which becomes its terminal's title and its session's name, the message becoming its task. Ignored otherwise.",
       readAgent: "The end of a linked agent's terminal, as plain text.",
       readLines: "How many lines, 50 by default.",
       linkedBoards:
