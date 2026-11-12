@@ -56,15 +56,17 @@ export function AgentRow(props: { id: string; onOpen?: () => void; trailing?: Re
         </Hint>
       )}
       {/* The status and the actions share one cell, as wide as the wider of the two: the pointer swaps them
-          with a fade, the keyboard at once, and the name beside them never moves. */}
+          with a fade, the keyboard at once, and the name beside them never moves. The hidden layer lets the
+          pointer through: faded out, the status paints above the actions (an opacity below 1 stacks it), and
+          took their clicks. */}
       <span className="grid shrink-0 items-center justify-items-end">
-        <span className="flex items-center gap-2 transition-[opacity] duration-(--dp-dur-fast) ease-(--dp-ease-out) [grid-area:1/1] group-hover:opacity-0 group-focus-within:opacity-0 group-focus-within:transition-none">
+        <span className="flex items-center gap-2 transition-[opacity] duration-(--dp-dur-fast) ease-(--dp-ease-out) [grid-area:1/1] group-hover:pointer-events-none group-hover:opacity-0 group-focus-within:pointer-events-none group-focus-within:opacity-0 group-focus-within:transition-none">
           <StatusPill status={status} activity={activity} indigo={meta.tint === INDIGO} report={payload.lastReport?.status} shell={payload.agent === "shell"} />
           {trailing}
         </span>
         <span
           data-row-actions
-          className="flex items-center gap-0.5 opacity-0 transition-[opacity] duration-(--dp-dur-fast) ease-(--dp-ease-out) [grid-area:1/1] group-hover:opacity-100 group-focus-within:opacity-100 group-focus-within:transition-none"
+          className="pointer-events-none flex items-center gap-0.5 opacity-0 transition-[opacity] duration-(--dp-dur-fast) ease-(--dp-ease-out) [grid-area:1/1] group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-focus-within:transition-none"
         >
           {showCenter && (
             <HeaderButton label={t.center(name)} onClick={() => focusNode(id)}>

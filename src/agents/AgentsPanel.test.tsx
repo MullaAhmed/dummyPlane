@@ -5,6 +5,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { canvasStore } from "@/canvas/canvasStore";
+import { focusNode } from "@/canvas/focusNode";
 import { BOTTOM_BAR_HEIGHT, TOP_ROW_HEIGHT } from "@/shell/layout";
 import type { Activity } from "@/ipc/activity";
 import type { TerminalPayload } from "@/nodes/types";
@@ -19,6 +20,7 @@ import { newConsole } from "./quickActions";
 // Excalidraw does not load under Vitest (roughjs); the panel only reaches it through menu actions.
 vi.mock("@excalidraw/excalidraw", () => ({}));
 vi.mock("./quickActions", () => ({ newConsole: vi.fn(), placeFleet: vi.fn() }));
+vi.mock("@/canvas/focusNode", () => ({ focusNode: vi.fn() }));
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -203,4 +205,15 @@ it("swaps an agent row's status for its actions in one cell on hover: the name n
     expect(layer.className).toContain("transition-[opacity]");
   }
   expect(status.className).toContain("group-hover:opacity-0");
+  // Faded out, the status paints above the actions (opacity below 1 stacks it) and took their clicks: Center did
+  // nothing (12 Nov). Whichever layer is hidden lets the pointer through.
+  expect(status.className.split(/\s+/)).toEqual(expect.arrayContaining(["group-hover:pointer-events-none", "group-focus-within:pointer-events-none"]));
+  expect(actions.className.split(/\s+/)).toEqual(expect.arrayContaining(["pointer-events-none", "group-hover:pointer-events-auto", "group-focus-within:pointer-events-auto"]));
+});
+
+it("centers the agent from its row's Center action", async () => {
+  const row = host.querySelector("[data-filter]")!.closest("aside")!.querySelector<HTMLElement>(".group.flex.items-center.gap-2")!;
+  const center = [...row.querySelectorAll<HTMLButtonElement>("button[aria-label]")].find((b) => /^Center /.test(b.getAttribute("aria-label")!))!;
+  await act(async () => center.click());
+  expect(focusNode).toHaveBeenCalledTimes(1);
 });
