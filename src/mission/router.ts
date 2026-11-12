@@ -46,18 +46,21 @@ const LEVEL_KEYS = Object.keys(LEVELS) as Level[];
 export type CliLevels = Partial<Record<MappedCli, Partial<Record<Level, string>>>>;
 
 /**
- * A model id another CLI is started with: what Rust's `checked_model` lets into a command line (64 characters at
- * most, a letter or digit first, then letters, digits and `-._[]`), never a Claude name, which a non-Claude terminal
- * is never given (`@/nodes/terminal/launch`).
+ * A model name or alias any CLI is started with (`--model`, `-m`): what Rust's `checked_model` lets into a command
+ * line, 64 characters at most, a letter or digit first, then letters, digits and `-._[]`. spawn_agent checks a model
+ * named with it, so one the launch would refuse is refused up front.
  */
-const CLI_MODEL = /^[A-Za-z0-9][A-Za-z0-9._[\]-]{0,63}$/;
+export const MODEL_ID = /^[A-Za-z0-9][A-Za-z0-9._[\]-]{0,63}$/;
 /** A Claude model or alias (opus, claude-sonnet-5-5…): never passed to another CLI. */
 export const CLAUDE_MODEL_NAME = /^(claude|haiku|sonnet|opus|fable)/i;
 
-/** A model typed for a mapped CLI, trimmed, or undefined when empty or not one its command line would take. */
+/**
+ * A model typed for a mapped CLI, trimmed, or undefined when empty or not one its command line would take; never a
+ * Claude name, which a non-Claude terminal is never given (`@/nodes/terminal/launch`).
+ */
 export function readCliModel(raw: unknown): string | undefined {
   const model = typeof raw === "string" ? raw.trim() : "";
-  return CLI_MODEL.test(model) && !CLAUDE_MODEL_NAME.test(model) ? model : undefined;
+  return MODEL_ID.test(model) && !CLAUDE_MODEL_NAME.test(model) ? model : undefined;
 }
 
 /** A stored level map, checked: an unknown CLI, an unknown level or a model no command line would take is dropped. */

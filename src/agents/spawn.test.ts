@@ -227,6 +227,10 @@ describe("spawn_agent", () => {
   it("refuses a call without a task or with an odd model, and a caller no longer on the canvas", async () => {
     expect(await spawnAgent("batman", { task: "  " })).toEqual({ text: expect.stringContaining("task"), error: true });
     expect(await spawnAgent("batman", { task: "Do it", model: "opus; rm -rf" })).toEqual({ text: expect.stringContaining("Unknown model"), error: true });
+    // What the launch's own check (`checked_model`) would refuse is refused here, before a terminal opens: a colon, more than 64 characters.
+    expect((await spawnAgent("batman", { task: "Do it", model: "ollama:llama3" })).error).toBe(true);
+    expect((await spawnAgent("batman", { task: "Do it", model: "a".repeat(65) })).error).toBe(true);
+    expect(addTerminal).not.toHaveBeenCalled();
     scene = scene.map((e) => (e.id === "batman" ? { ...e, isDeleted: true } : e));
     expect((await spawnAgent("batman", { task: "Do it" })).error).toBe(true);
     expect(await spawnAgent("nobody", { task: "Do it" })).toEqual({ text: expect.stringContaining("no longer on the canvas"), error: true });

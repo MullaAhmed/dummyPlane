@@ -12,7 +12,7 @@ import { notify } from "@/mission/events";
 import { oneLine } from "@/mission/mission";
 import { missionFolder } from "@/mission/folder";
 import { whenReady } from "@/mission/ready";
-import { modelLabel, readLevel } from "@/mission/router";
+import { MODEL_ID, modelLabel, readLevel } from "@/mission/router";
 import { workspaceCanvas } from "@/mission/store";
 import { newTerminalPayload } from "@/nodes/terminal/launch";
 import { freshText, quietFor } from "@/nodes/terminal/registry";
@@ -40,8 +40,6 @@ import { withWire } from "./wires";
 
 /** A title longer than this is cut: spawn_agent's, and message_agent's for new work (`@/mcp/linkTools`). */
 export const MAX_TITLE = 60;
-/** A model alias (opus, sonnet…) or id: nothing a command line could misread. */
-const MODEL = /^[A-Za-z0-9][A-Za-z0-9._:[\]-]{0,79}$/;
 
 const t = () => messages(agentMessages).spawn;
 
@@ -131,7 +129,8 @@ async function spawnNow(parentId: string, args: SpawnArgs): Promise<SpawnResult>
   const task = typeof args.task === "string" ? args.task.trim() : "";
   if (!task) return refuse(t().task);
   const model = typeof args.model === "string" ? args.model.trim() : "";
-  if (model && !MODEL.test(model)) return refuse(t().model(model));
+  // The launch's own rule (`checked_model`): a model it would refuse is refused here, before a terminal opens.
+  if (model && !MODEL_ID.test(model)) return refuse(t().model(model));
   // No level, or an empty one, is none, as for the model.
   const asked = args.niveau == null || args.niveau === "" ? undefined : args.niveau;
   const level = asked === undefined ? undefined : readLevel(asked);
