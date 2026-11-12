@@ -524,13 +524,16 @@ export async function reassignTask(fleetId: string, fromNodeId: string, target: 
   const record = nodesStore.getState().nodes[fleetId];
   const mission = missionOf(record);
   if (!record || mission?.state !== "en_cours") return r.noMission;
-  // A task `next_task` abandoned stays with its agent's report: nobody takes it over.
   const open = reassignable(mission);
   const from = open.find((m) => m.nodeId === fromNodeId);
   const task = mission.plan?.find((s) => s.title === from?.task);
-  // The titles it takes, as `reassign` names them, so that the call can be made again right.
-  const held = mission.members.find((m) => m.nodeId === fromNodeId)?.task ?? "";
-  if (!from || !task) return t().fleet.noSubtask(held, open.map((m) => m.task));
+  if (!from || !task) {
+    // The titles it takes, as `reassign` names them, so that the call can be made again right.
+    const titles = open.map((m) => m.task);
+    const holder = mission.members.find((m) => m.nodeId === fromNodeId);
+    // A task `next_task` abandoned stays with its agent's report: nobody takes it over.
+    return holder?.abandoned ? r.abandoned(holder.task, titles) : t().fleet.noSubtask(holder?.task ?? "", titles);
+  }
   let to: Member;
   if (sameName(target, NEW_AGENT)) {
     if (!canvasKnown(fleetId)) return r.hidden;

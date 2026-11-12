@@ -657,7 +657,8 @@ async function relaunch(fleetId: string, mission: Mission, args: Record<string, 
 async function reassign(fleetId: string, mission: Mission, args: Record<string, unknown>): Promise<ToolResult> {
   if (mission.state !== "en_cours") return refused(t().fleet.noMission);
   const title = typeof args.sous_tache === "string" ? args.sous_tache : "";
-  const from = mission.members.find((m) => !m.handedTo && sameName(m.task, title));
+  // The holder reassign takes first: a title an abandoned task shares is not that one.
+  const from = reassignable(mission).find((m) => sameName(m.task, title)) ?? mission.members.find((m) => !m.handedTo && sameName(m.task, title));
   // The titles reassign takes, so that a call that passed something else (a whole brief) can be made again right.
   if (!from) return refused(t().fleet.noSubtask(echoed(title), reassignable(mission).map((m) => m.task)));
   const result = await reassignTask(fleetId, from.nodeId, typeof args.agent === "string" ? args.agent : "");

@@ -5,6 +5,9 @@ import { ROUTER_LEVELS } from "@/mission/router";
 const holder = (who: { name: string; title?: string; state: string; spentMin?: number; budgetMin?: number }) =>
   `${who.name} is already working on "${who.title || "that task"}" (${who.state === "idle" ? "between two turns" : who.state}${who.spentMin !== undefined && who.budgetMin !== undefined ? `, ${who.spentMin} of ${who.budgetMin} min` : ""}).`;
 type Holder = Parameters<typeof holder>[0];
+/** The titles `reassign` takes, after `lead`, for a call to be made again right; or that it takes none now. */
+const reassignTakes = (lead: string, titles: readonly string[]) =>
+  titles.length > 0 ? `${lead} ${titles.map((t) => `"${t}"`).join(", ")}.` : "No sub-task can be reassigned now.";
 /** Tasks `add_tasks` or `propose_plan` refused, each with who is on it already. */
 const taken = (found: readonly { n: number; title: string; who: Holder }[]) => found.map(({ n, title, who }) => `Task ${n} ("${title}"): ${holder(who)}`).join(" ");
 
@@ -402,8 +405,7 @@ export const agentMessages = defineMessages({
       notWorking: (name: string) => `${name} is not at work: nothing to interrupt.`,
       interrupted: (name: string) => `${name}'s turn interrupted. write "continue" resumes it.`,
       noSubtask: (title: string, titles: readonly string[]) =>
-        `No sub-task "${title}" in the team. ` +
-        (titles.length > 0 ? `Give its title as team gives it (subtask), one of: ${titles.map((t) => `"${t}"`).join(", ")}.` : "No sub-task can be reassigned now."),
+        `No sub-task "${title}" in the team. ${reassignTakes("Give its title as team gives it (subtask), one of:", titles)}`,
       relaunchRunning: (name: string) => `${name} is running: nothing to relaunch.`,
       relaunchHanded: (name: string, to: string) => `${name} handed its sub-task to ${to}: nothing to relaunch.`,
       relaunchClosed: (name: string) =>
@@ -531,6 +533,8 @@ export const agentMessages = defineMessages({
       notDone: (name: string) => `${name} has not finished its sub-task: choose an agent that has reported, or "new".`,
       targetStopped: (name: string) => `${name} is stopped: relaunch it first, or choose another agent.`,
       teamFull: (max: number) => `${max} agents are already at work (Max active agents): reassign to an agent that has reported instead of "new", or wait for one to finish.`,
+      abandoned: (title: string, titles: readonly string[]) =>
+        `"${title}" was abandoned by next_task: it stays with its agent's report, and nobody takes it over. ${reassignTakes("The sub-tasks reassign takes:", titles)}`,
       notMerged: (name: string, task: string) => `${name} finished "${task}" but its branch is not merged: call merge first.`,
       createFailed: "The new agent could not be created.",
     },

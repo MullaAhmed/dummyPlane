@@ -9,7 +9,7 @@ import { nodesStore } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
 import { workspacesStore } from "@/store/workspaces";
 import type { Member, Mission } from "@/mission/mission";
-import { deliveryPending } from "@/mission/launch";
+import { deliveryPending, reassignTask } from "@/mission/launch";
 import { activeCount, relaunching, seatsHeld } from "@/mission/active";
 import { missionOf, setMission, updateMember } from "@/mission/store";
 import { fleetTool, managerTools } from "./fleetTools";
@@ -128,6 +128,14 @@ it("reassign names the sub-tasks it takes when the call passed something else, a
   expect(text).toContain('No sub-task "Finish the login form: validate every field,');
   expect(text).not.toContain("then commit");
   expect(text).not.toContain("\n");
+});
+
+it("reassign takes the sub-task from the agent still on it when an abandoned one shares its title (review 12 Nov)", async () => {
+  await setup([member("rd", "Hulk", { task: "Login", abandoned: true }), member("ra", "Batman", { task: "Login" })]);
+  vi.mocked(reassignTask).mockResolvedValueOnce({ name: "Aquaman" });
+  const result = await fleetTool("chef", "reattribuer", { sous_tache: "Login", agent: "nouveau" });
+  expect(result.isError).not.toBe(true);
+  expect(reassignTask).toHaveBeenLastCalledWith("chef", "ra", "nouveau");
 });
 
 describe("relaunch", () => {

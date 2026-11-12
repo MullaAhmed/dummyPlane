@@ -316,8 +316,10 @@ describe("an agent that reports « blocked » or « failed »", () => {
   it("no longer lets reassign find an abandoned task, nor next_task leave it twice", async () => {
     await setup({ queue: queued("API", "Docs"), members: [member("batman", "Batman", { report: stuck })] });
     await giveNext("chef", missionNow().members[0]);
-    // Its refusal names the sub-tasks reassign does take, as the tool's own does (12 Nov).
-    expect(await reassignTask("chef", "batman", "new")).toBe('No sub-task "Login" in the team. Give its title as team gives it (subtask), one of: "API".');
+    // Its refusal says next_task left it, not that the title is wrong, and names the sub-tasks reassign does take (review 12 Nov).
+    const left = '"Login" was abandoned by next_task: it stays with its agent\'s report, and nobody takes it over. The sub-tasks reassign takes: "API".';
+    expect(await reassignTask("chef", "batman", "new")).toBe(left);
+    expect((await fleetTool("chef", "reattribuer", { sous_tache: "Login", agent: "nouveau" })).content[0].text).toBe(left);
     expect(await giveNext("chef", missionNow().members[0])).toEqual({ refused: "Batman already left its task to a new agent." });
     expect(created().map((m) => m.task)).toEqual(["API"]);
   });
