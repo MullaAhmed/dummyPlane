@@ -24,6 +24,7 @@ import { whenReady } from "./ready";
 import { onFinish, type FinishSignal } from "@/agents/finishes";
 import { assign, cleanMission, deliveryPending, endMission, handoverText, launchMission, mergeMission, reassignTask, subTaskText, withTicketNote } from "./launch";
 import { installRedelivery } from "./redeliver";
+import { activeCount } from "./active";
 import { NEW_MISSION, type Member, type Mission } from "./mission";
 import { memberOf, missionOf, releaseTeamPermission, setMission, updateMember } from "./store";
 import { setUpBoard, undoSetup } from "./manager";
@@ -933,9 +934,21 @@ describe("reassignTask", () => {
     expect(pauseAgents).not.toHaveBeenCalled();
   });
 
-  it("does not open a new agent while Max agents are at work", async () => {
+  it("opens a new agent in the place of one at work on a full team: its seat goes with the sub-task (review 12 Nov)", async () => {
     await setup({ state: "en_cours", maxAgents: 2, project: "C:/code/proj", slug: "auth", frameId: "f1", members: [member("batman", "Batman", true, { task: "Login" }), member("n1", "Aquaman", false, { task: "API" })] });
-    expect(await reassignTask("chef", "batman", "nouveau")).toBe('2 agents are already at work (Max active agents): reassign to an agent that has reported instead of "new", or wait for one to finish.');
+    vi.mocked(launchGroup).mockResolvedValueOnce({ frameId: "f1", nodeIds: ["n7"] });
+    const result = await reassignTask("chef", "batman", "nouveau");
+    expect(result).toEqual({ name: expect.any(String) });
+    expect(missionAddAgent).toHaveBeenCalledTimes(1);
+    expect(missionNow().members[0].handedTo).toBe((result as { name: string }).name);
+    // Aquaman and the new agent: still two at work.
+    expect(activeCount("chef", missionNow())).toBe(2);
+  });
+
+  it("does not open one on a full team once that agent's terminal has stopped: it holds no seat to give", async () => {
+    await setup({ state: "en_cours", maxAgents: 2, project: "C:/code/proj", slug: "auth", frameId: "f1", members: [member("batman", "Batman", true, { task: "Login" }), member("n1", "Aquaman", false, { task: "API" }), member("n2", "Shazam", false, { task: "Docs", sentAt: undefined })] });
+    terminalStatusStore.getState().set("batman", { state: "exited", code: 0 });
+    expect(await reassignTask("chef", "batman", "nouveau")).toContain('"Login" would put a new agent to work while 2 agents are already at work (Max active agents)');
     expect(missionAddAgent).not.toHaveBeenCalled();
     expect(pauseAgents).not.toHaveBeenCalled();
   });

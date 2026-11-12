@@ -6,11 +6,12 @@ import { clearWirePulses, wireActivityStore } from "@/canvas/wireActivity";
 import { relaunchTerminal } from "@/nodes/terminal/registry";
 import { agentActivityStore } from "@/store/agentActivity";
 import { nodesStore } from "@/store/nodes";
-import { terminalStatusStore } from "@/store/terminalStatus";
+import { isRestarting, terminalStatusStore } from "@/store/terminalStatus";
 import { workspacesStore } from "@/store/workspaces";
 import type { Member, Mission } from "@/mission/mission";
 import { deliveryPending, reassignTask } from "@/mission/launch";
-import { activeCount, relaunching, seatsHeld } from "@/mission/active";
+import { activeCount, seatsHeld } from "@/mission/active";
+import { relaunchSession } from "@/nodes/terminal/session";
 import { missionOf, setMission, updateMember } from "@/mission/store";
 import { fleetTool, managerTools } from "./fleetTools";
 
@@ -34,6 +35,8 @@ async function setup(members: Member[]) {
 beforeEach(() => {
   mockIPC(() => undefined);
   terminalStatusStore.getState().set("chef", { state: "running" });
+  // A test that failed mid-restart leaves no terminal restarting behind it.
+  terminalStatusStore.setState({ restarts: {} });
 });
 
 it("refuses to extend an agent that handed its sub-task over or has already reported (backlog H3)", async () => {
@@ -236,17 +239,24 @@ describe("relaunch", () => {
 
   describe("counts the agent once all through its restart (review 12 Nov)", () => {
     const seats = () => activeCount("chef", missionOf(nodesStore.getState().nodes.chef)!);
-    /** As `relaunchSession` does: the old process killed and its exit in, a macrotask, then "running" before the spawn returns. */
-    const restartLikeTheApp = (counts: number[]) =>
-      vi.mocked(relaunchTerminal).mockImplementationOnce(async (nodeId) => {
-        terminalStatusStore.getState().set(nodeId, { state: "exited", code: null });
+    const term = { cols: 80, rows: 24, write: () => undefined };
+    /**
+     * The app's own restart: `relaunchSession`, its old process's kill answered by its exit as boot's pty-exit handler
+     * records it. The count is read in the gap (`beforeStart`), while the new process spawns (already "running"), and after.
+     */
+    const restartLikeTheApp = (counts: number[], spawn: () => unknown = () => 1) => {
+      mockIPC((cmd, args) => {
+        const nodeId = (args as { nodeId?: string }).nodeId ?? "";
+        if (cmd === "pty_kill") terminalStatusStore.getState().set(nodeId, { state: "exited", code: null });
+        if (cmd !== "pty_spawn") return undefined;
         counts.push(seats());
-        await new Promise((resolve) => setTimeout(resolve, 0));
-        terminalStatusStore.getState().set(nodeId, { state: "running" });
-        counts.push(seats());
-        await new Promise((resolve) => setTimeout(resolve, 0));
+        return spawn();
+      });
+      vi.mocked(relaunchTerminal).mockImplementationOnce(async (nodeId, payload, mode) => {
+        await relaunchSession(nodeId, term, { ...payload, agent: "shell" }, mode, () => void counts.push(seats()));
         counts.push(seats());
       });
+    };
 
     it("keeps an agent back at its shell in its seat while its old process is gone and its new one not yet up", async () => {
       const counts: number[] = [];
@@ -270,10 +280,14 @@ describe("relaunch", () => {
     });
 
     it("frees the seat of a relaunch that fails", async () => {
-      vi.mocked(relaunchTerminal).mockRejectedValueOnce(new Error("spawn refused"));
+      const counts: number[] = [];
+      restartLikeTheApp(counts, () => {
+        throw new Error("spawn refused");
+      });
       const failed = await fleetTool("chef", "relaunch", { agent: "Hulk" });
-      expect(failed.content[0].text).toBe("Hulk could not start again: spawn refused");
-      expect(relaunching.size).toBe(0);
+      expect(failed.content[0].text).toContain("Hulk could not start again: ");
+      expect(failed.content[0].text).toContain("spawn refused");
+      expect(isRestarting("h1")).toBe(false);
       expect(seats()).toBe(3);
     });
   });

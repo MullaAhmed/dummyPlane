@@ -1,4 +1,4 @@
-import { isRunning } from "@/store/terminalStatus";
+import { isRestarting, isRunning } from "@/store/terminalStatus";
 import type { Member, Mission } from "./mission";
 
 /**
@@ -29,23 +29,24 @@ export const seatHeld = (fleetId: string, title: string) => seats.get(fleetId)?.
 export const seatsHeld = (fleetId: string) => seats.get(fleetId)?.size ?? 0;
 
 /**
- * The members `relaunch` is starting again: at work from the call on. Their old process is killed first, and the new
- * one runs only later: in between, nothing else would count them.
+ * Members whose seat reassign "new" holds for the agent it creates in their place: the held seat counts for both, once.
+ * Not counted while that agent is created, even if their terminal stops meanwhile.
  */
-export const relaunching = new Set<string>();
+export const handingOver = new Set<string>();
 
 /** On a task: not handed over, and no report, or moving on to the next one. */
-const onTask = (m: Member) => !m.handedTo && (!m.report || moving.has(m.nodeId));
+const onTask = (m: Member) => !m.handedTo && !handingOver.has(m.nodeId) && (!m.report || moving.has(m.nodeId));
 
 /**
  * The members at work: not handed over, on a task (no report, or moving on to
  * the next one) and running. A member whose task is not typed yet counts too:
  * its terminal is still starting, or relaunching for a new conversation. One
- * that never starts keeps its seat until its task is reassigned. One that
- * `relaunch` starts again counts while it does.
+ * that never starts keeps its seat until its task is reassigned. One whose
+ * terminal is being started again counts while it is, whoever asked for it
+ * (`relaunch`, its menu, its resume card): its old process's exit frees no seat.
  */
 export function activeMembers(mission: Mission): Member[] {
-  return mission.members.filter((m) => onTask(m) && (m.sentAt === undefined || isRunning(m.nodeId) || relaunching.has(m.nodeId)));
+  return mission.members.filter((m) => onTask(m) && (m.sentAt === undefined || isRunning(m.nodeId) || isRestarting(m.nodeId)));
 }
 
 /** Whether a member holds a seat now: it counts against Max agents. */

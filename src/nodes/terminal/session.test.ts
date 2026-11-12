@@ -4,7 +4,7 @@ import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { accountsStore, openAccounts } from "@/accounts/store";
 import type { TerminalPayload } from "@/nodes/types";
 import { nodesStore, sessionOf, updateSession } from "@/store/nodes";
-import { statusOf, terminalStatusStore } from "@/store/terminalStatus";
+import { isRestarting, statusOf, terminalStatusStore } from "@/store/terminalStatus";
 import { folderChange } from "./folder";
 import { relaunchMode } from "./launch";
 import { acceptsInput, attachSession, reattachSession, relaunchSession, restoreSession, startSession, type TermSink } from "./session";
@@ -31,9 +31,47 @@ function fakeTerm() {
 let calls: { cmd: string; args: Record<string, unknown> }[];
 beforeEach(() => {
   calls = [];
-  terminalStatusStore.setState({ statuses: {} });
+  terminalStatusStore.setState({ statuses: {}, restarts: {} });
 });
 afterEach(() => clearMocks());
+
+it("marks a terminal restarting from relaunchSession's call until its new process is spawned, its old one's exit included (review 12 Nov)", async () => {
+  const seen = { kill: [] as boolean[], gap: [] as boolean[], spawn: [] as boolean[] };
+  terminalStatusStore.getState().set("r", { state: "running" });
+  mockIPC((cmd) => {
+    // Its exit, as boot's pty-exit handler records it.
+    if (cmd === "pty_kill") {
+      seen.kill.push(isRestarting("r"));
+      terminalStatusStore.getState().set("r", { state: "exited", code: null });
+    }
+    if (cmd === "pty_spawn") seen.spawn.push(isRestarting("r"));
+    return 1;
+  });
+  const restarted = relaunchSession("r", fakeTerm(), payload, "new", () => void seen.gap.push(isRestarting("r")));
+  // The caller's next line already sees it: a menu's restart and a mission's relaunch alike.
+  expect(isRestarting("r")).toBe(true);
+  await restarted;
+  expect(seen).toEqual({ kill: [true], gap: [true], spawn: [true] });
+  expect(isRestarting("r")).toBe(false);
+});
+
+it("ends the restart of a terminal whose new process could not spawn, and counts two restarts at once", async () => {
+  mockIPC((cmd) => {
+    if (cmd === "pty_spawn") throw new Error("no shell");
+    return 1;
+  });
+  await relaunchSession("f", fakeTerm(), payload, "new");
+  expect(statusOf("f").state).toBe("error");
+  expect(isRestarting("f")).toBe(false);
+  const { restart } = terminalStatusStore.getState();
+  restart("two", 1);
+  restart("two", 1);
+  restart("two", -1);
+  expect(isRestarting("two")).toBe(true);
+  restart("two", -1);
+  expect(isRestarting("two")).toBe(false);
+  expect(terminalStatusStore.getState().restarts).toEqual({});
+});
 
 it("marks the terminal running before spawning, so ConPTY's cursor query can be answered", async () => {
   let statusDuringSpawn = "";
