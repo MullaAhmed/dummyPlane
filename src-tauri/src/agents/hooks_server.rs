@@ -145,10 +145,18 @@ pub fn set_subagent_terminals(on: bool) {
     SUBAGENT_TERMINALS.store(on, Ordering::Relaxed);
 }
 
-/// Claude's built-in sub-agent tool, under its old name and its current one.
-const BUILTIN_SUBAGENT_TOOLS: [&str; 2] = ["Task", "Agent"];
+/// The tools refused while sub-agents open as terminals, which `claude_settings`'s
+/// `PreToolUse` matcher names exactly: Claude's built-in sub-agent tool, under its old
+/// name and its current one, and its Workflow tool, whose script fans out sub-agents
+/// the user could only watch as read-only mirrors.
+pub const BUILTIN_SUBAGENT_TOOLS: [&str; 3] = ["Task", "Agent", WORKFLOW_TOOL];
+
+const WORKFLOW_TOOL: &str = "Workflow";
 
 const SPAWN_AGENT_INSTEAD: &str = "In dummyPlane, delegate with the dummyplane spawn_agent tool so the sub-agent opens as a terminal.";
+
+/// A Workflow is refused as a whole: its parallel work goes to spawn_agent, one terminal per sub-agent.
+const SPAWN_AGENTS_INSTEAD_OF_A_WORKFLOW: &str = "In dummyPlane, Workflows are refused: their sub-agents would run where the user cannot watch them. For parallel work, call the dummyplane spawn_agent tool once per sub-agent, each with its complete instructions: every one opens in a terminal of its own and works alongside the others.";
 
 /// A Manager has no `spawn_agent`: its team's agents start from the queue.
 const QUEUE_INSTEAD: &str = "In dummyPlane, your team's agents start from the queue, each in a terminal of its own: put the work in the queue with add_tasks, or hand a task to a new agent with next_task or reassign.";
@@ -169,20 +177,27 @@ fn from_manager(url: &str) -> bool {
         .is_some_and(|(_, query)| query.split('&').any(|pair| pair == MANAGER_TAG))
 }
 
-/// What a `PreToolUse` gets back: a denial of the built-in sub-agent tool while
-/// sub-agents open as terminals, else no decision. An agent's, a fleet's and a
-/// Manager's alike (`claude_settings` gives them all the hook); an agent and a
-/// fleet are sent to `spawn_agent`, a Manager, which lacks it, to its queue.
+/// What a `PreToolUse` gets back: a denial of the built-in sub-agent tool and of a
+/// Workflow while sub-agents open as terminals, else no decision. An agent's, a
+/// fleet's and a Manager's alike (`claude_settings` gives them all the hook); an
+/// agent and a fleet are sent to `spawn_agent`, a Manager, which lacks it, to its queue.
 fn pre_tool_use(json: &Value, terminals: bool, manager: bool) -> Option<Value> {
-    let builtin = json["tool_name"]
+    let tool = json["tool_name"]
         .as_str()
-        .is_some_and(|tool| BUILTIN_SUBAGENT_TOOLS.contains(&tool));
-    (terminals && builtin).then(|| {
+        .filter(|tool| BUILTIN_SUBAGENT_TOOLS.contains(tool))?;
+    let reason = if manager {
+        QUEUE_INSTEAD
+    } else if tool == WORKFLOW_TOOL {
+        SPAWN_AGENTS_INSTEAD_OF_A_WORKFLOW
+    } else {
+        SPAWN_AGENT_INSTEAD
+    };
+    terminals.then(|| {
         json!({
             "hookSpecificOutput": {
                 "hookEventName": "PreToolUse",
                 "permissionDecision": "deny",
-                "permissionDecisionReason": if manager { QUEUE_INSTEAD } else { SPAWN_AGENT_INSTEAD },
+                "permissionDecisionReason": reason,
             }
         })
     })
@@ -913,7 +928,7 @@ mod tests {
     #[test]
     fn only_the_built_in_subagent_tool_is_denied_and_only_while_the_switch_is_on() {
         let call = |tool: &str| json!({ "hook_event_name": "PreToolUse", "tool_name": tool });
-        for tool in ["Agent", "Task"] {
+        for tool in ["Agent", "Task", "Workflow"] {
             for manager in [false, true] {
                 let decision = pre_tool_use(&call(tool), true, manager).unwrap();
                 assert_eq!(decision["hookSpecificOutput"]["permissionDecision"], "deny");
@@ -926,6 +941,8 @@ mod tests {
             "TaskCreate",
             "TaskOutput",
             "agent",
+            "workflow",
+            "WorkflowStop",
             "Bash",
             "mcp__dummyplane__show_output",
             "mcp__dummyplane__read_node",
@@ -967,6 +984,35 @@ mod tests {
         );
     }
 
+    /// Regression: a Workflow's sub-agents ran with the switch on, drawn as read-only mirrors.
+    #[test]
+    fn a_workflow_is_refused_for_spawn_agent_s_terminals_or_a_manager_s_queue() {
+        let call = json!({ "hook_event_name": "PreToolUse", "tool_name": "Workflow" });
+        let reason = |manager| {
+            pre_tool_use(&call, true, manager).unwrap()["hookSpecificOutput"]
+                ["permissionDecisionReason"]
+                .as_str()
+                .unwrap()
+                .to_string()
+        };
+        // An agent and a fleet are told how to run its parallel work in terminals.
+        let agent = reason(false);
+        assert_eq!(agent, SPAWN_AGENTS_INSTEAD_OF_A_WORKFLOW);
+        for phrase in [
+            "Workflows are refused",
+            "spawn_agent",
+            "once per sub-agent",
+            "parallel",
+        ] {
+            assert!(agent.contains(phrase), "{phrase}: {agent}");
+        }
+        // A Manager, which has no spawn_agent, is sent to its queue, as for any sub-agent.
+        assert_eq!(reason(true), QUEUE_INSTEAD);
+        // Switched off, it runs, a Manager's too.
+        assert_eq!(pre_tool_use(&call, false, false), None);
+        assert_eq!(pre_tool_use(&call, false, true), None);
+    }
+
     /// Puts the switch back on, even when an assertion fails.
     struct TerminalsBackOn;
 
@@ -978,7 +1024,7 @@ mod tests {
 
     /// The only test that flips the global switch: `cargo test` runs tests in parallel.
     #[test]
-    fn denies_the_built_in_subagent_tool_while_subagents_open_as_terminals() {
+    fn denies_the_built_in_subagent_tool_and_workflows_while_subagents_open_as_terminals() {
         let _back_on = TerminalsBackOn;
         let (tx, rx) = mpsc::channel();
         let server = start(Arc::new(TestSink::new(tx))).unwrap();
@@ -1030,6 +1076,29 @@ mod tests {
                 QUEUE_INSTEAD
             );
         }
+        // A Workflow is denied the same way, its wording sending its parallel work to spawn_agent.
+        let workflow_denial = json!({
+            "hookSpecificOutput": {
+                "hookEventName": "PreToolUse",
+                "permissionDecision": "deny",
+                "permissionDecisionReason": SPAWN_AGENTS_INSTEAD_OF_A_WORKFLOW
+            }
+        });
+        for (status, body) in [pre("Workflow"), fleet_pre("Workflow")] {
+            assert_eq!(status, 200);
+            assert_eq!(
+                serde_json::from_str::<Value>(&body).unwrap(),
+                workflow_denial
+            );
+        }
+        let (status, body) = manager_pre("Workflow");
+        assert_eq!(status, 200);
+        let body = serde_json::from_str::<Value>(&body).unwrap();
+        assert_eq!(body["hookSpecificOutput"]["permissionDecision"], "deny");
+        assert_eq!(
+            body["hookSpecificOutput"]["permissionDecisionReason"],
+            QUEUE_INSTEAD
+        );
         let head = raw_exchange(server.port, "POST", &path, &[], call("Agent").as_bytes())
             .to_ascii_lowercase();
         assert!(
@@ -1048,9 +1117,9 @@ mod tests {
             assert_eq!(pre(tool), (204, String::new()), "{tool}");
         }
 
-        // Switched off, Claude's own sub-agents run, in sessions already started too, a fleet's included.
+        // Switched off, Claude's own sub-agents and Workflows run, in sessions already started too, a fleet's included.
         set_subagent_terminals(false);
-        for tool in ["Agent", "Task"] {
+        for tool in ["Agent", "Task", "Workflow"] {
             assert_eq!(pre(tool), (204, String::new()), "{tool}");
             assert_eq!(fleet_pre(tool), (204, String::new()), "{tool}");
             assert_eq!(manager_pre(tool), (204, String::new()), "{tool}");

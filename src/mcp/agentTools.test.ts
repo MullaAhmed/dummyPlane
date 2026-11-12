@@ -111,6 +111,12 @@ it("offers spawn_agent to every Claude session, its task required", () => {
   expect(spawn.description).toContain("3 levels");
 });
 
+it("sends an agent and the Fleet to spawn_agent rather than a Workflow, which dummyPlane refuses like the Agent/Task tool", () => {
+  const agent = agentTools().find((tool) => tool.name === "spawn_agent")!;
+  expect(agent.description).toContain("instead of the built-in Agent/Task tool or a Workflow: one call per sub-agent");
+  expect(spawnAgentSpec(true).description).toContain("instead of built-in sub-agents or a Workflow");
+});
+
 it("minimizes a spawned agent that reports its work done, its parent told all the same", () => {
   report("robin", { resume: "Tests written", statut: "termine" });
   expect(terminalOf(nodesStore.getState().nodes.robin)).toMatchObject({ minimized: true, lastReport: { status: "done", summary: "Tests written" } });
