@@ -35,9 +35,9 @@ vi.mock("@/mission/store", async (importOriginal) => ({
   workspaceCanvas: vi.fn(() => ({ frames: [], links: {} })),
 }));
 vi.mock("@/mission/folder", () => ({ missionFolder: vi.fn(() => "C:/code/project") }));
-vi.mock("./naming", () => ({ nameForNewAgent: vi.fn(() => Promise.resolve("Robin")) }));
+vi.mock("./naming", () => ({ nameForNewAgent: vi.fn(() => Promise.resolve("Robin")), pantheonForNewGroup: vi.fn(() => "norse") }));
 vi.mock("./terminals", () => ({ addTerminal: vi.fn() }));
-vi.mock("./spawnTree", () => ({ reflowSpawnTree: vi.fn(() => true) }));
+vi.mock("./spawnTree", async (importOriginal) => ({ ...(await importOriginal<typeof import("./spawnTree")>()), reflowSpawnTree: vi.fn(() => true) }));
 
 let scene: ExcalidrawElement[] = [];
 vi.mock("./sceneAccess", () => ({ sceneAccess: vi.fn(() => ({ shown: true, elements: () => scene, write: (next: readonly ExcalidrawElement[]) => (scene = [...next]) })) }));

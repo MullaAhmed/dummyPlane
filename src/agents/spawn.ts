@@ -1,6 +1,6 @@
 import { subagentSettingsStore } from "@/app/subagentSettings";
 import { FLEET_CAPABLE } from "@/fleet/capable";
-import { groupOf } from "@/canvas/groups";
+import { framesFromScene, groupOf } from "@/canvas/groups";
 import { signalWire } from "@/canvas/wireActivity";
 import { messages } from "@/i18n";
 import { readExtensionChoice } from "@/ipc/claudeExtensions";
@@ -13,19 +13,21 @@ import { oneLine } from "@/mission/mission";
 import { missionFolder } from "@/mission/folder";
 import { whenReady } from "@/mission/ready";
 import { modelLabel, readLevel } from "@/mission/router";
-import { workspaceCanvas } from "@/mission/store";
 import { newTerminalPayload } from "@/nodes/terminal/launch";
 import { freshText, quietFor } from "@/nodes/terminal/registry";
 import { MAX_STORED_TASK, type TerminalPayload } from "@/nodes/types";
-import { nodeNameOf, nodesStore, terminalOf, type NodeRecord } from "@/store/nodes";
+import { isManagerNode, nodeNameOf, nodesStore, terminalOf, type NodeRecord } from "@/store/nodes";
 import { isRunning } from "@/store/terminalStatus";
 import { quietly } from "./arrivals";
 import { NODE_GAP } from "./groupLayout";
-import { nameForNewAgent } from "./naming";
+import { agentsMessages } from "./messages";
+import { nameForNewAgent, pantheonForNewGroup } from "./naming";
 import { sceneAccess } from "./sceneAccess";
+import { fullRect } from "./selectionGroup";
 import { spawnModel, type SpawnModel } from "./spawnModel";
 import { MAX_SPAWN_DEPTH, markLaunching, spawnDepth, spawnedAtWork } from "./spawnFamily";
-import { reflowSpawnTree } from "./spawnTree";
+import { withFamilyGroup, type FamilyOptions } from "./spawnGroup";
+import { reflowSpawnTree, spawnedBy } from "./spawnTree";
 import { clip, taskSummary } from "./taskSummary";
 import { addTerminal } from "./terminals";
 import { withWire } from "./wires";
@@ -112,6 +114,16 @@ export function childPayload(parent: TerminalPayload, parentId: string, name: st
   return payload;
 }
 
+/** How a family's group is made (./spawnGroup.ts): named after the tree's root, its new agents named from `pantheon`. */
+function familyOptions(pantheon: string): FamilyOptions {
+  return {
+    label: (rootId) => messages(agentsMessages).arrival.familyGroup(nodeNameOf(nodesStore.getState().nodes[rootId])),
+    pantheon,
+    isManager: isManagerNode,
+    fullRect,
+  };
+}
+
 /** What the spawner hears about its sub-agent's model: the level that chose it, a model set aside, a level that chose nothing. */
 function modelNote(routed: SpawnModel): { why?: string; after?: string } {
   const why = routed.level && (routed.defaulted ? t().byDefault : t().byLevel(outLevel(routed.level)));
@@ -144,9 +156,12 @@ async function spawnNow(parentId: string, args: SpawnArgs): Promise<SpawnResult>
   if (!scene) return refuse(t().noCanvas);
   const element = scene.elements().find((e) => e.id === parentId && !e.isDeleted);
   if (!element) return refuse(t().gone);
-  // In its parent's group, from the group's pantheon; else beside it, from the workspace's.
-  const group = groupOf(workspaceCanvas(workspaceId).frames, parentId);
-  const name = await nameForNewAgent(workspaceId, group?.group.pantheon);
+  // In its parent's group, from the group's pantheon. Read from the scene, not the store's frames: the spawns of
+  // one turn follow one another faster than those are derived again, and a second sub-agent must find the first's group.
+  const group = groupOf(framesFromScene(scene.elements()), parentId);
+  // A parent in no group gathers its family in a group of its own (./spawnGroup.ts), whose pantheon names them; else beside it, from the workspace's.
+  const familyPantheon = !group && withFamilyGroup(scene.elements(), parentId, spawnedBy, familyOptions("")) ? pantheonForNewGroup(workspaceId) : undefined;
+  const name = await nameForNewAgent(workspaceId, group?.group.pantheon ?? familyPantheon);
   // Right of the parent, NODE_GAP apart; addTerminal then moves it clear of any neighbour.
   const center = { x: element.x + element.width * 1.5 + NODE_GAP, y: element.y + element.height / 2 };
   const payload = childPayload(parent, parentId, name, titleOf(args.title, task), undefined, task);
@@ -154,8 +169,13 @@ async function spawnNow(parentId: string, args: SpawnArgs): Promise<SpawnResult>
   const routed = spawnModel(parentId, payload.agent, { model, level });
   if (routed.needsLevel) return refuse(t().levelNotModel(routed.needsLevel));
   if (routed.model) payload.model = routed.model;
+  // The family's group, made now that nothing refuses: read again, the scene may have changed while the name was chosen
+  // (something now in its way: the sub-agent opens beside its parent). Nothing selected, scrolled to nor named: it arrives quietly too.
+  const current = familyPantheon ? sceneAccess(workspaceId) : null;
+  const family = current ? withFamilyGroup(current.elements(), parentId, spawnedBy, familyOptions(familyPantheon!)) : null;
+  if (current && family) current.write(family.elements);
   // It arrives on its own: the user may be typing, so it neither scrolls the view nor takes the keyboard.
-  const childId = await addTerminal(workspaceId, payload, center, group?.id ?? null, quietly("spawn"));
+  const childId = await addTerminal(workspaceId, payload, center, group?.id ?? family?.frameId ?? null, quietly("spawn"));
   if (!childId) return refuse(t().failed);
   markLaunching(childId, true);
   const now = sceneAccess(workspaceId);

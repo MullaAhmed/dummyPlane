@@ -3,18 +3,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mockIPC } from "@tauri-apps/api/mocks";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { subagentSettingsStore } from "@/app/subagentSettings";
+import { createGroupFrame, groupInfoOf } from "@/canvas/groups";
 import { createNodeElement } from "@/canvas/nodeElement";
 import { clearWirePulses, wireActivityStore } from "@/canvas/wireActivity";
 import { ptySendText } from "@/ipc/pty";
 import { notify } from "@/mission/events";
 import { NEW_MISSION, type Member, type Mission } from "@/mission/mission";
 import { whenReady } from "@/mission/ready";
-import { workspaceCanvas } from "@/mission/store";
 import { fleetSession } from "@/nodes/terminal/launch";
 import { MAX_STORED_TASK, type TerminalPayload } from "@/nodes/types";
 import { agentActivityStore } from "@/store/agentActivity";
 import { nodesStore, terminalOf } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
+import { quietly } from "./arrivals";
 import { nameForNewAgent } from "./naming";
 import { spawnAgent } from "./spawn";
 import { isLaunching, markLaunching, markReported, runningSpawned } from "./spawnFamily";
@@ -37,9 +38,9 @@ vi.mock("@/mission/store", async (importOriginal) => ({
 }));
 // The Fleet's workspace folder; its own session started elsewhere.
 vi.mock("@/mission/folder", () => ({ missionFolder: vi.fn(() => "C:/code/project") }));
-vi.mock("./naming", () => ({ nameForNewAgent: vi.fn(() => Promise.resolve("Robin")) }));
+vi.mock("./naming", () => ({ nameForNewAgent: vi.fn(() => Promise.resolve("Robin")), pantheonForNewGroup: vi.fn(() => "norse") }));
 vi.mock("./terminals", () => ({ addTerminal: vi.fn() }));
-vi.mock("./spawnTree", () => ({ reflowSpawnTree: vi.fn(() => true) }));
+vi.mock("./spawnTree", async (importOriginal) => ({ ...(await importOriginal<typeof import("./spawnTree")>()), reflowSpawnTree: vi.fn(() => true) }));
 
 /** The workspace's scene, as `sceneAccess` reads and writes it. */
 let scene: ExcalidrawElement[] = [];
@@ -76,10 +77,10 @@ beforeEach(async () => {
   subagentSettingsStore.setState({ terminals: true, maxSpawned: 6 });
   nodesStore.setState({ nodes: {} });
   for (const id of Object.keys(terminalStatusStore.getState().statuses)) terminalStatusStore.getState().remove(id);
-  vi.mocked(addTerminal).mockImplementation(async (_workspaceId, payload, center) => {
+  vi.mocked(addTerminal).mockImplementation(async (_workspaceId, payload, center, groupId) => {
     const id = `child${++created}`;
     await nodesStore.getState().create(id, { workspaceId: "w1", kind: "terminal", payload });
-    scene.push({ ...createNodeElement("terminal", center), id } as unknown as ExcalidrawElement);
+    scene.push({ ...createNodeElement("terminal", center), id, frameId: groupId ?? null } as unknown as ExcalidrawElement);
     running(id);
     return id;
   });
@@ -95,7 +96,8 @@ describe("spawn_agent", () => {
     expect(result.text).toContain("Robin opened beside you");
     const [workspaceId, payload, center, group, arrival] = vi.mocked(addTerminal).mock.calls[0];
     expect(workspaceId).toBe("w1");
-    expect(group).toBeNull();
+    // Its parent stands in no group: it opens in the group of its family, made for it (see "a sub-agent's group" below).
+    expect(group).toBe(scene.find((e) => e.type === "frame")!.id);
     // Nobody asked for it: the user may be typing, so it neither scrolls the view nor takes the keyboard.
     expect(arrival).toEqual({ reveal: false, source: "spawn" });
     expect(payload).toMatchObject({
@@ -163,17 +165,6 @@ describe("spawn_agent", () => {
     await vi.waitFor(() => expect(ptySendText).toHaveBeenCalledTimes(1));
     expect(notify).toHaveBeenCalledWith("batman", expect.stringContaining("dummyPlane types its task as soon as the session opens"));
     expect(notify).not.toHaveBeenCalledWith("batman", expect.stringContaining("is not ready"));
-  });
-
-  it("joins its parent's group, named from the group's pantheon", async () => {
-    vi.mocked(workspaceCanvas).mockReturnValue({
-      frames: [{ id: "g1", x: 0, y: 0, width: 10, height: 10, name: "Team", memberIds: ["batman"], group: { role: "general", pantheon: "egyptian" } }],
-      links: {},
-    } as unknown as ReturnType<typeof workspaceCanvas>);
-    await spawnAgent("batman", { task: "Do it" });
-    expect(nameForNewAgent).toHaveBeenCalledWith("w1", "egyptian");
-    expect(vi.mocked(addTerminal).mock.calls[0][3]).toBe("g1");
-    vi.mocked(workspaceCanvas).mockReturnValue({ frames: [], links: {} } as unknown as ReturnType<typeof workspaceCanvas>);
   });
 
   it("lets a sub-agent spawn its own, down to the depth limit", async () => {
@@ -253,6 +244,66 @@ describe("spawn_agent", () => {
   it("keeps the spawner's own title over its task", async () => {
     await spawnAgent("batman", { task: "You are a reviewer. Review the login diff.", title: "Login review" });
     expect(vi.mocked(addTerminal).mock.calls[0][1]).toMatchObject({ title: "Login review", task: "You are a reviewer. Review the login diff." });
+  });
+});
+
+describe("a sub-agent's group", () => {
+  const frames = () => scene.filter((e) => e.type === "frame" && !e.isDeleted);
+  const frameOf = (id: string) => scene.find((e) => e.id === id)!.frameId;
+
+  it("gathers a loose parent's family in a group of its own at its first sub-agent, named after it; the second joins it", async () => {
+    await spawnAgent("batman", { task: "One" });
+    expect(frames()).toHaveLength(1);
+    const [family] = frames();
+    expect(family).toMatchObject({ name: "Batman's sub-agents" });
+    expect(groupInfoOf(family)).toEqual({ role: "general", pantheon: "norse" });
+    // The parent is in it: the flowchart grows only its root's frame, and a group's Arrange keeps a tree whole only inside one frame.
+    expect(frameOf("batman")).toBe(family.id);
+    expect(frameOf("child1")).toBe(family.id);
+    // Its sub-agents are named from the group's own pantheon.
+    expect(nameForNewAgent).toHaveBeenLastCalledWith("w1", "norse");
+    await spawnAgent("batman", { task: "Two" });
+    expect(frames()).toHaveLength(1);
+    expect(vi.mocked(addTerminal).mock.calls[1][3]).toBe(family.id);
+    expect(frameOf("child2")).toBe(family.id);
+    expect(nameForNewAgent).toHaveBeenLastCalledWith("w1", "norse");
+    // Its sub-agent's own sub-agent joins the family too.
+    await spawnAgent("child1", { task: "Three" });
+    expect(frames()).toHaveLength(1);
+    expect(frameOf("child3")).toBe(family.id);
+    // Quietly, as before: neither the view nor the keyboard.
+    for (const call of vi.mocked(addTerminal).mock.calls) expect(call[4]).toEqual(quietly("spawn"));
+  });
+
+  it("puts a grouped parent's sub-agent in its group, named from the group's pantheon", async () => {
+    const group = createGroupFrame({ x: -400, y: -300, width: 2400, height: 1200 }, "Team", { role: "general", pantheon: "egyptian" });
+    scene = [...scene.map((e) => (e.id === "batman" ? { ...e, frameId: group.id } : e)), group as unknown as ExcalidrawElement];
+    await spawnAgent("batman", { task: "Do it" });
+    expect(nameForNewAgent).toHaveBeenCalledWith("w1", "egyptian");
+    expect(vi.mocked(addTerminal).mock.calls[0][3]).toBe(group.id);
+    expect(frames()).toEqual([group]);
+  });
+
+  it("gathers a loose tree from before in one group, named after its root, when one of its agents spawns", async () => {
+    await addNode("alfred", terminal("Alfred", { spawnedBy: "batman" }), { x: 900, y: 0 });
+    await spawnAgent("alfred", { task: "Deeper" });
+    const [family] = frames();
+    expect(family).toMatchObject({ name: "Batman's sub-agents" });
+    for (const id of ["batman", "alfred", "child1"]) expect(frameOf(id)).toBe(family.id);
+  });
+
+  it("opens beside its parent, as before, for a Fleet, a mission's Manager and a parent with no room for a frame", async () => {
+    await nodesStore.getState().create("fleet", { workspaceId: "w1", kind: "fleet", payload: { name: "Fleet", session: fleetSession("Fleet", { cwd: "C:/code", shell: "pwsh" }) } });
+    scene.push({ ...createNodeElement("fleet", { x: 0, y: 3000 }), id: "fleet" } as unknown as ExcalidrawElement);
+    running("fleet");
+    await addNode("mgr", terminal("Manager", { role: "manager", fleet: "fleet" }), { x: 6000, y: 0 });
+    running("mgr");
+    // Another agent right under Batman: a frame around him would cover it.
+    await addNode("joker", terminal("Joker"), { x: 0, y: 470 });
+    for (const parent of ["fleet", "mgr", "batman"]) await spawnAgent(parent, { task: `Help ${parent}` });
+    expect(vi.mocked(addTerminal).mock.calls.map((call) => call[3])).toEqual([null, null, null]);
+    expect(frames()).toEqual([]);
+    expect(nameForNewAgent).not.toHaveBeenCalledWith("w1", "norse");
   });
 });
 

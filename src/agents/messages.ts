@@ -272,6 +272,8 @@ export const agentsMessages = defineMessages({
       show: "Show",
       mission: (names: readonly string[], where?: string) => `${whoJoined(names)} joined the mission${where ? ` in ${where}` : ""}`,
       spawn: (names: readonly string[], where?: string) => `${whoJoined(names)} joined as ${names.length === 1 ? "a sub-agent" : "sub-agents"}${where ? ` in ${where}` : ""}`,
+      /** The group an agent in no group gathers its sub-agents in (./spawnGroup.ts), named after it. */
+      familyGroup: (parent: string) => (parent ? `${parent}'s sub-agents` : "Sub-agents"),
     },
     resumeAll: {
       title: "Resume all conversations?",
