@@ -102,7 +102,10 @@ it("leaves a terminal as it was when its report is refused: no summary, or a sta
 it("offers spawn_agent to every Claude session, its task required", () => {
   const spawn = agentTools().find((tool) => tool.name === "spawn_agent")!;
   expect(spawn.inputSchema.required).toEqual(["task"]);
-  expect(Object.keys(spawn.inputSchema.properties)).toEqual(["task", "title", "model"]);
+  expect(Object.keys(spawn.inputSchema.properties)).toEqual(["task", "title", "model", "level"]);
+  // The router's levels, as the agent writes them: low… extreme, read from the router's own table.
+  expect((spawn.inputSchema.properties as Record<string, { enum?: string[]; description: string }>).level).toMatchObject({ enum: ["low", "medium", "high", "extreme"] });
+  expect((spawn.inputSchema.properties as Record<string, { description: string }>).level.description).toContain("extreme Fable 5.2");
   expect(spawn.description).toContain("3 levels");
 });
 

@@ -18,7 +18,11 @@ With the **model router**, each sub-task's level picks the model its agent runs 
 | `low` | Claude Haiku 5.5 |
 | `medium` | Claude Sonnet 5.5 |
 | `high` | Claude Opus 5.5 |
-| `extreme` | Claude Fable 5.1 |
+| `extreme` | Claude Fable 5.2 |
+
+The router also picks the model of every sub-agent opened with `spawn_agent` under it: the sub-agents of a fleet whose router is on, of an agent on that fleet's running mission, of a terminal whose own router is on, and the sub-agents those open in turn. The switches are read each time a sub-agent opens, so turning one off stops it for everything below. A sub-agent's own switch stays off while a router above it routes what it opens.
+
+Under a router, a sub-agent takes the model of the `level` it is given, and `medium` when it is given none. A model named beside a level is set aside, and a call that names a model with no level is refused, with the levels to choose from: an agent used to asking for one model would otherwise keep every sub-agent on it. To run a sub-agent on a model of your own choosing, turn the router off or set the model in the terminal's Edit tab.
 
 The fleet and the Manager talk to dummyPlane through a local MCP server. The fleet plans with `propose_plan` and babysits with `add_tasks`, `prioritize`, `board`, `team`, `stop_mission` and `remote_control`; the Manager runs the team with `team`, `read_output`, `write`, `extend`, `interrupt`, `reassign`, `merge`, `move_card`, `finish` and `need_user`. Both can read the repository, but they are denied `Edit`, `Write`, `NotebookEdit` and `Bash`: the agents write the code. A Codex fleet and its Manager run in Codex's read-only sandbox with approvals off, and get none of your own MCP servers, plugins or browser tools; `remote_control` is Claude's only. A mission launched before the Manager existed is run to its end by its fleet, the old way.
 

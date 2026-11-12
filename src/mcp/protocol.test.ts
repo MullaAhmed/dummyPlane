@@ -18,6 +18,8 @@ it("maps the English tool names and arguments to the internal ones", () => {
     name: "add_tasks",
     args: { tasks: [{ titre: "T", consigne: "B", budget_min: 5, niveau: "eleve", groupe: "Front" }] },
   });
+  expect(internalCall("spawn_agent", { task: "T", level: "low", model: "opus" })).toEqual({ name: "spawn_agent", args: { task: "T", niveau: "faible", model: "opus" } });
+  expect(internalCall("spawn_agent", { task: "T" })).toEqual({ name: "spawn_agent", args: { task: "T" } });
   expect(internalCall("queue", {}).name).toBe("queue");
   expect(internalCall("next_task", { agent: "Batman" })).toEqual({ name: "next_task", args: { agent: "Batman" } });
   expect(internalCall("reassign", { subtask: "Login", agent: "new" })).toEqual({ name: "reattribuer", args: { sous_tache: "Login", agent: "nouveau" } });

@@ -13,9 +13,14 @@ dummyPlane's first release will be 0.1.0; until then, its changes are listed und
   - **Arrange layout:** a new submenu under *Auto-arrange* in Settings. Pick *Grid* (the tidy grid, still the default), *One row*, *One column*, or *2*, *3* or *4 columns*. Arrange, a group's Arrange and Auto-arrange all use it, and inside a group its terminals take the same shape. With Auto-arrange on, picking a layout re-arranges the canvas at once, and one undo takes it back.
   - **Arrange the whole canvas** and **Arrange the selection:** two new commands in the palette, next to *Arrange*. The first arranges everything, whatever is selected. The second arranges only what is selected, never the whole canvas, and is greyed out while nothing is selected.
 
+### Changed
+- **The model router's `extreme` level runs Claude Fable 5.2,** the Fable the Edit tab offers, instead of Fable 5.1. The router's levels and the Edit tab's models now come from one table. A terminal still on an older Claude model names it by family and version, for example "Fable 5.1".
+
 ### Fixed
 - **A group's Arrange makes room:** with a layout that changes a group's shape (*One row* turns a column of terminals into one long row), the group's frame grew where it stood and covered the nodes, notes, outputs and groups beside it. Now what it grows over moves out of its way: what stood to its right goes right, what stood under it goes down, clear of it and with what is attached to it, and pushes on whatever it lands on in turn. What the frame doesn't reach stays put, it all takes one undo, and arranging again moves nothing.
 - **Arranging a selection makes room too:** a selection laid out (in one row, say) no longer lands on what was left unselected. What it covers moves out of its way the same way. Arranging the whole canvas, and Auto-arrange, lay every block out, so nothing there ends up on top of anything else.
+- **The model router now picks the model of sub-agents opened with `spawn_agent`.** Before, a Fleet with its router on still opened every `spawn_agent` sub-agent on the model it named, or on your own default model when it named none. With the router on, the model now comes from the sub-agent's new `level` (`low`, `medium`, `high` or `extreme`), and is `medium` when no level is given. A call that names a model with no level is refused and asks for a level, so an agent that always asks for Opus no longer gets it by habit; a model named beside a level is set aside. The tool's answer says which model the sub-agent got, and why. With the router off, nothing changes.
+- **The model router reaches the whole spawn tree.** A router that is on routes the sub-agents of the sub-agents too, and a fleet's router routes the sub-agents its mission's agents open. Before, only the fleet's or the terminal's direct sub-agents were routed, and theirs ran on your default model. The switches are read at each spawn; a sub-agent's own switch stays off.
 
 ## [0.1.0] - 2026-11-12
 

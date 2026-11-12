@@ -283,7 +283,7 @@ describe("the fleet's tools", () => {
       router: true,
       plan: [
         { level: "low", model: "Haiku 5.5" },
-        { level: "extreme", model: "Fable 5.1" },
+        { level: "extreme", model: "Fable 5.2" },
       ],
     });
     setMission("chef", { router: undefined });

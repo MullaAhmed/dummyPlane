@@ -27,16 +27,22 @@ export const agentMessages = defineMessages({
         "Delegate a task to a sub-agent that opens as a new Claude terminal beside yours, in your folder (same worktree): the user can watch it and type into it. " +
         "Use it instead of the built-in Agent/Task tool, several calls to work in parallel. It returns at once: do not wait or poll. " +
         "When the sub-agent is done it calls report, and its summary is typed into your terminal as \"[dummyPlane] <name> reported (<status>): <summary>\". " +
+        "Give level on every call, the difficulty of this task: when a model router is on for you (the user's switch on your terminal, or on the Fleet or the agent you work under), it picks the sub-agent's model, and a model named with no level is refused. " +
         `A sub-agent can spawn its own, ${depth} levels below a top agent at most; the number running at once is capped by a setting.`,
       fleetSpawnAgent: (depth: number) =>
         "For ad-hoc work outside your mission's queue (a lookup, a check, a one-off task): a sub-agent opens as a new terminal beside you, in your workspace's folder, running your CLI. " +
         "It is a regular agent, not a manager: it edits files and runs commands, with the user's usual permissions (overnight, what the night lets the team do). The user can watch it and type into it. " +
         "A mission's work still goes through propose_plan or add_tasks. Use it instead of built-in sub-agents. It returns at once: do not wait or poll. " +
         "When the sub-agent is done it calls report, and its summary is typed into your terminal as \"[dummyPlane] <name> reported (<status>): <summary>\"; it is not on your team: no merge, reassign or next_task for it. " +
+        "Give level on every call, the difficulty of this task: with your model router on (mission: router), it picks the sub-agent's model as a sub-task's level does, and a model named with no level is refused. " +
         `A sub-agent can spawn its own, ${depth} levels below you at most; the number running at once is capped by a setting.`,
       spawnTask: "The complete instructions: the sub-agent starts from nothing and knows only this.",
       spawnTitle: "A short title for its terminal.",
-      spawnModel: "Optional Claude model (opus, sonnet, haiku, or a model id); by default Claude's own.",
+      spawnModel:
+        "Optional Claude model (opus, sonnet, haiku, or a model id); by default Claude's own. Only for when no model router is on for you: with one on, level chooses the model, and a model with no level is refused.",
+      spawnLevel:
+        "The difficulty of this task; give it on every call. Rate the task, not the model you would like: medium suits most work, low a lookup or a mechanical change, high a hard design or debugging problem, extreme only the hardest. " +
+        `When a model router is on for you (the user's switch on your terminal, or on the Fleet or the agent you work under; you cannot see it), it chooses the sub-agent's model: ${ROUTER_LEVELS}; medium when you give no level. With no router on it changes nothing.`,
       linkedAgents:
         "The agents linked to yours by a wire on the canvas (the user draws one with \"+ Link\" under a terminal; spawn_agent's wire to a sub-agent counts too) and, in a mission its Manager runs, your Manager and your teammates, and the Fleet the user linked you to (relation \"fleet\": message_agent reaches it, hand_off hands it a task, read_agent does not read it): name, id, state and relation. Only these can be messaged or read; the first message to one with no wire draws one.",
       messageAgent:
@@ -81,7 +87,7 @@ export const agentMessages = defineMessages({
         "Answers where the task went, or why it was not taken.",
       handOffBrief: "The complete instructions: the agent that takes the task starts from nothing and knows only this.",
       handOffBudget: "Minutes the agent gets (a whole number, 1 at least): 30 by default, less if the night is shorter.",
-      handOffLevel: "Difficulty. With the Fleet's model router on, it chooses the agent's model (low Haiku 5.5, medium Sonnet 5.5, high Opus 5.5, extreme Fable 5.1); medium by default.",
+      handOffLevel: `Difficulty. With the Fleet's model router on, it chooses the agent's model (${ROUTER_LEVELS}); medium by default.`,
       handOffFleet: "Only when several Fleets are linked to you: the Fleet's name (or its id), as linked_agents gives it.",
       finishCheck: "What the user will have to check by hand: it tops the morning report.",
       mission: "Fleet and Manager. The mission: state, name, task, who runs it (runs: \"manager\" once the go-ahead put a board and its Manager beside the Fleet, \"fleet\" for a mission launched before Managers existed), the Manager's name and the board's id, maximum number of agents working at once (max_agents) and how many are (active_agents), model router, branch, plan, the linked Claude agents available and the linked groups, with each one's group and speciality; overnight, the time the user is away (away_min) and what is left of it (left_min).",
@@ -140,6 +146,7 @@ export const agentMessages = defineMessages({
     spawn: {
       task: "Give the sub-agent its task (task): the complete instructions.",
       model: (model: string) => `Unknown model "${model}": opus, sonnet, haiku, or a model id.`,
+      level: (level: string) => `Unknown level "${level}": low, medium, high or extreme.`,
       gone: "Your terminal is no longer on the canvas.",
       noCanvas: "Your workspace's canvas is not loaded: open it in dummyPlane, then try again.",
       tooDeep: (max: number) => `Too deep: a sub-agent can only be spawned ${max} levels below a top agent. Do this task yourself.`,
@@ -147,7 +154,17 @@ export const agentMessages = defineMessages({
         `${plural(running, "sub-agent is", "sub-agents are")} already running, the most at once is ${max} (dummyPlane's Settings). Wait for one to report, or do this task yourself.`,
       failed: "The sub-agent's terminal could not be created.",
       duplicate: (who: Holder) => `${holder(who)} Message or read that agent instead of starting another.`,
-      spawned: (name: string) => `${name} opened beside you and gets the task as soon as its Claude is ready. Its report will be typed into your terminal: carry on, do not wait for it.`,
+      levelNotModel: (model: string) =>
+        `Not opened: a model router is on for you, and it chooses your sub-agents' models from level, so model "${model}" is not taken. Call again with level, the difficulty of this task, instead of model: ${ROUTER_LEVELS}. ` +
+        "Rate the task, not the model you wanted: medium suits most work, low a lookup or a mechanical change, high a hard design or debugging problem, extreme only the hardest.",
+      /** Why the sub-agent runs its model, in the answer's brackets. */
+      byLevel: (level: string) => `the model router's ${level} level`,
+      byDefault: "the model router's medium level, as you gave no level: give level on every call, the difficulty of the task",
+      /** After the answer's first sentence: a model named beside a level, a level given with no router on. */
+      modelDropped: (model: string) => `The model you named (${model}) was set aside: with a model router on, level chooses.`,
+      levelUnused: "No model router chose this sub-agent's model, so level did nothing.",
+      spawned: (name: string, model?: string, note: { why?: string; after?: string } = {}) =>
+        `${name} opened beside you${model ? ` on ${model}${note.why ? ` (${note.why})` : ""}` : ""} and gets the task as soon as its Claude is ready.${note.after ? ` ${note.after}` : ""} Its report will be typed into your terminal: carry on, do not wait for it.`,
       brief: (parent: string, task: string) =>
         `[dummyPlane · sub-agent of ${parent}] ${task}\n\nWhen you are done, commit if you changed files, then call report (summary, status): ${parent} reads it.`,
       notStarted: (name: string) => `${name} did not start: its task is not sent.`,
