@@ -879,6 +879,99 @@ it("keeps the saved folder when Claude names it spelled otherwise: no second rea
   expect(listCalls).toEqual([{ cwd: "D:/work/api", configDir: null }]);
 });
 
+// Under a list read from the folder Claude runs in: a change is kept on the terminal, by name, for its next launch.
+const liveChoice = () => host.querySelectorAll("[data-live-choice]");
+const buttonNamed = (text: string) => [...host.querySelectorAll("button")].find((b) => b.textContent === text);
+
+it("says once, under the lists of the folder Claude runs in, that changes are for the next launch in the saved folder", async () => {
+  serveExtensions();
+  terminalStatusStore.getState().set("t1", { state: "running" });
+  usageStore.setState({ sessions: { s1: reported({ folder: "D:/work/wt/upload" }) } });
+  await mountTerminal(terminal());
+  await openTab("Skills");
+  expect(liveChoice()).toHaveLength(1);
+  expect(liveChoice()[0].textContent).toBe("Saved by name for the next launch, which starts in api: only items of the same name change there");
+  expect(liveChoice()[0].getAttribute("title")).toBe("D:/work/api");
+  // Not on a row: once, under the list.
+  expect(host.querySelector("[data-extension='commit'] [data-live-choice]")).toBeNull();
+  // Not "when the terminal restarts": a restart starts in api, not where Claude runs.
+  expect(host.textContent).not.toContain("Changes apply when the terminal restarts");
+
+  // A switch is kept on the terminal, by name; the restart it offers starts in api, and the line stays.
+  await act(async () => checkbox("commit")!.click());
+  expect(payloadOf().extensions).toEqual({ skillsOff: ["commit"] });
+  expect(host.textContent).toContain("Running with the old choices");
+  expect(liveChoice()).toHaveLength(1);
+  expect(buttonNamed("Restart in api")).toBeDefined();
+  expect(restartNow()).toBeUndefined();
+  await openTab("Plugins");
+  expect(liveChoice()).toHaveLength(1);
+
+  // Claude leaves its shell: the lists are the saved folder's again, and the line is the usual one.
+  await act(async () => agentActivityStore.setState({ activities: { t1: { activity: "idle", since: Date.now(), left: true } } }));
+  await settle();
+  expect(liveChoice()).toHaveLength(0);
+  expect(restartNow()).toBeDefined();
+});
+
+it("keeps the usual line under the lists while Claude runs in the saved folder", async () => {
+  serveExtensions();
+  terminalStatusStore.getState().set("t1", { state: "running" });
+  usageStore.setState({ sessions: { s1: reported({ folder: "D:/work/api" }) } });
+  await mountTerminal(terminal());
+  await openTab("Skills");
+  expect(liveChoice()).toHaveLength(0);
+  expect(host.textContent).toContain("Changes apply when the terminal restarts");
+});
+
+// "Make upload this terminal's folder": the folder a `claude` started by hand runs in becomes the terminal's own.
+const OWN_CONVERSATION = "0b9c4b5e-6f1a-4c39-9d2e-8f6c2d1a7e10";
+const HAND_STARTED = "6c1f0e2a-3b4d-4e5f-8a9b-0c1d2e3f4a5b";
+const adoptButton = () => buttonNamed("Make upload this terminal's folder");
+
+it("makes the folder Claude runs in the terminal's own, on the conversation it runs there, with nothing left to restart", async () => {
+  const info = vi.spyOn(toast, "info");
+  terminalStatusStore.getState().set("t1", { state: "running" });
+  usageStore.setState({ sessions: { [HAND_STARTED]: reported({ sessionId: HAND_STARTED, folder: "D:/work/wt/upload" }) } });
+  await mountTerminal(started(terminal({ title: "Claude · api", claudeSessionId: OWN_CONVERSATION })));
+  expect(runningNote()?.textContent).toBe("Claude is running in upload");
+  expect(adoptButton()?.getAttribute("title")).toBe("D:/work/wt/upload");
+  await act(async () => adoptButton()!.click());
+  // Its default title follows the folder; the conversation is the one Claude runs, never a new one.
+  expect(payloadOf()).toMatchObject({ cwd: "D:/work/wt/upload", title: "Claude · upload", claudeSessionId: HAND_STARTED });
+  // Its running Claude's launch, in the folder it runs in: no restart is offered for the folder.
+  expect(payloadOf().launched).toEqual({ ...launchSettingsOf(terminal()), cwd: "D:/work/wt/upload" });
+  expect(host.querySelector("[data-folder]")?.textContent).toBe("D:/work/wt/upload");
+  expect(runningNote()).toBeNull();
+  expect(adoptButton()).toBeUndefined();
+  expect(host.querySelector("[data-folder-move]")).toBeNull();
+  expect(restartNow()).toBeUndefined();
+  expect(host.textContent).not.toContain("Running with the old launch settings");
+  expect(info).toHaveBeenCalledWith("upload is this terminal's folder now: its next launch resumes the conversation running there");
+  // Nothing restarted: Claude goes on where it runs.
+  expect(resumeTerminal).not.toHaveBeenCalled();
+  info.mockRestore();
+});
+
+it("keeps the terminal's own conversation, and a title the user gave, when Claude runs that one in the other folder", async () => {
+  terminalStatusStore.getState().set("t1", { state: "running" });
+  usageStore.setState({ sessions: { [OWN_CONVERSATION]: reported({ sessionId: OWN_CONVERSATION, folder: "D:/work/wt/upload" }) } });
+  await mountTerminal(started(terminal({ claudeSessionId: OWN_CONVERSATION })));
+  await act(async () => adoptButton()!.click());
+  expect(payloadOf()).toMatchObject({ cwd: "D:/work/wt/upload", title: "Batman · api", claudeSessionId: OWN_CONVERSATION });
+  expect(runningNote()).toBeNull();
+});
+
+it("offers no adoption for a fixed folder", async () => {
+  terminalStatusStore.getState().set("t1", { state: "running" });
+  usageStore.setState({ sessions: { s1: reported({ folder: "D:/work/wt/upload" }) } });
+  await mountTerminal(terminal({ cwd: "D:/wt/batman" }));
+  expect(adoptButton()).toBeDefined();
+  await inMission("en_cours");
+  expect(runningNote()?.textContent).toBe("Claude is running in upload");
+  expect(adoptButton()).toBeUndefined();
+});
+
 it("turns a skill off for this terminal alone, and a plugin the user's settings leave off on", async () => {
   serveExtensions();
   await mountTerminal(terminal());

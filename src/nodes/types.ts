@@ -72,6 +72,8 @@ export interface TerminalPayload {
    * The launch settings its latest process started with, kept when it starts (`startSession`). Its process outlives
    * a webview reload, so this is stored with the node: while it runs, a setting changed since (its folder above all)
    * is still offered a restart after a reload. Read only while it runs: a stopped terminal starts with what is stored.
+   * Its folder is where its Claude runs: a folder that a `claude` started by hand runs in, made the terminal's
+   * (`folderAdoption`), is written here too, so no restart is offered to take it there.
    */
   launched?: LaunchSettings;
 }

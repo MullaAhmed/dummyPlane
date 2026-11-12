@@ -5,8 +5,8 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import type { TerminalPayload } from "@/nodes/types";
 import { nodesStore, terminalOf } from "@/store/nodes";
-import { folderChange } from "./folder";
-import { buildSpawnSpec, defaultTitle } from "./launch";
+import { folderAdoption, folderChange } from "./folder";
+import { buildSpawnSpec, defaultTitle, launchSettingsOf } from "./launch";
 import { TerminalOptionsDialog } from "./TerminalOptionsDialog";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -32,6 +32,38 @@ it("renames a terminal still named after its old folder, so its new conversation
   const spec = buildSpawnSpec({ ...before, ...change }, "new");
   expect(spec.cwd).toBe("D:\\work\\web");
   expect(spec.claude?.title).toBe("Claude · web");
+});
+
+// The folder a `claude` started by hand runs in, made the terminal's: its conversation goes with it, nothing new starts.
+const HAND_STARTED = "6c1f0e2a-3b4d-4e5f-8a9b-0c1d2e3f4a5b";
+
+it("takes the folder Claude runs in by hand with the conversation it runs, and keeps the steps and the report", () => {
+  const before = claudeIn("D:/work/api", { steps: [{ title: "Plan", state: "fait" }], lastReport: { status: "done", summary: "Done" } });
+  const running = { ...before, launched: launchSettingsOf(before) };
+  // As Claude's status line names it on Windows.
+  const adoption = folderAdoption(running, "D:\\work\\upload", HAND_STARTED);
+  expect(adoption).toEqual({
+    cwd: "D:\\work\\upload",
+    title: "Claude · upload",
+    claudeSessionId: HAND_STARTED,
+    launched: { ...launchSettingsOf(before), cwd: "D:\\work\\upload" },
+  });
+  // Its next launch resumes that conversation there.
+  const spec = buildSpawnSpec({ ...running, ...adoption }, "resume");
+  expect(spec.cwd).toBe("D:\\work\\upload");
+  expect(spec.claude).toMatchObject({ mode: "resume", sessionId: HAND_STARTED });
+});
+
+it("keeps the terminal's own conversation, writes no launch it never had, and changes nothing in its own folder", () => {
+  const before = claudeIn("D:/work/api", { title: "Fix login" });
+  expect(folderAdoption(before, "D:/work/upload", before.claudeSessionId!)).toEqual({ cwd: "D:/work/upload" });
+  expect(folderAdoption(before, "d:\\Work\\API\\", HAND_STARTED)).toBeNull();
+});
+
+it("gives a fresh id rather than one no launch could take", () => {
+  const adoption = folderAdoption(claudeIn("D:/work/api"), "D:/work/upload", "not-an-id; rm -rf /");
+  expect(adoption?.claudeSessionId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+  expect(adoption?.claudeSessionId).not.toBe(claudeIn("D:/work/api").claudeSessionId);
 });
 
 it("renames another agent named after its folder the same way", () => {

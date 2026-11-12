@@ -112,8 +112,17 @@ export const folderName = (cwd: string) => cwd.split(/[\\/]/).filter(Boolean).po
  * One kind's list in the edit panel of a Claude terminal, or of a Fleet (its
  * session's, nested in the node): its items, each on or off for it alone, or
  * fixed and saying why. dummyPlane's own MCP server is one row (`withoutOwnServer`).
+ * `cwd` is the folder the lists come from; `saved`, the terminal's own when that is another one (useClaudeFolder).
  */
-export function ExtensionList(props: { nodeId: string; kind: ExtensionKind; cwd: string; choice: ExtensionChoice | undefined; lists: ExtensionLists; onRetry: () => void }) {
+export function ExtensionList(props: {
+  nodeId: string;
+  kind: ExtensionKind;
+  cwd: string;
+  saved: string | null;
+  choice: ExtensionChoice | undefined;
+  lists: ExtensionLists;
+  onRetry: () => void;
+}) {
   const { nodeId, kind, lists } = props;
   const t = useMessages(canvasMessages);
   const s = t.selection;
@@ -204,7 +213,7 @@ export function ExtensionList(props: { nodeId: string; kind: ExtensionKind; cwd:
         </ul>
       )}
       {unlisted}
-      <RestartLine nodeId={nodeId} choice={props.choice} />
+      <RestartLine nodeId={nodeId} choice={props.choice} saved={props.saved} />
     </div>
   );
 }
@@ -355,8 +364,13 @@ function ExtensionRow(props: { item: ExtensionItem; on: boolean; locked: boolean
   );
 }
 
-/** Under a list: when a change applies, and, for a running terminal whose session started with another choice, restarting it now. */
-function RestartLine({ nodeId, choice }: { nodeId: string; choice: ExtensionChoice | undefined }) {
+/**
+ * Under a list: when a change applies, and, for a running terminal whose session started with another choice,
+ * restarting it now. While the lists are another folder's than the saved one (`saved`, a `claude` started by hand
+ * elsewhere), it says, once and before any restart is offered, that a change is kept by name for the next launch in
+ * the saved folder; the restart is named after that folder, where it starts.
+ */
+function RestartLine({ nodeId, choice, saved }: { nodeId: string; choice: ExtensionChoice | undefined; saved: string | null }) {
   const t = useMessages(canvasMessages).selection;
   const pending = useRestartPending(nodeId, choice);
   const fleet = useNodes((state) => state.nodes[nodeId]?.kind === "fleet");
@@ -364,16 +378,33 @@ function RestartLine({ nodeId, choice }: { nodeId: string; choice: ExtensionChoi
     forgetStartedChoice(nodeId);
     resumeTerminal(nodeId);
   };
+  const offer = pending && (
+    <Button type="button" variant="secondary" size="sm" onMouseDown={keepCanvasFocus} onClick={restart} className="text-xs font-normal text-dp-text-2 hover:text-dp-text">
+      <RotateCw className="size-3.5" />
+      {saved ? t.restartIn(folderName(saved)) : t.restartNow}
+    </Button>
+  );
+  if (saved) {
+    // The note wraps, whole: it is the one place a list says where its changes go.
+    return (
+      <div className="flex shrink-0 flex-col gap-1 border-t border-dp-line pt-2">
+        <p data-live-choice title={saved} className="text-xs leading-4 text-dp-text-3">
+          {t.liveChoice(folderName(saved))}
+        </p>
+        {pending && (
+          <div className="flex items-center justify-between gap-3">
+            <p className="min-w-0 truncate text-xs leading-7 text-dp-text-3">{t.runningOldChoice}</p>
+            {offer}
+          </div>
+        )}
+      </div>
+    );
+  }
   // One line either way, as tall as the button (leading-7): beside it, the shorter note fits the panel's width.
   return (
     <div className="flex shrink-0 items-center justify-between gap-3 border-t border-dp-line pt-2">
       <p className="min-w-0 truncate text-xs leading-7 text-dp-text-3">{pending ? t.runningOldChoice : fleet ? t.appliesOnRestartFleet : t.appliesOnRestart}</p>
-      {pending && (
-        <Button type="button" variant="secondary" size="sm" onMouseDown={keepCanvasFocus} onClick={restart} className="text-xs font-normal text-dp-text-2 hover:text-dp-text">
-          <RotateCw className="size-3.5" />
-          {t.restartNow}
-        </Button>
-      )}
+      {offer}
     </div>
   );
 }
