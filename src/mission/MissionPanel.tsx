@@ -26,17 +26,17 @@ import { openReview } from "@/review/reviewStore";
 import { uiStore, useUi } from "@/store/ui";
 import { confirmAction } from "@/components/confirm";
 import { cleanMission, launchMission } from "./launch";
-import { teamAgent } from "./teamModel";
+import { subTaskModel } from "./teamModel";
 import { stopMission } from "./stop";
-import { budgetBar, budgetOf, MAX_AGENTS, memberTime, nightMin, remainingGlobal, type Mission, type MissionState, type Report } from "./mission";
+import { budgetBar, budgetOf, MAX_AGENTS, memberTime, nightMin, remainingGlobal, type Mission, type MissionState, type Report, type SubTask } from "./mission";
 import { missionMessages } from "./messages";
 import { morningShown } from "./morning";
 import { NightSummary } from "./NightSummary";
 import { MorningReportView } from "./MorningReportView";
 import { OvernightDialog } from "./OvernightDialog";
 import { useModelRouter } from "@/app/modelRouterSetting";
-import { levelModel, modelLabel, type Level } from "./router";
-import { missionRouterOn, setRouter, useRouterOn } from "./routerState";
+import { modelLabel } from "./router";
+import { followRouter, setRouter, useRouterFollow, useRouterOn } from "./routerState";
 import { agentState, missionOf, setMission } from "./store";
 
 /** A number field of the panel: shadcn's Input at the panel's density, its figures aligned. */
@@ -171,6 +171,7 @@ function Setup({ nodeId, mission }: { nodeId: string; mission: Mission }) {
 function RouterRow({ nodeId }: { nodeId: string }) {
   const t = useMessages(missionMessages);
   const on = useRouterOn(nodeId);
+  const follow = useRouterFollow(nodeId);
   const router = useId();
   return (
     <div className="flex h-7 items-center gap-2">
@@ -187,6 +188,12 @@ function RouterRow({ nodeId }: { nodeId: string }) {
           {t.routerLabel}
         </label>
       </Hint>
+      {/* Only while the Fleet's switch is set: it unsets it, the mission follows Settings again. */}
+      {follow && (
+        <Button type="button" variant="ghost" size="xs" onClick={() => followRouter(nodeId)} className={cn(LINE_ACTION, "ml-auto")}>
+          {t.routerFollow[follow]}
+        </Button>
+      )}
     </div>
   );
 }
@@ -268,17 +275,21 @@ function NightButton({ nodeId }: { nodeId: string }) {
   );
 }
 
+/**
+ * The model a sub-task's agent starts on at the go-ahead (`subTaskModel`): a linked agent's as its switch and model
+ * stand, a new agent's as the mission's router does, Claude's levels or Settings' for a Codex team. It follows
+ * Settings and the switches as they change.
+ */
+function TaskModel({ nodeId, mission, task }: { nodeId: string; mission: Mission; task: SubTask }) {
+  useModelRouter((s) => s.on);
+  useModelRouter((s) => s.levels);
+  const model = useNodes(() => subTaskModel(nodeId, mission, task));
+  return model ? <>{` · ${modelLabel(model)}`}</> : null;
+}
+
 function Plan({ nodeId, mission }: { nodeId: string; mission: Mission }) {
   const t = useMessages(missionMessages);
   const plan = mission.plan ?? [];
-  // The model each level picks for this team, with the mission's router on: Claude's, or Settings' for a Codex team.
-  const routed = useModelRouter((s) => missionRouterOn(mission, s.on));
-  const levels = useModelRouter((s) => s.levels);
-  const cli = teamAgent(nodeId);
-  const modelOf = (level: Level) => {
-    const model = routed ? levelModel(cli, level, levels) : undefined;
-    return model ? ` · ${modelLabel(model)}` : "";
-  };
   return (
     <div className="flex flex-col gap-2">
       {mission.task && <GeneratedText text={mission.task} compact />}
@@ -290,7 +301,7 @@ function Plan({ nodeId, mission }: { nodeId: string; mission: Mission }) {
               {task.level && (
                 <span className="shrink-0 text-dp-text-3">
                   {t.level[task.level]}
-                  {modelOf(task.level)}
+                  <TaskModel nodeId={nodeId} mission={mission} task={task} />
                 </span>
               )}
               <span className="ml-auto shrink-0 font-mono text-dp-text-3 tabular-nums">

@@ -5,7 +5,7 @@ import { messages } from "@/i18n";
 import { ptySendText } from "@/ipc/pty";
 import { missionFolder } from "@/mission/folder";
 import { deliveryPending, endMission, launchMission, mergeMission, reassignTask } from "@/mission/launch";
-import { levelsRequired, teamAgent } from "@/mission/teamModel";
+import { levelsRequired, subTaskModel, teamAgent } from "@/mission/teamModel";
 import { budgetOf, memberTime, NEW_AGENT, nightMin, oneLine, proposedPlan, proposedTasks, remainingGlobal, sameName, spentMin, type Member, type Mission, type QueuedTask } from "@/mission/mission";
 import { activeCount } from "@/mission/active";
 import { stopMission } from "@/mission/stop";
@@ -235,11 +235,11 @@ function memberNamed(mission: Mission, raw: unknown): Member | string {
   return mission.members.find((m) => sameName(m.name, name)) ?? t().fleet.notMember(name);
 }
 
-/** The model a sub-task's agent has, once one holds it; before, the one its level picks on the team's CLI with the router on. */
-function modelOfSubTask(fleetId: string, mission: Mission, subtask: { title: string; level?: Level }): string | null {
+/** The model a sub-task's agent has, once one holds it; before, the one the go-ahead will give it, a linked agent's included (`subTaskModel`). */
+function modelOfSubTask(fleetId: string, mission: Mission, subtask: { title: string; agent: string; level?: Level }): string | null {
   const holder = mission.members.find((m) => !m.handedTo && m.task === subtask.title);
   if (holder) return holder.model ? modelLabel(holder.model) : null;
-  const model = missionRouterOn(mission) && subtask.level ? levelModel(teamAgent(fleetId), subtask.level, modelRouterStore.getState().levels) : undefined;
+  const model = subTaskModel(fleetId, mission, subtask);
   return model ? modelLabel(model) : null;
 }
 

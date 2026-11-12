@@ -36,7 +36,9 @@ describe("a mission's team under the model router", () => {
 
   it("lets a linked agent's own switch, when set, decide for it, and keeps its model where no level picks one", () => {
     expect(teamModel("fleet", mission(false), { level: "eleve" }, linked({ router: true }))).toBe("claude-opus-5-5");
-    expect(teamModel("fleet", mission(true), { level: "eleve" }, linked({ router: false, model: "opus" }))).toBeUndefined();
+    // Off for it: it keeps the model it has, whatever the mission's router says.
+    expect(teamModel("fleet", mission(true), { level: "eleve" }, linked({ router: false, model: "opus" }))).toBe("opus");
+    expect(teamModel("fleet", mission(true), { level: "eleve" }, linked({ router: false }))).toBeUndefined();
     expect(teamModel("fleet", mission(), { level: "eleve" }, linked())).toBe("claude-opus-5-5");
     expect(teamModel("fleet", mission(), {}, linked({ model: "claude-haiku-5-5" }))).toBe("claude-haiku-5-5");
   });

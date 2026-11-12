@@ -23,9 +23,11 @@ export const missionMessages = defineMessages({
     maxAgents: "Max active agents",
     maxAgentsHint: "The most agents working at once",
     routerLabel: "Model router",
-    routerTitle: `Each agent takes the model of its sub-task's level: ${ROUTER_LEVELS}; on Codex, the models set in Settings. It follows Settings' Model router until you set it here`,
+    routerTitle: `Each agent takes the model of its sub-task's level: ${ROUTER_LEVELS}; on Codex, the models set in Settings. Unset, it follows Settings' Model router; turned on or off here, it stays so until Follow Settings`,
     // The switch beside a header's chips: its name stays, its state is aria-pressed's.
     routerSwitch: "Model router",
+    // Beside a switch the user set, on or off: unsets it, so it follows Settings again, or the Fleet's or spawner's switch above it.
+    routerFollow: { settings: "Follow Settings", above: "Follow the switch above" },
     linked: (count: number) => plural(count, "agent linked", "agents linked"),
     done: "Done",
     link: "Link",

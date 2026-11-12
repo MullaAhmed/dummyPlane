@@ -4,7 +4,8 @@ import { MAX_SPAWN_DEPTH } from "@/agents/spawnFamily";
 import { FLEET_CAPABLE } from "@/fleet/capable";
 import { MANAGER_ROLE, type AgentId } from "@/ipc/pty";
 import { nodesStore, terminalOf, useNodes, type NodeRecord } from "@/store/nodes";
-import { memberOf, missionOf, setMission } from "./store";
+import { NEW_AGENT, sameName } from "./mission";
+import { linkedTeamAgents, memberOf, missionOf, setMission } from "./store";
 
 /**
  * Whether the model router is on at a node, and what decided it. The global setting ("Model router" in Settings)
@@ -13,6 +14,10 @@ import { memberOf, missionOf, setMission } from "./store";
  * then its spawner's, up the spawn tree. A switch left unset never vetoes anything above it, as a team agent's
  * unset switch never vetoed its mission's; one set off does, for its node and all that node spawns. Read at each
  * spawn, never copied into a child: turning a switch over changes what its whole tree spawns next.
+ *
+ * A Fleet's switch reaches a linked agent, or an agent of a linked group, only while it works for the mission:
+ * from the plan that names it until the go-ahead, then while the mission runs with its sub-task sent (`memberOf`).
+ * Before it is named, and once the mission is over, the agent follows its own switch, its spawner's and Settings.
  */
 export interface RouterState {
   on: boolean;
@@ -29,12 +34,28 @@ function ownSwitch(nodes: Nodes, nodeId: string): boolean | undefined {
   return terminalOf(record)?.router;
 }
 
-/** The Fleet whose mission a terminal works for: its Manager's Fleet, or the running mission it is an agent of. */
+/**
+ * The Fleet whose mission a terminal works for: its Manager's Fleet, the running mission it is an agent of, or a
+ * pending plan (before or during its go-ahead) that gives it, a linked agent, a sub-task. So what its switch shows
+ * before the go-ahead is what the go-ahead applies (`./teamModel`).
+ */
 function fleetOver(nodes: Nodes, nodeId: string): string | undefined {
   const payload = terminalOf(nodes[nodeId]);
   if (!payload) return undefined;
   if (payload.role === MANAGER_ROLE && payload.fleet) return payload.fleet;
-  return memberOf(nodeId)?.fleetId;
+  return memberOf(nodeId)?.fleetId ?? planningFleet(nodes, nodeId, payload.name);
+}
+
+/** The Fleet whose pending plan names this linked agent, read from the plan's names then its Fleet's wires. */
+function planningFleet(nodes: Nodes, nodeId: string, name: string): string | undefined {
+  if (!name) return undefined;
+  for (const [fleetId, record] of Object.entries(nodes)) {
+    const mission = missionOf(record);
+    if (mission?.state !== "plan" && mission?.state !== "lancement") continue;
+    if (!mission.plan?.some((task) => task.agent !== NEW_AGENT && sameName(task.agent, name))) continue;
+    if (linkedTeamAgents(fleetId).some((agent) => agent.nodeId === nodeId)) return fleetId;
+  }
+  return undefined;
 }
 
 /** The Fleet's switch over a terminal that works for its mission, when set. */
@@ -78,21 +99,38 @@ export function missionRouterOn(mission: { router?: boolean }, global = modelRou
   return mission.router ?? global;
 }
 
+/** Stores a node's switch: a Fleet's (its mission's) or a terminal's; undefined: unset, it follows again. */
+function storeRouter(nodeId: string, value: boolean | undefined) {
+  if (nodesStore.getState().nodes[nodeId]?.kind === "fleet") setMission(nodeId, { router: value });
+  else nodesStore.getState().update(nodeId, { router: value });
+}
+
 /**
- * Turns a node's switch: a Fleet's (its mission's) or a terminal's. A state that is what the node would inherit
- * anyway is stored as unset, so the switch follows the setting above it again; any other is stored as set.
+ * Turns a node's switch on or off: the state is stored as set, even one it would inherit anyway, so it holds
+ * whatever Settings or the switches above it become. "Follow" (`followRouter`) unsets it.
  */
 export function setRouter(nodeId: string, on: boolean) {
-  const nodes = nodesStore.getState().nodes;
-  const value = inheritedRouter(nodes, nodeId).on === on ? undefined : on;
-  if (nodes[nodeId]?.kind === "fleet") setMission(nodeId, { router: value });
-  else nodesStore.getState().update(nodeId, { router: value });
+  storeRouter(nodeId, on);
+}
+
+/** "Follow Settings", "Follow the switch above": the node's switch unset, it follows what it inherits again. */
+export function followRouter(nodeId: string) {
+  storeRouter(nodeId, undefined);
 }
 
 /** A node's switch as it shows: on or off as the router stands there, inherited or set. */
 export function useRouterOn(nodeId: string): boolean {
   const global = useStore(modelRouterStore, (s) => s.on);
   return useNodes((s) => routerAt(s.nodes, nodeId, global).on);
+}
+
+/**
+ * What the node's "Follow" reset would follow, while its own switch is set: "settings" when nothing above it is set,
+ * "above" when a Fleet's or a spawner's switch is; null while it follows already, and the reset is not offered.
+ */
+export function useRouterFollow(nodeId: string): "settings" | "above" | null {
+  const global = useStore(modelRouterStore, (s) => s.on);
+  return useNodes((s) => (ownSwitch(s.nodes, nodeId) === undefined ? null : inheritedRouter(s.nodes, nodeId, global).at === undefined ? "settings" : "above"));
 }
 
 /**

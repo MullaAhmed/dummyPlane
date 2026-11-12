@@ -85,6 +85,15 @@ describe("with Settings' model router on", () => {
     expect((await fleetTool("chef", "add_tasks", { tasks: [{ titre: "More", consigne: "b", budget_min: 5 }] })).content[0].text).toBe("1 task added. Waiting: 1.");
   });
 
+  it("names, in the plan, the model the go-ahead gives each linked agent: its switch and its own model included", async () => {
+    nodesStore.getState().update("b2", { router: false, model: "claude-opus-5-5" });
+    nodesStore.getState().update("chef", { mission: { state: "plan", maxAgents: 4, members: [], router: false } });
+    const proposed = await fleetTool("chef", "proposer_plan", plan(sub("Login", { agent: "Batgirl", niveau: "faible" }), sub("Logout", { agent: "Robin", niveau: "faible" }), sub("Docs", { niveau: "faible" })));
+    expect(proposed.isError).toBeUndefined();
+    // Batgirl's own on routes her with the Fleet's off; Robin's off keeps his own model; a new agent follows the Fleet's off.
+    expect((await view()).plan?.map((s) => s.model)).toEqual(["Haiku 5.5", "Opus 5.5", null]);
+  });
+
   it("plans a Codex team with nothing mapped as before, levels optional, and maps them once Settings has models", async () => {
     nodesStore.getState().update("chef", { session: { ...claude, name: "Chef", role: "orchestrator", agent: "codex" } });
     expect((await fleetTool("chef", "proposer_plan", plan(sub("Login")))).isError).toBeUndefined();

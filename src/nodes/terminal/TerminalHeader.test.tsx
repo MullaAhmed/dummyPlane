@@ -59,6 +59,8 @@ const textOf = (items: HTMLElement[]) => items.map((item) => item.textContent);
 beforeEach(() => {
   // The router as before Settings had one: only a switch set on routes. The global setting has its own tests.
   modelRouterStore.setState({ on: false, levels: {} });
+  // A switch a test set stays with its node: each test starts with none.
+  nodesStore.setState({ nodes: {} });
 });
 
 it("opens its name editor on request, with the keyboard (« Rename » of the palette)", async () => {
@@ -197,7 +199,7 @@ describe("the model router's sticky switch", () => {
     await manager.unmount();
   });
 
-  it("is on a Codex terminal too, and shows Settings' router while its own switch is unset; off is stored for it", async () => {
+  it("is on a Codex terminal too, and shows Settings' router while its own switch is unset; each click stores its state", async () => {
     mockIPC(() => undefined);
     modelRouterStore.setState({ on: true });
     await nodesStore.getState().create("batman", { workspaceId: "w1", kind: "terminal", payload: { ...claude, agent: "codex" } });
@@ -206,8 +208,40 @@ describe("the model router's sticky switch", () => {
     await act(async () => router(view.host)!.click());
     expect(payloadOf().router).toBe(false);
     expect(router(view.host)?.getAttribute("aria-pressed")).toBe("false");
+    // On again is stored as set too, the state Settings gives: it holds when Settings is turned off.
     await act(async () => router(view.host)!.click());
+    expect(payloadOf().router).toBe(true);
+    await act(async () => modelRouterStore.setState({ on: false }));
+    expect(router(view.host)?.getAttribute("aria-pressed")).toBe("true");
+    await view.unmount();
+  });
+
+  it("offers Follow Settings in its ⋯ menu only while it is set, and that unsets it", async () => {
+    mockIPC(() => undefined);
+    await nodesStore.getState().create("batman", { workspaceId: "w1", kind: "terminal", payload: claude });
+    const view = await mount(shown({}));
+    const follow = () => [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((item) => item.textContent === "Follow Settings");
+    await openMore(view.host);
+    expect(follow()).toBeUndefined();
+    await act(async () => document.querySelector<HTMLElement>('[role="menuitemcheckbox"]')!.click());
+    expect(payloadOf().router).toBe(true);
+    await openMore(view.host);
+    await act(async () => follow()!.click());
     expect(payloadOf().router).toBeUndefined();
+    await view.unmount();
+  });
+
+  it("offers Follow the switch above for a sub-agent whose spawner's switch is set", async () => {
+    mockIPC(() => undefined);
+    await nodesStore.getState().create("pam", { workspaceId: "w1", kind: "terminal", payload: { ...claude, name: "Pam", router: false } });
+    await nodesStore.getState().create("batman", { workspaceId: "w1", kind: "terminal", payload: { ...claude, spawnedBy: "pam", router: true } });
+    const view = await mount(shown({}));
+    await openMore(view.host);
+    const follow = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((item) => item.textContent === "Follow the switch above")!;
+    await act(async () => follow.click());
+    expect(payloadOf().router).toBeUndefined();
+    // It follows Pam's off now.
+    expect(router(view.host)?.getAttribute("aria-pressed")).toBe("false");
     await view.unmount();
   });
 
@@ -224,7 +258,7 @@ describe("the model router's sticky switch", () => {
     expect(router(view.host)?.getAttribute("data-router")).toBe("on");
     expect(relaunchTerminal).not.toHaveBeenCalled();
     await act(async () => router(view.host)!.click());
-    expect(payloadOf().router).toBeUndefined();
+    expect(payloadOf().router).toBe(false);
     await view.unmount();
   });
 });

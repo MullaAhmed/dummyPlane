@@ -211,7 +211,7 @@ describe("its header, the same chrome as a terminal's", () => {
       expect(routerButton()!.getAttribute("aria-pressed")).toBe("true");
       expect(host.querySelector('[data-mission] [aria-label="Model router"]')?.getAttribute("aria-checked")).toBe("true");
       await act(async () => routerButton()!.click());
-      expect(missionRouter()).toBeUndefined();
+      expect(missionRouter()).toBe(false);
       expect(routerButton()!.getAttribute("aria-pressed")).toBe("false");
     });
 
@@ -244,8 +244,14 @@ describe("its header, the same chrome as a terminal's", () => {
       await act(async () => modelRouterStore.setState({ on: false }));
       await act(async () => modelRouterStore.setState({ on: true }));
       expect(routerButton()!.getAttribute("aria-pressed")).toBe("false");
+      // On again is stored as set too; Follow Settings, in its ⋯ menu, unsets it.
       await act(async () => routerButton()!.click());
+      expect(missionRouter()).toBe(true);
+      await act(async () => host.querySelector<HTMLButtonElement>('button[aria-label="Fleet menu"]')!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true })));
+      const follow = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((item) => item.textContent === "Follow Settings")!;
+      await act(async () => follow.click());
       expect(missionRouter()).toBeUndefined();
+      expect(routerButton()!.getAttribute("aria-pressed")).toBe("true");
     });
   });
 

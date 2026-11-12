@@ -126,7 +126,12 @@ it("shows the model router as its own row while the mission is set up, before an
     expect(missionOf(nodesStore.getState().nodes.chef)?.router).toBe(true);
     expect(routerSwitch()!.getAttribute("aria-checked")).toBe("true");
     await act(async () => routerSwitch()!.click());
+    // Off is stored as set: it holds whatever Settings becomes, until Follow Settings beside it unsets it.
+    expect(missionOf(nodesStore.getState().nodes.chef)?.router).toBe(false);
+    const follow = [...host.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent === "Follow Settings")!;
+    await act(async () => follow.click());
     expect(missionOf(nodesStore.getState().nodes.chef)?.router).toBeUndefined();
+    expect([...host.querySelectorAll("button")].some((button) => button.textContent === "Follow Settings")).toBe(false);
     await act(async () => root.unmount());
     host.remove();
   }
