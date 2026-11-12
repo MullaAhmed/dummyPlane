@@ -120,6 +120,15 @@ impl ModeTracker {
         self.fed += bytes.len() as u64;
     }
 
+    /// Counts the bytes that come before `from` (a count of bytes fed) without
+    /// reading them, then reads the rest: the output of a previous process, whose
+    /// modes the terminal no longer has, is skipped so.
+    pub fn feed_from(&mut self, from: u64, bytes: &[u8]) {
+        let skipped = from.saturating_sub(self.fed).min(bytes.len() as u64);
+        self.fed += skipped;
+        self.feed(&bytes[skipped as usize..]);
+    }
+
     #[cfg(test)]
     pub fn modes(&self) -> Modes {
         self.modes
