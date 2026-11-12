@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState, type ComponentProps, type DragEvent, type FormEvent } from "react";
+import { useEffect, useRef, useState, type ComponentProps, type DragEvent, type FormEvent, type KeyboardEvent } from "react";
 import { CaptureUpdateAction, newElementWith } from "@excalidraw/excalidraw";
 import { cn } from "@/lib/utils";
 import { Bot, Calendar, CircleDot, KanbanSquare, MoreHorizontal, Plus, RefreshCw, SignalHigh, SignalLow, SignalMedium, type LucideIcon } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -49,6 +49,7 @@ import { AccentButton, Hint, IconButton, QuietButton } from "@/shell/buttons";
 import { nodesStore, terminalOf, useNodes } from "@/store/nodes";
 import { uiStore } from "@/store/ui";
 import { KANBAN_PRIORITIES, type KanbanBoardLink, type KanbanCard, type KanbanColumn, type KanbanPayload, type KanbanPriority } from "@/nodes/types";
+import { kanbanBoardMessages } from "./boardMessages";
 import { KANBAN_CARD_MIME } from "./drag";
 import { kanbanNodeMessages } from "./messages";
 import { PlanMenu } from "./PlanMenu";
@@ -611,6 +612,7 @@ function ColumnView(props: ColumnViewProps) {
     <section
       data-column-id={column.id}
       data-drop-target={spot !== null || undefined}
+      aria-label={column.title}
       className="flex w-60 shrink-0 flex-col rounded-lg bg-dp-surface data-drop-target:bg-dp-hover"
       onDragOver={props.onDragOver}
       onDragLeave={props.onDragLeave}
@@ -631,9 +633,6 @@ function ColumnView(props: ColumnViewProps) {
           {cards.length}
         </span>
         <span className="ml-auto flex items-center">
-          <IconButton label={t.newCard} onClick={props.onNewCard}>
-            <Plus />
-          </IconButton>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <IconButton label={t.columnMenu(column.title)}>
@@ -650,7 +649,8 @@ function ColumnView(props: ColumnViewProps) {
           </DropdownMenu>
         </span>
       </div>
-      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-2 pb-2">
+      {/* As tall as its cards and no taller than the column: past it, it scrolls. Its 2px above and below keep a card's focus ring whole. */}
+      <div className="flex min-h-0 flex-col gap-2 overflow-y-auto px-2 py-0.5">
         {cards.map((card, place) => {
           const index = shown.indexOf(card);
           return (
@@ -675,11 +675,19 @@ function ColumnView(props: ColumnViewProps) {
           );
         })}
         {spot !== null && spot >= shown.length && indicator}
+      </div>
+      {/* The column's one way to add a card, under the last one, where the new card lands: outside the scroll, so it
+          stays in view however many cards there are. An empty column draws it as a dashed well, like "Add a column". */}
+      <div className="shrink-0 px-2 pt-1.5 pb-2">
         <Button
           type="button"
-          variant="ghost"
+          variant={cards.length === 0 ? "outline" : "ghost"}
+          data-new-card
           onClick={props.onNewCard}
-          className="justify-start gap-2 px-2 text-xs font-normal text-dp-text-2 hover:text-dp-text active:scale-100"
+          className={cn(
+            "w-full justify-start gap-2 px-2 text-xs font-normal text-dp-text-2 hover:text-dp-text active:scale-100",
+            cards.length === 0 && "border-dashed bg-transparent",
+          )}
         >
           <Plus className="size-4" />
           {t.newCard}
@@ -721,7 +729,9 @@ function CardView({
   onDragStart: (e: DragEvent) => void;
   onDragEnd: () => void;
 }) {
-  const overdue = card.due !== undefined && dueState(card.due) === "overdue";
+  const b = useMessages(kanbanBoardMessages);
+  const due = card.due === undefined ? undefined : dueState(card.due);
+  const overdue = due === "overdue";
   const button = useRef<HTMLButtonElement>(null);
   // Its keys stop at the button (useNativeKeyDown): Excalidraw would nudge the node on an arrow, delete it on Backspace.
   useNativeKeyDown(button, (e) => {
@@ -757,7 +767,8 @@ function CardView({
         // Under the pointer it is the card: a drag still starts on the card, a click still opens it.
         className="pointer-events-none block w-full pr-6 text-left text-(length:--text-ui) leading-snug font-medium break-words text-dp-text focus-visible:outline-none"
       >
-        {card.title}
+        {/* Three lines at most: a pasted paragraph does not make the card a column. The dialog shows it whole. */}
+        <span className="line-clamp-3">{card.title}</span>
       </button>
       <CardMenu
         t={t}
@@ -772,11 +783,13 @@ function CardView({
         onMove={onMove}
         onStep={onStep}
       />
+      {/* The card's words first, title then notes; its facts close it. */}
+      {card.notes.trim() && <p className="mt-1 line-clamp-2 text-xs leading-snug break-words text-dp-text-2">{card.notes}</p>}
       {(card.priority !== "none" || card.due || card.github || card.agent) && (
-        <div className="mt-2 flex flex-wrap gap-1">
-          {/* The priority, as the dialog shows it: its bars and its word, no coloured stripe down the card. */}
+        <div data-card-meta className="mt-2 flex flex-wrap gap-1">
+          {/* The priority, as the dialog shows it: its bars and its word, no coloured stripe down the card. High is a step up in ink. */}
           {card.priority !== "none" && (
-            <span data-priority={card.priority} className={cn(CHIP, "bg-dp-surface text-dp-text-2")}>
+            <span data-priority={card.priority} className={cn(CHIP, "bg-dp-surface", card.priority === "high" ? "font-medium text-dp-text" : "text-dp-text-2")}>
               <PriorityMark priority={card.priority} />
               {t.priorities[card.priority]}
             </span>
@@ -786,10 +799,13 @@ function CardView({
             <Tag
               hint={overdue ? t.overdue : undefined}
               data-overdue={overdue || undefined}
-              className={cn(CHIP, overdue ? "bg-dp-danger/15 text-dp-text" : "bg-dp-surface text-dp-text-2")}
+              data-due={due}
+              className={cn(CHIP, overdue ? "bg-dp-danger/15 text-dp-text" : due === "today" ? "bg-dp-surface text-dp-text" : "bg-dp-surface text-dp-text-2")}
             >
               <Calendar className={cn("size-3", overdue && "text-dp-danger")} />
-              {formatDue(card.due)}
+              {/* The hint is the pointer's: the word reaches a screen reader too. */}
+              {overdue && <span className="sr-only">{t.overdue}:</span>}
+              {dueLabel(card.due, t)}
             </Tag>
           )}
           {/* A tag, not a small button inside the card's own target: the card's menu opens the issue. */}
@@ -806,15 +822,16 @@ function CardView({
             <Tag
               hint={card.agentStatus ? t.agentAlert[card.agentStatus](card.agent) : t.agentChip(card.agent)}
               data-agent-status={card.agentStatus}
-              className={cn(CHIP, card.agentStatus ? "bg-dp-danger/15 text-dp-text" : "bg-dp-accent-soft text-dp-text")}
+              className={cn(CHIP, "max-w-full", card.agentStatus ? "bg-dp-danger/15 text-dp-text" : "bg-dp-accent-soft text-dp-text")}
             >
-              <Bot className={cn("size-3", card.agentStatus && "text-dp-danger")} />
-              {card.agent}
+              <Bot className={cn("size-3 shrink-0", card.agentStatus && "text-dp-danger")} />
+              <span className="truncate">{card.agent}</span>
+              {/* Blocked or failed is said in a word: the tint and the icon's colour alone would not reach everyone. */}
+              {card.agentStatus && <span className="shrink-0">· {b.agentState[card.agentStatus]}</span>}
             </Tag>
           )}
         </div>
       )}
-      {card.notes.trim() && <p className="mt-1 line-clamp-2 text-xs leading-snug text-dp-text-2">{card.notes}</p>}
     </div>
   );
 }
@@ -926,11 +943,18 @@ function SendToItems({ t, boardId, cardId }: { t: Messages; boardId: string; car
   ));
 }
 
-/** "28 Oct": the date of a YYYY-MM-DD, without its year. */
-function formatDue(due: string): string {
+/** "28 Oct": the date of a YYYY-MM-DD, with its year when it is not this one ("28 Oct 2027"). */
+function formatDue(due: string, now: Date = new Date()): string {
   const [y, m, d] = due.split("-").map(Number);
   if (!y || !m || !d) return due;
-  return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short" }).format(new Date(y, m - 1, d));
+  return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: y === now.getFullYear() ? undefined : "numeric" }).format(new Date(y, m - 1, d));
+}
+
+/** What a card's due chip says: "Today" and "Tomorrow" in words, as the dialog offers them, any other day as its date. */
+function dueLabel(due: string, t: Messages): string {
+  if (due === dueOf("today")) return t.dueToday;
+  if (due === dueOf("tomorrow")) return t.dueTomorrow;
+  return formatDue(due);
 }
 
 /** A column title being edited: Enter or a click elsewhere keeps it, Escape cancels. */
@@ -989,29 +1013,84 @@ function CardDialog({
   const [due, setDue] = useState<string | undefined>(initial?.due);
   const [priority, setPriority] = useState<KanbanPriority>(initial?.priority ?? "none");
   const [creating, setCreating] = useState(false);
+  // Save found the title empty: said under the field until something is typed in it.
+  const [missing, setMissing] = useState(false);
+  const titleField = useRef<HTMLInputElement>(null);
+  const b = useMessages(kanbanBoardMessages);
   const presetLabel: Record<DuePreset, string> = { today: t.dueToday, tomorrow: t.dueTomorrow, nextWeek: t.dueNextWeek };
   const presets = DUE_PRESETS.map((preset) => ({ preset, date: dueOf(preset) }));
   const custom = due !== undefined && !presets.some((p) => p.date === due);
+  const dirty = name !== (initial?.title ?? "") || notes !== (initial?.notes ?? "") || due !== initial?.due || priority !== (initial?.priority ?? "none");
+
+  /** The one way to save, whatever asked for it: without a title it says so and takes the keyboard there. */
+  const save = (): boolean => {
+    if (!name.trim()) {
+      setMissing(true);
+      titleField.current?.focus();
+      return false;
+    }
+    onSave({ title: name.trim(), notes, due, priority });
+    return true;
+  };
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return;
-    onSave({ title: name.trim(), notes, due, priority });
+    save();
+  };
+
+  // Enter adds a line in the notes: Ctrl+Enter (Cmd on a Mac) saves from any field. Not the Enter that ends an IME composition.
+  const onKeyDown = (e: KeyboardEvent) => {
+    if (e.key !== "Enter" || !(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey || e.nativeEvent.isComposing) return;
+    e.preventDefault();
+    save();
   };
 
   // "None" and the presets are one choice; a date typed in the field is the choice of none of them.
   const dueChoice = due === undefined ? NO_DUE : (presets.find((p) => p.date === due)?.preset ?? "");
+  // What the card carries besides its fields, read-only here: its issue, and the agent on it.
+  const context = [
+    initial?.github && t.githubIssue(initial.github.repo, initial.github.number),
+    initial?.agent && (initial.agentStatus ? t.agentAlert[initial.agentStatus](initial.agent) : t.agentChip(initial.agent)),
+  ].filter(Boolean);
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
-      <DialogContent showCloseButton={false} className="sm:max-w-md">
-        <form onSubmit={submit} className="grid gap-4">
+      <DialogContent
+        showCloseButton={false}
+        className="sm:max-w-md"
+        // A click beside the dialog closes it, unless something was typed: a stray click must not cost the notes.
+        // Cancel and Escape still discard, on purpose.
+        onInteractOutside={(e) => {
+          if (dirty) e.preventDefault();
+        }}
+        {...(context.length === 0 ? { "aria-describedby": undefined } : {})}
+      >
+        <form onSubmit={submit} onKeyDown={onKeyDown} className="grid gap-4">
           <DialogHeader>
             <DialogTitle>{title}</DialogTitle>
+            {context.length > 0 && <DialogDescription className="text-xs">{context.join(" · ")}</DialogDescription>}
           </DialogHeader>
           <div className="grid gap-1.5">
             <Label htmlFor="kanban-card-title">{t.cardTitle}</Label>
-            <Input id="kanban-card-title" autoFocus value={name} placeholder={t.cardTitlePlaceholder} onChange={(e) => setName(e.target.value)} />
+            <Input
+              ref={titleField}
+              id="kanban-card-title"
+              autoFocus
+              value={name}
+              placeholder={t.cardTitlePlaceholder}
+              onChange={(e) => {
+                setName(e.target.value);
+                if (e.target.value.trim()) setMissing(false);
+              }}
+              aria-required
+              aria-invalid={missing || undefined}
+              aria-describedby={missing ? "kanban-card-title-error" : undefined}
+            />
+            {missing && (
+              <p id="kanban-card-title-error" className="text-xs text-dp-danger">
+                {b.titleRequired}
+              </p>
+            )}
           </div>
           <div className="grid gap-1.5">
             <Label htmlFor="kanban-card-notes">{t.notes}</Label>
@@ -1047,12 +1126,16 @@ function CardDialog({
                   </ToggleGroupItem>
                 ))}
               </ToggleGroup>
+              {/* Always the date itself, a preset's too ("Next week" is a day): chosen like a pill only when no preset is. */}
               <Input
                 type="date"
                 aria-label={t.dueDate}
-                value={custom ? due : ""}
+                value={due ?? ""}
                 onChange={(e) => setDue(e.target.value || undefined)}
-                className={cn("h-7 w-auto rounded-md px-2 text-xs md:text-xs", custom ? "border-dp-accent bg-dp-accent-soft text-dp-text" : "text-dp-text-2")}
+                className={cn(
+                  "h-7 w-auto rounded-md px-2 text-xs md:text-xs",
+                  custom ? "border-dp-accent bg-dp-accent-soft text-dp-text" : due ? "text-dp-text" : "text-dp-text-2",
+                )}
               />
             </div>
           </div>
@@ -1075,6 +1158,29 @@ function CardDialog({
               ))}
             </ToggleGroup>
           </div>
+          {/* A field of the card like the others, not a fourth button of the footer, where it crowded Save. */}
+          {onCreateIssue && (
+            <div className="grid gap-2">
+              <Label>{b.github}</Label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="justify-self-start"
+                disabled={creating}
+                onClick={async () => {
+                  // The issue is made from what the dialog shows: typed changes are saved first.
+                  if (!save()) return;
+                  setCreating(true);
+                  await onCreateIssue();
+                  setCreating(false);
+                }}
+              >
+                <CircleDot />
+                {creating ? t.github.creatingIssue : t.github.createIssue}
+              </Button>
+            </div>
+          )}
           <DialogFooter>
             {onDelete && (
               <Button type="button" variant="destructive" size="lg" className="sm:mr-auto" onClick={onDelete}>
@@ -1082,24 +1188,8 @@ function CardDialog({
               </Button>
             )}
             <QuietButton onClick={onClose}>{t.cancel}</QuietButton>
-            {onCreateIssue && (
-              <Button
-                type="button"
-                variant="outline"
-                size="lg"
-                disabled={creating}
-                onClick={async () => {
-                  // The issue is made from what the dialog shows: typed changes are saved first.
-                  if (name.trim()) onSave({ title: name.trim(), notes, due, priority });
-                  setCreating(true);
-                  await onCreateIssue();
-                  setCreating(false);
-                }}
-              >
-                {creating ? t.github.creatingIssue : t.github.createIssue}
-              </Button>
-            )}
-            <AccentButton type="submit" size="lg" disabled={!name.trim()}>
+            {/* Enabled: a save says what is missing and focuses the title, where a greyed button would not. */}
+            <AccentButton type="submit" size="lg" aria-keyshortcuts="Control+Enter Meta+Enter">
               {t.save}
             </AccentButton>
           </DialogFooter>
