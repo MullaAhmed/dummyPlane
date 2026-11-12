@@ -43,9 +43,15 @@ describe("the rings", () => {
   it("gives each ring at most 8 wedges, More last included, no empty place, each a function of the registry, never twice with its arc", () => {
     for (const kind of KINDS) {
       expect(wedgeCountOf(kind), kind).toBeLessThanOrEqual(8);
-      expect(moreSlotOf(kind), kind).toBe(wedgeCountOf(kind) - 1);
       expect(ringLines(kind, ctx).every(Boolean), kind).toBe(true);
-      expect(ringLines(kind, ctx)[moreSlotOf(kind)]).toMatchObject({ more: true, command: null, label: "More", short: "More", enabled: true });
+      // A ring with no arc has no More (the canvas's, Kanban in its place): no wedge is More, none opens an arc.
+      if (ARCS[kind].length === 0) {
+        expect(moreSlotOf(kind), kind).toBe(-1);
+        expect(ringLines(kind, ctx).some((line) => line?.more), kind).toBe(false);
+      } else {
+        expect(moreSlotOf(kind), kind).toBe(wedgeCountOf(kind) - 1);
+        expect(ringLines(kind, ctx)[moreSlotOf(kind)]).toMatchObject({ more: true, command: null, label: "More", short: "More", enabled: true });
+      }
       const ids = [...RINGS[kind], ...ARCS[kind]].map((slot) => idOf(slot));
       expect(new Set(ids).size, kind).toBe(ids.length);
       for (const id of ids) expect(COMMANDS.some((c) => c.id === id), id).toBe(true);
@@ -53,7 +59,7 @@ describe("the rings", () => {
   });
 
   it("names each ring's positions clockwise from the top, More last", () => {
-    expect(labels("canvas")).toEqual(["Launch Claude", "Launch Shell", "New terminal in folder…", "Fleet", "Paste", "Arrange", "Other agent…", "More"]);
+    expect(labels("canvas")).toEqual(["Launch Claude", "Launch Shell", "New terminal in folder…", "Fleet", "Paste", "Arrange", "Other agent…", "Kanban"]);
     expect(labels("terminal")).toEqual(["Copy", "Paste", "Rename", "Restart", "Close", "Quick note on this terminal", "Pause", "More"]);
     expect(labels("group")).toEqual(["Add an agent…", "Rename the group", "Link a fleet", "Pause group", "Close the group", "Arrange the group", "Resume group", "More"]);
     expect(labels("fleet")).toEqual(["Write an instruction", "Rename", "Delete", "Link", "Paste", "Quick note on this Fleet", "More"]);
@@ -61,7 +67,8 @@ describe("the rings", () => {
   });
 
   it("puts what the ring has no room for in its More arc, clockwise", () => {
-    expect(arcLabels("canvas")).toEqual(["Overview", "Export scene…", "Import scene…", "Export as PNG…"]);
+    // The canvas ring has Kanban in More's place, and no arc (12 Nov).
+    expect(arcLabels("canvas")).toEqual([]);
     expect(arcLabels("terminal")).toEqual(["Stop the process", "Duplicate", "Review changes", "Remove from group", "Arrange the group"]);
     expect(arcLabels("group")).toEqual(["Ungroup", "Fold the group", "Zoom to group"]);
     expect(arcLabels("fleet")).toEqual(["Arrange", "Remove from group"]);
@@ -71,7 +78,8 @@ describe("the rings", () => {
 
   it("keeps every function the rings had before their arcs, on the ring or in its arc", () => {
     const before: Record<RingKind, string[]> = {
-      canvas: ["agent.launch.claude", "agent.launch.shell", "agent.inFolder", "agent.fleet", "drawing.paste", "scene.arrange", "agent.other", "canvas.overview"],
+      // Overview, export, import and PNG left the canvas ring for Kanban (12 Nov): the palette keeps them.
+      canvas: ["agent.launch.claude", "agent.launch.shell", "agent.inFolder", "agent.fleet", "drawing.paste", "scene.arrange", "agent.other", "studio.kanban"],
       terminal: ["terminal.copy", "terminal.paste", "terminal.rename", "terminal.relaunch", "terminal.close", "terminal.note", "terminal.pause", "terminal.stop"],
       group: ["group.addAgent", "group.rename", "group.linkFleet", "group.pause", "group.close", "group.ungroup", "group.resume", "group.frame"],
       fleet: ["fleet.write", "fleet.rename", "fleet.remove", "fleet.link", "fleet.paste", "fleet.note"],
@@ -116,7 +124,7 @@ describe("the wedges' short names", () => {
   const arcShorts = (kind: RingKind) => arcLines(kind, ctx).map((line) => line!.short);
 
   it("names each wedge in a word or two, clockwise from the top", () => {
-    expect(shorts("canvas")).toEqual(["Claude", "Shell", "In folder", "Fleet", "Paste", "Arrange", "Other agent", "More"]);
+    expect(shorts("canvas")).toEqual(["Claude", "Shell", "In folder", "Fleet", "Paste", "Arrange", "Other agent", "Kanban"]);
     expect(shorts("terminal")).toEqual(["Copy", "Paste", "Rename", "Restart", "Close", "Note", "Pause", "More"]);
     expect(shorts("group")).toEqual(["Add agent", "Rename", "Link fleet", "Pause", "Close", "Arrange", "Resume", "More"]);
     expect(shorts("fleet")).toEqual(["Write", "Rename", "Delete", "Link", "Paste", "Note", "More"]);
@@ -124,7 +132,7 @@ describe("the wedges' short names", () => {
   });
 
   it("names each wedge of the arcs the same way", () => {
-    expect(arcShorts("canvas")).toEqual(["Overview", "Export", "Import", "PNG"]);
+    expect(arcShorts("canvas")).toEqual([]);
     expect(arcShorts("terminal")).toEqual(["Stop", "Duplicate", "Review", "Leave group", "Arrange"]);
     expect(arcShorts("group")).toEqual(["Ungroup", "Fold", "Zoom"]);
     expect(arcShorts("fleet")).toEqual(["Arrange", "Leave group"]);

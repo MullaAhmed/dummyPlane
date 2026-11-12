@@ -19,7 +19,8 @@ let intent: ReturnType<typeof setTimeout> | null = null;
 export function openArc(options: { keyboard?: boolean } = {}) {
   cancelArcIntent();
   const { ring } = radialStore.getState();
-  if (!ring) return;
+  // A ring without More (the canvas's) has no arc to open.
+  if (!ring || ARCS[ring.kind].length === 0) return;
   const more = moreSlotOf(ring.kind);
   const arc = arcLayout(ring.center, more, wedgeCountOf(ring.kind), ARCS[ring.kind].length, { width: window.innerWidth, height: window.innerHeight });
   updateRadial({ arc, item: options.keyboard ? 0 : null, hovered: more, arcInstant: options.keyboard === true, ...(options.keyboard ? { keyboard: true } : {}) });

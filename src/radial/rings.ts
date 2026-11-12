@@ -6,14 +6,12 @@ import {
   CopyPlus,
   Ellipsis,
   FileDiff,
-  FileDown,
-  FileUp,
   Focus,
   FoldVertical,
   FolderOpen,
-  ImageDown,
   LayoutGrid,
   Group,
+  Kanban,
   Link,
   Lock,
   LockOpen,
@@ -25,7 +23,6 @@ import {
   Play,
   Plus,
   RotateCw,
-  Scan,
   SendToBack,
   SlidersHorizontal,
   Square,
@@ -151,8 +148,8 @@ function drawingsAlone(ctx: CommandContext): string | null {
 /**
  * The five rings, positions clockwise from the top. A
  * ring holds only real buttons: they are spread evenly around it, so a ring
- * of fewer than eight leaves no empty place. Each ends with More (↖ on a ring
- * of eight), which opens its arc of ARCS: what the ring has no room for.
+ * of fewer than eight leaves no empty place. Each but the canvas's ends with More (↖ on a ring
+ * of eight), which opens its arc of ARCS: what the ring has no room for. The canvas's has Kanban there.
  */
 export const RINGS: Record<RingKind, readonly RingSlot[]> = {
   canvas: [
@@ -168,6 +165,8 @@ export const RINGS: Record<RingKind, readonly RingSlot[]> = {
     { command: "drawing.paste", short: "paste", icon: ClipboardPaste },
     { command: "scene.arrange", short: "arrange", icon: LayoutGrid },
     { command: "agent.other", short: "otherAgent", icon: Plus },
+    // A board in More's place (12 Nov): the canvas ring has no arc. Overview, export, import and PNG are the palette's.
+    { command: "studio.kanban", short: "kanban", icon: Kanban },
   ],
   terminal: [
     { command: "terminal.copy", short: "copy", icon: Copy },
@@ -224,12 +223,7 @@ export const RINGS: Record<RingKind, readonly RingSlot[]> = {
  * selection's last: nothing of it is lost.
  */
 export const ARCS: Record<RingKind, readonly RingSlot[]> = {
-  canvas: [
-    { command: "canvas.overview", short: "overview", icon: Scan },
-    { command: "scene.export", short: "export", icon: FileDown },
-    { command: "scene.import", short: "import", icon: FileUp },
-    { command: "scene.png", short: "png", icon: ImageDown },
-  ],
+  canvas: [],
   terminal: [
     { command: "terminal.stop", short: "stop", icon: Square },
     { command: "terminal.duplicate", short: "duplicate", icon: CopyPlus },
@@ -254,10 +248,12 @@ export const ARCS: Record<RingKind, readonly RingSlot[]> = {
   ],
 };
 
-/** The place of the More wedge in a ring: the last. */
-export const moreSlotOf = (kind: RingKind): number => RINGS[kind].length;
-/** The wedges a ring shows: its commands, then More. */
-export const wedgeCountOf = (kind: RingKind): number => RINGS[kind].length + 1;
+/** Whether a ring ends with More: only when its arc holds something (the canvas ring has none). */
+export const hasMore = (kind: RingKind): boolean => ARCS[kind].length > 0;
+/** The place of the More wedge in a ring: the last; -1, never a wedge, for a ring without one. */
+export const moreSlotOf = (kind: RingKind): number => (hasMore(kind) ? RINGS[kind].length : -1);
+/** The wedges a ring shows: its commands, then More when it has one. */
+export const wedgeCountOf = (kind: RingKind): number => RINGS[kind].length + (hasMore(kind) ? 1 : 0);
 
 export interface RingLine {
   /** Null for More, which opens the arc rather than running a command. */
@@ -304,9 +300,10 @@ export function moreLine(ring: CommandContext): RingLine {
   return { command: null, context: ring, more: true, label: text.more, short: text.short.more, Icon: Ellipsis, enabled: true, reason: null, danger: false };
 }
 
-/** A ring's wedges as they show now, clockwise from the top: its commands, then More. */
+/** A ring's wedges as they show now, clockwise from the top: its commands, then More when it has one. */
 export function ringLines(kind: RingKind, ctx: CommandContext): (RingLine | null)[] {
-  return [...RINGS[kind].map((slot) => lineOf(slot, ctx)), moreLine(ctx)];
+  const lines = RINGS[kind].map((slot) => lineOf(slot, ctx));
+  return hasMore(kind) ? [...lines, moreLine(ctx)] : lines;
 }
 
 /** A ring's More arc as it shows now, clockwise. */

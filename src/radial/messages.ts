@@ -24,6 +24,7 @@ export const radialMessages = defineMessages(
       resume: "Resume",
       stop: "Stop",
       fleet: "Fleet",
+      kanban: "Kanban",
       text: "Text",
       arrange: "Arrange",
       otherAgent: "Other agent",
