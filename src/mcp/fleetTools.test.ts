@@ -1,10 +1,13 @@
 // @vitest-environment happy-dom
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mockIPC } from "@tauri-apps/api/mocks";
+import { canvasStore } from "@/canvas/canvasStore";
 import { clearWirePulses, wireActivityStore } from "@/canvas/wireActivity";
+import { relaunchTerminal } from "@/nodes/terminal/registry";
 import { agentActivityStore } from "@/store/agentActivity";
 import { nodesStore } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
+import { workspacesStore } from "@/store/workspaces";
 import type { Member, Mission } from "@/mission/mission";
 import { deliveryPending } from "@/mission/launch";
 import { missionOf } from "@/mission/store";
@@ -14,9 +17,9 @@ vi.mock("@excalidraw/excalidraw", () => ({}));
 vi.mock("@/mission/launch", () => ({ endMission: vi.fn(), mergeMission: vi.fn(), reassignTask: vi.fn(), deliveryPending: vi.fn(() => false) }));
 vi.mock("@/agents/broadcast", () => ({ pauseAgents: vi.fn(() => Promise.resolve(1)) }));
 vi.mock("@/agents/remoteControl", () => ({ setRemoteControl: vi.fn() }));
-vi.mock("@/nodes/terminal/registry", () => ({ terminalText: vi.fn(() => ""), quietFor: vi.fn(() => 0), typedAgo: vi.fn(() => Infinity), freshText: vi.fn(() => "") }));
+vi.mock("@/nodes/terminal/registry", () => ({ terminalText: vi.fn(() => ""), quietFor: vi.fn(() => 0), typedAgo: vi.fn(() => Infinity), freshText: vi.fn(() => ""), relaunchTerminal: vi.fn(() => Promise.resolve()) }));
 
-const session = { title: "Chef", name: "Chef", agent: "claude" as const, cwd: "C:/p", shell: "default" as const, command: "", role: "orchestrator" as const };
+const session ={ title: "Chef", name: "Chef", agent: "claude" as const, cwd: "C:/p", shell: "default" as const, command: "", role: "orchestrator" as const };
 const member = (nodeId: string, name: string, extra: Partial<Member> = {}): Member => ({ nodeId, name, task: "t", budgetMin: 10, linked: false, branch: "b", worktree: "w", sentAt: 1, ...extra });
 
 async function setup(members: Member[]) {
@@ -96,6 +99,113 @@ it("ecrire types nothing while dummyPlane still waits to type an agent's sub-tas
   // A nudge to an agent that has its sub-task changes nothing of it.
   await fleetTool("chef", "ecrire", { agent: "Aquaman", texte: "go on" });
   expect(sentAt("b")).toBe(1);
+});
+
+it("ecrire that gives an agent its sub-task drops dummyPlane's own text of it: a restart would type it on top", async () => {
+  await setup([member("w1a", "Batman", { sentAt: undefined, brief: "[dummyPlane · mission Auth] Login — Do the login." })]);
+  terminalStatusStore.getState().set("w1a", { state: "running" });
+  const written = await fleetTool("chef", "ecrire", { agent: "Batman", texte: "Your sub-task: the login" });
+  expect(written.isError).not.toBe(true);
+  const held = missionOf(nodesStore.getState().nodes.chef)?.members[0];
+  expect(held?.sentAt).toEqual(expect.any(Number));
+  expect(held?.brief).toBeUndefined();
+});
+
+it("reassign names the sub-tasks it takes when the call passed something else, a whole brief cut short (12 Nov)", async () => {
+  await setup([
+    member("ra", "Batman", { task: "Login" }),
+    member("rb", "Aquaman", { task: "API" }),
+    member("rc", "Shazam", { task: "Docs", handedTo: "Aquaman" }),
+    member("rd", "Hulk", { task: "Lint", abandoned: true }),
+  ]);
+  const brief = `Finish the login\nform: ${"validate every field, ".repeat(10)}then commit.`;
+  const result = await fleetTool("chef", "reattribuer", { sous_tache: brief, agent: "nouveau" });
+  expect(result.isError).toBe(true);
+  const text = result.content[0].text;
+  expect(text).toContain('Give its title as team gives it (subtask), one of: "Login", "API".');
+  // Said back on one line, and short: not the whole brief again.
+  expect(text).toContain('No sub-task "Finish the login form: validate every field,');
+  expect(text).not.toContain("then commit");
+  expect(text).not.toContain("\n");
+});
+
+describe("relaunch", () => {
+  const terminal = (name: string, extra: Record<string, unknown> = {}) => ({ title: name, name, agent: "claude" as const, cwd: `C:/w/${name}`, shell: "default" as const, command: "", ...extra });
+  const scene = (deleted: string[] = []) =>
+    canvasStore.setState({ api: { getSceneElementsIncludingDeleted: () => ["h1", "t1", "l1", "o1", "f1", "s1"].map((id) => ({ id, isDeleted: deleted.includes(id) })) } as never });
+  const named = (name: string) => missionOf(nodesStore.getState().nodes.chef)!.members.find((m) => m.name === name)!;
+
+  beforeEach(async () => {
+    vi.mocked(relaunchTerminal).mockClear();
+    workspacesStore.setState({ activeId: "w1" });
+    await setup([
+      member("h1", "Hulk"),
+      member("t1", "Thor"),
+      member("l1", "Loki", { handedTo: "Thor" }),
+      member("o1", "Odin"),
+      member("f1", "Freya", { sentAt: undefined, brief: "[dummyPlane · mission Auth] Login — Do the login." }),
+      member("s1", "Sif"),
+    ]);
+    for (const [id, name] of [["h1", "Hulk"], ["t1", "Thor"], ["l1", "Loki"], ["o1", "Odin"], ["f1", "Freya"], ["s1", "Sif"]]) {
+      await nodesStore.getState().create(id, { workspaceId: "w1", kind: "terminal", payload: terminal(name, { claudeSessionId: `session-${id}` }) });
+    }
+    for (const id of ["h1", "l1", "o1", "f1"]) terminalStatusStore.getState().set(id, { state: "exited", code: 0 });
+    for (const id of ["t1", "s1"]) terminalStatusStore.getState().set(id, { state: "running" });
+    agentActivityStore.getState().apply({ nodeId: "t1", activity: "working", since: 1 });
+    // Sif's agent exited: its shell runs on, and write calls it stopped.
+    agentActivityStore.getState().apply({ nodeId: "s1", activity: "idle", since: 1, left: true });
+    scene(["o1"]);
+  });
+  afterEach(() => canvasStore.setState({ api: null }));
+
+  it("starts a stopped agent again on its own conversation, and says write tells it what is left (12 Nov: Hulk stopped after its tests)", async () => {
+    const result = await fleetTool("chef", "relaunch", { agent: "Hulk" });
+    expect(result.isError).not.toBe(true);
+    expect(relaunchTerminal).toHaveBeenCalledWith("h1", expect.objectContaining({ name: "Hulk", claudeSessionId: "session-h1" }), "resume");
+    expect(result.content[0].text).toBe("Hulk is starting again on its own conversation. Once it is up (team, read_output), write tells it what is left.");
+  });
+
+  it("starts an agent back at its shell too: its terminal runs, its agent does not", async () => {
+    const result = await fleetTool("chef", "relaunch", { agent: "Sif" });
+    expect(result.isError).not.toBe(true);
+    expect(relaunchTerminal).toHaveBeenCalledWith("s1", expect.objectContaining({ name: "Sif" }), "resume");
+  });
+
+  it("says dummyPlane types the sub-task of an agent that never got it, not the caller", async () => {
+    const result = await fleetTool("chef", "relaunch", { agent: "Freya" });
+    expect(result.isError).not.toBe(true);
+    expect(result.content[0].text).toContain("dummyPlane types it as soon as its session opens, do not type it yourself.");
+    expect(named("Freya").brief).toBeDefined();
+  });
+
+  it("refuses an agent at work, one that handed its sub-task over, and one whose terminal the user closed", async () => {
+    const running = await fleetTool("chef", "relaunch", { agent: "Thor" });
+    const handed = await fleetTool("chef", "relaunch", { agent: "Loki" });
+    const closed = await fleetTool("chef", "relaunch", { agent: "Odin" });
+    expect([running, handed, closed].every((r) => r.isError)).toBe(true);
+    expect(running.content[0].text).toBe("Thor is running: nothing to relaunch.");
+    expect(handed.content[0].text).toBe("Loki handed its sub-task to Thor: nothing to relaunch.");
+    expect(closed.content[0].text).toContain("Odin's terminal is no longer on the canvas: the user closed it. Reassign its sub-task");
+    expect(relaunchTerminal).not.toHaveBeenCalled();
+  });
+
+  it("takes a terminal whose scene was never read at its record's word: nothing says it was closed", async () => {
+    canvasStore.setState({ api: null });
+    workspacesStore.setState({ activeId: "w2" });
+    const result = await fleetTool("chef", "relaunch", { agent: "Hulk" });
+    expect(result.isError).not.toBe(true);
+    expect(relaunchTerminal).toHaveBeenCalledTimes(1);
+  });
+
+  it("says why when its terminal could not start, and refuses an agent outside the mission", async () => {
+    vi.mocked(relaunchTerminal).mockImplementationOnce(async (nodeId) => terminalStatusStore.getState().set(nodeId, { state: "error", message: "claude not found" }));
+    const failed = await fleetTool("chef", "relaunch", { agent: "Hulk" });
+    expect(failed.isError).toBe(true);
+    expect(failed.content[0].text).toBe("Hulk could not start again: claude not found");
+    const stranger = await fleetTool("chef", "relaunch", { agent: "Deadpool" });
+    expect(stranger.isError).toBe(true);
+    expect(stranger.content[0].text).toContain("is not an agent of the mission");
+  });
 });
 
 describe("an agent is already on the task (add_tasks, propose_plan)", () => {

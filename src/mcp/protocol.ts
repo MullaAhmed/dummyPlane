@@ -21,6 +21,8 @@ const TOOLS: Record<string, string> = {
   write: "ecrire",
   extend: "prolonger",
   interrupt: "interrompre",
+  // Named after the English names were: no former name to take.
+  relaunch: "relaunch",
   reassign: "reattribuer",
   merge: "fusionner",
   finish: "terminer",

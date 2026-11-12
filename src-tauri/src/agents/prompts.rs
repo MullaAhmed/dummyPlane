@@ -39,7 +39,7 @@ An overnight mission starts with an [dummyPlane] line giving the time away. Call
 When the user gives you a task: call mission, read the repository, split it into sub-tasks as independent as possible, each with a verifiable result and only one per agent, call propose_plan, then tell the user the plan is waiting for their go-ahead. When the request comes from a Kanban column, call board, make roughly one sub-task per card (or group of cards) and set card.
 If groups have a speciality, give each sub-task to an agent of the most relevant group; if none is free, take a \"new\" with group. A sub-task no speciality covers, and groups without a speciality, are handed out as usual: a speciality guides you, it forbids nothing.
 At the go-ahead, dummyPlane puts a Kanban board beside you, one card per sub-task, and a Manager under the board: the Manager runs the team (reports, merges, reassignments, the cards) until the board is finished. You keep talking with the user, and the team never interrupts you: no report, question or progress reaches you. While the mission runs, add work with add_tasks, reorder it with prioritize, look with board, team, queue and mission, and end the mission early with stop_mission when the user asks; do not run the team yourself. When the board is finished, tell the user what was done: the summary is in the fleet's panel, and it goes when the mission is cleaned up, so pass it on first. A finished mission is cleaned up before a new plan: propose_plan does it itself, or call clean_up_mission when the user asks for it; if something is unsaved it refuses and says what, and the user decides in the panel.
-A mission launched before Managers existed (mission says runs \"fleet\" while it runs) is yours to run to its end the old way, with read_output, write, extend, interrupt, reassign, merge, next_task and finish: its team's lines (reports, budgets, the queue) still reach you; when the agents have reported, call merge, have an agent check the result (tests), then finish with your summary and, in check, what the user will have to check by hand.
+A mission launched before Managers existed (mission says runs \"fleet\" while it runs) is yours to run to its end the old way, with read_output, write, extend, interrupt, relaunch, reassign, merge, next_task and finish: its team's lines (reports, budgets, the queue) still reach you; when the agents have reported, call merge, have an agent check the result (tests), then finish with your summary and, in check, what the user will have to check by hand.
 dummyPlane types lines starting with [dummyPlane] into your terminal. They look like this:
 - \"The board is finished: <summary>\" (the Manager called finish): tell the user.
 - \"<manager name> needs the user: <reason>\" (the Manager is stuck): tell the user what it needs; they answer in its terminal.
@@ -62,6 +62,7 @@ pub const MANAGER_EN: &str = "You are the Manager of a mission in dummyPlane: yo
 - write: types a message into an agent's terminal (a nudge, a clarification, an answer). Never to answer a permission dialog: that one is for the user.
 - extend: adds minutes to an agent's budget; overnight, its new target must end before the night does.
 - interrupt: stops the turn of an agent at work, like Esc; write \"continue\" resumes it.
+- relaunch (agent): starts again the terminal of an agent that stopped (its terminal, or its agent back at its shell), on its own conversation; once it is up, write tells it what is left. Refused while it runs, for an agent that handed its sub-task over, and for one whose terminal the user closed: reassign its sub-task then, or call need_user.
 - reassign: gives a sub-task to another agent of the mission that has reported, or to a \"new\" agent; it receives the previous one's report and branch.
 - merge: merges into the mission's branch the branches of the agents that reported \"done\"; tells you the conflicts.
 - finish: closes the mission with your summary, and in check what the user will have to check by hand: it tops the morning report, and the fleet hears that the board is finished.
@@ -95,9 +96,9 @@ dummyPlane types lines starting with [dummyPlane] into your terminal. They look 
 - \"<name>'s session has not opened after a minute: a question may be waiting for the user in its terminal (read_output; only the user answers it). dummyPlane types its sub-task as soon as the session opens: do not type it yourself.\"
 - \"<name>'s session opened: its sub-task is sent now.\"
 - \"<name> is not ready, its session did not open: its sub-task is not sent. Look at its terminal with read_output; once its session is open, type its sub-task with write.\"
-- \"<name> did not start: its sub-task is not sent. Once it runs, type its sub-task with write.\"
+- \"<name> did not start: its sub-task is not sent yet. dummyPlane types it as soon as its terminal runs again: relaunch it, do not type it yourself.\"
 - \"Message from <name> …: <text>\"
-React to them: follow your team with team and read_output; on a budget used up, decide: nudge with write, extend, interrupt or reassign; on a target passed, look before acting; on \"<N> min left\", merge, have it checked and finish; when the night is over, finish with what is done; when an agent waits for the user, its dialog is theirs, never yours to answer: tell them with need_user; while a session has not opened, dummyPlane still types its sub-task: only on \"its sub-task is not sent\" do you type it, with write.";
+React to them: follow your team with team and read_output; on a budget used up, decide: nudge with write, extend, interrupt or reassign; on a target passed, look before acting; on \"<N> min left\", merge, have it checked and finish; when the night is over, finish with what is done; when an agent waits for the user, its dialog is theirs, never yours to answer: tell them with need_user; while a session has not opened, dummyPlane still types its sub-task: only on \"<name> is not ready\" do you type it, with write; on \"did not start\", relaunch the agent and dummyPlane types its sub-task; when an agent stopped before its work was done, relaunch it, then write what is left.";
 
 /// The instructions of a session's role.
 pub fn for_role(role: Role) -> &'static str {
@@ -210,17 +211,18 @@ mod tests {
         "output_guide",
     ];
     /// Listed to the fleet only while its mission runs without a Manager (saved before Managers).
-    const FLEET_LEGACY_TOOLS: [&str; 8] = [
+    const FLEET_LEGACY_TOOLS: [&str; 9] = [
         "read_output",
         "write",
         "extend",
         "interrupt",
+        "relaunch",
         "reassign",
         "merge",
         "next_task",
         "finish",
     ];
-    const MANAGER_TOOLS: [&str; 18] = [
+    const MANAGER_TOOLS: [&str; 19] = [
         "mission",
         "board",
         "move_card",
@@ -232,6 +234,7 @@ mod tests {
         "write",
         "extend",
         "interrupt",
+        "relaunch",
         "reassign",
         "merge",
         "finish",
@@ -510,7 +513,7 @@ mod tests {
         assert!(p.contains("the user decides in the panel"));
         assert!(p.contains("Never merge into the user's branch and never push"));
         // A mission saved before Managers is still run to its end the old way.
-        assert!(p.contains("A mission launched before Managers existed (mission says runs \"fleet\" while it runs) is yours to run to its end the old way, with read_output, write, extend, interrupt, reassign, merge, next_task and finish"));
+        assert!(p.contains("A mission launched before Managers existed (mission says runs \"fleet\" while it runs) is yours to run to its end the old way, with read_output, write, extend, interrupt, relaunch, reassign, merge, next_task and finish"));
         // Only these lines reach it while a Manager runs the mission (CONTRACT: the fleet's lines).
         assert!(p.contains("[dummyPlane]"));
         for line in [
@@ -568,11 +571,28 @@ mod tests {
             "dummyPlane types its sub-task as soon as the session opens: do not type it yourself.\"",
             "\"<name>'s session opened: its sub-task is sent now.\"",
             "its sub-task is not sent. Look at its terminal with read_output; once its session is open, type its sub-task with write.\"",
-            "\"<name> did not start: its sub-task is not sent. Once it runs, type its sub-task with write.\"",
+            "\"<name> did not start: its sub-task is not sent yet. dummyPlane types it as soon as its terminal runs again: relaunch it, do not type it yourself.\"",
             "\"Message from <name> …: <text>\"",
         ] {
             assert!(p.contains(line), "{line}");
         }
+    }
+
+    #[test]
+    fn the_manager_relaunches_a_stopped_agent_and_lets_dummyplane_type_a_sub_task_it_never_got() {
+        // 12 Nov: an agent stopped after its test run, and nobody could finish its last steps.
+        let p = MANAGER_EN;
+        assert!(
+            p.contains("- relaunch (agent): starts again the terminal of an agent that stopped")
+        );
+        assert!(p.contains("on its own conversation; once it is up, write tells it what is left."));
+        assert!(p.contains(
+            "for one whose terminal the user closed: reassign its sub-task then, or call need_user."
+        ));
+        // Only a session that never opened in a running terminal has its sub-task typed by the Manager.
+        assert!(p.contains("only on \"<name> is not ready\" do you type it, with write; on \"did not start\", relaunch the agent and dummyPlane types its sub-task"));
+        assert!(!p.contains("only on \"its sub-task is not sent\" do you type it"));
+        assert!(for_codex(Role::Manager).contains("- relaunch (agent)"));
     }
 
     #[test]

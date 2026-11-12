@@ -73,6 +73,11 @@ export interface Member {
   worktree: string;
   /** When its sub-task was typed: its events are watched from then on. */
   sentAt?: number;
+  /**
+   * The text of its sub-task while it is not typed yet: kept with the mission, so that a restart of dummyPlane, or
+   * of its terminal, still types it once its terminal runs again (`./redeliver.ts`). Gone once `sentAt` is set.
+   */
+  brief?: string;
   report?: Report;
   merged?: boolean;
   /** Minutes added by `prolonger`. */
@@ -203,6 +208,8 @@ function readMember(raw: unknown): Member | null {
     worktree: r.worktree,
   };
   if (typeof r.sentAt === "number") member.sentAt = r.sentAt;
+  // Typed already: what was left of it is no longer to type.
+  else if (typeof r.brief === "string" && r.brief) member.brief = r.brief;
   if (r.merged === true) member.merged = true;
   const report = r.report as Record<string, unknown> | undefined;
   if (report && typeof report.summary === "string" && typeof report.status === "string" && STATUSES.includes(report.status)) {

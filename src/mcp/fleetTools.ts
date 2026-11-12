@@ -19,10 +19,12 @@ import { addTaskCards, linkedBoards, missionBoard, moveMissionCard } from "@/kan
 import { agentGroup, agentState, linkedTeamAgents, linkedGroups, managedFleet, missionOf, canvasKnown, setMission, updateMember } from "@/mission/store";
 import { notify } from "@/mission/events";
 import { KANBAN_PRIORITIES, type KanbanPriority } from "@/nodes/types";
-import { terminalText } from "@/nodes/terminal/registry";
+import { sceneAccess } from "@/agents/sceneAccess";
+import { relaunchMode } from "@/nodes/terminal/launch";
+import { relaunchTerminal, terminalText } from "@/nodes/terminal/registry";
 import { agentActivityStore } from "@/store/agentActivity";
 import { nodeNameOf, nodesStore, terminalOf } from "@/store/nodes";
-import { isRunning } from "@/store/terminalStatus";
+import { isRunning, statusOf } from "@/store/terminalStatus";
 import { splitGenerated } from "@/openui/detect";
 import { refused, said, type ToolResult } from "./agentTools";
 import { agentMessages } from "./messages";
@@ -134,6 +136,7 @@ function missionToolSpecs(manager: boolean) {
       inputSchema: { type: "object", properties: { agent: { type: "string" }, minutes: { type: "integer", minimum: 1 } }, required: ["agent", "minutes"] },
     },
     { name: "interrupt", description: d.interrupt, inputSchema: { type: "object", properties: { agent: { type: "string" } }, required: ["agent"] } },
+    { name: "relaunch", description: d.relaunch, inputSchema: { type: "object", properties: { agent: { type: "string" } }, required: ["agent"] } },
     {
       name: "reassign",
       description: d.reassign,
@@ -163,9 +166,9 @@ function missionToolSpecs(manager: boolean) {
 /** The Fleet's tools while it plans and babysits its board, by English name. */
 export const FLEET_TOOLS: readonly string[] = ["mission", "propose_plan", "add_tasks", "queue", "prioritize", "tickets", "board", "team", "stop_mission", "clean_up_mission", "remote_control"];
 /** The team's tools, the Fleet's only for a mission launched before Managers existed: it runs it to its end the old way. */
-export const LEGACY_TOOLS: readonly string[] = ["next_task", "read_output", "write", "extend", "interrupt", "reassign", "merge", "finish"];
+export const LEGACY_TOOLS: readonly string[] = ["next_task", "read_output", "write", "extend", "interrupt", "relaunch", "reassign", "merge", "finish"];
 /** A mission's Manager's tools: it runs the board's cards with the team. */
-export const MANAGER_TOOLS: readonly string[] = ["mission", "add_tasks", "queue", "next_task", "board", "move_card", "team", "read_output", "write", "extend", "interrupt", "reassign", "merge", "finish", "need_user"];
+export const MANAGER_TOOLS: readonly string[] = ["mission", "add_tasks", "queue", "next_task", "board", "move_card", "team", "read_output", "write", "extend", "interrupt", "relaunch", "reassign", "merge", "finish", "need_user"];
 
 /** Whether a Fleet's mission runs the old way: under way, with no Manager. Only then does the Fleet list the team's tools. */
 export const runsTheOldWay = (mission: Mission | undefined) => (mission?.state === "en_cours" || mission?.state === "lancement") && !mission.manager;
@@ -200,6 +203,7 @@ export const FLEET_ONLY = new Set([
   "ecrire",
   "prolonger",
   "interrompre",
+  "relaunch",
   "reattribuer",
   "fusionner",
   "terminer",
@@ -214,9 +218,9 @@ export const FLEET_ONLY = new Set([
 /** Internal names of the Manager's own tools. */
 export const MANAGER_ONLY = new Set(["move_card", "need_user"]);
 /** Internal names of the team's tools the Fleet keeps for a mission run the old way. */
-const LEGACY_INTERNAL = new Set(["next_task", "lire_sortie", "ecrire", "prolonger", "interrompre", "reattribuer", "fusionner", "terminer"]);
+const LEGACY_INTERNAL = new Set(["next_task", "lire_sortie", "ecrire", "prolonger", "interrompre", "relaunch", "reattribuer", "fusionner", "terminer"]);
 /** Internal names of the Manager's tools. */
-const MANAGER_INTERNAL = new Set(["mission", "add_tasks", "queue", "next_task", "board", "move_card", "equipe", "lire_sortie", "ecrire", "prolonger", "interrompre", "reattribuer", "fusionner", "terminer", "need_user"]);
+const MANAGER_INTERNAL = new Set(["mission", "add_tasks", "queue", "next_task", "board", "move_card", "equipe", "lire_sortie", "ecrire", "prolonger", "interrompre", "relaunch", "reattribuer", "fusionner", "terminer", "need_user"]);
 
 const json = (value: unknown) => said(JSON.stringify(value, null, 2));
 const formed = (mission: Mission) => mission.state === "en_cours" || mission.state === "terminee";
@@ -563,10 +567,11 @@ async function write(fleetId: string, caller: string, mission: Mission, args: Re
   await ptySendText(member.nodeId, text);
   // The message draws its wire if none joins them (a linked agent, a group joiner).
   talk(caller, member.nodeId);
-  // Nobody types its sub-task any more (dummyPlane gave up, or restarted since): what is written is it, and its report is the mission's.
+  // Nobody types its sub-task any more (dummyPlane gave up, or restarted since): what is written is it, and its report
+  // is the mission's. dummyPlane's own text of it is dropped: a restart would type it on top.
   const now = missionOf(nodesStore.getState().nodes[fleetId]);
   const held = now?.members.find((m) => m.nodeId === member.nodeId);
-  if (now?.state === "en_cours" && held && held.sentAt === undefined && !held.handedTo) updateMember(fleetId, member.nodeId, { sentAt: Date.now() });
+  if (now?.state === "en_cours" && held && held.sentAt === undefined && !held.handedTo) updateMember(fleetId, member.nodeId, { sentAt: Date.now(), brief: undefined });
   return said(t().fleet.written(member.name));
 }
 
@@ -598,11 +603,59 @@ async function interrupt(mission: Mission, args: Record<string, unknown>): Promi
   return said(t().fleet.interrupted(member.name));
 }
 
+/** What the caller passed, said back on one line and cut short: it may be a whole brief. */
+const ECHO_MAX = 80;
+const echoed = (text: string) => {
+  const line = oneLine(text);
+  return line.length > ECHO_MAX ? `${line.slice(0, ECHO_MAX - 1)}…` : line;
+};
+
+/** Whether a member's terminal is gone from the canvas: a closed one keeps its record, its element deleted, for Ctrl+Z. */
+function closedByUser(nodeId: string): boolean {
+  const record = nodesStore.getState().nodes[nodeId];
+  if (!record || !terminalOf(record)) return true;
+  const scene = sceneAccess(record.workspaceId);
+  // Its scene never read: nothing says it was closed, and a mission starts a terminal not shown yet.
+  if (!scene) return false;
+  const element = scene.elements().find((e) => e.id === nodeId);
+  return element === undefined || element.isDeleted;
+}
+
+/**
+ * `relaunch`: a member whose terminal stopped, or whose agent went back to its shell, starts again on its own
+ * conversation (a session that never opened starts anew under its id). A sub-task it never got, `@/mission/redeliver`
+ * types once it runs; otherwise the caller tells it what is left.
+ */
+async function relaunch(fleetId: string, mission: Mission, args: Record<string, unknown>): Promise<ToolResult> {
+  const f = t().fleet;
+  if (mission.state !== "en_cours") return refused(f.noMission);
+  const member = memberNamed(mission, args.agent);
+  if (typeof member === "string") return refused(member);
+  if (member.handedTo) return refused(f.relaunchHanded(member.name, member.handedTo));
+  // As write reads it: an agent back at its shell is stopped, though its terminal runs.
+  if (agentState(member.nodeId) !== "arrêté") return refused(f.relaunchRunning(member.name));
+  // Closing a terminal stops it: only a stopped one may be gone.
+  if (closedByUser(member.nodeId)) return refused(f.relaunchClosed(member.name));
+  const payload = terminalOf(nodesStore.getState().nodes[member.nodeId]);
+  if (!payload) return refused(f.relaunchClosed(member.name));
+  try {
+    await relaunchTerminal(member.nodeId, payload, relaunchMode(payload));
+  } catch (error) {
+    return refused(f.relaunchFailed(member.name, error instanceof Error ? error.message : String(error)));
+  }
+  // A refused spawn leaves its error on the terminal, it does not throw.
+  const status = statusOf(member.nodeId);
+  if (status.state === "error") return refused(f.relaunchFailed(member.name, status.message));
+  const now = missionOf(nodesStore.getState().nodes[fleetId])?.members.find((m) => m.nodeId === member.nodeId);
+  return said(now?.sentAt === undefined && now?.brief ? f.relaunchedBrief(member.name) : f.relaunched(member.name));
+}
+
 async function reassign(fleetId: string, mission: Mission, args: Record<string, unknown>): Promise<ToolResult> {
   if (mission.state !== "en_cours") return refused(t().fleet.noMission);
   const title = typeof args.sous_tache === "string" ? args.sous_tache : "";
   const from = mission.members.find((m) => !m.handedTo && sameName(m.task, title));
-  if (!from) return refused(t().fleet.noSubtask(title));
+  // The titles reassign takes, so that a call that passed something else (a whole brief) can be made again right.
+  if (!from) return refused(t().fleet.noSubtask(echoed(title), mission.members.filter((m) => !m.handedTo && !m.abandoned).map((m) => m.task)));
   const result = await reassignTask(fleetId, from.nodeId, typeof args.agent === "string" ? args.agent : "");
   return typeof result === "string" ? refused(result) : said(t().fleet.handedTo(from.task, result.name));
 }
@@ -705,6 +758,8 @@ export async function fleetTool(fleetId: string, name: string, args: Record<stri
       return prolong(fleetId, mission, args);
     case "interrompre":
       return mission.state === "en_cours" ? interrupt(mission, args) : refused(t().fleet.noMission);
+    case "relaunch":
+      return relaunch(fleetId, mission, args);
     case "reattribuer":
       return reassign(fleetId, mission, args);
     case "fusionner": {
@@ -762,6 +817,8 @@ export async function managerTool(managerId: string, name: string, args: Record<
       return prolong(fleetId, mission, args);
     case "interrompre":
       return mission.state === "en_cours" ? interrupt(mission, args) : refused(t().fleet.noMission);
+    case "relaunch":
+      return relaunch(fleetId, mission, args);
     case "reattribuer":
       return reassign(fleetId, mission, args);
     case "fusionner": {
