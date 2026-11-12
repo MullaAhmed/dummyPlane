@@ -35,6 +35,7 @@ export function outputTools() {
           title: { type: "string", maxLength: 80, description: d.showTitle },
           ui: { type: "string", description: d.showUi },
           output: { type: "string", description: d.showOutputId },
+          new: { type: "boolean", description: d.showNew },
         },
         required: ["title", "ui"],
       },
