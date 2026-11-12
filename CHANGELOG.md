@@ -17,7 +17,8 @@ dummyPlane's first release will be 0.1.0; until then, its changes are listed und
 - **The model router's `extreme` level runs Claude Fable 5.2,** the Fable the Edit tab offers, instead of Fable 5.1. The router's levels and the Edit tab's models now come from one table. A terminal still on an older Claude model names it by family and version, for example "Fable 5.1".
 
 ### Fixed
-- **The model router now picks the model of sub-agents opened with `spawn_agent`.** Before, a Fleet with its router on still opened every `spawn_agent` sub-agent on the model it named, or on your own default model when it named none. With the router on, the model now comes from the sub-agent's new `level` (`low`, `medium`, `high` or `extreme`), and is `medium` when no level and no model are given. The tool's answer says which model the sub-agent got. With the router off, nothing changes.
+- **The model router now picks the model of sub-agents opened with `spawn_agent`.** Before, a Fleet with its router on still opened every `spawn_agent` sub-agent on the model it named, or on your own default model when it named none. With the router on, the model now comes from the sub-agent's new `level` (`low`, `medium`, `high` or `extreme`), and is `medium` when no level is given. A call that names a model with no level is refused and asks for a level, so an agent that always asks for Opus no longer gets it by habit; a model named beside a level is set aside. The tool's answer says which model the sub-agent got, and why. With the router off, nothing changes.
+- **The model router reaches the whole spawn tree.** A router that is on routes the sub-agents of the sub-agents too, and a fleet's router routes the sub-agents its mission's agents open. Before, only the fleet's or the terminal's direct sub-agents were routed, and theirs ran on your default model. The switches are read at each spawn; a sub-agent's own switch stays off.
 
 ## [0.1.0] - 2026-11-12
 

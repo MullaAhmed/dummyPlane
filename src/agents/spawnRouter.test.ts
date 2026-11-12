@@ -90,12 +90,12 @@ describe("spawn_agent with the model router", () => {
     expect(lastModel()).toBe("claude-fable-5-2");
   });
 
-  it("lets a level win over a model named, and a model named stand when no level is given", async () => {
+  it("lets a level win over a model named, and refuses a model named with no level (`./spawnInherit.test.ts`)", async () => {
     await addFleet(true);
     await spawnAgent("fleet", { task: "Review the diff", niveau: "eleve", model: "haiku" });
     expect(lastModel()).toBe("claude-opus-5-5");
-    await spawnAgent("fleet", { task: "Check the logs", model: "haiku" });
-    expect(lastModel()).toBe("haiku");
+    expect((await spawnAgent("fleet", { task: "Check the logs", model: "haiku" })).error).toBe(true);
+    expect(addTerminal).toHaveBeenCalledTimes(1);
   });
 
   it("routes a terminal's sub-agent by the terminal's own router", async () => {

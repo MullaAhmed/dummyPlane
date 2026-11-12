@@ -22,7 +22,7 @@ import { quietly } from "./arrivals";
 import { NODE_GAP } from "./groupLayout";
 import { nameForNewAgent } from "./naming";
 import { sceneAccess } from "./sceneAccess";
-import { spawnModel } from "./spawnModel";
+import { spawnModel, type SpawnModel } from "./spawnModel";
 import { MAX_SPAWN_DEPTH, markLaunching, runningSpawned, spawnDepth } from "./spawnFamily";
 import { reflowSpawnTree } from "./spawnTree";
 import { clip, taskSummary } from "./taskSummary";
@@ -47,7 +47,7 @@ export interface SpawnArgs {
   task?: unknown;
   title?: unknown;
   model?: unknown;
-  /** The task's difficulty, as `@/mcp/protocol` hands it (`faible`…): with the spawner's router on, it picks the model. */
+  /** The task's difficulty, as `@/mcp/protocol` hands it (`faible`…): under a model router, it picks the model. */
   niveau?: unknown;
 }
 
@@ -108,13 +108,22 @@ export function childPayload(parent: TerminalPayload, parentId: string, name: st
   return payload;
 }
 
+/** What the spawner hears about its sub-agent's model: the level that chose it, a model set aside, a level that chose nothing. */
+function modelNote(routed: SpawnModel): { why?: string; after?: string } {
+  const why = routed.level && (routed.defaulted ? t().byDefault : t().byLevel(outLevel(routed.level)));
+  const after = routed.dropped ? t().modelDropped(routed.dropped) : routed.unused ? t().levelUnused : undefined;
+  return { why, after };
+}
+
 async function spawnNow(parentId: string, args: SpawnArgs): Promise<SpawnResult> {
   const task = typeof args.task === "string" ? args.task.trim() : "";
   if (!task) return refuse(t().task);
   const model = typeof args.model === "string" ? args.model.trim() : "";
   if (model && !MODEL.test(model)) return refuse(t().model(model));
-  const level = args.niveau === undefined ? undefined : readLevel(args.niveau);
-  if (args.niveau !== undefined && !level) return refuse(t().level(String(args.niveau)));
+  // No level, or an empty one, is none, as for the model.
+  const asked = args.niveau == null || args.niveau === "" ? undefined : args.niveau;
+  const level = asked === undefined ? undefined : readLevel(asked);
+  if (asked !== undefined && !level) return refuse(t().level(String(asked)));
   const record = nodesStore.getState().nodes[parentId];
   const parent = spawnerOf(record, parentId);
   if (!record || !parent) return refuse(t().gone);
@@ -137,8 +146,9 @@ async function spawnNow(parentId: string, args: SpawnArgs): Promise<SpawnResult>
   // Right of the parent, NODE_GAP apart; addTerminal then moves it clear of any neighbour.
   const center = { x: element.x + element.width * 1.5 + NODE_GAP, y: element.y + element.height / 2 };
   const payload = childPayload(parent, parentId, name, titleOf(args.title, task), undefined, task);
-  // The spawner's model router, when on, chooses the model from the task's level (`./spawnModel`).
-  const routed = spawnModel(record, payload.agent, { model, level });
+  // A model router over the spawner chooses the model from the task's level, and refuses a model with no level (`./spawnModel`).
+  const routed = spawnModel(parentId, payload.agent, { model, level });
+  if (routed.needsLevel) return refuse(t().levelNotModel(routed.needsLevel));
   if (routed.model) payload.model = routed.model;
   // It arrives on its own: the user may be typing, so it neither scrolls the view nor takes the keyboard.
   const childId = await addTerminal(workspaceId, payload, center, group?.id ?? null, quietly("spawn"));
@@ -149,7 +159,7 @@ async function spawnNow(parentId: string, args: SpawnArgs): Promise<SpawnResult>
   // Element, spawnedBy and wire all there: the tree takes its flowchart layout, the wire rerouted.
   reflowSpawnTree(workspaceId, childId);
   void deliver(parentId, childId, name, t().brief(parent.name || "your parent agent", task));
-  return { text: t().spawned(name, routed.model && modelLabel(routed.model), routed.level && outLevel(routed.level)) };
+  return { text: t().spawned(name, routed.model && modelLabel(routed.model), modelNote(routed)) };
 }
 
 /** Types the task into the sub-agent once its Claude is up, as a mission's `assign` does; its parent hears of a failure. */
