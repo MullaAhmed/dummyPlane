@@ -30,6 +30,7 @@ const DARK_ANSI: Record<string, string> = {
   diffRemovedDimmed: "ansi:red",
   diffAddedWord: "ansi:greenBright",
   diffRemovedWord: "ansi:redBright",
+  selectionBg: "ansi:blue",
 };
 
 /** xterm's 256-colour cube and grey ramp, which dummyPlane leaves as they are. */
@@ -96,5 +97,19 @@ describe.each(PALETTES)("in %s", (palette) => {
       expect(contrast(text, colour(key, palette)), `${key} under the text`).toBeGreaterThanOrEqual(3);
       expect(contrast(colour(key, palette), body), `${key} on the body`).toBeGreaterThanOrEqual(3);
     }
+  });
+
+  it("keeps selected text legible: Claude draws a selected cell's own colour on the highlight", () => {
+    const terminal = terminalThemeFor(palette);
+    const highlight = colour("selectionBg", palette);
+    expect(contrast(text, highlight), "the text").toBeGreaterThanOrEqual(7);
+    for (const hue of ["red", "green", "yellow", "blue", "magenta", "cyan"] as const) {
+      expect(contrast(terminal[hue], highlight), hue).toBeGreaterThanOrEqual(3);
+    }
+    expect(contrast(terminal.brightBlack, highlight), "the dim text").toBeGreaterThanOrEqual(2.4);
+    // Still a visible block on the body, not a hole in it.
+    expect(contrast(highlight, body), "the highlight on the body").toBeGreaterThanOrEqual(1.5);
+    // `dark-ansi` alone would not: its highlight is the palette's blue.
+    expect(contrast(text, resolve(DARK_ANSI.selectionBg, palette))).toBeLessThan(3);
   });
 });
