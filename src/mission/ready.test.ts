@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { codexUp, promptUp, TRUST_QUIET_MS, trustKey, whenReady, type ReadyProbe } from "./ready";
+import { claudeUp, codexUp, promptUp, TRUST_QUIET_MS, trustKey, whenReady, type ReadyProbe } from "./ready";
 
 const TRUST = "Accessing workspace:\n\nQuick safety check: Is this a project you created or one you trust?\n\n❯ No, exit\n  Yes, I trust this folder\n\nEnter to confirm · Esc to cancel";
 const TRUST_YES = TRUST.replace("❯ No, exit\n  Yes", "  No, exit\n❯ Yes");
@@ -9,6 +9,13 @@ const TRUST_QUESTION = "Accessing workspace:\n\nQuick safety check: Is this a pr
 const CLAUDE = " ▐▛███▜▌   Claude Code v2.1.304\n▝▜█████▛▘  Opus 5.5\n\n──────────────────────── Claude · demo ─\n❯ \n────────────────────────────────────────\n  ⏵⏵ auto mode on (shift+tab to cycle)";
 /** A resumed conversation: its history has pushed the banner off the screen. */
 const RESUMED = "● J'ai clôturé la mission « linked ».\n\n──────────────────────────── Fleet ─\n❯ \n────────────────────────────────────────\n  ⏵⏵ auto mode on (shift+tab to cycle)";
+
+/** Claude Code v2.1.322 in a project whose .mcp.json names a server it has not seen: its question comes before its prompt (captured 12 Nov). */
+const MCP =
+  "────────────────────────────────────────────────────────────────────────────────\n  New MCP server found in this project: supabase\n\n  MCP servers may execute code or access system resources. All tool calls\n  require approval. Learn more in the MCP documentation.\n\n    Use this MCP server\n    Use this and all future MCP servers in this project\n  ❯ Continue without using this MCP server\n\n  Enter to confirm · Esc to cancel";
+/** The same terminal once the user answered it: its prompt shows a suggestion. */
+const MCP_ANSWERED =
+  " ▐▛███▛█   Claude Code v2.1.322\n▝▜██████▀  Opus 5.5 with xhigh effort · Claude Ultra\n ▝▝   ▝▝   D:\\Projects\\opensession\\wt\\be-upload-land.worktrees\\upload-throughput-plans-…\n\n⚠ 1 MCP server needs authentication · run /mcp\n\n\n──────────────────────────────────────────────────── Claude · upload-throughput-plans-thor ─\n❯ Try \"write a test for <filepath>\"\n────────────────────────────────────────────────────────────────────────────────────────────\n\n  ⏵⏵ auto mode on (shift+tab to cycle) · ← 1 agent";
 
 /** Codex 0.167's screens, as a terminal shows them (captured under a ConPTY, rendered at 120 columns). */
 const CODEX = "  >_ OpenAI Codex (v0.167.0)\n     D:\\temp\\spike\\repo\n\n\n› Ask Codex to do anything\n\n  gpt-5.6-luna medium · D:\\temp\\spike\\repo\n  ← for agents · ? for shortcuts                                                              ⚠ 2 warnings · f2 to view";
@@ -137,6 +144,43 @@ describe("whenReady", () => {
     expect(a.now()).toBeGreaterThanOrEqual(60_000);
     expect(a.pressed).not.toContain("\r");
     expect(a.pressed.length).toBeLessThanOrEqual(5);
+  });
+
+  it("reads Claude Code's question about a project's new MCP server as neither its prompt nor a trust question (screens of 12 Nov)", () => {
+    expect(claudeUp(MCP)).toBe(false);
+    expect(trustKey(MCP)).toBeNull();
+    expect(claudeUp(MCP_ANSWERED)).toBe(true);
+  });
+
+  it("waits past the minute while told to, for a question only the user answers, says so once, and presses nothing", async () => {
+    // The user answered it 27 minutes later (mission of 12 Nov).
+    const a = agent(MCP);
+    let slow = 0;
+    let answered = false;
+    const probe: ReadyProbe = {
+      ...a.probe,
+      screen: () => {
+        if (!answered && a.now() >= 27 * 60_000) answered = true;
+        return answered ? MCP_ANSWERED : MCP;
+      },
+      quietMs: () => (answered ? a.now() - 27 * 60_000 : 0),
+      waitLonger: () => true,
+      slow: () => slow++,
+    };
+    expect(await whenReady(probe, a.wait)).toBe(true);
+    expect(a.now()).toBeGreaterThanOrEqual(27 * 60_000 + 2000);
+    expect(slow).toBe(1);
+    expect(a.pressed).toEqual([]);
+  });
+
+  it("gives up past the minute as soon as it is no longer told to wait", async () => {
+    const a = agent(TRUST);
+    let left = 4;
+    let slow = 0;
+    expect(await whenReady({ ...a.probe, waitLonger: () => left-- > 0, slow: () => slow++ }, a.wait, false)).toBe(false);
+    expect(a.now()).toBeGreaterThanOrEqual(60_000 + 4 * 250);
+    expect(a.now()).toBeLessThan(62_000);
+    expect(slow).toBe(1);
   });
 
   it("knows Claude is up by its input box, the banner gone from a resumed conversation (final review H2)", async () => {

@@ -20,6 +20,7 @@ vi.mock("@/mission/launch", async () => {
     endMission: vi.fn(),
     mergeMission: vi.fn(),
     reassignTask: vi.fn(),
+    deliveryPending: vi.fn(() => false),
     launchMission: vi.fn(() => Promise.resolve()),
     // The panel's cleanup, as far as these tests look: it frees the Fleet with a blank mission, its settings kept.
     cleanMission: vi.fn(async (fleetId: string) => {

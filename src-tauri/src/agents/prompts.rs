@@ -92,8 +92,12 @@ dummyPlane types lines starting with [dummyPlane] into your terminal. They look 
 - \"<N> tasks wait that no new agent could take: next_task, reassign, or finish.\"
 - \"<name> is waiting for the user (a dialog is open in its terminal).\"
 - \"<name> stopped: its terminal is no longer running.\"
+- \"<name>'s session has not opened after a minute: a question may be waiting for the user in its terminal (read_output; only the user answers it). dummyPlane types its sub-task as soon as the session opens: do not type it yourself.\"
+- \"<name>'s session opened: its sub-task is sent now.\"
+- \"<name> is not ready, its session did not open: its sub-task is not sent. Look at its terminal with read_output; once its session is open, type its sub-task with write.\"
+- \"<name> did not start: its sub-task is not sent. Once it runs, type its sub-task with write.\"
 - \"Message from <name> …: <text>\"
-React to them: follow your team with team and read_output; on a budget used up, decide: nudge with write, extend, interrupt or reassign; on a target passed, look before acting; on \"<N> min left\", merge, have it checked and finish; when the night is over, finish with what is done; when an agent waits for the user, its dialog is theirs, never yours to answer: tell them with need_user.";
+React to them: follow your team with team and read_output; on a budget used up, decide: nudge with write, extend, interrupt or reassign; on a target passed, look before acting; on \"<N> min left\", merge, have it checked and finish; when the night is over, finish with what is done; when an agent waits for the user, its dialog is theirs, never yours to answer: tell them with need_user; while a session has not opened, dummyPlane still types its sub-task: only on \"its sub-task is not sent\" do you type it, with write.";
 
 /// The instructions of a session's role.
 pub fn for_role(role: Role) -> &'static str {
@@ -560,6 +564,11 @@ mod tests {
             "tasks wait that no new agent could take",
             "\"<name> is waiting for the user (a dialog is open in its terminal).\"",
             "\"<name> stopped: its terminal is no longer running.\"",
+            "\"<name>'s session has not opened after a minute:",
+            "dummyPlane types its sub-task as soon as the session opens: do not type it yourself.\"",
+            "\"<name>'s session opened: its sub-task is sent now.\"",
+            "its sub-task is not sent. Look at its terminal with read_output; once its session is open, type its sub-task with write.\"",
+            "\"<name> did not start: its sub-task is not sent. Once it runs, type its sub-task with write.\"",
             "\"Message from <name> …: <text>\"",
         ] {
             assert!(p.contains(line), "{line}");

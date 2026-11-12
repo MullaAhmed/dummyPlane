@@ -239,14 +239,45 @@ function removeTeam(fleetId: string, workspaceId: string, frameId: string | unde
   if (frameId) closeStoredGroup(workspaceId, frameId);
 }
 
-/** Types `text`, its sub-task, in a member's terminal once it is ready. */
+/** The members whose sub-task dummyPlane still waits to type: a line their Manager writes meanwhile would cross it. */
+const delivering = new Set<string>();
+
+/** Whether dummyPlane still waits for a member's Claude to open, to type its sub-task itself (`write` refuses meanwhile). */
+export function deliveryPending(nodeId: string): boolean {
+  return delivering.has(nodeId);
+}
+
+/**
+ * Types `text`, its sub-task, in a member's terminal once it is ready. A question only the user answers (a
+ * project's new MCP server) may hold its Claude long past the minute: its runner hears so once, and the sub-task
+ * still goes when the session opens, never twice. Its `sentAt` is what makes its report the mission's (`memberOf`).
+ */
 export async function assign(fleetId: string, member: Member, text: string, restarted: Promise<void> = Promise.resolve()) {
   const id = member.nodeId;
+  delivering.add(id);
   try {
     // Before its relaunch ends, its screen and silence are the previous session's (final review H2).
     await restarted.catch(() => undefined);
     const agent = terminalOf(nodesStore.getState().nodes[id])?.agent;
-    const ready = await whenReady({ running: () => isRunning(id), quietMs: () => quietFor(id), screen: () => freshText(id, 50), press: (keys) => ptyWrite(id, keys), agent });
+    // Still its to receive: the mission runs, it holds this sub-task, nobody typed it in meanwhile.
+    const awaited = () => {
+      const mission = missionOf(nodesStore.getState().nodes[fleetId]);
+      const now = mission?.members.find((m) => m.nodeId === id);
+      return mission?.state === "en_cours" && now?.task === member.task && !now.handedTo && now.sentAt === undefined;
+    };
+    let late = false;
+    const ready = await whenReady({
+      running: () => isRunning(id),
+      quietMs: () => quietFor(id),
+      screen: () => freshText(id, 50),
+      press: (keys) => ptyWrite(id, keys),
+      agent,
+      waitLonger: () => isRunning(id) && awaited(),
+      slow: () => {
+        late = true;
+        notify(missionRunner(fleetId), t().lines.slow(member.name));
+      },
+    });
     if (missionOf(nodesStore.getState().nodes[fleetId])?.state !== "en_cours") return;
     // Its Manager hears it, or the Fleet of a mission run the old way: never a Fleet whose board a Manager runs.
     const runner = missionRunner(fleetId);
@@ -254,6 +285,8 @@ export async function assign(fleetId: string, member: Member, text: string, rest
       notify(runner, t().lines.notStarted(member.name));
       return;
     }
+    // Handed over meanwhile: its sub-task is another's.
+    if (!awaited()) return;
     // Its shell outlives a Claude that quit: the sub-task would be typed as a command (README mission).
     if (!ready) {
       notify(runner, t().lines.notReady(member.name));
@@ -262,7 +295,9 @@ export async function assign(fleetId: string, member: Member, text: string, rest
     await ptySendText(id, text);
     talk(runner, id);
     updateMember(fleetId, id, { sentAt: Date.now() });
+    if (late) notify(runner, t().lines.sentLate(member.name));
   } finally {
+    delivering.delete(id);
     // Its sub-task typed or given up: teammates may message it now.
     markLaunching(id, false);
   }

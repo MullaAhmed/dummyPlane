@@ -8,6 +8,13 @@ export interface ReadyProbe {
   press(keys: string): Promise<void>;
   /** The CLI it runs: each draws its prompt and its trust question its own way. Claude when unsaid. */
   agent?: AgentId;
+  /**
+   * Past the minute, whether to wait on: a startup question only the user may answer (a project's new MCP server)
+   * holds Claude's prompt for as long as they take. Unsaid, the minute is all.
+   */
+  waitLonger?(): boolean;
+  /** Told once, when the minute is over and `waitLonger` keeps it waiting. */
+  slow?(): void;
 }
 
 export const READY_QUIET_MS = 2000;
@@ -78,15 +85,24 @@ const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve,
 /**
  * True once the agent can take its sub-task: it runs, its trust prompt was
  * accepted (once — only dummyPlane's fresh worktrees ask), Claude's prompt is up
- * and quiet for 2 s. False after 60 s. `acceptTrust`: false outside those
- * worktrees — the prompt then waits for the user.
+ * and quiet for 2 s. False after 60 s, unless `waitLonger` keeps it waiting:
+ * then false once it says no more, `slow` told once at the minute.
+ * `acceptTrust`: false outside those worktrees — the prompt then waits for the user.
  */
 export async function whenReady(probe: ReadyProbe, wait: (ms: number) => Promise<void> = sleep, acceptTrust = true): Promise<boolean> {
   const agent = probe.agent ?? "claude";
   let trusted = !acceptTrust;
   let downs = 0;
   let keyAt = -Infinity;
-  for (let waited = 0; waited < READY_TIMEOUT_MS; waited += TICK_MS) {
+  let warned = false;
+  for (let waited = 0; ; waited += TICK_MS) {
+    if (waited >= READY_TIMEOUT_MS) {
+      if (!probe.waitLonger?.()) return false;
+      if (!warned) {
+        warned = true;
+        probe.slow?.();
+      }
+    }
     if (probe.running()) {
       const screen = probe.screen();
       const key = trusted ? null : trustKey(screen, agent);
@@ -104,5 +120,4 @@ export async function whenReady(probe: ReadyProbe, wait: (ms: number) => Promise
     }
     await wait(TICK_MS);
   }
-  return false;
 }

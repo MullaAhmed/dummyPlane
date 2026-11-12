@@ -22,7 +22,7 @@ vi.mock("@excalidraw/excalidraw", () => ({ CaptureUpdateAction: { IMMEDIATELY: "
 vi.mock("@/nodes/terminal/registry", () => ({ terminalText: vi.fn(() => "line 1") }));
 vi.mock("@/mission/events", () => ({ notify: vi.fn() }));
 vi.mock("@/mission/queue", () => ({ pumpQueue: vi.fn(() => Promise.resolve()), giveNext: vi.fn(), afterReport: vi.fn() }));
-vi.mock("@/mission/launch", () => ({ endMission: vi.fn(), mergeMission: vi.fn(), reassignTask: vi.fn() }));
+vi.mock("@/mission/launch", () => ({ endMission: vi.fn(), mergeMission: vi.fn(), reassignTask: vi.fn(), deliveryPending: vi.fn(() => false) }));
 
 const call = (nodeId: string, name: string, args: Record<string, unknown> = {}) =>
   answer({ callId: 1, nodeId, method: "tools/call", params: { name, arguments: args } }) as Promise<{ content: { text: string }[]; isError?: boolean }>;

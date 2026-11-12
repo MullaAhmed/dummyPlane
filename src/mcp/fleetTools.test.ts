@@ -6,11 +6,12 @@ import { agentActivityStore } from "@/store/agentActivity";
 import { nodesStore } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
 import type { Member, Mission } from "@/mission/mission";
+import { deliveryPending } from "@/mission/launch";
 import { missionOf } from "@/mission/store";
 import { fleetTool } from "./fleetTools";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
-vi.mock("@/mission/launch", () => ({ endMission: vi.fn(), mergeMission: vi.fn(), reassignTask: vi.fn() }));
+vi.mock("@/mission/launch", () => ({ endMission: vi.fn(), mergeMission: vi.fn(), reassignTask: vi.fn(), deliveryPending: vi.fn(() => false) }));
 vi.mock("@/agents/broadcast", () => ({ pauseAgents: vi.fn(() => Promise.resolve(1)) }));
 vi.mock("@/agents/remoteControl", () => ({ setRemoteControl: vi.fn() }));
 vi.mock("@/nodes/terminal/registry", () => ({ terminalText: vi.fn(() => ""), quietFor: vi.fn(() => 0), typedAgo: vi.fn(() => Infinity), freshText: vi.fn(() => "") }));
@@ -75,6 +76,26 @@ it("ecrire lights the wire from the fleet down to the agent it wrote to", async 
   expect(result.isError).not.toBe(true);
   expect(wireActivityStore.getState().pulses).toEqual({ a: { direction: "toAgent", at: expect.any(Number), fleetId: "chef" } });
   clearWirePulses();
+});
+
+it("ecrire types nothing while dummyPlane still waits to type an agent's sub-task; once nobody does, what it writes is that sub-task", async () => {
+  await setup([member("a", "Batman", { sentAt: undefined }), member("b", "Aquaman")]);
+  terminalStatusStore.getState().set("a", { state: "running" });
+  terminalStatusStore.getState().set("b", { state: "running" });
+  const sentAt = (nodeId: string) => missionOf(nodesStore.getState().nodes.chef)?.members.find((m) => m.nodeId === nodeId)?.sentAt;
+  // Its Claude has not opened (a question waits for the user): a line now would cross the sub-task dummyPlane types.
+  vi.mocked(deliveryPending).mockReturnValueOnce(true);
+  const crossing = await fleetTool("chef", "ecrire", { agent: "Batman", texte: "Your sub-task: the login" });
+  expect(crossing.isError).toBe(true);
+  expect(crossing.content[0].text).toContain("dummyPlane types its sub-task as soon as it does");
+  expect(sentAt("a")).toBeUndefined();
+  // dummyPlane gave up on it: the Manager's line is its sub-task, and its report will be the mission's.
+  const delivered = await fleetTool("chef", "ecrire", { agent: "Batman", texte: "Your sub-task: the login" });
+  expect(delivered.isError).not.toBe(true);
+  expect(sentAt("a")).toEqual(expect.any(Number));
+  // A nudge to an agent that has its sub-task changes nothing of it.
+  await fleetTool("chef", "ecrire", { agent: "Aquaman", texte: "go on" });
+  expect(sentAt("b")).toBe(1);
 });
 
 describe("an agent is already on the task (add_tasks, propose_plan)", () => {

@@ -4,7 +4,7 @@ import { setRemoteControl } from "@/agents/remoteControl";
 import { messages } from "@/i18n";
 import { ptySendText } from "@/ipc/pty";
 import { missionFolder } from "@/mission/folder";
-import { endMission, launchMission, mergeMission, reassignTask } from "@/mission/launch";
+import { deliveryPending, endMission, launchMission, mergeMission, reassignTask } from "@/mission/launch";
 import { budgetOf, memberTime, NEW_AGENT, nightMin, oneLine, proposedPlan, proposedTasks, remainingGlobal, sameName, spentMin, type Member, type Mission, type QueuedTask } from "@/mission/mission";
 import { activeCount } from "@/mission/active";
 import { duplicateWork } from "@/mission/activeWork";
@@ -549,7 +549,7 @@ function readOutput(mission: Mission, args: Record<string, unknown>): ToolResult
   return said(terminalText(member.nodeId, lines) || t().fleet.emptyTerminal);
 }
 
-async function write(caller: string, mission: Mission, args: Record<string, unknown>): Promise<ToolResult> {
+async function write(fleetId: string, caller: string, mission: Mission, args: Record<string, unknown>): Promise<ToolResult> {
   const member = memberNamed(mission, args.agent);
   if (typeof member === "string") return refused(member);
   const text = typeof args.texte === "string" ? oneLine(args.texte) : "";
@@ -558,9 +558,15 @@ async function write(caller: string, mission: Mission, args: Record<string, unkn
   // An agent that exited leaves its shell: the text would run there as a command.
   if (!isRunning(member.nodeId) || activity?.left) return refused(t().fleet.stopped(member.name));
   if (activity?.activity === "waiting") return refused(t().fleet.waiting(member.name));
+  // dummyPlane still waits for its Claude to type its sub-task: a line now would cross it, or answer a question meant for the user.
+  if (deliveryPending(member.nodeId)) return refused(t().fleet.notYetSent(member.name));
   await ptySendText(member.nodeId, text);
   // The message draws its wire if none joins them (a linked agent, a group joiner).
   talk(caller, member.nodeId);
+  // Nobody types its sub-task any more (dummyPlane gave up, or restarted since): what is written is it, and its report is the mission's.
+  const now = missionOf(nodesStore.getState().nodes[fleetId]);
+  const held = now?.members.find((m) => m.nodeId === member.nodeId);
+  if (now?.state === "en_cours" && held && held.sentAt === undefined && !held.handedTo) updateMember(fleetId, member.nodeId, { sentAt: Date.now() });
   return said(t().fleet.written(member.name));
 }
 
@@ -694,7 +700,7 @@ export async function fleetTool(fleetId: string, name: string, args: Record<stri
     case "lire_sortie":
       return readOutput(mission, args);
     case "ecrire":
-      return write(fleetId, mission, args);
+      return write(fleetId, fleetId, mission, args);
     case "prolonger":
       return prolong(fleetId, mission, args);
     case "interrompre":
@@ -751,7 +757,7 @@ export async function managerTool(managerId: string, name: string, args: Record<
     case "lire_sortie":
       return readOutput(mission, args);
     case "ecrire":
-      return write(managerId, mission, args);
+      return write(fleetId, managerId, mission, args);
     case "prolonger":
       return prolong(fleetId, mission, args);
     case "interrompre":

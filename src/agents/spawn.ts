@@ -17,14 +17,14 @@ import { workspaceCanvas } from "@/mission/store";
 import { newTerminalPayload } from "@/nodes/terminal/launch";
 import { freshText, quietFor } from "@/nodes/terminal/registry";
 import { MAX_STORED_TASK, type TerminalPayload } from "@/nodes/types";
-import { nodesStore, terminalOf, type NodeRecord } from "@/store/nodes";
+import { nodeNameOf, nodesStore, terminalOf, type NodeRecord } from "@/store/nodes";
 import { isRunning } from "@/store/terminalStatus";
 import { quietly } from "./arrivals";
 import { NODE_GAP } from "./groupLayout";
 import { nameForNewAgent } from "./naming";
 import { sceneAccess } from "./sceneAccess";
 import { spawnModel, type SpawnModel } from "./spawnModel";
-import { MAX_SPAWN_DEPTH, markLaunching, runningSpawned, spawnDepth } from "./spawnFamily";
+import { MAX_SPAWN_DEPTH, markLaunching, spawnDepth, spawnedAtWork } from "./spawnFamily";
 import { reflowSpawnTree } from "./spawnTree";
 import { clip, taskSummary } from "./taskSummary";
 import { addTerminal } from "./terminals";
@@ -137,8 +137,8 @@ async function spawnNow(parentId: string, args: SpawnArgs): Promise<SpawnResult>
   if (holder) return refuse(t().duplicate(holder));
   if (spawnDepth(parentId) + 1 > MAX_SPAWN_DEPTH) return refuse(t().tooDeep(MAX_SPAWN_DEPTH));
   const max = subagentSettingsStore.getState().maxSpawned;
-  const running = runningSpawned();
-  if (running >= max) return refuse(t().tooMany(running, max));
+  const running = spawnedAtWork();
+  if (running.length >= max) return refuse(t().tooMany(running.length, max, seatHolders(running)));
   const workspaceId = record.workspaceId;
   const scene = sceneAccess(workspaceId);
   if (!scene) return refuse(t().noCanvas);
@@ -166,11 +166,37 @@ async function spawnNow(parentId: string, args: SpawnArgs): Promise<SpawnResult>
   return { text: t().spawned(name, routed.model && modelLabel(routed.model), modelNote(routed)) };
 }
 
-/** Types the task into the sub-agent once its Claude is up, as a mission's `assign` does; its parent hears of a failure. */
+/**
+ * Who holds the seats, by folder, every project's: `Superman, Aquaman (BOS-Mono); Shazam (upload-plans-hulk)`.
+ * A cap held in another project is otherwise read as one's own closed terminals.
+ */
+function seatHolders(ids: readonly string[]): string {
+  const nodes = nodesStore.getState().nodes;
+  const byFolder = new Map<string, string[]>();
+  for (const id of ids) {
+    const folder = terminalOf(nodes[id])?.cwd.split(/[\\/]/).filter(Boolean).pop() ?? "?";
+    byFolder.set(folder, [...(byFolder.get(folder) ?? []), nodeNameOf(nodes[id]) || "a sub-agent"]);
+  }
+  return [...byFolder].map(([folder, names]) => `${names.join(", ")} (${folder})`).join("; ");
+}
+
+/**
+ * Types the task into the sub-agent once its Claude is up, as a mission's `assign` does; its parent hears of a
+ * failure. A question only the user answers may hold its Claude past the minute: the parent hears so, and the task
+ * still goes when the session opens (its parent cannot message it meanwhile: it is launching).
+ */
 async function deliver(parentId: string, childId: string, name: string, text: string) {
   try {
     const agent = terminalOf(nodesStore.getState().nodes[childId])?.agent;
-    const ready = await whenReady({ running: () => isRunning(childId), quietMs: () => quietFor(childId), screen: () => freshText(childId, 50), press: (keys) => ptyWrite(childId, keys), agent });
+    const ready = await whenReady({
+      running: () => isRunning(childId),
+      quietMs: () => quietFor(childId),
+      screen: () => freshText(childId, 50),
+      press: (keys) => ptyWrite(childId, keys),
+      agent,
+      waitLonger: () => isRunning(childId),
+      slow: () => notify(parentId, t().slow(name)),
+    });
     if (!isRunning(childId)) {
       notify(parentId, t().notStarted(name));
       return;

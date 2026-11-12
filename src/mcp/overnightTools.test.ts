@@ -11,7 +11,7 @@ import { fleetTool } from "./fleetTools";
 import { internalCall } from "./protocol";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
-vi.mock("@/mission/launch", () => ({ endMission: vi.fn(), mergeMission: vi.fn(), reassignTask: vi.fn(), launchMission: vi.fn(() => Promise.resolve()) }));
+vi.mock("@/mission/launch", () => ({ endMission: vi.fn(), mergeMission: vi.fn(), reassignTask: vi.fn(), launchMission: vi.fn(() => Promise.resolve()), deliveryPending: vi.fn(() => false) }));
 vi.mock("@/mission/tickets", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/mission/tickets")>()), readTickets: vi.fn() }));
 vi.mock("@/agents/broadcast", () => ({ pauseAgents: vi.fn() }));
 vi.mock("@/agents/remoteControl", () => ({ setRemoteControl: vi.fn() }));

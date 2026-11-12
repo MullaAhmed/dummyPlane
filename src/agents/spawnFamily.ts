@@ -83,22 +83,30 @@ export function markReported(nodeId: string) {
   reported.add(nodeId);
 }
 
-/** A sub-agent created, not stopped, not reported yet. */
+/**
+ * A sub-agent created, not stopped, not reported yet. Its report is kept with it (`lastReport`), the set above
+ * only for this run: after a restart its resumed session is still a finished one, until new work clears it.
+ */
 export function atWork(id: string): boolean {
   if (launching.has(id)) return true;
+  if (reported.has(id) || terminalOf(nodesStore.getState().nodes[id])?.lastReport) return false;
   const state = statusOf(id).state;
-  return !reported.has(id) && (state === "running" || state === "starting");
+  return state === "running" || state === "starting";
 }
 
 /**
  * The sub-agents at work now, every tree and workspace together: created, not stopped, not reported yet. A
  * mission's agents under their Manager are its team, counted by Max active agents, not here; theirs count.
  */
-export function runningSpawned(): number {
-  return Object.entries(nodesStore.getState().nodes).filter(([id, record]) => {
+export function spawnedAtWork(): string[] {
+  return Object.entries(nodesStore.getState().nodes).flatMap(([id, record]) => {
     const parent = terminalOf(record)?.spawnedBy;
-    return Boolean(parent) && !isManagerNode(parent!) && atWork(id);
-  }).length;
+    return parent && !isManagerNode(parent) && atWork(id) ? [id] : [];
+  });
+}
+
+export function runningSpawned(): number {
+  return spawnedAtWork().length;
 }
 
 /**

@@ -6,7 +6,7 @@ import { terminalStatusStore } from "@/store/terminalStatus";
 import { fleetTool } from "./fleetTools";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
-vi.mock("@/mission/launch", () => ({ endMission: vi.fn(), mergeMission: vi.fn(), reassignTask: vi.fn() }));
+vi.mock("@/mission/launch", () => ({ endMission: vi.fn(), mergeMission: vi.fn(), reassignTask: vi.fn(), deliveryPending: vi.fn(() => false) }));
 vi.mock("@/agents/broadcast", () => ({ pauseAgents: vi.fn(() => Promise.resolve(1)) }));
 vi.mock("@/agents/remoteControl", () => ({ setRemoteControl: vi.fn() }));
 vi.mock("@/nodes/terminal/registry", () => ({ terminalText: vi.fn(() => ""), quietFor: vi.fn(() => 0), typedAgo: vi.fn(() => Infinity), freshText: vi.fn(() => "") }));

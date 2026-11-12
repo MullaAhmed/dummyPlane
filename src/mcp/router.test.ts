@@ -25,6 +25,7 @@ vi.mock("@/mission/launch", () => ({
   mergeMission: vi.fn(() => Promise.resolve("Branch dummyplane/auth :\nBatman : merged")),
   endMission: vi.fn(),
   reassignTask: vi.fn(() => Promise.resolve({ name: "Aquaman" })),
+  deliveryPending: vi.fn(() => false),
 }));
 vi.mock("@/mission/events", () => ({ notify: vi.fn() }));
 vi.mock("@/agents/broadcast", () => ({ pauseAgents: vi.fn(() => Promise.resolve(1)) }));

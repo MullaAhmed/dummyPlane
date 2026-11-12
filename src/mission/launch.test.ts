@@ -22,9 +22,9 @@ import { workspacesStore } from "@/store/workspaces";
 import { notify } from "./events";
 import { whenReady } from "./ready";
 import { onFinish, type FinishSignal } from "@/agents/finishes";
-import { cleanMission, endMission, handoverText, launchMission, mergeMission, reassignTask, subTaskText, withTicketNote } from "./launch";
+import { cleanMission, deliveryPending, endMission, handoverText, launchMission, mergeMission, reassignTask, subTaskText, withTicketNote } from "./launch";
 import { NEW_MISSION, type Member, type Mission } from "./mission";
-import { missionOf, releaseTeamPermission, setMission, updateMember } from "./store";
+import { memberOf, missionOf, releaseTeamPermission, setMission, updateMember } from "./store";
 import { setUpBoard, undoSetup } from "./manager";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
@@ -350,6 +350,53 @@ describe("launchMission", () => {
     await launchMission("chef");
     await vi.waitFor(() => expect(vi.mocked(notify).mock.calls.filter(([, text]) => text.includes("is not ready"))).toHaveLength(2));
     expect(ptySendText).not.toHaveBeenCalled();
+  });
+
+  it("still types the sub-task of an agent whose Claude opens past the minute, once, and its report is then the mission's", async () => {
+    await setup();
+    vi.mocked(addTerminal).mockResolvedValueOnce("n1");
+    let open!: () => void;
+    const opened = new Promise<void>((resolve) => (open = resolve));
+    // A question only the user answers (a project's new MCP server) holds both Claudes past the minute.
+    const late: typeof whenReady = async (probe) => {
+      expect(probe.waitLonger?.()).toBe(true);
+      probe.slow?.();
+      await opened;
+      return true;
+    };
+    vi.mocked(whenReady).mockImplementationOnce(late).mockImplementationOnce(late);
+    await launchMission("chef");
+    await vi.waitFor(() => expect(vi.mocked(notify).mock.calls.filter(([id, text]) => id === "m1" && text.includes("has not opened after a minute"))).toHaveLength(2));
+    // Meanwhile: nothing typed, its report would not be the mission's, and the Manager's write would cross it.
+    expect(ptySendText).not.toHaveBeenCalled();
+    expect(memberOf("n1")).toBeNull();
+    expect(deliveryPending("n1")).toBe(true);
+    open();
+    await vi.waitFor(() => expect(missionNow().members.every((m) => m.sentAt !== undefined)).toBe(true));
+    expect(vi.mocked(ptySendText).mock.calls.map(([id]) => id).sort()).toEqual(["batman", "n1"]);
+    expect(memberOf("n1")?.member.nodeId).toBe("n1");
+    expect(deliveryPending("n1")).toBe(false);
+    expect(notify).toHaveBeenCalledWith("m1", expect.stringContaining("its sub-task is sent now"));
+  });
+
+  it("types nothing past the minute once the Manager gave the sub-task by hand, nor to an agent handed away", async () => {
+    await setup();
+    vi.mocked(addTerminal).mockResolvedValueOnce("n1");
+    let open!: () => void;
+    const opened = new Promise<void>((resolve) => (open = resolve));
+    const late: typeof whenReady = async () => {
+      await opened;
+      return true;
+    };
+    vi.mocked(whenReady).mockImplementationOnce(late).mockImplementationOnce(late);
+    await launchMission("chef");
+    // Batman got it by hand (dummyPlane restarted since, say); n1's sub-task went to another agent.
+    updateMember("chef", "batman", { sentAt: 5 });
+    updateMember("chef", "n1", { handedTo: "Shazam" });
+    open();
+    await vi.waitFor(() => expect(deliveryPending("batman") || deliveryPending("n1")).toBe(false));
+    expect(ptySendText).not.toHaveBeenCalled();
+    expect(missionNow().members.find((m) => m.nodeId === "batman")?.sentAt).toBe(5);
   });
 
   it("tells the Manager when an agent did not start, instead of typing into nothing", async () => {

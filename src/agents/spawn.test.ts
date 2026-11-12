@@ -152,6 +152,19 @@ describe("spawn_agent", () => {
     expect(ptySendText).not.toHaveBeenCalled();
   });
 
+  it("tells the parent once when the sub-agent's Claude has not opened after a minute, and still types its task when it opens", async () => {
+    vi.mocked(whenReady).mockImplementationOnce(async (probe) => {
+      // A question only the user answers holds its Claude past the minute.
+      expect(probe.waitLonger?.()).toBe(true);
+      probe.slow?.();
+      return true;
+    });
+    await spawnAgent("batman", { task: "Do it" });
+    await vi.waitFor(() => expect(ptySendText).toHaveBeenCalledTimes(1));
+    expect(notify).toHaveBeenCalledWith("batman", expect.stringContaining("dummyPlane types its task as soon as the session opens"));
+    expect(notify).not.toHaveBeenCalledWith("batman", expect.stringContaining("is not ready"));
+  });
+
   it("joins its parent's group, named from the group's pantheon", async () => {
     vi.mocked(workspaceCanvas).mockReturnValue({
       frames: [{ id: "g1", x: 0, y: 0, width: 10, height: 10, name: "Team", memberIds: ["batman"], group: { role: "general", pantheon: "egyptian" } }],
@@ -181,6 +194,8 @@ describe("spawn_agent", () => {
     await spawnAgent("batman", { task: "Two" });
     const third = await spawnAgent("batman", { task: "Three" });
     expect(third).toEqual({ text: expect.stringContaining("2 sub-agents are already running, the most at once is 2"), error: true });
+    // Who holds the seats, and in which folder: a cap held in another project is not read as one's own closed terminals.
+    expect(third.text).toMatch(/every project counted: .+ \(wt\)\./);
     // One that reported frees its seat, its terminal still open; so does one that stopped.
     markReported("child1");
     expect((await spawnAgent("batman", { task: "Three" })).error).toBeUndefined();

@@ -179,4 +179,19 @@ describe("runningSpawned", () => {
     markReported("flash");
     expect(runningSpawned()).toBe(1);
   });
+
+  it("frees the seat of a sub-agent that reported before a restart, its session resumed since", () => {
+    // After the restart the module's marks are gone; its report is stored with it, and its session runs again.
+    const done = { status: "done" as const, summary: "PR 543 reviewed." };
+    nodesStore.setState((s) => ({
+      nodes: {
+        ...s.nodes,
+        superman: { ...terminal("Superman", "robin"), payload: { ...terminal("Superman", "robin").payload, lastReport: done } } as NodeRecord,
+        zatanna: terminal("Zatanna", "robin"),
+      },
+    }));
+    status("superman", "running");
+    status("zatanna", "running");
+    expect(runningSpawned()).toBe(1);
+  });
 });
