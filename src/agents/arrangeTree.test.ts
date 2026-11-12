@@ -211,6 +211,25 @@ describe("the user's Arrange in another layout, after the tree", () => {
     for (const id of ["root", "k1", "k2", "k3"]) expect(at(result!.elements, id), id).toEqual(at(down, id));
   });
 
+  it("lays a group's family back into its flowchart inside its frame, the frame fitted: the group's Arrange and the canvas's", () => {
+    const frame = createGroupFrame({ x: 0, y: 0, width: 4000, height: 3000 }, "Batman's sub-agents", { role: "general", pantheon: "norse" }) as unknown as ExcalidrawElement;
+    const scene = [...flowchart().map((e) => (e.type === "arrow" ? e : { ...e, x: e.x + PADDING, y: e.y + PADDING_TOP, frameId: frame.id })), frame];
+    const down = arranged(tree({ elements: scene, only: [frame.id], aspect: 4 }));
+    expect(marks(down)).toEqual(["root"]);
+    for (const only of [[frame.id], undefined]) {
+      const after = arranged(grid({ elements: down, only, aspect: 4 }));
+      expect(marks(after), String(only)).toEqual([]);
+      const root = at(after, "root");
+      expect(at(after, "k1"), String(only)).toEqual({ x: root.x + W + GROUP_GAP, y: root.y });
+      for (const id of ["root", "k1", "k2", "k3"]) expect(after.find((e) => e.id === id)!.frameId, id).toBe(frame.id);
+      // The frame fits the flowchart: wider than tall now, its members inside it.
+      const fitted = after.find((e) => e.id === frame.id)!;
+      for (const id of ["k1", "k2", "k3"]) expect(at(after, id).x + W, id).toBeLessThanOrEqual(fitted.x + fitted.width);
+      expect(reflow(after, "root"), String(only)).toBeNull();
+      expect(arrangedElements(grid({ elements: after, only, aspect: 4 })), String(only)).toBeNull();
+    }
+  });
+
   it("takes off a mark down the tree too: a root an undo put under its spawner again", () => {
     const down = laidDown().map((e) => (e.id === "k1" ? ({ ...e, customData: { ...e.customData, downTree: true } } as ExcalidrawElement) : e));
     const after = arranged(grid({ elements: down }));
