@@ -11,7 +11,7 @@ import type { McpCall } from "@/ipc/mcp";
 import { pauseAgents } from "@/agents/broadcast";
 import { setRemoteControl } from "@/agents/remoteControl";
 import { ptySendText } from "@/ipc/pty";
-import { terminalText } from "@/nodes/terminal/registry";
+import { relaunchTerminal, terminalText } from "@/nodes/terminal/registry";
 import { notify } from "@/mission/events";
 import { endMission, reassignTask } from "@/mission/launch";
 import { stopMission } from "@/mission/stop";
@@ -21,7 +21,7 @@ import { agentActivityStore } from "@/store/agentActivity";
 import { terminalStatusStore } from "@/store/terminalStatus";
 
 vi.mock("@/ipc/pty", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/ipc/pty")>()), ptySendText: vi.fn(() => Promise.resolve()) }));
-vi.mock("@/nodes/terminal/registry", () => ({ terminalText: vi.fn(() => "ligne 1\nligne 2") }));
+vi.mock("@/nodes/terminal/registry", () => ({ terminalText: vi.fn(() => "ligne 1\nligne 2"), relaunchTerminal: vi.fn(() => Promise.resolve()) }));
 vi.mock("@/mission/launch", () => ({
   mergeMission: vi.fn(() => Promise.resolve("Branch dummyplane/auth :\nBatman : merged")),
   endMission: vi.fn(),
@@ -341,7 +341,7 @@ describe("the fleet's tools", () => {
       const list = (await answer({ callId: 1, nodeId: "chef", method: "tools/list", params: {} })) as { tools: { name: string }[] };
       expect(list.tools.map((t) => t.name)).toEqual([
         "mission", "propose_plan", "add_tasks", "queue", "prioritize", "next_task", "tickets", "board", "team",
-        "read_output", "write", "extend", "interrupt", "reassign", "merge", "finish", "stop_mission", "clean_up_mission", "remote_control",
+        "read_output", "write", "extend", "interrupt", "relaunch", "reassign", "merge", "finish", "stop_mission", "clean_up_mission", "remote_control",
         "spawn_agent", "linked_boards", "add_board_card", "move_board_card", "open_board", "output_guide", "read_node", "notes",
       ]);
       expect(JSON.parse(textOf(await call("chef", "mission", {})))).toMatchObject({ runs: "fleet", manager: null, board: null });
@@ -388,7 +388,7 @@ describe("the fleet's tools", () => {
 
     it("writes to an agent that runs, never into a dialog meant for the user", async () => {
       terminalStatusStore.getState().set("batman", { state: "stopped" });
-      expect(textOf(await call("chef", "write", { agent: "Batman", text: "Relance" }))).toBe("Batman is stopped.");
+      expect(textOf(await call("chef", "write", { agent: "Batman", text: "Relance" }))).toBe("Batman is stopped: relaunch starts it again on its own conversation, then write reaches it.");
       terminalStatusStore.getState().set("batman", { state: "running" });
       agentActivityStore.getState().apply({ nodeId: "batman", activity: "waiting", since: 0 });
       expect(await call("chef", "write", { agent: "Batman", text: "Relance" })).toMatchObject({ isError: true });
@@ -451,6 +451,20 @@ describe("the fleet's tools", () => {
       expect(pauseAgents).toHaveBeenCalledWith(["batman"]);
       vi.mocked(pauseAgents).mockResolvedValueOnce(0);
       expect(textOf(await call("chef", "interrupt", { agent: "Batman" }))).toBe("Batman is not at work: nothing to interrupt.");
+    });
+
+    it("relaunches a stopped agent of the team through dummyPlane, the Fleet running it the old way", async () => {
+      const before = terminalStatusStore.getState().statuses.batman;
+      canvasStore.setState({ api: { getSceneElements: () => [], getSceneElementsIncludingDeleted: () => [{ id: "batman", isDeleted: false }] } as never });
+      terminalStatusStore.getState().set("batman", { state: "exited", code: 0 });
+      try {
+        expect(textOf(await call("chef", "relaunch", { agent: "Batman" }))).toContain("Batman is starting again");
+        expect(relaunchTerminal).toHaveBeenCalledWith("batman", expect.objectContaining({ name: "Batman" }), "new");
+      } finally {
+        if (before) terminalStatusStore.getState().set("batman", before);
+        else terminalStatusStore.getState().remove("batman");
+        canvasStore.setState({ api: { getSceneElements: () => [], getSceneElementsIncludingDeleted: () => [] } as never });
+      }
     });
 
     it("hands a sub-task over through dummyPlane", async () => {
@@ -516,8 +530,11 @@ describe("a mission its Manager runs", () => {
     const list = (await answer({ callId: 1, nodeId: "boss", method: "tools/list", params: {} })) as { tools: { name: string }[] };
     expect(list.tools.map((t) => t.name)).toEqual([
       "mission", "add_tasks", "queue", "next_task", "board", "move_card", "team", "read_output", "write", "extend",
-      "interrupt", "reassign", "merge", "finish", "need_user", "output_guide", "read_node", "notes",
+      "interrupt", "relaunch", "reassign", "merge", "finish", "need_user", "output_guide", "read_node", "notes",
     ]);
+    // Its relaunch reaches dummyPlane by its English name; an agent of the team has no such tool.
+    expect(textOf(await call("boss", "relaunch", { agent: "Robin" }))).toBe("Robin is running: nothing to relaunch.");
+    expect(textOf(await call("robin", "relaunch", { agent: "Robin" }))).toBe("This tool is for the fleet.");
     expect(textOf(await call("boss", "report", { summary: "x", status: "done" }))).toContain("not the Manager's");
     expect(textOf(await call("boss", "spawn_agent", { task: "x" }))).toContain("not the Manager's");
     expect(textOf(await call("boss", "propose_plan", {}))).toBe("This tool is for the fleet.");

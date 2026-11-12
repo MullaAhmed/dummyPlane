@@ -130,9 +130,12 @@ export const agentMessages = defineMessages({
       team: "Fleet and Manager. Each agent of the mission: group and speciality, sub-task, state (working, waiting, idle, stopped), steps, time spent / budget, report, and whether next_task abandoned its task (abandoned). Read-only.",
       readOutput: "Manager (or the Fleet of a mission run the old way). The end of a mission agent's terminal, as plain text.",
       write:
-        "Manager (or the Fleet of a mission run the old way). Type a message into a mission agent's terminal (a nudge, a precision). Refused while it waits for the user's answer, and while dummyPlane still waits for its session to open to type its sub-task. After \"its sub-task is not sent\", what you write is its sub-task.",
+        "Manager (or the Fleet of a mission run the old way). Type a message into a mission agent's terminal (a nudge, a precision). Refused while it waits for the user's answer, and while dummyPlane still waits for its session to open to type its sub-task. After \"<name> is not ready … its sub-task is not sent\", what you write is its sub-task; after \"did not start\", dummyPlane types it itself once its terminal runs again (relaunch).",
       extend: "Manager (or the Fleet of a mission run the old way). Add minutes to a mission agent's budget; overnight, its new target must end before the night does, which is real time.",
       interrupt: "Manager (or the Fleet of a mission run the old way). Stop the turn of an agent at work (Esc), like \"Pause\"; write \"continue\" resumes it.",
+      relaunch:
+        "Manager (or the Fleet of a mission run the old way). Start again the terminal of a mission agent that stopped (its terminal, or its agent back at its shell), on its own conversation. " +
+        "Refused while it runs, for an agent that handed its sub-task over, and for one whose terminal the user closed. Once it is up, write tells it what is left; a sub-task it never got, dummyPlane types itself.",
       reassign: "Manager (or the Fleet of a mission run the old way). Give a sub-task to another mission agent that has reported, or to a \"new\" agent: it gets the previous agent's report and branch.",
       merge: "Manager (or the Fleet of a mission run the old way). Merge into the mission's branch the branches of the agents that reported \"done\"; says what was merged and the conflicts.",
       finish: "Manager (or the Fleet of a mission run the old way). Close the mission with your summary: the agents created for it close, the linked agents go back to the project's folder.",
@@ -381,7 +384,7 @@ export const agentMessages = defineMessages({
         `Plan proposed: ${plural(count, "sub-task", "sub-tasks")}.${count > max ? ` The first ${max} start at the go-ahead, the rest wait in the queue for a seat.` : ""} It waits for the user's go-ahead ("Launch the mission" in the fleet's panel).`,
       emptyTerminal: "(empty terminal)",
       nothingToWrite: "Nothing to write (text).",
-      stopped: (name: string) => `${name} is stopped.`,
+      stopped: (name: string) => `${name} is stopped: relaunch starts it again on its own conversation, then write reaches it.`,
       waiting: (name: string) => `${name} is waiting for the user's answer: that dialog is for them, tell them about it.`,
       written: (name: string) => `Written to ${name}.`,
       notYetSent: (name: string) =>
@@ -394,7 +397,17 @@ export const agentMessages = defineMessages({
       extended: (name: string, minutes: number, budget: number) => `${name}: +${minutes} min, budget ${budget} min.`,
       notWorking: (name: string) => `${name} is not at work: nothing to interrupt.`,
       interrupted: (name: string) => `${name}'s turn interrupted. write "continue" resumes it.`,
-      noSubtask: (title: string) => `No sub-task "${title}" in the team.`,
+      noSubtask: (title: string, titles: readonly string[]) =>
+        `No sub-task "${title}" in the team. ` +
+        (titles.length > 0 ? `Give its title as team gives it (subtask), one of: ${titles.map((t) => `"${t}"`).join(", ")}.` : "No sub-task can be reassigned now."),
+      relaunchRunning: (name: string) => `${name} is running: nothing to relaunch.`,
+      relaunchHanded: (name: string, to: string) => `${name} handed its sub-task to ${to}: nothing to relaunch.`,
+      relaunchClosed: (name: string) =>
+        `${name}'s terminal is no longer on the canvas: the user closed it. Reassign its sub-task to another agent, or ask the user whether to bring it back.`,
+      relaunchFailed: (name: string, error: string) => `${name} could not start again: ${error}`,
+      relaunched: (name: string) => `${name} is starting again on its own conversation. Once it is up (team, read_output), write tells it what is left.`,
+      relaunchedBrief: (name: string) =>
+        `${name} is starting again. It never got its sub-task: dummyPlane types it as soon as its session opens, do not type it yourself.`,
       handedTo: (task: string, name: string) => `"${task}" goes to ${name}.`,
       summaryMissing: "Give your summary (summary).",
       ended: "Mission finished. The summary is in the panel; the user merges the mission's branch into their own.",
@@ -457,7 +470,7 @@ export const agentMessages = defineMessages({
       handoverReport: (status: string, summary: string) => `its report (${status}): "${summary}"`,
       handoverNoReport: "it did not report",
       handedAway: (task: string, name: string) => `[dummyPlane] Your sub-task "${task}" goes to ${name}: stop it and commit nothing more on it.`,
-      notStarted: (name: string) => `${name} did not start: its sub-task is not sent. Once it runs, type its sub-task with write.`,
+      notStarted: (name: string) => `${name} did not start: its sub-task is not sent yet. dummyPlane types it as soon as its terminal runs again: relaunch it, do not type it yourself.`,
       notReady: (name: string) =>
         `${name} is not ready, its session did not open: its sub-task is not sent. Look at its terminal with read_output; once its session is open, type its sub-task with write.`,
       slow: (name: string) =>
@@ -511,7 +524,7 @@ export const agentMessages = defineMessages({
       hidden: "The fleet's workspace is not on screen: no agent can be created there.",
       notOther: (target: string) => `"${target}" is not another agent of the mission.`,
       notDone: (name: string) => `${name} has not finished its sub-task: choose an agent that has reported, or "new".`,
-      targetStopped: (name: string) => `${name} is stopped: restart it first, or choose another agent.`,
+      targetStopped: (name: string) => `${name} is stopped: relaunch it first, or choose another agent.`,
       teamFull: (max: number) => `${max} agents are already at work (Max active agents): reassign to an agent that has reported instead of "new", or wait for one to finish.`,
       notMerged: (name: string, task: string) => `${name} finished "${task}" but its branch is not merged: call merge first.`,
       createFailed: "The new agent could not be created.",

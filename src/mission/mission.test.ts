@@ -90,6 +90,12 @@ describe("a new agent's group", () => {
   });
 });
 
+it("keeps a member's sub-task not typed yet across a restart, and none once it was typed (12 Nov)", () => {
+  const member = { nodeId: "n", name: "Batman", task: "A", budgetMin: 1, linked: false, branch: "b", worktree: "w" };
+  const saved = readMission(JSON.parse(JSON.stringify({ state: "en_cours", maxAgents: 4, members: [{ ...member, brief: "Do A." }, { ...member, nodeId: "m", brief: "Do A.", sentAt: 5 }, { ...member, nodeId: "o", brief: 3 }] })));
+  expect(saved?.members.map((m) => m.brief)).toEqual(["Do A.", undefined, undefined]);
+});
+
 describe("tasks for the queue", () => {
   const item = (titre: string, extra: object = {}) => ({ titre, consigne: "Fais-le", budget_min: 20, ...extra });
   const added = (...tasks: unknown[]) => ({ tasks });

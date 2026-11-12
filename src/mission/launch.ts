@@ -251,10 +251,16 @@ export function deliveryPending(nodeId: string): boolean {
  * Types `text`, its sub-task, in a member's terminal once it is ready. A question only the user answers (a
  * project's new MCP server) may hold its Claude long past the minute: its runner hears so once, and the sub-task
  * still goes when the session opens, never twice. Its `sentAt` is what makes its report the mission's (`memberOf`).
+ * The text waits on the member (`brief`) until it is typed: dummyPlane restarted, or its terminal stopped and
+ * started again, `./redeliver.ts` types it then. A member already waiting for its sub-task is not given a second one.
  */
 export async function assign(fleetId: string, member: Member, text: string, restarted: Promise<void> = Promise.resolve()) {
   const id = member.nodeId;
+  // Outside the try: this call's `finally` must not end the delivery under way.
+  if (delivering.has(id)) return;
   delivering.add(id);
+  // Before anything is awaited: the watcher of restarts never sees this member without its text, nor acts meanwhile.
+  updateMember(fleetId, id, { brief: text });
   try {
     // Before its relaunch ends, its screen and silence are the previous session's (final review H2).
     await restarted.catch(() => undefined);
@@ -294,7 +300,7 @@ export async function assign(fleetId: string, member: Member, text: string, rest
     }
     await ptySendText(id, text);
     talk(runner, id);
-    updateMember(fleetId, id, { sentAt: Date.now() });
+    updateMember(fleetId, id, { sentAt: Date.now(), brief: undefined });
     if (late) notify(runner, t().lines.sentLate(member.name));
   } finally {
     delivering.delete(id);
@@ -554,6 +560,8 @@ export async function reassignTask(fleetId: string, fromNodeId: string, target: 
       overdue: undefined,
       report: undefined,
       sentAt: undefined,
+      // Its new sub-task's text is `assign`'s to record: none of an older one may be typed while it is handed over.
+      brief: undefined,
       merged: undefined,
       // Given a task again, it is no longer the one that left its own.
       abandoned: undefined,

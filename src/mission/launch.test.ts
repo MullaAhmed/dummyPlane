@@ -22,7 +22,8 @@ import { workspacesStore } from "@/store/workspaces";
 import { notify } from "./events";
 import { whenReady } from "./ready";
 import { onFinish, type FinishSignal } from "@/agents/finishes";
-import { cleanMission, deliveryPending, endMission, handoverText, launchMission, mergeMission, reassignTask, subTaskText, withTicketNote } from "./launch";
+import { assign, cleanMission, deliveryPending, endMission, handoverText, launchMission, mergeMission, reassignTask, subTaskText, withTicketNote } from "./launch";
+import { installRedelivery } from "./redeliver";
 import { NEW_MISSION, type Member, type Mission } from "./mission";
 import { memberOf, missionOf, releaseTeamPermission, setMission, updateMember } from "./store";
 import { setUpBoard, undoSetup } from "./manager";
@@ -995,6 +996,176 @@ describe("reassignTask", () => {
       ["n1", "API", undefined],
       ["n9", "Login", undefined],
     ]);
+  });
+});
+
+describe("a sub-task dummyPlane has not typed yet, after a restart or a relaunch (12 Nov)", () => {
+  const pending = "[dummyPlane · mission Auth] Login — Fais le login.";
+  const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
+  const typedTo = (nodeId: string) => vi.mocked(ptySendText).mock.calls.filter(([id]) => id === nodeId);
+  const held = (nodeId: string) => missionNow().members.find((m) => m.nodeId === nodeId)!;
+  const status = (nodeId: string, state: "running" | "stopped" | "exited") =>
+    terminalStatusStore.getState().set(nodeId, state === "exited" ? { state, code: 0 } : { state });
+  let uninstall: (() => void) | undefined;
+  afterEach(() => {
+    uninstall?.();
+    uninstall = undefined;
+  });
+
+  it("keeps the text with the member until it is typed, then drops it", async () => {
+    await setup();
+    vi.mocked(addTerminal).mockResolvedValueOnce("n1");
+    let open!: () => void;
+    const opened = new Promise<void>((resolve) => (open = resolve));
+    vi.mocked(whenReady).mockImplementation(async () => {
+      await opened;
+      return true;
+    });
+    try {
+      await launchMission("chef");
+      // Recorded before any wait: dummyPlane restarting now still knows what to type.
+      expect(held("batman").brief).toContain("Login");
+      expect(held("n1").brief).toContain("API");
+      open();
+      await vi.waitFor(() => expect(missionNow().members.every((m) => m.sentAt !== undefined)).toBe(true));
+      expect(missionNow().members.map((m) => m.brief)).toEqual([undefined, undefined]);
+    } finally {
+      vi.mocked(whenReady).mockImplementation(() => Promise.resolve(true));
+    }
+  });
+
+  it("types it once its terminal runs again after dummyPlane restarted, and only once", async () => {
+    await setup({ state: "en_cours", members: [member("n1", "Aquaman", false, { task: "Login", sentAt: undefined, brief: pending })] });
+    status("n1", "stopped");
+    uninstall = installRedelivery();
+    await tick();
+    expect(ptySendText).not.toHaveBeenCalled();
+    status("n1", "running");
+    await vi.waitFor(() => expect(held("n1").sentAt).toEqual(expect.any(Number)));
+    expect(typedTo("n1")).toEqual([["n1", pending]]);
+    expect(held("n1").brief).toBeUndefined();
+    // Its report is the mission's from now on.
+    expect(memberOf("n1")?.member.nodeId).toBe("n1");
+    // Stopped and started again: it has its sub-task, nothing more is typed.
+    status("n1", "exited");
+    status("n1", "running");
+    await tick();
+    expect(typedTo("n1")).toHaveLength(1);
+  });
+
+  it("types it to a member already running when the watcher installs (a reload of the window)", async () => {
+    await setup({ state: "en_cours", members: [member("n1", "Aquaman", false, { task: "Login", sentAt: undefined, brief: pending })] });
+    uninstall = installRedelivery();
+    await vi.waitFor(() => expect(typedTo("n1")).toEqual([["n1", pending]]));
+  });
+
+  it("types it to an agent that did not start once its terminal runs: the Manager types nothing", async () => {
+    await setup();
+    vi.mocked(addTerminal).mockResolvedValueOnce("n1");
+    status("n1", "stopped");
+    uninstall = installRedelivery();
+    await launchMission("chef");
+    await vi.waitFor(() =>
+      expect(notify).toHaveBeenCalledWith("m1", `${held("n1").name} did not start: its sub-task is not sent yet. dummyPlane types it as soon as its terminal runs again: relaunch it, do not type it yourself.`),
+    );
+    const brief = held("n1").brief;
+    expect(brief).toContain("API");
+    expect(typedTo("n1")).toEqual([]);
+    status("n1", "running");
+    await vi.waitFor(() => expect(held("n1").sentAt).toEqual(expect.any(Number)));
+    expect(typedTo("n1")).toEqual([["n1", brief]]);
+  });
+
+  it("never types it twice while its session is awaited: a restart meanwhile, or a second assign, changes nothing", async () => {
+    await setup({ state: "en_cours", members: [member("n1", "Aquaman", false, { task: "Login", sentAt: undefined, brief: pending })] });
+    let open!: () => void;
+    const opened = new Promise<void>((resolve) => (open = resolve));
+    vi.mocked(whenReady).mockImplementationOnce(async () => {
+      await opened;
+      return true;
+    });
+    status("n1", "stopped");
+    uninstall = installRedelivery();
+    status("n1", "running");
+    expect(deliveryPending("n1")).toBe(true);
+    status("n1", "exited");
+    status("n1", "running");
+    await assign("chef", held("n1"), "another text");
+    open();
+    await vi.waitFor(() => expect(deliveryPending("n1")).toBe(false));
+    expect(whenReady).toHaveBeenCalledTimes(1);
+    expect(typedTo("n1")).toEqual([["n1", pending]]);
+  });
+
+  it("leaves alone a member that handed its task over, one that reported, one that has its sub-task, and a mission no longer running", async () => {
+    const report = { summary: "x", status: "bloque" as const, at: 1 };
+    await setup({
+      state: "en_cours",
+      members: [
+        member("n1", "Aquaman", false, { sentAt: undefined, brief: pending, handedTo: "Shazam" }),
+        member("n2", "Shazam", false, { sentAt: undefined, brief: pending, report }),
+        member("n3", "Hulk", false, { brief: pending }),
+      ],
+    });
+    for (const id of ["n1", "n2", "n3"]) status(id, "stopped");
+    uninstall = installRedelivery();
+    for (const id of ["n1", "n2", "n3"]) status(id, "running");
+    await tick();
+    expect(ptySendText).not.toHaveBeenCalled();
+    setMission("chef", { state: "terminee", members: [member("n4", "Thor", false, { sentAt: undefined, brief: pending })] });
+    status("n4", "stopped");
+    status("n4", "running");
+    await tick();
+    expect(ptySendText).not.toHaveBeenCalled();
+  });
+
+  it("never types a new agent's or a reported agent's sub-task while the previous one is paused: reassign records it first", async () => {
+    const report = { summary: "API faite", status: "termine" as const, at: 1 };
+    await setup({
+      state: "en_cours",
+      project: "C:/code/proj",
+      slug: "auth",
+      frameId: "f1",
+      // Aquaman reported long ago; the text of an older sub-task is still on it.
+      members: [member("batman", "Batman", true, { task: "Login" }), member("n1", "Aquaman", false, { task: "API", report, merged: true, brief: "an older sub-task" })],
+    });
+    let release!: () => void;
+    vi.mocked(pauseAgents).mockImplementationOnce(() => new Promise<number>((resolve) => (release = () => resolve(1))));
+    uninstall = installRedelivery();
+    const handing = reassignTask("chef", "batman", "Aquaman");
+    await vi.waitFor(() => expect(held("n1").task).toBe("Login"));
+    // Its terminal restarts while Batman is paused: nothing of an older sub-task is typed, nor yet the new one.
+    status("n1", "exited");
+    status("n1", "running");
+    await tick();
+    expect(typedTo("n1")).toEqual([]);
+    release();
+    await handing;
+    await vi.waitFor(() => expect(held("n1").sentAt).toEqual(expect.any(Number)));
+    expect(typedTo("n1")).toHaveLength(1);
+    expect(typedTo("n1")[0][1]).toContain("Taking over Batman's work");
+  });
+
+  it("types a new agent's sub-task once, its terminal starting while the previous one is paused", async () => {
+    const report = { summary: "API faite", status: "termine" as const, at: 1 };
+    await setup({ state: "en_cours", project: "C:/code/proj", slug: "auth", frameId: "f1", members: [member("batman", "Batman", true, { task: "Login" }), member("n1", "Aquaman", false, { task: "API", report, merged: true })] });
+    canvasStore.setState({ frames: [{ id: "f1", x: 0, y: 0, width: 800, height: 500, name: "Mission Auth", group: { role: "general", pantheon: "egyptian" }, memberIds: ["n1"] }] });
+    let release!: () => void;
+    vi.mocked(pauseAgents).mockImplementationOnce(() => new Promise<number>((resolve) => (release = () => resolve(1))));
+    status("n9", "stopped");
+    uninstall = installRedelivery();
+    const handing = reassignTask("chef", "batman", "nouveau");
+    await vi.waitFor(() => expect(missionNow().members.some((m) => m.nodeId === "n9")).toBe(true));
+    status("n9", "running");
+    await tick();
+    expect(typedTo("n9")).toEqual([]);
+    release();
+    await handing;
+    await vi.waitFor(() => expect(held("n9").sentAt).toEqual(expect.any(Number)));
+    status("n9", "exited");
+    status("n9", "running");
+    await tick();
+    expect(typedTo("n9")).toHaveLength(1);
   });
 });
 

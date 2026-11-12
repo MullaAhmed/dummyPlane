@@ -10,6 +10,7 @@ import { installMcp } from "@/mcp/router";
 import { installMissionClock } from "@/mission/clock";
 import { installKeepAwake } from "@/mission/keepAwake";
 import { installMissionEvents } from "@/mission/events";
+import { installRedelivery } from "@/mission/redeliver";
 import { installSubagentNodes } from "@/nodes/subagent/sync";
 import { forgetLivePty, setLivePtys } from "@/nodes/terminal/registry";
 import { installFollowWaiting } from "@/agents/followWaiting";
@@ -71,6 +72,8 @@ export function boot(): Promise<void> {
     await installUsage();
     await installCodexSessions();
     installMissionEvents();
+    // A sub-task dummyPlane had not typed before it restarted goes once its agent's terminal runs again.
+    installRedelivery();
     installMissionClock();
     installKeepAwake();
     installWaitingAlerts();
