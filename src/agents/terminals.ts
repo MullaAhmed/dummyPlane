@@ -223,17 +223,20 @@ function alignCopies(elements: readonly ExcalidrawElement[], copyIds: ReadonlySe
 
 /**
  * Deletes elements in one step, their closing confirmed or needing none: the
- * removal guard lets them go. Undo brings them back, stopped.
+ * removal guard lets them go. Undo brings them back, stopped. `release` are
+ * nodes taken out of a group deleted with them, in that step: they stay.
  */
-export function removeNodes(ids: readonly string[]) {
+export function removeNodes(ids: readonly string[], release: readonly string[] = []) {
   const api = canvasStore.getState().api;
   if (!api) return;
   const elements = api.getSceneElementsIncludingDeleted();
   // Only those really leaving: the guard forgets a pass when a node goes, so one already gone would keep its pass for later.
   const removed = new Set(elements.filter((e) => ids.includes(e.id) && !e.isDeleted).map((e) => e.id));
+  // Taken out of a group that goes with them, in the same step: they stay, in no group.
+  const freed = new Set(elements.filter((e) => release.includes(e.id) && !e.isDeleted && !removed.has(e.id) && e.frameId !== null && removed.has(e.frameId)).map((e) => e.id));
   allowRemoval(removed);
   api.updateScene({
-    elements: elements.map((e) => (removed.has(e.id) ? newElementWith(e, { isDeleted: true }) : e)),
+    elements: elements.map((e) => (removed.has(e.id) ? newElementWith(e, { isDeleted: true }) : freed.has(e.id) ? newElementWith(e, { frameId: null }) : e)),
     captureUpdate: CaptureUpdateAction.IMMEDIATELY,
   });
 }

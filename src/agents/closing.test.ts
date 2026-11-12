@@ -59,6 +59,21 @@ describe("closing running agents, confirmed", () => {
     expect(check([element("cyborg")], ["batman"]).ask).toEqual({ agents: ["batman"], remove: ["batman"] });
   });
 
+  it("undoing a first sub-agent still running: the family put back whole to ask, then, confirmed, the sub-agent and its group go and its parent stays loose", () => {
+    const family = [element("batman", { frameId: "g" }), element("robin", { frameId: "g" }), element("g", { type: "frame", customData: undefined })];
+    const check = createRemovalGuard(isRunning, family);
+    // The one undo step: the sub-agent and its group gone, its parent loose again.
+    const undone = [element("batman", { version: 2 }), { ...family[1], isDeleted: true, version: 2 }, { ...family[2], isDeleted: true, version: 2 }] as ExcalidrawElement[];
+    const verdict = check(undone, ["robin"]);
+    // Put back before the question, as the canvas does: Cancel leaves the family as it was.
+    scene = undone.map((e) => verdict.restore.find((r) => r.id === e.id) ?? e);
+    expect(scene.filter((e) => !e.isDeleted).map((e) => [e.id, e.frameId])).toEqual([["batman", "g"], ["robin", "g"], ["g", null]]);
+    const ask = verdict.ask as { remove: string[]; release?: string[] };
+    removeNodes(ask.remove, ask.release);
+    expect(scene.filter((e) => !e.isDeleted).map((e) => [e.id, e.frameId])).toEqual([["batman", null]]);
+    expect(check(scene, ["robin"]).ask).toBeNull();
+  });
+
   it("Close group, confirmed, lets the frame and its agents go", () => {
     scene = [element("g", { type: "frame", customData: undefined }), element("robin", { frameId: "g" }), element("cyborg", { frameId: "g" })];
     const check = createRemovalGuard(isRunning, scene);

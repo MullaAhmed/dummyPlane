@@ -44,7 +44,7 @@ it("names the agent it would end, and closes it once confirmed", async () => {
   await act(async () => uiStore.getState().setClosing({ agents: ["batman"], remove: ["batman"] }));
   expect(document.querySelector('[role="dialog"]')!.textContent).toContain("Close Batman?");
   await act(async () => button("Close the agent").click());
-  expect(removeNodes).toHaveBeenLastCalledWith(["batman"]);
+  expect(removeNodes).toHaveBeenLastCalledWith(["batman"], []);
   expect(uiStore.getState().closing).toBeNull();
 });
 
@@ -54,7 +54,13 @@ it("lists the agents an undo or Delete would end together, and removes all that 
   expect(dialog.textContent).toContain("Close 2 agents?");
   expect(dialog.textContent).toContain("Batman, Cyborg");
   await act(async () => button("Close the agents").click());
-  expect(removeNodes).toHaveBeenLastCalledWith(["batman", "cyborg", "g"]);
+  expect(removeNodes).toHaveBeenLastCalledWith(["batman", "cyborg", "g"], []);
+});
+
+it("lets the parent an undo took out of its sub-agent's group stay, out of it, once the sub-agent's closing is confirmed", async () => {
+  await act(async () => uiStore.getState().setClosing({ agents: ["batman"], remove: ["batman", "g"], release: ["cyborg"] }));
+  await act(async () => button("Close the agent").click());
+  expect(removeNodes).toHaveBeenLastCalledWith(["batman", "g"], ["cyborg"]);
 });
 
 it("keeps them when cancelled", async () => {
@@ -75,7 +81,7 @@ it("tells what closing a fleet in mission leaves behind", async () => {
   const dialog = document.querySelector('[role="dialog"]')!;
   expect(dialog.textContent).toContain("Chef is leading a mission in progress. Closing it stops its session; its agents keep going, but nobody will read their reports. The mission's worktrees and branches stay on disk.");
   await act(async () => button("Close the fleet").click());
-  expect(removeNodes).toHaveBeenLastCalledWith(["chef", "fil"]);
+  expect(removeNodes).toHaveBeenLastCalledWith(["chef", "fil"], []);
 });
 
 it("says whether the agent is at work or ready", async () => {
@@ -135,7 +141,7 @@ describe("an agent that opened sub-agents (spawn_agent)", () => {
     expect(checkbox()!.checked).toBe(true);
     expect(checkbox()!.label).toBe("Also close the sub-agents it opened: Aquaman, Shazam");
     await act(async () => button("Close the agent").click());
-    expect(removeNodes).toHaveBeenLastCalledWith(["superman", "aquaman", "shazam"]);
+    expect(removeNodes).toHaveBeenLastCalledWith(["superman", "aquaman", "shazam"], []);
     expect(uiStore.getState().closing).toBeNull();
   });
 
@@ -144,7 +150,7 @@ describe("an agent that opened sub-agents (spawn_agent)", () => {
     await act(async () => checkbox()!.click());
     expect(checkbox()!.checked).toBe(false);
     await act(async () => button("Close the agent").click());
-    expect(removeNodes).toHaveBeenLastCalledWith(["superman"]);
+    expect(removeNodes).toHaveBeenLastCalledWith(["superman"], []);
     expect(uiStore.getState().closing).toBeNull();
   });
 
@@ -181,6 +187,6 @@ describe("an agent that opened sub-agents (spawn_agent)", () => {
     expect(checkbox()).toBeNull();
     expect(document.querySelector('[role="dialog"]')!.textContent).not.toContain("Also close");
     await act(async () => button("Close the agent").click());
-    expect(removeNodes).toHaveBeenLastCalledWith(["superman"]);
+    expect(removeNodes).toHaveBeenLastCalledWith(["superman"], []);
   });
 });
