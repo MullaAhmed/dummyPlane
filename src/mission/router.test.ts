@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { LEVELS, modelFor, readLevel, ROUTER_LEVELS } from "./router";
+import { LEVELS, MODEL_CHOICES, modelFor, modelLabel, readLevel, ROUTER_LEVELS } from "./router";
 
 describe("the model router", () => {
   it("gives each level of difficulty its model", () => {
@@ -7,8 +7,20 @@ describe("the model router", () => {
       faible: "claude-haiku-5-5",
       moyen: "claude-sonnet-5-5",
       eleve: "claude-opus-5-5",
-      extreme: "claude-fable-5-1",
+      extreme: "claude-fable-5-2",
     });
+  });
+
+  it("routes to the models the edit panel offers, one table for both", () => {
+    expect(Object.values(LEVELS).map(({ model, modelLabel }) => ({ model, modelLabel }))).toEqual([...MODEL_CHOICES]);
+  });
+
+  it("names a Claude model of another version by its family and version, any other model as it is", () => {
+    expect(modelLabel("claude-sonnet-5-5")).toBe("Sonnet 5.5");
+    expect(modelLabel("claude-fable-5-1")).toBe("Fable 5.1");
+    expect(modelLabel("sonnet")).toBe("sonnet");
+    expect(modelLabel("claude-sonnet-4-20250514")).toBe("claude-sonnet-4-20250514");
+    expect(modelLabel("gpt-5.6-luna")).toBe("gpt-5.6-luna");
   });
 
   it("reads a level as the fleet writes it, accents and case aside", () => {
@@ -36,6 +48,6 @@ describe("the model router", () => {
   });
 
   it("words its table from the levels, never retyped", () => {
-    expect(ROUTER_LEVELS).toBe("low Haiku 5.5, medium Sonnet 5.5, high Opus 5.5, extreme Fable 5.1");
+    expect(ROUTER_LEVELS).toBe("low Haiku 5.5, medium Sonnet 5.5, high Opus 5.5, extreme Fable 5.2");
   });
 });

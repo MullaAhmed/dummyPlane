@@ -1,11 +1,22 @@
 /** How hard a sub-task is: with the router on, it chooses the agent's model. */
 export type Level = "faible" | "moyen" | "eleve" | "extreme";
 
+/**
+ * The models dummyPlane names, the current family, lightest first: the only place their ids are written. The router's
+ * levels and the edit panel's choices both read them, so a new version is one line here.
+ */
+const MODELS = {
+  haiku: { model: "claude-haiku-5-5", modelLabel: "Haiku 5.5" },
+  sonnet: { model: "claude-sonnet-5-5", modelLabel: "Sonnet 5.5" },
+  opus: { model: "claude-opus-5-5", modelLabel: "Opus 5.5" },
+  fable: { model: "claude-fable-5-2", modelLabel: "Fable 5.2" },
+} as const;
+
 export const LEVELS: Record<Level, { label: string; model: string; modelLabel: string }> = {
-  faible: { label: "low", model: "claude-haiku-5-5", modelLabel: "Haiku 5.5" },
-  moyen: { label: "medium", model: "claude-sonnet-5-5", modelLabel: "Sonnet 5.5" },
-  eleve: { label: "high", model: "claude-opus-5-5", modelLabel: "Opus 5.5" },
-  extreme: { label: "extreme", model: "claude-fable-5-1", modelLabel: "Fable 5.1" },
+  faible: { label: "low", ...MODELS.haiku },
+  moyen: { label: "medium", ...MODELS.sonnet },
+  eleve: { label: "high", ...MODELS.opus },
+  extreme: { label: "extreme", ...MODELS.fable },
 };
 
 const fold = (text: string) => text.normalize("NFD").replace(/\p{Diacritic}/gu, "").trim().toLowerCase();
@@ -30,16 +41,20 @@ export function modelFor(mission: { router?: boolean }, task: { level?: Level },
 }
 
 /** The models a terminal's edit panel offers for its next launch (`--model`): the current family, lightest first. */
-export const MODEL_CHOICES: readonly { model: string; modelLabel: string }[] = [
-  { model: "claude-haiku-5-5", modelLabel: "Haiku 5.5" },
-  { model: "claude-sonnet-5-5", modelLabel: "Sonnet 5.5" },
-  { model: "claude-opus-5-5", modelLabel: "Opus 5.5" },
-  { model: "claude-fable-5-2", modelLabel: "Fable 5.2" },
-];
+export const MODEL_CHOICES: readonly { model: string; modelLabel: string }[] = Object.values(MODELS);
 
-/** "Haiku 5.5" for the models dummyPlane chooses, the name itself for any other. */
+/** A Claude model's id, family and version: `claude-fable-5-1`; never a date (`claude-sonnet-4-20250514`). */
+const CLAUDE_ID = /^claude-([a-z]+)-(\d{1,2})-(\d{1,2})$/;
+
+/**
+ * "Haiku 5.5" for the models dummyPlane chooses; a Claude model of another version by its family and version (a
+ * terminal a mission started on `claude-fable-5-1` says "Fable 5.1"); the name itself for any other.
+ */
 export function modelLabel(model: string): string {
-  return [...MODEL_CHOICES, ...Object.values(LEVELS)].find((known) => known.model === model)?.modelLabel ?? model;
+  const known = MODEL_CHOICES.find((choice) => choice.model === model)?.modelLabel;
+  if (known) return known;
+  const id = CLAUDE_ID.exec(model);
+  return id ? `${id[1].charAt(0).toUpperCase()}${id[1].slice(1)} ${id[2]}.${id[3]}` : model;
 }
 
 /**

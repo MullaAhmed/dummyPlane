@@ -13,6 +13,9 @@ dummyPlane's first release will be 0.1.0; until then, its changes are listed und
   - **Arrange layout:** a new submenu under *Auto-arrange* in Settings. Pick *Grid* (the tidy grid, still the default), *One row*, *One column*, or *2*, *3* or *4 columns*. Arrange, a group's Arrange and Auto-arrange all use it, and inside a group its terminals take the same shape. With Auto-arrange on, picking a layout re-arranges the canvas at once, and one undo takes it back.
   - **Arrange the whole canvas** and **Arrange the selection:** two new commands in the palette, next to *Arrange*. The first arranges everything, whatever is selected. The second arranges only what is selected, never the whole canvas, and is greyed out while nothing is selected.
 
+### Changed
+- **The model router's `extreme` level runs Claude Fable 5.2,** the Fable the Edit tab offers, instead of Fable 5.1. The router's levels and the Edit tab's models now come from one table. A terminal still on an older Claude model names it by family and version, for example "Fable 5.1".
+
 ## [0.1.0] - 2026-11-12
 
 ### Added

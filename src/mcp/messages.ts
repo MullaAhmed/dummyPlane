@@ -81,7 +81,7 @@ export const agentMessages = defineMessages({
         "Answers where the task went, or why it was not taken.",
       handOffBrief: "The complete instructions: the agent that takes the task starts from nothing and knows only this.",
       handOffBudget: "Minutes the agent gets (a whole number, 1 at least): 30 by default, less if the night is shorter.",
-      handOffLevel: "Difficulty. With the Fleet's model router on, it chooses the agent's model (low Haiku 5.5, medium Sonnet 5.5, high Opus 5.5, extreme Fable 5.1); medium by default.",
+      handOffLevel: `Difficulty. With the Fleet's model router on, it chooses the agent's model (${ROUTER_LEVELS}); medium by default.`,
       handOffFleet: "Only when several Fleets are linked to you: the Fleet's name (or its id), as linked_agents gives it.",
       finishCheck: "What the user will have to check by hand: it tops the morning report.",
       mission: "Fleet and Manager. The mission: state, name, task, who runs it (runs: \"manager\" once the go-ahead put a board and its Manager beside the Fleet, \"fleet\" for a mission launched before Managers existed), the Manager's name and the board's id, maximum number of agents working at once (max_agents) and how many are (active_agents), model router, branch, plan, the linked Claude agents available and the linked groups, with each one's group and speciality; overnight, the time the user is away (away_min) and what is left of it (left_min).",
