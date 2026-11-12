@@ -179,6 +179,19 @@ it("gives each agent of a staffed group the model the router chose, and none oth
   expect(made!.nodeIds.map((id) => terminalOf(nodesStore.getState().nodes[id])?.model)).toEqual(["opus", undefined]);
 });
 
+it("starts each agent of a staffed group without what its Fleet turned off, as a Claude agent only", async () => {
+  const extensions = { skillsOff: ["commit"], plugins: { "caveman@caveman": false } };
+  const made = await launchGroup(
+    { name: "Mission Auth", role: "general", agents: ["claude", "codex"] },
+    { cwd: "C:/code", shell: "default", title: "", command: "" },
+    { x: 0, y: 0 },
+    { pantheon: "egyptian", names: ["Batman", "Aquaman"], cwds: ["C:/a", "C:/b"], extensions },
+  );
+  const [claude, codex] = made!.nodeIds.map((id) => terminalOf(nodesStore.getState().nodes[id]));
+  expect(claude?.extensions).toEqual(extensions);
+  expect(codex).not.toHaveProperty("extensions");
+});
+
 describe("a scene not on screen", () => {
   const options = { cwd: "C:/code", shell: "default" as const, title: "", command: "" };
   const saved = () => saves[saves.length - 1];

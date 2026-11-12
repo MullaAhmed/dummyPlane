@@ -14,6 +14,7 @@ import { sceneAccess } from "@/agents/sceneAccess";
 import { addTerminal, removeFromStoredScene, removeNodes } from "@/agents/terminals";
 import { messages } from "@/i18n";
 import { missionAddAgent, missionCleanup, missionDiscard, missionMerge, missionPrepare, type Cleanup, type Worktree } from "@/ipc/mission";
+import { readExtensionChoice, type ExtensionChoice } from "@/ipc/claudeExtensions";
 import { ptySendText, ptyWrite, type AgentId, type Permission } from "@/ipc/pty";
 import { FLEET_CAPABLE } from "@/fleet/capable";
 import { newConversation, newTerminalPayload } from "@/nodes/terminal/launch";
@@ -118,11 +119,15 @@ function teamModel(fleetId: string, mission: Mission, task: SubTask, linked?: Te
   return modelFor({ router: byMission }, task, { router: own }) ?? (own ? linked?.model : undefined);
 }
 
+/** What the Fleet's own Edit tab turned off (skills, plugins, MCP servers, subagents): its new agents start without them too. */
+const fleetExtensions = (fleetId: string): ExtensionChoice | undefined => readExtensionChoice(sessionOf(nodesStore.getState().nodes[fleetId])?.extensions);
+
 /** The terminal of an agent created for the mission, in its worktree, on its team's CLI. */
-const agentPayload = (agent: AgentId, name: string, cwd: string, model?: string, permission?: Permission) => ({
+const agentPayload = (agent: AgentId, name: string, cwd: string, model?: string, permission?: Permission, extensions?: ExtensionChoice) => ({
   ...newTerminalPayload({ ...defaultLaunchOptions(), cwd, agent }, name),
   ...(model ? { model } : {}),
   ...(permission ? { permission } : {}),
+  ...(extensions && agent === "claude" ? { extensions } : {}),
 });
 
 /** Like a linked agent, a group chosen in the plan may be gone at the go-ahead. */
@@ -190,7 +195,7 @@ async function formTeam(fleetId: string, workspaceId: string, project: string, m
     setup = await setUpBoard(fleetId, workspaceId, mission, teamAgent(fleetId), teamArrival());
     for (const [i, member] of members.entries()) {
       if (member.linked || member.group) continue;
-      const payload = agentPayload(teamAgent(fleetId), member.name, member.worktree, member.model, mission.permission);
+      const payload = agentPayload(teamAgent(fleetId), member.name, member.worktree, member.model, mission.permission, fleetExtensions(fleetId));
       const nodeId = await addTeamMember(workspaceId, setup.managerId, payload, plan[i].title, quietly("mission"));
       if (!nodeId) throw new Error(t().launch.groupFailed);
       member.nodeId = nodeId;
@@ -202,7 +207,7 @@ async function formTeam(fleetId: string, workspaceId: string, project: string, m
       if (!group) continue;
       const frame = workspaceCanvas(workspaceId).frames.find((f) => f.id === group.id);
       if (!frame) throw new Error(t().launch.groupLost(group.name));
-      const nodeId = await addTerminal(workspaceId, agentPayload(teamAgent(fleetId), member.name, member.worktree, member.model, mission.permission), frameCenter(frame), frame.id, teamArrival());
+      const nodeId = await addTerminal(workspaceId, agentPayload(teamAgent(fleetId), member.name, member.worktree, member.model, mission.permission, fleetExtensions(fleetId)), frameCenter(frame), frame.id, teamArrival());
       if (!nodeId) throw new Error(t().launch.groupFailed);
       member.nodeId = nodeId;
       joined.push(nodeId);
@@ -435,18 +440,18 @@ export async function newMember(fleetId: string, workspaceId: string, mission: M
   let nodeId: string | null = null;
   if (mission.manager && !chosen) {
     // Under its Manager: one more of its sub-agents, in its tree. It arrives on its own, never taking the view nor the keyboard.
-    const payload = agentPayload(teamAgent(fleetId), name, tree.path, model, mission.permission);
+    const payload = agentPayload(teamAgent(fleetId), name, tree.path, model, mission.permission, fleetExtensions(fleetId));
     nodeId = await addTeamMember(workspaceId, mission.manager, payload, task.title, quietly("mission"));
     if (nodeId) reflowTeam(workspaceId, mission.manager);
   } else if (frame) {
     // A queue's or a handover's agent arrives on its own, whenever a seat frees up: it never takes the view nor the keyboard.
-    nodeId = await addTerminal(workspaceId, agentPayload(teamAgent(fleetId), name, tree.path, model, mission.permission), frameCenter(frame), frame.id, quietly("mission"));
+    nodeId = await addTerminal(workspaceId, agentPayload(teamAgent(fleetId), name, tree.path, model, mission.permission, fleetExtensions(fleetId)), frameCenter(frame), frame.id, quietly("mission"));
   } else {
     const group = await launchGroup(
       { name: `Mission ${mission.name}`, role: "general", agents: [teamAgent(fleetId)] },
       defaultLaunchOptions(),
       besideFleet(fleetId, workspaceId, 1),
-      { pantheon, names: [name], cwds: [tree.path], models: [model], permission: mission.permission, workspaceId },
+      { pantheon, names: [name], cwds: [tree.path], models: [model], permission: mission.permission, extensions: fleetExtensions(fleetId), workspaceId },
       quietly("mission"),
     );
     if (group) {

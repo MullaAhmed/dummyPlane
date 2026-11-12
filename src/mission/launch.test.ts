@@ -610,6 +610,25 @@ describe("a mission fed by tickets (review)", () => {
   });
 });
 
+describe("a Fleet's skills and plugins", () => {
+  const extensions = { skillsOff: ["commit"], plugins: { "caveman@caveman": false } };
+
+  it("are off for the new agents of its team too, and the linked agent keeps its own", async () => {
+    await setup();
+    nodesStore.getState().update("chef", { session: { ...session, extensions } });
+    await launchMission("chef");
+    expect(vi.mocked(addTerminal).mock.calls[0][1].extensions).toEqual(extensions);
+    expect(terminalOf(nodesStore.getState().nodes.batman)).not.toHaveProperty("extensions");
+    expect(vi.mocked(relaunchTerminal).mock.calls[0][1]).not.toHaveProperty("extensions");
+  });
+
+  it("add nothing to a Fleet without a choice", async () => {
+    await setup();
+    await launchMission("chef");
+    expect(vi.mocked(addTerminal).mock.calls[0][1]).not.toHaveProperty("extensions");
+  });
+});
+
 describe("a mission's permissions", () => {
   it("reach every agent of the team, and leave the linked ones at the end", async () => {
     await setup({ permission: "work" });

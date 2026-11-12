@@ -8,6 +8,7 @@ import { createNodeElement, nodeKindOf } from "@/canvas/nodeElement";
 import type { AgentId, Permission } from "@/ipc/pty";
 import { newTerminalPayload } from "@/nodes/terminal/launch";
 import { markForAutostart } from "@/nodes/terminal/registry";
+import type { ExtensionChoice } from "@/ipc/claudeExtensions";
 import type { TerminalPayload } from "@/nodes/types";
 import { nodesStore, terminalOf } from "@/store/nodes";
 import { messages } from "@/i18n";
@@ -47,12 +48,15 @@ export interface GroupStaffing {
   models?: readonly (string | undefined)[];
   /** What its mission lets them do unasked. */
   permission?: Permission;
+  /** The skills, plugins, servers and subagents its Fleet turned off: they start without them too. */
+  extensions?: ExtensionChoice;
   /** The fleet's workspace, on screen or not. */
   workspaceId?: string;
 }
 
 const withModel = (payload: TerminalPayload, model: string | undefined): TerminalPayload => (model ? { ...payload, model } : payload);
 const withPermission = (payload: TerminalPayload, permission: Permission | undefined): TerminalPayload => (permission ? { ...payload, permission } : payload);
+const withExtensions = (payload: TerminalPayload, extensions: ExtensionChoice | undefined): TerminalPayload => (extensions && payload.agent === "claude" ? { ...payload, extensions } : payload);
 
 /** Long enough for a render: a timer, since frames stop while the window is minimized. */
 const MOUNT_MS = 100;
@@ -101,7 +105,7 @@ export async function launchGroup(
     await nodesStore.getState().create(node.id, {
       workspaceId,
       kind: "terminal",
-      payload: withPermission(withModel(newTerminalPayload({ ...options, cwd: staffing?.cwds[i] ?? options.cwd, agent }, agentName), staffing?.models?.[i]), staffing?.permission),
+      payload: withExtensions(withPermission(withModel(newTerminalPayload({ ...options, cwd: staffing?.cwds[i] ?? options.cwd, agent }, agentName), staffing?.models?.[i]), staffing?.permission), staffing?.extensions),
     });
     markForAutostart(node.id, i * LAUNCH_STAGGER_MS);
     terminals.push({ ...node, frameId: frame.id });

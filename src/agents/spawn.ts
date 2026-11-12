@@ -3,6 +3,7 @@ import { FLEET_CAPABLE } from "@/fleet/capable";
 import { groupOf } from "@/canvas/groups";
 import { signalWire } from "@/canvas/wireActivity";
 import { messages } from "@/i18n";
+import { readExtensionChoice } from "@/ipc/claudeExtensions";
 import { ptySendText, ptyWrite } from "@/ipc/pty";
 import { agentMessages } from "@/mcp/messages";
 import { outLevel } from "@/mcp/protocol";
@@ -95,12 +96,15 @@ export function spawnerOf(record: NodeRecord | undefined, nodeId: string): Termi
   return { ...session, name, cwd: missionFolder(nodeId) || session.cwd, permission };
 }
 
-/** The sub-agent's terminal: its parent's folder, shell, account and mission permissions, its own conversation. */
+/** The sub-agent's terminal: its parent's folder, shell, account, skills and plugins (its Edit tab's choice) and mission permissions, its own conversation. */
 export function childPayload(parent: TerminalPayload, parentId: string, name: string, title: string, model?: string, task?: string): TerminalPayload {
   // On its parent's CLI when that one has dummyPlane's tools (Claude, Codex), else on Claude.
   const agent = FLEET_CAPABLE.includes(parent.agent) ? parent.agent : "claude";
   const payload = newTerminalPayload({ title, cwd: parent.cwd, agent, command: "", shell: parent.shell, accountId: parent.accountId }, name);
   if (model) payload.model = model;
+  // What the parent turned off (skills, plugins, MCP servers, subagents) stays off for what it delegates, as at its own launch.
+  const extensions = agent === "claude" ? readExtensionChoice(parent.extensions) : undefined;
+  if (extensions) payload.extensions = extensions;
   // An unattended mission agent's rules (no git push…) bind what it delegates too.
   if (parent.permission) payload.permission = parent.permission;
   payload.spawnedBy = parentId;

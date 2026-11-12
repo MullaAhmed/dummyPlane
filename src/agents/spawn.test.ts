@@ -241,6 +241,36 @@ describe("spawn_agent", () => {
   });
 });
 
+describe("what a sub-agent inherits of its parent's skills and plugins", () => {
+  const off = { skillsOff: ["commit"], agentsOff: ["Explore"], mcpOff: ["linear"], plugins: { "caveman@caveman": false, "superpowers@claude-plugins-official": true } };
+
+  it("starts without what the parent turned off, in a copy of its own", async () => {
+    await addNode("atlas", terminal("Atlas", { extensions: off }));
+    await spawnAgent("atlas", { task: "Write the tests" });
+    const payload = vi.mocked(addTerminal).mock.calls[0][1];
+    expect(payload.extensions).toEqual(off);
+    expect(payload.extensions).not.toBe(off);
+  });
+
+  it("adds nothing when the parent made no choice, and drops a stored choice that says nothing", async () => {
+    await addNode("atlas", terminal("Atlas", { extensions: {} }));
+    await spawnAgent("atlas", { task: "One" });
+    await spawnAgent("batman", { task: "Two" });
+    for (const [, payload] of vi.mocked(addTerminal).mock.calls) expect(payload).not.toHaveProperty("extensions");
+  });
+
+  it("follows a Fleet's own choice (its Edit tab), the Fleet's rails left out", async () => {
+    const session = { ...fleetSession("Fleet", { cwd: "C:/code/elsewhere", shell: "pwsh" }), linear: true as const, extensions: off };
+    await nodesStore.getState().create("fleet", { workspaceId: "w1", kind: "fleet", payload: { name: "Fleet", session } });
+    scene.push({ ...createNodeElement("fleet", { x: 0, y: 600 }), id: "fleet" } as unknown as ExcalidrawElement);
+    running("fleet");
+    await spawnAgent("fleet", { task: "Look it up" });
+    const payload = vi.mocked(addTerminal).mock.calls[0][1];
+    expect(payload.extensions).toEqual(off);
+    for (const key of ["role", "linear", "remoteControl", "permission"]) expect(payload).not.toHaveProperty(key);
+  });
+});
+
 describe("spawn_agent from a Fleet", () => {
   /** A Fleet on the canvas, its Claude (or Codex) session started in another folder than its workspace's. */
   async function addFleet(mission?: Mission, agent: "claude" | "codex" = "claude") {
