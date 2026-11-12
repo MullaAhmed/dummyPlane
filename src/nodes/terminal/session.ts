@@ -2,7 +2,7 @@ import { AppError } from "@/ipc/invoke";
 import { getScrollback, ptyAttach, ptyKill, ptySpawn } from "@/ipc/pty";
 import type { TerminalPayload } from "@/nodes/types";
 import { nodesStore, sessionOf, updateSession } from "@/store/nodes";
-import { isRunning, terminalStatusStore, waitForExit } from "@/store/terminalStatus";
+import { isRunning, restartInTurn, terminalStatusStore, waitForExit } from "@/store/terminalStatus";
 import { accountsStore, loadAccounts } from "@/accounts/store";
 import { markLaunch, markResumedLaunch } from "@/usage/usageStore";
 import { buildSpawnSpec, launchSettingsOf, sameLaunch, type LaunchMode } from "./launch";
@@ -144,18 +144,19 @@ export async function reattachSession(nodeId: string, term: TermSink, state: Ses
  * restart comes here (its menu, its resume card, a keystroke, "Resume all", a
  * mission's relaunch): from the call until the new process is spawned, the
  * terminal is restarting (`isRestarting`), so that the old process's exit does
- * not end its work for whoever counts it (a mission's Max agents).
+ * not end its work for whoever counts it (a mission's Max agents). One asked
+ * while another is under way waits for it (`restartInTurn`): two never race
+ * one spawn, and each runs with its own settings (a folder moved meanwhile).
  */
-export async function relaunchSession(
+export function relaunchSession(
   nodeId: string,
   term: TermSink,
   payload: TerminalPayload,
   mode: LaunchMode,
   beforeStart?: () => void | Promise<void>,
-) {
-  // Before anything is awaited: the caller's next line already sees it.
-  terminalStatusStore.getState().restart(nodeId, 1);
-  try {
+): Promise<void> {
+  // Marked before anything is awaited: the caller's next line already sees it.
+  return restartInTurn(nodeId, async () => {
     if (isRunning(nodeId)) {
       await ptyKill(nodeId);
       await waitForExit(nodeId);
@@ -163,7 +164,5 @@ export async function relaunchSession(
     await beforeStart?.();
     term.write(`\r\n\x1b[2m${messages(nodesMessages).session.restartMarker}\x1b[0m\r\n`);
     await startSession(nodeId, term, payload, mode);
-  } finally {
-    terminalStatusStore.getState().restart(nodeId, -1);
-  }
+  });
 }
