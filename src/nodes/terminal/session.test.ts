@@ -3,8 +3,10 @@ import { afterEach, beforeEach, expect, it } from "vitest";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { accountsStore, openAccounts } from "@/accounts/store";
 import type { TerminalPayload } from "@/nodes/types";
-import { nodesStore } from "@/store/nodes";
+import { nodesStore, sessionOf, updateSession } from "@/store/nodes";
 import { statusOf, terminalStatusStore } from "@/store/terminalStatus";
+import { folderChange } from "./folder";
+import { relaunchMode } from "./launch";
 import { acceptsInput, attachSession, reattachSession, relaunchSession, restoreSession, startSession, type TermSink } from "./session";
 
 const payload: TerminalPayload = { title: "A", name: "", cwd: "C:/code", agent: "shell", command: "", shell: "default" };
@@ -169,4 +171,24 @@ it("starts no terminal of a profile it could not read: never on another account 
   await startSession("bound", fakeTerm(), bound, "resume");
   expect(calls.filter((c) => c.cmd === "pty_spawn")).toEqual([]);
   expect(statusOf("bound").state).toBe("error");
+});
+
+it("restarts a running Claude terminal moved to another folder in that folder, on a conversation of its own", async () => {
+  const claude: TerminalPayload = { ...payload, agent: "claude", cwd: "C:/code/api", claudeSessionId: "0b9c4b5e-6f1a-4c39-9d2e-8f6c2d1a7e10" };
+  mockIPC((cmd, args) => {
+    calls.push({ cmd, args: args as Record<string, unknown> });
+    if (cmd === "pty_kill") setTimeout(() => terminalStatusStore.getState().set("m", { state: "exited", code: 1 }), 5);
+    return 1;
+  });
+  await nodesStore.getState().create("m", { workspaceId: "w", kind: "terminal", payload: claude });
+  calls.length = 0;
+  terminalStatusStore.getState().set("m", { state: "running" });
+  // What the edit panel does on "Change…", then on "Restart now" (`resumeTerminal` reads the stored session).
+  updateSession("m", folderChange(claude, "C:\code\web")!);
+  const stored = sessionOf(nodesStore.getState().nodes.m)!;
+  await relaunchSession("m", fakeTerm(), stored, relaunchMode(stored));
+  const spec = calls.find((c) => c.cmd === "pty_spawn")!.args.spec as { cwd: string; claude: { sessionId: string; mode: string } };
+  expect(spec.cwd).toBe("C:\code\web");
+  expect(spec.claude.sessionId).not.toBe(claude.claudeSessionId);
+  expect(spec.claude.mode).toBe("resume");
 });
