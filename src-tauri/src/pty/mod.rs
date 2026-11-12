@@ -1,4 +1,5 @@
 pub mod env_path;
+pub mod modes;
 pub mod paste;
 pub mod scrollback;
 pub mod session;

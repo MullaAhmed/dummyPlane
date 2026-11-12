@@ -126,6 +126,8 @@ impl Session {
         if let Some(master) = lock(&self.master).as_ref() {
             master.resize(size).map_err(pty_err)?;
         }
+        // The front resized its xterm, which cleared its scroll margins.
+        lock(&self.output).scrollback.resized();
         Ok(())
     }
 
