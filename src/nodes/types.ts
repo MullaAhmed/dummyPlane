@@ -252,6 +252,8 @@ export interface KanbanBoardLink {
 
 /** Content of a Kanban node (issue #29). */
 export interface KanbanPayload {
+  /** The board's name, shown in its header: set by an agent's `open_board`; a board without one is "Kanban". */
+  title?: string;
   columns: KanbanColumn[];
   cards: Record<string, KanbanCard>;
   /** Set by "Link to GitHub". */
@@ -403,6 +405,7 @@ export function readKanbanPayload(raw: unknown): KanbanPayload {
     columns.push({ id: c.id, title: typeof c.title === "string" ? c.title : "", cardIds });
   }
   const payload: KanbanPayload = { columns, cards };
+  if (typeof r.title === "string" && r.title.trim()) payload.title = r.title.trim();
   const github = readBoardLink(r.github);
   if (github) payload.github = github;
   const fleet = r.orchestrator as Record<string, unknown> | undefined; // The stored key, see `KanbanPayload.orchestrator`.

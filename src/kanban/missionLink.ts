@@ -164,6 +164,8 @@ export function planRequest(board: KanbanPayload, columnId: string, texts: Reque
 export function boardView(nodeId: string, board: KanbanPayload) {
   return {
     board: nodeId,
+    // An agent's board (open_board) has a name: it tells the boards wired to it apart.
+    ...(board.title ? { title: board.title } : {}),
     github: board.github?.repo ?? null,
     columns: board.columns.map((column) => ({
       id: column.id,

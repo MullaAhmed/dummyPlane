@@ -21,6 +21,9 @@ it("maps the English tool names and arguments to the internal ones", () => {
   expect(internalCall("spawn_agent", { task: "T", level: "low", model: "opus" })).toEqual({ name: "spawn_agent", args: { task: "T", niveau: "faible", model: "opus" } });
   expect(internalCall("spawn_agent", { task: "T" })).toEqual({ name: "spawn_agent", args: { task: "T" } });
   expect(internalCall("queue", {}).name).toBe("queue");
+  // open_board keeps its English name and arguments.
+  const board = { title: "Issues", columns: ["To do", "Done"], cards: [{ title: "Login", notes: "OAuth", priority: "high" }] };
+  expect(internalCall("open_board", board)).toEqual({ name: "open_board", args: board });
   expect(internalCall("next_task", { agent: "Batman" })).toEqual({ name: "next_task", args: { agent: "Batman" } });
   expect(internalCall("reassign", { subtask: "Login", agent: "new" })).toEqual({ name: "reattribuer", args: { sous_tache: "Login", agent: "nouveau" } });
   expect(internalCall("read_output", { agent: "Batman", lines: 5 })).toEqual({ name: "lire_sortie", args: { agent: "Batman", lignes: 5 } });

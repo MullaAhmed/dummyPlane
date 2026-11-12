@@ -87,6 +87,21 @@ it("shows its columns with their counts, and adds a card through the dialog (iss
   document.body.replaceChildren();
 });
 
+it("names a board in its header: an agent's by the name it gave it (open_board), the user's \"Kanban\"", async () => {
+  mockIPC(() => undefined);
+  const columns = [{ id: "todo", title: "To do", cardIds: [] }];
+  await nodesStore.getState().create("named", { workspaceId: "w1", kind: "kanban", payload: { title: "Issues to fix", columns, cards: {} } });
+  await nodesStore.getState().create("plain", { workspaceId: "w1", kind: "kanban", payload: { columns, cards: {} } });
+  const host = document.createElement("div");
+  const root = createRoot(host);
+  const header = () => host.querySelector("header > span")!.textContent;
+  await act(async () => root.render(<KanbanNode nodeId="named" />));
+  expect(header()).toBe("Issues to fix");
+  await act(async () => root.render(<KanbanNode nodeId="plain" />));
+  expect(header()).toBe("Kanban");
+  await act(async () => root.unmount());
+});
+
 it("renders nothing for a node that is not a board", async () => {
   mockIPC(() => undefined);
   await nodesStore.getState().create("chef", { workspaceId: "w1", kind: "fleet", payload: { name: "Chef" } });

@@ -4,7 +4,8 @@ import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { mockIPC } from "@tauri-apps/api/mocks";
 import { canvasStore } from "@/canvas/canvasStore";
 import { createNodeElement, type NodeKind } from "@/canvas/nodeElement";
-import { withBoardLink } from "@/agents/wires";
+import { cachedElements, forgetScene, rememberScene } from "@/canvas/sceneCache";
+import { boardLinksOf, withBoardLink } from "@/agents/wires";
 import { moveCardWithGithub } from "@/kanban/github";
 import type { Mission } from "@/mission/mission";
 import { nodesStore } from "@/store/nodes";
@@ -34,6 +35,12 @@ const element = (kind: NodeKind, id: string, x: number) => ({ ...createNodeEleme
 const nodes = [element("terminal", "batman", 0), element("terminal", "cyborg", 1200), element("terminal", "boss", 2400), element("fleet", "chef", 3600), element("kanban", "b1", 4800), element("kanban", "b2", 7000), element("terminal", "blank", 9200)];
 let scene: readonly ExcalidrawElement[] = nodes;
 const wire = (agent: string, board: string) => (scene = withBoardLink(scene, agent, board));
+// The canvas on screen: open_board writes its board and wire through updateScene, as the canvas would.
+const sceneApi = {
+  getSceneElements: () => scene.filter((e) => !e.isDeleted),
+  getSceneElementsIncludingDeleted: () => scene,
+  updateScene: ({ elements }: { elements: readonly ExcalidrawElement[] }) => void (scene = elements),
+};
 
 const freshBoard = (): KanbanPayload => ({
   columns: [
@@ -51,7 +58,7 @@ const mission = (state: Mission["state"], board: string): Mission => ({ state, m
 beforeAll(async () => {
   mockIPC(() => undefined);
   workspacesStore.setState({ activeId: "w1" });
-  canvasStore.setState({ api: { getSceneElements: () => scene.filter((e) => !e.isDeleted), getSceneElementsIncludingDeleted: () => scene } as never });
+  canvasStore.setState({ api: sceneApi as never });
   const terminal = (id: string, extra: Record<string, unknown> = {}) =>
     nodesStore.getState().create(id, { workspaceId: "w1", kind: "terminal", payload: { title: "", name: id, agent: "claude", cwd: `C:/code/${id}`, shell: "default", command: "", ...extra } });
   await terminal("batman");
@@ -246,7 +253,7 @@ describe("the tools of an agent wired to a board", () => {
     try {
       expect(textOf(await call("batman", "linked_boards"))).toBe("Your workspace's canvas is not loaded: open it in dummyPlane, then try again.");
     } finally {
-      canvasStore.setState({ api: { getSceneElements: () => scene.filter((e) => !e.isDeleted), getSceneElementsIncludingDeleted: () => scene } as never });
+      canvasStore.setState({ api: sceneApi as never });
     }
   });
 
@@ -292,5 +299,135 @@ describe("the tools of an agent wired to a board", () => {
       nodesStore.getState().update("chef", { mission: mission("en_cours", "b2") });
       expect(textOf(await call("batman", "add_board_card", { title: "Free", board: "b1" }))).toContain("added to To do");
     });
+  });
+});
+
+describe("open_board", () => {
+  type Opened = { board: string; title: string; editable: boolean; columns: { id: string; title: string; cards: { id: string; title: string }[] }[] };
+  /** The answer's JSON, after its first line. */
+  const opened = (result: Result): Opened => {
+    const text = textOf(result);
+    return JSON.parse(text.slice(text.indexOf("\n") + 1)) as Opened;
+  };
+  const kanbans = () => Object.values(nodesStore.getState().nodes).filter((record) => record.kind === "kanban").length;
+  const live = (id: string) => scene.find((e) => e.id === id && !e.isDeleted);
+  const overlap = (a: ExcalidrawElement, b: ExcalidrawElement) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+
+  it("opens a board beside the agent, with its cards in the first column, wired to it and editable at once", async () => {
+    const result = await call("batman", "open_board", {
+      title: "  Issues\nto fix ",
+      cards: [{ title: "#12 Login", notes: " OAuth ", priority: "high" }, { title: "#13 Docs" }],
+    });
+    expect(result.isError).toBeUndefined();
+    const view = opened(result);
+    expect(textOf(result).startsWith(`Board "Issues to fix" opened beside you (id ${view.board}) and wired to you`)).toBe(true);
+    expect(view).toMatchObject({ title: "Issues to fix", editable: true });
+    // The app's default columns, the cards in the first, in order.
+    expect(view.columns.map((c) => c.title)).toEqual(["To do", "In progress", "Done"]);
+    expect(view.columns[0].cards.map((c) => c.title)).toEqual(["#12 Login", "#13 Docs"]);
+    // A Kanban node like the user's, named, its cards as the board's own menu makes them; no fleet's column.
+    const board = boardOf(view.board);
+    expect(nodesStore.getState().nodes[view.board]).toMatchObject({ workspaceId: "w1", kind: "kanban" });
+    expect(board.title).toBe("Issues to fix");
+    expect(board.columns.map((c) => c.id)).toEqual(view.columns.map((c) => c.id));
+    const [login, docs] = view.columns[0].cards.map((c) => c.id);
+    expect(board.cards[login]).toEqual({ id: login, title: "#12 Login", notes: "OAuth", priority: "high" });
+    expect(board.cards[docs]).toEqual({ id: docs, title: "#13 Docs", notes: "", priority: "none" });
+    expect(board.orchestrator).toBeUndefined();
+    // On the canvas, clear of every other node, and wired to the agent as "+ Link" wires one.
+    const placed = live(view.board)!;
+    expect(placed).toBeDefined();
+    for (const other of nodes) expect(overlap(placed, live(other.id)!), other.id).toBe(false);
+    expect(boardLinksOf(scene, "batman")).toEqual([view.board]);
+    expect(boardLinksOf(scene, "cyborg")).toEqual([]);
+
+    // The board tools take it at once, no wire drawn by hand.
+    expect(JSON.parse(textOf(await call("batman", "linked_boards"))).boards).toMatchObject([{ board: view.board, title: "Issues to fix", editable: true }]);
+    expect(textOf(await call("batman", "add_board_card", { title: "#14 Tests" }))).toContain('"#14 Tests" added to To do');
+    expect(textOf(await call("batman", "move_board_card", { card: "#12 Login", column: "In progress" }))).toBe('"#12 Login" moved to In progress.');
+    expect(textOf(await call("batman", "move_board_card", { card: docs, column: "Done" }))).toBe('"#13 Docs" moved to Done.');
+    expect(titles(view.board, view.columns[0].id)).toEqual(["#14 Tests"]);
+    expect(titles(view.board, view.columns[1].id)).toEqual(["#12 Login"]);
+    expect(titles(view.board, view.columns[2].id)).toEqual(["#13 Docs"]);
+    // Nobody else's.
+    expect(textOf(await call("cyborg", "linked_boards"))).toContain("No Kanban board is wired to you");
+  });
+
+  it("takes the columns named, in order, cards as bare titles, and lists sent as JSON text", async () => {
+    const view = opened(await call("batman", "open_board", { title: "Release", columns: ["Backlog", " Doing ", "", "Shipped"], cards: ["Tag", "Notes"] }));
+    expect(view.columns.map((c) => c.title)).toEqual(["Backlog", "Doing", "Shipped"]);
+    expect(view.columns[0].cards.map((c) => c.title)).toEqual(["Tag", "Notes"]);
+    const again = opened(await call("batman", "open_board", { title: "Later", columns: '["A", "B"]', cards: '[{"title": "x"}]' }));
+    expect(again.columns.map((c) => c.title)).toEqual(["A", "B"]);
+    expect(again.columns[0].cards.map((c) => c.title)).toEqual(["x"]);
+    // Two boards of its own now: both wired, apart on the canvas, both its to change.
+    expect(boardLinksOf(scene, "batman")).toEqual([view.board, again.board]);
+    expect(overlap(live(view.board)!, live(again.board)!)).toBe(false);
+    expect(textOf(await call("batman", "add_board_card", { title: "y" }))).toContain("Several boards are wired to you");
+  });
+
+  it("refuses a board it cannot make whole, and makes nothing", async () => {
+    const before = kanbans();
+    const refusal = async (args: Record<string, unknown>) => {
+      const result = await call("batman", "open_board", args);
+      expect(result.isError, JSON.stringify(args)).toBe(true);
+      return textOf(result);
+    };
+    expect(await refusal({ title: "  " })).toBe("Give the board its name (title).");
+    expect(await refusal({})).toBe("Give the board its name (title).");
+    expect(await refusal({ title: "B", columns: ["To do", "to do"] })).toBe('Column "to do" is named twice: give each column a title of its own.');
+    expect(await refusal({ title: "B", columns: "To do, Done" })).toBe("columns is a list of the columns' titles, in order.");
+    expect(await refusal({ title: "B", columns: ["A", 3] })).toBe("columns is a list of the columns' titles, in order.");
+    expect(await refusal({ title: "B", cards: { title: "x" } })).toContain("cards is a list of cards");
+    expect(await refusal({ title: "B", cards: ["ok", { notes: "no title" }] })).toBe("Card 2 has no title: give each card its title.");
+    expect(await refusal({ title: "B", cards: [{ title: "x", priority: "urgent" }] })).toBe('Card 1: priority "urgent" is unknown: none, low, medium or high.');
+    expect(kanbans()).toBe(before);
+    expect(scene).toBe(nodes);
+  });
+
+  it("serves a Fleet too: a board of its own, apart from its mission's", async () => {
+    nodesStore.getState().update("chef", { mission: mission("en_cours", "b2") });
+    const view = opened(await call("chef", "open_board", { title: "Follow-ups" }));
+    expect(boardLinksOf(scene, "chef")).toEqual([view.board]);
+    expect(boardOf(view.board).orchestrator).toBeUndefined();
+    expect(JSON.parse(textOf(await call("chef", "linked_boards"))).boards).toMatchObject([{ board: view.board, editable: true }]);
+    expect(textOf(await call("chef", "add_board_card", { title: "Ask about the API" }))).toContain("added to To do");
+  });
+
+  it("is not a Manager's: its board is the mission's", async () => {
+    const before = kanbans();
+    nodesStore.getState().update("chef", { mission: mission("en_cours", "b2") });
+    const result = await call("boss", "open_board", { title: "Mine" });
+    expect(result.isError).toBe(true);
+    expect(textOf(result)).toContain("not the Manager's");
+    expect(kanbans()).toBe(before);
+  });
+
+  it("says when the caller's canvas is not loaded, and makes nothing", async () => {
+    const before = kanbans();
+    canvasStore.setState({ api: null });
+    try {
+      const result = await call("batman", "open_board", { title: "Issues" });
+      expect(result.isError).toBe(true);
+      expect(textOf(result)).toBe("Your workspace's canvas is not loaded: open it in dummyPlane, then try again.");
+    } finally {
+      canvasStore.setState({ api: sceneApi as never });
+    }
+    expect(kanbans()).toBe(before);
+  });
+
+  it("opens in the caller's workspace when it is not the one on screen, in its stored scene", async () => {
+    await nodesStore.getState().create("robin", { workspaceId: "w2", kind: "terminal", payload: { title: "", name: "Robin", agent: "claude", cwd: "C:/code/robin", shell: "default", command: "" } });
+    rememberScene("w2", [element("terminal", "robin", 0)], {} as never, {}, []);
+    try {
+      const view = opened(await call("robin", "open_board", { title: "Elsewhere" }));
+      expect(nodesStore.getState().nodes[view.board]?.workspaceId).toBe("w2");
+      expect(boardLinksOf(cachedElements("w2")!, "robin")).toEqual([view.board]);
+      // The canvas on screen is left alone.
+      expect(scene).toBe(nodes);
+      expect(JSON.parse(textOf(await call("robin", "linked_boards"))).boards).toMatchObject([{ board: view.board, editable: true }]);
+    } finally {
+      forgetScene("w2");
+    }
   });
 });

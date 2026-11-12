@@ -47,7 +47,8 @@ export async function answer(call: McpCall): Promise<unknown> {
   if (name === "output_guide") return outputGuideTool();
   // A Fleet's sub-agent is a regular agent in its own terminal, for work beside its mission's queue.
   if (fleet && name === "spawn_agent") return spawnAgentTool(call.nodeId, args);
-  // The boards the user wired to an agent or a Fleet: theirs to read, and to add cards to or move them on (refused on a mission's own).
+  // The boards the user wired to an agent or a Fleet: theirs to read, and to add cards to or move them on (refused on a mission's own);
+  // and open_board, a board of their own opened beside them and wired to them. A Manager has neither: its board is the mission's.
   if (fleet && BOARD_TOOLS.has(name)) return boardTool(call.nodeId, name, args) ?? refused(t().unknown(asked));
   if (fleet) return AGENT_ONLY.has(name) ? refused(t().agentsOnly) : fleetTool(call.nodeId, name, args);
   // Before any agent's tool: a Manager neither reports nor spawns, its team's agents start from the queue.

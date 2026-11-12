@@ -306,7 +306,8 @@ export function KanbanNode({ nodeId }: { nodeId: string }) {
       </span>
       <header className="flex h-9 shrink-0 items-center gap-2 border-b border-dp-line px-3">
         <KanbanSquare className="size-4 shrink-0 text-dp-text-2" />
-        <span className="truncate text-(length:--text-ui) font-medium text-dp-text">{t.title}</span>
+        {/* An agent's board (open_board) carries its name; the user's own is "Kanban". */}
+        <span className="truncate text-(length:--text-ui) font-medium text-dp-text">{board.title || t.title}</span>
         {board.github && (
           <span className="truncate font-mono text-xs text-dp-text-2" title={t.github.linkedTo(board.github.repo)}>
             {board.github.repo}
