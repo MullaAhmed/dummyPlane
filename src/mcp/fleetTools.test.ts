@@ -203,7 +203,7 @@ describe("relaunch", () => {
     setMission("chef", { maxAgents: 3 });
     const full = await fleetTool("chef", "relaunch", { agent: "Hulk" });
     expect(full.isError).toBe(true);
-    expect(full.content[0].text).toBe("Hulk cannot start again yet: 3 agents are already at work (Max active agents), and a stopped agent holds no seat. Relaunch it once one of them reports.");
+    expect(full.content[0].text).toBe("Hulk cannot start again yet: 3 agents are already at work (Max active agents), and a stopped agent holds no seat. Relaunch it once a seat is free (queue: active_agents below max_agents); a seat a report frees goes to the queue's next task first.");
     expect(relaunchTerminal).not.toHaveBeenCalled();
     expect(seatsHeld("chef")).toBe(0);
     // Those that hold their seat start again all the same: one never sent its sub-task, one back at its shell.

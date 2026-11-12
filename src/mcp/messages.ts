@@ -409,7 +409,7 @@ export const agentMessages = defineMessages({
       relaunchClosed: (name: string) =>
         `${name}'s terminal is no longer on the canvas: the user closed it. Reassign its sub-task to another agent, or ask the user whether to bring it back.`,
       relaunchTeamFull: (name: string, max: number) =>
-        `${name} cannot start again yet: ${plural(max, "agent is", "agents are")} already at work (Max active agents), and a stopped agent holds no seat. Relaunch it once one of them reports.`,
+        `${name} cannot start again yet: ${plural(max, "agent is", "agents are")} already at work (Max active agents), and a stopped agent holds no seat. Relaunch it once a seat is free (queue: active_agents below max_agents); a seat a report frees goes to the queue's next task first.`,
       relaunchFailed: (name: string, error: string) => `${name} could not start again: ${error}`,
       relaunched: (name: string) => `${name} is starting again on its own conversation. Once it is up (team, read_output), write tells it what is left.`,
       relaunchedBrief: (name: string) =>
