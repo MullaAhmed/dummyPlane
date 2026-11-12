@@ -17,6 +17,8 @@ import { AppToaster } from "@/shell/AppToaster";
 import { ProjectView } from "@/shell/ProjectView";
 import { StatusScreen } from "@/shell/StatusScreen";
 import { TroubleshootingDialog } from "@/shell/TroubleshootingDialog";
+import { ModelLevelsDialog } from "@/shell/ModelLevelsDialog";
+import { closeModelLevels, useModelLevelsOpen } from "@/shell/modelLevels";
 import { UpdateDialog } from "@/shell/UpdateDialog";
 import { AccountsDialog } from "@/accounts/AccountsDialog";
 import { useMessages } from "@/i18n";
@@ -88,6 +90,9 @@ export default function App() {
       </QuietBoundary>
       <QuietBoundary scope="troubleshooting dialog" useResetKey={useTroubleshootingOpen} onError={closeTroubleshooting}>
         <TroubleshootingDialog />
+      </QuietBoundary>
+      <QuietBoundary scope="models by level dialog" useResetKey={useModelLevelsOpen} onError={closeModelLevels}>
+        <ModelLevelsDialog />
       </QuietBoundary>
       <QuietBoundary scope="confirmation dialog" useResetKey={usePendingConfirm}>
         <ConfirmDialog />

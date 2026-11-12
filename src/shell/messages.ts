@@ -114,6 +114,9 @@ export const shellMessages = defineMessages(
       } satisfies Record<ArrangeLayout, string>,
       subagentTerminals: "Sub-agents as terminals",
       maxSpawned: "Sub-agents at once",
+      // On, every agent's sub-agents, hand_off tasks and mission agents take the model of their level; a node's switch set off still vetoes it.
+      modelRouter: "Model router",
+      modelLevels: "Models by level…",
       exportScene: "Export the scene…",
       importScene: "Import a scene…",
       exportPng: "Export as PNG…",
@@ -122,6 +125,21 @@ export const shellMessages = defineMessages(
       about: "About dummyPlane",
       openLogs: "Open the logs folder",
       troubleshoot: "Troubleshooting…",
+    },
+    /** "Models by level": what each level of the model router picks, on Claude and on the CLIs the user maps. */
+    modelLevels: {
+      title: "Models by level",
+      description:
+        "With the model router on, the level of a sub-agent's or a mission agent's task picks its model. Claude's are dummyPlane's. For another CLI, write a model for each level; a level left empty keeps that CLI's own model.",
+      // The global switch is off: no level picks anything until a node's switch is turned on.
+      off: "The model router is off in Settings: a level picks a model only under a terminal or a Fleet whose switch is on.",
+      level: "Level",
+      levels: { faible: "Low", moyen: "Medium", eleve: "High", extreme: "Extreme" },
+      empty: "Its own",
+      modelFor: (cli: string, level: string) => `${cli} model for the ${level} level`,
+      // Under the fields, always: what a field may hold; one outlined in red was not kept.
+      format: "A model is letters, digits and - . _ [ ], 64 characters at most, never a Claude model: one that is not is not kept.",
+      done: "Done",
     },
     troubleshoot: {
       title: "Troubleshooting",

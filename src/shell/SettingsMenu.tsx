@@ -1,5 +1,5 @@
 import { useId, type ReactElement, type ReactNode } from "react";
-import { Bell, BellRing, Bot, CircleArrowDown, Download, FileText, Gauge, ImageDown, Info, LayoutDashboard, LayoutGrid, LifeBuoy, LocateFixed, RefreshCw, SquareTerminal, Upload } from "lucide-react";
+import { Bell, BellRing, Bot, CircleArrowDown, Download, FileText, Gauge, ImageDown, Info, LayoutDashboard, LayoutGrid, LifeBuoy, LocateFixed, RefreshCw, Route, SlidersHorizontal, SquareTerminal, Upload } from "lucide-react";
 import { arrangeWorkspace } from "@/agents/arrangeCanvas";
 import { ARRANGE_LAYOUTS, readArrangeLayout } from "@/agents/arrangeLayout";
 import { showAbout } from "@/app/about";
@@ -13,6 +13,7 @@ import { fleetMessages } from "@/fleet/messages";
 import { openLogDir } from "@/app/logs";
 import { setNativeNotifications, useNativeNotifications } from "@/app/nativeNotifications";
 import { MAX_SPAWNED_CHOICES, setMaxSpawned, setSubagentTerminalsSetting, useSubagentSettings } from "@/app/subagentSettings";
+import { setModelRouterOn, useModelRouter } from "@/app/modelRouterSetting";
 import { checkForUpdate, setAutoUpdates, useUpdates } from "@/app/updates";
 import { PALETTES, readThemeChoice, setThemeChoice, usePalette, type ThemeChoice } from "@/app/theme";
 import {
@@ -34,6 +35,7 @@ import { useMessages } from "@/i18n";
 import { workspacesStore } from "@/store/workspaces";
 import { cn } from "@/lib/utils";
 import { shellMessages } from "./messages";
+import { showModelLevels } from "./modelLevels";
 import { showTroubleshooting } from "./troubleshoot";
 import { exportCurrentScene, exportCurrentPng, importIntoScene } from "./sceneActions";
 
@@ -116,6 +118,7 @@ export function SettingsMenu({
   const fleetCli = useFleetAgent(() => fleetAgent());
   const subagentTerminals = useSubagentSettings((s) => s.terminals);
   const maxSpawned = useSubagentSettings((s) => s.maxSpawned);
+  const modelRouter = useModelRouter((s) => s.on);
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
@@ -174,6 +177,13 @@ export function SettingsMenu({
               </DropdownMenuRadioGroup>
             </DropdownMenuSubContent>
           </DropdownMenuSub>
+          {/* On, every agent routes by level unless a terminal's or a Fleet's switch is set off; its levels' models one row down. */}
+          <DropdownMenuCheckboxItem className={CHOICE} checked={modelRouter} onCheckedChange={(on) => void setModelRouterOn(on === true)} onSelect={stayOpen}>
+            <Route className={ICON} /> {t.modelRouter}
+          </DropdownMenuCheckboxItem>
+          <DropdownMenuItem className={ITEM} onSelect={showModelLevels}>
+            <SlidersHorizontal className={ICON} /> {t.modelLevels}
+          </DropdownMenuItem>
           <DropdownMenuCheckboxItem
             className={CHOICE}
             checked={nativeNotifications}
