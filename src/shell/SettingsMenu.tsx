@@ -1,8 +1,10 @@
 import { useId, type ReactElement, type ReactNode } from "react";
-import { Bell, BellRing, Bot, CircleArrowDown, Download, FileText, Gauge, ImageDown, Info, LayoutGrid, LifeBuoy, LocateFixed, RefreshCw, SquareTerminal, Upload } from "lucide-react";
+import { Bell, BellRing, Bot, CircleArrowDown, Download, FileText, Gauge, ImageDown, Info, LayoutDashboard, LayoutGrid, LifeBuoy, LocateFixed, RefreshCw, SquareTerminal, Upload } from "lucide-react";
 import { arrangeWorkspace } from "@/agents/arrangeCanvas";
+import { ARRANGE_LAYOUTS, readArrangeLayout } from "@/agents/arrangeLayout";
 import { showAbout } from "@/app/about";
-import { setAutoArrange, useAutoArrange } from "@/app/autoArrangeSetting";
+import { setArrangeLayout, useArrangeLayout } from "@/app/arrangeLayoutSetting";
+import { autoArrangeStore, setAutoArrange, useAutoArrange } from "@/app/autoArrangeSetting";
 import { setFollowWaiting, useFollowWaiting } from "@/app/followWaitingSetting";
 import { setFinishAlerts, useFinishAlerts } from "@/app/finishAlertsSetting";
 import { AGENTS } from "@/agents/catalog";
@@ -57,6 +59,11 @@ function arrangeShown() {
   if (workspaceId) arrangeWorkspace(workspaceId, { undoable: true });
 }
 
+/** Another layout while Auto-arrange keeps the canvas tidy: the canvas on screen takes it at once, one undoable step. Off, nothing moves until the next Arrange. */
+function arrangeShownIfAuto() {
+  if (autoArrangeStore.getState().enabled) arrangeShown();
+}
+
 /** A setting changes in place: the menu stays open on its new state, where an action closes it. */
 const stayOpen = (event: Event) => event.preventDefault();
 
@@ -103,6 +110,7 @@ export function SettingsMenu({
   const followWaiting = useFollowWaiting();
   const finishAlerts = useFinishAlerts();
   const autoArrange = useAutoArrange();
+  const arrangeLayout = useArrangeLayout();
   const fleetT = useMessages(fleetMessages).agent;
   // The CLI the Fleet runs on: the choice, Claude until one can carry it.
   const fleetCli = useFleetAgent(() => fleetAgent());
@@ -198,6 +206,26 @@ export function SettingsMenu({
           >
             <LayoutGrid className={ICON} /> {t.autoArrange}
           </DropdownMenuCheckboxItem>
+          {/* The shape Arrange, a group's Arrange and Auto-arrange give the canvas. */}
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger className={ITEM}>
+              <LayoutDashboard className={ICON} />
+              {/* The label takes the free space: the layout's name sits against the chevron. */}
+              <span className="flex-1">{t.arrangeLayout}</span>
+              <span data-arrange-layout className="text-xs text-dp-text-2">
+                {t.arrangeLayouts[arrangeLayout]}
+              </span>
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent sideOffset={8} alignOffset={-5} className="w-40 p-1">
+              <DropdownMenuRadioGroup value={arrangeLayout} onValueChange={(value) => void setArrangeLayout(readArrangeLayout(value), arrangeShownIfAuto)}>
+                {ARRANGE_LAYOUTS.map((layout) => (
+                  <DropdownMenuRadioItem key={layout} className={CHOICE} value={layout} onSelect={stayOpen}>
+                    {t.arrangeLayouts[layout]}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
         </Section>
         <DropdownMenuSeparator className={SEPARATOR} />
         <Section label={t.updates}>

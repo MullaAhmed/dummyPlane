@@ -3,6 +3,7 @@ import { groupInfoOf, type Rect } from "@/canvas/groups";
 import { nodeKindOf } from "@/canvas/nodeElement";
 import { settleNotes } from "@/nodes/note/link";
 import { boxOf, containerOf, endsOf, followedArrow } from "./arrangeDrawings";
+import { columnHeightsOf, DEFAULT_ARRANGE_LAYOUT, perRowOf, type ArrangeLayout } from "./arrangeLayout";
 import type { Attachment } from "./attachments";
 import { COLUMN_GAP, GROUP_GAP, MAX_ROWS, NODE_GAP, PADDING, PADDING_BOTTOM, PADDING_TOP, ROW_GAP } from "./groupLayout";
 import type { ParentOf } from "./spawnLayout";
@@ -30,6 +31,11 @@ import { isWire } from "./wires";
  * it, the tabs under them. A folded group is left as it is (its terminals are
  * hidden), and so is one whose spawn tree reaches out of its frame (the
  * flowchart wins). Pure: the caller writes the scene.
+ *
+ * That is the `grid` layout, the default. The others (./arrangeLayout.ts) keep
+ * all of the above but the shape: the blocks go in one row, in one column, or
+ * N to a row, whatever the view's shape; a group's grid is one row, one column
+ * or N columns. The tabs still gather in rows under the rest.
  */
 
 export interface ArrangeInput {
@@ -42,12 +48,23 @@ export interface ArrangeInput {
   attachedTo?: (element: ExcalidrawElement) => string | Attachment | null | undefined;
   /**
    * A selection to arrange instead of the whole canvas: nodes, frames and what a group holds (drawings outside groups are ignored).
-   * One group, or members of one group: that group is tidied inside. Fewer than two blocks: the whole canvas.
+   * One group, or members of one group: that group is tidied inside. Fewer than two blocks: the whole canvas (see `scope`).
    */
   only?: readonly string[];
+  /** What is arranged: see `ArrangeScope`. `auto` when absent. */
+  scope?: ArrangeScope;
+  /** The shape of the layout (./arrangeLayout.ts): the grid when absent. */
+  layout?: ArrangeLayout;
   /** Width over height the layout aims at: the view's. */
   aspect?: number;
 }
+
+/**
+ * - `auto`: the selection `only` when it holds two blocks or more, or lies in one group; else the whole canvas.
+ * - `canvas`: the whole canvas, whatever is selected.
+ * - `selection`: the selection only, never the whole canvas; nothing selected, nothing moves.
+ */
+export type ArrangeScope = "auto" | "canvas" | "selection";
 
 /** The view's shape when none is given: a wide window. */
 const DEFAULT_ASPECT = 16 / 10;
@@ -106,9 +123,10 @@ export function columnOrder<T>(items: readonly T[], rect: (item: T) => Rect): T[
 }
 
 /**
- * Items packed in rows no wider than `wrap` (a row holds one item at least),
- * tops aligned, `hGap` between two side by side, `vGap` between two rows. The
- * positions are relative to the layout's corner; `width` and `height` its size.
+ * Items packed in rows no wider than `wrap` and of `perRow` items at most (a
+ * row holds one item at least), tops aligned, `hGap` between two side by side,
+ * `vGap` between two rows. The positions are relative to the layout's corner;
+ * `width` and `height` its size.
  */
 function shelves<T>(
   items: readonly T[],
@@ -116,13 +134,14 @@ function shelves<T>(
   wrap: number,
   hGap: (left: T, right: T) => number,
   vGap: (above: readonly T[], below: readonly T[]) => number,
+  perRow = Infinity,
 ): { placed: Placed<T>[]; width: number; height: number } {
   const rows: T[][] = [];
   let rowWidth = 0;
   for (const item of items) {
     const row = rows[rows.length - 1];
     const gap = row ? hGap(row[row.length - 1], item) : 0;
-    if (row && rowWidth + gap + size(item).width <= wrap) {
+    if (row && row.length < perRow && rowWidth + gap + size(item).width <= wrap) {
       row.push(item);
       rowWidth += gap + size(item).width;
     } else {
@@ -240,6 +259,8 @@ interface GroupScene {
   /** Whether an element lies in no frame. */
   loose: (element: ExcalidrawElement) => boolean;
   aspect: number;
+  /** The shape of the group's grid. */
+  layout: ArrangeLayout;
 }
 
 /** Members of a group laid out together, and the room they take. */
@@ -259,7 +280,8 @@ interface Piece {
  * joined by arrows (a diagram) whole, a frame drawn by hand with what it holds,
  * an arrow bound at one end with that end; else each member alone. The pieces
  * that hold a node not minimized take the group's grid: top to bottom, a new
- * column to the right after MAX_ROWS, each column as wide as its widest piece.
+ * column to the right after MAX_ROWS (the grid layout's; the others make one
+ * row, one column or N columns), each column as wide as its widest piece.
  * The drawings go in rows under it, as wide as it; the tabs in rows under them.
  * What is attached to a member but lies outside the frame never becomes a
  * member: it stays outside and moves with the side of the frame it stands by,
@@ -363,11 +385,12 @@ function tidyGroup(frame: ExcalidrawElement, members: readonly ExcalidrawElement
   // Each band starts under the one above it: its friezes, then air.
   const nextBand = () => (bottom > top ? bottom + ROW_GAP : top);
 
-  // The group's grid: top to bottom, a new column to the right after MAX_ROWS.
-  const rows = Math.min(grid.length, MAX_ROWS);
+  // The group's grid: top to bottom, a new column to the right after MAX_ROWS (or as the layout cuts it: one row, one column, N columns).
   let x = left;
-  for (let c = 0; c * rows < grid.length; c++) {
-    const column = grid.slice(c * rows, c * rows + rows);
+  let next = 0;
+  for (const rows of columnHeightsOf(grid.length, scene.layout, MAX_ROWS)) {
+    const column = grid.slice(next, next + rows);
+    next += rows;
     let y = top;
     column.forEach((piece, r) => {
       if (r > 0) y += ROW_GAP;
@@ -447,6 +470,8 @@ const differs = (a: Rect, b: Rect) => Math.abs(a.x - b.x) > 0.5 || Math.abs(a.y 
 export function arrangedElements(input: ArrangeInput): { elements: ExcalidrawElement[]; movedNodeIds: Set<string> } | null {
   const { elements, parentOf, isMinimized } = input;
   const aspect = input.aspect && Number.isFinite(input.aspect) && input.aspect > 0 ? input.aspect : DEFAULT_ASPECT;
+  const layout = input.layout ?? DEFAULT_ARRANGE_LAYOUT;
+  const asked = input.scope ?? "auto";
   const live = elements.filter((e) => !e.isDeleted);
   const byId = new Map(live.map((e) => [e.id, e]));
   const frames = live.filter((e) => e.type === "frame");
@@ -510,8 +535,12 @@ export function arrangedElements(input: ArrangeInput): { elements: ExcalidrawEle
     unitMembers.set(unit, [...(unitMembers.get(unit) ?? []), e]);
   }
 
-  // What to arrange: the selection's units, else all of them.
-  const selected = (input.only ?? []).filter((id) => nodeIds.has(id) || frameIds.has(id) || (byId.has(id) && groupFrameOf(byId.get(id)!) !== null));
+  // What to arrange: the selection's units, else all of them (the whole canvas asked for: all of them, whatever is selected).
+  const selected = (asked === "canvas" ? [] : (input.only ?? [])).filter(
+    (id) => nodeIds.has(id) || frameIds.has(id) || (byId.has(id) && groupFrameOf(byId.get(id)!) !== null),
+  );
+  // The selection asked for, and nothing in it to arrange: nothing moves, not even the rest.
+  if (asked === "selection" && selected.length === 0) return null;
   const frameOfSelected = (id: string): string | null => {
     if (frameIds.has(id)) return hostOf.get(id) ?? id;
     const e = byId.get(id)!;
@@ -520,13 +549,14 @@ export function arrangedElements(input: ArrangeInput): { elements: ExcalidrawEle
   const selectedFrames = new Set(selected.map(frameOfSelected));
   const insideOne = selected.length > 0 && selectedFrames.size === 1 && !selectedFrames.has(null) ? [...selectedFrames][0] : null;
   const selectedUnits = new Set(selected.map((id) => unitOf(units.has(id) ? id : frameOfSelected(id)!)));
-  const scope = insideOne ? new Set([unitOf(insideOne)]) : selectedUnits.size >= 2 ? selectedUnits : new Set(unitMembers.keys());
+  // The selection alone when asked for, even of one block (it stays where it is); in `auto`, only from two blocks.
+  const scope = insideOne ? new Set([unitOf(insideOne)]) : selectedUnits.size >= 2 || asked === "selection" ? selectedUnits : new Set(unitMembers.keys());
 
   const targets = new Map<string, Rect>();
   const followers = new Set<string>();
 
   // Inside each group in scope: every member laid out again. Not a folded group (its terminals are hidden).
-  const groupScene: GroupScene = { live, byId, nodeIds, isMinimized, liveParent, attachmentOf, loose: (e) => inFrame(e) === null, aspect };
+  const groupScene: GroupScene = { live, byId, nodeIds, isMinimized, liveParent, attachmentOf, loose: (e) => inFrame(e) === null, aspect, layout };
   const tidyFrames = insideOne ? [byId.get(insideOne)!] : frames.filter((f) => scope.has(unitOf(f.id)));
   for (const frame of tidyFrames) {
     const info = groupInfoOf(frame);
@@ -575,7 +605,9 @@ export function arrangedElements(input: ArrangeInput): { elements: ExcalidrawEle
       blocks.filter((b) => b.tab),
       (b) => b.rect,
     );
-    const main = bestShelves(full, size, aspect, hGap, vGap);
+    // The grid packs to the view's shape; the other layouts cut the rows at their count, whatever the view.
+    const perRow = perRowOf(layout);
+    const main = perRow === null ? bestShelves(full, size, aspect, hGap, vGap) : shelves(full, size, Infinity, hGap, vGap, perRow);
     const tabTop = main.height > 0 ? main.height + (full.some((b) => b.compound) ? GROUP_GAP : ROW_GAP) : 0;
     const tabRows =
       tabs.length === 0

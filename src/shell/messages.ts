@@ -1,3 +1,4 @@
+import type { ArrangeLayout } from "@/agents/arrangeLayout";
 import { defineMessages, plural } from "@/i18n";
 
 /** The app shell's texts: title bar, rails, menus, dialogs. */
@@ -102,6 +103,15 @@ export const shellMessages = defineMessages(
       followWaiting: "Go to agents that ask",
       finishAlerts: "Alert when an agent finishes",
       autoArrange: "Auto-arrange",
+      arrangeLayout: "Arrange layout",
+      arrangeLayouts: {
+        grid: "Grid",
+        row: "One row",
+        column: "One column",
+        "columns-2": "2 columns",
+        "columns-3": "3 columns",
+        "columns-4": "4 columns",
+      } satisfies Record<ArrangeLayout, string>,
       subagentTerminals: "Sub-agents as terminals",
       maxSpawned: "Sub-agents at once",
       exportScene: "Export the scene…",
