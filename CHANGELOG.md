@@ -15,6 +15,7 @@ dummyPlane's first release will be 0.1.0; until then, its changes are listed und
 
 ### Changed
 - **The model router's `extreme` level runs Claude Fable 5.2,** the Fable the Edit tab offers, instead of Fable 5.1. The router's levels and the Edit tab's models now come from one table. A terminal still on an older Claude model names it by family and version, for example "Fable 5.1".
+- **A Fleet is written to from the command bar, and its node has no message bar any more.** The command bar's `@` list now offers each Fleet by its name, marked *Fleet*, and what you send reaches the Fleet's own session, as it would an agent's. A selected Fleet is a target too. `@all` still reaches the agents only, never the Fleets. The one-line message field at the foot of a Fleet node is gone: write to its agents, or to the Fleet itself, from the command bar.
 
 ### Fixed
 - **A group's Arrange makes room:** with a layout that changes a group's shape (*One row* turns a column of terminals into one long row), the group's frame grew where it stood and covered the nodes, notes, outputs and groups beside it. Now what it grows over moves out of its way: what stood to its right goes right, what stood under it goes down, clear of it and with what is attached to it, and pushes on whatever it lands on in turn. What the frame doesn't reach stays put, it all takes one undo, and arranging again moves nothing.

@@ -29,6 +29,8 @@ export interface TargetAgent {
   id: string;
   name: string;
   groupName: string | null;
+  /** A Fleet: its own session is reached by its name, never by `@all` (a broadcast is for the team's agents). */
+  fleet?: boolean;
 }
 
 /** "Team Back" → "teamback": no spaces nor accents, lower case. */
@@ -54,29 +56,39 @@ export function uniqueTargets(targets: readonly Target[]): Target[] {
   });
 }
 
-/** The terminals among `ids` (those `nameOf` names), with their group. */
+/** The terminals and Fleets among `ids` (those `nameOf` names), with their group; `isFleet` marks the Fleets. */
 export function targetAgents(
   ids: readonly string[],
   nameOf: (id: string) => string | undefined,
   frames: readonly SceneFrame[],
+  isFleet: (id: string) => boolean = () => false,
 ): TargetAgent[] {
   return ids.flatMap((id) => {
     const name = nameOf(id);
     if (name === undefined) return [];
     const group = frames.find((f) => f.group !== null && f.memberIds.includes(id));
-    return [{ id, name, groupName: group?.name ?? null }];
+    return [{ id, name, groupName: group?.name ?? null, ...(isFleet(id) ? { fleet: true } : {}) }];
   });
 }
 
+/** The agents `@all` reaches: every one but the Fleets, which are written to by name. */
+export const broadcastAgents = (agents: readonly TargetAgent[]): TargetAgent[] => agents.filter((a) => !a.fleet);
+
 /** @all, then the groups, then the agents; two agents of the same name both show, with their group. */
 export function targetOptions(agents: readonly TargetAgent[], groups: readonly SceneFrame[]): TargetOption[] {
-  const all: TargetOption = { target: { kind: "all" }, label: messages(agentsMessages).targets.all, detail: agentsText(agents.length) };
+  const all: TargetOption = { target: { kind: "all" }, label: messages(agentsMessages).targets.all, detail: agentsText(broadcastAgents(agents).length) };
   const groupOptions = groups
     .filter((g) => g.group !== null && slug(g.name))
     .map((g): TargetOption => ({ target: { kind: "group", id: g.id }, label: `@${slug(g.name)}`, detail: agentsText(g.memberIds.length) }));
   const agentOptions = agents
     .filter((a) => slug(a.name))
-    .map((a): TargetOption => ({ target: { kind: "agent", id: a.id }, label: `@${slug(a.name)}`, detail: a.groupName ?? messages(agentsMessages).outsideGroup }));
+    .map(
+      (a): TargetOption => ({
+        target: { kind: "agent", id: a.id },
+        label: `@${slug(a.name)}`,
+        detail: a.fleet ? messages(agentsMessages).targets.fleet : (a.groupName ?? messages(agentsMessages).outsideGroup),
+      }),
+    );
   return [all, ...groupOptions, ...agentOptions];
 }
 
@@ -159,11 +171,12 @@ export function extractMentions(text: string, options: readonly TargetOption[]):
 /**
  * The terminals a command goes to, once each, in the order of the targets;
  * without targets, `fallback` (the selection, or a fleet's agents).
- * Only terminals of `scope.all` count.
+ * `@all` reaches `scope.all`; only the agents of `scope.known` (`all` by default: it adds the Fleets, which
+ * `@all` leaves out) count.
  */
 export function resolveTargets(
   targets: readonly Target[],
-  scope: { all: readonly string[]; groups: readonly SceneFrame[] },
+  scope: { all: readonly string[]; groups: readonly SceneFrame[]; known?: readonly string[] },
   fallback: readonly string[],
 ): string[] {
   const ids: string[] = [];
@@ -173,7 +186,8 @@ export function resolveTargets(
     else if (target.kind === "group") ids.push(...(scope.groups.find((g) => g.id === target.id)?.memberIds ?? []));
     else ids.push(target.id);
   }
-  return [...new Set(ids)].filter((id) => scope.all.includes(id));
+  const known = scope.known ?? scope.all;
+  return [...new Set(ids)].filter((id) => known.includes(id));
 }
 
 /**

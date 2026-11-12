@@ -1,8 +1,8 @@
-import { Group, SquareTerminal, Users } from "lucide-react";
+import { Group, Network, SquareTerminal, Users } from "lucide-react";
 import { pillActivity, pillOf } from "@/nodes/terminal/pill";
 import { DOT_OF_TONE, StatusDot } from "@/nodes/terminal/StatusDot";
 import { useActivity } from "@/store/agentActivity";
-import { terminalOf, useNodes } from "@/store/nodes";
+import { sessionOf, useNodes } from "@/store/nodes";
 import { useTerminalStatus } from "@/store/terminalStatus";
 import { AGENTS } from "../catalog";
 import type { Target } from "../targets";
@@ -17,8 +17,10 @@ export function TargetIcon({ target }: { target: Target }) {
 }
 
 function AgentIcon({ id }: { id: string }) {
-  const agent = useNodes((s) => terminalOf(s.nodes[id])?.agent);
-  const Icon = agent ? AGENTS[agent].Icon : SquareTerminal;
+  const fleet = useNodes((s) => s.nodes[id]?.kind === "fleet");
+  const agent = useNodes((s) => sessionOf(s.nodes[id])?.agent);
+  // A Fleet has the icon of its node, whichever CLI its session runs.
+  const Icon = fleet ? Network : agent ? AGENTS[agent].Icon : SquareTerminal;
   return <Icon className={ICON} aria-hidden />;
 }
 
@@ -29,8 +31,8 @@ function AgentIcon({ id }: { id: string }) {
 export function AgentStatusDot({ id }: { id: string }) {
   const status = useTerminalStatus(id);
   const activity = useActivity(id);
-  const report = useNodes((s) => terminalOf(s.nodes[id])?.lastReport?.status);
-  const shell = useNodes((s) => terminalOf(s.nodes[id])?.agent === "shell");
+  const report = useNodes((s) => sessionOf(s.nodes[id])?.lastReport?.status);
+  const shell = useNodes((s) => sessionOf(s.nodes[id])?.agent === "shell");
   const pill = pillOf(status, pillActivity(status, activity, shell), false, report);
   return <StatusDot state={DOT_OF_TONE[pill.tone]} label={pill.label} data-status-dot={pill.tone} />;
 }

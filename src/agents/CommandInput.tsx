@@ -84,10 +84,6 @@ interface CommandInputProps {
    * left too (never a draft's), since selecting is saying who.
    */
   fromSelection?: boolean;
-  /** A node's foot: one line, the field and its Send, at the foot's density. */
-  compact?: boolean;
-  /** Escape with no list open: where the keyboard goes back (a node's terminal). */
-  onEscape?: () => void;
 }
 
 /**
@@ -108,7 +104,7 @@ export function CommandInput(props: CommandInputProps) {
 }
 
 function CommandField(props: CommandInputProps & { deliver: RefObject<(text: string) => void> }) {
-  const { agents, groups, placeholder, label = placeholder, emptyHint, sendsTo, autoTargets = NO_TARGETS, fromSelection = false, compact = false, onEscape, deliver } = props;
+  const { agents, groups, placeholder, label = placeholder, emptyHint, sendsTo, autoTargets = NO_TARGETS, fromSelection = false, deliver } = props;
   const t = useMessages(agentsMessages).command;
   const aui = useAui();
   // The composer owns the text: typing, completing, recalling and sending all go through it.
@@ -322,10 +318,7 @@ function CommandField(props: CommandInputProps & { deliver: RefObject<(text: str
       }
     }
     const element = e.currentTarget as HTMLTextAreaElement;
-    if (e.key === "Escape" && onEscape) {
-      e.preventDefault();
-      onEscape();
-    } else if (e.key === "Enter" && !e.shiftKey) {
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       send();
     } else if (e.key === "ArrowUp" && !element.value.slice(0, element.selectionStart).includes("\n")) {
@@ -352,7 +345,7 @@ function CommandField(props: CommandInputProps & { deliver: RefObject<(text: str
   const keepCaret = (e: ReactMouseEvent<HTMLButtonElement>) => e.preventDefault();
 
   // An empty field shows its keys as keycaps, where the placeholder used to spell them out.
-  const showKeys = !compact && text === "" && chips.length === 0 && attachments.images.length === 0;
+  const showKeys = text === "" && chips.length === 0 && attachments.images.length === 0;
   const chipLabels = chips.map((target) => labels.get(targetKey(target)) ?? "");
   // The field's description: its hints, who the chips send to, then its keys.
   const describedBy = [hints.length > 0 ? `${listId}-hints` : null, chips.length > 0 ? `${listId}-to` : null, showKeys ? `${listId}-keys` : null]
@@ -399,14 +392,7 @@ function CommandField(props: CommandInputProps & { deliver: RefObject<(text: str
             <p key={hint}>{hint}</p>
           ))}
         </div>
-        <div
-          className={cn(
-            "flex min-w-0 flex-wrap items-center gap-1",
-            // In a node's foot the field is the line itself: 28px, a hairline at rest, the focus ring once written in.
-            compact &&
-              "min-h-7 rounded-md bg-dp-field px-1 ring-1 ring-dp-line ring-inset focus-within:ring-2 focus-within:ring-dp-accent/70",
-          )}
-        >
+        <div className="flex min-w-0 flex-wrap items-center gap-1">
           {/*
             The chips are a list of their own, "Targets", each ✕ named after its chip. The list adds no box (contents):
             its chips wrap with the field, as before; the explicit roles keep it a list without its own layout.
@@ -467,11 +453,8 @@ function CommandField(props: CommandInputProps & { deliver: RefObject<(text: str
               if (at !== caret) setActive(0);
               setCaret(at);
             }}
-            // One line is 32px tall, as Send is (28px in a foot); six lines at most, then it scrolls.
-            className={cn(
-              "max-h-32 min-w-32 flex-1 resize-none bg-transparent leading-5 text-dp-text caret-dp-accent outline-none placeholder:text-dp-text-2 selection:bg-dp-accent-soft",
-              compact ? "px-1 py-1 text-xs" : "py-1.5 text-(length:--text-ui)",
-            )}
+            // One line is 32px tall, as Send is; six lines at most, then it scrolls.
+            className="max-h-32 min-w-32 flex-1 resize-none bg-transparent py-1.5 text-(length:--text-ui) leading-5 text-dp-text caret-dp-accent outline-none placeholder:text-dp-text-2 selection:bg-dp-accent-soft"
           />
           {showKeys && (
             <span id={`${listId}-keys`} data-field-keys className="flex shrink-0 items-center gap-3 text-xs text-dp-text-3">
@@ -496,17 +479,13 @@ function CommandField(props: CommandInputProps & { deliver: RefObject<(text: str
         <span data-send-hint={sendHint} className={cn("flex shrink-0", !canSend && "cursor-not-allowed")}>
           <ComposerPrimitive.Send asChild disabled={!canSend}>
             <Button
-              size={compact ? "icon-sm" : "default"}
               aria-label={t.send}
               onMouseDown={keepCaret}
-              className={cn(
-                // The one primary action, at the control radius the field shares. Grey but legible while there is nothing to send: the hint beside it says why.
-                "rounded-md font-medium disabled:bg-dp-field disabled:text-dp-text-3 disabled:opacity-100",
-                !compact && "px-3 text-(length:--text-ui)",
-              )}
+              // The one primary action, at the control radius the field shares. Grey but legible while there is nothing to send: the hint beside it says why.
+              className="rounded-md px-3 text-(length:--text-ui) font-medium disabled:bg-dp-field disabled:text-dp-text-3 disabled:opacity-100"
             >
               <ArrowUp className="size-4" />
-              {!compact && t.send}
+              {t.send}
             </Button>
           </ComposerPrimitive.Send>
         </span>

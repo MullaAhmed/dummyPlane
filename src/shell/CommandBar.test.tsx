@@ -313,3 +313,35 @@ it("keeps the field's generic name with the active terminal's chip, its target i
   await removeChip("@cyborg");
   expect(getByRole(host, "textbox", "Message agents")).toBe(field());
 });
+
+const addFleet = () =>
+  act(async () => {
+    nodesStore.setState({ nodes: { ...nodesStore.getState().nodes, f1: { workspaceId: "w1", kind: "fleet", payload: { name: "Fleet" } } } });
+    canvasStore.setState({ nodeIds: ["t1", "t2", "f1"] });
+  });
+
+it("offers a Fleet in the @ list by its name, and sends to its own session", async () => {
+  await addFleet();
+  await type("@fle");
+  const option = [...host.querySelectorAll('[role="option"]')].find((o) => o.textContent?.includes("@fleet"));
+  expect(option?.textContent).toContain("Fleet");
+  await type("@fleet plan the migration");
+  expect(sendButton().disabled).toBe(false);
+  await act(async () => sendButton().click());
+  expect(sendCommand).toHaveBeenLastCalledWith(["f1"], "plan the migration");
+});
+
+it("leaves the Fleet out of @all: a broadcast is for the agents", async () => {
+  await addFleet();
+  await type("@all run tests");
+  await act(async () => sendButton().click());
+  expect(sendCommand).toHaveBeenLastCalledWith(["t1", "t2"], "run tests");
+});
+
+it("targets the Fleet that is selected, as it does a selected terminal", async () => {
+  await addFleet();
+  await select(["f1"]);
+  await type("plan it");
+  await act(async () => sendButton().click());
+  expect(sendCommand).toHaveBeenLastCalledWith(["f1"], "plan it");
+});

@@ -438,9 +438,6 @@ it("shows its keys as keycaps while empty, in place of a long placeholder", asyn
   expect(field().getAttribute("aria-describedby")).toBe(keys()!.id);
   await type("run");
   expect(keys()).toBeNull();
-  await act(async () => root.render(<CommandInput compact agents={agents} groups={[]} fallback={[]} placeholder="Consigne" emptyHint="Tape @" />));
-  await type("");
-  expect(keys()).toBeNull();
 });
 
 it("ties the field to its list: the highlighted line is the active one, and the mouse moves it", async () => {

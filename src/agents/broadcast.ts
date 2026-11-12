@@ -7,7 +7,7 @@ import type { Activity } from "@/ipc/activity";
 import { ptyInterrupt, ptySendText, type AgentId } from "@/ipc/pty";
 import { ATTACHES_PASTED_IMAGES } from "@/nodes/terminal/imagePaste";
 import { agentActivityStore } from "@/store/agentActivity";
-import { nodesStore, terminalOf } from "@/store/nodes";
+import { nodesStore, sessionOf } from "@/store/nodes";
 import { statusOf, terminalStatusStore } from "@/store/terminalStatus";
 import { AGENTS } from "./catalog";
 import { agentsMessages } from "./messages";
@@ -68,8 +68,9 @@ export function canResume(facts: AgentFacts): boolean {
   return facts.running && facts.agent !== "shell" && (facts.activity ?? "idle") === "idle";
 }
 
+/** The session a command is typed into: a terminal's own, or a Fleet's (`@Fleet` in the command bar). */
 function factsOf(id: string): AgentFacts | null {
-  const payload = terminalOf(nodesStore.getState().nodes[id]);
+  const payload = sessionOf(nodesStore.getState().nodes[id]);
   if (!payload) return null;
   return {
     agent: payload.agent,
@@ -79,7 +80,9 @@ function factsOf(id: string): AgentFacts | null {
 }
 
 function nameOf(id: string): string {
-  const payload = terminalOf(nodesStore.getState().nodes[id]);
+  const record = nodesStore.getState().nodes[id];
+  if (record?.kind === "fleet") return record.payload.name;
+  const payload = sessionOf(record);
   return payload ? payload.name || AGENTS[payload.agent].label : messages(agentsMessages).agentFallback;
 }
 

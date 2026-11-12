@@ -204,6 +204,33 @@ describe("resumeAgent when the process just died", () => {
   });
 });
 
+describe("a Fleet, written to by name", () => {
+  async function fleet(state: "running" | "stopped", activity?: Activity) {
+    await nodesStore.getState().create("chef", {
+      workspaceId: "w1",
+      kind: "fleet",
+      payload: { name: "Atlas", session: { title: "Atlas", name: "Atlas", agent: "claude", cwd: "C:/code", shell: "default", command: "" } },
+    });
+    terminalStatusStore.getState().set("chef", { state });
+    if (activity) agentActivityStore.getState().apply({ nodeId: "chef", activity, since: 0 });
+  }
+
+  it("takes the text in its own session, as an agent does", async () => {
+    await fleet("running", "idle");
+    expect(await sendToAgents(["chef"], "plan the migration")).toEqual({ sent: 1, skipped: [], waiting: [], unsuited: [], starting: [] });
+    expect(calls).toEqual([{ cmd: "pty_send_text", nodeId: "chef", text: "plan the migration" }]);
+  });
+
+  it("is named by its own name when it is stopped, and left alone while it waits for an answer", async () => {
+    await fleet("stopped");
+    expect((await sendToAgents(["chef"], "go")).skipped).toEqual(["Atlas"]);
+    terminalStatusStore.getState().set("chef", { state: "running" });
+    agentActivityStore.getState().apply({ nodeId: "chef", activity: "waiting", since: 0 });
+    expect((await sendToAgents(["chef"], "go")).waiting).toEqual(["Atlas"]);
+    expect(calls).toEqual([]);
+  });
+});
+
 describe("sendCommand and agents still starting", () => {
   it("warns about them apart from the stopped ones", async () => {
     const warning = vi.spyOn(toast, "warning").mockImplementation(() => "");

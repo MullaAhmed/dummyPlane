@@ -59,6 +59,8 @@ export const agentsMessages = defineMessages({
     },
     targets: {
       all: "@all",
+      /** In grey under a Fleet in the `@` list, where an agent shows its group. */
+      fleet: "Fleet",
     },
     broadcast: {
       skipped: (names: readonly string[]) =>

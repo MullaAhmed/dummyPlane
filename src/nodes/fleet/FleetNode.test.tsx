@@ -5,7 +5,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { canvasStore, EMPTY_VIEW } from "@/canvas/canvasStore";
 import { requestUi } from "@/commands/uiRequests";
-import { sendCommand } from "@/agents/broadcast";
 import { agentActivityStore } from "@/store/agentActivity";
 import { NEW_MISSION } from "@/mission/mission";
 import type { FleetPayload } from "@/nodes/types";
@@ -16,10 +15,6 @@ import { MISSING_GRACE_MS } from "../terminal/MissingNode";
 import { FleetNode } from "./FleetNode";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
-vi.mock("@/agents/broadcast", async (original) => ({
-  ...(await original<typeof import("@/agents/broadcast")>()),
-  sendCommand: vi.fn(() => Promise.resolve()),
-}));
 vi.mock("../terminal/registry", () => ({ mountTerminal: vi.fn(), layoutTerminal: vi.fn(), markForAutostart: vi.fn(), relaunchTerminal: vi.fn(), focusTerminal: vi.fn() }));
 // happy-dom may lack it; the node observes its terminal's host.
 globalThis.ResizeObserver ??= class {
@@ -57,8 +52,8 @@ it("gives a fleet of before its Claude session, and shows its terminal", async (
   expect(session.claudeSessionId).toMatch(/^[0-9a-f-]{36}$/);
   expect(markForAutostart).toHaveBeenCalledWith("ancien");
   expect(mountTerminal).toHaveBeenCalledWith("ancien", expect.any(HTMLElement), session, 1);
-  // Its one field is the message line of its foot: the session area has none of its own.
-  expect([...host.querySelectorAll('[data-fleet="ancien"] textarea')].every((field) => field.closest("[data-message-line]"))).toBe(true);
+  // No field of its own: the session's terminal is where it is written to, and the command bar.
+  expect(host.querySelector('[data-fleet="ancien"] textarea')).toBeNull();
   expect(host.querySelector('[data-mission="ancien"]')).not.toBeNull();
   await act(async () => root.unmount());
   host.remove();
@@ -76,97 +71,18 @@ it("does not flash « not found » while a copy's record is on its way", async (
   await act(async () => root.unmount());
 });
 
-describe("its message field", () => {
-  let host: HTMLDivElement;
-  let root: ReturnType<typeof createRoot>;
-
-  beforeEach(async () => {
-    mockIPC(() => undefined);
-    vi.mocked(sendCommand).mockClear();
-    const terminal = (name: string) => ({
-      workspaceId: "w1",
-      kind: "terminal" as const,
-      payload: { title: name, name, agent: "claude" as const, cwd: "C:/code", shell: "default" as const, command: "" },
-    });
-    await nodesStore.getState().create("t1", terminal("Cyborg"));
-    await nodesStore.getState().create("t2", terminal("Deadpool"));
-    await nodesStore.getState().create("chef", { workspaceId: "w1", kind: "fleet", payload: { name: "Chef" } });
-    // Wired to Cyborg only: Deadpool is not its agent.
-    canvasStore.setState({ nodeIds: ["t1", "t2", "chef"], frames: [], view: EMPTY_VIEW, links: { chef: { nodeIds: ["t1"], groupIds: [] } } });
-    host = document.createElement("div");
-    document.body.append(host);
-    root = createRoot(host);
-    await act(async () => root.render(<FleetNode nodeId="chef" />));
-  });
-  afterEach(async () => {
-    await act(async () => root.unmount());
-    host.remove();
-    canvasStore.setState({ nodeIds: [], frames: [], links: {} });
-  });
-
-  const sendButton = () => host.querySelector<HTMLButtonElement>('[data-fleet-input] button[aria-label="Send"]')!;
-  const field = () => host.querySelector<HTMLTextAreaElement>("[data-fleet-input] textarea");
-
-  async function type(value: string) {
-    const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!;
-    await act(async () => {
-      setter.call(field(), value);
-      field()!.setSelectionRange(value.length, value.length);
-      field()!.dispatchEvent(new Event("input", { bubbles: true }));
-    });
-  }
-
-  it("is the field itself, one line: a click and you type to the linked agents", () => {
-    expect(host.querySelector("[data-fleet-input] button[aria-expanded]")).toBeNull();
-    expect(field()).not.toBeNull();
-    expect(field()!.closest("[data-message-line]")).not.toBeNull();
-  });
-
-  it("never takes the keyboard by itself", async () => {
-    const elsewhere = document.createElement("input");
-    document.body.append(elsewhere);
-    elsewhere.focus();
-    await act(async () => nodesStore.getState().update("chef", { inputOpen: true }));
-    expect(field()).not.toBeNull();
-    expect(document.activeElement).toBe(elsewhere);
-    elsewhere.remove();
-  });
-
-  it("names its agents in the placeholder and sends to them on Enter", async () => {
-    expect(field()!.placeholder).toContain("1 agent");
-    await type("run tests");
-    await act(async () => void field()!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true })));
-    expect(sendCommand).toHaveBeenCalledWith(["t1"], "run tests");
-    expect(field()!.value).toBe("");
-  });
-
-  it("targets with @ and sends with the button", async () => {
-    await type("@cyborg run tests");
-    await act(async () => host.querySelector<HTMLButtonElement>('[data-fleet-input] button[aria-label="Send"]')!.click());
-    expect(sendCommand).toHaveBeenCalledWith(["t1"], "run tests");
-  });
-
-  it("keeps its keys from the canvas", async () => {
-    const seen = vi.fn();
-    host.addEventListener("keydown", seen);
-    for (const key of ["a", "Enter", "ArrowUp", "Escape", "Backspace"]) {
-      await act(async () => void field()!.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true })));
-    }
-    await act(async () => void sendButton().dispatchEvent(new KeyboardEvent("keydown", { key: "Backspace", bubbles: true, cancelable: true })));
-    expect(seen).not.toHaveBeenCalled();
-  });
-
-  it("keeps a Backspace on Send from the canvas: Tab can bring the keyboard there", async () => {
-    await type("run tests");
-    const send = host.querySelector<HTMLButtonElement>('[data-fleet-input] button[aria-label="Send"]')!;
-    send.focus();
-    expect(document.activeElement).toBe(send);
-    const seen = vi.fn();
-    host.addEventListener("keydown", seen);
-    await act(async () => void send.dispatchEvent(new KeyboardEvent("keydown", { key: "Backspace", bubbles: true, cancelable: true })));
-    expect(seen).not.toHaveBeenCalled();
-    expect(sendCommand).not.toHaveBeenCalled();
-  });
+it("has no message field of its own: its agents, and the Fleet itself, are written to from the command bar", async () => {
+  mockIPC(() => undefined);
+  await nodesStore.getState().create("chef", { workspaceId: "w1", kind: "fleet", payload: { name: "Chef" } });
+  canvasStore.setState({ nodeIds: ["chef"], frames: [], view: EMPTY_VIEW, links: {} });
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = createRoot(host);
+  await act(async () => root.render(<FleetNode nodeId="chef" />));
+  expect(host.querySelector("[data-fleet-input], [data-message-line]")).toBeNull();
+  expect(host.querySelector("textarea")).toBeNull();
+  await act(async () => root.unmount());
+  host.remove();
 });
 
 describe("its header, the same chrome as a terminal's", () => {

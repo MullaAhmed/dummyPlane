@@ -1,6 +1,6 @@
 import type { SceneFrame } from "@/canvas/groups";
 import { isCommandAfterMentions } from "../slashCommands";
-import { extractMentions, resolveTargets, uniqueTargets, type Target, type TargetAgent, type TargetOption } from "../targets";
+import { broadcastAgents, extractMentions, resolveTargets, uniqueTargets, type Target, type TargetAgent, type TargetOption } from "../targets";
 
 /** What the field knows besides its text: the chips, the `@` list, and who is reached without `@`. */
 export interface RouteScope {
@@ -28,7 +28,11 @@ export interface CommandRoute {
 export function routeCommand(text: string, scope: RouteScope): CommandRoute {
   const typed = extractMentions(text, scope.options);
   const targets = uniqueTargets([...scope.chips, ...typed.targets]);
-  const ids = resolveTargets(targets, { all: scope.agents.map((a) => a.id), groups: scope.groups }, scope.fallback);
+  const ids = resolveTargets(
+    targets,
+    { all: broadcastAgents(scope.agents).map((a) => a.id), known: scope.agents.map((a) => a.id), groups: scope.groups },
+    scope.fallback,
+  );
   const unknown = isCommandAfterMentions(typed.text) ? /(?:^|\s)(@[^\s@,;:.!?…]+)/.exec(typed.text)?.[1] : undefined;
   return { targets, ids, instruction: typed.text, unknown, canSend: typed.text.length > 0 && ids.length > 0 && unknown === undefined };
 }

@@ -35,7 +35,6 @@ import { ResumeCard } from "../terminal/ResumeCard";
 import { StatusPill } from "../terminal/StatusPill";
 import { keepFieldWheel } from "./keepWheel";
 import { useTerminalHost } from "../terminal/useTerminalHost";
-import { FleetInput } from "./FleetInput";
 import { ToolsUnavailable } from "./ToolsUnavailable";
 import { useMessages } from "@/i18n";
 import { nodesMessages } from "@/nodes/messages";
@@ -108,7 +107,6 @@ export function FleetNode({ nodeId }: { nodeId: string }) {
         {status.state === "error" && status.kind === "toolsUnavailable" && <ToolsUnavailable nodeId={nodeId} message={status.message} />}
       </div>
       <MissionPanel nodeId={nodeId} />
-      <FleetInput nodeId={nodeId} />
     </div>
   );
 }

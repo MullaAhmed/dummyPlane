@@ -40,10 +40,14 @@ export function CommandBar() {
       targetAgents(
         nodeIds,
         (id) => {
-          const payload = terminalOf(nodes[id]);
+          // A Fleet is written to by its name (`@fleet`), like an agent: its session is the one that plans and delegates.
+          const record = nodes[id];
+          if (record?.kind === "fleet") return record.payload.name;
+          const payload = terminalOf(record);
           return payload ? payload.name || AGENTS[payload.agent].label : undefined;
         },
         frames,
+        (id) => nodes[id]?.kind === "fleet",
       ),
     [nodeIds, nodes, frames],
   );

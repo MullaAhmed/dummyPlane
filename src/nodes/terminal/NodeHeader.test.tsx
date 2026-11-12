@@ -48,10 +48,8 @@ describe("the header of a terminal and of a Fleet", () => {
       "nodes/terminal/MinimizedCard.tsx",
       "nodes/terminal/ResumeCard.tsx",
       "nodes/terminal/AgentFoot.tsx",
-      "nodes/foot/MessageBar.tsx",
       "nodes/foot/StatusLine.tsx",
       "nodes/fleet/FleetNode.tsx",
-      "nodes/fleet/FleetInput.tsx",
       "nodes/subagent/SubagentNode.tsx",
     ];
     for (const file of files) expect(readSource(file), file).not.toMatch(/(?<![\w-])duration-\d|(?<![\w-])ease-(out|in|linear)\b|transition-all|#[0-9a-fA-F]{3,8}\b/);

@@ -111,10 +111,6 @@ export const nodesMessages = defineMessages(
       remoteTeam: "Remote Control for the team",
       remoteOff: "Turn off Remote Control",
       close: "Close the fleet",
-      input: {
-        placeholder: (agents: string) => `Message ${agents}`,
-        emptyHint: "Link agents to this fleet",
-      },
     },
     toolsUnavailable: {
       title: "dummyPlane tools unavailable",

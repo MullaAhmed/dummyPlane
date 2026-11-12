@@ -57,8 +57,6 @@ it("rounds the composer on the scale: the bar a floating panel (16), Send and th
   const input = readSource("agents/CommandInput.tsx");
   const send = input.slice(input.indexOf("<ComposerPrimitive.Send"), input.indexOf("</ComposerPrimitive.Send>"));
   expect(send).toMatch(/rounded-(\[8px\]|md)/);
-  // A fleet's field is a control of its own, beside Send.
-  expect(input).toMatch(/compact &&\s*"[^"]*\brounded-(\[8px\]|md)/);
   expect(input, "the old odd radius").not.toContain("rounded-[10px]");
 });
 

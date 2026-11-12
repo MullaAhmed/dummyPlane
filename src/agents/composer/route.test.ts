@@ -40,3 +40,25 @@ describe("routeCommand", () => {
     expect(routeCommand("@cyborg ", scope())).toMatchObject({ instruction: "", canSend: false });
   });
 });
+
+describe("a Fleet in the @ list", () => {
+  const fleet: TargetAgent = { id: "f", name: "Fleet", groupName: null, fleet: true };
+  const withFleet = [...agents, fleet];
+  const scopeWithFleet = (patch: Partial<RouteScope> = {}): RouteScope => scope({ agents: withFleet, options: targetOptions(withFleet, []), ...patch });
+
+  it("is written to by its name, as an agent is", () => {
+    expect(routeCommand("@fleet plan the migration", scopeWithFleet())).toMatchObject({ ids: ["f"], instruction: "plan the migration", canSend: true });
+    expect(routeCommand("@fleet/cyborg go", scopeWithFleet())).toMatchObject({ ids: ["f", "b"], canSend: true });
+  });
+
+  it("is listed under a word of its own, and left out of @all and its count", () => {
+    const options = targetOptions(withFleet, []);
+    expect(options.map((o) => [o.label, o.detail])).toEqual([
+      ["@all", "2 agents"],
+      ["@cyborg", "No group"],
+      ["@deadpool", "No group"],
+      ["@fleet", "Fleet"],
+    ]);
+    expect(routeCommand("@all lint", scopeWithFleet())).toMatchObject({ ids: ["b", "d"], canSend: true });
+  });
+});
