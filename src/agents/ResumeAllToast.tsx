@@ -11,7 +11,7 @@ import { nodesStore, useNodes, type NodeRecord } from "@/store/nodes";
 import { terminalStatusStore, type TerminalStatus } from "@/store/terminalStatus";
 import { useMessages } from "@/i18n";
 import { agentsMessages } from "./messages";
-import { resumeOfferOf, type ResumeOffer } from "./resumable";
+import { workspaceResumeOffer, type ResumeOffer } from "./resumable";
 
 /**
  * The offer sits bottom-right, where the agents panel may reach: the panel stops above it. `leftOut`: it has the
@@ -43,7 +43,7 @@ function sceneSet(): Set<string> {
 
 /** The workspace's offer as things stand: what it resumes, and the finished sub-agents it leaves stopped. */
 function offerOf(nodes: Record<string, NodeRecord>, statuses: Record<string, TerminalStatus>, workspaceId: string): ResumeOffer {
-  return resumeOfferOf(nodes, statuses, workspaceId, liveSet(Object.keys(nodes)), sceneSet());
+  return workspaceResumeOffer(nodes, statuses, workspaceId, liveSet(Object.keys(nodes)), sceneSet());
 }
 
 function ResumeAllToast({ workspaceId }: { workspaceId: string }) {

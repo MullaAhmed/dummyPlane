@@ -3,7 +3,7 @@ import { MANAGER_ROLE } from "@/ipc/pty";
 import type { TerminalPayload } from "@/nodes/types";
 import type { NodeRecord } from "@/store/nodes";
 import type { TerminalStatus } from "@/store/terminalStatus";
-import { isFinishedSubAgent, resumableTerminals, resumeOfferOf } from "./resumable";
+import { isFinishedSubAgent, resumableTerminals, workspaceResumeOffer } from "./resumable";
 
 const node = (workspaceId: string) => ({ workspaceId, kind: "terminal", payload: {} }) as unknown as NodeRecord;
 const terminal = (payload: Partial<TerminalPayload>, workspaceId = "w1") => ({ workspaceId, kind: "terminal", payload }) as unknown as NodeRecord;
@@ -64,7 +64,7 @@ describe("after a restart, finished sub-agents stay stopped", () => {
   });
 
   it("resumes the top agents, the working sub-agents and the mission's team, and sets the finished sub-agents apart", () => {
-    expect(resumeOfferOf(nodes, {}, "w1", new Set(), all)).toEqual({
+    expect(workspaceResumeOffer(nodes, {}, "w1", new Set(), all)).toEqual({
       resume: ["top", "reportedTop", "working", "manager", "member", "orphan"],
       stayStopped: ["done", "fleetChild"],
     });
@@ -80,7 +80,7 @@ describe("after a restart, finished sub-agents stay stopped", () => {
       reattached: terminal({ spawnedBy: "top", lastReport: report }),
     };
     const onScene = new Set([...all, "elsewhere", "running", "reattached"]);
-    const offer = resumeOfferOf(more, { running: { state: "running" } }, "w1", new Set(["reattached"]), onScene);
+    const offer = workspaceResumeOffer(more, { running: { state: "running" } }, "w1", new Set(["reattached"]), onScene);
     expect(offer.stayStopped).toEqual(["done", "fleetChild"]);
   });
 });

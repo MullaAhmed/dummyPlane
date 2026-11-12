@@ -26,7 +26,7 @@ export interface ResumeOffer {
  * canvas count: a closed one keeps its record in memory for undo. Finished sub-agents (`isFinishedSubAgent`) are
  * set apart: the offer names them, and leaves them stopped.
  */
-export function resumeOfferOf(
+export function workspaceResumeOffer(
   nodes: Record<string, NodeRecord>,
   statuses: Record<string, TerminalStatus>,
   workspaceId: string,
@@ -50,7 +50,7 @@ export function resumeOfferOf(
   };
 }
 
-/** The terminals "Resume all" resumes (`resumeOfferOf`). */
+/** The terminals "Resume all" resumes (`workspaceResumeOffer`). */
 export function resumableTerminals(
   nodes: Record<string, NodeRecord>,
   statuses: Record<string, TerminalStatus>,
@@ -58,5 +58,5 @@ export function resumableTerminals(
   alive: ReadonlySet<string>,
   onScene: ReadonlySet<string>,
 ): string[] {
-  return resumeOfferOf(nodes, statuses, workspaceId, alive, onScene).resume;
+  return workspaceResumeOffer(nodes, statuses, workspaceId, alive, onScene).resume;
 }
