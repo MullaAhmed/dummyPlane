@@ -6,7 +6,7 @@ import { ptySendText } from "@/ipc/pty";
 import { missionFolder } from "@/mission/folder";
 import { deliveryPending, endMission, launchMission, mergeMission, reassignTask } from "@/mission/launch";
 import { budgetOf, memberTime, NEW_AGENT, nightMin, oneLine, proposedPlan, proposedTasks, reassignable, remainingGlobal, sameName, spentMin, type Member, type Mission, type QueuedTask } from "@/mission/mission";
-import { activeCount, relaunchTakesSeat, relaunching } from "@/mission/active";
+import { activeCount, relaunchTakesSeat } from "@/mission/active";
 import { stopMission } from "@/mission/stop";
 import { duplicateWork } from "@/mission/activeWork";
 import { cleanUpFinished } from "@/mission/cleanup";
@@ -632,15 +632,12 @@ async function relaunch(fleetId: string, mission: Mission, args: Record<string, 
   if (!payload) return refused(f.relaunchClosed(member.name));
   // Stopped once its sub-task was typed, it holds no seat (`@/mission/active`): the queue may have taken it, and Max agents caps the agents at work.
   if (relaunchTakesSeat(mission, member) && activeCount(fleetId, mission) >= mission.maxAgents) return refused(f.relaunchTeamFull(member.name, mission.maxAgents));
-  // Counted at work, once, from here until its new process runs: the old one's exit must not give its seat to the queue.
-  relaunching.add(member.nodeId);
+  // Counted at work, once, from here until its new process runs (`relaunchSession` marks it restarting at once).
   let failure: string | undefined;
   try {
     await relaunchTerminal(member.nodeId, payload, relaunchMode(payload));
   } catch (error) {
     failure = error instanceof Error ? error.message : String(error);
-  } finally {
-    relaunching.delete(member.nodeId);
   }
   // A refused spawn leaves its error on the terminal, it does not throw.
   const status = statusOf(member.nodeId);
