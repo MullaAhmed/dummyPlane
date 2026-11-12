@@ -5,6 +5,7 @@ import { mockIPC } from "@tauri-apps/api/mocks";
 import { canvasStore } from "@/canvas/canvasStore";
 import { createNodeElement, type NodeKind } from "@/canvas/nodeElement";
 import { cachedElements, forgetScene, rememberScene } from "@/canvas/sceneCache";
+import { NODE_GAP } from "@/agents/groupLayout";
 import { boardLinksOf, withBoardLink } from "@/agents/wires";
 import { moveCardWithGithub } from "@/kanban/github";
 import type { Mission } from "@/mission/mission";
@@ -423,6 +424,10 @@ describe("open_board", () => {
       const view = opened(await call("robin", "open_board", { title: "Elsewhere" }));
       expect(nodesStore.getState().nodes[view.board]?.workspaceId).toBe("w2");
       expect(boardLinksOf(cachedElements("w2")!, "robin")).toEqual([view.board]);
+      // Alone on its canvas, the board stands right beside the terminal, tops level.
+      const stored = cachedElements("w2")!;
+      const robin = stored.find((e) => e.id === "robin")!;
+      expect(stored.find((e) => e.id === view.board)).toMatchObject({ x: robin.x + robin.width + NODE_GAP, y: robin.y });
       // The canvas on screen is left alone.
       expect(scene).toBe(nodes);
       expect(JSON.parse(textOf(await call("robin", "linked_boards"))).boards).toMatchObject([{ board: view.board, editable: true }]);
