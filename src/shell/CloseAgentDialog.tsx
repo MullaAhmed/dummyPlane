@@ -83,7 +83,7 @@ function CloseAgentContent({ closing, open }: { closing: ClosingAgents | null; o
     if (!closing || !open) return;
     const leaving = withChildren ? [...closing.remove, ...children] : closing.remove;
     // The canvas reflows the trees of the spawned agents that leave.
-    removeNodes(leaving);
+    removeNodes(leaving, closing.release ?? []);
   };
 
   return (

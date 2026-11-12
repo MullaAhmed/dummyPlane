@@ -1,7 +1,10 @@
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 
-/** What to ask before running agents leave the canvas: their whole group, or the agents themselves. */
-export type Closing = { group: string } | { agents: string[]; remove: string[] };
+/**
+ * What to ask before running agents leave the canvas: their whole group, or the agents themselves; `release`, the
+ * nodes the closing takes out of a group that goes with them (`remove`), which stay, in no group.
+ */
+export type Closing = { group: string } | { agents: string[]; remove: string[]; release?: string[] };
 
 export interface RemovalVerdict {
   /** Nodes that may go: their terminals are freed. */
@@ -26,7 +29,11 @@ const liveOf = (elements: readonly ExcalidrawElement[]) => new Map(elements.filt
  * end its session. Given each change of the scene (deleted elements included)
  * and the nodes it removed, the guard lets the stopped and the confirmed ones
  * go, and puts the others back as they were, with their group when it left
- * too (or shrank, which would cut them off), before asking.
+ * too (or shrank, which would cut them off), before asking. A node the change
+ * kept but took out of a group that left (the undo of a first sub-agent: its
+ * parent, loose again) goes back in it too, so that "Cancel" leaves the
+ * family as it was; it is let out of the group once the closing is confirmed,
+ * and the question is then the agents', not the group's: it stays.
  */
 export function createRemovalGuard(isRunning: (nodeId: string) => boolean, initial: readonly ExcalidrawElement[]) {
   let previous = initial;
@@ -43,11 +50,16 @@ export function createRemovalGuard(isRunning: (nodeId: string) => boolean, initi
     const left = [...frames].filter((id) => !now.has(id));
     const changed = [...frames].filter((id) => now.has(id) && now.get(id)!.version !== was.get(id)!.version);
     const members = [...was.values()].filter((e) => !caught.includes(e.id) && !now.has(e.id) && e.frameId !== null && left.includes(e.frameId));
-    const back = [...caught, ...left, ...changed, ...members.map((e) => e.id)];
+    const released = [...was.values()].filter((e) => !caught.includes(e.id) && e.frameId !== null && left.includes(e.frameId) && now.has(e.id) && now.get(e.id)!.frameId !== e.frameId);
+    const back = [...caught, ...left, ...changed, ...members.map((e) => e.id), ...released.map((e) => e.id)];
     const ask: Closing =
-      left.length === 1 && changed.length === 0 && caught.every((id) => was.get(id)?.frameId === left[0])
+      released.length === 0 && left.length === 1 && changed.length === 0 && caught.every((id) => was.get(id)?.frameId === left[0])
         ? { group: left[0] }
-        : { agents: caught, remove: [...caught, ...left, ...members.map((e) => e.id)] };
+        : {
+            agents: caught,
+            remove: [...caught, ...left, ...members.map((e) => e.id)],
+            ...(released.length > 0 ? { release: released.map((e) => e.id) } : {}),
+          };
     return {
       dispose: removed.filter((id) => !back.includes(id)),
       restore: back.map((id) => was.get(id)!),
