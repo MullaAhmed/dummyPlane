@@ -12,7 +12,7 @@ export const fileIndexStore = createStore<FileIndexState>()(() => ({ files: {} }
 /** Reads the project's tree again; the files known so far stay while it is read, and when it fails. */
 export async function refreshFileIndex(project: string): Promise<void> {
   try {
-    const entries = await studioTree(project);
+    const { entries } = await studioTree(project);
     const files = entries.filter((e) => e.kind === "file").map((e) => e.path.split("\\").join("/"));
     fileIndexStore.setState((s) => ({ files: { ...s.files, [project]: files } }));
   } catch {

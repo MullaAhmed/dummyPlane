@@ -20,6 +20,18 @@ describe("wikilinks", () => {
     expect(linksIn("`[[a]]`\n```\n[[b]]\n```\n[[c]]")).toEqual([{ target: "c", label: "c" }]);
   });
 
+  it("leaves out a fence's links as the reader does: indented, closed by its own kind, or never closed", () => {
+    const targets = (text: string) => linksIn(text).map((link) => link.target);
+    // In a list item the fence is indented; the reader shows it as code.
+    expect(targets("- item\n  ```\n  [[in code]]\n  ```\n[[real]]")).toEqual(["real"]);
+    // A `~~~` fence is closed by a `~~~` line: the ``` inside it is code too.
+    expect(targets("~~~\n[[a]]\n```\n[[b]]\n~~~\n[[c]]")).toEqual(["c"]);
+    // A fence left open runs to the end of the note.
+    expect(targets("[[before]]\n```\n[[after]]")).toEqual(["before"]);
+    // CRLF notes read the same.
+    expect(targets("[[x]]\r\n  ~~~\r\n[[y]]\r\n  ~~~\r\n[[z]]")).toEqual(["x", "z"]);
+  });
+
   it("ignores empty or broken brackets", () => {
     expect(linksIn("[[]] [[ ]] [[a] [b]] [[a/b]]")).toEqual([]);
   });

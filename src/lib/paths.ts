@@ -16,12 +16,15 @@ function normalizePath(path: string): string {
  * Rust's `projects::rebase_path`, which rewrites the saved terminals.
  */
 export function rebasePath(path: string, from: string, to: string): string | null {
-  const key = pathKey(path);
-  const fromKey = pathKey(from);
+  // A drive root keeps its separator (`d:\`): the folder is what comes before it.
+  const key = pathKey(path).replace(/\\+$/, "");
+  const fromKey = pathKey(from).replace(/\\+$/, "");
   const target = normalizePath(to);
   if (key === fromKey) return target;
   if (!key.startsWith(`${fromKey}\\`)) return null;
-  // The rest of the path keeps its own case.
-  const rest = [...normalizePath(path).replace(/\//g, "\\")].slice([...fromKey].length + 1).join("");
+  // The rest of the path keeps its own case: it starts after the folder's separators, never at a length, which
+  // lowercasing may change ("İ" lowercases to two characters).
+  const depth = fromKey.split("\\").length;
+  const rest = normalizePath(path).replace(/\//g, "\\").split("\\").slice(depth).join("\\");
   return `${target.replace(/[\\/]+$/, "")}\\${rest}`;
 }

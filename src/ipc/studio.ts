@@ -12,8 +12,18 @@ export interface OpenedFile {
 /** `disk`: the version found instead of the expected one; null when the file is gone. */
 export type WriteOutcome = { status: "saved"; version: string } | { status: "conflict"; disk: string | null };
 
+/** The project's tree; `truncated`: more entries than the list holds, so it is cut. */
+export interface StudioTree {
+  entries: TreeEntry[];
+  truncated: boolean;
+}
+
 /** The project folder's tree, `.gitignore` respected. */
-export const studioTree = (projectId: string) => call<TreeEntry[]>("studio_tree", { projectId });
+export async function studioTree(projectId: string): Promise<StudioTree> {
+  const tree = await call<StudioTree | TreeEntry[]>("studio_tree", { projectId });
+  // Before it said when it was cut, the command answered the bare list: so do the mocks of the tests of its callers.
+  return Array.isArray(tree) ? { entries: tree, truncated: false } : tree;
+}
 /** A text file of the project; refused when binary or too big. */
 export const studioRead = (projectId: string, path: string) => call<OpenedFile>("studio_read", { projectId, path });
 /** Null when the file no longer exists. */

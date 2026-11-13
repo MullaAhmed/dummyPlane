@@ -59,12 +59,21 @@ export function presetCommands(presets: readonly TeamPreset[]): Command[] {
         section,
         available: inProject,
         run: async () => {
+          // Its place in the list, where the undo puts it back.
+          await presetsStore.getState().load();
+          const index = presetsStore.getState().presets.findIndex((p) => p.id === preset.id);
           await presetsStore.getState().remove(preset.id);
-          // The delete line can rank first for a search of the name: it is taken back from the toast.
+          // The delete line can rank first for a search of the name: it is taken back from the toast, never over a
+          // preset saved meanwhile under its name (both are kept, the one taken back renamed).
+          const undo = async () => {
+            const name = await presetsStore.getState().restore(preset, index);
+            if (name === null) toastError(text().toast.full);
+            else if (name !== preset.name) toast(text().toast.restoredAs(name));
+          };
           toast(text().toast.removed(preset.name), {
             action: {
               label: text().toast.undo,
-              onClick: () => void presetsStore.getState().save(preset).catch((error: unknown) => toastError(text().toast.failed, { error })),
+              onClick: () => void undo().catch((error: unknown) => toastError(text().toast.failed, { error })),
             },
           });
         },

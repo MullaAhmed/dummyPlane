@@ -41,6 +41,14 @@ pub struct TreeEntry {
     pub kind: &'static str,
 }
 
+/// The project's tree, at most `MAX_FILES` entries.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Tree {
+    pub entries: Vec<TreeEntry>,
+    /// More entries than the list holds: it is cut, and the panel says so.
+    pub truncated: bool,
+}
+
 fn entry(path: &str, kind: &'static str) -> TreeEntry {
     TreeEntry {
         path: path.to_string(),
@@ -221,7 +229,7 @@ fn is_loose_secret(file: &str) -> bool {
 
 /// The files of a git repository (ignored ones left out) as entries, folders included.
 /// Run in `project`, not at the repository's top: the project may be a subfolder.
-fn git_tree(project: &Path) -> Option<Vec<TreeEntry>> {
+fn git_tree(project: &Path, max: usize) -> Option<Tree> {
     let tracked = review::git(project, &["ls-files", "--cached", "-z"]).ok()?;
     let others = review::git(
         project,
@@ -246,22 +254,21 @@ fn git_tree(project: &Path) -> Option<Vec<TreeEntry>> {
         .chain(files.into_iter().map(|f| entry(f, "file")))
         .collect();
     entries.sort_by(|a, b| a.path.cmp(&b.path));
-    entries.truncate(MAX_FILES);
-    Some(entries)
+    let truncated = entries.len() > max;
+    entries.truncate(max);
+    Some(Tree { entries, truncated })
 }
 
-/// A bounded walk of a folder that is no repository, links not followed.
-fn walk(dir: &Path, prefix: &str, depth: usize, out: &mut Vec<TreeEntry>) {
+/// A bounded walk of a folder that is no repository, links not followed. True when it stopped
+/// at `max` entries with more to list.
+fn walk(dir: &Path, prefix: &str, depth: usize, max: usize, out: &mut Vec<TreeEntry>) -> bool {
     if depth > MAX_DEPTH {
-        return;
+        return false;
     }
     let Ok(read) = std::fs::read_dir(dir) else {
-        return;
+        return false;
     };
     for item in read.flatten() {
-        if out.len() >= MAX_FILES {
-            return;
-        }
         let name = item.file_name().to_string_lossy().into_owned();
         let Ok(kind) = item.file_type() else { continue };
         let path = if prefix.is_empty() {
@@ -273,27 +280,40 @@ fn walk(dir: &Path, prefix: &str, depth: usize, out: &mut Vec<TreeEntry>) {
             if GENERATED.contains(&name.as_str()) || PRIVATE_FOLDERS.contains(&name.as_str()) {
                 continue;
             }
+            if out.len() >= max {
+                return true;
+            }
             out.push(entry(&path, "dir"));
-            walk(&item.path(), &path, depth + 1, out);
+            if walk(&item.path(), &path, depth + 1, max, out) {
+                return true;
+            }
         } else if kind.is_file() && !is_secret(&name) {
+            if out.len() >= max {
+                return true;
+            }
             out.push(entry(&path, "file"));
         }
     }
+    false
 }
 
 /// The project's tree: git's view of it (`.gitignore` respected), else a bounded walk.
-pub fn tree(project: &Path) -> Result<Vec<TreeEntry>, String> {
+pub fn tree(project: &Path) -> Result<Tree, String> {
+    tree_limited(project, MAX_FILES)
+}
+
+fn tree_limited(project: &Path, max: usize) -> Result<Tree, String> {
     if !project.is_dir() {
         let shown = project.display();
         return Err(format!("folder not found: {shown}"));
     }
-    if let Some(entries) = git_tree(project) {
-        return Ok(entries);
+    if let Some(tree) = git_tree(project, max) {
+        return Ok(tree);
     }
     let mut entries = Vec::new();
-    walk(project, "", 0, &mut entries);
+    let truncated = walk(project, "", 0, max, &mut entries);
     entries.sort_by(|a, b| a.path.cmp(&b.path));
-    Ok(entries)
+    Ok(Tree { entries, truncated })
 }
 
 /// A text file of `root`. What is not valid UTF-8 is refused rather than read
@@ -863,6 +883,7 @@ mod tests {
     fn files(root: &Path) -> Vec<String> {
         tree(root)
             .unwrap()
+            .entries
             .into_iter()
             .filter(|e| e.kind == "file")
             .map(|e| e.path)
@@ -872,6 +893,7 @@ mod tests {
     fn entries(root: &Path) -> Vec<(String, &'static str)> {
         tree(root)
             .unwrap()
+            .entries
             .into_iter()
             .map(|e| (e.path, e.kind))
             .collect()
@@ -907,6 +929,35 @@ mod tests {
                 "untracked.txt"
             ]
         );
+    }
+
+    /// The tree stopped at `MAX_FILES` without a word: a file past it was missing, not found by the filter.
+    #[test]
+    fn says_when_the_tree_of_a_folder_that_is_no_repository_was_cut() {
+        let dir = project(&[
+            ("a.txt", b"x"),
+            ("b.txt", b"x"),
+            ("c.txt", b"x"),
+            ("d/e.txt", b"x"),
+        ]);
+        // The walk: a, b, c, d and d/e.txt.
+        let cut = tree_limited(dir.path(), 3).unwrap();
+        assert_eq!((cut.entries.len(), cut.truncated), (3, true));
+        let whole = tree_limited(dir.path(), 5).unwrap();
+        assert_eq!((whole.entries.len(), whole.truncated), (5, false));
+        assert!(!tree(dir.path()).unwrap().truncated);
+    }
+
+    #[test]
+    fn says_when_the_tree_of_a_repository_was_cut() {
+        let dir = project(&[("a.txt", b"x"), ("b.txt", b"x"), ("c.txt", b"x")]);
+        if !git(dir.path(), &["init"]) {
+            return; // git is not installed on this machine
+        }
+        let cut = tree_limited(dir.path(), 2).unwrap();
+        assert_eq!((cut.entries.len(), cut.truncated), (2, true));
+        let whole = tree_limited(dir.path(), 3).unwrap();
+        assert_eq!((whole.entries.len(), whole.truncated), (3, false));
     }
 
     #[test]

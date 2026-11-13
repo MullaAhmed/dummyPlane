@@ -5,7 +5,7 @@ use tauri::State;
 use crate::db::Db;
 use crate::db::projects;
 use crate::error::{AppError, AppResult};
-use crate::studio::{self, OpenedFile, TreeEntry, WriteOutcome};
+use crate::studio::{self, OpenedFile, Tree, WriteOutcome};
 
 /// The project's folder, read here: the interface never names a root.
 fn project_root(db: &Db, project_id: &str) -> AppResult<PathBuf> {
@@ -25,7 +25,7 @@ async fn blocking<T: Send + 'static>(
 
 /// The project folder's tree (Code Studio), `.gitignore` respected.
 #[tauri::command]
-pub async fn studio_tree(db: State<'_, Db>, project_id: String) -> AppResult<Vec<TreeEntry>> {
+pub async fn studio_tree(db: State<'_, Db>, project_id: String) -> AppResult<Tree> {
     let root = project_root(&db, &project_id)?;
     blocking(move || studio::tree(&root)).await
 }

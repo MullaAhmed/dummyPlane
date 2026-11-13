@@ -134,6 +134,21 @@ export function storedPresets(presets: readonly TeamPreset[]) {
   return { version: PRESETS_VERSION, presets: presets.map(({ fleets, ...rest }) => ({ ...rest, [STORED_FLEETS_KEY]: fleets })) };
 }
 
+/**
+ * `name`, or "name 2", "name 3"… when another preset of `list` has it (whatever the case), as agents' names go
+ * (`@/agents/names`): what keeps two presets apart. A name at the limit gives the number room.
+ */
+export function freePresetName(list: readonly TeamPreset[], name: string): string {
+  const taken = (candidate: string) => list.some((p) => sameName(p.name, candidate));
+  if (!taken(name)) return name;
+  for (let n = 2; ; n++) {
+    const suffix = ` ${n}`;
+    const base = name.length + suffix.length > MAX_NAME ? (presetNameOf(name.slice(0, MAX_NAME - suffix.length)) ?? "") : name;
+    const candidate = `${base}${suffix}`.trim();
+    if (!taken(candidate)) return candidate;
+  }
+}
+
 /** The list with `preset` added, replacing the one of the same name; null when the list is full. */
 export function withPreset(list: readonly TeamPreset[], preset: TeamPreset): TeamPreset[] | null {
   const at = list.findIndex((p) => sameName(p.name, preset.name));
