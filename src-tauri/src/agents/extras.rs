@@ -31,15 +31,15 @@
 //! user turns one on (a project's server may wait for their approval).
 
 use std::collections::BTreeSet;
-use std::io::{self, Read};
+use std::io;
 use std::path::Path;
-use std::process::Stdio;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 
 use super::extensions::{self, ExtensionChoice, Fixed, Places, Source};
+use crate::process::{hide_window, output_within};
 
 /// dummyPlane's own MCP server: every sub-agent keeps it.
 const OWN_SERVER: &str = "dummyplane";
@@ -313,7 +313,8 @@ pub fn run_codex(codex: &Path, args: &[&str], cwd: &Path) -> io::Result<String> 
     run_codex_within(codex, args, cwd, LISTING_LIMIT)
 }
 
-/// `run_codex`, stopped and refused when Codex has not ended within `limit`.
+/// `run_codex`, stopped and refused when Codex has not ended within `limit`: with the processes it
+/// started, which a shim (`codex.cmd`) leaves running when only it is killed (`process::output_within`).
 pub fn run_codex_within(
     codex: &Path,
     args: &[&str],
@@ -321,57 +322,13 @@ pub fn run_codex_within(
     limit: Duration,
 ) -> io::Result<String> {
     let mut command = std::process::Command::new(codex);
-    command
-        .args(args)
-        .current_dir(cwd)
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-    crate::process::hide_window(&mut command);
-    let mut child = command.spawn()?;
-    // Each pipe read on a thread of its own: Codex would stop on a full one before it could end.
-    let read = |pipe: Option<Box<dyn Read + Send>>| {
-        std::thread::spawn(move || {
-            let mut bytes = Vec::new();
-            if let Some(mut pipe) = pipe {
-                let _ = pipe.read_to_end(&mut bytes);
-            }
-            bytes
-        })
-    };
-    let stdout = read(
-        child
-            .stdout
-            .take()
-            .map(|p| Box::new(p) as Box<dyn Read + Send>),
-    );
-    let stderr = read(
-        child
-            .stderr
-            .take()
-            .map(|p| Box::new(p) as Box<dyn Read + Send>),
-    );
-    let started = Instant::now();
-    let status = loop {
-        if let Some(status) = child.try_wait()? {
-            break status;
-        }
-        if started.elapsed() >= limit {
-            let _ = child.kill();
-            let _ = child.wait();
-            return Err(io::Error::new(
-                io::ErrorKind::TimedOut,
-                format!("it did not answer within {limit:?}"),
-            ));
-        }
-        std::thread::sleep(Duration::from_millis(25));
-    };
-    let stdout = stdout.join().unwrap_or_default();
-    if !status.success() {
-        let error = String::from_utf8_lossy(&stderr.join().unwrap_or_default()).into_owned();
+    command.args(args).current_dir(cwd);
+    let output = output_within(hide_window(&mut command), limit)?;
+    if !output.status.success() {
+        let error = String::from_utf8_lossy(&output.stderr);
         return Err(io::Error::other(error.trim().to_string()));
     }
-    Ok(String::from_utf8_lossy(&stdout).into_owned())
+    Ok(String::from_utf8_lossy(&output.stdout).into_owned())
 }
 
 /// The commands that list each kind, as Codex 0.167 answers them.
@@ -1286,7 +1243,7 @@ mod tests {
         )
         .unwrap_err();
         assert_eq!(err.kind(), io::ErrorKind::TimedOut, "{err}");
-        assert!(err.to_string().contains("did not answer within"), "{err}");
+        assert!(err.to_string().contains("no answer within"), "{err}");
         assert!(started.elapsed() < std::time::Duration::from_secs(10));
     }
 
@@ -1304,6 +1261,27 @@ mod tests {
         let skills = codex_skills(&text, &[]).unwrap();
         let names: Vec<&str> = skills.iter().map(|s| s.name.as_str()).collect();
         assert_eq!(names, vec!["imagegen", "pdf:pdf"]);
+    }
+
+    /// A `codex` shim as npm and bun install it: a `.cmd` that starts the real one, here a process that
+    /// would write `marker.txt` a few seconds on, while the shim itself waits for ever.
+    #[cfg(windows)]
+    #[test]
+    fn a_stopped_codex_listing_takes_the_processes_its_shim_started_with_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let codex = fake_codex(
+            dir.path(),
+            "start /b cmd /c \"ping -n 4 127.0.0.1 >nul & echo alive>marker.txt\"\r\nping -n 30 127.0.0.1 >nul",
+        );
+        let err =
+            run_codex_within(&codex, &[], dir.path(), Duration::from_millis(500)).unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::TimedOut, "{err}");
+        // Long enough for the process the shim started to have written, had it lived on.
+        std::thread::sleep(Duration::from_secs(6));
+        assert!(
+            !dir.path().join("marker.txt").exists(),
+            "the shim's child outlived the listing that was stopped"
+        );
     }
 
     #[test]
