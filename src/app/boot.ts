@@ -19,6 +19,7 @@ import { installFinishedStops } from "@/agents/finishedStop";
 import { installFollowWaiting } from "@/agents/followWaiting";
 import { installWaitingAlerts } from "@/shell/waitingAlert";
 import { installFinishAlerts } from "@/shell/finishAlert";
+import { installBoardDoneAlerts } from "@/shell/boardDoneAlert";
 import { agentActivityStore } from "@/store/agentActivity";
 import { subagentsStore } from "@/store/subagents";
 import { terminalStatusStore } from "@/store/terminalStatus";
@@ -92,6 +93,8 @@ export function boot(): Promise<void> {
     installWaitingAlerts();
     installFollowWaiting();
     installFinishAlerts();
+    // A board whose cards are all done, from here on: those already done say nothing.
+    installBoardDoneAlerts();
     setLivePtys(await ptyList());
     // Once the sessions alive in Rust are known: a finished agent still running after a webview reload stops too.
     installFinishedStops();

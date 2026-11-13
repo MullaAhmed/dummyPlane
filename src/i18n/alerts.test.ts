@@ -119,4 +119,10 @@ describe("error toasts in the app's voice (docs/design-system.md, Alerts)", () =
     // The notice in the window keeps its own line, which names the agent.
     expect(shell.waitingNotice.question("Batman")).toBe("Batman has a question");
   });
+
+  it("tells a board done with its count of cards, one card in words of one, and Show to go to it", () => {
+    expect(shell.boardDoneAlert.title(4)).toBe("Board done: all 4 cards finished");
+    expect(shell.boardDoneAlert.title(1)).toBe("Board done: its one card finished");
+    expect(shell.boardDoneAlert.show).toBe("Show");
+  });
 });
