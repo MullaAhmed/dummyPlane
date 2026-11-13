@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { createStore } from "zustand";
+import type { ArrangeTarget } from "@/agents/arrangeAs";
 import type { Point } from "@/agents/terminals";
 import type { AgentId } from "@/ipc/pty";
 
@@ -16,7 +17,9 @@ export type UiRequest =
   | { kind: "composeGroup" }
   | { kind: "savePreset" }
   | { kind: "loops" }
-  | { kind: "groupMenu"; id: string };
+  | { kind: "groupMenu"; id: string }
+  /** The list of layouts of an "Arrange as…", at `at`, a point of the window. */
+  | { kind: "arrangeMenu"; workspaceId: string; target: ArrangeTarget; at: Point };
 
 type RequestOf<K extends UiRequest["kind"]> = Extract<UiRequest, { kind: K }>;
 

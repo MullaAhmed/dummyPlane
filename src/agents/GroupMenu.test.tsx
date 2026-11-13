@@ -6,12 +6,15 @@ import { mockIPC } from "@tauri-apps/api/mocks";
 import { canvasStore } from "@/canvas/canvasStore";
 import { GroupMenu } from "./GroupMenu";
 import { workspacesStore } from "@/store/workspaces";
+import { arrangeLayoutStore } from "@/app/arrangeLayoutSetting";
+import { setSetting } from "@/ipc/db";
 import { arrangeWorkspace } from "./arrangeCanvas";
 import { setGroupFolded } from "./groups";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
 vi.mock("./groups", async (importOriginal) => ({ ...(await importOriginal<typeof import("./groups")>()), setGroupFolded: vi.fn() }));
 vi.mock("./arrangeCanvas", () => ({ arrangeWorkspace: vi.fn(() => true) }));
+vi.mock("@/ipc/db", () => ({ getSetting: vi.fn(), setSetting: vi.fn(() => Promise.resolve()) }));
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 const frame = (folded: boolean) => ({ id: "g", name: "G", x: 0, y: 0, width: 1, height: 1, group: { role: "general", pantheon: "greek", ...(folded ? { folded } : {}) }, memberIds: [] });
@@ -81,19 +84,29 @@ it("gives focus back to the panel's ⋯ when it closes, but not to the canvas la
   document.body.replaceChildren();
 });
 
-it("arranges the group as a tree, inside its frame in the shown workspace, as one undoable step", async () => {
+it("lists the seven layouts under Arrange, and arranges the group once in the one picked, inside its frame in the shown workspace, the setting untouched", async () => {
   mockIPC(() => []);
+  vi.clearAllMocks();
   canvasStore.setState({ frames: [frame(false)] as never });
   workspacesStore.setState({ activeId: "w1" });
+  arrangeLayoutStore.setState({ layout: "column" });
   const host = document.createElement("div");
   document.body.append(host);
   const root = createRoot(host);
   await act(async () => root.render(<GroupMenu groupId="g" />));
   await act(async () => host.querySelector("button")!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
-  const item = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((i) => i.textContent === "Arrange as a tree");
-  expect(item).toBeDefined();
-  await act(async () => item!.click());
+  // The old one-shot item is a submenu now.
+  expect([...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].some((i) => i.textContent === "Arrange as a tree")).toBe(false);
+  const trigger = [...document.querySelectorAll<HTMLElement>('[data-slot="dropdown-menu-sub-trigger"]')].find((i) => i.textContent === "Arrange")!;
+  expect(trigger).toBeDefined();
+  await act(async () => void trigger.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })));
+  const layouts = () => [...document.querySelectorAll<HTMLElement>('[data-arrange-layouts] [role="menuitem"]')];
+  expect(layouts().map((i) => i.textContent)).toEqual(["Grid", "One row", "One column", "2 columns", "3 columns", "4 columns", "Tree"]);
+  await act(async () => layouts()[6].click());
   expect(arrangeWorkspace).toHaveBeenLastCalledWith("w1", { only: ["g"], layout: "tree", undoable: true });
+  // For this group, this once: not the setting the Settings row and Auto-arrange read.
+  expect(arrangeLayoutStore.getState().layout).toBe("column");
+  expect(setSetting).not.toHaveBeenCalled();
   await act(async () => root.unmount());
   document.body.replaceChildren();
 });
