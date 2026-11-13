@@ -2,8 +2,10 @@ import { describe, expect, it, vi } from "vitest";
 
 // Slow under the load of the full suite: this file's tests get their own timeout.
 vi.setConfig({ testTimeout: 30_000 });
-import { blend, contrast } from "./colorMath";
+import { blend, contrast, oklabDistance } from "./colorMath";
 import { cssBlock, readSource, sourceFiles } from "./cssBlocks";
+import { displayColorFor } from "./sceneColors";
+import { PALETTES as SCHEMES, type ThemeChoice } from "@/app/theme";
 import { BAR_TOKEN, GROUND_TOKENS, PROGRESS_TOKEN, SERIES_HUES, TEXT_TOKENS, TONES, TONE_BORDER, TONE_RULE, TONE_TEXT, TONE_TOKEN } from "@/openui/tones";
 import { SYNTAX_HUES } from "@/studio/syntaxHues";
 import { TOAST_CLASSES, TOAST_TONES } from "@/components/ui/sonner";
@@ -143,6 +145,81 @@ describe("selected text is themed from the palette and stays readable (P2-26)", 
     expect(rule![1].split(",").map((s) => s.trim()).sort()).toEqual([".bg-dp-terminal *", ".cm-editor *", ".excalidraw *", ".xterm *"]);
     expect(rule![2]).toMatch(/background:\s*var\(--dp-selection\);/);
     expect(rule![2]).toMatch(/color:\s*var\(--dp-text\);/);
+  });
+});
+
+describe("selected text in the canvas's own editors reads as shown, after the dark theme's filter", () => {
+  const excalidraw = readSource("theme/excalidraw.css");
+  /** The block that carries each palette's pair: a dark palette's sits under `.theme--dark`, where Excalidraw's filter runs. */
+  const BLOCKS: Record<ThemeChoice, string> = {
+    calm: ':root[data-palette="calm"] .excalidraw.excalidraw',
+    electric: ':root[data-palette="electric"] .excalidraw.excalidraw.theme--dark',
+    expressive: ":root .excalidraw.excalidraw.theme--dark",
+  };
+  const OPAQUE_HEX = /^#[0-9a-f]{6}$/i;
+
+  /** The fill and the ink of the editor's selection, as stored and as the screen shows them (through the filter where there is one). */
+  const editorSelection = (palette: ThemeChoice) => {
+    const block = cssBlock(excalidraw, BLOCKS[palette]);
+    const stored = { fill: block["--editor-selection"], ink: block["--editor-selection-ink"] };
+    const { scheme } = SCHEMES[palette];
+    return { stored, scheme, fill: displayColorFor(stored.fill, scheme), ink: displayColorFor(stored.ink, scheme) };
+  };
+
+  it("stores an opaque pair per palette, pre-inverted exactly where the palette's scheme is dark", () => {
+    for (const palette of Object.keys(BLOCKS) as ThemeChoice[]) {
+      const { stored, scheme, fill, ink } = editorSelection(palette);
+      expect(BLOCKS[palette].includes(".theme--dark"), `${palette}'s block is the filtered one`).toBe(SCHEMES[palette].scheme === "dark");
+      expect(stored.fill, `${palette} fill`).toMatch(OPAQUE_HEX);
+      expect(stored.ink, `${palette} ink`).toMatch(OPAQUE_HEX);
+      // Stored as shown, the dark palettes' ink (near-white) would come out near-black, the bug itself.
+      if (scheme === "dark") expect(contrast(stored.ink, ink), `${palette} stored ink against shown`).toBeGreaterThan(10);
+      else expect([fill, ink]).toEqual([stored.fill, stored.ink]);
+    }
+  });
+
+  it("writes the ink on the fill at 4.5:1 as shown, the fill at the 99 % alpha the rule gives it, over the canvas", () => {
+    for (const palette of Object.keys(BLOCKS) as ThemeChoice[]) {
+      const t = cssBlock(tokens, PALETTES[palette]);
+      const { fill, ink } = editorSelection(palette);
+      expect(contrast(ink, fill), `${palette} ink on the fill`).toBeGreaterThanOrEqual(4.5);
+      // The filter keeps a color's alpha: the 99 % fill lets 1 % of the canvas through.
+      expect(contrast(ink, blend(t["--dp-canvas"], fill, 0.99)), `${palette} ink on the fill at 99 %`).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it("shows a fill that stands out from the canvas as much as a selected row's tint, in the app's own selection look", () => {
+    for (const palette of Object.keys(BLOCKS) as ThemeChoice[]) {
+      const t = cssBlock(tokens, PALETTES[palette]);
+      const { fill, ink } = editorSelection(palette);
+      const canvas = t["--dp-canvas"];
+      expect(contrast(fill, canvas), `${palette} fill against the canvas`).toBeGreaterThanOrEqual(contrast(over(canvas, t["--dp-accent-soft"]), canvas));
+      // The ink the filter reaches is at most #ededed: near the palette's ink, not equal. Electric's saturated blue is
+      // out of the filter's reach too, so its tint shows duller (#5163b9 for #4759f4, 0.096); the others are all but exact.
+      expect(oklabDistance(ink, t["--dp-text"]), `${palette} ink against the ink`).toBeLessThan(0.03);
+      expect(oklabDistance(fill, over(canvas, t["--dp-selection"])), `${palette} fill against the app's selection`).toBeLessThan(palette === "electric" ? 0.12 : 0.02);
+    }
+  });
+
+  it("paints the text editors' ::selection with that pair, and a note's with the app's own", () => {
+    const bare = excalidraw.replace(/\/\*[\s\S]*?\*\//g, "");
+    const rules = [...bare.matchAll(/([^{}]+)\{([^}]*)\}/g)]
+      .filter((m) => m[1].includes("::selection"))
+      .map((m) => ({ selectors: m[1].split(",").map((s) => s.trim()), body: m[2] }));
+    const editors = rules.find((r) => r.selectors.includes(".excalidraw .excalidraw-wysiwyg::selection"));
+    expect(editors?.selectors, "the textarea of a text, a label, a note on the canvas, and a frame's name input").toEqual([
+      ".excalidraw .excalidraw-wysiwyg::selection",
+      '.excalidraw [id*="-frame-name-"] input::selection',
+    ]);
+    // 99 %, never a fully opaque fill: a browser may draw that one translucent, in another shade; an alpha is left as written.
+    expect(editors!.body).toMatch(/background:\s*color-mix\(in srgb, var\(--editor-selection\) 99%, transparent\);/);
+    expect(editors!.body).toMatch(/color:\s*var\(--editor-selection-ink\);/);
+    // The quick note is DOM in an embeddable, outside the filter: the app's selection, which index.css withholds under `.excalidraw`.
+    const note = rules.find((r) => r.selectors.includes(".excalidraw [data-note] *::selection"));
+    expect(note, "a note's text takes the app's selection").toBeDefined();
+    expect(note!.body).toMatch(/background:\s*var\(--dp-selection\);/);
+    expect(note!.body).toMatch(/color:\s*var\(--dp-text\);/);
+    expect(readSource("nodes/note/NoteNode.tsx")).toContain("data-note={nodeId}");
   });
 });
 
