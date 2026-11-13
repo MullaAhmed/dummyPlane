@@ -579,6 +579,19 @@ describe("a pick whose check is still being read", () => {
     expect(vi.mocked(addTerminal)).toHaveBeenCalledTimes(1);
   });
 
+  it("refuses a call that waited too long behind slow checks: spawns are queued one at a time, and none may open after its caller was told 'not responding'", async () => {
+    vi.useFakeTimers();
+    // Each check takes 15 s, the queue's three calls all arrived together.
+    mockIPC((cmd, args) => (cmd === "check_subagent_extras" ? new Promise((resolve) => setTimeout(() => resolve((args as { pick: unknown }).pick), 15_000)) : undefined));
+    await addNode("codexer", terminal("Codexer", { agent: "codex", claudeSessionId: undefined }));
+    const calls = [1, 2, 3].map((n) => spawnAgent("codexer", { task: `Task number ${n}`, title: `Task ${n}`, plugins: ["pdf@openai-runtime"] }));
+    await vi.advanceTimersByTimeAsync(90_000);
+    const results = await Promise.all(calls);
+    expect(results.map((r) => r.error === true)).toEqual([false, true, true]);
+    expect(vi.mocked(addTerminal)).toHaveBeenCalledTimes(1);
+    expect(results[1].text).toContain("Not opened");
+  });
+
   it("says so too when installed_extras is still being read, instead of leaving the call to time out", async () => {
     vi.useFakeTimers();
     codexAnswering();

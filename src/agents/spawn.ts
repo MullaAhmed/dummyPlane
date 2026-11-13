@@ -72,7 +72,8 @@ let chain: Promise<unknown> = Promise.resolve();
 
 /** spawn_agent of `parentId`'s agent. */
 export function spawnAgent(parentId: string, args: SpawnArgs): Promise<SpawnResult> {
-  const run = chain.then(() => spawnNow(parentId, args));
+  const arrived = Date.now();
+  const run = chain.then(() => spawnNow(parentId, args, arrived));
   chain = run.catch(() => undefined);
   return run;
 }
@@ -137,13 +138,20 @@ export function childPayload(parent: TerminalPayload, parentId: string, name: st
  */
 export const EXTRAS_BUDGET_MS = 20_000;
 
+/**
+ * How long after it arrived a spawn_agent call may still open its sub-agent: the router answers "not responding" 30 s
+ * after a call came in, and the calls are queued one at a time, so a call can wait behind slow checks. Past it, the call
+ * opens nothing: its caller has been told it did not, and would ask again.
+ */
+export const CALL_DEADLINE_MS = 25_000;
+
 const LATE = Symbol("late");
 
-/** `work`'s answer, or LATE when it has not come within the budget; a failure of it after that is nobody's. */
-async function inTime<T>(work: Promise<T>): Promise<T | typeof LATE> {
+/** `work`'s answer, or LATE when it has not come within `ms`; a failure of it after that is nobody's. */
+async function inTime<T>(work: Promise<T>, ms = EXTRAS_BUDGET_MS): Promise<T | typeof LATE> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const late = new Promise<typeof LATE>((resolve) => {
-    timer = setTimeout(() => resolve(LATE), EXTRAS_BUDGET_MS);
+    timer = setTimeout(() => resolve(LATE), Math.max(0, Math.min(ms, EXTRAS_BUDGET_MS)));
   });
   try {
     return await Promise.race([work, late]);
@@ -190,12 +198,12 @@ function limitsOf(parent: TerminalPayload, agent: AgentId): Spawner | undefined 
  * terminal opens (`check_subagent_extras`), each name as the CLI writes it; the refusal's text when the pick is
  * refused or could not be checked. Nothing to check when no kind is picked.
  */
-async function checkedExtras(parent: TerminalPayload, asked: SubagentExtras): Promise<SubagentExtras | string> {
+async function checkedExtras(parent: TerminalPayload, asked: SubagentExtras, budget: number): Promise<SubagentExtras | string> {
   const kinds = EXTRA_KINDS.filter((kind) => asked[kind] !== undefined);
   if (kinds.length === 0) return {};
   const agent = childAgentOf(parent);
   try {
-    const checked = await inTime(checkSubagentExtras(agent, parent.cwd, configDirOf(parent, agent), asked, limitsOf(parent, agent)));
+    const checked = await inTime(checkSubagentExtras(agent, parent.cwd, configDirOf(parent, agent), asked, limitsOf(parent, agent)), budget);
     if (checked === LATE) return t().extrasSlow(AGENTS[agent].label);
     const picked: SubagentExtras = Object.fromEntries(kinds.map((kind) => [kind, checked[kind] ?? []]));
     if (checked.ceiling) picked.ceiling = checked.ceiling;
@@ -299,7 +307,10 @@ function modelNote(parentId: string, child: AgentId, routed: SpawnModel): { why?
   return { after: t().levelUnused(outLevel(level), unroutedText(reason, level, parentId), runs) };
 }
 
-async function spawnNow(parentId: string, args: SpawnArgs): Promise<SpawnResult> {
+async function spawnNow(parentId: string, args: SpawnArgs, arrived = Date.now()): Promise<SpawnResult> {
+  /** What is left of the time this call may take, from when it arrived: it waited its turn in the queue too. */
+  const left = () => CALL_DEADLINE_MS - (Date.now() - arrived);
+  if (left() <= 0) return refuse(t().queuedTooLong);
   const task = typeof args.task === "string" ? args.task.trim() : "";
   if (!task) return refuse(t().task);
   const model = typeof args.model === "string" ? args.model.trim() : "";
@@ -323,8 +334,9 @@ async function spawnNow(parentId: string, args: SpawnArgs): Promise<SpawnResult>
   const running = spawnedAtWork();
   if (running.length >= max) return refuse(t().tooMany(running.length, max, seatHolders(running)));
   // Its skills, MCP servers and plugins, as picked: checked before the scene is read, nothing opens on a refusal.
-  const picked = await checkedExtras(parent, extras);
+  const picked = await checkedExtras(parent, extras, left());
   if (typeof picked === "string") return refuse(picked);
+  if (left() <= 0) return refuse(t().queuedTooLong);
   const workspaceId = record.workspaceId;
   const scene = sceneAccess(workspaceId);
   if (!scene) return refuse(t().noCanvas);
@@ -336,6 +348,8 @@ async function spawnNow(parentId: string, args: SpawnArgs): Promise<SpawnResult>
   // A parent in no group gathers its family in a group of its own (./spawnGroup.ts), whose pantheon names them; else beside it, from the workspace's.
   const familyPantheon = !group && withFamilyGroup(scene.elements(), parentId, spawnedBy, familyOptions("")) ? pantheonForNewGroup(workspaceId) : undefined;
   const name = await nameForNewAgent(workspaceId, group?.group.pantheon ?? familyPantheon);
+  // The last moment to refuse: past it, its caller has been told it did not open.
+  if (left() <= 0) return refuse(t().queuedTooLong);
   // Right of the parent, NODE_GAP apart; addTerminal then moves it clear of any neighbour.
   const center = { x: element.x + element.width * 1.5 + NODE_GAP, y: element.y + element.height / 2 };
   const payload = withExtras(childPayload(parent, parentId, name, titleOf(args.title, task), undefined, task), picked);

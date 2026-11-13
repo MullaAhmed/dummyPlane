@@ -218,6 +218,7 @@ export const agentMessages = defineMessages({
       extrasRefused: (why: string) => `Not opened: ${why}. installed_extras lists what can be picked.`,
       /** A first listing of Codex's, which fetches its marketplaces, takes about a minute: the router gives up on a call after 30 s. */
       extrasSlow: (cli: string) => `Not opened: ${cli} is still listing what it has installed (a first listing takes about a minute). Nothing was started; ask again in a minute and it will be answered at once.`,
+      queuedTooLong: "Not opened: this call waited behind other spawns for longer than dummyPlane answers a call in. Nothing was started; ask again.",
       extrasUnchecked: (error: string) => `Not opened: the skills, MCP servers and plugins you picked could not be checked: ${error}`,
       /** After the answer's first sentence: what the sub-agent gets of each kind its spawner picked. */
       extrasPicked: (kinds: readonly string[]) => `It gets ${kinds.join("; ")}.`,
