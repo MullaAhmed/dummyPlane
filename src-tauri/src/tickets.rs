@@ -17,8 +17,16 @@ const MAX_ISSUES: &str = "100";
 
 /// `BACKLOG.md` at the project's root, without the byte order mark a Windows
 /// editor may put first: its first line would start with neither `- ` nor `#`.
+/// Its real path, never one a link leads to outside the project: what it says
+/// goes to the fleet's model.
 pub fn backlog(project: &Path) -> Result<String, String> {
-    let path = project.join("BACKLOG.md");
+    let path = crate::studio::resolve(project, "BACKLOG.md").map_err(|err| {
+        if err.starts_with("path refused") {
+            "BACKLOG.md leads outside the project: it was not read".to_string()
+        } else {
+            err
+        }
+    })?;
     let size = std::fs::metadata(&path)
         .map_err(|_| "no BACKLOG.md in this project".to_string())?
         .len();
@@ -98,6 +106,52 @@ fn logged_in(program: &Path, project: &Path, limit: Duration) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// What an overnight run reads of the project goes to the fleet's model: a `BACKLOG.md` the repository made a
+    /// link to a file outside it (`~/.aws/credentials`; git stores links) is refused, never read. A file link needs
+    /// rights Windows gives only to an administrator or in Developer Mode: without them this test has nothing to try.
+    #[test]
+    fn never_reads_a_backlog_that_links_out_of_the_project() {
+        let outside = tempfile::tempdir().unwrap();
+        let secret = outside.path().join("credentials");
+        std::fs::write(&secret, "- aws_secret_access_key = hunter2\n").unwrap();
+        let project = tempfile::tempdir().unwrap();
+        let link = project.path().join("BACKLOG.md");
+        #[cfg(unix)]
+        let linked = std::os::unix::fs::symlink(&secret, &link).is_ok();
+        #[cfg(windows)]
+        let linked = std::os::windows::fs::symlink_file(&secret, &link).is_ok();
+        if !linked {
+            return;
+        }
+        let read = backlog(project.path());
+        assert!(
+            read.as_ref()
+                .is_err_and(|err| err.contains("outside the project")),
+            "{read:?}"
+        );
+    }
+
+    /// The same refusal, for a `BACKLOG.md` this machine can make lead out without rights: a junction.
+    #[cfg(windows)]
+    #[test]
+    fn refuses_a_backlog_that_leads_out_of_the_project() {
+        let outside = tempfile::tempdir().unwrap();
+        let project = tempfile::tempdir().unwrap();
+        let done = std::process::Command::new("cmd")
+            .args(["/c", "mklink", "/J"])
+            .arg(project.path().join("BACKLOG.md"))
+            .arg(outside.path())
+            .output()
+            .unwrap();
+        assert!(done.status.success(), "{done:?}");
+        let read = backlog(project.path());
+        assert!(
+            read.as_ref()
+                .is_err_and(|err| err.contains("outside the project")),
+            "{read:?}"
+        );
+    }
 
     #[test]
     fn reads_the_backlog_at_the_projects_root() {
