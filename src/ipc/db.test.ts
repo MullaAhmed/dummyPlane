@@ -2,7 +2,7 @@
 import { afterEach, expect, it } from "vitest";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { flushAll } from "@/lib/flush";
-import { saveFiles, saveNode, saveScene } from "./db";
+import { onSettingKept, saveFiles, saveNode, saveScene, setSetting } from "./db";
 
 afterEach(() => clearMocks());
 
@@ -47,4 +47,21 @@ it("sends camelCase arguments", async () => {
     cmd: "save_scene",
     args: { workspaceId: "w1", elementsJson: "[1]", appStateJson: '{"zoom":1}', nodeIds: ["a"] },
   });
+});
+
+it("tells the listeners when a write kept the text of a value it could not read, and only then", async () => {
+  let answer: string | null = "loops.list.unreadable";
+  mockIPC((cmd) => (cmd === "set_setting" ? answer : undefined));
+  const told: [string, string][] = [];
+  const off = onSettingKept((key, aside) => told.push([key, aside]));
+  await setSetting("loops.list", []);
+  expect(told).toEqual([["loops.list", "loops.list.unreadable"]]);
+  // Nothing kept (a value that read, or a text kept already): nothing said.
+  answer = null;
+  await setSetting("loops.list", [1]);
+  expect(told).toHaveLength(1);
+  off();
+  answer = "loops.list.unreadable.2";
+  await setSetting("loops.list", []);
+  expect(told).toHaveLength(1);
 });

@@ -93,4 +93,19 @@ export const saveFiles = (workspaceId: string, files: StoredFile[]) =>
 /** Writes the node under its stored kind (`toStoredKind`): the database keeps the name a fleet always had. */
 export const saveNode = (id: string, workspaceId: string, kind: NodeKind, payloadJson: string) =>
   write(() => call<void>("save_node", { id, workspaceId, kind: toStoredKind(kind), payloadJson }));
-export const setSetting = (key: string, value: unknown) => write(() => call<void>("set_setting", { key, value }));
+type KeptHandler = (key: string, aside: string) => void;
+const keptHandlers = new Set<KeptHandler>();
+
+/**
+ * Told when a write replaced a saved value that did not parse, and its text was kept under `aside` (Rust's
+ * `settings::set`): once for each text, never for a value that read. Returns the way to stop listening.
+ */
+export function onSettingKept(handler: KeptHandler): () => void {
+  keptHandlers.add(handler);
+  return () => void keptHandlers.delete(handler);
+}
+
+export const setSetting = (key: string, value: unknown): Promise<void> =>
+  write(() => call<string | null>("set_setting", { key, value })).then((aside) => {
+    if (aside) for (const handler of keptHandlers) handler(key, aside);
+  });

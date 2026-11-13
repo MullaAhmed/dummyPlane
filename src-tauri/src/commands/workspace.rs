@@ -171,11 +171,13 @@ mod tests {
     }
 }
 
+/// Stores a setting. The key under which the text it replaced was kept, when that text did not
+/// parse and was not kept already (`settings::set`): the interface tells the user.
 #[tauri::command]
 pub async fn set_setting(
     db: State<'_, Db>,
     key: String,
     value: serde_json::Value,
-) -> AppResult<()> {
+) -> AppResult<Option<String>> {
     db.with(|conn| settings::set(conn, &key, &value))
 }
