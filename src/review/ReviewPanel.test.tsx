@@ -229,6 +229,22 @@ it("looks for a new folder's base before it lists that folder's changes, never w
   expect(text()).not.toContain("base not found");
 });
 
+it("shows a file's lines without the carriage return of its Windows line ends", async () => {
+  mockIPC((cmd) => {
+    if (cmd === "review_default_base") return "main";
+    if (cmd === "review_changes") return { compared: "abc123", truncated: false, files: [] };
+    if (cmd === "review_files") return { files: ["win.txt"], truncated: false };
+    if (cmd === "review_read_file") return { text: "first\r\nsecond\r\n", size: 15, truncated: false };
+    return undefined;
+  });
+  await act(async () => button("Files").click());
+  await vi.waitFor(() => expect(text()).toContain("win.txt"));
+  await act(async () => button("win.txt").click());
+  await vi.waitFor(() => expect(text()).toContain("second"));
+  const lines = [...host.querySelectorAll(".whitespace-pre")].map((line) => line.textContent);
+  expect(lines).toEqual(["first", "second"]);
+});
+
 it("keeps its remarks when closed and opened again on the same agent", async () => {
   await act(async () => reviewStore.getState().add({ file: "src/a.ts", line: 2, text: "Why 3?" }));
   await act(async () => reviewStore.getState().close());

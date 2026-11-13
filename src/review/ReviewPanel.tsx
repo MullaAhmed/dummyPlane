@@ -473,7 +473,8 @@ function FileView({ cwd, file, refresh }: { cwd: string; file: string; refresh: 
   if (error) return <Message>{error}</Message>;
   if (!content) return <Message>{t.readingFile}</Message>;
   if (content.text === null) return <Message>{t.binaryFile(content.size)}</Message>;
-  const lines = content.text.split("\n");
+  // A Windows line end shows no carriage return, as in a diff (parseDiff).
+  const lines = content.text.split(/\r?\n/);
   if (lines[lines.length - 1] === "") lines.pop();
   return (
     <div className="min-w-0 flex-1 overflow-auto font-mono text-xs leading-normal">
