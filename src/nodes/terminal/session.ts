@@ -2,7 +2,7 @@ import { AppError } from "@/ipc/invoke";
 import { getScrollback, ptyAttach, ptyKill, ptyResize, ptySpawn } from "@/ipc/pty";
 import type { TerminalPayload } from "@/nodes/types";
 import { nodesStore, sessionOf, updateSession } from "@/store/nodes";
-import { isRunning, restartInTurn, stillOpen, terminalStatusStore, waitForExit } from "@/store/terminalStatus";
+import { isRunning, restartInTurn, statusOf, stillOpen, terminalStatusStore, waitForExit } from "@/store/terminalStatus";
 import { accountsStore, loadAccounts } from "@/accounts/store";
 import { markLaunch, markResumedLaunch } from "@/usage/usageStore";
 import { buildSpawnSpec, launchSettingsOf, sameLaunch, type LaunchMode } from "./launch";
@@ -137,7 +137,8 @@ export async function attachSession(nodeId: string, term: TermSink, state: Sessi
  * queries must not reach the new process.
  */
 export async function restoreSession(nodeId: string, term: TermSink, state?: SessionState) {
-  setStatus(nodeId, { state: "stopped" });
+  // A process that exited before its terminal was first shown keeps its exit, its code with it: it was not restored stopped.
+  if (statusOf(nodeId).state !== "exited") setStatus(nodeId, { state: "stopped" });
   const bytes = await getScrollback(nodeId);
   if (bytes.length === 0) return;
   if (state) state.replaying = true;

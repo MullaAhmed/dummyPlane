@@ -274,6 +274,16 @@ it("restores a stopped terminal with its saved output and no input", async () =>
   expect(acceptsInput("t", { replaying: false })).toBe(false);
 });
 
+it("keeps the exit of a process that ended before its terminal was first shown, its code with it: no stop to resume", async () => {
+  mockIPC(() => new TextEncoder().encode("last screen").buffer);
+  // Its pty-exit came while its workspace was not on screen (boot's handler).
+  terminalStatusStore.getState().set("x", { state: "exited", code: 3 });
+  const term = fakeTerm();
+  await restoreSession("x", term);
+  expect(term.written).toEqual(["last screen"]);
+  expect(statusOf("x")).toEqual({ state: "exited", code: 3 });
+});
+
 it("relaunch waits for the old process to exit before spawning", async () => {
   terminalStatusStore.getState().set("t", { state: "running" });
   mockIPC((cmd) => {
