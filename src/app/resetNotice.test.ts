@@ -68,3 +68,23 @@ it("says that only some of a list could not be read, for the loops and the prese
   // None of it read: as before.
   expect(await said(LOOPS_KEY, false)).toEqual(["Your loops could not be read and start empty"]);
 });
+
+it("says what could not be read of the four lists that keep part of themselves, and says it as before when all of it was", async () => {
+  installResetNotice();
+  mockIPC((cmd) => (cmd === "keep_setting" ? "x.unreadable" : undefined));
+  const said = async (key: string, some: boolean) => {
+    vi.mocked(toast.warning).mockClear();
+    await keepSettingAside(key, some);
+    return vi.mocked(toast.warning).mock.calls.map((call) => call[0]);
+  };
+  const lists: [string, string, string][] = [
+    [historyKey("p1"), "Part of a project's command history could not be read and was left out", "A project's command history could not be read and starts empty"],
+    [launchFolderKey("p1"), "Some of a project's recent folders could not be read and were left out", "A project's recent folders could not be read and start empty"],
+    ["agents.modelRouterLevels", "Some of your model router levels could not be read and were left out", "Your model router levels could not be read and start again"],
+    ["ui.workspaceOrder.p1", "Part of a project's workspace order could not be read and was left out", "A project's workspace order could not be read and starts again"],
+  ];
+  for (const [key, some, all] of lists) {
+    expect(await said(key, true), key).toEqual([some]);
+    expect(await said(key, false), key).toEqual([all]);
+  }
+});

@@ -1,5 +1,5 @@
 import { createStore } from "zustand";
-import { getSetting, setSetting } from "@/ipc/db";
+import { getSetting, keepSettingAside, setSetting } from "@/ipc/db";
 
 /** ↑ and ↓ go through the last 50 commands. */
 export const HISTORY_SIZE = 50;
@@ -25,6 +25,17 @@ export function browseHistory(entries: readonly string[], index: number | null, 
   return index + 1 < entries.length ? index + 1 : null;
 }
 
+/**
+ * How much of a saved history `load` leaves out: nothing, some entries (one that is no text, or the oldest past the
+ * 50 kept), or all of it (not a list). What it leaves out is lost at the next save, unless its text is kept.
+ */
+export function historyLeftOut(raw: unknown): "none" | "some" | "all" {
+  if (raw === null || raw === undefined) return "none";
+  if (!Array.isArray(raw)) return "all";
+  const kept = Math.min(raw.filter((entry) => typeof entry === "string").length, HISTORY_SIZE);
+  return kept === raw.length ? "none" : kept === 0 ? "all" : "some";
+}
+
 interface HistoryState {
   projectId: string | null;
   entries: string[];
@@ -44,8 +55,11 @@ export const historyStore = createStore<HistoryState>()((set, get) => ({
     let saved: unknown;
     try {
       saved = await getSetting<unknown>(historyKey(projectId));
+      // Before the list is read into the store, or saved: what is left out is lost at the next save.
+      const leftOut = historyLeftOut(saved);
+      if (leftOut !== "none") await keepSettingAside(historyKey(projectId), leftOut === "some");
     } catch (error) {
-      // Left unloaded: this session's commands stay in memory, nothing is saved over the unread list.
+      // Left unloaded (the list was not read, or its text could not be kept): this session's commands stay in memory, nothing is saved over it.
       console.warn("command history not read", error);
       return;
     }
