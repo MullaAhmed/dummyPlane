@@ -131,7 +131,8 @@ const LEVEL_OUT: Record<Level, string> = { faible: "low", moyen: "medium", eleve
 export const outMission = (state: MissionState) => MISSION_OUT[state];
 export const outStep = (state: StepState) => STEP_OUT[state];
 export const outReport = (status: ReportStatus) => REPORT_OUT[status];
-export const outAgentState = (state: AgentState) => AGENT_OUT[state];
+/** `restarting`: its terminal is being started again, its old process gone; it reads as stopped otherwise, which it is not. */
+export const outAgentState = (state: AgentState, restarting = false) => (restarting ? "restarting" : AGENT_OUT[state]);
 export const outLevel = (level: Level) => LEVEL_OUT[level];
 /** A plan's agent: a linked agent's name, or "new". */
 export const outAgent = (agent: string) => (agent === "nouveau" ? "new" : agent);

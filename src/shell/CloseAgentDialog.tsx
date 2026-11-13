@@ -15,7 +15,7 @@ import { agentStateOf, isAgentNode } from "@/agents/agentState";
 import { removeNodes } from "@/agents/terminals";
 import { useActivity } from "@/store/agentActivity";
 import { nodeNameOf, useNodes } from "@/store/nodes";
-import { isRunning, useTerminalStatus } from "@/store/terminalStatus";
+import { isAlive, useTerminalStatus } from "@/store/terminalStatus";
 import { uiStore, useUi, type ClosingAgents } from "@/store/ui";
 import { useExitSnapshot } from "@/lib/useExitSnapshot";
 import { QuietButton } from "./buttons";
@@ -61,8 +61,8 @@ function CloseAgentContent({ closing, open }: { closing: ClosingAgents | null; o
   const agentState = isAgentNode(first) ? agentStateOf(status, activity) : null;
   const state = agentState === "working" ? "Working" : agentState === "ready" ? "Ready" : null;
   const children = closing?.children ?? [];
-  // Asked for its sub-agents only: the agent itself has stopped.
-  const stopped = one && children.length > 0 && closing !== null && !isRunning(closing.agents[0]);
+  // Asked for its sub-agents only: the agent itself has stopped (one being started again has not).
+  const stopped = one && children.length > 0 && closing !== null && !isAlive(closing.agents[0]);
   const description = !one
     ? t.several(names)
     : inMission

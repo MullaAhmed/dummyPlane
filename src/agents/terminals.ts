@@ -11,7 +11,7 @@ import { emptyNotesOf, remapCopiedNotes } from "@/nodes/note/link";
 import { isEmptyNote } from "@/nodes/note/notes";
 import type { TerminalPayload } from "@/nodes/types";
 import { nodesStore, terminalOf } from "@/store/nodes";
-import { isRunning } from "@/store/terminalStatus";
+import { isAlive } from "@/store/terminalStatus";
 import { uiStore } from "@/store/ui";
 import { workspacesStore } from "@/store/workspaces";
 import { announceArrival, IN_VIEW, type Arrival } from "./arrivals";
@@ -259,11 +259,11 @@ export function removeNode(nodeId: string) {
 }
 
 /**
- * "Close" of the header: a running agent asks for confirmation first, and so does one whose sub-agents (spawn_agent) are still on the
- * canvas: they may close with it.
+ * "Close" of the header: a running agent asks for confirmation first, as does one being started again (its old process gone, its
+ * new one on its way), and one whose sub-agents (spawn_agent) are still on the canvas: they may close with it.
  */
 export function requestClose(nodeId: string) {
   const closing = withSpawnedChildren({ agents: [nodeId], remove: [nodeId] });
-  if (isRunning(nodeId) || closing.children) uiStore.getState().setClosing(closing);
+  if (isAlive(nodeId) || closing.children) uiStore.getState().setClosing(closing);
   else removeNode(nodeId);
 }

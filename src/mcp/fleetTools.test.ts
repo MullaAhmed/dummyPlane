@@ -312,6 +312,29 @@ describe("relaunch", () => {
       expect(spawns).toBe(1);
     });
 
+    it("shows the agent restarting in team while its terminal starts again, not stopped (review 13 Nov)", async () => {
+      const states: string[] = [];
+      const sif = async () => (JSON.parse((await fleetTool("chef", "equipe", {})).content[0].text) as { name: string; state: string }[]).find((m) => m.name === "Sif")!.state;
+      mockIPC((cmd, args) => {
+        const nodeId = (args as { nodeId?: string }).nodeId ?? "";
+        // Its exit, as boot's pty-exit handler records it: no more activity either.
+        if (cmd === "pty_kill") {
+          terminalStatusStore.getState().set(nodeId, { state: "exited", code: null });
+          agentActivityStore.getState().remove(nodeId);
+        }
+        return cmd === "pty_spawn" ? 1 : undefined;
+      });
+      vi.mocked(relaunchTerminal).mockImplementationOnce((nodeId, payload, mode) =>
+        relaunchSession(nodeId, term, { ...payload, agent: "shell" }, mode, async () => void states.push(await sif())),
+      );
+      // Back at its shell: stopped. In its restart's gap: restarting. Up again: idle.
+      states.push(await sif());
+      expect((await fleetTool("chef", "relaunch", { agent: "Sif" })).isError).not.toBe(true);
+      states.push(await sif());
+      expect(states).toEqual(["stopped", "restarting", "idle"]);
+      expect(managerTools().find((tool) => tool.name === "team")?.description).toContain("stopped, or restarting while its terminal starts again");
+    });
+
     it("frees the seat of a relaunch that fails", async () => {
       const counts: number[] = [];
       restartLikeTheApp(counts, () => {

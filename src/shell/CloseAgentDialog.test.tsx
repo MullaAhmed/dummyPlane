@@ -133,6 +133,15 @@ describe("an agent that opened sub-agents (spawn_agent)", () => {
     return box && { checked: box.getAttribute("aria-checked") === "true", click: () => box.click(), label: document.querySelector(`label[for="${box.id}"]`)?.textContent };
   };
 
+  it("does not say an agent being started again is stopped: its old process is gone, its new one on its way (review 13 Nov)", async () => {
+    terminalStatusStore.getState().set("superman", { state: "exited", code: null });
+    terminalStatusStore.getState().restart("superman", 1);
+    await act(async () => uiStore.getState().setClosing(asked));
+    const dialog = document.querySelector('[role="dialog"]')!;
+    expect(dialog.textContent).toContain("Close Superman?");
+    expect(dialog.textContent).not.toContain("Superman is stopped.");
+  });
+
   it("offers to close them too, ticked, and closes them with it once confirmed", async () => {
     await act(async () => uiStore.getState().setClosing(asked));
     const dialog = document.querySelector('[role="dialog"]')!;

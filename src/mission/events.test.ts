@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { mockIPC } from "@tauri-apps/api/mocks";
 import { ptySendText } from "@/ipc/pty";
 import { typedAgo } from "@/nodes/terminal/registry";
@@ -7,6 +7,7 @@ import { remoteBusy } from "@/agents/remoteControl";
 import { agentActivityStore } from "@/store/agentActivity";
 import { nodesStore } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
+import { relaunchSession } from "@/nodes/terminal/session";
 import { installMissionEvents, notify, pendingEvents, sendCommand } from "./events";
 import { whenReady } from "./ready";
 import type { Member } from "./mission";
@@ -125,6 +126,52 @@ describe("events to the fleet", () => {
     expect(sent()).toEqual(["chef: [dummyPlane] Batman stopped: its terminal is no longer running."]);
   });
 
+  describe("a member's restart reads as a restart (review 13 Nov)", () => {
+    const term = { cols: 80, rows: 24, write: () => undefined };
+    const shell = { title: "Batman", name: "Batman", agent: "shell" as const, cwd: "C:/w", shell: "default" as const, command: "" };
+    const restarted = "chef: [dummyPlane] Batman restarted: its terminal runs again, and what it was doing stopped with the old process. See where it stands with read_output, then write it what is left.";
+    const stopped = "chef: [dummyPlane] Batman stopped: its terminal is no longer running.";
+    /** The pty as the app sees it: a kill answered by the exit boot's pty-exit handler records, a spawn running `spawn`. */
+    const pty = (spawn: () => unknown = () => 1) =>
+      mockIPC((cmd, args) => {
+        if (cmd === "pty_kill") status((args as { nodeId: string }).nodeId, "exited");
+        return cmd === "pty_spawn" ? spawn() : undefined;
+      });
+    afterEach(() => mockIPC(() => undefined));
+
+    it("tells it once that a member restarted, not that it stopped, when its terminal comes back", async () => {
+      pty();
+      await relaunchSession("batman", term, shell, "new");
+      await tick();
+      expect(sent()).toEqual([restarted]);
+    });
+
+    it("tells it the member stopped, and only that, when its restart fails", async () => {
+      pty(() => {
+        throw new Error("no shell");
+      });
+      await relaunchSession("batman", term, shell, "new");
+      await tick();
+      expect(sent()).toEqual([stopped]);
+    });
+
+    it("tells it once that a member stopped when its terminal is closed mid-restart", async () => {
+      pty();
+      await relaunchSession("batman", term, shell, "new", () => terminalStatusStore.getState().remove("batman"));
+      await tick();
+      expect(sent()).toEqual([stopped]);
+    });
+
+    it("tells it a stopped member is back when its restart brings it up, its stop having been told then", async () => {
+      status("batman", "exited");
+      expect(sent()).toEqual([stopped]);
+      pty();
+      await relaunchSession("batman", term, shell, "new");
+      await tick();
+      expect(sent()).toEqual([stopped, restarted]);
+    });
+  });
+
   it("waits for a restarted fleet's Claude to be up, never typing into its trust dialog (final review H2)", async () => {
     let up!: (ready: boolean) => void;
     vi.mocked(whenReady).mockImplementationOnce(() => new Promise((resolve) => (up = resolve)));
@@ -193,6 +240,20 @@ describe("a mission its Manager runs", () => {
     status("boss", "stopped");
     await vi.waitFor(() => expect(sent()).toHaveLength(2));
     expect(sent()[1]).toBe("sitter: [dummyPlane] Manager stopped: its terminal is no longer running. The board waits: relaunch it from its node, or stop_mission.");
+  });
+
+  it("tells the Fleet its Manager restarted, not that it stopped, when its terminal comes back (review 13 Nov)", async () => {
+    mockIPC((cmd, args) => {
+      if (cmd === "pty_kill") status((args as { nodeId: string }).nodeId, "exited");
+      return cmd === "pty_spawn" ? 1 : undefined;
+    });
+    try {
+      await relaunchSession("boss", { cols: 80, rows: 24, write: () => undefined }, { title: "Manager", name: "Manager", agent: "shell", cwd: "C:/w", shell: "default", command: "" }, "new");
+      await vi.waitFor(() => expect(sent()).toHaveLength(1));
+      expect(sent()).toEqual(["sitter: [dummyPlane] Manager restarted: its terminal runs again, and it takes the board up from where it stands. Nothing to do."]);
+    } finally {
+      mockIPC(() => undefined);
+    }
   });
 
   it("holds the Manager's lines until its prompt is up after a start", async () => {

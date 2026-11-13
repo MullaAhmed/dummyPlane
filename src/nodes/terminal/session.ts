@@ -156,12 +156,15 @@ export function relaunchSession(
   beforeStart?: () => void | Promise<void>,
 ): Promise<void> {
   // Marked before anything is awaited: the caller's next line already sees it.
-  return restartInTurn(nodeId, async () => {
+  return restartInTurn(nodeId, async (current) => {
+    // Closed while it waited its turn, or while its old process went: the closing stands, nothing starts.
+    if (!current()) return;
     if (isRunning(nodeId)) {
       await ptyKill(nodeId);
       await waitForExit(nodeId);
     }
     await beforeStart?.();
+    if (!current()) return;
     term.write(`\r\n\x1b[2m${messages(nodesMessages).session.restartMarker}\x1b[0m\r\n`);
     await startSession(nodeId, term, payload, mode);
   });

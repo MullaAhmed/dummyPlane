@@ -19,7 +19,7 @@ import { uiStore, useUi } from "@/store/ui";
 import { QuietButton } from "./buttons";
 import { shellMessages } from "./messages";
 
-/** "Close the group Backend?" listing the agents still running. */
+/** "Close the group Backend?" listing the agents still running, and those being started again. */
 export function CloseGroupDialog() {
   const all = useMessages(shellMessages);
   const t = all.closeGroup;
@@ -27,9 +27,9 @@ export function CloseGroupDialog() {
   const group = useCanvas((s) => s.frames.find((f) => f.id === groupId) ?? null);
   const nodes = useNodes((s) => s.nodes);
   const statuses = useStore(terminalStatusStore, (s) => s.statuses);
-  const living = group
-    ? livingAgents(group.memberIds, (id) => nodeNameOf(nodes[id]) || all.fallbackAgent, (id) => statuses[id]?.state === "running")
-    : [];
+  const restarts = useStore(terminalStatusStore, (s) => s.restarts);
+  const alive = (id: string) => statuses[id]?.state === "running" || (restarts[id] ?? 0) > 0;
+  const living = group ? livingAgents(group.memberIds, (id) => nodeNameOf(nodes[id]) || all.fallbackAgent, alive) : [];
   const open = groupId !== null;
   // The group is gone once closed: its exit keeps the question it asked.
   const shown = useExitSnapshot(open, { title: t.title(group?.name), description: t.description(living) });

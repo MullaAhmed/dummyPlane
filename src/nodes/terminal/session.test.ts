@@ -4,7 +4,7 @@ import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { accountsStore, openAccounts } from "@/accounts/store";
 import type { TerminalPayload } from "@/nodes/types";
 import { nodesStore, sessionOf, updateSession } from "@/store/nodes";
-import { isRestarting, statusOf, terminalStatusStore } from "@/store/terminalStatus";
+import { isAlive, isRestarting, statusOf, terminalStatusStore } from "@/store/terminalStatus";
 import { folderChange } from "./folder";
 import { relaunchMode } from "./launch";
 import { acceptsInput, attachSession, reattachSession, relaunchSession, restoreSession, startSession, type TermSink } from "./session";
@@ -107,6 +107,41 @@ it("forgets the restart of a terminal removed meanwhile: restored with Ctrl+Z, i
   await relaunchSession("lost", fakeTerm(), payload, "new");
   expect(statusOf("lost").state).toBe("running");
   expect(isRestarting("lost")).toBe(false);
+});
+
+it("starts nothing for a terminal closed mid-restart, nor for one closed while its restart waited its turn: the closing stands (review 13 Nov)", async () => {
+  let spawns = 0;
+  mockIPC((cmd, args) => {
+    // A kill answered by its exit, as boot's pty-exit handler records it.
+    if (cmd === "pty_kill") terminalStatusStore.getState().set((args as { nodeId: string }).nodeId, { state: "exited", code: null });
+    if (cmd === "pty_spawn") spawns += 1;
+    return 1;
+  });
+  const alive: boolean[] = [];
+  // Closed (confirmed) between its old process's exit and its new one's start.
+  await relaunchSession("c", fakeTerm(), payload, "new", () => {
+    alive.push(isAlive("c"));
+    terminalStatusStore.getState().remove("c");
+  });
+  // A second restart asked while the first is in its gap, then the terminal closed, then the gap over.
+  let gapOver = () => {};
+  const first = relaunchSession("d", fakeTerm(), payload, "new", () => new Promise<void>((resolve) => (gapOver = resolve)));
+  const second = relaunchSession("d", fakeTerm(), payload, "new");
+  terminalStatusStore.getState().remove("d");
+  gapOver();
+  await Promise.all([first, second]);
+  expect(alive).toEqual([true]);
+  expect(spawns).toBe(0);
+  expect(terminalStatusStore.getState().statuses).toEqual({});
+  expect([isAlive("c"), isAlive("d")]).toEqual([false, false]);
+  // Closed within the restart itself (the same tick): a restart of its next life, restored by Ctrl+Z, waits for nothing.
+  void relaunchSession("e", fakeTerm(), payload, "new", () => {
+    terminalStatusStore.getState().remove("e");
+    return new Promise<void>(() => {});
+  });
+  await relaunchSession("e", fakeTerm(), payload, "new");
+  expect(spawns).toBe(1);
+  expect(statusOf("e").state).toBe("running");
 });
 
 it("ends the restart of a terminal whose new process could not spawn, and counts two restarts at once", async () => {
