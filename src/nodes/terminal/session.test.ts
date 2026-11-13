@@ -175,6 +175,38 @@ it("marks the terminal running before spawning, so ConPTY's cursor query can be 
   expect(calls[0].args).toMatchObject({ nodeId: "t", cols: 100, rows: 30, spec: { agent: "shell" } });
 });
 
+it("stops the process of a terminal closed while it was being spawned: none runs on unseen for a node gone from the canvas", async () => {
+  const seen: string[] = [];
+  let spawned = () => {};
+  mockIPC((cmd) => {
+    seen.push(cmd);
+    // Its spawn takes its time (hooks, launch files, ConPTY): the close's kill comes meanwhile, and finds no process yet.
+    if (cmd === "pty_spawn") return new Promise((resolve) => (spawned = () => resolve(7)));
+    return null;
+  });
+  const started = startSession("gone", fakeTerm(), payload, "new");
+  await vi.waitFor(() => expect(seen).toEqual(["pty_spawn"]));
+  // Closed (`disposeTerminal`): its status goes, its kill reaches no process.
+  terminalStatusStore.getState().remove("gone");
+  spawned();
+  await started;
+  expect(seen).toEqual(["pty_spawn", "pty_kill"]);
+});
+
+it("gives a process the grid its terminal was resized to while it was being spawned", async () => {
+  const term = fakeTerm();
+  const resizes: unknown[] = [];
+  mockIPC((cmd, args) => {
+    // Laid out meanwhile (shown, expanded, its foot appeared): that resize found no process to resize.
+    if (cmd === "pty_spawn") Object.assign(term, { cols: 132, rows: 41 });
+    if (cmd === "pty_resize") resizes.push(args);
+    return 7;
+  });
+  await startSession("grid", term, payload, "new");
+  expect(resizes).toEqual([{ nodeId: "grid", cols: 132, rows: 41 }]);
+  expect(statusOf("grid").state).toBe("running");
+});
+
 it("gives a Claude terminal without a conversation id one, and keeps it in its node", async () => {
   const claude: TerminalPayload = { ...payload, agent: "claude" };
   mockIPC((cmd, args) => {

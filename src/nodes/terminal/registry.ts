@@ -386,6 +386,14 @@ export function isLiveInRust(nodeId: string): boolean {
 }
 
 /**
+ * A process still running in Rust since a webview reload, its node not shown again since: it runs, so a restart
+ * stops it and waits for its exit first, as any running one's, instead of a start that Rust refuses.
+ */
+function adoptLive(nodeId: string) {
+  if (livePtys.delete(nodeId)) terminalStatusStore.getState().set(nodeId, { state: "running" });
+}
+
+/**
  * Starts a terminal that may not be on screen yet ("Reprendre toutes les
  * conversations"): Claude resumes its session, other agents start anew. Its
  * output waits in xterm's buffer until the node is shown.
@@ -395,6 +403,7 @@ export function resumeTerminal(nodeId: string) {
   if (!payload) return;
   const entry = entries.get(nodeId) ?? create(nodeId);
   autostart.cancel(nodeId);
+  adoptLive(nodeId);
   void relaunchSession(nodeId, entry.term, payload, relaunchMode(payload), () => freshen(entry));
 }
 
@@ -403,6 +412,7 @@ export function relaunchTerminal(nodeId: string, payload: TerminalPayload, mode:
   // A terminal not shown since the app started has no xterm yet: a mission still starts it.
   const entry = entries.get(nodeId) ?? create(nodeId);
   autostart.cancel(nodeId);
+  adoptLive(nodeId);
   return relaunchSession(nodeId, entry.term, payload, mode, () => freshen(entry));
 }
 

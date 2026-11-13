@@ -7,15 +7,18 @@ import { Input } from "@/components/ui/input";
 import { loadAccounts, useAccounts } from "@/accounts/store";
 import { useMessages } from "@/i18n";
 import {
+  baseOn,
   canSwitch,
   claudeExtensions,
   isOn,
+  pickedOf,
   withItem,
   withItems,
   type ClaudeExtensions,
   type ExtensionChoice,
   type ExtensionItem,
 } from "@/ipc/claudeExtensions";
+import type { SubagentExtras } from "@/ipc/subagentExtras";
 import { cn } from "@/lib/utils";
 import { useNativeKeyDown } from "@/lib/useNativeKeyDown";
 import { sameFolder } from "@/nodes/terminal/folder";
@@ -120,10 +123,12 @@ export function ExtensionList(props: {
   cwd: string;
   saved: string | null;
   choice: ExtensionChoice | undefined;
+  /** A sub-agent's: what its spawner picked (`@/ipc/subagentExtras`); the switches act on top of it. */
+  extras?: SubagentExtras;
   lists: ExtensionLists;
   onRetry: () => void;
 }) {
-  const { nodeId, kind, lists } = props;
+  const { nodeId, kind, lists, extras } = props;
   const t = useMessages(canvasMessages);
   const s = t.selection;
   const [query, setQuery] = useState("");
@@ -167,27 +172,31 @@ export function ExtensionList(props: {
   };
   const toggle = (item: ExtensionItem, on: boolean) => {
     const before = latest();
-    store(before, withItem(kind, item, on, before));
+    store(before, withItem(kind, item, on, before, extras));
   };
   // Select all, Unselect all: every item shown (the search applies) that a choice can switch, in one change.
   const switchAll = (on: boolean) => {
     const before = latest();
-    const changing = shown.filter((item) => canSwitch(kind, item) && isOn(kind, item, before) !== on);
-    if (changing.length > 0) store(before, withItems(kind, changing, on, before));
+    const changing = shown.filter((item) => canSwitch(kind, item, extras) && isOn(kind, item, before, extras) !== on);
+    if (changing.length > 0) store(before, withItems(kind, changing, on, before, extras));
   };
-  const switchable = shown.filter((item) => canSwitch(kind, item));
-  const onCount = shown.filter((item) => isOn(kind, item, props.choice)).length;
+  const switchable = shown.filter((item) => canSwitch(kind, item, extras));
+  const onCount = shown.filter((item) => isOn(kind, item, props.choice, extras)).length;
+  // A kind its spawner picked: an item the pick left out (not one that follows its plugin) is off for that reason.
+  const picked = pickedOf(kind, extras) !== undefined;
+  const leftOut = (item: ExtensionItem) => picked && !item.fixed && item.source !== "plugin" && !baseOn(kind, item, extras);
 
   const searchable = items.length >= SEARCH_FROM;
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2">
+      {picked && <Note>{s.pickedKind}</Note>}
       {searchable && <SearchField label={s.search(s.kinds[kind])} value={query} onChange={setQuery} />}
       {shown.length > 0 && (
         <ListToolbar
           // While a search narrows the list, it counts the items shown: the ones its buttons switch.
           count={needle ? s.onCountShown(onCount, shown.length) : s.onCount(onCount, items.length)}
-          canSelect={switchable.some((item) => !isOn(kind, item, props.choice))}
-          canUnselect={switchable.some((item) => isOn(kind, item, props.choice))}
+          canSelect={switchable.some((item) => !isOn(kind, item, props.choice, extras))}
+          canUnselect={switchable.some((item) => isOn(kind, item, props.choice, extras))}
           onSwitchAll={switchAll}
           // Under a scrollbar's stable gutter, the checkboxes' column sits 8 px further in.
           gutter={searchable}
@@ -203,9 +212,10 @@ export function ExtensionList(props: {
             <ExtensionRow
               key={item.id}
               item={item}
-              on={isOn(kind, item, props.choice)}
-              // Plugins turn on as well as off; the others only turn off what the user's settings leave on.
-              locked={!canSwitch(kind, item)}
+              on={isOn(kind, item, props.choice, extras)}
+              // Plugins turn on as well as off; the others only turn off what the user's settings (or the pick) leave on.
+              locked={!canSwitch(kind, item, extras)}
+              leftOut={leftOut(item)}
               fleet={fleet}
               onToggle={(on) => toggle(item, on)}
             />
@@ -311,7 +321,7 @@ export const HOVERED_BOX = "group-hover/row:border-dp-text-2 data-checked:group-
  */
 const REVEAL = "group-has-[:focus-visible]/row:line-clamp-4 group-has-[:focus-visible]/row:whitespace-normal";
 
-function ExtensionRow(props: { item: ExtensionItem; on: boolean; locked: boolean; fleet: boolean; onToggle: (on: boolean) => void }) {
+function ExtensionRow(props: { item: ExtensionItem; on: boolean; locked: boolean; leftOut?: boolean; fleet: boolean; onToggle: (on: boolean) => void }) {
   const { item, on, locked, onToggle } = props;
   const t = useMessages(canvasMessages).selection;
   const id = useId();
@@ -320,7 +330,17 @@ function ExtensionRow(props: { item: ExtensionItem; on: boolean; locked: boolean
   // Fixed, it says what it follows; off, why: a plugin's server or subagent is off because its plugin is, not
   // because of a setting of its own.
   const whyOff =
-    item.fixed === "own" ? (props.fleet ? t.missionServerAlwaysOn : t.ownServerAlwaysOn) : item.fixed === "plugin" ? t.followsPlugin : item.source === "plugin" ? t.offWithPlugin : t.offInSettings;
+    item.fixed === "own"
+      ? props.fleet
+        ? t.missionServerAlwaysOn
+        : t.ownServerAlwaysOn
+      : item.fixed === "plugin"
+        ? t.followsPlugin
+        : item.source === "plugin"
+          ? t.offWithPlugin
+          : props.leftOut
+            ? t.leftOutByPick
+            : t.offInSettings;
   return (
     <li
       data-extension={item.id}

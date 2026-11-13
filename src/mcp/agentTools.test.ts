@@ -104,11 +104,28 @@ it("leaves a terminal as it was when its report is refused: no summary, or a sta
 it("offers spawn_agent to every Claude session, its task required", () => {
   const spawn = agentTools().find((tool) => tool.name === "spawn_agent")!;
   expect(spawn.inputSchema.required).toEqual(["task"]);
-  expect(Object.keys(spawn.inputSchema.properties)).toEqual(["task", "title", "model", "level"]);
+  expect(Object.keys(spawn.inputSchema.properties)).toEqual(["task", "title", "model", "level", "skills", "mcp_servers", "plugins"]);
   // The router's levels, as the agent writes them: low… extreme, read from the router's own table.
   expect((spawn.inputSchema.properties as Record<string, { enum?: string[]; description: string }>).level).toMatchObject({ enum: ["low", "medium", "high", "extreme"] });
   expect((spawn.inputSchema.properties as Record<string, { description: string }>).level.description).toContain("extreme Fable 5.2");
   expect(spawn.description).toContain("3 levels");
+});
+
+it("lets spawn_agent pick a sub-agent's skills, MCP servers and plugins, which installed_extras lists", () => {
+  const spawn = agentTools().find((tool) => tool.name === "spawn_agent")!;
+  const props = spawn.inputSchema.properties as Record<string, { type: string; items?: { type: string }; description: string }>;
+  for (const arg of ["skills", "mcp_servers", "plugins"]) {
+    expect(props[arg]).toMatchObject({ type: "array", items: { type: "string" } });
+    // Left out: the CLI's defaults; empty: none.
+    expect(props[arg].description).toContain("Leave it out for its CLI's defaults; [] for none");
+    expect(props[arg].description).toContain("installed_extras");
+  }
+  expect(props.mcp_servers.description).toContain("the dummyplane server, which it always keeps");
+  expect(spawn.inputSchema.required).toEqual(["task"]);
+  expect(spawn.description).toContain("leave one out for its CLI's defaults, [] for none");
+  const list = agentTools().find((tool) => tool.name === "installed_extras")!;
+  expect(list.inputSchema.properties).toEqual({});
+  expect(list.description).toContain("whether it is on by default");
 });
 
 it("sends an agent to spawn_agent rather than a Workflow, which dummyPlane refuses like the Agent/Task tool", () => {

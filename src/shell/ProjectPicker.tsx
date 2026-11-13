@@ -50,7 +50,7 @@ export function ProjectPicker() {
         ))}
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={() => projectsStore.getState().goHome()}>{t.allProjects}</DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => void projectsStore.getState().close()}>{t.closeProject}</DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => void projectsStore.getState().close().catch((error: unknown) => toastError(t.closeFailed, { error }))}>{t.closeProject}</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );

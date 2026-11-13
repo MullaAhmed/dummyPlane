@@ -66,7 +66,7 @@ describe("Dessin", () => {
       ["Bring to front", "Ctrl+Shift+]"],
       ["Send to back", "Ctrl+Shift+["],
       ["Lock", "Ctrl+Shift+L"],
-      ["Delete", "Suppr"],
+      ["Delete", "Delete"],
       ["More drawing options…", null],
     ]);
   });

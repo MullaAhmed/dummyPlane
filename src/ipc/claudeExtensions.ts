@@ -1,4 +1,5 @@
 import { call } from "./invoke";
+import type { SubagentExtras } from "./subagentExtras";
 
 /**
  * Where an item is set up: the Claude folder (user), the project's files, the
@@ -112,42 +113,67 @@ export function readExtensionChoice(raw: unknown): ExtensionChoice | undefined {
   return Object.keys(choice).length ? choice : undefined;
 }
 
-/** Whether `item` is on for a terminal with this choice. A fixed item is as it is; a plugin's skill is on with its plugin. */
-export function isOn(kind: keyof ClaudeExtensions, item: ExtensionItem, choice: ExtensionChoice | undefined): boolean {
+/** A sub-agent's pick of a panel's kind (`@/ipc/subagentExtras`), when its spawner picked that kind; never of subagents. */
+export function pickedOf(kind: keyof ClaudeExtensions, extras: SubagentExtras | undefined): string[] | undefined {
+  if (kind === "skills") return extras?.skills;
+  if (kind === "plugins") return extras?.plugins;
+  if (kind === "mcp") return extras?.mcpServers;
+  return undefined;
+}
+
+/**
+ * Whether `item` is on before the terminal's own switches: as the user's settings give it, or, for a kind a
+ * sub-agent's spawner picked, as the pick names it, as Rust launches it (`agents::extras`). A plugin's skill or MCP
+ * server follows its plugin, picked or not; dummyPlane's own server is always on.
+ */
+export function baseOn(kind: keyof ClaudeExtensions, item: ExtensionItem, extras?: SubagentExtras): boolean {
   if (item.fixed === "own") return true;
-  if (item.fixed === "plugin") return (item.plugin ? choice?.plugins?.[item.plugin] : undefined) ?? item.enabled;
+  const fromPlugin = item.fixed === "plugin" || (kind === "mcp" && item.source === "plugin");
+  if (fromPlugin) return item.plugin && extras?.plugins ? extras.plugins.includes(item.plugin) : item.enabled;
+  const picked = pickedOf(kind, extras);
+  return picked ? picked.includes(item.id) : item.enabled;
+}
+
+/**
+ * Whether `item` is on for a terminal with this choice (and, for a sub-agent, its spawner's pick, under the choice).
+ * A fixed item is as it is; a plugin's skill is on with its plugin.
+ */
+export function isOn(kind: keyof ClaudeExtensions, item: ExtensionItem, choice: ExtensionChoice | undefined, extras?: SubagentExtras): boolean {
+  if (item.fixed === "own") return true;
+  const base = baseOn(kind, item, extras);
+  if (item.fixed === "plugin") return (item.plugin ? choice?.plugins?.[item.plugin] : undefined) ?? base;
   switch (kind) {
     case "plugins":
-      return choice?.plugins?.[item.id] ?? item.enabled;
+      return choice?.plugins?.[item.id] ?? base;
     case "skills":
-      return item.enabled && !choice?.skillsOff?.includes(item.id);
+      return base && !choice?.skillsOff?.includes(item.id);
     case "agents":
-      return item.enabled && !choice?.agentsOff?.includes(item.id);
+      return base && !choice?.agentsOff?.includes(item.id);
     case "mcp":
-      return item.enabled && !choice?.mcpOff?.includes(item.id);
+      return base && !choice?.mcpOff?.includes(item.id);
   }
 }
 
 /**
  * Whether a terminal's choice can switch `item`. A plugin turns on as well as
  * off; a skill, MCP server or subagent only turns off what the user's settings
- * (or its plugin) leave on.
+ * (or its plugin, or a sub-agent's pick) leave on.
  */
-export function canSwitch(kind: keyof ClaudeExtensions, item: ExtensionItem): boolean {
+export function canSwitch(kind: keyof ClaudeExtensions, item: ExtensionItem, extras?: SubagentExtras): boolean {
   if (item.fixed || (kind === "mcp" && isOwnMcpServer(item.id))) return false;
-  return kind === "plugins" || item.enabled;
+  return kind === "plugins" || baseOn(kind, item, extras);
 }
 
 /**
  * The choice after `item` is switched to `on`. A plugin switched back to what
- * the user's settings give drops its entry; the result is undefined when the
- * choice no longer changes anything.
+ * the user's settings (or a sub-agent's pick) give drops its entry; the result
+ * is undefined when the choice no longer changes anything.
  */
-export function withItem(kind: keyof ClaudeExtensions, item: ExtensionItem, on: boolean, choice: ExtensionChoice | undefined): ExtensionChoice | undefined {
+export function withItem(kind: keyof ClaudeExtensions, item: ExtensionItem, on: boolean, choice: ExtensionChoice | undefined, extras?: SubagentExtras): ExtensionChoice | undefined {
   const next: ExtensionChoice = { ...choice };
   if (kind === "plugins") {
     const plugins = { ...next.plugins };
-    if (on === item.enabled) delete plugins[item.id];
+    if (on === baseOn(kind, item, extras)) delete plugins[item.id];
     else plugins[item.id] = on;
     next.plugins = plugins;
   } else {
@@ -165,6 +191,6 @@ export function withItem(kind: keyof ClaudeExtensions, item: ExtensionItem, on: 
  * other from `choice`: one change, stored once. An item no choice can switch
  * (`canSwitch`) is left as it is.
  */
-export function withItems(kind: keyof ClaudeExtensions, items: readonly ExtensionItem[], on: boolean, choice: ExtensionChoice | undefined): ExtensionChoice | undefined {
-  return items.reduce((next, item) => (canSwitch(kind, item) ? withItem(kind, item, on, next) : next), choice);
+export function withItems(kind: keyof ClaudeExtensions, items: readonly ExtensionItem[], on: boolean, choice: ExtensionChoice | undefined, extras?: SubagentExtras): ExtensionChoice | undefined {
+  return items.reduce((next, item) => (canSwitch(kind, item, extras) ? withItem(kind, item, on, next, extras) : next), choice);
 }

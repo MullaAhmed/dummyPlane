@@ -66,3 +66,23 @@ it("does not reopen the project already open, and tells when opening another fai
   await act(async () => root.unmount());
   host.remove();
 });
+
+it("tells when closing the project fails: the setting that remembers it closed could not be written", async () => {
+  projectsStore.setState({
+    projects: [{ id: "p1", name: "a", path: "C:/a", position: 0, lastOpenedAt: 1, workspaceCount: 1, missing: false, liveAgents: 0 }],
+    activeId: "p1",
+  } as never);
+  vi.mocked(toast.error).mockClear();
+  const close = vi.spyOn(projectsStore.getState(), "close").mockRejectedValue(new Error("disk full"));
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = createRoot(host);
+  await act(async () => root.render(<ProjectPicker />));
+  await act(async () => host.querySelector("button")!.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
+  const items = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')];
+  await act(async () => items[items.length - 1].click());
+  expect(close).toHaveBeenCalled();
+  expect(vi.mocked(toast.error).mock.calls[0]?.[0]).toBe("Could not close the project");
+  await act(async () => root.unmount());
+  host.remove();
+});

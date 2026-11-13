@@ -9,7 +9,7 @@ use crate::error::{AppError, AppResult};
 use crate::pty::session::OutputSink;
 use crate::pty::shell::{
     Agent, ClaudeMode, ShellKind, SpawnSpec, build_plan, fleet_tools, interrupt_sequence,
-    which_locate,
+    pick_applied, which_locate,
 };
 use crate::pty::watch::{self, Change, Sighting, SystemProbe};
 use crate::pty::{PtyManager, pty_size};
@@ -226,6 +226,13 @@ pub async fn pty_spawn(
         log::warn!("{role:?} {node_id} not started: {cause}");
         return Err(AppError::ToolsUnavailable(format!(
             "dummyPlane's tools are unavailable: {cause}."
+        )));
+    }
+    if let Err(cause) = pick_applied(spec.agent, spec.extras().is_some(), &hooks) {
+        agents::ended(&app, &node_id);
+        log::warn!("sub-agent {node_id} not started: {cause}");
+        return Err(AppError::ToolsUnavailable(format!(
+            "the skills, MCP servers and plugins its spawner picked could not be set: {cause}."
         )));
     }
     let plan = match build_plan(&node_id, &spec, &which_locate, &hooks) {
@@ -513,6 +520,7 @@ mod tests {
             linear: false,
             config_dir: None,
             extensions: None,
+            extras: None,
         }
     }
 
