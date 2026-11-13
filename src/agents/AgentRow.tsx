@@ -61,7 +61,7 @@ export function AgentRow(props: { id: string; onOpen?: () => void; trailing?: Re
           took their clicks. */}
       <span className="grid shrink-0 items-center justify-items-end">
         <span className="flex items-center gap-2 transition-[opacity] duration-(--dp-dur-fast) ease-(--dp-ease-out) [grid-area:1/1] group-hover:pointer-events-none group-hover:opacity-0 group-focus-within:pointer-events-none group-focus-within:opacity-0 group-focus-within:transition-none">
-          <StatusPill status={status} activity={activity} indigo={meta.tint === INDIGO} report={payload.lastReport?.status} shell={payload.agent === "shell"} />
+          <StatusPill status={status} activity={activity} indigo={meta.tint === INDIGO} report={payload.lastReport?.status} asleep={payload.stoppedFinished === true} shell={payload.agent === "shell"} />
           {trailing}
         </span>
         <span

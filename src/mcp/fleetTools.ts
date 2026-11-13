@@ -1,5 +1,6 @@
 import { talk } from "@/agents/talkWires";
 import { pauseAgents } from "@/agents/broadcast";
+import { wakeable, wakeFinished, wakingUp } from "@/agents/finishedStop";
 import { setRemoteControl } from "@/agents/remoteControl";
 import { messages } from "@/i18n";
 import { ptySendText } from "@/ipc/pty";
@@ -582,12 +583,28 @@ async function write(fleetId: string, caller: string, mission: Mission, args: Re
   if (typeof member === "string") return refused(member);
   const text = typeof args.texte === "string" ? oneLine(args.texte) : "";
   if (!text) return refused(t().fleet.nothingToWrite);
+  // A finished member dummyPlane stopped to free its memory, or starting again already: the text waits for its
+  // session, typed earlier it would land in its shell (`@/agents/finishedStop`). Answered now: its session may take
+  // longer to open than the call may last.
+  const woken = wakingUp(member.nodeId) ?? (wakeable(member.nodeId) ? wakeFinished(member.nodeId) : undefined);
+  if (woken) {
+    void woken
+      .then((ready) => (ready ? typeTo(fleetId, caller, member, text) : notify(caller, t().fleet.notWokenWrite(member.name))))
+      .catch(() => notify(caller, t().fleet.notWokenWrite(member.name)));
+    return said(t().fleet.wakingWrite(member.name));
+  }
   const activity = agentActivityStore.getState().activities[member.nodeId];
   // An agent that exited leaves its shell: the text would run there as a command.
   if (!isRunning(member.nodeId) || activity?.left) return refused(t().fleet.stopped(member.name));
   if (activity?.activity === "waiting") return refused(t().fleet.waiting(member.name));
   // dummyPlane still waits for its Claude to type its sub-task: a line now would cross it, or answer a question meant for the user.
   if (deliveryPending(member.nodeId)) return refused(t().fleet.notYetSent(member.name));
+  await typeTo(fleetId, caller, member, text);
+  return said(t().fleet.written(member.name));
+}
+
+/** Types `text` into a member's terminal, for `write`. */
+async function typeTo(fleetId: string, caller: string, member: Member, text: string) {
   await ptySendText(member.nodeId, text);
   // The message draws its wire if none joins them (a linked agent, a group joiner).
   talk(caller, member.nodeId);
@@ -596,7 +613,6 @@ async function write(fleetId: string, caller: string, mission: Mission, args: Re
   const now = missionOf(nodesStore.getState().nodes[fleetId]);
   const held = now?.members.find((m) => m.nodeId === member.nodeId);
   if (now?.state === "en_cours" && held && held.sentAt === undefined && !held.handedTo) updateMember(fleetId, member.nodeId, { sentAt: Date.now(), brief: undefined });
-  return said(t().fleet.written(member.name));
 }
 
 function prolong(fleetId: string, mission: Mission, args: Record<string, unknown>): ToolResult {

@@ -1,6 +1,7 @@
 import { talk } from "@/agents/talkWires";
 import { AGENTS } from "@/agents/catalog";
 import { linkedAgentsOf, type LinkedAgent } from "@/agents/agentLinks";
+import { wakeable, wakeFinished, wakingUp } from "@/agents/finishedStop";
 import { MAX_TITLE } from "@/agents/spawn";
 import { isLaunching, spawnedByOf, unmarkReported } from "@/agents/spawnFamily";
 import { clip } from "@/agents/taskSummary";
@@ -137,9 +138,12 @@ function messageLinked(nodeId: string, args: Record<string, unknown>): ToolResul
   }
   const text = typeof args.text === "string" ? oneLine(args.text) : "";
   if (!text) return refused(l.nothingToSend);
-  if (!isRunning(peer.nodeId)) return refused(l.stopped(peer.name));
+  // A finished agent dummyPlane stopped to free its memory, or starting again already: the message waits for its
+  // session, typed earlier it would land in its shell (`@/agents/finishedStop`).
+  const asleep = wakingUp(peer.nodeId) !== undefined || wakeable(peer.nodeId, nodeId);
+  if (!asleep && !isRunning(peer.nodeId)) return refused(l.stopped(peer.name));
   // A sub-agent just spawned runs its shell before its Claude: the line would run there as a command.
-  if (isLaunching(peer.nodeId)) return refused(l.starting(peer.name));
+  if (!asleep && isLaunching(peer.nodeId)) return refused(l.starting(peer.name));
   // Before the message is typed: typing it clears the report that says its last task is done (`onNewWork`).
   const work = newWork(nodeId, peer.nodeId, text, args.title);
   if (work) {
@@ -147,12 +151,22 @@ function messageLinked(nodeId: string, args: Record<string, unknown>): ToolResul
     // Its report freed its seat for the app's run; working again, it takes one.
     unmarkReported(peer.nodeId);
   }
-  // A Manager answers its team with write: it has no message_agent.
-  notify(peer.nodeId, isManagerNode(peer.nodeId) ? l.toManager(nameOf(nodeId), text) : l.message(nameOf(nodeId), text));
-  // Its Claude session, named after its title at its launch (`-n`), takes the new one: the name other sessions see.
-  // After the message, in line with it: whatever the command leaves on screen can never swallow the work itself,
-  // and `/rename` runs at once even while Claude works on it.
-  if (work?.title && terminalOf(nodesStore.getState().nodes[peer.nodeId])?.agent === "claude") sendCommand(peer.nodeId, `/rename ${work.title}`);
+  const send = () => {
+    // A Manager answers its team with write: it has no message_agent.
+    notify(peer.nodeId, isManagerNode(peer.nodeId) ? l.toManager(nameOf(nodeId), text) : l.message(nameOf(nodeId), text));
+    // Its Claude session, named after its title at its launch (`-n`), takes the new one: the name other sessions see.
+    // After the message, in line with it: whatever the command leaves on screen can never swallow the work itself,
+    // and `/rename` runs at once even while Claude works on it.
+    if (work?.title && terminalOf(nodesStore.getState().nodes[peer.nodeId])?.agent === "claude") sendCommand(peer.nodeId, `/rename ${work.title}`);
+  };
+  if (asleep) {
+    // Answered now: its session may take longer to open than the call may last.
+    const woken = wakingUp(peer.nodeId) ?? wakeFinished(peer.nodeId, () => notify(nodeId, l.wakeSlow(peer.name)));
+    void woken.then((ready) => (ready ? send() : notify(nodeId, l.notWoken(peer.name))));
+    talk(nodeId, peer.nodeId);
+    return said(l.waking(peer.name));
+  }
+  send();
   // The message draws its wire when none joins them yet, and the light runs along it from the sender.
   talk(nodeId, peer.nodeId);
   const waiting = agentActivityStore.getState().activities[peer.nodeId]?.activity === "waiting";

@@ -5,6 +5,7 @@ import { mockIPC } from "@tauri-apps/api/mocks";
 import { canvasStore } from "@/canvas/canvasStore";
 import { createNodeElement } from "@/canvas/nodeElement";
 import { wireActivityStore } from "@/canvas/wireActivity";
+import { wakeFinished, wakingUp } from "@/agents/finishedStop";
 import { atWork, markLaunching, markReported } from "@/agents/spawnFamily";
 import { spawnedTask } from "@/agents/taskSummary";
 import { withAgentLink, withWire } from "@/agents/wires";
@@ -18,8 +19,10 @@ import { workspacesStore } from "@/store/workspaces";
 import { answer } from "./router";
 
 vi.mock("@excalidraw/excalidraw", () => ({ CaptureUpdateAction: { IMMEDIATELY: "immediately" } }));
-vi.mock("@/nodes/terminal/registry", () => ({ terminalText: vi.fn(() => "line 1\nline 2") }));
+vi.mock("@/nodes/terminal/registry", () => ({ terminalText: vi.fn(() => "line 1\nline 2"), isLiveInRust: vi.fn(() => false) }));
 vi.mock("@/mission/events", () => ({ notify: vi.fn(), sendCommand: vi.fn() }));
+// The start of a stopped finished agent (`@/agents/finishedStop`): its own tests cover it, here it is a promise the test resolves.
+vi.mock("@/agents/finishedStop", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/agents/finishedStop")>()), wakeFinished: vi.fn(), wakingUp: vi.fn() }));
 
 const call = (nodeId: string, name: string, args: Record<string, unknown> = {}) =>
   answer({ callId: 1, nodeId, method: "tools/call", params: { name, arguments: args } }) as Promise<{ content: { text: string }[]; isError?: boolean }>;
@@ -240,9 +243,62 @@ describe("new work for a sub-agent that reported", () => {
     expect(payloadOf("aquaman")).toMatchObject({ title: FINISHED.title, task: FINISHED.task });
     nodesStore.getState().update("aquaman", { lastReport: FINISHED.lastReport });
     terminalStatusStore.getState().set("aquaman", { state: "stopped" });
+    // Refused, not started again: it has no conversation to take up (no Claude session id). With one, its parent's
+    // message wakes it (below, "to a finished sub-agent whose session dummyPlane stopped").
     expect((await call("batman", "message_agent", { agent: "Aquaman", text: NEW_WORK, title: "007 mint.py tests" })).isError).toBe(true);
     expect(payloadOf("aquaman")).toMatchObject({ title: FINISHED.title, task: FINISHED.task });
     expect(sendCommand).not.toHaveBeenCalled();
+  });
+
+  describe("to a finished sub-agent whose session dummyPlane stopped", () => {
+    let wake: (ready: boolean) => void;
+    /** The start under way, as `wakingUp` gives it back until it ends. */
+    let starting: Promise<boolean> | undefined;
+    beforeEach(() => {
+      nodesStore.getState().update("aquaman", { claudeSessionId: "s-aquaman", stoppedFinished: true });
+      terminalStatusStore.getState().set("aquaman", { state: "exited", code: 1 });
+      starting = undefined;
+      vi.mocked(wakeFinished).mockReset().mockImplementation(() => (starting ??= new Promise<boolean>((resolve) => (wake = resolve))));
+      vi.mocked(wakingUp).mockReset().mockImplementation(() => starting);
+    });
+    afterEach(() => {
+      vi.mocked(wakingUp).mockReset();
+      nodesStore.getState().update("aquaman", { claudeSessionId: undefined, stoppedFinished: undefined });
+    });
+
+    it("starts it again on its conversation, and types the message once its session is ready", async () => {
+      const result = await call("batman", "message_agent", { agent: "Aquaman", text: NEW_WORK, title: "007 mint.py tests" });
+      expect(result.isError).toBeUndefined();
+      expect(textOf(result)).toContain("Aquaman had finished, and dummyPlane stopped its session to free memory");
+      expect(wakeFinished).toHaveBeenCalledExactlyOnceWith("aquaman", expect.any(Function));
+      // Its new work is its own at once; nothing is typed while its session opens: it would land in its shell.
+      expect(payloadOf("aquaman")).toMatchObject({ title: "007 mint.py tests", task: NEW_WORK });
+      expect(notify).not.toHaveBeenCalled();
+      expect(sendCommand).not.toHaveBeenCalled();
+      terminalStatusStore.getState().set("aquaman", { state: "running" });
+      wake(true);
+      await vi.waitFor(() => expect(notify).toHaveBeenCalledWith("aquaman", expect.stringContaining(NEW_WORK)));
+      expect(sendCommand).toHaveBeenCalledExactlyOnceWith("aquaman", "/rename 007 mint.py tests");
+    });
+
+    it("waits for the same start with a second message, and tells the sender when it does not start", async () => {
+      await call("batman", "message_agent", { agent: "Aquaman", text: NEW_WORK });
+      await call("batman", "message_agent", { agent: "Aquaman", text: "And the 008 bug." });
+      expect(wakeFinished).toHaveBeenCalledTimes(1);
+      wake(false);
+      await vi.waitFor(() => expect(notify).toHaveBeenCalledTimes(2));
+      expect(vi.mocked(notify).mock.calls).toEqual([
+        ["batman", "Aquaman did not start again, or its session did not open: your message was not sent."],
+        ["batman", "Aquaman did not start again, or its session did not open: your message was not sent."],
+      ]);
+    });
+
+    it("wakes a finished sub-agent stopped since an app restart for its parent's new work", async () => {
+      nodesStore.getState().update("aquaman", { stoppedFinished: undefined });
+      terminalStatusStore.getState().set("aquaman", { state: "stopped" });
+      expect(textOf(await call("batman", "message_agent", { agent: "Aquaman", text: NEW_WORK }))).toContain("starts again on its own conversation");
+      expect(wakeFinished).toHaveBeenCalledWith("aquaman", expect.any(Function));
+    });
   });
 
   it("changes nothing between linked peers, nor from a sub-agent to its parent", async () => {

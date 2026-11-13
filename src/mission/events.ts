@@ -4,7 +4,7 @@ import { ptySendText } from "@/ipc/pty";
 import { agentMessages } from "@/mcp/messages";
 import { freshText, quietFor, typedAgo } from "@/nodes/terminal/registry";
 import { agentActivityStore } from "@/store/agentActivity";
-import { isManagerRecord, nodesStore, nodeNameOf, sessionOf } from "@/store/nodes";
+import { isManagerRecord, nodesStore, nodeNameOf, sessionOf, terminalOf } from "@/store/nodes";
 import { isRunning, terminalStatusStore } from "@/store/terminalStatus";
 import { remoteBusy } from "@/agents/remoteControl";
 import { whenReady } from "./ready";
@@ -130,6 +130,8 @@ export function installMissionEvents(): () => void {
   /** Its Manager, or its Fleet for a Manager, hears how a member's terminal went: stopped, or restarted. */
   const tell = (nodeId: string, how: "stopped" | "restarted") => {
     tellFleetOfManager(nodeId, how === "stopped" ? lines().managerStopped : lines().managerRestarted);
+    // A finished member dummyPlane stopped to free its memory (`@/agents/finishedStop`): no news, its report said it all.
+    if (how === "stopped" && terminalOf(nodesStore.getState().nodes[nodeId])?.stoppedFinished) return;
     const found = memberOf(nodeId);
     if (!found) return;
     const runner = missionRunner(found.fleetId);

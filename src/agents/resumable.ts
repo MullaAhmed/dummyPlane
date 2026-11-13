@@ -6,9 +6,12 @@ import type { TerminalStatus } from "@/store/terminalStatus";
  * its task is done, and after a restart it stays stopped on its saved screen instead of taking memory again. Only
  * a click on its own node brings it back. A mission's team is the Manager's sub-agents: its members stay as they are
  * (`spawnedAtWork` draws the same line), and so does a member whose Manager is gone, found in its Fleet's mission.
+ * One whose process dummyPlane stopped once it had finished (`stoppedFinished`: `./finishedStop`), a team agent
+ * included, stays stopped all the same: new work, or an expand, starts it again.
  */
 export function isFinishedSubAgent(nodes: Record<string, NodeRecord>, id: string): boolean {
   const payload = terminalOf(nodes[id]);
+  if (payload?.stoppedFinished) return true;
   if (!payload?.spawnedBy || !payload.lastReport) return false;
   if (isManagerRecord(nodes[payload.spawnedBy])) return false;
   return !Object.values(nodes).some((record) => record.kind === "fleet" && record.payload.mission?.members.some((member) => member.nodeId === id));

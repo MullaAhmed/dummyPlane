@@ -233,6 +233,21 @@ describe("a mission its Manager runs", () => {
     ]);
   });
 
+  it("says nothing of a finished team agent dummyPlane stopped to free its memory: its report said it all", async () => {
+    await nodesStore.getState().create("robin", {
+      workspaceId: "w1",
+      kind: "terminal",
+      payload: { title: "", name: "Robin", agent: "claude", cwd: "C:/w", shell: "default", command: "", spawnedBy: "boss", lastReport: { status: "done", summary: "ok" }, stoppedFinished: true },
+    });
+    try {
+      status("robin", "exited");
+      await tick();
+      expect(sent()).toEqual([]);
+    } finally {
+      nodesStore.setState((s) => ({ nodes: Object.fromEntries(Object.entries(s.nodes).filter(([id]) => id !== "robin")) }));
+    }
+  });
+
   it("tells the Fleet, in one line each, when its Manager waits for the user or stops", async () => {
     activity("boss", "waiting");
     await vi.waitFor(() => expect(sent()).toEqual(["sitter: [dummyPlane] Manager is waiting for the user (a dialog is open in its terminal)."]));

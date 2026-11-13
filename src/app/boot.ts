@@ -14,6 +14,7 @@ import { installRedelivery } from "@/mission/redeliver";
 import { installRestartWatch } from "@/mission/restartWatch";
 import { installSubagentNodes } from "@/nodes/subagent/sync";
 import { forgetLivePty, setLivePtys } from "@/nodes/terminal/registry";
+import { installFinishedStops } from "@/agents/finishedStop";
 import { installFollowWaiting } from "@/agents/followWaiting";
 import { installWaitingAlerts } from "@/shell/waitingAlert";
 import { installFinishAlerts } from "@/shell/finishAlert";
@@ -85,6 +86,8 @@ export function boot(): Promise<void> {
     installFollowWaiting();
     installFinishAlerts();
     setLivePtys(await ptyList());
+    // Once the sessions alive in Rust are known: a finished agent still running after a webview reload stops too.
+    installFinishedStops();
     await getCurrentWindow().onCloseRequested(saveBeforeClose);
     setForgetWorkspaces(forgetWorkspaces);
     syncWindowTitle();

@@ -17,7 +17,8 @@ export const STATUS_TEXT = "flex shrink-0 items-center gap-2 text-xs text-dp-tex
  * `labelClassName` lets a narrow header take the word back to the screen
  * readers and the tooltip, the dot alone staying. `report` is the agent's last
  * report: once it rests it reads Done, Blocked or Failed (pillOf). `shell`: a plain console, never
- * Working nor Waiting (pillActivity).
+ * Working nor Waiting (pillActivity). `asleep`: a finished agent whose process dummyPlane stopped to free its
+ * memory: it still reads its report, its tooltip says why it is stopped.
  */
 export function StatusPill(props: {
   status: TerminalStatus;
@@ -26,20 +27,23 @@ export function StatusPill(props: {
   report?: TerminalReportStatus;
   labelClassName?: string;
   shell?: boolean;
+  asleep?: boolean;
 }) {
-  const { status, activity, indigo, report, labelClassName, shell } = props;
+  const { status, activity, indigo, report, labelClassName, shell, asleep = false } = props;
   const now = useNow(15_000);
   const t = useMessages(nodesMessages).pill;
   const running = status.state === "running";
-  const pill = pillOf(status, pillActivity(status, activity, shell), indigo, report);
+  const pill = pillOf(status, pillActivity(status, activity, shell), indigo, report, asleep);
   const title =
-    status.state === "error"
-      ? status.message
-      : running && activity
-        ? t.since(pill.label, formatDuration(now - activity.since))
-        : labelClassName
-          ? pill.label
-          : undefined;
+    asleep && !running && pill.report
+      ? t.asleep(pill.label)
+      : status.state === "error"
+        ? status.message
+        : running && activity
+          ? t.since(pill.label, formatDuration(now - activity.since))
+          : labelClassName
+            ? pill.label
+            : undefined;
   return (
     <span title={title} data-report={pill.report} className={STATUS_TEXT}>
       <StatusDot state={DOT_OF_TONE[pill.tone]} />

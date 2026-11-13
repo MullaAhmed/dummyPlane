@@ -23,6 +23,7 @@ import { outReport } from "@/mcp/protocol";
 import { nodeNameOf, nodesStore, sessionOf, terminalOf } from "@/store/nodes";
 import { isRunning } from "@/store/terminalStatus";
 import { markLaunching } from "@/agents/spawnFamily";
+import { wakeable, wakeFinished, wakingUp } from "@/agents/finishedStop";
 import { activeCount, freeSeat, handingOver, hasSeat, holdSeat, oneAtATime } from "./active";
 import { notify } from "./events";
 import { missionFolder } from "./folder";
@@ -533,6 +534,8 @@ export async function reassignTask(fleetId: string, fromNodeId: string, target: 
     return holder?.abandoned ? r.abandoned(holder.task, titles) : t().fleet.noSubtask(holder?.task ?? "", titles);
   }
   let to: Member;
+  // A finished member dummyPlane stopped to free its memory starts again on its conversation for the sub-task (`@/agents/finishedStop`).
+  let asleep = false;
   if (sameName(target, NEW_AGENT)) {
     if (!canvasKnown(fleetId)) return r.hidden;
     // Max agents caps the agents at work, not the team: those who reported or handed over count no more. From an
@@ -556,8 +559,9 @@ export async function reassignTask(fleetId: string, fromNodeId: string, target: 
     const found = mission.members.find((m) => sameName(m.name, target) && m.nodeId !== from.nodeId && !m.handedTo);
     if (!found) return r.notOther(target);
     if (!found.report) return r.notDone(found.name);
-    // A stopped session would only say "did not start" a minute later.
-    if (!isRunning(found.nodeId)) return r.targetStopped(found.name);
+    asleep = wakingUp(found.nodeId) !== undefined || wakeable(found.nodeId);
+    // Any other stopped session would only say "did not start" a minute later.
+    if (!isRunning(found.nodeId) && !asleep) return r.targetStopped(found.name);
     // Its entry takes the new sub-task: its finished work must be in the mission's branch first (final review H3).
     const finished = found.report.status === "termine";
     if (finished && !found.merged) return r.notMerged(found.name, found.task);
@@ -594,6 +598,8 @@ export async function reassignTask(fleetId: string, fromNodeId: string, target: 
       () => undefined,
     );
   }
-  void assign(fleetId, to, withTicketNote(fleetId, mission, withTeamNote(mission, subTaskText(mission.name ?? "", task, to.branch, handoverText(from))), task));
+  // Started again once it holds the sub-task: its relaunch's start finds it waiting to be typed, not a stopped member to tell of.
+  const restarted = asleep ? (wakingUp(to.nodeId) ?? wakeFinished(to.nodeId)).then(() => undefined) : undefined;
+  void assign(fleetId, to, withTicketNote(fleetId, mission, withTeamNote(mission, subTaskText(mission.name ?? "", task, to.branch, handoverText(from))), task), restarted);
   return { name: to.name };
 }

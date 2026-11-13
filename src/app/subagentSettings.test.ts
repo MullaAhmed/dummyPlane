@@ -8,6 +8,7 @@ import {
   loadSubagentSettings,
   readMaxSpawned,
   setMaxSpawned,
+  setStopFinished,
   setSubagentTerminalsSetting,
   subagentSettingsStore,
 } from "./subagentSettings";
@@ -38,18 +39,19 @@ afterEach(() => {
 });
 
 describe("the sub-agent settings", () => {
-  it("open sub-agents as terminals, six at once at most, until changed", () => {
+  it("open sub-agents as terminals, six at once at most, and stop finished ones, until changed", () => {
     expect(DEFAULT_MAX_SPAWNED).toBe(6);
-    expect(subagentSettingsStore.getInitialState()).toEqual({ terminals: true, maxSpawned: 6 });
+    expect(subagentSettingsStore.getInitialState()).toEqual({ terminals: true, maxSpawned: 6, stopFinished: true });
   });
 
   it("read the saved choices at boot and tell the hooks whether to deny the built-in sub-agents", async () => {
-    backend({ "agents.subagentTerminals": false, "agents.maxSpawned": 4 });
+    backend({ "agents.subagentTerminals": false, "agents.maxSpawned": 4, "agents.stopFinished": false });
     await loadSubagentSettings();
-    expect(subagentSettingsStore.getState()).toEqual({ terminals: false, maxSpawned: 4 });
+    expect(subagentSettingsStore.getState()).toEqual({ terminals: false, maxSpawned: 4, stopFinished: false });
     expect(calls.filter(([cmd]) => cmd === "get_setting").map(([, args]) => args)).toEqual([
       { key: "agents.subagentTerminals" },
       { key: "agents.maxSpawned" },
+      { key: "agents.stopFinished" },
     ]);
     expect(pushed()).toEqual([{ on: false }]);
     // Told once the settings are read, so the hooks follow what was saved.
@@ -59,14 +61,15 @@ describe("the sub-agent settings", () => {
   it("keep the defaults when nothing was saved, and push them too", async () => {
     backend();
     await loadSubagentSettings();
-    expect(subagentSettingsStore.getState()).toEqual({ terminals: true, maxSpawned: 6 });
+    expect(subagentSettingsStore.getState()).toEqual({ terminals: true, maxSpawned: 6, stopFinished: true });
     expect(pushed()).toEqual([{ on: true }]);
   });
 
   it("take only a saved false for off", async () => {
-    backend({ "agents.subagentTerminals": "off" });
+    backend({ "agents.subagentTerminals": "off", "agents.stopFinished": 0 });
     await loadSubagentSettings();
     expect(subagentSettingsStore.getState().terminals).toBe(true);
+    expect(subagentSettingsStore.getState().stopFinished).toBe(true);
     expect(pushed()).toEqual([{ on: true }]);
   });
 
@@ -80,10 +83,10 @@ describe("the sub-agent settings", () => {
 
   it("keep the defaults when the settings cannot be read, and still push them", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
-    subagentSettingsStore.setState({ terminals: true, maxSpawned: 6 });
+    subagentSettingsStore.setState({ terminals: true, maxSpawned: 6, stopFinished: true });
     backend({}, ["get_setting"]);
     await expect(loadSubagentSettings()).resolves.toBeUndefined();
-    expect(subagentSettingsStore.getState()).toEqual({ terminals: true, maxSpawned: 6 });
+    expect(subagentSettingsStore.getState()).toEqual({ terminals: true, maxSpawned: 6, stopFinished: true });
     expect(pushed()).toEqual([{ on: true }]);
     expect(warn).toHaveBeenCalledWith(expect.stringContaining("sub-agent settings"));
   });
@@ -128,6 +131,17 @@ describe("changing them", () => {
     expect(subagentSettingsStore.getState().maxSpawned).toBe(DEFAULT_MAX_SPAWNED);
     expect(savedSettings()[1]).toEqual({ key: "agents.maxSpawned", value: DEFAULT_MAX_SPAWNED });
     // The cap does not reach the hooks.
+    expect(pushed()).toEqual([]);
+  });
+
+  it("turning the stop of finished agents off applies at once and saves the choice, never told to the hooks", async () => {
+    backend();
+    await setStopFinished(false);
+    expect(subagentSettingsStore.getState().stopFinished).toBe(false);
+    expect(savedSettings()).toEqual([{ key: "agents.stopFinished", value: false }]);
+    await setStopFinished(true);
+    expect(subagentSettingsStore.getState().stopFinished).toBe(true);
+    expect(savedSettings()[1]).toEqual({ key: "agents.stopFinished", value: true });
     expect(pushed()).toEqual([]);
   });
 

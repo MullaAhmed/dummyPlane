@@ -267,6 +267,7 @@ export function TerminalHeader(props: {
             activity={activity}
             indigo={meta.tint === INDIGO}
             report={payload.lastReport?.status}
+            asleep={payload.stoppedFinished === true}
             labelClassName="@max-xs/head:sr-only"
             shell={payload.agent === "shell"}
           />

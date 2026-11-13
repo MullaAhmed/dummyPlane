@@ -83,4 +83,19 @@ describe("after a restart, finished sub-agents stay stopped", () => {
     const offer = workspaceResumeOffer(more, { running: { state: "running" } }, "w1", new Set(["reattached"]), onScene);
     expect(offer.stayStopped).toEqual(["done", "fleetChild"]);
   });
+
+  it("leaves stopped a finished agent whose process dummyPlane stopped, a mission's team agent included: it is no unfinished work", () => {
+    const more: Record<string, NodeRecord> = {
+      ...nodes,
+      // Its Manager's team agent, stopped once it reported done (`./finishedStop`).
+      asleepMember: terminal({ name: "Athena", spawnedBy: "manager", lastReport: report, stoppedFinished: true }),
+      asleep: terminal({ name: "Raven", spawnedBy: "top", lastReport: report, stoppedFinished: true }),
+    };
+    expect(isFinishedSubAgent(more, "asleepMember")).toBe(true);
+    const offer = workspaceResumeOffer(more, {}, "w1", new Set(), new Set(Object.keys(more)));
+    expect(offer.resume).not.toContain("asleepMember");
+    expect(offer.stayStopped).toEqual(["done", "fleetChild", "asleepMember", "asleep"]);
+    // Stopped since in this run, it reads exited: the offer never takes it either.
+    expect(workspaceResumeOffer(more, { asleepMember: { state: "exited", code: 1 } }, "w1", new Set(), new Set(Object.keys(more))).resume).not.toContain("asleepMember");
+  });
 });

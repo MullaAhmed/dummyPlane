@@ -74,6 +74,12 @@ export interface TerminalPayload {
   expandedWidth?: number;
   /** What its agent last said with `report`, shown on its card. */
   lastReport?: TerminalReport;
+  /**
+   * A finished sub-agent whose process dummyPlane stopped to free its memory (`@/agents/finishedStop`): its card
+   * still reads its report, "Resume all" leaves it stopped, and new work or an expand starts it again on its own
+   * conversation. Cleared once its process runs again.
+   */
+  stoppedFinished?: true;
   /** Its message bar, folded unless the user opened it (an agent's foot). */
   inputOpen?: boolean;
   /** Claude only: the skills, plugins, MCP servers and subagents it turns off or on, read at its next launch. */
@@ -351,6 +357,7 @@ export function readTerminalPayload(raw: unknown): TerminalPayload | null {
   if (typeof r.expandedHeight === "number" && Number.isFinite(r.expandedHeight) && r.expandedHeight > 0) payload.expandedHeight = r.expandedHeight;
   if (typeof r.expandedWidth === "number" && Number.isFinite(r.expandedWidth) && r.expandedWidth > 0) payload.expandedWidth = r.expandedWidth;
   if (lastReport) payload.lastReport = lastReport;
+  if (r.stoppedFinished === true) payload.stoppedFinished = true;
   const extensions = readExtensionChoice(r.extensions);
   if (extensions) payload.extensions = extensions;
   const launched = readLaunchSettings(r.launched);

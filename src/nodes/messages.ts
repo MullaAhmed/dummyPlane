@@ -28,6 +28,8 @@ export const nodesMessages = defineMessages(
       error: "Error",
       toolsUnavailable: "Tools unavailable",
       since: (label: string, duration: string) => `${label} for ${duration}`,
+      // A finished agent whose process dummyPlane stopped (`@/agents/finishedStop`): an expand or new work starts it again.
+      asleep: (label: string) => `${label} · stopped to free memory, expand to resume`,
     },
     resumeCard: {
       resumeTitle: "Resume the last conversation?",

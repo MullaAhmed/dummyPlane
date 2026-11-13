@@ -56,7 +56,8 @@ export const agentMessages = defineMessages({
       messageAgent:
         "Send a message to a linked agent: it is typed into its terminal and submitted, as \"[dummyPlane] Message from <your name> …: <text>\". " +
         "An answer, if any, arrives in your terminal the same way: do not wait or poll for it. " +
-        "To give new work to a sub-agent of yours that has reported, pass a title for that work: its terminal then shows the new task, not the one it finished.",
+        "To give new work to a sub-agent of yours that has reported, pass a title for that work: its terminal then shows the new task, not the one it finished. " +
+        "A finished agent whose session dummyPlane stopped to free memory starts again on its own conversation, and gets the message once its session is ready.",
       linkedAgent: "The linked agent's name (or its id), as linked_agents gives it.",
       messageText: "The message, on one line.",
       messageTitle:
@@ -142,7 +143,8 @@ export const agentMessages = defineMessages({
       team: "Fleet and Manager. Each agent of the mission: group and speciality, sub-task, state (working, waiting, idle, stopped, or restarting while its terminal starts again), steps, time spent / budget, report, and whether next_task abandoned its task (abandoned). Read-only.",
       readOutput: "Manager (or the Fleet of a mission run the old way). The end of a mission agent's terminal, as plain text.",
       write:
-        "Manager (or the Fleet of a mission run the old way). Type a message into a mission agent's terminal (a nudge, a precision). Refused while it waits for the user's answer, and while dummyPlane still waits for its session to open to type its sub-task. After \"<name> is not ready … its sub-task is not sent\", what you write is its sub-task; after \"did not start\", dummyPlane types it itself once its terminal runs again (relaunch).",
+        "Manager (or the Fleet of a mission run the old way). Type a message into a mission agent's terminal (a nudge, a precision). Refused while it waits for the user's answer, and while dummyPlane still waits for its session to open to type its sub-task. After \"<name> is not ready … its sub-task is not sent\", what you write is its sub-task; after \"did not start\", dummyPlane types it itself once its terminal runs again (relaunch). " +
+        "An agent that reported done and whose session dummyPlane stopped to free memory starts again on its own conversation, and gets the text once its session is ready; reassign to it does the same.",
       extend: "Manager (or the Fleet of a mission run the old way). Add minutes to a mission agent's budget; overnight, its new target must end before the night does, which is real time.",
       interrupt: "Manager (or the Fleet of a mission run the old way). Stop the turn of an agent at work (Esc), like \"Pause\"; write \"continue\" resumes it.",
       relaunch:
@@ -236,6 +238,12 @@ export const agentMessages = defineMessages({
       toManager: (from: string, text: string) => `Message from ${from} (a team agent; answer with write only if it calls for an answer): ${text}`,
       sent: (name: string) => `Sent to ${name}. An answer, if any, will be typed into your terminal: carry on, do not wait for it.`,
       held: (name: string) => `${name} is waiting for the user's answer to a dialog: your message is typed as soon as it is answered.`,
+      // A finished agent dummyPlane stopped to free memory (`@/agents/finishedStop`): started again for the message.
+      waking: (name: string) =>
+        `${name} had finished, and dummyPlane stopped its session to free memory: it starts again on its own conversation, and your message is typed once its session is ready. An answer, if any, will be typed into your terminal: carry on, do not wait for it.`,
+      notWoken: (name: string) => `${name} did not start again, or its session did not open: your message was not sent.`,
+      wakeSlow: (name: string) =>
+        `${name}'s session has not opened after a minute: a question may be waiting for the user in its terminal (only the user answers it). dummyPlane types your message as soon as it opens: do not send it again.`,
       emptyTerminal: "(empty terminal)",
     },
     /** show_output and output_guide (`@/nodes/output/show`). */
@@ -417,6 +425,10 @@ export const agentMessages = defineMessages({
       stopped: (name: string) => `${name} is stopped: relaunch starts it again on its own conversation, then write reaches it.`,
       waiting: (name: string) => `${name} is waiting for the user's answer: that dialog is for them, tell them about it.`,
       written: (name: string) => `Written to ${name}.`,
+      // A finished member dummyPlane stopped to free memory (`@/agents/finishedStop`): started again for the text.
+      wakingWrite: (name: string) =>
+        `${name} had finished, and dummyPlane stopped its session to free memory: it starts again on its own conversation, and your text is written once its session is ready.`,
+      notWokenWrite: (name: string) => `${name} did not start again, or its session did not open: your text was not written. relaunch starts it again.`,
       notYetSent: (name: string) =>
         `Nothing written: ${name}'s session has not opened yet, and dummyPlane types its sub-task as soon as it does. If a question waits in its terminal (read_output), only the user answers it.`,
       noMission: "No mission under way.",

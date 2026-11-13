@@ -37,7 +37,16 @@ vi.mock("@/ipc/pty", async (importOriginal) => ({
   ptySendText: vi.fn(() => Promise.resolve()),
   ptyWrite: vi.fn(() => Promise.resolve()),
 }));
-vi.mock("@/nodes/terminal/registry", () => ({ relaunchTerminal: vi.fn(), stopTerminal: vi.fn(), quietFor: vi.fn(() => 0), typedAgo: vi.fn(() => Infinity), freshText: vi.fn(() => ""), markForAutostart: vi.fn() }));
+vi.mock("@/nodes/terminal/registry", () => ({
+  relaunchTerminal: vi.fn(),
+  stopTerminal: vi.fn(),
+  quietFor: vi.fn(() => 0),
+  typedAgo: vi.fn(() => Infinity),
+  freshText: vi.fn(() => ""),
+  markForAutostart: vi.fn(),
+  isLiveInRust: vi.fn(() => false),
+  xtermOf: vi.fn(),
+}));
 vi.mock("@/agents/groups", () => ({ launchGroup: vi.fn(), closeGroup: vi.fn(), closeStoredGroup: vi.fn(), showGroups: vi.fn() }));
 vi.mock("@/fleet/fleets", () => ({ linkFleet: vi.fn() }));
 vi.mock("@/agents/terminals", () => ({ addTerminal: vi.fn(() => Promise.resolve("n9")), removeNodes: vi.fn(), removeFromStoredScene: vi.fn() }));
@@ -987,6 +996,29 @@ describe("reassignTask", () => {
     expect(await reassignTask("chef", "batman", "Aquaman")).toContain("is stopped");
     expect(missionNow().members[0].handedTo).toBeUndefined();
     expect(pauseAgents).not.toHaveBeenCalled();
+  });
+
+  it("starts again on its own conversation a finished agent dummyPlane stopped to free its memory, then types the sub-task", async () => {
+    await team();
+    await nodesStore.getState().create("n1", {
+      workspaceId: "w1",
+      kind: "terminal",
+      payload: { ...session, role: undefined, name: "Aquaman", claudeSessionId: "s-aquaman", spawnedBy: "m1", lastReport: { status: "done", summary: "API faite" }, minimized: true, stoppedFinished: true },
+    });
+    terminalStatusStore.getState().set("n1", { state: "exited", code: 1 });
+    vi.mocked(relaunchTerminal).mockImplementationOnce(async (id) => terminalStatusStore.getState().set(id, { state: "running" }));
+    // Closed by the user, its record kept for Ctrl+Z: it stays stopped.
+    canvasStore.setState({ api: { getSceneElementsIncludingDeleted: () => [{ id: "n1", isDeleted: true }] } as never });
+    expect(await reassignTask("chef", "batman", "Aquaman")).toContain("is stopped");
+    expect(relaunchTerminal).not.toHaveBeenCalled();
+    canvasStore.setState({ api: { getSceneElementsIncludingDeleted: () => [{ id: "n1", isDeleted: false }] } as never });
+    expect(await reassignTask("chef", "batman", "Aquaman")).toEqual({ name: "Aquaman" });
+    expect(relaunchTerminal).toHaveBeenCalledExactlyOnceWith("n1", expect.objectContaining({ claudeSessionId: "s-aquaman" }), "resume");
+    expect(missionNow().members[1]).toMatchObject({ task: "Login", report: undefined });
+    await vi.waitFor(() => expect(ptySendText).toHaveBeenCalledWith("n1", expect.stringContaining("Taking over Batman's work")));
+    // Typed once its session runs, never into its shell before.
+    const typed = vi.mocked(ptySendText).mock.calls.findIndex(([id]) => id === "n1");
+    expect(vi.mocked(relaunchTerminal).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(ptySendText).mock.invocationCallOrder[typed]);
   });
 
   it("opens a new agent in the place of one at work on a full team: its seat goes with the sub-task (review 12 Nov)", async () => {
