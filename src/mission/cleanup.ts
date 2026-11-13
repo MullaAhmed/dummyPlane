@@ -1,5 +1,6 @@
 import { toast } from "sonner";
 import { toastError } from "@/lib/errorToast";
+import { cutWhole } from "@/lib/cut";
 import { messages } from "@/i18n";
 import { missionCleanupUnsaved } from "@/ipc/mission";
 import { columnOf } from "@/kanban/board";
@@ -100,6 +101,6 @@ export async function cleanUpFinished(fleetId: string): Promise<FleetCleanup> {
     else toast(messages(missionMessages).cleanedByFleet(name));
   });
   const lines = [f.cleanedUp(name, branch, typeof result === "string" ? [] : result.kept, failure)];
-  if (summary || checks.length > 0) lines.push(f.cleanedSummary(summary.length > MAX_SUMMARY ? `${summary.slice(0, MAX_SUMMARY)}…` : summary, checks));
+  if (summary || checks.length > 0) lines.push(f.cleanedSummary(summary.length > MAX_SUMMARY ? `${cutWhole(summary, MAX_SUMMARY)}…` : summary, checks));
   return { cleaned: true, text: lines.join(" ") };
 }

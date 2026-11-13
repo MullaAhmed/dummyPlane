@@ -554,6 +554,14 @@ export async function reassignTask(fleetId: string, fromNodeId: string, target: 
       handingOver.delete(from.nodeId);
     }
     if (typeof made === "string") return made;
+    // Stopped or ended meanwhile, as in the queue: its team is gone, this one would sit idle in its worktree, and a
+    // mission no longer running takes no member, nor pauses its linked agent gone back to the project. Its sub-task
+    // never comes: it is no longer launching, or it would count as at work.
+    if (missionOf(nodesStore.getState().nodes[fleetId])?.state !== "en_cours") {
+      stopTerminal(made.nodeId);
+      markLaunching(made.nodeId, false);
+      return r.noMission;
+    }
     to = made;
   } else {
     const found = mission.members.find((m) => sameName(m.name, target) && m.nodeId !== from.nodeId && !m.handedTo);

@@ -36,6 +36,11 @@ describe("an error's detail, as a toast's last line shows it", () => {
     expect(detail.length).toBe(MAX_DETAIL);
     expect(detail.endsWith("…")).toBe(true);
   });
+
+  it("never stops inside an emoji: half of one is a character Rust refuses in JSON", () => {
+    // 🎉 straddles the cut: its first half would be the last unit kept.
+    expect(errorDetail(`${"x".repeat(MAX_DETAIL - 2)}🎉 and more`)).toBe(`${"x".repeat(MAX_DETAIL - 2)}…`);
+  });
 });
 
 /** The description sonner was given, as markup. */
