@@ -232,7 +232,7 @@ fn unreadable(detail: impl std::fmt::Display) -> AppError {
 }
 
 /// Runs `gh` in `path`; a missing CLI, a missing login and a failed call each say so.
-fn gh(path: &Path, args: &[&str]) -> AppResult<String> {
+pub(crate) fn gh(path: &Path, args: &[&str]) -> AppResult<String> {
     let program = crate::pty::shell::which_locate("gh").ok_or_else(|| {
         AppError::Github("GitHub CLI (gh) not found: install it (https://cli.github.com) then run `gh auth login`.".to_string())
     })?;
