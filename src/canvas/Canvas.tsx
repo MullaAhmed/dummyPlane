@@ -29,7 +29,7 @@ import { isAlive } from "@/store/terminalStatus";
 import { uiStore } from "@/store/ui";
 import { setActiveTerminal } from "./activeTerminal";
 import { createActivationTracker } from "./activation";
-import { canvasStore, fullSizeView, viewFrom } from "./canvasStore";
+import { canvasStore, EMPTY_VIEW, fullSizeView, viewFrom } from "./canvasStore";
 import { installDoubleClickSelect } from "./doubleClickSelect";
 import { scheduleEraserGuard } from "./eraserGuard";
 import { framesFromScene } from "./groups";
@@ -181,6 +181,10 @@ function LoadedCanvas({ workspaceId, scene }: { workspaceId: string; scene: Load
       canvasStore.getState().setWires([]);
       canvasStore.getState().setDrawnSelection([]);
       canvasStore.getState().setNoteHosts({});
+      // What belongs to this canvas alone: its selection, its tool, its mode and the frame it was renaming. The place
+      // and the size stay, as what is placed or drawn next reads them with no guard against a zero size.
+      const { view } = canvasStore.getState();
+      canvasStore.getState().setView({ ...view, selectedIds: [], tool: EMPTY_VIEW.tool, mode: null, editingFrame: null });
       // Emptied: the next change derives them again, even a pan's.
       derive.reset();
     },
