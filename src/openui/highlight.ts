@@ -42,12 +42,14 @@ export function highlight(code: string, language: string, palette: ThemeChoice):
   if (!support) return null;
   const specs = syntaxSpecs(palette);
   const highlighter = tagHighlighter(specs.map((spec, i) => ({ tag: spec.tag, class: `s${i}` })));
+  // A token inside another (emphasis in a quote, in a heading) has both classes: each adds what it sets, as CSS
+  // classes would, and a style one leaves unset never clears the other's.
   const styleOf = (classes: string): CSSProperties =>
     Object.assign(
       {},
       ...classes.split(" ").map((name) => {
         const { color, fontStyle, fontWeight, textDecoration } = specs[Number(name.slice(1))] as { color?: string; fontStyle?: string; fontWeight?: string; textDecoration?: string };
-        return { color, fontStyle, fontWeight, textDecoration };
+        return Object.fromEntries(Object.entries({ color, fontStyle, fontWeight, textDecoration }).filter(([, value]) => value !== undefined));
       }),
     );
   const lines: Token[][] = [[]];

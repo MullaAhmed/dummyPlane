@@ -41,6 +41,11 @@ interface State {
   lastRunAt: number | null;
   /** Output trigger: whether each target's screen showed the text at the last look. */
   matched: Map<string, boolean>;
+  /**
+   * Output trigger: the targets whose text appeared and has not reached them yet. It goes once the pause is over and
+   * the agent can take it (not at work, not waiting, its prompt up), if the text is still on screen by then.
+   */
+  pending: Set<string>;
   /** Idle trigger: the targets that just became idle. */
   idle: Set<string>;
   busy: boolean;
@@ -84,6 +89,7 @@ export function createLoopEngine(deps: EngineDeps, onChange: (id: string, runtim
       nextAt: def.trigger.kind === "interval" ? now + def.trigger.minutes * 60_000 : 0,
       lastRunAt: null,
       matched: new Map(),
+      pending: new Set(),
       idle: new Set(),
       busy: false,
     };
@@ -93,10 +99,10 @@ export function createLoopEngine(deps: EngineDeps, onChange: (id: string, runtim
     publish(state);
   }
 
-  /** One send to `ids`; counted only if it reached someone. */
-  async function run(state: State, ids: string[]) {
+  /** One send to `ids`; counted only if it reached someone, and says whether it did. */
+  async function run(state: State, ids: string[]): Promise<boolean> {
     const targets = ids.filter((id) => deps.isLive(id) && deps.isAgent(id) && deps.activityOf(id) !== "waiting" && deps.canReceive(id));
-    if (targets.length === 0 || state.busy) return;
+    if (targets.length === 0 || state.busy) return false;
     state.busy = true;
     state.lastRunAt = deps.now();
     try {
@@ -106,14 +112,19 @@ export function createLoopEngine(deps: EngineDeps, onChange: (id: string, runtim
         publish(state);
         if (state.def.maxRuns !== undefined && state.runtime.runs >= state.def.maxRuns) stop(state.def.id, "runs");
       }
+      return sent > 0;
     } catch {
       // A dead agent: not a run, and the loop goes on to its next trigger or stop.
+      return false;
     } finally {
       state.busy = false;
     }
   }
 
   const cooledDown = (state: State) => state.lastRunAt === null || deps.now() - state.lastRunAt >= COOLDOWN_MS;
+
+  /** The agent can take an instruction now: not at work, not waiting for the user, its prompt up. */
+  const free = (id: string) => deps.activityOf(id) !== "working" && deps.activityOf(id) !== "waiting" && deps.canReceive(id);
 
   async function check(state: State) {
     const { def } = state;
@@ -140,12 +151,14 @@ export function createLoopEngine(deps: EngineDeps, onChange: (id: string, runtim
       await run(state, [fired]);
     } else {
       for (const id of targets) {
-        const now = shows(deps.screenOf(id), trigger.text);
-        // Held while the pause lasts: the text is still new when it ends.
-        if (now && state.matched.get(id) !== true && !cooledDown(state)) continue;
-        const appeared = now && state.matched.get(id) !== true;
-        state.matched.set(id, now);
-        if (appeared && state.runtime.running) await run(state, [id]);
+        const shown = shows(deps.screenOf(id), trigger.text);
+        // Each appearance waits to reach its agent; a text gone from the lines watched takes its wait with it.
+        if (shown && state.matched.get(id) !== true) state.pending.add(id);
+        if (!shown) state.pending.delete(id);
+        state.matched.set(id, shown);
+        // Held while the pause lasts and while the agent is at work, waits or cannot take it: sent once it can.
+        if (!state.pending.has(id) || !cooledDown(state) || !free(id) || !state.runtime.running) continue;
+        if (await run(state, [id])) state.pending.delete(id);
       }
     }
   }
