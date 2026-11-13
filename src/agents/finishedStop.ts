@@ -1,15 +1,16 @@
 import { subagentSettingsStore } from "@/app/subagentSettings";
-import { ptyWrite } from "@/ipc/pty";
+import { ptyResize, ptyWrite } from "@/ipc/pty";
 import { moving } from "@/mission/active";
 import { pendingEvents } from "@/mission/events";
 import { whenReady } from "@/mission/ready";
 import { missionOf } from "@/mission/store";
 import { canResume, relaunchMode } from "@/nodes/terminal/launch";
-import { freshText, hasFocus, isLiveInRust, quietFor, relaunchTerminal, stopTerminal, touchedAgo } from "@/nodes/terminal/registry";
+import { freshText, hasFocus, isLiveInRust, quietFor, relaunchTerminal, stopTerminal, touchedAgo, xtermOf } from "@/nodes/terminal/registry";
 import type { TerminalPayload, TerminalReport } from "@/nodes/types";
 import { agentActivityStore } from "@/store/agentActivity";
 import { isManagerRecord, nodesStore, terminalOf, type NodeRecord } from "@/store/nodes";
 import { isRestarting, isRunning, terminalStatusStore, waitForExit } from "@/store/terminalStatus";
+import { sceneAccess } from "./sceneAccess";
 import { hasSpawnedAtWork, isLaunching } from "./spawnFamily";
 
 /**
@@ -150,16 +151,25 @@ async function wake(nodeId: string, slow?: () => void): Promise<boolean> {
   if (isRestarting(nodeId)) await restartEnded(nodeId);
   else if (!isRunning(nodeId)) await relaunchTerminal(nodeId, payload, relaunchMode(payload));
   if (!isRunning(nodeId)) return false;
-  return whenReady({
-    running: () => isRunning(nodeId),
-    quietMs: () => quietFor(nodeId),
-    screen: () => freshText(nodeId, 50),
-    press: (keys) => ptyWrite(nodeId, keys),
-    agent: payload.agent,
-    // A question only the user answers (a project's new MCP server) may hold its prompt past the minute.
-    waitLonger: () => isRunning(nodeId),
-    slow,
-  });
+  // Its process learns the grid its xterm has now: a card never laid out since the app started spawns it at 80×24,
+  // and the expand's layout may come while it is still being spawned, with nothing to resize.
+  const term = xtermOf(nodeId);
+  if (term) void ptyResize(nodeId, term.cols, term.rows).catch(() => undefined);
+  return whenReady(
+    {
+      running: () => isRunning(nodeId),
+      quietMs: () => quietFor(nodeId),
+      screen: () => freshText(nodeId, 50),
+      press: (keys) => ptyWrite(nodeId, keys),
+      agent: payload.agent,
+      // A question only the user answers (a project's new MCP server) may hold its prompt past the minute.
+      waitLonger: () => isRunning(nodeId),
+      slow,
+    },
+    undefined,
+    // Its folder was trusted when it first started; its resumed conversation may well say "trust" and "folder".
+    false,
+  );
 }
 
 /**
@@ -190,13 +200,23 @@ export function wakingUp(nodeId: string): Promise<boolean> | undefined {
 /**
  * A stopped finished agent that new work starts again on its conversation: one this feature stopped
  * (`stoppedFinished`), or, for its parent `parentId`, a sub-agent of its that reported and stopped since (an app
- * restart leaves finished sub-agents stopped: `@/agents/resumable`). Never one alive in Rust, not attached yet.
+ * restart leaves finished sub-agents stopped: `@/agents/resumable`). Never one alive in Rust, not attached yet, nor
+ * one the user closed: its record stays for Ctrl+Z, and starting it would bring back the memory it freed.
  */
 export function wakeable(nodeId: string, parentId?: string): boolean {
   const payload = terminalOf(nodesStore.getState().nodes[nodeId]);
   if (!payload || !canResume(payload)) return false;
   const finishedOne = wakes.has(nodeId) || payload.stoppedFinished === true || (parentId !== undefined && payload.spawnedBy === parentId && payload.lastReport !== undefined);
-  return finishedOne && !alive(nodeId);
+  return finishedOne && !alive(nodeId) && !closed(nodeId);
+}
+
+/** Whether the user closed the node: its element is deleted. A scene never read says nothing, as `relaunch` reads it. */
+function closed(nodeId: string): boolean {
+  const record = nodesStore.getState().nodes[nodeId];
+  const scene = record ? sceneAccess(record.workspaceId) : null;
+  if (!scene) return false;
+  const element = scene.elements().find((e) => e.id === nodeId);
+  return element === undefined || element.isDeleted;
 }
 
 /**

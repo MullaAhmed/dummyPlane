@@ -243,6 +243,8 @@ describe("new work for a sub-agent that reported", () => {
     expect(payloadOf("aquaman")).toMatchObject({ title: FINISHED.title, task: FINISHED.task });
     nodesStore.getState().update("aquaman", { lastReport: FINISHED.lastReport });
     terminalStatusStore.getState().set("aquaman", { state: "stopped" });
+    // Refused, not started again: it has no conversation to take up (no Claude session id). With one, its parent's
+    // message wakes it (below, "to a finished sub-agent whose session dummyPlane stopped").
     expect((await call("batman", "message_agent", { agent: "Aquaman", text: NEW_WORK, title: "007 mint.py tests" })).isError).toBe(true);
     expect(payloadOf("aquaman")).toMatchObject({ title: FINISHED.title, task: FINISHED.task });
     expect(sendCommand).not.toHaveBeenCalled();

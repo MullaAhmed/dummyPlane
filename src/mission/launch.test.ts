@@ -45,6 +45,7 @@ vi.mock("@/nodes/terminal/registry", () => ({
   freshText: vi.fn(() => ""),
   markForAutostart: vi.fn(),
   isLiveInRust: vi.fn(() => false),
+  xtermOf: vi.fn(),
 }));
 vi.mock("@/agents/groups", () => ({ launchGroup: vi.fn(), closeGroup: vi.fn(), closeStoredGroup: vi.fn(), showGroups: vi.fn() }));
 vi.mock("@/fleet/fleets", () => ({ linkFleet: vi.fn() }));
@@ -1006,6 +1007,11 @@ describe("reassignTask", () => {
     });
     terminalStatusStore.getState().set("n1", { state: "exited", code: 1 });
     vi.mocked(relaunchTerminal).mockImplementationOnce(async (id) => terminalStatusStore.getState().set(id, { state: "running" }));
+    // Closed by the user, its record kept for Ctrl+Z: it stays stopped.
+    canvasStore.setState({ api: { getSceneElementsIncludingDeleted: () => [{ id: "n1", isDeleted: true }] } as never });
+    expect(await reassignTask("chef", "batman", "Aquaman")).toContain("is stopped");
+    expect(relaunchTerminal).not.toHaveBeenCalled();
+    canvasStore.setState({ api: { getSceneElementsIncludingDeleted: () => [{ id: "n1", isDeleted: false }] } as never });
     expect(await reassignTask("chef", "batman", "Aquaman")).toEqual({ name: "Aquaman" });
     expect(relaunchTerminal).toHaveBeenCalledExactlyOnceWith("n1", expect.objectContaining({ claudeSessionId: "s-aquaman" }), "resume");
     expect(missionNow().members[1]).toMatchObject({ task: "Login", report: undefined });

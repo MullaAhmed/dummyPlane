@@ -411,6 +411,7 @@ describe("the fleet's tools", () => {
       vi.mocked(notify).mockClear();
       nodesStore.getState().update("batman", { claudeSessionId: "s-batman", stoppedFinished: true });
       terminalStatusStore.getState().set("batman", { state: "exited", code: 1 });
+      canvasStore.setState({ api: { getSceneElements: () => [], getSceneElementsIncludingDeleted: () => [{ id: "batman", isDeleted: false }] } as never });
       let wake!: (ready: boolean) => void;
       vi.mocked(wakeFinished).mockImplementationOnce(() => new Promise<boolean>((resolve) => (wake = resolve)));
       try {
@@ -431,7 +432,13 @@ describe("the fleet's tools", () => {
           expect(notify).toHaveBeenCalledWith("chef", "Batman did not start again, or its session did not open: your text was not written. relaunch starts it again."),
         );
         expect(ptySendText).not.toHaveBeenCalledWith("batman", "Again");
+        // Closed by the user, its record kept for Ctrl+Z: nothing brings it back.
+        vi.mocked(wakeFinished).mockClear();
+        canvasStore.setState({ api: { getSceneElements: () => [], getSceneElementsIncludingDeleted: () => [{ id: "batman", isDeleted: true }] } as never });
+        expect(textOf(await call("chef", "write", { agent: "Batman", text: "Again" }))).toBe("Batman is stopped: relaunch starts it again on its own conversation, then write reaches it.");
+        expect(wakeFinished).not.toHaveBeenCalled();
       } finally {
+        canvasStore.setState({ api: { getSceneElements: () => [], getSceneElementsIncludingDeleted: () => [] } as never });
         nodesStore.getState().update("batman", { claudeSessionId: undefined, stoppedFinished: undefined });
         terminalStatusStore.getState().set("batman", { state: "running" });
       }

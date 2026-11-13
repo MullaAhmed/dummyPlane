@@ -2,11 +2,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mockIPC } from "@tauri-apps/api/mocks";
 import { subagentSettingsStore } from "@/app/subagentSettings";
-import { MANAGER_ROLE } from "@/ipc/pty";
+import { canvasStore } from "@/canvas/canvasStore";
+import { MANAGER_ROLE, ptyResize, ptyWrite } from "@/ipc/pty";
+import { workspacesStore } from "@/store/workspaces";
 import { activeMembers, moving } from "@/mission/active";
 import { pendingEvents } from "@/mission/events";
 import type { Member, Mission } from "@/mission/mission";
-import { hasFocus, isLiveInRust, relaunchTerminal, stopTerminal, touchedAgo, freshText } from "@/nodes/terminal/registry";
+import { hasFocus, isLiveInRust, relaunchTerminal, stopTerminal, touchedAgo, freshText, xtermOf } from "@/nodes/terminal/registry";
 import type { TerminalPayload, TerminalReportStatus } from "@/nodes/types";
 import { agentActivityStore } from "@/store/agentActivity";
 import { nodesStore, terminalOf } from "@/store/nodes";
@@ -23,9 +25,14 @@ vi.mock("@/nodes/terminal/registry", () => ({
   isLiveInRust: vi.fn(() => false),
   freshText: vi.fn(() => PROMPT),
   quietFor: vi.fn(() => 5000),
+  xtermOf: vi.fn(),
 }));
 vi.mock("@/mission/events", () => ({ pendingEvents: vi.fn(() => []) }));
-vi.mock("@/ipc/pty", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/ipc/pty")>()), ptyWrite: vi.fn(() => Promise.resolve()) }));
+vi.mock("@/ipc/pty", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/ipc/pty")>()),
+  ptyWrite: vi.fn(() => Promise.resolve()),
+  ptyResize: vi.fn(() => Promise.resolve()),
+}));
 
 /** Claude's prompt is up: its input box under a rule (`@/mission/ready`). */
 const PROMPT = "─────────\n❯ ";
@@ -304,6 +311,19 @@ describe("a stopped finished agent", () => {
     await expect(wakeFinished("cyborg")).resolves.toBe(false);
   });
 
+  it("gives its new process its xterm's grid, and presses no key into a resumed screen that speaks of trusting a folder", async () => {
+    await stopped();
+    starts();
+    vi.mocked(xtermOf).mockReturnValue({ cols: 132, rows: 41 } as never);
+    // Its old conversation, above its prompt: no trust question to answer, its folder was trusted at its first start.
+    vi.mocked(freshText).mockReturnValue(`Do you trust the files in this folder? I asked the user.\n❯ Yes, I trust this folder\n${PROMPT}`);
+    const woken = wakeFinished("cyborg");
+    await wait(1000);
+    await expect(woken).resolves.toBe(true);
+    expect(ptyResize).toHaveBeenCalledWith("cyborg", 132, 41);
+    expect(ptyWrite).not.toHaveBeenCalled();
+  });
+
   it("can be woken by new work: one this feature stopped by anyone, a sub-agent that reported and stopped since by its parent only", async () => {
     await stopped();
     expect(wakeable("cyborg")).toBe(true);
@@ -316,5 +336,19 @@ describe("a stopped finished agent", () => {
     expect(wakeable("batman", "batman")).toBe(false);
     await terminal("unnamed", { claudeSessionId: undefined, stoppedFinished: true }, false);
     expect(wakeable("unnamed")).toBe(false);
+  });
+
+  it("is never woken once the user closed it: its record stays for Ctrl+Z, its memory freed", async () => {
+    await stopped();
+    workspacesStore.setState({ activeId: "w1" });
+    let scene = [{ id: "cyborg", isDeleted: false }];
+    canvasStore.setState({ api: { getSceneElementsIncludingDeleted: () => scene } as never });
+    try {
+      expect(wakeable("cyborg")).toBe(true);
+      scene = [{ id: "cyborg", isDeleted: true }];
+      expect(wakeable("cyborg")).toBe(false);
+    } finally {
+      canvasStore.setState({ api: null });
+    }
   });
 });
