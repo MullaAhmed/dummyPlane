@@ -27,7 +27,7 @@ const KIND_ICONS: Record<ToastKind, { Icon: LucideIcon; tone: string }> = {
   plain: { Icon: MessageSquareText, tone: "text-dp-text-2" },
 };
 
-/** One notification: its kind, what the popup said, where it was about and when. A click goes there. */
+/** One notification: its tone, what it told, its type, where it was about and when. A click goes there. */
 function Row(props: {
   entry: NotificationEntry;
   index: number;
@@ -54,10 +54,7 @@ function Row(props: {
         <span className="min-w-0 flex-1">
           <span className="flex items-baseline gap-2">
             <span className={cn("min-w-0 flex-1 text-(length:--text-ui) break-words", entry.read ? "text-dp-text-2" : "font-medium text-dp-text")}>
-              <span className="sr-only">
-                {entry.read ? "" : `${t.unread}. `}
-                {t.kinds[entry.kind]}:{" "}
-              </span>
+              {!entry.read && <span className="sr-only">{`${t.unread}. `}</span>}
               {entry.title}
             </span>
             <time dateTime={new Date(entry.at).toISOString()} className="shrink-0 font-mono text-xs text-dp-text-3 tabular-nums">
@@ -66,8 +63,10 @@ function Row(props: {
           </span>
           {entry.description && <span className="mt-0.5 line-clamp-2 block text-xs break-words text-dp-text-2">{entry.description}</span>}
           <span className="mt-0.5 block truncate text-xs text-dp-text-3">
-            {where}
-            {entry.action && ` · ${t.action(entry.action)}`}
+            <span data-type={entry.type} className="text-dp-text-2">
+              {t.types[entry.type]}
+            </span>
+            {` · ${where}`}
           </span>
         </span>
         {!entry.read && <span aria-hidden data-unread-dot className="mt-1.5 size-2 shrink-0 rounded-full bg-dp-accent" />}
@@ -193,8 +192,9 @@ function Panel({ onGo, onClose }: { onGo: (entry: NotificationEntry) => void; on
 }
 
 /**
- * The bell of the right rail and the panel it opens: every popup the app showed, newest first, with the project
- * and workspace each was about. A click on one goes there and reads it. The bell's pip counts the unread ones.
+ * The bell of the right rail and the panel it opens: three kinds of news, newest first, with the project and
+ * workspace each was about: an agent that finished, a board whose cards are all done, a question an agent asks
+ * (`./capture`). Popups are not kept. A click on one goes there and reads it. The bell's pip counts the unread ones.
  */
 export function NotificationsButton() {
   const t = useMessages(notificationsMessages);

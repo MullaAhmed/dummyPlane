@@ -8,18 +8,25 @@ import { appMessages } from "./messages";
  * `presets.teams`, `command.history.<project>`, `launch.folder.<project>`, `ui.notifications`,
  * `ui.workspaceOrder.<project>`, `agents.modelRouterLevels`); any other setting says its key.
  */
+type List = "loops" | "presets" | "history" | "folders" | "notifications" | "order" | "levels";
+
+function listOf(key: string): List | null {
+  if (key === "loops.list") return "loops";
+  if (key === "presets.teams") return "presets";
+  if (key.startsWith("command.history.")) return "history";
+  if (key.startsWith("launch.folder.")) return "folders";
+  if (key === "ui.notifications") return "notifications";
+  if (key.startsWith("ui.workspaceOrder.")) return "order";
+  if (key === "agents.modelRouterLevels") return "levels";
+  return null;
+}
+
 function titleOf(key: string, some: boolean): string {
   const t = messages(appMessages).resetList;
-  if (some && key === "loops.list") return t.some.loops;
-  if (some && key === "presets.teams") return t.some.presets;
-  if (key === "loops.list") return t.loops;
-  if (key === "presets.teams") return t.presets;
-  if (key.startsWith("command.history.")) return t.history;
-  if (key.startsWith("launch.folder.")) return t.folders;
-  if (key === "ui.notifications") return t.notifications;
-  if (key.startsWith("ui.workspaceOrder.")) return t.order;
-  if (key === "agents.modelRouterLevels") return t.levels;
-  return t.other(key);
+  const list = listOf(key);
+  if (!list) return t.other(key);
+  // The notification history has no "some": its old entries are dropped on purpose.
+  return some && list !== "notifications" ? t.some[list] : t[list];
 }
 
 let installed = false;

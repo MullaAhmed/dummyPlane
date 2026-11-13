@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { toast } from "sonner";
 import { errorToasts } from "@/lib/errorToast.testkit";
-import { DEFAULT_CLI_LEVELS, loadModelRouter, modelRouterStore, setCliLevel, setModelRouterOn } from "./modelRouterSetting";
+import { DEFAULT_CLI_LEVELS, levelsLeftOut, loadModelRouter, modelRouterStore, setCliLevel, setModelRouterOn } from "./modelRouterSetting";
 
 /** The IPC calls made, in order. */
 let calls: [string, unknown][];
@@ -101,5 +101,52 @@ describe("changing it", () => {
     await setModelRouterOn(false);
     expect(modelRouterStore.getState().on).toBe(false);
     expect(errorToasts(error)).toEqual([{ title: "Could not save the setting", description: expect.stringContaining("set_setting failed") }]);
+  });
+});
+
+describe("the levels map, read only in part", () => {
+  const KEY = "agents.modelRouterLevels";
+  const commands = () => calls.map(([cmd]) => cmd);
+
+  it("says how much of what was saved is not read: nothing, some of its models, or all of them", () => {
+    for (const whole of [null, undefined, {}, { codex: { faible: "gpt-mini", eleve: "gpt-big" } }]) expect(levelsLeftOut(whole), JSON.stringify(whole)).toBe("none");
+    // A model no command line would take, a level and a CLI nobody knows: dropped, beside what is kept.
+    for (const part of [{ codex: { faible: "gpt-mini", moyen: "bad model" } }, { codex: { faible: "gpt-mini", autre: "gpt-x" } }, { codex: { faible: "gpt-mini" }, gemini: { faible: "g" } }]) {
+      expect(levelsLeftOut(part), JSON.stringify(part)).toBe("some");
+    }
+    // Nothing of it is read.
+    for (const all of [{ codex: { moyen: "bad model" } }, { gemini: { faible: "g" } }, { codex: "gpt" }, "x", 4, []]) expect(levelsLeftOut(all), JSON.stringify(all)).toBe("all");
+  });
+
+  it("has its text kept aside before any save, whether some of it or all of it was left out", async () => {
+    backend({ [KEY]: { codex: { faible: "gpt-mini", moyen: "bad model" } } });
+    await loadModelRouter();
+    expect(modelRouterStore.getState().levels).toEqual({ codex: { faible: "gpt-mini" } });
+    expect(calls.filter(([cmd]) => cmd === "keep_setting").map(([, args]) => args)).toEqual([{ key: KEY }]);
+    expect(commands()).toEqual(["get_setting", "get_setting", "keep_setting"]);
+    // Then a save goes after it.
+    await setCliLevel("codex", "eleve", "gpt-big");
+    expect(commands().slice(-2)).toEqual(["keep_setting", "set_setting"]);
+    calls = [];
+    modelRouterStore.setState(modelRouterStore.getInitialState());
+    backend({ [KEY]: "garbage" });
+    await loadModelRouter();
+    expect(commands()).toEqual(["get_setting", "get_setting", "keep_setting"]);
+  });
+
+  it("keeps nothing aside for a map read whole, or never saved", async () => {
+    backend({ [KEY]: { codex: { faible: "gpt-mini" } } });
+    await loadModelRouter();
+    backend();
+    await loadModelRouter();
+    expect(commands().filter((cmd) => cmd === "keep_setting")).toEqual([]);
+  });
+
+  it("stops reading the levels when their text cannot be kept, and still reads whether the router is on", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    backend({ "agents.modelRouter": false, [KEY]: { codex: { faible: "gpt-mini", moyen: "bad model" } } }, ["keep_setting"]);
+    await loadModelRouter();
+    expect(modelRouterStore.getState()).toEqual({ on: false, levels: {} });
+    warn.mockRestore();
   });
 });
