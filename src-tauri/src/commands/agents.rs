@@ -738,16 +738,18 @@ pub async fn subagent_extras(
 }
 
 /// spawn_agent's pick, checked against what the sub-agent's CLI loads in `cwd`
-/// before its terminal opens: the pick as the launch will read it, or why it is refused.
+/// before its terminal opens, and against what its `spawner` has (a sub-agent gets at most that):
+/// the pick as the launch will read it, its ceiling in it, or why it is refused.
 #[tauri::command]
 pub async fn check_subagent_extras(
     agent: Agent,
     cwd: String,
     config_dir: Option<String>,
     pick: extras::Pick,
+    spawner: Option<extras::Spawner>,
 ) -> AppResult<extras::Pick> {
     if pick.is_empty() {
-        return Ok(pick);
+        return Ok(extras::Pick::default());
     }
     let profile = profile_of(config_dir.as_deref())?;
     tauri::async_runtime::spawn_blocking(move || {
@@ -759,7 +761,8 @@ pub async fn check_subagent_extras(
         } else {
             "Claude"
         };
-        extras::check(&pick, &installed, cli).map_err(AppError::InvalidInput)
+        extras::check_for(&pick, &installed, cli, &spawner.unwrap_or_default())
+            .map_err(AppError::InvalidInput)
     })
     .await
     .map_err(|err| AppError::Io(std::io::Error::other(err.to_string())))?

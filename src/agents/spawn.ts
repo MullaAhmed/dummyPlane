@@ -7,7 +7,7 @@ import { profileNamed } from "@/accounts/store";
 import { readExtensionChoice, type ExtensionChoice } from "@/ipc/claudeExtensions";
 import { AppError } from "@/ipc/invoke";
 import { ptySendText, ptyWrite, type AgentId } from "@/ipc/pty";
-import { checkSubagentExtras, EXTRA_KINDS, readSubagentExtras, subagentExtras, type ExtraItem, type ExtraKind, type SubagentExtras } from "@/ipc/subagentExtras";
+import { checkSubagentExtras, EXTRA_KINDS, readSubagentExtras, subagentExtras, type ExtraItem, type ExtraKind, type Spawner, type SubagentExtras } from "@/ipc/subagentExtras";
 import { agentMessages } from "@/mcp/messages";
 import { outLevel } from "@/mcp/protocol";
 import { duplicateWork } from "@/mission/activeWork";
@@ -150,6 +150,18 @@ const CHOICE_OF: Record<ExtraKind, keyof ExtensionChoice> = { skills: "skillsOff
 const configDirOf = (parent: TerminalPayload, agent: AgentId) => (agent === "claude" ? profileNamed(parent.accountId)?.configDir : undefined);
 
 /**
+ * What restricts `parent` for a sub-agent on `agent`: its own pick (names in the same CLI's words) and the switches it set
+ * off in its Edit tab (Claude). Nothing, for a spawner nothing restricts: its sub-agent may get whatever its CLI lists.
+ */
+function limitsOf(parent: TerminalPayload, agent: AgentId): Spawner | undefined {
+  const picked = agent === parent.agent ? readSubagentExtras(parent.extras) : undefined;
+  const { ceiling: _ceiling, ...extras } = picked ?? {};
+  const extensions = agent === "claude" ? readExtensionChoice(parent.extensions) : undefined;
+  if (!picked && !extensions) return undefined;
+  return { ...(picked ? { extras } : {}), ...(extensions ? { extensions } : {}) };
+}
+
+/**
  * The kinds its spawner picked, checked by Rust against what the sub-agent's CLI loads in its folder before its
  * terminal opens (`check_subagent_extras`), each name as the CLI writes it; the refusal's text when the pick is
  * refused or could not be checked. Nothing to check when no kind is picked.
@@ -159,8 +171,10 @@ async function checkedExtras(parent: TerminalPayload, asked: SubagentExtras): Pr
   if (kinds.length === 0) return {};
   const agent = childAgentOf(parent);
   try {
-    const checked = await checkSubagentExtras(agent, parent.cwd, configDirOf(parent, agent), asked);
-    return Object.fromEntries(kinds.map((kind) => [kind, checked[kind] ?? []]));
+    const checked = await checkSubagentExtras(agent, parent.cwd, configDirOf(parent, agent), asked, limitsOf(parent, agent));
+    const picked: SubagentExtras = Object.fromEntries(kinds.map((kind) => [kind, checked[kind] ?? []]));
+    if (checked.ceiling) picked.ceiling = checked.ceiling;
+    return picked;
   } catch (error) {
     if (error instanceof AppError && error.kind === "invalidInput") return t().extrasRefused(error.message);
     return t().extrasUnchecked(error instanceof Error ? error.message : String(error));
@@ -173,10 +187,17 @@ export function withExtras(payload: TerminalPayload, picked: SubagentExtras): Te
   if (kinds.length === 0) return payload;
   const extras: SubagentExtras = { ...payload.extras };
   const choice: ExtensionChoice = { ...payload.extensions };
+  // Its ceiling, kind by kind: the one Rust set for a kind it picks, else what it inherited with the pick.
+  const ceiling = { ...extras.ceiling };
   for (const kind of kinds) {
     extras[kind] = picked[kind];
     delete choice[CHOICE_OF[kind]];
+    const bound = picked.ceiling?.[kind];
+    if (bound) ceiling[kind] = bound;
+    else delete ceiling[kind];
   }
+  if (Object.keys(ceiling).length) extras.ceiling = ceiling;
+  else delete extras.ceiling;
   const next: TerminalPayload = { ...payload, extras };
   const left = readExtensionChoice(choice);
   if (left) next.extensions = left;

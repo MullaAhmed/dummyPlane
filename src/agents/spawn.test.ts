@@ -372,15 +372,15 @@ describe("what a sub-agent inherits of its parent's skills and plugins", () => {
 
 describe("a sub-agent's skills, MCP servers and plugins, picked by its spawner", () => {
   /** What Rust is asked to check, and what it answers: the pick as Claude writes the names, or a refusal. */
-  let checks: { agent: string; cwd: string; pick: Record<string, string[]> }[] = [];
+  let checks: { agent: string; cwd: string; pick: Record<string, string[]>; spawner?: unknown }[] = [];
   let answer: (pick: Record<string, string[]>) => unknown = (pick) => pick;
   beforeEach(() => {
     checks = [];
     answer = (pick) => pick;
     mockIPC((cmd, args) => {
       if (cmd !== "check_subagent_extras") return undefined;
-      const { agent, cwd, pick } = args as { agent: string; cwd: string; pick: Record<string, string[]> };
-      checks.push({ agent, cwd, pick });
+      const { agent, cwd, pick, spawner } = args as { agent: string; cwd: string; pick: Record<string, string[]>; spawner?: unknown };
+      checks.push({ agent, cwd, pick, spawner });
       return answer(pick);
     });
   });
@@ -480,6 +480,47 @@ describe("a sub-agent's skills, MCP servers and plugins, picked by its spawner",
     await addNode("gemma", terminal("Gemma", { agent: "gemini", extras: { skills: ["deploy"] } }));
     await spawnAgent("gemma", { task: "Three" });
     expect(vi.mocked(addTerminal).mock.calls[2][1]).not.toHaveProperty("extras");
+  });
+});
+
+describe("a sub-agent gets at most what its spawner has", () => {
+  let checks: { agent: string; pick: Record<string, string[]>; spawner?: unknown }[] = [];
+  let answer: (pick: Record<string, string[]>) => unknown = (pick) => pick;
+  beforeEach(() => {
+    checks = [];
+    answer = (pick) => pick;
+    mockIPC((cmd, args) => {
+      if (cmd !== "check_subagent_extras") return undefined;
+      const { agent, pick, spawner } = args as { agent: string; pick: Record<string, string[]>; spawner?: unknown };
+      checks.push({ agent, pick, spawner });
+      return answer(pick);
+    });
+  });
+
+  it("tells Rust what restricts its spawner, its own pick and the switches it set off, and stores the ceiling Rust answers", async () => {
+    const extensions = { skillsOff: ["commit"] };
+    await addNode("atlas", terminal("Atlas", { extras: { skills: ["deploy", "review"] }, extensions }));
+    answer = () => ({ skills: ["deploy"], ceiling: { skills: ["deploy", "review"] } });
+    await spawnAgent("atlas", { task: "One", skills: ["deploy"] });
+    expect(checks[0].spawner).toEqual({ extras: { skills: ["deploy", "review"] }, extensions });
+    expect(vi.mocked(addTerminal).mock.calls[0][1].extras).toEqual({ skills: ["deploy"], ceiling: { skills: ["deploy", "review"] } });
+  });
+
+  it("tells Rust nothing of a spawner nothing restricts, whose sub-agent then has no ceiling", async () => {
+    await addNode("free", terminal("Free"));
+    answer = (pick) => pick;
+    await spawnAgent("free", { task: "One", plugins: ["stripe@market"] });
+    expect(checks[0].spawner).toBeUndefined();
+    expect(vi.mocked(addTerminal).mock.calls[0][1].extras).toEqual({ plugins: ["stripe@market"] });
+  });
+
+  it("passes the ceiling on with the pick a sub-agent inherits, and replaces it when it picks again", async () => {
+    await addNode("atlas", terminal("Atlas", { extras: { skills: ["deploy"], ceiling: { skills: ["deploy", "review"] } } }));
+    await spawnAgent("atlas", { task: "One" });
+    expect(vi.mocked(addTerminal).mock.calls[0][1].extras).toEqual({ skills: ["deploy"], ceiling: { skills: ["deploy", "review"] } });
+    answer = () => ({ skills: [] });
+    await spawnAgent("atlas", { task: "Two", skills: [] });
+    expect(vi.mocked(addTerminal).mock.calls[1][1].extras).toEqual({ skills: [] });
   });
 });
 

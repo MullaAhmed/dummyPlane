@@ -15,6 +15,15 @@ describe("a sub-agent's stored pick", () => {
     expect(readSubagentExtras(null)).toBeUndefined();
   });
 
+  it("keeps the ceiling its spawner's check gave it, kind by kind, beside a pick, and never alone", () => {
+    expect(readSubagentExtras({ skills: ["deploy"], ceiling: { skills: [" deploy ", "review", 3], mcpServers: [], plugins: "x" } })).toEqual({
+      skills: ["deploy"],
+      ceiling: { skills: ["deploy", "review"], mcpServers: [] },
+    });
+    expect(readSubagentExtras({ ceiling: { skills: ["deploy"] } })).toBeUndefined();
+    expect(readSubagentExtras({ skills: ["deploy"], ceiling: "all" })).toEqual({ skills: ["deploy"] });
+  });
+
   it("survives a save and a reload with its terminal, so a restart or a resume launches it the same", () => {
     const saved = { title: "Tests", name: "Robin", agent: "codex", cwd: "C:/code", shell: "pwsh", command: "", extras: { skills: [], mcpServers: ["supabase"] } };
     expect(readTerminalPayload(JSON.parse(JSON.stringify(saved)))?.extras).toEqual({ skills: [], mcpServers: ["supabase"] });

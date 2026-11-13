@@ -60,6 +60,10 @@ pub struct Pick {
     pub mcp_servers: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub plugins: Option<Vec<String>>,
+    /// The most it may get, kind by kind: what its spawner has (`ceiling_of`), set by the check and read again at
+    /// every launch (`within`). Never the caller's to give.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ceiling: Option<Ceiling>,
 }
 
 impl Pick {
@@ -67,6 +71,149 @@ impl Pick {
     pub fn is_empty(&self) -> bool {
         self.skills.is_none() && self.mcp_servers.is_none() && self.plugins.is_none()
     }
+}
+
+/// What a sub-agent's spawner has, kind by kind, as far as that is less than what its CLI lists. `None` for a
+/// kind: no cap on it.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Ceiling {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub skills: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mcp_servers: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub plugins: Option<Vec<String>>,
+}
+
+/// The spawner of a sub-agent, as far as it is restricted: its own pick, and the switches it has set off in its
+/// edit panel (Claude). Neither: nothing restricts it, and what it can give is whatever its CLI lists.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Spawner {
+    pub extras: Option<Pick>,
+    pub extensions: Option<ExtensionChoice>,
+}
+
+/// The most a sub-agent of `spawner` may get of the kinds `kinds` names: what the spawner has. A spawner with its
+/// own pick of a kind has that pick; one that only switched items off has everything its CLI lists but those; what
+/// the user switched on for it in its panel (a plugin) is its too. No pick and no switch off: no cap on that kind,
+/// and none at all (`None`) for a spawner nothing restricts, whose sub-agent may get whatever its CLI lists.
+pub fn ceiling_of(spawner: &Spawner, installed: &Installed, kinds: Kinds) -> Option<Ceiling> {
+    let own = spawner.extras.as_ref();
+    let choice = spawner.extensions.as_ref();
+    let bound = |named: bool,
+                 picked: Option<&Vec<String>>,
+                 listed: &[Extra],
+                 off: BTreeSet<String>,
+                 on: BTreeSet<String>| {
+        if !named || (picked.is_none() && off.is_empty()) {
+            return None;
+        }
+        let mut names: BTreeSet<String> = match picked {
+            Some(picked) => picked.iter().cloned().collect(),
+            None => listed
+                .iter()
+                .filter(|item| item.pickable())
+                .map(|item| item.name.clone())
+                .collect(),
+        };
+        names.extend(on);
+        for name in &off {
+            names.remove(name);
+        }
+        Some(names.into_iter().collect::<Vec<String>>())
+    };
+    let plugins = |wanted: bool| -> BTreeSet<String> {
+        choice
+            .map(|c| {
+                c.plugins
+                    .iter()
+                    .filter(|(_, on)| **on == wanted)
+                    .map(|(id, _)| id.clone())
+                    .collect()
+            })
+            .unwrap_or_default()
+    };
+    let ceiling = Ceiling {
+        skills: bound(
+            kinds.skills,
+            own.and_then(|p| p.skills.as_ref()),
+            &installed.skills,
+            choice
+                .map(|c| c.skills_off.iter().cloned().collect())
+                .unwrap_or_default(),
+            BTreeSet::new(),
+        ),
+        mcp_servers: bound(
+            kinds.mcp_servers,
+            own.and_then(|p| p.mcp_servers.as_ref()),
+            &installed.mcp_servers,
+            choice
+                .map(|c| c.mcp_off.iter().cloned().collect())
+                .unwrap_or_default(),
+            BTreeSet::new(),
+        ),
+        plugins: bound(
+            kinds.plugins,
+            own.and_then(|p| p.plugins.as_ref()),
+            &installed.plugins,
+            plugins(false),
+            plugins(true),
+        ),
+    };
+    (ceiling != Ceiling::default()).then_some(ceiling)
+}
+
+/// A pick within the ceiling its spawner had, as the launch reads it again: refused when it names more, whatever
+/// the check said then. A name the sub-agent's own panel switched off is not one it gets.
+pub fn within(pick: &Pick, choice: Option<&ExtensionChoice>) -> Result<(), String> {
+    let Some(ceiling) = &pick.ceiling else {
+        return Ok(());
+    };
+    let switched_off = |kind: &str, name: &str| {
+        choice.is_some_and(|c| match kind {
+            "skill" => c.skills_off.iter().any(|n| n == name),
+            "MCP server" => c.mcp_off.iter().any(|n| n == name),
+            _ => c.plugins.get(name) == Some(&false),
+        })
+    };
+    let mut beyond = Vec::new();
+    for (kind, names, bound) in [
+        ("skill", &pick.skills, &ceiling.skills),
+        ("MCP server", &pick.mcp_servers, &ceiling.mcp_servers),
+        ("plugin", &pick.plugins, &ceiling.plugins),
+    ] {
+        let (Some(names), Some(bound)) = (names, bound) else {
+            continue;
+        };
+        for name in names {
+            if !bound.contains(name) && !switched_off(kind, name) {
+                beyond.push(format!("the {kind} {}", clip(name)));
+            }
+        }
+    }
+    if beyond.is_empty() {
+        Ok(())
+    } else {
+        Err(format!(
+            "{} is beyond what its spawner has: a sub-agent gets at most what its spawner has",
+            beyond.join(", ")
+        ))
+    }
+}
+
+/// A pick checked (`check`) for a sub-agent of `spawner`, its ceiling that spawner's own: the one a caller brings
+/// is replaced.
+pub fn check_for(
+    pick: &Pick,
+    installed: &Installed,
+    cli: &str,
+    spawner: &Spawner,
+) -> Result<Pick, String> {
+    let mut input = pick.clone();
+    input.ceiling = ceiling_of(spawner, installed, Kinds::of(pick));
+    check(&input, installed, cli)
 }
 
 /// Why a listed item cannot be picked.
@@ -249,6 +396,7 @@ pub fn for_claude(
     choice: Option<&ExtensionChoice>,
     places: &Places,
 ) -> Result<ClaudeExtras, String> {
+    within(pick, choice)?;
     let installed = claude_installed(places);
     let mut settings = Map::new();
     let skills_off = |name: &str| choice.is_some_and(|c| c.skills_off.iter().any(|n| n == name));
@@ -579,6 +727,7 @@ fn codex_servers(all: &str, configured: &str) -> Result<Vec<Extra>, String> {
 /// quoted for the shell when typed (`shell::codex_command`). A name the line
 /// cannot carry that the pick would turn off, and the launch does not start.
 pub fn for_codex(pick: &Pick, installed: &Installed) -> Result<Vec<String>, String> {
+    within(pick, None)?;
     let mut args = Vec::new();
     if let Some(names) = &pick.skills {
         let keep = kept(names, &installed.skills, "skill");
@@ -657,7 +806,10 @@ fn turned_off<'a>(
 /// leave off, a name Codex's line cannot carry.
 pub fn check(pick: &Pick, installed: &Installed, cli: &str) -> Result<Pick, String> {
     let mut problems = Vec::new();
-    let mut check_kind = |names: &Option<Vec<String>>, listed: &[Extra], kind: &str| {
+    let mut check_kind = |names: &Option<Vec<String>>,
+                          listed: &[Extra],
+                          kind: &str,
+                          bound: Option<&Vec<String>>| {
         let names = names.as_ref()?;
         let mut kept: Vec<String> = Vec::new();
         let mut unknown = Vec::new();
@@ -679,6 +831,12 @@ pub fn check(pick: &Pick, installed: &Installed, cli: &str) -> Result<Pick, Stri
                 continue;
             };
             match item.locked {
+                None if bound.is_some_and(|b| !b.contains(&item.name)) => {
+                    problems.push(format!(
+                        "{kind} \"{}\" is beyond what its spawner has: a sub-agent gets at most what its spawner has",
+                        item.name
+                    ));
+                }
                 None if !kept.contains(&item.name) => kept.push(item.name.clone()),
                 None | Some(Locked::Own) => {}
                 Some(Locked::Plugin) => problems.push(match &item.plugin {
@@ -715,9 +873,25 @@ pub fn check(pick: &Pick, installed: &Installed, cli: &str) -> Result<Pick, Stri
         Some(kept)
     };
     let checked = Pick {
-        skills: check_kind(&pick.skills, &installed.skills, "skill"),
-        mcp_servers: check_kind(&pick.mcp_servers, &installed.mcp_servers, "MCP server"),
-        plugins: check_kind(&pick.plugins, &installed.plugins, "plugin"),
+        skills: check_kind(
+            &pick.skills,
+            &installed.skills,
+            "skill",
+            pick.ceiling.as_ref().and_then(|c| c.skills.as_ref()),
+        ),
+        mcp_servers: check_kind(
+            &pick.mcp_servers,
+            &installed.mcp_servers,
+            "MCP server",
+            pick.ceiling.as_ref().and_then(|c| c.mcp_servers.as_ref()),
+        ),
+        plugins: check_kind(
+            &pick.plugins,
+            &installed.plugins,
+            "plugin",
+            pick.ceiling.as_ref().and_then(|c| c.plugins.as_ref()),
+        ),
+        ceiling: pick.ceiling.clone(),
     };
     if problems.is_empty() {
         Ok(checked)
@@ -824,6 +998,7 @@ mod tests {
             skills: own(skills),
             mcp_servers: own(mcp),
             plugins: own(plugins),
+            ..Pick::default()
         }
     }
 
@@ -1137,6 +1312,138 @@ mod tests {
         // Left out, the plugin keeps what the user's settings give: nothing of linear.
         let extras = for_claude(&pick(None, Some(&[]), Some(&[])), None, &places).unwrap();
         assert!(!extras.servers.unwrap().contains_key("plugin_linear_mail"));
+    }
+
+    fn restricted() -> Spawner {
+        Spawner {
+            extras: Some(pick(
+                Some(&["deploy", "review"]),
+                None,
+                Some(&["stripe@market"]),
+            )),
+            extensions: Some(ExtensionChoice {
+                skills_off: vec!["review".into()],
+                plugins: std::collections::BTreeMap::from([("linear@market".to_string(), true)]),
+                ..ExtensionChoice::default()
+            }),
+        }
+    }
+
+    #[test]
+    fn a_restricted_spawner_has_a_ceiling_kind_by_kind_and_an_unrestricted_one_none() {
+        let (_root, places) = claude_places();
+        let found = claude_installed(&places);
+        assert_eq!(ceiling_of(&Spawner::default(), &found, Kinds::ALL), None);
+        // Its pick, less the switches it set off, plus a plugin the user switched on in its panel.
+        let ceiling = ceiling_of(&restricted(), &found, Kinds::ALL).unwrap();
+        assert_eq!(ceiling.skills, Some(vec!["deploy".to_string()]));
+        assert_eq!(ceiling.mcp_servers, None);
+        assert_eq!(
+            ceiling.plugins,
+            Some(vec![
+                "linear@market".to_string(),
+                "stripe@market".to_string()
+            ])
+        );
+        // Switches off and no pick: everything it can give but those (dummyPlane's own server is never listed).
+        let off = Spawner {
+            extras: None,
+            extensions: Some(ExtensionChoice {
+                mcp_off: vec!["github".into()],
+                ..ExtensionChoice::default()
+            }),
+        };
+        let ceiling = ceiling_of(&off, &found, Kinds::ALL).unwrap();
+        assert_eq!(ceiling.skills, None);
+        let servers = ceiling.mcp_servers.unwrap();
+        assert!(
+            servers.contains(&"claude-in-chrome".to_string()),
+            "{servers:?}"
+        );
+        assert!(!servers.contains(&"github".to_string()), "{servers:?}");
+        assert!(!servers.contains(&"dummyplane".to_string()), "{servers:?}");
+        // Only the kinds the sub-agent names are bounded.
+        let ceiling = ceiling_of(
+            &restricted(),
+            &found,
+            Kinds::of(&pick(Some(&[]), None, None)),
+        )
+        .unwrap();
+        assert_eq!(ceiling.plugins, None);
+    }
+
+    #[test]
+    fn a_sub_agent_cannot_be_picked_more_than_its_spawner_has_a_ceiling_the_caller_cannot_give() {
+        let (_root, places) = claude_places();
+        let found = claude_installed(&places);
+        let err = check_for(
+            &pick(
+                Some(&["deploy", "review"]),
+                Some(&["github"]),
+                Some(&["linear@market"]),
+            ),
+            &found,
+            "Claude",
+            &restricted(),
+        )
+        .unwrap_err();
+        // review is switched off on the spawner; github is no concern of a spawner that restricts only skills and plugins.
+        assert!(
+            err.contains("skill \"review\" is beyond what its spawner has"),
+            "{err}"
+        );
+        assert!(!err.contains("\"github\""), "{err}");
+        // linear is in the ceiling (the user switched it on for the spawner): allowed.
+        assert!(!err.contains("linear@market"), "{err}");
+        let ok = check_for(
+            &pick(Some(&["deploy"]), Some(&["github"]), Some(&[])),
+            &found,
+            "Claude",
+            &restricted(),
+        )
+        .unwrap();
+        assert_eq!(ok.skills, Some(vec!["deploy".to_string()]));
+        assert_eq!(ok.ceiling.unwrap().skills, Some(vec!["deploy".to_string()]));
+        // The ceiling a caller brings is replaced by the spawner's own.
+        let mut forged = pick(Some(&["deploy"]), None, None);
+        forged.ceiling = Some(Ceiling {
+            skills: Some(vec!["deploy".into(), "review".into()]),
+            ..Ceiling::default()
+        });
+        let ok = check_for(&forged, &found, "Claude", &restricted()).unwrap();
+        assert_eq!(ok.ceiling.unwrap().skills, Some(vec!["deploy".to_string()]));
+        // Nothing restricts the top-level agent: no ceiling at all.
+        let ok = check_for(&forged, &found, "Claude", &Spawner::default()).unwrap();
+        assert_eq!(ok.ceiling, None);
+    }
+
+    #[test]
+    fn a_launch_refuses_a_pick_beyond_its_ceiling_unless_the_name_is_switched_off_for_it() {
+        let (_root, places) = claude_places();
+        let mut beyond = pick(Some(&["deploy", "review"]), None, None);
+        beyond.ceiling = Some(Ceiling {
+            skills: Some(vec!["deploy".into()]),
+            ..Ceiling::default()
+        });
+        let err = for_claude(&beyond, None, &places).unwrap_err();
+        assert!(err.contains("beyond what its spawner has"), "{err}");
+        // An inherited name its panel switched off is not one it gets.
+        let choice = ExtensionChoice {
+            skills_off: vec!["review".into()],
+            ..ExtensionChoice::default()
+        };
+        assert!(for_claude(&beyond, Some(&choice), &places).is_ok());
+        // Within it, nothing in the way; a pick with no ceiling is as before.
+        beyond.skills = Some(vec!["deploy".into()]);
+        assert!(for_claude(&beyond, None, &places).is_ok());
+        let found = codex_installed(&codex(SKILLS), Kinds::ALL).unwrap();
+        let mut codex_pick = pick(Some(&["imagegen", "dummyindex"]), None, None);
+        codex_pick.ceiling = Some(Ceiling {
+            skills: Some(vec!["imagegen".into()]),
+            ..Ceiling::default()
+        });
+        let err = for_codex(&codex_pick, &found).unwrap_err();
+        assert!(err.contains("beyond what its spawner has"), "{err}");
     }
 
     // ------------------------------------------------------------ Codex
