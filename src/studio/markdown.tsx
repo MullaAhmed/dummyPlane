@@ -18,7 +18,8 @@ export const isMarkdown = (path: string) => ["md", "markdown", "mdx"].includes(e
  * Never uses innerHTML: raw HTML in the source is shown as literal text.
  */
 
-const FENCE = /^\s*```\s*([\w+#.-]*)\s*$/;
+// The language, then whatever else the info string says (`title="a.json"`, `{1,3}`): never a backtick, or it is inline code.
+const FENCE = /^\s*```\s*([\w+#.-]*)[^`]*$/;
 const HEADING = /^(#{1,6})\s+(.*?)\s*#*\s*$/;
 const HR = /^\s*([-*_])(\s*\1){2,}\s*$/;
 const QUOTE = /^\s*>\s?(.*)$/;

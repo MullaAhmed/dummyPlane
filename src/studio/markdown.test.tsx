@@ -34,6 +34,14 @@ describe("renderMarkdown", () => {
     expect(out).not.toContain("<strong>");
   });
 
+  it("takes the first word of a fence's info string as its language, and closes the block where its closing fence is", () => {
+    // `title=` and `{1,3}` follow the language in READMEs: the fence was not seen, and its closing fence opened one over the text after it.
+    const out = html('```json title="package.json" {1}\n{"a": 1}\n```\nafter');
+    expect(out).toContain('data-lang="json"');
+    expect(out).not.toContain("title=");
+    expect(out).toMatch(/<\/pre><p>after<\/p>/);
+  });
+
   it("renders inline formatting", () => {
     const out = html("**bold** *it* _it2_ `code` [site](https://x.dev)");
     expect(out).toContain("<strong>bold</strong>");
