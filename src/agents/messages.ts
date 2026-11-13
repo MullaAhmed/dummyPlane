@@ -191,6 +191,8 @@ export const agentsMessages = defineMessages({
       more: "One agent more",
       launch: (count: number) => `Launch ${count}`,
     },
+    /** The list of layouts an "Arrange as…" opens (./ArrangeLayoutMenu.tsx); the layouts' names are the Settings'. */
+    arrangeMenu: { label: "Arrange as" },
     groupMenu: {
       rename: "Rename",
       speciality: "Speciality",
