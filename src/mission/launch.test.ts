@@ -1114,6 +1114,8 @@ describe("reassignTask", () => {
     });
     expect(typeof (await reassignTask("chef", "batman", "nouveau"))).toBe("string");
     expect(stopTerminal).toHaveBeenCalledWith("n9");
+    // Off the canvas, as the end took the agents made for the mission: no terminal outlives its worktree, nor resumes in it.
+    expect(removeNodes).toHaveBeenCalledWith(["n9"]);
     // Its sub-task never comes: it is not left "launching", counted at work by the spawn caps and the duplicate guard.
     expect(isLaunching("n9")).toBe(false);
     expect(missionNow()).toMatchObject({ state: "terminee" });
@@ -1138,6 +1140,28 @@ describe("reassignTask", () => {
     vi.mocked(missionCleanup).mockResolvedValueOnce({ removed: [], kept: [] });
     await cleanMission("chef");
     expect(missionCleanup).toHaveBeenCalledWith("C:/code/proj", "auth", ["Batman", "Aquaman", name]);
+  });
+
+  it("takes the left-behind agent's worktree back itself while the cleanup runs: that cleanup's list is made, and its end blanks the mission", async () => {
+    await team();
+    let release: (value: { removed: string[]; kept: string[] }) => void = () => undefined;
+    vi.mocked(missionCleanup).mockImplementationOnce(() => new Promise((resolve) => (release = resolve)));
+    let cleaning: Promise<unknown> = Promise.resolve();
+    vi.mocked(missionAddAgent).mockImplementationOnce(async (_project, mission, agent) => {
+      stopMission("chef", { by: "user" });
+      cleaning = cleanMission("chef");
+      return tree(`${mission}-${agent.toLowerCase()}`);
+    });
+    try {
+      await reassignTask("chef", "batman", "nouveau");
+      const name = vi.mocked(missionAddAgent).mock.calls[0][2];
+      const made = tree(`auth-${name.toLowerCase()}`);
+      expect(missionDiscard).toHaveBeenCalledWith("C:/code/proj", [{ slug: name, branch: made.branch, path: made.path }]);
+    } finally {
+      // Never left under way: the next cleanups would join it.
+      release({ removed: [], kept: [] });
+      await cleaning;
+    }
   });
 
   it("takes the left-behind agent's worktree back at once when the mission was cleaned up meanwhile: no cleanup is left to do it", async () => {

@@ -472,15 +472,18 @@ async function cleanMissionNow(fleetId: string): Promise<Cleanup | string> {
 }
 
 /**
- * A new agent made for `mission` (a reassign's, the queue's) that ended while it was created: stopped, never a
- * member, its sub-task never typed, so no longer launching (it would count as at work). Its worktree goes with the
- * mission's cleanup, as a member's; a mission cleaned up meanwhile is gone, and it goes now, never forced.
+ * A new agent made for `mission` (a reassign's, the queue's) that ended while it was created: stopped and off the
+ * canvas, as the end took the agents made for it, never a member, its sub-task never typed, so no longer launching
+ * (it would count as at work). Its worktree goes with the mission's cleanup, as a member's; a mission cleaned up
+ * meanwhile, or whose cleanup is under way (its list made), takes it back now, never forced.
  */
 export function leftBehind(fleetId: string, mission: Mission, made: Member) {
   stopTerminal(made.nodeId);
   markLaunching(made.nodeId, false);
+  const workspaceId = nodesStore.getState().nodes[fleetId]?.workspaceId;
+  if (workspaceId) removeTeam(fleetId, workspaceId, undefined, [made.nodeId]);
   const ended = missionOf(nodesStore.getState().nodes[fleetId]);
-  if (ended?.state === "terminee" && ended.slug === mission.slug) {
+  if (ended?.state === "terminee" && ended.slug === mission.slug && !cleaning.has(fleetId)) {
     setMission(fleetId, { strays: [...(ended.strays ?? []), made.name] });
     return;
   }
