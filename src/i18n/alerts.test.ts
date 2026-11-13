@@ -81,6 +81,7 @@ const TITLES: [string, string][] = [
   [shell.window.maximizeFailed, "Could not maximize the window"],
   [shell.window.closeFailed, "Could not close the window"],
   [shell.projectPicker.openFailed, "Could not open the project"],
+  [shell.projectPicker.closeFailed, "Could not close the project"],
   [shell.projectView.loadFailed, "Could not load the workspaces"],
 ];
 

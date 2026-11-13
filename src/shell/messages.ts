@@ -87,7 +87,7 @@ export const shellMessages = defineMessages(
     /** The start-up error screen: what failed, then the ways out. */
     statusScreen: { tryAgain: "Try again", openLogs: "Open the logs folder", troubleshooting: "Troubleshooting…" },
     modeExit: { zen: "Leave zen mode", reading: "Leave reading mode" },
-    projectPicker: { project: "Project", allProjects: "All projects…", closeProject: "Close the project", openFailed: "Could not open the project" },
+    projectPicker: { project: "Project", allProjects: "All projects…", closeProject: "Close the project", openFailed: "Could not open the project", closeFailed: "Could not close the project" },
     searchField: { project: "Search for a project", inProject: (name: string) => `Search in ${name}`, shortcut: "Ctrl+P" },
     settings: {
       theme: "Theme",
