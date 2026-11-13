@@ -375,6 +375,16 @@ describe("remoteActionsForMove", () => {
     ]);
   });
 
+  it("never closes or reopens a pull request: its Project Status alone follows its card", () => {
+    const pr = (state: "open" | "closed") => linkedCard("p", 4, state, { github: { repo: REPO, number: 4, url: "https://github.com/Owner/Repo/pull/4", state } });
+    const context = { projectStatuses: ["Todo", "Done"], projectItemIdByKey: { [githubKey(REPO, 4)]: "PVTI_4" } };
+    const into = board([["Todo", ["p"]], ["Done", []]], [pr("open")]);
+    expect(remoteActionsForMove(into, "p", "done", context)).toEqual([{ type: "moveProjectItem", itemId: "PVTI_4", status: "Done" }]);
+    expect(remoteActionsForMove(into, "p", "done")).toEqual([]);
+    const outOf = board([["Todo", []], ["Done", ["p"]]], [pr("closed")]);
+    expect(remoteActionsForMove(outOf, "p", "todo", context)).toEqual([{ type: "moveProjectItem", itemId: "PVTI_4", status: "Todo" }]);
+  });
+
   it("skips the project move for cards outside the project or columns without a Status", () => {
     expect(remoteActionsForMove(start(), "b", "done", project)).toEqual([{ type: "setIssueState", repo: REPO, number: 2, state: "closed" }]);
     expect(remoteActionsForMove(start(), "a", "doing", project)).toEqual([]);

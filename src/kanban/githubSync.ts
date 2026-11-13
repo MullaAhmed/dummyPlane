@@ -170,10 +170,14 @@ export interface MoveContext {
   projectItemIdByKey?: Record<string, string>;
 }
 
+/** A pull request's link (a Project item's): its url is …/pull/<number>. */
+const isPullRequest = (link: GithubLink) => /\/pull\/\d+\/?$/.test(link.url);
+
 /**
  * Remote calls implied by moving `cardId` to `toColumnId` (call it before applying the move locally):
  * - the project item's Status follows when the target column is named like a Status option;
- * - entering the done column (see `doneColumn`) closes an open issue, leaving it reopens a closed one.
+ * - entering the done column (see `doneColumn`) closes an open issue, leaving it reopens a closed one. Never a pull
+ *   request's: done is its merge, not its close, which would drop it unmerged.
  */
 export function remoteActionsForMove(board: Board, cardId: string, toColumnId: string, context: MoveContext = {}): RemoteAction[] {
   const link = board.cards[cardId]?.github;
@@ -188,6 +192,7 @@ export function remoteActionsForMove(board: Board, cardId: string, toColumnId: s
   if (itemId && status) actions.push({ type: "moveProjectItem", itemId, status });
 
   const done = doneColumn(board)!;
+  if (isPullRequest(link)) return actions;
   if (to.id === done.id && link.state === "open") {
     actions.push({ type: "setIssueState", repo: link.repo, number: link.number, state: "closed" });
   } else if (from?.id === done.id && link.state === "closed") {
