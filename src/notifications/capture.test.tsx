@@ -66,6 +66,21 @@ describe("capture", () => {
     expect(toast.description).toHaveLength(MAX_DESCRIPTION);
   });
 
+  it("never keeps half a character, its own cut or one that came cut: Rust refuses the saved history with one in it", () => {
+    // Half of a UTF-16 pair: the JSON Rust reads (serde_json) refuses "\ud83c" alone, and the history is saved whole.
+    const half = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+    // 🎉 straddles the cut: its first half is the last unit kept.
+    const [cut] = received(() => capture({ kind: "plain", title: `${"x".repeat(MAX_TITLE - 2)}🎉 and more` }));
+    expect(cut.title).toBe(`${"x".repeat(MAX_TITLE - 2)}…`);
+    // A summary or an error detail clipped before it came here, inside an emoji.
+    const [came] = received(() => capture({ kind: "success", title: "Alan done \uD83C", description: "All 12 tests pass \uD83C", action: "Show\uDF89" }));
+    expect(came).toMatchObject({ title: "Alan done", description: "All 12 tests pass", action: "Show" });
+    for (const text of [cut.title, came.title, came.description, came.action]) expect(text).not.toMatch(half);
+    // A whole emoji stays.
+    const [whole] = received(() => capture({ kind: "plain", title: "Shipped 🎉" }));
+    expect(whole.title).toBe("Shipped 🎉");
+  });
+
   it("skips a popup with no words of its own, never throwing", () => {
     expect(received(() => capture({ kind: "plain", title: undefined }))).toEqual([]);
   });

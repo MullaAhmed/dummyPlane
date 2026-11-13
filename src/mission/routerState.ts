@@ -138,8 +138,20 @@ export function useRouterFollow(nodeId: string): "settings" | "above" | null {
   return useNodes((s) => (ownSwitch(s.nodes, nodeId) === undefined ? null : inheritedRouter(s.nodes, nodeId, global).at === undefined ? "settings" : "above"));
 }
 
+/** Why a terminal's switch has nothing to route: a Manager's, or an agent on a CLI without dummyPlane's tools. */
+export type RouterInert = "manager" | "agent";
+
 /**
- * Whether a terminal has the switch: an agent on a CLI with dummyPlane's tools (Claude, Codex), whose sub-agents and
- * sub-tasks the router can route. A Manager runs a board, never a plan's agent: the router has nothing to give it.
+ * Whether a terminal's switch can act. Every terminal shows the switch (its header, its "⋯" menu, its Edit tab), so
+ * it is found in one place whatever runs there; this says whether it does anything. It does on an agent on a CLI with
+ * dummyPlane's tools (Claude, Codex), whose sub-agents and sub-tasks the router routes. It does not on a Manager, who
+ * runs a board, never a plan's agent, and whose tools hold no `spawn_agent`: its Fleet's switch routes the mission.
+ * Nor does it on any other CLI or a shell, which get none of dummyPlane's tools and so open no sub-agents.
+ *
+ * Null: it acts. Else the reason, and the switch shows inert: off whatever Settings says (nothing is routed there),
+ * greyed out, never written, with no "Follow".
  */
-export const hasRouterSwitch = (payload: { agent: AgentId; role?: string }) => FLEET_CAPABLE.includes(payload.agent) && payload.role !== MANAGER_ROLE;
+export function routerInert(payload: { agent: AgentId; role?: string }): RouterInert | null {
+  if (payload.role === MANAGER_ROLE) return "manager";
+  return FLEET_CAPABLE.includes(payload.agent) ? null : "agent";
+}

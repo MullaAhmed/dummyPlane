@@ -1672,11 +1672,61 @@ describe("the model router's switch in the Edit tab", () => {
     expect(readTerminalPayload(JSON.parse(JSON.stringify(terminalPayload())))?.router).toBe(true);
   });
 
-  it("is offered to a Claude or a Codex terminal, whose sub-agents it routes, not to another CLI's", async () => {
+  it("acts on a Claude or a Codex terminal, whose sub-agents it routes", async () => {
     await mountTerminal(terminal({ agent: "codex" }));
     expect(routerSwitch()).not.toBeNull();
-    await mountTerminal(terminal({ agent: "gemini" }));
-    expect(routerSwitch()).toBeNull();
+    expect(routerSwitch()!.hasAttribute("aria-disabled")).toBe(false);
+    await act(async () => routerSwitch()!.click());
+    expect(terminalPayload().router).toBe(true);
+  });
+
+  describe("where it has nothing to route (a CLI without dummyPlane's tools, a Manager)", () => {
+    const CASES = [
+      { name: "Gemini", payload: { agent: "gemini" }, why: "Gemini can't open sub-agents, so the router has nothing to route here" },
+      { name: "a shell", payload: { agent: "shell" }, why: "A shell can't open sub-agents, so the router has nothing to route here" },
+      { name: "an Ollama model", payload: { agent: "ollama" }, why: "Ollama can't open sub-agents, so the router has nothing to route here" },
+      { name: "a Manager", payload: { role: "manager", fleet: "o1" }, why: "A Manager opens no sub-agents; its Fleet's switch routes the mission" },
+    ] as const;
+    const followButton = () => [...host.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent?.startsWith("Follow"));
+
+    it.each(CASES)("still shows $name's switch, off and greyed out, and the line under it says why", async ({ payload, why }) => {
+      await mountTerminal(terminal(payload as Partial<TerminalPayload>));
+      const sw = routerSwitch()!;
+      expect(sw).not.toBeNull();
+      expect(sw.getAttribute("aria-checked")).toBe("false");
+      // aria-disabled, not disabled: the keyboard still reaches it, and the line under it describes it.
+      expect(sw.getAttribute("aria-disabled")).toBe("true");
+      expect(sw.hasAttribute("disabled")).toBe(false);
+      expect(sw.tabIndex).toBeGreaterThanOrEqual(0);
+      expect(sw.className).toContain("opacity-50");
+      expect(host.querySelector(`label[for="${sw.id}"]`)?.textContent).toBe("Model router");
+      expect(document.getElementById(sw.getAttribute("aria-describedby")!)?.textContent).toBe(why);
+      // Not what a switch that acts says of itself.
+      expect(host.textContent).not.toContain("With it on, a sub-task a Fleet gives it");
+    });
+
+    it.each(CASES)("changes nothing when $name's switch is pressed, even with Settings' router on, and offers no Follow", async ({ payload }) => {
+      modelRouterStore.setState({ on: true });
+      await mountTerminal(terminal({ ...payload, router: true } as Partial<TerminalPayload>));
+      const before = JSON.stringify(nodesStore.getState().nodes);
+      // Off whatever Settings say and whatever is stored: nothing is routed here.
+      expect(routerSwitch()!.getAttribute("aria-checked")).toBe("false");
+      await act(async () => routerSwitch()!.click());
+      await act(async () => routerSwitch()!.click());
+      expect(JSON.stringify(nodesStore.getState().nodes)).toBe(before);
+      expect(terminalPayload().router).toBe(true);
+      expect(modelRouterStore.getState().on).toBe(true);
+      expect(routerSwitch()!.getAttribute("aria-checked")).toBe("false");
+      expect(followButton()).toBeUndefined();
+    });
+
+    it("changes nothing either when its label is pressed", async () => {
+      await mountTerminal(terminal({ agent: "gemini" }));
+      const before = JSON.stringify(nodesStore.getState().nodes);
+      await act(async () => host.querySelector<HTMLLabelElement>(`label[for="${routerSwitch()!.id}"]`)!.click());
+      expect(JSON.stringify(nodesStore.getState().nodes)).toBe(before);
+      expect(routerSwitch()!.getAttribute("aria-checked")).toBe("false");
+    });
   });
 
   it("shows on while Settings' router is on, stores each click for that terminal alone, and Follow Settings unsets it", async () => {
@@ -1737,7 +1787,8 @@ describe("the Edit tab of a Shell terminal an agent was started in", () => {
     expect(select("Model")).toBeNull();
     expect(select("Permissions")).toBeNull();
     expect(checkbox("Remote Control")).toBeNull();
-    expect(routerSwitch()).toBeNull();
+    // The router's switch is on a shell too, greyed out: a shell opens no sub-agents.
+    expect(routerSwitch()!.getAttribute("aria-disabled")).toBe("true");
     expect(host.textContent).not.toContain("Effort");
     expect(select("Shell")).not.toBeNull();
 
@@ -1748,7 +1799,8 @@ describe("the Edit tab of a Shell terminal an agent was started in", () => {
     expect(host.textContent).toContain("Effort");
     expect(select("Permissions")).not.toBeNull();
     expect(checkbox("Remote Control")).not.toBeNull();
-    expect(routerSwitch()).not.toBeNull();
+    // Claude opens sub-agents: the switch acts now.
+    expect(routerSwitch()!.hasAttribute("aria-disabled")).toBe(false);
     expect(restartNow()).toBeUndefined();
     // Where it runs and who it is are the terminal's own.
     expect(host.querySelector("[data-folder]")?.textContent).toBe("D:/work/api");
@@ -1780,7 +1832,7 @@ describe("the Edit tab of a Shell terminal an agent was started in", () => {
     expect(select("Model")).not.toBeNull();
     await act(async () => nodesStore.getState().update("t1", switchedAgent(sessionOf(nodesStore.getState().nodes.t1)!, "shell")));
     expect(select("Model")).toBeNull();
-    expect(routerSwitch()).toBeNull();
+    expect(routerSwitch()!.getAttribute("aria-disabled")).toBe("true");
     expect((nodesStore.getState().nodes.t1 as { payload: TerminalPayload }).payload.fromShell).toBeUndefined();
   });
 });

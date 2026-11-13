@@ -179,6 +179,24 @@ it("ties an error to the field it is about", async () => {
   expect(field(DURATION, "spinbutton").hasAttribute("aria-invalid")).toBe(false);
 });
 
+it("opens a loop to edit without the error a form left before it", async () => {
+  loopsStore.setState({
+    loops: [{ id: "a", name: "Point", instruction: "go", targets: ["batman"], trigger: { kind: "interval", minutes: 30 }, maxRuns: 3 }],
+    loaded: true,
+    runtime: {},
+  });
+  await open();
+  await act(async () => button("New loop").click());
+  await act(async () => button("Save").click());
+  expect(field("Name").getAttribute("aria-invalid")).toBe("true");
+  await act(async () => button("Cancel").click());
+  await act(async () => button("Edit").click());
+  // A valid loop: nothing is marked wrong in it.
+  expect(field("Name").value).toBe("Point");
+  expect(field("Name").hasAttribute("aria-invalid")).toBe(false);
+  expect(document.body.textContent).not.toContain("Give the loop a name");
+});
+
 it("names the indicator by what it shows first", async () => {
   loopsStore.setState({ loops: [], loaded: true, runtime: { a: { running: true, runs: 2, startedAt: 0, stoppedBecause: null } as never } });
   await act(async () => undefined);

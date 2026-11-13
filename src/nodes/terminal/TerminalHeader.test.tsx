@@ -168,22 +168,27 @@ describe("the model router's sticky switch", () => {
   const router = (host: HTMLElement) => host.querySelector<HTMLButtonElement>('button[aria-label="Model router"]');
   const shown = (payload: object) => <TerminalHeader nodeId="batman" payload={{ ...claude, ...payload } as TerminalPayload} status={{ state: "running" }} />;
 
-  it("is on a Claude terminal only, never a Manager's, and keeps to the wide header with the chips", async () => {
+  it("is on every terminal, keeps to the wide header with the chips, and acts on a Claude terminal", async () => {
     const view = await mount(shown({}));
     expect(router(view.host)?.getAttribute("data-router")).toBe("off");
     // One name, its state in aria-pressed: "Model router, toggle button, not pressed".
     expect(router(view.host)?.getAttribute("aria-pressed")).toBe("false");
+    expect(router(view.host)?.hasAttribute("aria-disabled")).toBe(false);
     expect(router(view.host)?.parentElement?.className).toContain("@md/head:flex");
-    await act(async () => view.root.render(shown({ agent: "shell" })));
-    expect(router(view.host)).toBeNull();
+    // On every other terminal too, with the same name and place: greyed out there (below).
+    for (const agent of ["shell", "gemini", "custom"]) {
+      await act(async () => view.root.render(shown({ agent })));
+      expect(router(view.host), agent).not.toBeNull();
+      expect(router(view.host)?.parentElement?.className, agent).toContain("@md/head:flex");
+    }
     await act(async () => view.root.render(shown({ role: "manager", fleet: "chef" })));
-    expect(router(view.host)).toBeNull();
+    expect(router(view.host)).not.toBeNull();
     await view.unmount();
   });
 
   const payloadOf = () => nodesStore.getState().nodes.batman?.payload as TerminalPayload;
 
-  it("is in its ⋯ menu too, at any width: a checked entry that writes the same switch, never a Manager's", async () => {
+  it("is in its ⋯ menu too, at any width: a checked entry that writes the same switch", async () => {
     mockIPC(() => undefined);
     await nodesStore.getState().create("batman", { workspaceId: "w1", kind: "terminal", payload: claude });
     const view = await mount(shown({}));
@@ -191,13 +196,97 @@ describe("the model router's sticky switch", () => {
     const entry = () => document.querySelector<HTMLElement>('[role="menuitemcheckbox"]');
     expect(entry()?.textContent).toBe("Model router");
     expect(entry()?.getAttribute("aria-checked")).toBe("false");
+    expect(entry()?.hasAttribute("aria-disabled")).toBe(false);
     await act(async () => entry()!.click());
     expect(payloadOf().router).toBe(true);
     await view.unmount();
-    const manager = await mount(shown({ role: "manager", fleet: "chef" }));
-    await openMore(manager.host);
-    expect(entry()).toBeNull();
-    await manager.unmount();
+  });
+
+  describe("where it has nothing to route (a CLI without dummyPlane's tools, a Manager)", () => {
+    const hintOf = async (button: HTMLElement) => {
+      await act(async () => button.focus());
+      await act(async () => new Promise((resolve) => setTimeout(resolve, 450)));
+      return document.querySelector('[role="tooltip"]')?.textContent;
+    };
+    const describedBy = (button: HTMLElement) => document.getElementById(button.getAttribute("aria-describedby")!)?.textContent;
+    const CASES = [
+      { name: "Gemini", payload: { agent: "gemini" }, why: "Gemini can't open sub-agents, so the router has nothing to route here" },
+      { name: "Qwen Code", payload: { agent: "qwen" }, why: "Qwen Code can't open sub-agents, so the router has nothing to route here" },
+      { name: "a shell", payload: { agent: "shell" }, why: "A shell can't open sub-agents, so the router has nothing to route here" },
+      { name: "a custom command", payload: { agent: "custom" }, why: "A custom command can't open sub-agents, so the router has nothing to route here" },
+      { name: "a Manager", payload: { role: "manager", fleet: "chef" }, why: "A Manager opens no sub-agents; its Fleet's switch routes the mission" },
+    ] as const;
+
+    it.each(CASES)("shows $name's switch greyed out, off, and says why in its hint and its description", async ({ payload, why }) => {
+      mockIPC(() => undefined);
+      await nodesStore.getState().create("batman", { workspaceId: "w1", kind: "terminal", payload: { ...claude, ...payload } as TerminalPayload });
+      const view = await mount(shown(payload));
+      const button = router(view.host)!;
+      expect(button).not.toBeNull();
+      // aria-disabled, not disabled: it stays in the tab order, and the pointer reaches its hint.
+      expect(button.getAttribute("aria-disabled")).toBe("true");
+      expect(button.disabled).toBe(false);
+      expect(button.getAttribute("aria-pressed")).toBe("false");
+      expect(button.getAttribute("data-router")).toBe("off");
+      expect(button.className).toContain("opacity-50");
+      expect(button.hasAttribute("title")).toBe(false);
+      expect(describedBy(button)).toBe(why);
+      expect(await hintOf(button)).toBe(why);
+      await view.unmount();
+    });
+
+    it.each(CASES)("changes nothing when $name's switch is pressed, nor reads Settings' router as its own", async ({ payload }) => {
+      mockIPC(() => undefined);
+      modelRouterStore.setState({ on: true });
+      await nodesStore.getState().create("batman", { workspaceId: "w1", kind: "terminal", payload: { ...claude, ...payload } as TerminalPayload });
+      const before = JSON.stringify(nodesStore.getState().nodes);
+      const view = await mount(shown(payload));
+      const button = router(view.host)!;
+      // Settings' router is on, which a switch that acts would show: here nothing is routed.
+      expect(button.getAttribute("aria-pressed")).toBe("false");
+      await act(async () => button.click());
+      await act(async () => button.click());
+      expect(JSON.stringify(nodesStore.getState().nodes)).toBe(before);
+      expect(payloadOf().router).toBeUndefined();
+      expect(modelRouterStore.getState().on).toBe(true);
+      expect(button.getAttribute("aria-pressed")).toBe("false");
+      await view.unmount();
+    });
+
+    it("reads off on a stale switch too, and a click never writes over it", async () => {
+      mockIPC(() => undefined);
+      await nodesStore.getState().create("batman", { workspaceId: "w1", kind: "terminal", payload: { ...claude, agent: "gemini", router: true } });
+      const view = await mount(shown({ agent: "gemini", router: true }));
+      expect(router(view.host)?.getAttribute("aria-pressed")).toBe("false");
+      await act(async () => router(view.host)!.click());
+      expect(payloadOf().router).toBe(true);
+      await view.unmount();
+    });
+
+    it.each(CASES)("is in $name's ⋯ menu, greyed out and unchecked, with its reason as its title, and does nothing", async ({ payload, why }) => {
+      mockIPC(() => undefined);
+      await nodesStore.getState().create("batman", { workspaceId: "w1", kind: "terminal", payload: { ...claude, ...payload, router: true } as TerminalPayload });
+      modelRouterStore.setState({ on: true });
+      const before = JSON.stringify(nodesStore.getState().nodes);
+      const view = await mount(shown(payload));
+      await openMore(view.host);
+      const entry = document.querySelector<HTMLElement>('[role="menuitemcheckbox"]')!;
+      expect(entry.textContent).toBe("Model router");
+      expect(entry.getAttribute("aria-checked")).toBe("false");
+      expect(entry.getAttribute("aria-disabled")).toBe("true");
+      // Not Radix's disabled: it stays in the menu's keyboard order, so a keyboard user hears why.
+      expect(entry.hasAttribute("data-disabled")).toBe(false);
+      expect(entry.getAttribute("title")).toBe(why);
+      expect(entry.getAttribute("aria-description")).toBe(why);
+      expect(entry.className).toContain("opacity-50");
+      await act(async () => entry.click());
+      expect(JSON.stringify(nodesStore.getState().nodes)).toBe(before);
+      // The menu stays open, with its entry unchecked and no Follow offered, however the switch is stored.
+      expect(document.querySelector('[role="menu"]')).not.toBeNull();
+      expect(document.querySelector('[role="menuitemcheckbox"]')?.getAttribute("aria-checked")).toBe("false");
+      expect([...document.querySelectorAll('[role="menuitem"]')].some((item) => item.textContent?.startsWith("Follow"))).toBe(false);
+      await view.unmount();
+    });
   });
 
   it("is on a Codex terminal too, and shows Settings' router while its own switch is unset; each click stores its state", async () => {

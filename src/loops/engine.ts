@@ -122,9 +122,13 @@ export function createLoopEngine(deps: EngineDeps, onChange: (id: string, runtim
       state.nextAt = now + trigger.minutes * 60_000;
       await run(state, targets);
     } else if (trigger.kind === "idle") {
-      const fired = targets.filter((id) => state.idle.has(id));
-      state.idle.clear();
-      if (fired.length > 0 && cooledDown(state)) await run(state, [fired[0]]);
+      // Held while the pause lasts, as the output trigger's text: the agent stays idle, so no other idle would come.
+      if (!cooledDown(state)) return;
+      // One run per pause, to the one idle longest (the set keeps their order): the others wait for the next.
+      const fired = [...state.idle].find((id) => targets.includes(id));
+      if (fired === undefined) return;
+      state.idle.delete(fired);
+      await run(state, [fired]);
     } else {
       for (const id of targets) {
         const now = shows(deps.screenOf(id), trigger.text);
@@ -146,7 +150,12 @@ export function createLoopEngine(deps: EngineDeps, onChange: (id: string, runtim
     running: () => [...states.values()].filter((s) => s.runtime.running).map((s) => s.def.id),
     /** An agent's activity changed (the idle trigger). */
     activity(nodeId: string, activity: Activity, previous: Activity | undefined) {
-      if (activity !== "idle" || (previous !== "working" && previous !== "waiting")) return;
+      // At work or waiting again before its run: its held idle is no news, nothing is typed into what it does.
+      if (activity !== "idle") {
+        for (const state of states.values()) state.idle.delete(nodeId);
+        return;
+      }
+      if (previous !== "working" && previous !== "waiting") return;
       for (const state of states.values()) {
         if (state.runtime.running && state.def.trigger.kind === "idle" && state.def.targets.includes(nodeId)) state.idle.add(nodeId);
       }
