@@ -825,6 +825,44 @@ mod windows_tests {
         eprintln!("pings stopped with their terminal: {pings:?} (node: {node})");
     }
 
+    /// A terminal whose process ends by itself (`exit` typed in its shell, an agent quitting) takes what it left
+    /// running with it, as a closed one does.
+    #[test]
+    fn a_terminal_that_ends_by_itself_stops_what_it_left_running() {
+        let input = "powershell -NoProfile -Command \"$p = Start-Process ping -ArgumentList '-n','60','127.0.0.1' -WindowStyle Hidden -PassThru; Write-Output ('left=' + $p.Id + '.')\"\rexit\r";
+        let sink = VecSink::default();
+        let exited = spawn_answering(
+            &PtyManager::default(),
+            "ends",
+            cmd_plan(&[], Some(input)),
+            sink.clone(),
+        );
+        // Its shell ends after it said which ping it left: cmd echoes the line typed, whose `left=` is not followed by a number.
+        let mut ping = None;
+        wait_until("the ping it left", || {
+            ping = sink
+                .text()
+                .split("left=")
+                .skip(1)
+                .find_map(|rest| rest.split('.').next()?.trim().parse::<u32>().ok());
+            ping.is_some()
+        });
+        let ping = ping.unwrap();
+        wait_exit(&exited);
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while alive(ping, "ping") && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        let left = alive(ping, "ping");
+        // This test's own, if the terminal left it.
+        if left {
+            let _ = std::process::Command::new("taskkill")
+                .args(["/F", "/PID", &ping.to_string()])
+                .output();
+        }
+        assert!(!left, "ping {ping} outlived its terminal's end");
+    }
+
     #[test]
     fn reports_each_changed_scrollback_once() {
         let mgr = PtyManager::default();
