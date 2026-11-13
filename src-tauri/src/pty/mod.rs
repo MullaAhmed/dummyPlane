@@ -863,6 +863,85 @@ mod windows_tests {
         assert!(!left, "ping {ping} outlived its terminal's end");
     }
 
+    /// A program the terminal started that shows a window of its own (`code .`, a browser a login opened) stays open
+    /// when the terminal closes, and so do the helpers it started; what has no window still stops. The window here is
+    /// a form PowerShell shows, off the screen, from a hidden console of its own, as a GUI app has none of the
+    /// terminal's.
+    #[test]
+    fn killing_a_terminal_spares_what_it_started_with_a_window_and_its_helpers() {
+        let dir = tempfile::tempdir().unwrap();
+        let shown = dir.path().join("shown.txt");
+        let script = dir.path().join("app.ps1");
+        let app_script = [
+            "Start-Process ping -ArgumentList '-n','60','127.0.0.1' -WindowStyle Hidden"
+                .to_string(),
+            "Add-Type -AssemblyName System.Windows.Forms".to_string(),
+            "$f = New-Object System.Windows.Forms.Form".to_string(),
+            "$f.Text = 'dummyPlane test window'".to_string(),
+            "$f.ShowInTaskbar = $false".to_string(),
+            "$f.StartPosition = 'Manual'".to_string(),
+            "$f.Location = New-Object System.Drawing.Point(-20000, -20000)".to_string(),
+            format!(
+                "$f.Add_Shown({{ Set-Content -LiteralPath '{}' -Value $PID }})",
+                shown.display()
+            ),
+            "[System.Windows.Forms.Application]::Run($f)".to_string(),
+        ]
+        .join("\r\n");
+        std::fs::write(&script, app_script).unwrap();
+        let input = format!(
+            "powershell -NoProfile -Command \"Start-Process powershell -WindowStyle Hidden -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File','{}'; $p = Start-Process ping -ArgumentList '-n','60','127.0.0.1' -WindowStyle Hidden -PassThru; Wait-Process -Id $p.Id\"\r",
+            script.display()
+        );
+        let mgr = PtyManager::default();
+        let exited = spawn_answering(&mgr, "win", cmd_plan(&[], Some(&input)), VecSink::default());
+        let root = mgr.get("win").and_then(|session| session.pid).unwrap();
+        let (mut app, mut helper, mut background) = (0, 0, 0);
+        wait_until("the window, its helper and the hidden ping", || {
+            app = std::fs::read_to_string(&shown)
+                .ok()
+                .and_then(|pid| pid.trim().parse().ok())
+                .unwrap_or(0);
+            let procs = watch::processes();
+            let pings = pings_under(root);
+            helper = pings
+                .iter()
+                .copied()
+                .find(|&pid| procs.iter().any(|p| p.pid == pid && p.parent == app))
+                .unwrap_or(0);
+            background = pings
+                .iter()
+                .copied()
+                .find(|&pid| pid != helper)
+                .unwrap_or(0);
+            app != 0 && helper != 0 && background != 0
+        });
+        mgr.kill("win");
+        wait_exit(&exited);
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while alive(background, "ping") && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        // Long enough for the terminal's session, and its job's handle, to be gone.
+        std::thread::sleep(Duration::from_millis(1500));
+        let states = (
+            alive(background, "ping"),
+            alive(app, "powershell"),
+            alive(helper, "ping"),
+        );
+        // This test's own: stopped here, whatever the terminal did.
+        for pid in [background, app, helper] {
+            let _ = std::process::Command::new("taskkill")
+                .args(["/F", "/PID", &pid.to_string()])
+                .output();
+        }
+        assert_eq!(
+            states,
+            (false, true, true),
+            "(hidden ping alive, window alive, its helper alive)"
+        );
+    }
+
     #[test]
     fn reports_each_changed_scrollback_once() {
         let mgr = PtyManager::default();
