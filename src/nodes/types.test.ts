@@ -62,6 +62,14 @@ describe("readTerminalPayload", () => {
     expect(readTerminalPayload({ ...robin, staleTitle: "yes" })).toEqual(robin);
   });
 
+  it("keeps across a restart that a sub-agent is a manager its spawner opened, and no mission's Manager", () => {
+    const robin = { title: "Release", name: "Robin", agent: "claude", cwd: "C:/code", shell: "default", command: "", spawnedBy: "batman", task: "Run the release" };
+    const read = readTerminalPayload({ ...robin, coordinator: true });
+    expect(read).toEqual({ ...robin, coordinator: true });
+    expect(read?.role).toBeUndefined();
+    expect(readTerminalPayload({ ...robin, coordinator: "yes" })).toEqual(robin);
+  });
+
   it("keeps across a restart that dummyPlane stopped a finished sub-agent to free its memory", () => {
     const robin = { title: "Tests", name: "Robin", agent: "claude", cwd: "C:/code", shell: "default", command: "", spawnedBy: "batman", claudeSessionId: "s1" };
     expect(readTerminalPayload({ ...robin, stoppedFinished: true })).toEqual({ ...robin, stoppedFinished: true });

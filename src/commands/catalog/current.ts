@@ -24,6 +24,7 @@ import { isRunning } from "@/store/terminalStatus";
 import { uiStore } from "@/store/ui";
 import type { Command, CommandContext } from "../command";
 import { requestUi } from "../uiRequests";
+import { askArrangeLayout } from "./arrangeMenu";
 import { command } from "./define";
 import { catalog } from "./messages";
 
@@ -210,6 +211,15 @@ export const CURRENT: readonly Command[] = [
     run: (ctx) => {
       const group = groupOfCurrent(ctx);
       if (group && ctx.workspaceId) arrangeWorkspace(ctx.workspaceId, { only: [group.id], undoable: true });
+    },
+  }),
+  // The same, in a layout picked from a list at the ring's point (the canvas's middle from the palette); once, the setting stays as it is.
+  command("group.arrangeAs", {
+    section: groupSection,
+    available: hasGroup,
+    run: (ctx) => {
+      const group = groupOfCurrent(ctx);
+      if (group) askArrangeLayout(ctx, { kind: "group", id: group.id });
     },
   }),
   // The same, its members as a tree whatever the "Arrange layout" setting: who opened whom, downward (src/agents/arrangeTree.ts). One undo.

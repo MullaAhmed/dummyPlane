@@ -8,6 +8,7 @@ import type { Point } from "@/agents/terminals";
 import { CANVAS_KEYS, copyCanvasSelection, openNativeMenuAt, pasteOnCanvasAt, pressCanvasKey, startTextAt, ungroupDrawings } from "@/radial/bridges";
 import { exportCurrentPng, exportCurrentScene, importIntoScene } from "@/shell/sceneActions";
 import type { Command, CommandContext } from "../command";
+import { askArrangeLayout } from "./arrangeMenu";
 import { command, derived, sectionNamed } from "./define";
 import { catalog } from "./messages";
 import { inProject } from "./navigation";
@@ -153,6 +154,13 @@ export const SCENE: readonly Command[] = [
     run: (ctx) => {
       if (ctx.workspaceId) arrangeWorkspace(ctx.workspaceId, { only: selectionOf(ctx), undoable: true });
     },
+  }),
+  // The same, in a layout picked from a list at the ring's point (the canvas's middle from the palette): the selection when it
+  // holds two blocks or one group, else the canvas; picked for the whole canvas, it is the Arrange layout setting too (src/agents/arrangeAs.ts).
+  command("scene.arrangeAs", {
+    section: scene,
+    available: inProject,
+    run: (ctx) => askArrangeLayout(ctx, { kind: "scene", only: selectionOf(ctx) }),
   }),
   // Everything on the canvas, whatever is selected; one undo.
   command("scene.arrangeCanvas", {

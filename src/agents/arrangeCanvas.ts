@@ -1,14 +1,44 @@
 import { CaptureUpdateAction } from "@excalidraw/excalidraw";
+import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { arrangeLayoutStore } from "@/app/arrangeLayoutSetting";
 import { canvasStore } from "@/canvas/canvasStore";
 import { isMinimized } from "@/nodes/terminal/minimize";
 import { isManagerNode } from "@/store/nodes";
-import { arrangedElements, type ArrangeScope } from "./arrange";
+import { arrangedElements, arrangesWholeCanvas, type ArrangeInput, type ArrangeScope } from "./arrange";
 import type { ArrangeLayout } from "./arrangeLayout";
 import { anchorsOf } from "./attachments";
 import { sceneAccess } from "./sceneAccess";
 import { spawnedBy } from "./spawnTree";
 import { rerouteWires } from "./wires";
+
+/** What an arrange of `elements` reads: the scene, the selection asked for, and the layout (the setting's when none is given). */
+function arrangeInput(
+  elements: readonly ExcalidrawElement[],
+  options: { only?: readonly string[]; scope?: ArrangeScope; layout?: ArrangeLayout; undoable: boolean },
+): ArrangeInput {
+  const { view } = canvasStore.getState();
+  return {
+    elements,
+    parentOf: spawnedBy,
+    isMinimized,
+    attachedTo: anchorsOf(elements),
+    only: options.only,
+    scope: options.scope,
+    layout: options.layout ?? arrangeLayoutStore.getState().layout,
+    aspect: view.width > 0 && view.height > 0 ? view.width / view.height : undefined,
+    clearTreeMarks: options.undoable,
+    isDownRoot: isManagerNode,
+  };
+}
+
+/**
+ * Whether an Arrange of `only` (as the palette's Arrange asks it: the selection from two blocks or one group, else the
+ * canvas) takes the whole canvas of this workspace, whether or not anything would move. False without a scene.
+ */
+export function arrangeCoversCanvas(workspaceId: string, only?: readonly string[]): boolean {
+  const scene = sceneAccess(workspaceId);
+  return scene !== null && arrangesWholeCanvas(arrangeInput(scene.elements(), { only, undoable: true }));
+}
 
 /**
  * Arranges a workspace's canvas (see ./arrange.ts) in the chosen layout (the
@@ -25,20 +55,7 @@ import { rerouteWires } from "./wires";
 export function arrangeWorkspace(workspaceId: string, options: { only?: readonly string[]; scope?: ArrangeScope; layout?: ArrangeLayout; undoable: boolean }): boolean {
   const scene = sceneAccess(workspaceId);
   if (!scene) return false;
-  const { view } = canvasStore.getState();
-  const elements = scene.elements();
-  const result = arrangedElements({
-    elements,
-    parentOf: spawnedBy,
-    isMinimized,
-    attachedTo: anchorsOf(elements),
-    only: options.only,
-    scope: options.scope,
-    layout: options.layout ?? arrangeLayoutStore.getState().layout,
-    aspect: view.width > 0 && view.height > 0 ? view.width / view.height : undefined,
-    clearTreeMarks: options.undoable,
-    isDownRoot: isManagerNode,
-  });
+  const result = arrangedElements(arrangeInput(scene.elements(), options));
   if (!result) return false;
   const next = rerouteWires(result.elements, result.movedNodeIds);
   if (!scene.shown) {

@@ -62,6 +62,11 @@ it("leaves a sub-agent's spawner and task behind: a copy was asked nothing", () 
   expect(copy.task).toBeUndefined();
 });
 
+it("leaves a manager sub-agent's marker behind: a copy was given no manager's brief", () => {
+  const copy = cloneTerminalPayload({ ...claude, spawnedBy: "batman", task: "Run the release", coordinator: true }, "Superman");
+  expect(copy).not.toHaveProperty("coordinator");
+});
+
 it("starts the agent of a copy itself: nothing of the source's shell stands in front of it", () => {
   const copy = cloneTerminalPayload({ ...claude, fromShell: true }, "Superman");
   expect(copy.fromShell).toBeUndefined();

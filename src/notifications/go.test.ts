@@ -22,10 +22,11 @@ const select = vi.fn();
 const open = vi.fn(() => Promise.resolve());
 
 /** A notification in the history, about `plane`. */
-function noted(plane: Partial<Plane>): NotificationEntry {
+function noted(plane: Partial<Plane>, type: NotificationEntry["type"] = "finished"): NotificationEntry {
   const entry: NotificationEntry = {
     id: "n1",
     at: 1,
+    type,
     kind: "info",
     title: "Alan finished",
     read: false,
@@ -68,6 +69,13 @@ describe("a click on a notification", () => {
     await openNotification(noted({ workspaceId: "w1", nodeId: "mine" }));
     expect(arrive).toHaveBeenCalledWith("mine");
     expect(select).not.toHaveBeenCalled();
+  });
+
+  it("centres on a board whose cards are all done, as on an agent", async () => {
+    nodesStore.setState({ nodes: { ...nodesStore.getState().nodes, board: { workspaceId: "w1", kind: "kanban", payload: { columns: [], cards: {} } } } } as never);
+    await openNotification(noted({ workspaceId: "w1", nodeId: "board" }, "board"));
+    expect(arrive).toHaveBeenCalledWith("board");
+    expect(isRead()).toBe(true);
   });
 
   it("switches to the node's workspace, then centres on it once that canvas is on screen", async () => {

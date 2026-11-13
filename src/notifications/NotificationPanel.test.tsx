@@ -25,10 +25,12 @@ const select = vi.fn();
 let host: HTMLDivElement;
 let root: Root;
 
+/** A notification; its type follows its tone unless given: info a question, plain a board, the others a finish. */
 function note(id: string, kind: ToastKind, title: string, workspaceId: string | null, over: Partial<NotificationEntry> = {}): NotificationEntry {
   return {
     id,
     at: Date.now() - 60_000,
+    type: kind === "info" ? "question" : kind === "plain" ? "board" : "finished",
     kind,
     title,
     read: false,
@@ -100,17 +102,23 @@ describe("the bell", () => {
 });
 
 describe("the panel", () => {
-  it("lists every notification, newest first, with its kind, its text, its time and its plane", async () => {
+  it("lists every notification, newest first, with its text, its type, its time and its plane", async () => {
     seed(
-      note("c", "error", "Could not push", "w2", { description: "remote rejected", at: Date.now() - 5 * 60_000 }),
-      note("b", "success", "Saved", "w1", { at: Date.now() - 60 * 60_000 }),
-      note("a", "plain", "Link copied", null, { read: true, at: Date.now() - 3 * 24 * 3_600_000 }),
+      note("c", "error", "Batman · Failed", "w2", { description: "Tests red", at: Date.now() - 5 * 60_000 }),
+      note("b", "success", "Board done: all 3 cards finished", "w1", { type: "board", at: Date.now() - 60 * 60_000 }),
+      note("a", "info", "Robin · Waiting", null, { read: true, at: Date.now() - 3 * 24 * 3_600_000 }),
     );
     await open();
-    expect(rows().map((r) => r.querySelector("span.min-w-0 span.min-w-0")?.textContent?.replace(/^.*?: /, ""))).toEqual(["Could not push", "Saved", "Link copied"]);
+    expect(rows().map((r) => r.querySelector("span.min-w-0 span.min-w-0")?.textContent?.replace(/^Unread\. /, ""))).toEqual([
+      "Batman · Failed",
+      "Board done: all 3 cards finished",
+      "Robin · Waiting",
+    ]);
+    // The row says its type: what it tells, not the popup's tone.
+    expect(rows().map((r) => r.querySelector("[data-type]")?.textContent)).toEqual(["Finished", "Board", "Question"]);
     const first = rows()[0].textContent ?? "";
-    expect(first).toContain("Error:");
-    expect(first).toContain("remote rejected");
+    expect(first).not.toContain("Error:");
+    expect(first).toContain("Tests red");
     expect(first).toContain("5 min ago");
     // The plane: the project and the workspace, by their current names.
     expect(first).toContain("Alpha › Second");
@@ -138,7 +146,7 @@ describe("the panel", () => {
   it("says when there is nothing to list", async () => {
     seed();
     await open();
-    expect(content()?.textContent).toContain("Nothing has popped up yet");
+    expect(content()?.textContent).toContain("Nothing yet. An agent that finishes or asks you something, and a board whose cards are all done, are kept here.");
     expect(button("Mark all read").disabled).toBe(true);
     expect(button("Clear").disabled).toBe(true);
   });
@@ -155,46 +163,56 @@ describe("the panel", () => {
 
 describe("the filters", () => {
   const history = () =>
-    seed(note("d", "error", "Error in w1", "w1"), note("c", "info", "Info in w2", "w2"), note("b", "error", "Error in w2", "w2"), note("a", "success", "Success in w1", "w1"));
+    seed(
+      note("e", "plain", "Board in w2", "w2"),
+      note("d", "error", "Failed in w1", "w1"),
+      note("c", "info", "Question in w2", "w2"),
+      note("b", "warning", "Blocked in w2", "w2"),
+      note("a", "success", "Done in w1", "w1"),
+    );
   const filter = (id: string) => document.body.querySelector<HTMLElement>(`[data-filter="${id}"]`)!;
+  const filters = () => [...document.body.querySelectorAll<HTMLElement>("[data-filter]")];
 
-  it("shows all of them, with the count each filter keeps", async () => {
+  it("are All, This workspace, Questions, Finished and Boards, each with its count, and no Errors", async () => {
     history();
     await open();
-    expect(rows()).toHaveLength(4);
-    expect(filter("all").textContent).toContain("4");
-    expect(filter("workspace").textContent).toContain("2");
-    expect(filter("errors").textContent).toContain("2");
+    expect(rows()).toHaveLength(5);
+    expect(filters().map((f) => f.textContent)).toEqual(["All5", "This workspace2", "Questions1", "Finished3", "Boards1"]);
+    expect(document.body.querySelector('[data-filter="errors"]')).toBeNull();
   });
 
   it("This workspace keeps what is about the workspace on screen", async () => {
     history();
     await open();
     await act(async () => filter("workspace").click());
-    expect(rowTitles().map((t) => /(Error|Success) in w1/.exec(t)?.[0])).toEqual(["Error in w1", "Success in w1"]);
+    expect(rowTitles().map((t) => /(Failed|Done) in w1/.exec(t)?.[0])).toEqual(["Failed in w1", "Done in w1"]);
     workspacesStore.setState({ activeId: "w2" });
     await act(async () => undefined);
-    expect(rows()).toHaveLength(2);
-    expect(rowTitles().join(" ")).toContain("Info in w2");
+    expect(rows()).toHaveLength(3);
+    expect(rowTitles().join(" ")).toContain("Question in w2");
   });
 
-  it("Errors keeps the errors of every workspace", async () => {
+  it("Questions, Finished and Boards keep their own type, of every workspace", async () => {
     history();
     await open();
-    await act(async () => filter("errors").click());
-    expect(rows()).toHaveLength(2);
-    expect(rowTitles().every((t) => t.includes("Error:"))).toBe(true);
+    await act(async () => filter("question").click());
+    expect(rowTitles().map((t) => /Question in w2/.exec(t)?.[0])).toEqual(["Question in w2"]);
+    await act(async () => filter("finished").click());
+    expect(rows()).toHaveLength(3);
+    expect(rows().every((r) => r.querySelector("[data-type]")?.textContent === "Finished")).toBe(true);
+    await act(async () => filter("board").click());
+    expect(rowTitles().map((t) => /Board in w2/.exec(t)?.[0])).toEqual(["Board in w2"]);
   });
 
   it("says so when a filter keeps nothing, and keeps one filter on", async () => {
-    seed(note("a", "info", "Only info", "w1"));
+    seed(note("a", "info", "Only a question", "w1"));
     await open();
-    await act(async () => filter("errors").click());
+    await act(async () => filter("board").click());
     expect(rows()).toHaveLength(0);
     expect(content()?.textContent).toContain("Nothing here.");
     // Pressing the filter in force again keeps it on.
-    await act(async () => filter("errors").click());
-    expect(filter("errors").getAttribute("data-state")).toBe("on");
+    await act(async () => filter("board").click());
+    expect(filter("board").getAttribute("data-state")).toBe("on");
   });
 });
 
@@ -214,7 +232,7 @@ describe("the actions", () => {
     await open();
     await act(async () => button("Clear").click());
     expect(notificationsStore.getState().entries).toEqual([]);
-    expect(content()?.textContent).toContain("Nothing has popped up yet");
+    expect(content()?.textContent).toContain("Nothing yet. An agent that finishes or asks you something, and a board whose cards are all done, are kept here.");
     expect(document.activeElement).toBe(button("Close notifications"));
   });
 
