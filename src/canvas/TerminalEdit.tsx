@@ -34,7 +34,7 @@ import { StatusPill } from "@/nodes/terminal/StatusPill";
 import type { TerminalPayload } from "@/nodes/types";
 import { useActivity } from "@/store/agentActivity";
 import { nodeNameOf, nodesStore, sessionOf, updateSession, useNodes, type NodeRecord } from "@/store/nodes";
-import { useTerminalStatus } from "@/store/terminalStatus";
+import { isRunning, useTerminalStatus } from "@/store/terminalStatus";
 import { formatTokens } from "@/usage/usage";
 import { useNodeSession } from "@/usage/usageStore";
 import { IconButton } from "@/shell/buttons";
@@ -743,7 +743,7 @@ function FolderField({ nodeId, session, lock }: { nodeId: string; session: Termi
     // The store as it is after the picker: a mission may have started while it was open.
     const current = latestSession(nodeId);
     if (!current || folderLockOf(nodeId, nodesStore.getState().nodes)) return;
-    const patch = folderChange(current, picked);
+    const patch = folderChange(current, picked, isRunning(nodeId));
     if (!patch?.cwd) return;
     updateSession(nodeId, patch);
     announceFolderMove(nodeId, current, patch.cwd);

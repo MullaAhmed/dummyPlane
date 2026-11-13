@@ -128,6 +128,12 @@ export interface LaunchSettings {
   permission: string;
   /** The profile whose folder it starts with, "" for the default account. */
   accountId: string;
+  /**
+   * Claude's conversation in that folder, kept aside when a move took the terminal elsewhere while it ran: a move
+   * back gives it again, so the next launch resumes the conversation that runs (`folderChange`). Not a setting
+   * that offers a restart.
+   */
+  claudeSessionId?: string;
 }
 
 export const LAUNCH_SETTING_KEYS = ["cwd", "shell", "command", "model", "effort", "permission", "accountId"] as const satisfies readonly (keyof LaunchSettings)[];
@@ -137,7 +143,9 @@ function readLaunchSettings(raw: unknown): LaunchSettings | undefined {
   if (typeof raw !== "object" || raw === null) return undefined;
   const r = raw as Record<string, unknown>;
   if (!LAUNCH_SETTING_KEYS.every((key) => typeof r[key] === "string")) return undefined;
-  return Object.fromEntries(LAUNCH_SETTING_KEYS.map((key) => [key, r[key]])) as unknown as LaunchSettings;
+  const settings = Object.fromEntries(LAUNCH_SETTING_KEYS.map((key) => [key, r[key]])) as unknown as LaunchSettings;
+  if (typeof r.claudeSessionId === "string") settings.claudeSessionId = r.claudeSessionId;
+  return settings;
 }
 
 export type TerminalReportStatus = "done" | "blocked" | "failed";

@@ -34,7 +34,8 @@ const OFFER_MS = 10_000;
 /**
  * Says what a terminal moved from `before` to `cwd` does, once it moved. A running one stays where its process
  * started until it restarts: said plainly, with the restart offered ("Restart in web"). Nothing is restarted
- * without that click. A stopped one starts there anyway: Claude's new conversation is all there is to say.
+ * without that click. A stopped one starts there anyway: Claude's new conversation is all there is to say. A
+ * running Claude moved back to the folder it runs in takes its conversation there again (`folderChange`): it goes on.
  */
 export function announceFolderMove(nodeId: string, before: TerminalPayload, cwd: string) {
   const t = messages(canvasMessages).selection;
@@ -45,7 +46,7 @@ export function announceFolderMove(nodeId: string, before: TerminalPayload, cwd:
   if (from === null || sameFolder(from, cwd)) {
     // Not running, or back in the folder it runs in: nothing waits for a restart.
     toast.dismiss(toastId(nodeId));
-    if (claude) withPlane({ nodeId }, () => toast.info(t.folderNewConversation));
+    if (claude) withPlane({ nodeId }, () => toast.info(from === null ? t.folderNewConversation : t.folderBack(folderName(cwd))));
     return;
   }
   const to = folderName(cwd);

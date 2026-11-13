@@ -64,6 +64,8 @@ export const canvasMessages = defineMessages(
       folderMission: "Fixed while its mission runs: this agent works in its own worktree",
       // Claude keeps a conversation with the folder it started in (it cannot resume one from another folder): said when it moves.
       folderNewConversation: "New folder, new conversation: Claude keeps each conversation with its folder",
+      // A running Claude moved back to the folder its process runs in: the conversation that runs is its own again.
+      folderBack: (folder: string) => `Back in ${folder}, where it runs: its conversation goes on`,
       // A running terminal moved: its process stays in the folder it started in until it restarts. Said in a toast
       // that offers the restart (`restartIn`), and at the top of its Folder row (`stillRunningIn`) until then.
       folderMoveRunning: (from: string) => `Still running in ${from} until it restarts`,

@@ -42,16 +42,21 @@ export function sameFolder(a: string, b: string): boolean {
  * title still named after the old folder ("Claude · api") follows it: Claude
  * names the new conversation after it (`-n`) and shows it on its prompt. Only
  * that: a title of the user's, the model, permission and profile stay as they are.
- * The folder Claude already runs in, started by hand, is `folderAdoption`'s.
+ * While it runs (`running`), its process stays in the folder it started in: a move
+ * away keeps that folder's conversation aside with its launch (`launched`), and a
+ * move back there takes it again, so its next launch resumes the conversation
+ * that runs rather than a new one. The folder Claude already runs in, started by
+ * hand, is `folderAdoption`'s.
  */
-export function folderChange(payload: TerminalPayload, cwd: string): Partial<TerminalPayload> | null {
+export function folderChange(payload: TerminalPayload, cwd: string, running = false): Partial<TerminalPayload> | null {
   const next = cwd.trim();
   if (!next || sameFolder(next, payload.cwd)) return null;
-  return {
-    cwd: next,
-    ...followingTitle(payload, next),
-    ...(payload.agent === "claude" ? newConversation() : {}),
-  };
+  const moved = { cwd: next, ...followingTitle(payload, next) };
+  if (payload.agent !== "claude") return moved;
+  const runs = running ? payload.launched : undefined;
+  if (runs?.claudeSessionId && sameFolder(next, runs.cwd)) return { ...moved, claudeSessionId: runs.claudeSessionId };
+  const aside = runs && payload.claudeSessionId && sameFolder(payload.cwd, runs.cwd) ? { launched: { ...runs, claudeSessionId: payload.claudeSessionId } } : {};
+  return { ...moved, ...newConversation(), ...aside };
 }
 
 /** A title still the old folder's default ("Claude · api") becomes the new folder's; a title the user gave stays. */
