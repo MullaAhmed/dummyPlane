@@ -13,6 +13,10 @@ use crate::sync::lock;
 /// A repository's own config may name a program for git to run whenever it reads the index (`core.fsmonitor`).
 const NO_FSMONITOR: [&str; 2] = ["-c", "core.fsmonitor=false"];
 
+/// A submodule's state is read from its commit, not from its files: git would read those in a git of the
+/// submodule's own, with its own config's filters, which `command` never sees. Its uncommitted changes go unseen.
+const NO_SUBMODULE_STATUS: [&str; 2] = ["-c", "diff.ignoreSubmodules=dirty"];
+
 /// The keys of a config whose values git runs, or that point to what it runs: a filter's commands (and whether it
 /// must run), a merge driver's, and the folder of the hooks. Read with the includes, which name more files to watch.
 const DRIVERS: &str = r"^(filter\..+\.(clean|smudge|process|required)|merge\..+\.driver|core\.hookspath|include\.path|includeif\..+\.path)$";
@@ -50,6 +54,7 @@ fn command_with(dir: &Path, env: &[(&str, &OsStr)]) -> Result<Command, String> {
     command
         .envs(env.iter().copied())
         .args(NO_FSMONITOR)
+        .args(NO_SUBMODULE_STATUS)
         .arg("-C")
         .arg(dir);
     // As `-c` would, but a driver's name may hold a `=`, which `-c` would read as the end of the key. After those
@@ -551,6 +556,61 @@ mod tests {
                 ("core.hookspath", "C:/hooks"),
             ]
             .map(|(key, value)| (key.to_string(), value.to_string()))
+        );
+    }
+
+    /// A submodule has a config of its own, which an archive brings too: reading the repository around it (the
+    /// status, the review panel's changes) runs none of its filters.
+    #[test]
+    fn reading_a_repository_runs_no_filter_of_its_submodules() {
+        let Some(dir) = test_repos::with_local_filter() else {
+            return;
+        };
+        let parent = tempfile::tempdir().unwrap();
+        let sub = parent.path().join("sub");
+        std::fs::create_dir(&sub).unwrap();
+        test_repos::git(&sub, &["init", "-q", "-b", "main"]);
+        for (key, value) in [
+            ("user.name", "t"),
+            ("user.email", "t@t"),
+            ("commit.gpgsign", "false"),
+        ] {
+            test_repos::git(&sub, &["config", key, value]);
+        }
+        std::fs::write(sub.join("s.txt"), "s\n").unwrap();
+        test_repos::git(&sub, &["add", "s.txt"]);
+        test_repos::git(&sub, &["commit", "-q", "-m", "sub"]);
+        let root = dir.path();
+        test_repos::git(root, &["config", "--unset", "filter.x.clean"]);
+        test_repos::git(
+            root,
+            &[
+                "-c",
+                "protocol.file.allow=always",
+                "submodule",
+                "add",
+                "-q",
+                &sub.to_string_lossy(),
+                "sub",
+            ],
+        );
+        test_repos::git(root, &["commit", "-q", "-m", "sub"]);
+        let inner = root.join("sub");
+        test_repos::git(
+            &inner,
+            &[
+                "config",
+                "filter.y.clean",
+                &format!("sh -c 'echo ran > {}; cat'", test_repos::FILTER_RAN),
+            ],
+        );
+        std::fs::write(inner.join(".gitattributes"), "* filter=y\n").unwrap();
+        test_repos::stale(&inner.join("s.txt"));
+        status(root).unwrap();
+        crate::review::changes(root, None).unwrap();
+        assert!(
+            !inner.join(test_repos::FILTER_RAN).exists(),
+            "reading the repository ran a filter its submodule's own config defines"
         );
     }
 
