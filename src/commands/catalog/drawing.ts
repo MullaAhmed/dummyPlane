@@ -137,7 +137,7 @@ export const DRAWING: readonly Command[] = [
     run: () => pressCanvasKey(CANVAS_KEYS.lock),
   }),
   // Agents in the selection go through the closing guard.
-  command("drawing.delete", { section: drawing, keys: "Suppr", available: withSelection, run: () => pressCanvasKey(CANVAS_KEYS.delete) }),
+  command("drawing.delete", { section: drawing, keys: "Delete", available: withSelection, run: () => pressCanvasKey(CANVAS_KEYS.delete) }),
   // The radial menu's only: Excalidraw's full menu at its point.
   command("drawing.more", { section: drawing, available: (ctx) => withSelection(ctx) && ctx.at !== undefined, run: (ctx) => openNativeMenuAt(pointOf(ctx)) }),
 ];

@@ -20,6 +20,8 @@ export interface SceneSyncDeps {
   ) => void;
   onNodesAdded: (ids: string[]) => void;
   onNodesRemoved: (ids: string[]) => void;
+  /** A scene save that failed, told when it did: the timed saves nobody waits for included, whose rejection would be lost. */
+  saveFailed?: (error: unknown) => void;
   delayMs?: number;
 }
 
@@ -54,7 +56,8 @@ export function createSceneSync(
   );
   const persist = debounce((elements: readonly ExcalidrawElement[], appState: SavedAppState, nodeIds: string[]) => {
     const live = elements.filter((e) => !e.isDeleted);
-    return deps.saveScene(JSON.stringify(live), JSON.stringify(appState), nodeIds);
+    const saved = deps.saveScene(JSON.stringify(live), JSON.stringify(appState), nodeIds);
+    return deps.saveFailed ? saved.catch(deps.saveFailed) : saved;
   }, deps.delayMs ?? 500);
 
   const onChange = (

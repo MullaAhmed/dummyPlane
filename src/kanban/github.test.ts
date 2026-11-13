@@ -140,6 +140,33 @@ describe("moveCardWithGithub", () => {
     expect(toast.error).not.toHaveBeenCalled();
   });
 
+  it("moves the Project item of an issue added to the Project since the board last read it", async () => {
+    let items = [item("PVTI_2", 2, "To do")];
+    mockGithub({
+      github_list_issues: () => [issue(1, "open")],
+      github_list_project_items: () => items,
+      github_project_statuses: () => ["To do", "In progress", "Done"],
+    });
+    expect(await syncBoard("b")).toBe(true);
+    // Issue #1 joins the Project on GitHub (an auto-add workflow, a teammate) after the sync.
+    items = [...items, item("PVTI_1", 1, "To do")];
+    await moveCardWithGithub("b", "k1", "doing");
+    expect(calls).toContainEqual(["github_move_project_item", { path: "C:/r", owner: "o", projectNumber: 2, itemId: "PVTI_1", status: "In progress" }]);
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("does not read the Project again for a card outside it moved to a column that is no Status", async () => {
+    mockGithub({
+      github_list_issues: () => [issue(1, "open")],
+      github_list_project_items: () => [item("PVTI_2", 2, "Todo")],
+      github_project_statuses: () => ["Todo", "Done"],
+    });
+    expect(await syncBoard("b")).toBe(true);
+    calls = [];
+    await moveCardWithGithub("b", "k1", "doing");
+    expect(calls).toEqual([]);
+  });
+
   it("keeps the card moved and says why when GitHub refuses", async () => {
     mockGithub({
       github_list_project_items: () => [],
@@ -172,6 +199,66 @@ describe("moveCardWithGithub", () => {
     projectsStore.setState({ activeId: null });
     await moveCardWithGithub("b", "k1", "done", undefined, "C:/mission");
     expect(calls).toContainEqual(["github_set_issue_state", { path: "C:/mission", repo: "o/r", number: 1, state: "closed" }]);
+  });
+
+  it("lands a linked card at once where the last of two quick moves put it, and GitHub follows them in order", async () => {
+    let release!: () => void;
+    const slow = new Promise<void>((resolve) => (release = resolve));
+    let reads = 0;
+    const statuses: string[] = [];
+    mockGithub({
+      // The first read of the Project answers last.
+      github_list_project_items: async () => {
+        if (reads++ === 0) await slow;
+        return [item("PVTI_1", 1, "To do")];
+      },
+      github_project_statuses: () => ["To do", "In progress", "Done"],
+      github_move_project_item: (args) => void statuses.push(String(args.status)),
+    });
+    const first = moveCardWithGithub("b", "k1", "doing");
+    const second = moveCardWithGithub("b", "k1", "done");
+    expect(board().columns.find((c) => c.id === "done")!.cardIds).toEqual(["k1"]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    release();
+    await Promise.all([first, second]);
+    expect(board().columns.find((c) => c.id === "done")!.cardIds).toEqual(["k1"]);
+    expect(statuses).toEqual(["In progress", "Done"]);
+    expect(board().cards.k1.github!.state).toBe("closed");
+  });
+
+  it("reopens the issue of a card taken out of Done while GitHub was still closing it", async () => {
+    let release!: () => void;
+    const slow = new Promise<void>((resolve) => (release = resolve));
+    const states: string[] = [];
+    mockGithub({
+      github_list_project_items: () => [],
+      github_project_statuses: () => ["To do", "In progress", "Done"],
+      github_set_issue_state: async (args) => {
+        if (args.state === "closed") await slow;
+        states.push(String(args.state));
+      },
+    });
+    const first = moveCardWithGithub("b", "k1", "done");
+    await vi.waitFor(() => expect(board().columns.find((c) => c.id === "done")!.cardIds).toEqual(["k1"]));
+    const second = moveCardWithGithub("b", "k1", "doing");
+    await vi.waitFor(() => expect(board().columns.find((c) => c.id === "doing")!.cardIds).toEqual(["k1"]));
+    release();
+    await Promise.all([first, second]);
+    expect(states).toEqual(["closed", "open"]);
+    expect(board().cards.k1.github!.state).toBe("open");
+  });
+
+  it("reorders a linked card within its column without asking GitHub, which has nothing to follow", async () => {
+    mockGithub({
+      github_list_project_items: () => {
+        throw { kind: "github", message: "gh failed: error connecting to api.github.com" };
+      },
+      github_project_statuses: () => [],
+    });
+    await moveCardWithGithub("b", "k1", "todo", 1);
+    expect(calls).toEqual([]);
+    expect(board().columns.find((c) => c.id === "todo")!.cardIds).toEqual(["k2", "k1"]);
+    expect(toast.error).not.toHaveBeenCalled();
   });
 
   it("moves a card without a link locally only", async () => {

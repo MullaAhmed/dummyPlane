@@ -13,7 +13,8 @@ use crate::pty::shell::which_locate;
 const MAX_BACKLOG: u64 = 4 * 1024 * 1024;
 const MAX_ISSUES: &str = "100";
 
-/// `BACKLOG.md` at the project's root.
+/// `BACKLOG.md` at the project's root, without the byte order mark a Windows
+/// editor may put first: its first line would start with neither `- ` nor `#`.
 pub fn backlog(project: &Path) -> Result<String, String> {
     let path = project.join("BACKLOG.md");
     let size = std::fs::metadata(&path)
@@ -22,7 +23,11 @@ pub fn backlog(project: &Path) -> Result<String, String> {
     if size > MAX_BACKLOG {
         return Err("BACKLOG.md is too large".to_string());
     }
-    std::fs::read_to_string(&path).map_err(|err| err.to_string())
+    let text = std::fs::read_to_string(&path).map_err(|err| err.to_string())?;
+    Ok(match text.strip_prefix('\u{feff}') {
+        Some(rest) => rest.to_string(),
+        None => text,
+    })
 }
 
 /// Only labelled issues: the repository may be public, and anybody's text
@@ -106,6 +111,14 @@ mod tests {
         assert!(backlog(dir.path()).is_err());
         std::fs::write(dir.path().join("BACKLOG.md"), "- Un\n").unwrap();
         assert_eq!(backlog(dir.path()).unwrap(), "- Un\n");
+    }
+
+    #[test]
+    fn reads_a_backlog_saved_with_a_byte_order_mark() {
+        // As Notepad, Visual Studio or PowerShell's `Set-Content -Encoding utf8` save it on Windows.
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("BACKLOG.md"), "\u{feff}- Un\n- Deux\n").unwrap();
+        assert_eq!(backlog(dir.path()).unwrap(), "- Un\n- Deux\n");
     }
 
     #[test]

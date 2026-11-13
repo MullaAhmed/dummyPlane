@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { AppState, BinaryFiles } from "@excalidraw/excalidraw/types";
 import { createNodeElement, nodeKindOf } from "./nodeElement";
@@ -58,6 +58,37 @@ it("flush writes the pending save immediately", () => {
   sync.onChange([], appState(2), noFiles, 1);
   sync.flush();
   expect(deps.saveScene).toHaveBeenCalledTimes(1);
+});
+
+describe("a save that fails", () => {
+  const failure = new Error("database is locked");
+  const failing = () => {
+    const saveFailed = vi.fn();
+    const deps = {
+      saveScene: vi.fn(() => Promise.reject(failure)),
+      saveFiles: vi.fn(() => Promise.resolve()),
+      onSceneChanged: vi.fn(),
+      onNodesAdded: vi.fn(),
+      onNodesRemoved: vi.fn(),
+      saveFailed,
+    };
+    return { saveFailed, sync: createSceneSync({ elements: [], savedFileIds: [] }, deps) };
+  };
+
+  it("is told when it was the timed one, which nobody waits for: the canvas is not lost unknowingly", async () => {
+    const { saveFailed, sync } = failing();
+    sync.onChange([], appState(), noFiles, 1);
+    await vi.advanceTimersByTimeAsync(500);
+    expect(saveFailed).toHaveBeenCalledTimes(1);
+    expect(saveFailed).toHaveBeenCalledWith(failure);
+  });
+
+  it("is told once when a flush wrote it, and the flush itself still ends", async () => {
+    const { saveFailed, sync } = failing();
+    sync.onChange([], appState(), noFiles, 1);
+    await expect(sync.flush()).resolves.toBeUndefined();
+    expect(saveFailed).toHaveBeenCalledTimes(1);
+  });
 });
 
 it("reports nodes that appear and disappear, but not the ones it started with", () => {
