@@ -42,6 +42,13 @@ describe("renderMarkdown", () => {
     expect(out).toMatch(/<\/pre><p>after<\/p>/);
   });
 
+  it("reads a file saved with a byte order mark (Notepad, PowerShell) from its first line", () => {
+    // The file is read as it is on the disk: the mark came in front of its first line, which was then no heading.
+    const out = html("﻿# Title\n\ntext");
+    expect(out).toContain(">Title</h1>");
+    expect(out).not.toContain("# Title");
+  });
+
   it("renders inline formatting", () => {
     const out = html("**bold** *it* _it2_ `code` [site](https://x.dev)");
     expect(out).toContain("<strong>bold</strong>");

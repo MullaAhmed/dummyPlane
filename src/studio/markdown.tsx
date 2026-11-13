@@ -183,7 +183,8 @@ function startsBlock(line: string, next: string | undefined): boolean {
  * relative links open in the studio, `options.link` draws its links, `className` sizes it.
  */
 export function renderMarkdown(source: string, options: MarkdownOptions = {}): ReactNode {
-  const lines = source.replace(/\r\n?/g, "\n").split("\n");
+  // A byte order mark comes in front of the first line of a file saved by Notepad or PowerShell.
+  const lines = source.replace(/^﻿/, "").replace(/\r\n?/g, "\n").split("\n");
   const blocks: ReactNode[] = [];
   let i = 0;
   while (i < lines.length) {
