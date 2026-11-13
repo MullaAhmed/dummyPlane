@@ -537,7 +537,9 @@ mod tests {
         assert!(agent.contains("the levels pick the models the user set for your CLI in Settings, and a model you name with no level stands."));
         assert!(agent.contains("the tool's answer names the model it picked, or why none"));
         let fleet = for_codex(Role::Fleet);
-        assert!(fleet.contains("a model you name with no level stands, but name one only while the router is off."));
+        assert!(fleet.contains(
+            "a model you name with no level stands, but name one only while the router is off."
+        ));
         assert!(!fleet.contains("a Claude model named with no level is refused"));
     }
 
