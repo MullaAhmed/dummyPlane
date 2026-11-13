@@ -7,6 +7,7 @@ import { notify } from "./events";
 import { overruns, remainingGlobal, windingDown } from "./mission";
 import { missionMessages } from "./messages";
 import { isFleetClosed, missionOf, missionRunner, setMission, updateMember } from "./store";
+import { withPlane } from "@/notifications/capture";
 
 /** How often the missions' clocks are read. */
 export const CLOCK_MS = 15_000;
@@ -29,7 +30,7 @@ export function checkBudgets(now = Date.now()) {
       if (waiting.has(key)) continue;
       const before = mission.members.find((m) => m.nodeId === overrun.nodeId)?.overdue ?? 0;
       // Overnight a budget is a target and nobody is there: the morning report shows it.
-      if (overrun.level === 2 && !mission.overnight) toast.warning(said.overBudgetTwice(overrun.name, overrun.budget));
+      if (overrun.level === 2 && !mission.overnight) withPlane({ nodeId: overrun.nodeId }, () => toast.warning(said.overBudgetTwice(overrun.name, overrun.budget)));
       const told = () => {
         waiting.delete(key);
         const known = missionOf(nodesStore.getState().nodes[fleetId])?.members.find((m) => m.nodeId === overrun.nodeId)?.overdue;

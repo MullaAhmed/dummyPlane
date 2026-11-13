@@ -18,6 +18,7 @@ import { isManagerRecord, nodesStore } from "@/store/nodes";
 import { projectsStore } from "@/store/projects";
 import { workspacesStore } from "@/store/workspaces";
 import { shellMessages } from "./messages";
+import { withPlane } from "@/notifications/capture";
 
 /**
  * A turn alerts when the agent worked this long in it, waits for the user left
@@ -141,10 +142,12 @@ async function alert(nodeId: string, state: State, summary: string) {
   }
   if (lookingAt(agent)) return;
   const canShow = projectsStore.getState().view === "project";
-  toast(title, {
-    description: body,
-    ...(canShow ? { action: { label: t.show, onClick: () => projectsStore.getState().view === "project" && goToAgent(agent) } } : {}),
-  });
+  withPlane({ nodeId: agent.id, workspaceId: agent.workspaceId }, () =>
+    toast(title, {
+      description: body,
+      ...(canShow ? { action: { label: t.show, onClick: () => projectsStore.getState().view === "project" && goToAgent(agent) } } : {}),
+    }),
+  );
 }
 
 function drop(nodeId: string) {

@@ -12,6 +12,7 @@ import { managerNameOf } from "./manager";
 import { missionMessages } from "./messages";
 import type { Mission } from "./mission";
 import { agentState, missionOf } from "./store";
+import { withPlane } from "@/notifications/capture";
 
 /**
  * A Fleet cleaning its finished mission up itself (`clean_up_mission`, and `propose_plan` on a finished mission):
@@ -94,8 +95,10 @@ export async function cleanUpFinished(fleetId: string): Promise<FleetCleanup> {
   const result = await cleanMission(fleetId);
   // A string is git failing after the fact: the mission is blank all the same (`cleanMission` frees it in any case).
   const failure = typeof result === "string" ? result : undefined;
-  if (failure) toastError(messages(missionMessages).cleanFailed, { error: failure });
-  else toast(messages(missionMessages).cleanedByFleet(name));
+  withPlane({ nodeId: fleetId }, () => {
+    if (failure) toastError(messages(missionMessages).cleanFailed, { error: failure });
+    else toast(messages(missionMessages).cleanedByFleet(name));
+  });
   const lines = [f.cleanedUp(name, branch, typeof result === "string" ? [] : result.kept, failure)];
   if (summary || checks.length > 0) lines.push(f.cleanedSummary(summary.length > MAX_SUMMARY ? `${summary.slice(0, MAX_SUMMARY)}…` : summary, checks));
   return { cleaned: true, text: lines.join(" ") };

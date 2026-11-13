@@ -7,6 +7,7 @@ import { agentActivitySnapshot, onAgentActivity } from "@/ipc/activity";
 import { onAgentSubagents } from "@/ipc/mcp";
 import { onPtyExit, ptyList } from "@/ipc/pty";
 import { installMcp } from "@/mcp/router";
+import { connectNotifications, loadNotifications } from "@/notifications/store";
 import { installMissionClock } from "@/mission/clock";
 import { installKeepAwake } from "@/mission/keepAwake";
 import { installMissionEvents } from "@/mission/events";
@@ -48,6 +49,8 @@ let booting: Promise<void> | undefined;
  */
 export function boot(): Promise<void> {
   booting ??= (async () => {
+    // From the first moment: every popup is recorded, the saved history is read below.
+    connectNotifications();
     await loadThemeSettings();
     await loadUpdateSettings();
     await loadNativeNotifications();
@@ -59,6 +62,7 @@ export function boot(): Promise<void> {
     await loadSubagentSettings();
     await loadModelRouter();
     await loadAgentsPanel();
+    await loadNotifications();
     await onPtyExit(({ nodeId, exitCode }) => {
       forgetLivePty(nodeId);
       terminalStatusStore.getState().set(nodeId, { state: "exited", code: exitCode });

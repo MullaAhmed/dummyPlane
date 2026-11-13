@@ -12,6 +12,7 @@ import { statusOf, terminalStatusStore } from "@/store/terminalStatus";
 import { AGENTS } from "./catalog";
 import { agentsMessages } from "./messages";
 import { isSlashCommand, takesCommands } from "./slashCommands";
+import { withPlane } from "@/notifications/capture";
 
 /** "Tout reprendre" only restarts agents dummyPlane paused less than this ago. */
 export const RESUME_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -187,7 +188,7 @@ export async function resumeAgent(id: string): Promise<boolean> {
     await ptySendText(id, RESUME_TEXT);
   } catch {
     // The process died between the click and the send.
-    toast.warning(messages(agentsMessages).broadcast.resumeFailed(nameOf(id)));
+    withPlane({ nodeId: id }, () => toast.warning(messages(agentsMessages).broadcast.resumeFailed(nameOf(id))));
     return false;
   }
   pausedStore.getState().clear([id]);
