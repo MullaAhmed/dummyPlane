@@ -20,7 +20,8 @@ export const isMarkdown = (path: string) => ["md", "markdown", "mdx"].includes(e
 
 // The language, then whatever else the info string says (`title="a.json"`, `{1,3}`): never a backtick, or it is inline code.
 const FENCE = /^\s*```\s*([\w+#.-]*)[^`]*$/;
-const HEADING = /^(#{1,6})\s+(.*?)\s*#*\s*$/;
+// A closing sequence of hashes counts after a space only: `# C#` is a heading named "C#".
+const HEADING = /^(#{1,6})\s+(.*?)(?:\s+#+)?\s*$/;
 const HR = /^\s*([-*_])(\s*\1){2,}\s*$/;
 const QUOTE = /^\s*>\s?(.*)$/;
 const UL = /^\s*[-*+]\s+(.*)$/;

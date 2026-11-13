@@ -20,7 +20,8 @@ export type Inline =
   | { kind: "wikilink"; target: string; label: string }
   | { kind: "link"; url: string; label: string };
 
-const HEADING = /^(#{1,6})\s+(.*?)\s*#*$/;
+// A closing sequence of hashes counts after a space only: `# C#` is a heading named "C#".
+const HEADING = /^(#{1,6})\s+(.*?)(?:\s+#+)?$/;
 const RULE = /^(-{3,}|\*{3,}|_{3,})$/;
 const FENCE = /^(```|~~~)\s*(\S*)/;
 const BULLET = /^[-*+]\s+(.*)$/;

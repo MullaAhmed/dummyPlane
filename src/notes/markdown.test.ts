@@ -11,6 +11,15 @@ describe("the blocks", () => {
     ]);
   });
 
+  it("keeps a hash that ends a title (C#, F#), and drops only a closing sequence after a space", () => {
+    expect(parseMarkdown("# C#\n## F# and C#\n## Issue #42\n### Closed ###")).toEqual([
+      { kind: "heading", level: 1, text: "C#" },
+      { kind: "heading", level: 2, text: "F# and C#" },
+      { kind: "heading", level: 2, text: "Issue #42" },
+      { kind: "heading", level: 3, text: "Closed" },
+    ]);
+  });
+
   it("reads lists, ordered or not, and tasks", () => {
     expect(parseMarkdown("- a\n* b\n\n1. c\n2. d\n\n- [ ] todo\n- [x] done")).toEqual([
       { kind: "list", ordered: false, items: [{ text: "a" }, { text: "b" }] },

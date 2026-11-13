@@ -14,6 +14,13 @@ describe("renderMarkdown", () => {
     expect(out).toContain(">Six</h6>");
   });
 
+  it("keeps a hash that ends a title (C#, F#), and drops only a closing sequence after a space", () => {
+    const out = html("# C#\n## F# and C#\n### Closed ###");
+    expect(out).toContain(">C#</h1>");
+    expect(out).toContain(">F# and C#</h2>");
+    expect(out).toContain(">Closed</h3>");
+  });
+
   it("renders paragraphs separated by blank lines", () => {
     const out = html("first line\nsame para\n\nsecond");
     expect(out).toContain("<p>first line same para</p>");
