@@ -864,9 +864,9 @@ mod windows_tests {
     }
 
     /// A program the terminal started that shows a window of its own (`code .`, a browser a login opened) stays open
-    /// when the terminal closes, and so do the helpers it started; what has no window still stops. The window here is
-    /// a form PowerShell shows, off the screen, from a hidden console of its own, as a GUI app has none of the
-    /// terminal's.
+    /// when the terminal closes, and so do the helpers it started; what has no window still stops, a Node program's
+    /// grandchild included (an agent's dev server beside the browser it opened). The window here is a form PowerShell
+    /// shows, off the screen, from a hidden console of its own, as a GUI app has none of the terminal's.
     #[test]
     fn killing_a_terminal_spares_what_it_started_with_a_window_and_its_helpers() {
         let dir = tempfile::tempdir().unwrap();
@@ -889,15 +889,26 @@ mod windows_tests {
         ]
         .join("\r\n");
         std::fs::write(&script, app_script).unwrap();
-        let input = format!(
+        let node = std::process::Command::new("node")
+            .arg("--version")
+            .output()
+            .is_ok_and(|out| out.status.success());
+        let mut input = String::new();
+        if node {
+            // Node puts its child in a job of its own that lets that child's children leave it: as Claude's Bash tool.
+            input.push_str("start /b node -e \"require('child_process').spawn('cmd',['/c','ping','-n','60','127.0.0.1'],{windowsHide:true,stdio:'ignore'});setInterval(()=>{},1000)\"\r");
+        }
+        input.push_str(&format!(
             "powershell -NoProfile -Command \"Start-Process powershell -WindowStyle Hidden -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File','{}'; $p = Start-Process ping -ArgumentList '-n','60','127.0.0.1' -WindowStyle Hidden -PassThru; Wait-Process -Id $p.Id\"\r",
             script.display()
-        );
+        ));
         let mgr = PtyManager::default();
         let exited = spawn_answering(&mgr, "win", cmd_plan(&[], Some(&input)), VecSink::default());
         let root = mgr.get("win").and_then(|session| session.pid).unwrap();
-        let (mut app, mut helper, mut background) = (0, 0, 0);
-        wait_until("the window, its helper and the hidden ping", || {
+        // The pings with no window above them: PowerShell's hidden one, and Node's grandchild.
+        let windowless = if node { 2 } else { 1 };
+        let (mut app, mut helper, mut background) = (0, 0, Vec::new());
+        wait_until("the window, its helper and the hidden pings", || {
             app = std::fs::read_to_string(&shown)
                 .ok()
                 .and_then(|pid| pid.trim().parse().ok())
@@ -909,28 +920,24 @@ mod windows_tests {
                 .copied()
                 .find(|&pid| procs.iter().any(|p| p.pid == pid && p.parent == app))
                 .unwrap_or(0);
-            background = pings
-                .iter()
-                .copied()
-                .find(|&pid| pid != helper)
-                .unwrap_or(0);
-            app != 0 && helper != 0 && background != 0
+            background = pings.into_iter().filter(|&pid| pid != helper).collect();
+            app != 0 && helper != 0 && background.len() >= windowless
         });
         mgr.kill("win");
         wait_exit(&exited);
         let deadline = Instant::now() + Duration::from_secs(5);
-        while alive(background, "ping") && Instant::now() < deadline {
+        while background.iter().any(|&pid| alive(pid, "ping")) && Instant::now() < deadline {
             std::thread::sleep(Duration::from_millis(50));
         }
         // Long enough for the terminal's session, and its job's handle, to be gone.
         std::thread::sleep(Duration::from_millis(1500));
         let states = (
-            alive(background, "ping"),
+            background.iter().any(|&pid| alive(pid, "ping")),
             alive(app, "powershell"),
             alive(helper, "ping"),
         );
         // This test's own: stopped here, whatever the terminal did.
-        for pid in [background, app, helper] {
+        for pid in background.iter().copied().chain([app, helper]) {
             let _ = std::process::Command::new("taskkill")
                 .args(["/F", "/PID", &pid.to_string()])
                 .output();
@@ -938,7 +945,7 @@ mod windows_tests {
         assert_eq!(
             states,
             (false, true, true),
-            "(hidden ping alive, window alive, its helper alive)"
+            "(a hidden ping alive, window alive, its helper alive), node: {node}"
         );
     }
 
