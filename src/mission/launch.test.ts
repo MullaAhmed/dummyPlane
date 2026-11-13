@@ -377,6 +377,17 @@ describe("launchMission", () => {
     clearWirePulses();
   });
 
+  it("does not launch once Max agents was lowered under a linked agent's sub-task: it would go to the queue, to a new agent, unsaid", async () => {
+    // Proposed with Max agents at 4: Batman's sub-task, second, started at the go-ahead. The user then set 1.
+    await setup({ maxAgents: 1, plan: [plan[1], plan[0]] });
+    await launchMission("chef");
+    const error = 'Sub-task 2: only the first 1 sub-tasks start at the go-ahead (Max active agents), the rest wait in the queue for a new agent: give it agent "new".';
+    expect(missionNow()).toMatchObject({ state: "plan", error, members: [] });
+    expect(missionNow()).not.toHaveProperty("queue");
+    expect(notify).toHaveBeenCalledWith("chef", `The mission could not start: ${error}`);
+    expect(missionPrepare).not.toHaveBeenCalled();
+  });
+
   it("takes a mission whose git fails back to its plan, with the error, and launches no one", async () => {
     await setup();
     vi.mocked(missionPrepare).mockRejectedValueOnce(new Error("The project folder is not a git repository."));

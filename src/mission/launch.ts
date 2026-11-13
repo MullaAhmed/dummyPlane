@@ -300,6 +300,15 @@ export async function launchMission(fleetId: string): Promise<void> {
   const mission = missionOf(record);
   const session = sessionOf(record);
   if (!record || !mission || !session || mission.state !== "plan" || !mission.plan?.length) return;
+  // Max agents lowered since the plan (the panel, a night's dialog): a linked agent's sub-task past it would go to the
+  // queue, and to a new agent, unsaid. The plan's own rule, read again (`proposedPlan`).
+  const late = mission.plan.findIndex((task, i) => task.agent !== NEW_AGENT && i >= mission.maxAgents);
+  if (late !== -1) {
+    const error = t().plan.waitsForNew(late + 1, mission.maxAgents);
+    setMission(fleetId, { error });
+    notify(fleetId, t().lines.couldNotStart(error));
+    return;
+  }
   // The router was turned on after the plan (its switch, or Settings): without levels, every agent would get its CLI's default model.
   const required = levelsRequired(fleetId, mission);
   const unrated = required ? mission.plan.filter((task) => !task.level) : [];
