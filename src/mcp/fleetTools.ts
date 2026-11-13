@@ -554,7 +554,8 @@ function describeTeam(fleetId: string, mission: Mission): ToolResult {
       name: m.name,
       ...(shown ? agentGroup(m.nodeId) : {}),
       subtask: m.task,
-      state: outAgentState(agentState(m.nodeId)),
+      // Restarting from its menu, its resume card or relaunch: not stopped, though its old process has gone.
+      state: outAgentState(agentState(m.nodeId), isRestarting(m.nodeId)),
       steps: terminalOf(nodes[m.nodeId])?.steps?.map((s) => `${s.title}: ${outStep(s.state)}`) ?? [],
       time: timeText(memberTime(mission, m, now), budgetOf(m)),
       overdue: m.overdue ?? 0,
