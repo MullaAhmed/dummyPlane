@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { arrive } from "@/canvas/arrive";
-import { completeArrival } from "@/commands/pendingArrival";
+import { arrivalPending, completeArrival } from "@/commands/pendingArrival";
 import type { Project, Workspace } from "@/ipc/db";
 import { errorToasts } from "@/lib/errorToast.testkit";
 import { nodesStore } from "@/store/nodes";
@@ -150,5 +150,15 @@ describe("a click on a notification", () => {
     await openNotification(noted({ projectId: "p2", workspaceId: "wb" }));
     expect(errorToasts(vi.mocked(toast.error)).map((t) => t.title)).toEqual(["Could not open Beta"]);
     expect(select).not.toHaveBeenCalled();
+  });
+
+  it("drops the arrival it asked for when the project will not open: it must not fire at a later visit", async () => {
+    nodesStore.setState({ nodes: { far: { workspaceId: "wb", kind: "terminal", payload: { name: "Far" } } } } as never);
+    open.mockRejectedValueOnce(new Error("folder is gone"));
+    await openNotification(noted({ projectId: "p2", projectName: "Beta", workspaceId: "wb", nodeId: "far" }));
+    expect(arrivalPending("wb")).toBe(false);
+    // The canvas of that workspace comes on screen later, by another way: the node is not reached.
+    completeArrival("wb");
+    expect(arrive).not.toHaveBeenCalled();
   });
 });
