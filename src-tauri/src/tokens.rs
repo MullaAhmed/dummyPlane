@@ -2,7 +2,7 @@
 //! disk. Read-only and bounded: only dates, session ids, models
 //! and counters are kept, never the text of a conversation.
 
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap};
 use std::fs::File;
 use std::io::{BufRead, BufReader, Read};
 use std::path::{Path, PathBuf};
@@ -56,6 +56,24 @@ impl Counts {
 
     pub fn total(&self) -> u64 {
         self.input + self.output + self.cache_read + self.cache_write
+    }
+
+    /// What `self` holds beyond `known`, counter by counter.
+    fn beyond(self, known: Counts) -> Counts {
+        Counts {
+            input: self.input.saturating_sub(known.input),
+            output: self.output.saturating_sub(known.output),
+            cache_read: self.cache_read.saturating_sub(known.cache_read),
+            cache_write: self.cache_write.saturating_sub(known.cache_write),
+        }
+    }
+
+    /// Each counter raised to the larger of the two.
+    fn raise(&mut self, other: Counts) {
+        self.input = self.input.max(other.input);
+        self.output = self.output.max(other.output);
+        self.cache_read = self.cache_read.max(other.cache_read);
+        self.cache_write = self.cache_write.max(other.cache_write);
     }
 }
 
@@ -209,7 +227,8 @@ pub fn scan_with(root: &Path, now_secs: u64, limits: &Limits) -> Report {
         .collect();
     let mut sessions: HashMap<String, (Counts, HashMap<String, u64>)> = HashMap::new();
     let mut models: HashMap<String, Counts> = HashMap::new();
-    let mut seen: HashSet<String> = HashSet::new();
+    // Each message id with the largest of its counters seen so far, and so already counted.
+    let mut seen: HashMap<String, Counts> = HashMap::new();
 
     let mut files = Vec::new();
     collect(&root.join("projects"), 0, &mut files);
@@ -260,17 +279,31 @@ pub fn scan_with(root: &Path, now_secs: u64, limits: &Limits) -> Report {
             if date < oldest.as_str() || date > newest.as_str() {
                 continue;
             }
-            // A resumed conversation copies the messages of the first: count each once.
-            if let Some(id) = &message.id
-                && !seen.insert(id.clone())
-            {
-                continue;
-            }
             let counts = Counts {
                 input: usage.input_tokens.unwrap_or(0),
                 output: usage.output_tokens.unwrap_or(0),
                 cache_read: usage.cache_read_input_tokens.unwrap_or(0),
                 cache_write: usage.cache_creation_input_tokens.unwrap_or(0),
+            };
+            // A message is written once per content block, its counters growing as it streams, and
+            // a resumed conversation copies the messages of the first: each counts once, at the
+            // largest of what was logged of it, so a later line adds only what it holds beyond.
+            let (counts, first) = match &message.id {
+                Some(id) => match seen.get_mut(id) {
+                    Some(known) => {
+                        let more = counts.beyond(*known);
+                        known.raise(counts);
+                        if more == Counts::default() {
+                            continue;
+                        }
+                        (more, false)
+                    }
+                    None => {
+                        seen.insert(id.clone(), counts);
+                        (counts, true)
+                    }
+                },
+                None => (counts, true),
             };
             if let Some(day) = days.get_mut(date) {
                 day.add(counts);
@@ -285,7 +318,7 @@ pub fn scan_with(root: &Path, now_secs: u64, limits: &Limits) -> Report {
                 .or_default();
             entry.0.add(counts);
             if let Some(model) = model {
-                *entry.1.entry(model).or_default() += counts.output + 1;
+                *entry.1.entry(model).or_default() += counts.output + u64::from(first);
             }
         }
     }
@@ -601,6 +634,49 @@ mod tests {
             );
         }
         assert_eq!(output_of_today(&scan(dir.path(), NOW)), 7);
+    }
+
+    /// Claude Code writes a message once per content block, its counters growing as it streams
+    /// (in the logs: 77% of the message ids come more than once, and the later line is the
+    /// larger in all but one of the 1108 whose output differs): the first line kept was the
+    /// smallest. A message counts once, at the largest of what was logged of it, whatever the
+    /// order of the files.
+    #[test]
+    fn a_message_logged_several_times_counts_at_its_largest() {
+        let dir = tempfile::tempdir().unwrap();
+        // The message as it streams, and a second one.
+        write(
+            dir.path(),
+            "p/s.jsonl",
+            &[
+                assistant("m1", "s", "2026-10-31", "claude-opus-5-5", 3, 1),
+                assistant("m1", "s", "2026-10-31", "claude-opus-5-5", 5, 20),
+                assistant("m2", "s", "2026-10-31", "claude-opus-5-5", 1, 7),
+            ],
+        );
+        // A resumed conversation copies it as it was at another point, one of them the largest.
+        write(
+            dir.path(),
+            "p/r.jsonl",
+            &[
+                assistant("m1", "s", "2026-10-31", "claude-opus-5-5", 4, 40),
+                assistant("m1", "s", "2026-10-31", "claude-opus-5-5", 2, 3),
+            ],
+        );
+        let report = scan(dir.path(), NOW);
+        let today = report.days.last().unwrap().counts;
+        // m1 at (5, 40), the largest of each counter, m2 at (1, 7); the cache counters never moved.
+        let expected = Counts {
+            input: 6,
+            output: 47,
+            cache_read: 200,
+            cache_write: 20,
+        };
+        assert_eq!(today, expected);
+        assert_eq!(report.sessions.len(), 1);
+        assert_eq!(report.sessions[0].counts, expected);
+        assert_eq!(report.models[0].counts, expected);
+        assert_eq!(report.sessions[0].model.as_deref(), Some("claude-opus-5-5"));
     }
 
     #[test]
