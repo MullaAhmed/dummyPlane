@@ -18,6 +18,10 @@ dummyPlane's first release will be 0.1.0; until then, its changes are listed und
 - **A model router for every agent.** *Model router* is now a setting in Settings, next to *Sub-agents at once*, and it starts on: every agent's `spawn_agent` sub-agents, the tasks handed off with `hand_off` and a mission's team agents take the model of their level (`low` Haiku 5.5, `medium` Sonnet 5.5, `high` Opus 5.5, `extreme` Fable 5.2), with no switch to turn on first. A terminal's or a Fleet's switch now shows the router as it stands there, followed from Settings or from the Fleet or agent above it. Turned on or off, it stays so for that node and everything it opens (its mission's team, for a Fleet) whatever Settings becomes, until *Follow Settings* (or *Follow the switch above*, for a sub-agent), next to the switch and in its node's ⋯ menu, sets it back to following. A linked agent's switch shows, as soon as a plan names it, what the go-ahead will apply to it, and a linked agent the router does not route, whatever turned it off, keeps its own model through its sub-task and after it: only a new agent starts on its CLI's default. With the setting off, the switches work as before: a switch turned on routes its node and its tree. *Models by level…* in Settings gives Codex a model for each level; a level left empty keeps Codex's own model, and nothing is filled in for you. The switch is now on Codex terminals and Codex Fleets too. A Codex sub-agent that names a model with no level keeps it; a Claude one is still asked for a level. A task `add_tasks` queues with no level, or one queued before the router was on, takes `medium`, and the Fleet is told so; a plan still needs a level per sub-task, and the go-ahead names those without one. `spawn_agent`'s and `hand_off`'s answers say which model the level picked, or why it picked none: the router is off at the agent, above it or in Settings, or the CLI has no model for that level.
 - **A notification panel.** Every popup the app shows is also kept in a bell on the right rail, newest first, with its kind, its text, how long ago it came and the project and workspace it was about (*Alpha › Main*; a workspace or project since closed reads *(closed)*, and a renamed one shows its new name). A popup about an agent, a mission or a restart is filed under that node's workspace, even when you were looking at another canvas; any other under the workspace on screen. A click goes there, switches workspace (or opens the project) and centres on the node, and reads the entry. The bell's pip counts what you have not read; *All*, *This workspace* and *Errors* filter the list; *Mark all read* and *Clear* tidy it. Arrow keys move through the list, Enter goes, Escape closes. The popups themselves are unchanged. The last 200 are kept and come back after a restart.
 - **Switch branch from the git window.** The branch's name in the git window's header is now a menu of the project's local branches: pick one and the window switches to it, says *Switched to …* and reads the project again. The current branch is greyed, and the menu says so when it is the only one. It only ever switches to a branch that exists: it creates none, takes none from a remote and never forces. When your changes would be overwritten (or the branch is open in another worktree), git refuses, its words appear in the window, and nothing has moved. The chip at the bottom left follows within its usual few seconds.
+- **The model router's switch on every terminal.** Every terminal now shows the switch, in its header, its ⋯ menu and its Edit tab. It acts on Claude and Codex, the CLIs that get dummyPlane's tools and so open sub-agents. On any other CLI or a plain shell it is greyed out and off, and its hint says why. So is a mission's Manager's: it opens no sub-agents, and its Fleet's switch routes the mission.
+- **Sub-agents with the skills, MCP servers and plugins their task needs.** `spawn_agent` takes `skills`, `mcp_servers` and `plugins`, chosen among what the sub-agent's CLI (Claude Code or Codex) loads in its folder; the new `installed_extras` tool lists them. A kind left out keeps the CLI's defaults, and an empty list gives none of that kind. dummyPlane checks every name before the terminal opens and again at each launch, and a sub-agent whose pick cannot be applied does not start. The pick shows under *Next launch* in the sub-agent's Edit panel, and the features page says how a pick works and where it stops.
+- **Loops belong to a project and target agents only.** Each project lists and turns on its own loops (up to 30), aimed at its own agents, and a loop keeps running while you look at another project. The pill and *Stop all* still cover every project. A plain shell is never offered or typed into, and an older loop aimed at one says it has no agent and stays off. Loops saved before are placed once in their targets' project, or the one open, and none is dropped.
+- **Closing a terminal stops everything it started, except apps with a visible window on Windows.** Its whole process tree ends with it, hidden consoles included: the commands of an agent's Bash tool, the dev servers it ran, its MCP servers. The same happens when its process ends by itself, when dummyPlane quits and before an update. On Windows, an app it opened that shows a window of its own, such as `code .` or a browser a login opened, stays open with its helpers. A program in a console window of its own, as a server an agent keeps running with `start` or `Start-Process`, is no such app and stops with the terminal. A crash of dummyPlane still ends the whole tree, windows included.
 
 ### Changed
 - **The model router's `extreme` level runs Claude Fable 5.2,** the Fable the Edit tab offers, instead of Fable 5.1. The router's levels and the Edit tab's models now come from one table. A terminal still on an older Claude model names it by family and version, for example "Fable 5.1".
@@ -34,6 +38,87 @@ dummyPlane's first release will be 0.1.0; until then, its changes are listed und
 - **Links pick their sides again as nodes move.** A node dragged past its neighbour kept its link leaving and entering by the sides it had at first, so the link ran behind the nodes. Once you let go, each link is drawn again between the left, right, top or bottom sides that now face each other (a sub-agent tree's link keeps running down while the child is below). This happens outside the undo history, and never while you are still dragging, resizing or drawing.
 - **Sub-agents start without what their parent turned off.** The skills, plugins, MCP servers and subagents turned off in a terminal's or a Fleet's Edit tab now stay off for the Claude agents it opens: `spawn_agent` sub-agents, a mission's new team agents and the agents of a group staffed for it. Each starts with its own copy of the choice; a linked agent keeps its own, and a Codex agent gets none.
 - **A manager is told its sub-agent's card is its to move.** When a sub-agent reports to an agent or a Fleet with a Kanban board wired to it, and no mission runs that board, the report it hears now ends by saying that the card is its to move: to *Done* when the sub-agent is done, to *Blocked* otherwise. A board run by a mission moves its cards by itself, as before.
+- **A skill that forks into a sub-agent is refused while sub-agents open as terminals.** A skill such as `/code-review`, known from its file's `context: fork` or from having forked once, is refused like the Workflow tool, and the agent is sent to `spawn_agent`.
+- **Kanban boards and GitHub:**
+  - **A linked card lands at once.** A card linked to an issue moves on the board as soon as it is dropped, and two quick moves reach GitHub in their order, so the issue and its Project item end where the card did.
+  - **A reorder stays local.** Moving a linked card within its column no longer reads the Project from GitHub, nor reports a failure when offline.
+  - **An issue added to the Project since the last read follows too.** Its card's move now sets its Project Status, and the next sync no longer takes the card back.
+  - **A pull request's card moves its Project Status only.** Moving it into or out of *Done* no longer runs `gh issue close` or `reopen` on the pull request's number.
+  - **"To do" is "Todo".** A column and a Project Status whose titles differ only in spaces, case or punctuation are one column, so a new board's first sync adds no *Todo* column after *Done*, and a move to *To do* sets the *Todo* Status.
+  - **A `gh` call that gets no answer is stopped** after 60 seconds with everything it started, and says so, instead of holding every later GitHub move of its board.
+  - **A sync says when a list was cut:** when GitHub has more open or recently closed issues, or Project items, than a sync reads, a warning says so, with how many of the Project's items were read.
+  - **Undo after a sync keeps one card per issue.** Undoing the delete of a linked card, or its column, after a sync brought its issue back puts your card back in place of the sync's copy. A card that already shared the issue, or one an earlier Undo put back, stays with its notes.
+  - **"No project is open" is said.** *Sync*, *Create the issue on GitHub* and a linked card moved while no project is open now say so, instead of doing nothing or moving the card without its issue.
+  - **The board menu's *Sync* is greyed out while a sync runs,** as the header's *Sync* button already was.
+- **Missions:**
+  - **An overnight mission reads its own repository's issues.** It names the project's `origin` to `gh`, so a fork no longer reads its upstream's issues, and `gh` never prompts or hangs there.
+  - **The overnight run's checks no longer hang:** its check that `gh` is logged in has a time limit, the refreshed PATH and no prompt.
+  - **A BACKLOG.md saved with a byte order mark,** as Windows editors save it, gives the mission its first task and section too.
+  - **A handed-off task keeps who handed it after a restart,** so the Fleet's mission status still names that agent.
+  - **A queue agent whose mission ended while it was being created** is no longer left launching, which kept it listed as starting its task until a restart.
+  - **A mission stopped while reassign creates a new agent** stops that agent too: it is never left launching or counted at work, and the linked agent sent back to the project is neither paused nor written to.
+  - **Text cut inside an emoji no longer breaks a mission:** a cleaned-up mission's summary, an error toast's detail and an agent's one-line task drop the half emoji, which made the Fleet's `clean_up_mission` answer fail.
+  - **More text is no longer cut inside an emoji:** a notes read, a reassign's echo, the Fleet's plan request, a preset name, a review's quoted line and a sub-agent's stored task, whose half emoji made the answer, the typing or the save fail.
+  - **A new agent a mission's end left behind** leaves the canvas as the mission's own agents do, and its worktree is removed by the mission's cleanup (or at once, when the mission was cleaned up meanwhile), so no terminal outlives its worktree.
+  - **A plan whose *Max agents* was lowered under a linked agent's sub-task is not launched,** and says why, instead of sending that sub-task to the queue and a new agent without a word.
+  - **A go-ahead whose Manager cannot be made** no longer leaves the mission pointing at the board it made and dropped.
+  - **An ended mission no longer stays in memory:** its line of merges and what the queue told its runner piled up, mission after mission, for the app's whole life.
+- **Terminals:**
+  - **A terminal that exited off screen reads *Exited* with its code** when first shown, instead of *Stopped*, and *Resume all* no longer offers it as a conversation to restore.
+  - **A Claude terminal moved away and back to the folder its process runs in keeps its conversation:** its next launch resumes it, and the toast says so.
+  - **A terminal still running after the page reloaded,** restarted before its node shows again, has that process stopped and starts anew, instead of an error over an agent left running with no screen.
+  - **A terminal laid out again while it is being started** gives its process the new size, instead of drawing the agent at the old width until the next resize.
+  - **A terminal closed while it is being started,** or whose workspace or project is deleted then, has its process stopped as soon as it starts, instead of an agent left running unseen.
+  - **A closed node no longer comes back as a ghost:** a change that reached it after its close no longer writes it back to the database.
+- **Sub-agents on Codex:**
+  - **Codex's skills list is read from its own heading,** so a sentence naming "### Available skills" before the list, as Codex 0.167 prints it in some setups, no longer reads as an empty list that left every skill on.
+  - **A Codex listing that never ends is stopped** after two minutes and refused, instead of holding the sub-agent's launch, and every `spawn_agent` queued behind it.
+- **The review panel:**
+  - **A cut list of changes keeps the agent's changes to tracked files** before the untracked ones, which an install folder without a `.gitignore` filled first.
+  - **A file name with brackets,** such as a Next.js `[id]` route, gets its own diff only, not those of the files its pattern also matches.
+  - **A file named `HEAD`** in the working tree no longer makes git refuse the whole *Changes* tab.
+  - **The *Files* tab no longer lists a tracked file the agent deleted,** an untracked repository inside the project or a submodule's folder, each of which a click sent to an error.
+  - **A file taken out of the index with `git rm --cached`** but kept on disk is listed once, as deleted.
+  - **The review panel keeps the base with the folder it found it in,** so a terminal moved to another repository waits for that repository's base instead of showing *base not found*.
+  - **A file read in the *Files* tab** shows its lines without the carriage return of Windows line ends, and one cut at its size limit no longer ends with a replacement character.
+- **Projects, workspaces and the canvas:**
+  - **Of two projects opened in quick succession, the one asked last is shown,** with its own workspaces.
+  - **A tab selected while the active tab is being deleted stays selected.**
+  - **A workspace deleted while its scene was being read stays gone,** instead of its nodes coming back into memory.
+  - **A canvas save that fails says so:** "Could not save the canvas", and "Could not save the images of the canvas" once for a failing image, where only the log knew.
+  - **Shift+Escape closes an open ring.**
+  - **A right press on the empty ground of a folded group points at the group,** so its ring never offers *Close* or *Paste* on an agent the fold hides.
+  - **A group's speciality cut at its limit no longer keeps half an emoji,** which made saving a team preset of that group fail.
+  - **Relocating a project moves its terminals out of a drive root too,** and keeps the rest of each path whole when a folder's name gets longer in lower case.
+- **Accounts:**
+  - **The saved profiles can no longer be lost.** They are read from their stored row, and one that is there but cannot be read refuses every add, remove and use with a message, where it read as an empty list that the next write saved over the profiles.
+  - **A profile folder pasted with the quotes of Explorer's *Copy as path*** is taken without them, instead of refused as an invalid folder.
+  - **One folder written two ways,** with a dot segment or a doubled separator, is found to be the same folder, so it can no longer be added twice.
+- **Commands, notifications and the shell:**
+  - **A click on a notification whose project will not open** takes back the arrival it asked for, so the node is not reached by surprise later.
+  - **A file the palette cannot open in the Code Studio says "Could not open the file",** and *Close the project* says "Could not close the project" when its setting cannot be written.
+  - **The palette's Delete line shows the key as "Delete",** where it read "Suppr", the French name of that key.
+  - **A keydown with no key,** as Chromium's autofill sends one, no longer throws in the app's keyboard listener, nor in the Ctrl+S listener of the code and notes workspaces.
+  - **A popup cut inside an emoji no longer stops the notification history** from being saved for the rest of the run.
+- **Loops:**
+  - **Editing a loop opens its form clean,** without the error an unsaved form left on a valid loop.
+  - **A loop on idle relaunches an agent that went idle again during its 30 s pause,** and every target that went idle together, one each pause.
+  - **A watched text that appears while its agent is busy** fires once the agent is free again, if it is still on screen, once per appearance.
+- **Notes, the Code Studio and the rest:**
+  - **A Markdown heading keeps a hash that ends its title,** as in C# or F#, in the note reader and the studio preview.
+  - **The Markdown preview drops a byte order mark,** so a file saved by Notepad or PowerShell starts with its heading, and reads a code fence's language from the first word of its info string, so a fence with a title no longer opens a block over the text after it.
+  - **The new-note field refuses the Windows device names the disk refuses,** instead of accepting them and failing when the note is made.
+  - **A token count from 999.95 k is written as 1.0 M,** instead of 1000.0 k.
+  - **A preset name cut at its 60-character limit inside an emoji** drops the half emoji and saves.
+  - **The copied diagnostic hides the whole Windows user folder** when the user name holds a space.
+  - **A highlighted token inside another, in an output's Code block, keeps both styles,** so emphasis in a Markdown quote keeps the quote's colour, and in a heading its weight.
+  - **Output tokens are no longer undercounted:** a message Claude Code logs in several lines as it streams is counted once, at its largest count, where about one message in a hundred came out too low.
+  - **A wikilink inside a code fence** is left out of the backlinks and the graph by the same rules as the note reader.
+  - **The project tree says when it was cut at its limit of entries,** so a file past the cut is no longer taken for a missing one.
+  - **Saving a file in the Code Studio keeps the line endings of the lines you did not edit,** so a file that mixes CRLF and LF, or holds a lone CR, is no longer rewritten with one ending throughout.
+  - **Undoing a preset's delete puts it back at its place in the list,** and never over a preset saved meanwhile under its name: both are kept, the one taken back renamed.
+  - **An output's Code block copied as text, or read by an agent,** is fenced with more backticks than its code holds, so code that shows a fenced block of its own no longer closes it early. A Progress copied that way says the share its bar shows.
+  - **The log file hides a bearer token and dummyPlane's own token header whatever their case,** where only an exact `Bearer` was caught and the token header not at all, and a console line sent to it fills each of its format directives with its value.
 
 ## [0.1.0] - 2026-11-12
 
