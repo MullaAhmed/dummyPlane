@@ -435,7 +435,14 @@ pub fn read_file(root: &Path, file: &str) -> Result<FileText, String> {
     let mut bytes = read_start(&path).map_err(|err| err.to_string())?;
     let truncated = bytes.len() > MAX_BYTES;
     bytes.truncate(MAX_BYTES);
-    let text = (!is_binary(&bytes)).then(|| String::from_utf8_lossy(&bytes).into_owned());
+    let text = (!is_binary(&bytes)).then(|| {
+        let mut text = String::from_utf8_lossy(&bytes).into_owned();
+        // A cut in the middle of a character leaves a replacement character: drop it, as a diff's cut does.
+        if truncated && text.ends_with('\u{FFFD}') {
+            text.pop();
+        }
+        text
+    });
     Ok(FileText {
         text,
         size,
@@ -903,6 +910,24 @@ mod tests {
         for path in &listed {
             assert!(read_file(dir, path).is_ok(), "{path}");
         }
+    }
+
+    #[test]
+    fn reads_a_big_file_cut_between_two_characters_never_inside_one() {
+        let Some(repo) = repo() else { return };
+        let dir = repo.path();
+        // The limit falls inside the "é": its first byte would read as a replacement character.
+        let mut text = "x".repeat(MAX_BYTES - 1);
+        text.push_str("é suite\n");
+        std::fs::write(dir.join("big.txt"), &text).unwrap();
+        let read = read_file(dir, "big.txt").unwrap();
+        assert!(read.truncated);
+        let shown = read.text.unwrap();
+        assert!(
+            !shown.ends_with('\u{FFFD}'),
+            "ends with a replacement character"
+        );
+        assert_eq!(shown, "x".repeat(MAX_BYTES - 1));
     }
 
     #[test]
