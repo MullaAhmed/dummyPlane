@@ -481,6 +481,10 @@ describe("what the review of the queue found", () => {
     expect(isLaunching("n1")).toBe(false);
     // The duplicate guard lists no stopped agent as starting on its task.
     expect(activeWork("w1").map((work) => work.agentId)).not.toContain("n1");
+    // Its worktree goes with the mission's cleanup, as a member's, though it is none.
+    const name = vi.mocked(missionAddAgent).mock.calls[0][2];
+    expect(missionNow().members.map((m) => m.name)).not.toContain(name);
+    expect(missionNow().strays).toEqual([name]);
   });
 
   it("merges one branch at a time: two git merges in one worktree break each other", async () => {

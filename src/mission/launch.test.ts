@@ -1126,6 +1126,35 @@ describe("reassignTask", () => {
     expect(vi.mocked(ptySendText).mock.calls.filter(([id]) => id === "batman")).toEqual([]);
   });
 
+  it("cleans the worktree of the new agent a stop left behind with the mission, as a member's: it is no member", async () => {
+    await team();
+    vi.mocked(missionAddAgent).mockImplementationOnce(async (_project, mission, agent) => {
+      stopMission("chef", { by: "user" });
+      return tree(`${mission}-${agent.toLowerCase()}`);
+    });
+    await reassignTask("chef", "batman", "nouveau");
+    const name = vi.mocked(missionAddAgent).mock.calls[0][2];
+    expect(missionNow().members.map((m) => m.name)).not.toContain(name);
+    vi.mocked(missionCleanup).mockResolvedValueOnce({ removed: [], kept: [] });
+    await cleanMission("chef");
+    expect(missionCleanup).toHaveBeenCalledWith("C:/code/proj", "auth", ["Batman", "Aquaman", name]);
+  });
+
+  it("takes the left-behind agent's worktree back at once when the mission was cleaned up meanwhile: no cleanup is left to do it", async () => {
+    await team();
+    vi.mocked(missionCleanup).mockResolvedValueOnce({ removed: [], kept: [] });
+    vi.mocked(missionAddAgent).mockImplementationOnce(async (_project, mission, agent) => {
+      stopMission("chef", { by: "user" });
+      await cleanMission("chef");
+      return tree(`${mission}-${agent.toLowerCase()}`);
+    });
+    await reassignTask("chef", "batman", "nouveau");
+    const name = vi.mocked(missionAddAgent).mock.calls[0][2];
+    const made = tree(`auth-${name.toLowerCase()}`);
+    expect(missionDiscard).toHaveBeenCalledWith("C:/code/proj", [{ slug: name, branch: made.branch, path: made.path }]);
+    expect(missionNow()).not.toHaveProperty("strays");
+  });
+
   it("gives a sub-task to a new agent in the mission's group, started at once", async () => {
     await team();
     canvasStore.setState({ frames: [{ id: "f1", x: 0, y: 0, width: 800, height: 500, name: "Mission Auth", group: { role: "general", pantheon: "egyptian" }, memberIds: ["n1"] }] });

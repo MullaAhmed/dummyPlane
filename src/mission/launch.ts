@@ -29,7 +29,7 @@ import { notify } from "./events";
 import { missionFolder } from "./folder";
 import { addTeamMember, fleetNameOf, reflowTeam, removeManager, setUpBoard, undoSetup, type MissionSetup } from "./manager";
 import { nightSession } from "./overnight";
-import { NEW_AGENT, NEW_MISSION, oneLine, pastTask, queuedTask, reassignable, sameName, type Member, type Mission, type SubTask } from "./mission";
+import { NEW_AGENT, NEW_MISSION, oneLine, pastTask, queuedTask, reassignable, sameName, worktreeOwners, type Member, type Mission, type SubTask } from "./mission";
 import { whenReady } from "./ready";
 import { modelRouterStore } from "@/app/modelRouterSetting";
 import { levelModel, modelLabel } from "./router";
@@ -462,13 +462,29 @@ async function cleanMissionNow(fleetId: string): Promise<Cleanup | string> {
   // Its Manager goes with it; its board stays, still the Fleet's: the next mission runs on it.
   removeManager(fleetId);
   try {
-    return mission.project && mission.slug ? await missionCleanup(mission.project, mission.slug, mission.members.map((m) => m.name)) : { removed: [], kept: [] };
+    return mission.project && mission.slug ? await missionCleanup(mission.project, mission.slug, worktreeOwners(mission)) : { removed: [], kept: [] };
   } catch (error) {
     return errorText(error);
   } finally {
     // Freed even when git fails (project moved, worktrees removed by hand): never stuck "finished" (final review H2).
     nodesStore.getState().update(fleetId, { mission: next });
   }
+}
+
+/**
+ * A new agent made for `mission` (a reassign's, the queue's) that ended while it was created: stopped, never a
+ * member, its sub-task never typed, so no longer launching (it would count as at work). Its worktree goes with the
+ * mission's cleanup, as a member's; a mission cleaned up meanwhile is gone, and it goes now, never forced.
+ */
+export function leftBehind(fleetId: string, mission: Mission, made: Member) {
+  stopTerminal(made.nodeId);
+  markLaunching(made.nodeId, false);
+  const ended = missionOf(nodesStore.getState().nodes[fleetId]);
+  if (ended?.state === "terminee" && ended.slug === mission.slug) {
+    setMission(fleetId, { strays: [...(ended.strays ?? []), made.name] });
+    return;
+  }
+  if (mission.project) void missionDiscard(mission.project, [{ slug: made.name, branch: made.branch, path: made.worktree }]).catch(() => undefined);
 }
 
 /**
@@ -571,11 +587,9 @@ export async function reassignTask(fleetId: string, fromNodeId: string, target: 
     }
     if (typeof made === "string") return made;
     // Stopped or ended meanwhile, as in the queue: its team is gone, this one would sit idle in its worktree, and a
-    // mission no longer running takes no member, nor pauses its linked agent gone back to the project. Its sub-task
-    // never comes: it is no longer launching, or it would count as at work.
+    // mission no longer running takes no member, nor pauses its linked agent gone back to the project.
     if (missionOf(nodesStore.getState().nodes[fleetId])?.state !== "en_cours") {
-      stopTerminal(made.nodeId);
-      markLaunching(made.nodeId, false);
+      leftBehind(fleetId, mission, made);
       return r.noMission;
     }
     to = made;

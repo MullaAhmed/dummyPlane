@@ -1,14 +1,12 @@
-import { markLaunching } from "@/agents/spawnFamily";
 import { messages } from "@/i18n";
 import { startMissionCards } from "@/kanban/fleetBoards";
 import { agentMessages } from "@/mcp/messages";
-import { stopTerminal } from "@/nodes/terminal/registry";
 import { nodesStore } from "@/store/nodes";
 import { activeCount, freeSeat, holdSeat, moving, oneAtATime, seatHeld, seatsHeld } from "./active";
 import { duplicateWork } from "./activeWork";
 import type { ActiveWork } from "./duplicateTask";
 import { notify } from "./events";
-import { assign, mergeMember, newMember, subTaskText, withTeamNote, withTicketNote } from "./launch";
+import { assign, leftBehind, mergeMember, newMember, subTaskText, withTeamNote, withTicketNote } from "./launch";
 import { NEW_AGENT, noNewWork, type Member, type Mission, type QueuedTask, type Report, type SubTask } from "./mission";
 import { agentState, canvasKnown, isFleetClosed, missionOf, missionRunner, setMission, updateMember } from "./store";
 
@@ -126,11 +124,9 @@ async function create(fleetId: string, task: QueuedTask): Promise<{ said: string
   const made = await newMember(fleetId, record.workspaceId, mission, { ...task, agent: NEW_AGENT });
   if (typeof made === "string") return { said: t().lines.newFailed(task.title, made) };
   const now = missionNow(fleetId);
-  // Finished meanwhile: its team is gone, this one would sit idle in its worktree. Its sub-task never comes: it is no
-  // longer launching, or it would count as at work.
+  // Finished meanwhile: its team is gone, this one would sit idle in its worktree.
   if (now?.state !== "en_cours") {
-    stopTerminal(made.nodeId);
-    markLaunching(made.nodeId, false);
+    leftBehind(fleetId, mission, made);
     return undefined;
   }
   const subTask: SubTask = { ...task, agent: made.name };
