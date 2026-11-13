@@ -36,6 +36,7 @@ import { loadFinishAlerts } from "./finishAlertsSetting";
 import { loadFleetAgent } from "@/fleet/fleetAgent";
 import { loadNativeNotifications } from "./nativeNotifications";
 import { loadModelRouter } from "./modelRouterSetting";
+import { installResetNotice } from "./resetNotice";
 import { loadSubagentSettings } from "./subagentSettings";
 import { loadUpdateSettings, startUpdateChecks } from "./updates";
 import { syncWindowTitle } from "./windowTitle";
@@ -51,6 +52,8 @@ export function boot(): Promise<void> {
   booting ??= (async () => {
     // From the first moment: every popup is recorded, the saved history is read below.
     connectNotifications();
+    // Before any setting is read or written: a list a write resets is said at once, once.
+    installResetNotice();
     await loadThemeSettings();
     await loadUpdateSettings();
     await loadNativeNotifications();

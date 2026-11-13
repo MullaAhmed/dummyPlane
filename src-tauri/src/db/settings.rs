@@ -25,14 +25,15 @@ pub fn get(conn: &Connection, key: &str) -> AppResult<Option<serde_json::Value>>
 
 /// Keeps `text`, which did not parse, under another key: the stores read such a row as unset, build
 /// their list from nothing and write it, and what the user had would be gone. A text already kept
-/// is not kept twice, nor over another.
-fn keep_aside(conn: &Connection, key: &str, text: &str) -> AppResult<()> {
+/// is not kept twice, nor over another. The key it is kept under, when it is kept now: the user is
+/// told of it, once.
+fn keep_aside(conn: &Connection, key: &str, text: &str) -> AppResult<Option<String>> {
     let kept = serde_json::Value::String(text.to_string()).to_string();
     let mut aside = format!("{key}{UNREADABLE}");
     let mut copies = 1;
     while let Some(held) = raw(conn, &aside)? {
         if held == kept {
-            return Ok(());
+            return Ok(None);
         }
         copies += 1;
         aside = format!("{key}{UNREADABLE}.{copies}");
@@ -41,17 +42,30 @@ fn keep_aside(conn: &Connection, key: &str, text: &str) -> AppResult<()> {
         "INSERT INTO settings (key, value_json) VALUES (?1, ?2)",
         params![aside, kept],
     )?;
-    log::warn!("setting {key} did not parse and is replaced: what it held is kept as {aside}");
-    Ok(())
+    log::warn!("setting {key} could not be read in full: what it held is kept as {aside}");
+    Ok(Some(aside))
 }
 
-pub fn set(conn: &Connection, key: &str, value: &serde_json::Value) -> AppResult<()> {
+/// Keeps the text stored under `key`, whatever it parses as: for a value the interface read in part or
+/// not at all (a newer version, a damaged entry), which its next write would replace. The key it is
+/// kept under, when it is kept now; None when nothing is stored, or that text is kept already.
+pub fn keep(conn: &Connection, key: &str) -> AppResult<Option<String>> {
+    match raw(conn, key)? {
+        Some(text) => keep_aside(conn, key, &text),
+        None => Ok(None),
+    }
+}
+
+/// Stores `value` under `key`. The key under which the text it replaced was kept, when that text
+/// did not parse and was not kept already: the caller tells the user.
+pub fn set(conn: &Connection, key: &str, value: &serde_json::Value) -> AppResult<Option<String>> {
     // Together: a write is refused if what it replaces cannot be kept.
     let tx = conn.unchecked_transaction()?;
+    let mut kept = None;
     if let Some(text) = raw(&tx, key)?
         && serde_json::from_str::<serde_json::Value>(&text).is_err()
     {
-        keep_aside(&tx, key, &text)?;
+        kept = keep_aside(&tx, key, &text)?;
     }
     tx.execute(
         "INSERT INTO settings (key, value_json) VALUES (?1, ?2)
@@ -59,7 +73,7 @@ pub fn set(conn: &Connection, key: &str, value: &serde_json::Value) -> AppResult
         params![key, value.to_string()],
     )?;
     tx.commit()?;
-    Ok(())
+    Ok(kept)
 }
 
 #[cfg(test)]
@@ -96,6 +110,67 @@ mod tests {
                 assert_eq!(
                     get(conn, "loops.list.unreadable")?,
                     Some(serde_json::json!(lost))
+                );
+                Ok(())
+            })
+            .unwrap();
+    }
+
+    /// The user is told, once, when a list is reset and its text kept: `set` says where it kept it, and
+    /// only when it did (a text already kept is not told again, nor is a row that reads).
+    #[test]
+    fn says_where_it_kept_a_text_aside_once() {
+        Db::open_in_memory()
+            .unwrap()
+            .with(|conn| {
+                // Nothing there, then a row that reads: nothing kept.
+                assert_eq!(set(conn, "loops.list", &serde_json::json!([]))?, None);
+                assert_eq!(set(conn, "loops.list", &serde_json::json!([1]))?, None);
+                put_raw(conn, "loops.list", "[{broken");
+                assert_eq!(
+                    set(conn, "loops.list", &serde_json::json!([]))?.as_deref(),
+                    Some("loops.list.unreadable")
+                );
+                // The same text broken again: it is kept already, nothing to tell.
+                put_raw(conn, "loops.list", "[{broken");
+                assert_eq!(set(conn, "loops.list", &serde_json::json!([]))?, None);
+                // Another text: told, under the next name.
+                put_raw(conn, "loops.list", "[{also broken");
+                assert_eq!(
+                    set(conn, "loops.list", &serde_json::json!([]))?.as_deref(),
+                    Some("loops.list.unreadable.2")
+                );
+                Ok(())
+            })
+            .unwrap();
+    }
+
+    /// A value that parses, but whose shape the interface cannot take (a newer version, a damaged
+    /// entry), is read as less than it holds, and the next write replaces it all: the interface asks
+    /// for its text to be kept, whatever it parses as, once, the row itself left as it is.
+    #[test]
+    fn keeps_a_row_that_parses_aside_when_asked_once() {
+        let odd = r#"{"version":99,"presets":[{"id":"1"}]}"#;
+        Db::open_in_memory()
+            .unwrap()
+            .with(|conn| {
+                // Nothing stored: nothing to keep.
+                assert_eq!(keep(conn, "presets.teams")?, None);
+                put_raw(conn, "presets.teams", odd);
+                assert_eq!(
+                    keep(conn, "presets.teams")?.as_deref(),
+                    Some("presets.teams.unreadable")
+                );
+                // Asked at each start while the row stays so: kept once, told once.
+                assert_eq!(keep(conn, "presets.teams")?, None);
+                // The row is as it was, and the kept text reads back as a string.
+                assert_eq!(
+                    get(conn, "presets.teams")?,
+                    Some(serde_json::from_str(odd).unwrap())
+                );
+                assert_eq!(
+                    get(conn, "presets.teams.unreadable")?,
+                    Some(serde_json::json!(odd))
                 );
                 Ok(())
             })
