@@ -87,6 +87,23 @@ describe("tickets", () => {
     await setup({});
     expect(textOf(await fleetTool("chef", "tickets", {}))).toBe('No ticket source: the user chooses it in "Overnight run".');
   });
+
+  it("answers within the 30 s Rust gives a tool when gh never does, saying GitHub is slow", async () => {
+    await setup({ tickets: { kind: "github", label: "nuit" } });
+    // The real reading, through a gh that never answers: Rust would stop it only at its own 60 s limit.
+    const real = await vi.importActual<typeof import("@/mission/tickets")>("@/mission/tickets");
+    vi.mocked(readTickets).mockImplementationOnce(real.readTickets);
+    mockIPC((cmd) => (cmd === "mission_issues" ? new Promise(() => undefined) : undefined));
+    vi.useFakeTimers();
+    try {
+      let answered: { isError?: boolean; content: { text: string }[] } | null = null;
+      void fleetTool("chef", "tickets", {}).then((result) => (answered = result as typeof answered));
+      await vi.advanceTimersByTimeAsync(29_000);
+      expect(answered).toMatchObject({ isError: true, content: [{ text: expect.stringContaining("GitHub did not answer in time") }] });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe("what is left to check by hand", () => {

@@ -1,6 +1,7 @@
 import { arrive, arrivingNode } from "@/canvas/arrive";
 import { overview, releaseToCanvas } from "@/canvas/canvasFocus";
 import { canvasStore } from "@/canvas/canvasStore";
+import { framesFromScene, hiddenNodeIds } from "@/canvas/groups";
 import { stepTerminal, terminalOrder } from "@/canvas/terminalOrder";
 import { fitScene, zoomTo } from "@/canvas/viewActions";
 import { agentsPanelStore, setAgentsPanel } from "@/agents/agentsPanelState";
@@ -20,11 +21,18 @@ const withTerminals = (ctx: CommandContext) => ctx.project && ctx.terminalCount 
 const withWaiting = (ctx: CommandContext) => ctx.project && currentWaitingAgents().length > 0;
 const always = () => true;
 
-/** Ctrl+Tab and Ctrl+Shift+Tab: the next terminal in reading order, then the arrival. */
+/**
+ * Ctrl+Tab and Ctrl+Shift+Tab: the next terminal in reading order, then the arrival. Among the terminals on the
+ * screen: those a folded group keeps off it are for Go to, Ctrl+P and the Agents panel, which unfold it
+ * (`arrive`), not for a key that is pressed over and over to go round.
+ */
 function step(direction: 1 | -1, ctx: CommandContext) {
   const api = canvasStore.getState().api;
   if (!api) return;
-  const target = stepTerminal(terminalOrder(api.getSceneElements()), arrivingNode() ?? ctx.terminalId, direction);
+  const elements = api.getSceneElements();
+  const hidden = hiddenNodeIds(framesFromScene(elements));
+  const order = terminalOrder(elements).filter((id) => !hidden.has(id));
+  const target = stepTerminal(order, arrivingNode() ?? ctx.terminalId, direction);
   if (target) arrive(target);
 }
 

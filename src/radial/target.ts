@@ -137,7 +137,7 @@ export function sceneTarget({ point, zoom, elements, selectedIds, groupIds }: Sc
       return { kind: "selection", ids: selected.map((e) => e.id) };
     }
   }
-  // The terminals a folded group keeps off the screen are not under the press: the group's frame is.
+  // The terminals a folded group keeps off the screen are not under the press, and neither is its body: only its label is the group's.
   const folded = new Set(elements.filter((e) => e.type === "frame" && groupInfoOf(e)?.folded).map((e) => e.id));
   for (let i = elements.length - 1; i >= 0; i--) {
     const element = elements[i];
@@ -152,7 +152,9 @@ export function sceneTarget({ point, zoom, elements, selectedIds, groupIds }: Sc
     if (frame.type !== "frame") continue;
     const group = groupIds.has(frame.id);
     const top = frame.y - (group ? LABEL_HEIGHT / zoom : 0);
-    if (point.x >= frame.x && point.x <= frame.x + frame.width && point.y >= top && point.y <= frame.y + frame.height) {
+    // A folded group is only its label: its body is empty canvas.
+    const bottom = folded.has(frame.id) ? frame.y : frame.y + frame.height;
+    if (point.x >= frame.x && point.x <= frame.x + frame.width && point.y >= top && point.y <= bottom) {
       return group ? { kind: "group", id: frame.id } : { kind: "selection", ids: [frame.id] };
     }
   }

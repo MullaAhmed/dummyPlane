@@ -141,6 +141,7 @@ pub fn run() {
             commands::workspace::save_node,
             commands::workspace::get_setting,
             commands::workspace::set_setting,
+            commands::workspace::keep_setting,
             commands::project::list_projects,
             commands::project::create_project,
             commands::project::rename_project,

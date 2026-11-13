@@ -187,3 +187,12 @@ it("offers no resume to a fleet refused for lack of dummyPlane's tools: its node
   expect(resumeOfferOf({ state: "error", message: "m", kind: "toolsUnavailable" }, true)).toBeNull();
   expect(resumeOfferOf({ state: "error", message: "m" }, true)).toBe("resume");
 });
+
+it("says a sub-agent whose spawner's pick could not be set has its pick not set, and offers to start it again", () => {
+  const refused = { state: "error", message: "the skills, MCP servers and plugins its spawner picked could not be set: x.", kind: "pickRefused" } as const;
+  expect(pillOf(refused)).toEqual({ label: "Pick not set", tone: "failed" });
+  // Not a fleet without its tools: its card offers the start again, its conversation when it has one.
+  expect(resumeOfferOf(refused, true)).toBe("resume");
+  expect(resumeOfferOf(refused, false)).toBe("relaunch");
+  expect(pillOf({ state: "error", message: "m", kind: "toolsUnavailable" }).label).toBe("Tools unavailable");
+});

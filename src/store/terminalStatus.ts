@@ -7,7 +7,12 @@ export type TerminalStatus =
   | { state: "running" }
   | { state: "stopped" }
   | { state: "exited"; code: number | null }
-  | { state: "error"; message: string; kind?: AppErrorKind };
+  /**
+   * `kind`: the backend's error kind, or `pickRefused`, a sub-agent whose spawner's pick of skills, MCP servers and
+   * plugins could not be set: the backend refuses it as it refuses a fleet without its tools (`toolsUnavailable`),
+   * and the launch tells the two apart by the pick it carried (`startSession`).
+   */
+  | { state: "error"; message: string; kind?: AppErrorKind | "pickRefused" };
 
 interface TerminalStatusState {
   statuses: Record<string, TerminalStatus>;

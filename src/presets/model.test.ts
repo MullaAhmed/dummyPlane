@@ -7,6 +7,7 @@ import {
   MAX_PRESETS,
   presetAgentCount,
   presetNameOf,
+  presetsLeftOut,
   readPresets,
   storedPresets,
   withoutPreset,
@@ -63,6 +64,16 @@ describe("readPresets", () => {
   it("reads a good list, and nothing from a damaged setting", () => {
     expect(readPresets({ version: 1, presets: [saved] })).toEqual([good]);
     for (const bad of [null, undefined, 3, "x", [], { version: 2, presets: [saved] }, { version: 1, presets: "no" }]) expect(readPresets(bad)).toEqual([]);
+  });
+
+  it("says how much of a saved setting it leaves out: nothing, some of its presets, or all of it", () => {
+    expect(presetsLeftOut(null)).toBe("none");
+    expect(presetsLeftOut({ version: 1, presets: [] })).toBe("none");
+    expect(presetsLeftOut({ version: 1, presets: [saved] })).toBe("none");
+    // A damaged preset among good ones: only it is left out.
+    expect(presetsLeftOut({ version: 1, presets: [saved, { ...saved, id: "2", name: "" }] })).toBe("some");
+    // Another version, another shape: it reads as an empty list, and the next save would replace what it holds.
+    for (const other of [{ version: 2, presets: [saved] }, { presets: [saved] }, { version: 1, presets: "no" }, "x", 3, [saved]]) expect(presetsLeftOut(other), JSON.stringify(other)).toBe("all");
   });
 
   it("drops a preset that is invalid and keeps the others", () => {

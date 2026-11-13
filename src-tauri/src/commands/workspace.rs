@@ -171,11 +171,20 @@ mod tests {
     }
 }
 
+/// Keeps the stored text of a setting the interface could read only in part, before a write replaces
+/// it (`settings::keep`). The key it is kept under, when that is new: the interface tells the user.
+#[tauri::command]
+pub async fn keep_setting(db: State<'_, Db>, key: String) -> AppResult<Option<String>> {
+    db.with(|conn| settings::keep(conn, &key))
+}
+
+/// Stores a setting. The key under which the text it replaced was kept, when that text did not
+/// parse and was not kept already (`settings::set`): the interface tells the user.
 #[tauri::command]
 pub async fn set_setting(
     db: State<'_, Db>,
     key: String,
     value: serde_json::Value,
-) -> AppResult<()> {
+) -> AppResult<Option<String>> {
     db.with(|conn| settings::set(conn, &key, &value))
 }

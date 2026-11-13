@@ -84,11 +84,13 @@ pub fn load(conn: &Connection) -> AppResult<Accounts> {
 }
 
 fn store(conn: &Connection, accounts: &Accounts) -> AppResult<()> {
+    // `load` refuses a row that cannot be read before any write: there is never a text to keep.
     settings::set(
         conn,
         KEY,
         &serde_json::to_value(accounts).expect("plain data"),
     )
+    .map(|_| ())
 }
 
 /// Whether two spellings name one folder: in any case, with either separator, and without

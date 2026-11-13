@@ -274,6 +274,50 @@ describe("deleting the selection", () => {
     expect(out.other.isDeleted).toBe(false);
   });
 
+  describe("unbinds what it leaves, as Excalidraw's delete does", () => {
+    const binding = (elementId: string) => ({ elementId, focus: 0, gap: 4 });
+    /** Two boxes joined by an arrow, the first with a text of its own. */
+    const joined = () => [
+      el("a", { boundElements: [{ id: "arrow", type: "arrow" }, { id: "label", type: "text" }] }),
+      el("label", { type: "text", containerId: "a" }),
+      el("b", { boundElements: [{ id: "arrow", type: "arrow" }] }),
+      el("arrow", { type: "arrow", x: 10, y: 5, points: [[0, 0], [90, 0]], startBinding: binding("a"), endBinding: binding("b") }),
+    ];
+
+    it("frees an arrow's end from a box deleted, in the same step, and leaves its points where they are", () => {
+      const before = joined();
+      const out = byId(deleteSelection(before, select("a")));
+      expect(out.a.isDeleted).toBe(true);
+      expect(out.label.isDeleted).toBe(true);
+      expect(out.arrow.isDeleted).toBe(false);
+      expect(out.arrow.startBinding).toBeNull();
+      expect(out.arrow.endBinding).toEqual(binding("b"));
+      expect(out.arrow.points).toEqual([[0, 0], [90, 0]]);
+      expect([out.arrow.x, out.arrow.y]).toEqual([10, 5]);
+      // The other box still knows its arrow; it is revised, and what it keeps is as it was.
+      expect(out.b.boundElements).toEqual([{ id: "arrow", type: "arrow" }]);
+      expect(out.arrow.version).toBeGreaterThan(before[3].version);
+    });
+
+    it("drops a deleted arrow from the boxes it was bound to, keeping their other bound elements", () => {
+      const out = byId(deleteSelection(joined(), select("arrow")));
+      expect(out.arrow.isDeleted).toBe(true);
+      expect(out.a.boundElements).toEqual([{ id: "label", type: "text" }]);
+      expect(out.b.boundElements).toEqual([]);
+      expect(out.a.isDeleted).toBe(false);
+    });
+
+    it("drops a deleted text from the box that held it, and leaves what was not touched as it was", () => {
+      const scene = [...joined(), el("far", { boundElements: null })];
+      const out = byId(deleteSelection(scene, select("label")));
+      expect(out.label.isDeleted).toBe(true);
+      expect(out.a.boundElements).toEqual([{ id: "arrow", type: "arrow" }]);
+      expect(out.far).toBe(scene[4]);
+      expect(out.b).toBe(scene[2]);
+      expect(out.arrow).toBe(scene[3]);
+    });
+  });
+
   it("never deletes a node", () => {
     const scene = [el("node", { type: "embeddable" }), el("a")];
     const out = byId(deleteSelection(scene, select("node", "a")));
