@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { buildSpawnSpec } from "@/nodes/terminal/launch";
 import { readTerminalPayload, type TerminalPayload } from "@/nodes/types";
 import { canSwitch, isOn, isOwnMcpServer, readExtensionChoice, withItem, withItems, withoutOwnServer, type ExtensionItem } from "./claudeExtensions";
+import type { SubagentExtras } from "./subagentExtras";
 
 /** An item of the user's, on unless told; or with these fields. */
 const item = (id: string, patch: boolean | Partial<ExtensionItem> = true): ExtensionItem => ({
@@ -68,6 +69,39 @@ describe("a terminal's choice of skills, plugins, MCP servers and subagents", ()
     expect(stored.extensions).toEqual({ mcpOff: ["github"] });
     expect(buildSpawnSpec(stored, "new").claude?.extensions).toEqual({ mcpOff: ["github"] });
     expect(buildSpawnSpec({ ...stored, extensions: undefined }, "new").claude?.extensions).toBeUndefined();
+  });
+});
+
+describe("a sub-agent's pick, under its terminal's own switches", () => {
+  const extras: SubagentExtras = { skills: ["review"], mcpServers: ["claude-in-chrome"], plugins: ["figma@claude"] };
+
+  it("is on as the pick names it, whatever the user's settings, the switches still turning it off", () => {
+    const review = item("review", false);
+    const deploy = item("deploy");
+    expect(isOn("skills", review, undefined, extras)).toBe(true);
+    expect(isOn("skills", deploy, undefined, extras)).toBe(false);
+    expect(canSwitch("skills", review, extras)).toBe(true);
+    expect(canSwitch("skills", deploy, extras)).toBe(false);
+    expect(isOn("skills", review, { skillsOff: ["review"] }, extras)).toBe(false);
+    // A kind it did not pick is the user's settings, as without a pick.
+    expect(isOn("agents", item("planner"), undefined, extras)).toBe(true);
+    expect(isOn("skills", deploy, undefined, { plugins: [] })).toBe(true);
+  });
+
+  it("brings a plugin's skill and MCP server with the plugin it picks, and the pick is what a plugin's switch goes back to", () => {
+    const figma = item("figma@claude", false);
+    const skill = item("figma:design", { fixed: "plugin", plugin: "figma@claude", enabled: false, source: "plugin" });
+    const server = item("plugin_figma_api", { plugin: "figma@claude", enabled: false, source: "plugin" });
+    expect(isOn("plugins", figma, undefined, extras)).toBe(true);
+    expect(isOn("skills", skill, undefined, extras)).toBe(true);
+    expect(isOn("mcp", server, undefined, extras)).toBe(true);
+    expect(isOn("mcp", item("github"), undefined, extras)).toBe(false);
+    expect(isOn("mcp", item("claude-in-chrome", { source: "builtin" }), undefined, extras)).toBe(true);
+    const off = withItem("plugins", figma, false, undefined, extras);
+    expect(off).toEqual({ plugins: { "figma@claude": false } });
+    expect(isOn("skills", skill, off, extras)).toBe(false);
+    expect(withItem("plugins", figma, true, off, extras)).toBeUndefined();
+    expect(withItems("plugins", [figma], false, undefined, extras)).toEqual({ plugins: { "figma@claude": false } });
   });
 });
 
