@@ -7,7 +7,7 @@ import { addTerminal } from "@/agents/terminals";
 import { missionAddAgent, missionMerge, missionPrepare } from "@/ipc/mission";
 import { ptySendText } from "@/ipc/pty";
 import { buildSpawnSpec } from "@/nodes/terminal/launch";
-import { relaunchTerminal } from "@/nodes/terminal/registry";
+import { relaunchTerminal, stopTerminal } from "@/nodes/terminal/registry";
 import { relaunchSession } from "@/nodes/terminal/session";
 import type { TerminalPayload } from "@/nodes/types";
 import { agentActivityStore } from "@/store/agentActivity";
@@ -16,12 +16,15 @@ import { isRunning, statusOf, terminalStatusStore } from "@/store/terminalStatus
 import { toast } from "sonner";
 import { workspacesStore } from "@/store/workspaces";
 import { notify } from "./events";
-import { launchMission, mergeMember, reassignTask } from "./launch";
+import { endMission, launchMission, mergeLineKept, mergeMember, reassignTask } from "./launch";
 import type { Member, Mission, QueuedTask } from "./mission";
 import { morningReport } from "./morning";
-import { afterReport, giveNext, pumpQueue } from "./queue";
-import { missionOf, updateMember } from "./store";
+import { afterReport, giveNext, pumpQueue, toldKept } from "./queue";
+import { missionOf, setMission, updateMember } from "./store";
+import { addTeamMember } from "./manager";
+import { isLaunching, markLaunching } from "@/agents/spawnFamily";
 import { activeCount } from "./active";
+import { activeWork } from "./activeWork";
 import { installRestartWatch } from "./restartWatch";
 import { fleetTool, managerTools } from "@/mcp/fleetTools";
 import { modelRouterStore } from "@/app/modelRouterSetting";
@@ -456,6 +459,34 @@ describe("who takes what", () => {
 describe("what the review of the queue found", () => {
   const stuck = { summary: "Bloqué", status: "bloque" as const, at: 60_000 };
 
+  it("stops the Manager's new agent of a mission that ended while it was created, and leaves it launching no more: it holds no task", async () => {
+    await setup({ manager: "m1", members: [member("batman", "Batman", { report: done, merged: true })] });
+    // The mission ends while git makes the new agent's worktree.
+    vi.mocked(missionAddAgent).mockImplementationOnce(async (_project, slug, agent) => {
+      setMission("chef", { state: "terminee" });
+      return { slug, branch: `dummyplane/${slug}-${agent.toLowerCase()}`, path: `C:/w/${agent.toLowerCase()}` };
+    });
+    // As the real one: the Manager's new sub-agent, its task on it, launching until its sub-task is typed.
+    vi.mocked(addTeamMember).mockImplementationOnce(async (workspaceId, managerId, payload, task) => {
+      const id = (await addTerminal(workspaceId, payload, { x: 0, y: 0 }, null, {} as never))!;
+      await nodesStore.getState().create(id, { workspaceId, kind: "terminal", payload: { ...payload, spawnedBy: managerId, task } });
+      markLaunching(id, true);
+      return id;
+    });
+    // A real stop: its process exits.
+    vi.mocked(stopTerminal).mockImplementationOnce((id) => terminalStatusStore.getState().set(id, { state: "exited", code: 0 }));
+    await pumpQueue("chef");
+    expect(stopTerminal).toHaveBeenCalledWith("n1");
+    // Its sub-task never comes: still "launching", it would stay at work until a restart.
+    expect(isLaunching("n1")).toBe(false);
+    // The duplicate guard lists no stopped agent as starting on its task.
+    expect(activeWork("w1").map((work) => work.agentId)).not.toContain("n1");
+    // Its worktree goes with the mission's cleanup, as a member's, though it is none.
+    const name = vi.mocked(missionAddAgent).mock.calls[0][2];
+    expect(missionNow().members.map((m) => m.name)).not.toContain(name);
+    expect(missionNow().strays).toEqual([name]);
+  });
+
   it("merges one branch at a time: two git merges in one worktree break each other", async () => {
     await setup({ queue: [next, { ...next, title: "Docs" }], members: [member("batman", "Batman", { report: done }), member("aquaman", "Aquaman", { task: "Docs0", report: done })] });
     let running = 0;
@@ -626,6 +657,17 @@ describe("what the fleet hears when nobody is left working", () => {
     await setup({ queue: [], members: [member("batman", "Batman", { report: done }), member("aquaman", "Aquaman", { task: "Docs" })] });
     await afterReport("chef", "batman");
     expect(lines()).toEqual([]);
+  });
+
+  it("forgets, once the mission ends, what it told its runner and its line of merges: nothing piles up mission after mission", async () => {
+    await setup({ queue: [] });
+    await afterReport("chef", "batman");
+    await mergeMember("chef", "C:/w/auth", missionNow().members[0]);
+    expect(toldKept("chef")).toBeGreaterThan(0);
+    expect(mergeLineKept("C:/w/auth")).toBe(true);
+    endMission("chef", "Done.");
+    expect(mergeLineKept("C:/w/auth")).toBe(false);
+    await vi.waitFor(() => expect(toldKept("chef")).toBe(0));
   });
 });
 

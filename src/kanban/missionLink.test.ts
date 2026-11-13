@@ -97,6 +97,13 @@ describe("planRequest", () => {
     expect(planRequest(b, "todo", texts)!.length).toBeLessThan(500);
   });
 
+  it("never cuts notes inside an emoji: the request is typed to the Fleet through Rust, which refuses half of one", () => {
+    const b = board();
+    // 🎉 straddles the cut at 279 units: its first half would be the last unit kept.
+    b.cards.b.notes = `${"x".repeat(278)}🎉 and more`;
+    expect(planRequest(b, "todo", texts)!).toContain(`[b] Logout — ${"x".repeat(278)}…`);
+  });
+
   it("is null for an empty or unknown column", () => {
     expect(planRequest(board(), "done", texts)).toBeNull();
     expect(planRequest(board(), "nope", texts)).toBeNull();

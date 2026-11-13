@@ -5,6 +5,7 @@ import { readSubagentExtras, type SubagentExtras } from "@/ipc/subagentExtras";
 import { AGENT_IDS, MANAGER_ROLE, STORED_FLEET_ROLE, type AgentId, type OllamaLaunch, type Permission, type ShellKind } from "@/ipc/pty";
 import { readMission, type Mission } from "@/mission/mission";
 import { readEffort, type EffortLevel } from "@/mission/router";
+import { cutWhole } from "@/lib/cut";
 import { readSteps, settledSteps, type Step } from "./steps";
 
 /** Content of a terminal node. */
@@ -371,7 +372,7 @@ export function readTerminalPayload(raw: unknown): TerminalPayload | null {
   if (r.oneShot === true) payload.oneShot = true;
   if (typeof r.accountId === "string" && r.accountId) payload.accountId = r.accountId;
   if (typeof r.spawnedBy === "string" && r.spawnedBy) payload.spawnedBy = r.spawnedBy;
-  if (typeof r.task === "string" && r.task.trim()) payload.task = r.task.slice(0, MAX_STORED_TASK);
+  if (typeof r.task === "string" && r.task.trim()) payload.task = cutWhole(r.task, MAX_STORED_TASK);
   if (r.staleTitle === true) payload.staleTitle = true;
   if (r.fromShell === true && payload.agent !== "shell") payload.fromShell = true;
   if (r.minimized === true) payload.minimized = true;

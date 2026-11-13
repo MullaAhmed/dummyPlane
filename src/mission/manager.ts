@@ -149,6 +149,7 @@ export async function setUpBoard(fleetId: string, workspaceId: string, mission: 
     const board = liveElement(workspaceId, boardId);
     if (!payload || !board) {
       if (boardMade) dropNodes(fleetId, workspaceId, [boardId]);
+      setMission(fleetId, { board: undefined, boardMade: undefined });
       throw new Error(t.groupFailed);
     }
     managerId = (await addTerminal(workspaceId, payload, managerCenter(board), null, arrival)) ?? undefined;

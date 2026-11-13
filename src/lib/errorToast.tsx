@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { toast, type ExternalToast } from "sonner";
+import { cutWhole } from "./cut";
 
 /** The longest detail line a toast shows, in characters; the log keeps it whole. */
 export const MAX_DETAIL = 160;
@@ -32,7 +33,7 @@ export function errorDetail(error: unknown): string {
     .find((part) => part.length > 0 && !/^at\s/.test(part));
   const text = (line ?? "").replace(CLASS_PREFIX, "").replace(OS_CODE, "").trim();
   if (text === "" || text === "[object Object]" || text === "undefined" || text === "null") return "";
-  return text.length > MAX_DETAIL ? `${text.slice(0, MAX_DETAIL - 1).trimEnd()}…` : text;
+  return text.length > MAX_DETAIL ? `${cutWhole(text, MAX_DETAIL - 1).trimEnd()}…` : text;
 }
 
 /** The second and third lines of an error toast: what to do next, then the raw detail, quieter, in the code font. */

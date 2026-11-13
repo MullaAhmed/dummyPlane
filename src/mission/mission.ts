@@ -117,6 +117,11 @@ export interface Mission {
   worktree?: string;
   /** The group of the agents created for it. */
   frameId?: string;
+  /**
+   * Agents made for it that its end stopped before they joined (a reassign's or the queue's new agent): no members,
+   * their names are kept so that the cleanup removes their worktrees as it does the members'.
+   */
+  strays?: string[];
   members: Member[];
   summary?: string;
   /** The summary as the fleet wrote it in OpenUI Lang (finish), when it did: what the panel draws. */
@@ -254,6 +259,7 @@ function readQueued(task: QueuedTask): QueuedTask {
     ...(level ? { level } : {}),
     ...(typeof group?.id === "string" && typeof group.name === "string" ? { group: { id: group.id, name: group.name } } : {}),
     ...(typeof task.card === "string" && task.card ? { card: task.card } : {}),
+    ...(typeof task.handedBy === "string" && task.handedBy ? { handedBy: task.handedBy } : {}),
   };
 }
 
@@ -285,6 +291,7 @@ export function readMission(raw: unknown): Mission | undefined {
   if (r.autoLaunch === true) mission.autoLaunch = true;
   if (r.boardMade === true) mission.boardMade = true;
   if (Array.isArray(r.handChecks)) mission.handChecks = r.handChecks.filter((line): line is string => typeof line === "string");
+  if (Array.isArray(r.strays)) mission.strays = r.strays.filter((name): name is string => typeof name === "string" && name !== "");
   if (r.permission === "ask" || r.permission === "edits" || r.permission === "work") mission.permission = r.permission;
   return mission;
 }
@@ -421,6 +428,9 @@ export function pastTask(member: Member, report: Report): PastTask {
 
 /** The sub-tasks `reassign` takes, by the members holding them: not handed over, nor left by `next_task`. */
 export const reassignable = (mission: Mission) => mission.members.filter((m) => !m.handedTo && !m.abandoned);
+
+/** The agents whose worktrees a mission's cleanup removes: its members, and those its end left behind (`strays`). */
+export const worktreeOwners = (mission: Mission) => [...mission.members.map((m) => m.name), ...(mission.strays ?? [])];
 
 /** A member's budget with its extensions. */
 export const budgetOf = (member: Member) => member.budgetMin + (member.extraMin ?? 0);

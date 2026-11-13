@@ -53,5 +53,5 @@ tauri-plugin-updater = "~2.13"
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.56"
-# The processes under a terminal's shell and their command lines (`pty::watch`), and the job that ends them with it (`process::ProcessTree`).
-windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security", "Win32_System_Diagnostics_ToolHelp", "Win32_System_JobObjects", "Win32_System_Threading", "Wdk_System_Threading"] }
+# The processes under a terminal's shell and their command lines (`pty::watch`), the job that ends them with it and the windows that spare some (`process::ProcessTree`).
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security", "Win32_System_Diagnostics_ToolHelp", "Win32_System_JobObjects", "Win32_System_Threading", "Win32_UI_WindowsAndMessaging", "Wdk_System_Threading"] }

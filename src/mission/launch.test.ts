@@ -24,10 +24,12 @@ import { whenReady } from "./ready";
 import { onFinish, type FinishSignal } from "@/agents/finishes";
 import { assign, cleanMission, deliveryPending, endMission, handoverText, launchMission, mergeMission, reassignTask, subTaskText, withTicketNote } from "./launch";
 import { installRedelivery } from "./redeliver";
+import { stopMission } from "./stop";
 import { activeCount } from "./active";
 import { NEW_MISSION, type Member, type Mission } from "./mission";
 import { memberOf, missionOf, releaseTeamPermission, setMission, updateMember } from "./store";
-import { setUpBoard, undoSetup } from "./manager";
+import { addTeamMember, setUpBoard, undoSetup } from "./manager";
+import { isLaunching, markLaunching } from "@/agents/spawnFamily";
 import { modelRouterStore } from "@/app/modelRouterSetting";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
@@ -373,6 +375,17 @@ describe("launchMission", () => {
     await vi.waitFor(() => expect(ptySendText).toHaveBeenCalledWith("n1", expect.any(String)));
     await vi.waitFor(() => expect(wireActivityStore.getState().pulses.n1).toMatchObject({ direction: "toAgent", fleetId: "m1" }));
     clearWirePulses();
+  });
+
+  it("does not launch once Max agents was lowered under a linked agent's sub-task: it would go to the queue, to a new agent, unsaid", async () => {
+    // Proposed with Max agents at 4: Batman's sub-task, second, started at the go-ahead. The user then set 1.
+    await setup({ maxAgents: 1, plan: [plan[1], plan[0]] });
+    await launchMission("chef");
+    const error = 'Sub-task 2: only the first 1 sub-tasks start at the go-ahead (Max active agents), the rest wait in the queue for a new agent: give it agent "new".';
+    expect(missionNow()).toMatchObject({ state: "plan", error, members: [] });
+    expect(missionNow()).not.toHaveProperty("queue");
+    expect(notify).toHaveBeenCalledWith("chef", `The mission could not start: ${error}`);
+    expect(missionPrepare).not.toHaveBeenCalled();
   });
 
   it("takes a mission whose git fails back to its plan, with the error, and launches no one", async () => {
@@ -1084,6 +1097,86 @@ describe("reassignTask", () => {
       ["n9", "Login", undefined],
     ]);
     for (const id of ["n2", "n3"]) terminalStatusStore.getState().set(id, { state: "stopped" });
+  });
+
+  it("leaves no new agent at work for a mission stopped while it was created: it stops, and the stopped mission takes nobody", async () => {
+    await team();
+    setMission("chef", { manager: "m1" });
+    // The user stops the mission while git makes the new agent's worktree.
+    vi.mocked(missionAddAgent).mockImplementationOnce(async (_project, mission, agent) => {
+      stopMission("chef", { by: "user" });
+      return tree(`${mission}-${agent.toLowerCase()}`);
+    });
+    // As the real one: the Manager's new sub-agent is launching until its sub-task is typed.
+    vi.mocked(addTeamMember).mockImplementationOnce(async () => {
+      markLaunching("n9", true);
+      return "n9";
+    });
+    expect(typeof (await reassignTask("chef", "batman", "nouveau"))).toBe("string");
+    expect(stopTerminal).toHaveBeenCalledWith("n9");
+    // Off the canvas, as the end took the agents made for the mission: no terminal outlives its worktree, nor resumes in it.
+    expect(removeNodes).toHaveBeenCalledWith(["n9"]);
+    // Its sub-task never comes: it is not left "launching", counted at work by the spawn caps and the duplicate guard.
+    expect(isLaunching("n9")).toBe(false);
+    expect(missionNow()).toMatchObject({ state: "terminee" });
+    expect(missionNow().members.map((m) => [m.nodeId, m.handedTo])).toEqual([
+      ["batman", undefined],
+      ["n1", undefined],
+    ]);
+    // Batman, linked, went back to the project: nothing of the stopped mission reaches it.
+    expect(pauseAgents).not.toHaveBeenCalled();
+    expect(vi.mocked(ptySendText).mock.calls.filter(([id]) => id === "batman")).toEqual([]);
+  });
+
+  it("cleans the worktree of the new agent a stop left behind with the mission, as a member's: it is no member", async () => {
+    await team();
+    vi.mocked(missionAddAgent).mockImplementationOnce(async (_project, mission, agent) => {
+      stopMission("chef", { by: "user" });
+      return tree(`${mission}-${agent.toLowerCase()}`);
+    });
+    await reassignTask("chef", "batman", "nouveau");
+    const name = vi.mocked(missionAddAgent).mock.calls[0][2];
+    expect(missionNow().members.map((m) => m.name)).not.toContain(name);
+    vi.mocked(missionCleanup).mockResolvedValueOnce({ removed: [], kept: [] });
+    await cleanMission("chef");
+    expect(missionCleanup).toHaveBeenCalledWith("C:/code/proj", "auth", ["Batman", "Aquaman", name]);
+  });
+
+  it("takes the left-behind agent's worktree back itself while the cleanup runs: that cleanup's list is made, and its end blanks the mission", async () => {
+    await team();
+    let release: (value: { removed: string[]; kept: string[] }) => void = () => undefined;
+    vi.mocked(missionCleanup).mockImplementationOnce(() => new Promise((resolve) => (release = resolve)));
+    let cleaning: Promise<unknown> = Promise.resolve();
+    vi.mocked(missionAddAgent).mockImplementationOnce(async (_project, mission, agent) => {
+      stopMission("chef", { by: "user" });
+      cleaning = cleanMission("chef");
+      return tree(`${mission}-${agent.toLowerCase()}`);
+    });
+    try {
+      await reassignTask("chef", "batman", "nouveau");
+      const name = vi.mocked(missionAddAgent).mock.calls[0][2];
+      const made = tree(`auth-${name.toLowerCase()}`);
+      expect(missionDiscard).toHaveBeenCalledWith("C:/code/proj", [{ slug: name, branch: made.branch, path: made.path }]);
+    } finally {
+      // Never left under way: the next cleanups would join it.
+      release({ removed: [], kept: [] });
+      await cleaning;
+    }
+  });
+
+  it("takes the left-behind agent's worktree back at once when the mission was cleaned up meanwhile: no cleanup is left to do it", async () => {
+    await team();
+    vi.mocked(missionCleanup).mockResolvedValueOnce({ removed: [], kept: [] });
+    vi.mocked(missionAddAgent).mockImplementationOnce(async (_project, mission, agent) => {
+      stopMission("chef", { by: "user" });
+      await cleanMission("chef");
+      return tree(`${mission}-${agent.toLowerCase()}`);
+    });
+    await reassignTask("chef", "batman", "nouveau");
+    const name = vi.mocked(missionAddAgent).mock.calls[0][2];
+    const made = tree(`auth-${name.toLowerCase()}`);
+    expect(missionDiscard).toHaveBeenCalledWith("C:/code/proj", [{ slug: name, branch: made.branch, path: made.path }]);
+    expect(missionNow()).not.toHaveProperty("strays");
   });
 
   it("gives a sub-task to a new agent in the mission's group, started at once", async () => {
