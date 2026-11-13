@@ -260,9 +260,18 @@ fn git_tree(project: &Path, max: usize) -> Option<Tree> {
 }
 
 /// A bounded walk of a folder that is no repository, links not followed. True when it stopped
-/// at `max` entries with more to list.
-fn walk(dir: &Path, prefix: &str, depth: usize, max: usize, out: &mut Vec<TreeEntry>) -> bool {
+/// at `max` entries with more to list. `too_deep` is set when a folder past `MAX_DEPTH` held
+/// something it did not enter: the walk goes on with the others, and the list is cut all the same.
+fn walk(
+    dir: &Path,
+    prefix: &str,
+    depth: usize,
+    max: usize,
+    out: &mut Vec<TreeEntry>,
+    too_deep: &mut bool,
+) -> bool {
     if depth > MAX_DEPTH {
+        *too_deep |= std::fs::read_dir(dir).is_ok_and(|mut left| left.next().is_some());
         return false;
     }
     let Ok(read) = std::fs::read_dir(dir) else {
@@ -284,7 +293,7 @@ fn walk(dir: &Path, prefix: &str, depth: usize, max: usize, out: &mut Vec<TreeEn
                 return true;
             }
             out.push(entry(&path, "dir"));
-            if walk(&item.path(), &path, depth + 1, max, out) {
+            if walk(&item.path(), &path, depth + 1, max, out, too_deep) {
                 return true;
             }
         } else if kind.is_file() && !is_secret(&name) {
@@ -311,9 +320,13 @@ fn tree_limited(project: &Path, max: usize) -> Result<Tree, String> {
         return Ok(tree);
     }
     let mut entries = Vec::new();
-    let truncated = walk(project, "", 0, max, &mut entries);
+    let mut too_deep = false;
+    let stopped = walk(project, "", 0, max, &mut entries, &mut too_deep);
     entries.sort_by(|a, b| a.path.cmp(&b.path));
-    Ok(Tree { entries, truncated })
+    Ok(Tree {
+        entries,
+        truncated: stopped || too_deep,
+    })
 }
 
 /// A text file of `root`. What is not valid UTF-8 is refused rather than read
@@ -946,6 +959,50 @@ mod tests {
         let whole = tree_limited(dir.path(), 5).unwrap();
         assert_eq!((whole.entries.len(), whole.truncated), (5, false));
         assert!(!tree(dir.path()).unwrap().truncated);
+    }
+
+    /// The walk does not go deeper than `MAX_DEPTH` folders, and said nothing of what it left out.
+    #[test]
+    fn says_when_the_walk_stopped_at_its_depth() {
+        let dir = tempfile::tempdir().unwrap();
+        // 33 folders down: the first the walk does not enter.
+        let mut deep = dir.path().to_path_buf();
+        for _ in 0..=MAX_DEPTH {
+            deep.push("d");
+        }
+        std::fs::create_dir_all(&deep).unwrap();
+        // Empty, it hides nothing.
+        let empty = tree(dir.path()).unwrap();
+        assert!(!empty.truncated);
+        assert_eq!(empty.entries.len(), MAX_DEPTH + 1);
+        // With a file in it, the list is not the whole tree.
+        std::fs::write(deep.join("f.txt"), b"x").unwrap();
+        let cut = tree(dir.path()).unwrap();
+        assert!(cut.truncated);
+        assert!(cut.entries.iter().all(|e| e.kind == "dir"));
+        // A tree that stays within the limit is whole.
+        let shallow = project(&[("a/b/c.txt", b"x")]);
+        assert!(!tree(shallow.path()).unwrap().truncated);
+    }
+
+    /// The depth cut is one folder's: the files beside it, and the folders after it, are listed.
+    #[test]
+    fn a_folder_past_the_depth_does_not_stop_the_walk() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut deep = dir.path().join("a");
+        for _ in 0..=MAX_DEPTH {
+            deep.push("d");
+        }
+        std::fs::create_dir_all(&deep).unwrap();
+        std::fs::write(deep.join("f.txt"), b"x").unwrap();
+        std::fs::write(dir.path().join("a").join("beside.txt"), b"x").unwrap();
+        std::fs::create_dir(dir.path().join("z")).unwrap();
+        std::fs::write(dir.path().join("z").join("after.txt"), b"x").unwrap();
+        let cut = tree(dir.path()).unwrap();
+        assert!(cut.truncated);
+        let listed: Vec<&str> = cut.entries.iter().map(|e| e.path.as_str()).collect();
+        assert!(listed.contains(&"a/beside.txt"), "{listed:?}");
+        assert!(listed.contains(&"z/after.txt"), "{listed:?}");
     }
 
     #[test]
