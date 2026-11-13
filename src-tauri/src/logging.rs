@@ -81,13 +81,31 @@ fn panic_line(message: &str, location: Option<(&str, u32)>, thread: Option<&str>
 /// (`X-dummyPlane-Token`, curl's config), the MCP one as a bearer: each is cut
 /// from whatever reaches the file, the webview's lines included. A header's
 /// name and its scheme are matched whatever their case, as HTTP reads them.
+/// Then its control characters are written as escapes (`one_line`).
 pub fn redact(text: &str) -> String {
     let query = cut_after(text, &["?t=", "&t="], |c| {
         c == '&' || c == '\'' || c == '"' || c.is_whitespace()
     });
-    cut_after(&query, &["bearer ", "x-dummyplane-token: "], |c| {
-        c == '\'' || c == '"' || c == ',' || c.is_whitespace()
-    })
+    one_line(&cut_after(
+        &query,
+        &["bearer ", "x-dummyplane-token: "],
+        |c| c == '\'' || c == '"' || c == ',' || c.is_whitespace(),
+    ))
+}
+
+/// A message on its own line, whatever it carries (a node id from the interface, what a program printed): a line
+/// break or an escape sequence is written as `\n`, `\u{1b}`, so it can neither forge the next line nor reach the
+/// terminal the log is read in. A tab stays.
+fn one_line(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    for c in text.chars() {
+        if c.is_control() && c != '\t' {
+            out.extend(c.escape_default());
+        } else {
+            out.push(c);
+        }
+    }
+    out
 }
 
 /// Replaces what follows each marker (lowercase ASCII, found whatever the
@@ -125,6 +143,21 @@ mod tests {
         assert!(!clean.contains("abc-123"), "{clean}");
         assert!(!clean.contains("xyz.789"), "{clean}");
         assert!(clean.contains("/status/n1"), "{clean}");
+    }
+
+    /// A node id comes from the interface, and an error may carry what a program printed: neither may start a
+    /// line of its own in the log, nor send the terminal a log is read in a sequence of its own.
+    #[test]
+    fn a_message_never_writes_more_than_its_own_line() {
+        let node = "n1\r\n[2026-11-14 10:00:00][INFO][dummyplane] forged";
+        let clean = redact(&format!("terminal {node} exited\n\u{1b}[2Jcleared"));
+        assert!(!clean.contains(['\n', '\r', '\u{1b}']), "{clean}");
+        assert_eq!(
+            clean,
+            "terminal n1\\r\\n[2026-11-14 10:00:00][INFO][dummyplane] forged exited\\n\\u{1b}[2Jcleared"
+        );
+        // A tab is no line, and stays.
+        assert_eq!(redact("a\tb"), "a\tb");
     }
 
     #[test]
