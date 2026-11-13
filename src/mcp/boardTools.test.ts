@@ -201,6 +201,33 @@ describe("the tools of an agent wired to a board", () => {
     expect(moveCardWithGithub).toHaveBeenLastCalledWith("b1", "c2", "done", undefined, "C:/code/batman");
   });
 
+  it("answer a move at once while `gh` is slow: its issue follows in the board's queue, never in the tool's 30 s", async () => {
+    // gh that does not answer: a move waits up to 60 s per call, behind the board's earlier moves.
+    let release: () => void = () => undefined;
+    mockIPC((cmd) => (cmd.startsWith("github_") ? new Promise((resolve) => (release = () => resolve(null))) : undefined));
+    const linked = (board: KanbanPayload): KanbanPayload => ({
+      ...board,
+      cards: { ...board.cards, c1: { ...board.cards.c1, github: { repo: "acme/app", number: 7, url: "https://github.com/acme/app/issues/7", state: "open" } } },
+    });
+    const late = <T,>(answer: Promise<T>) => Promise.race([answer, new Promise<string>((resolve) => setTimeout(() => resolve("still waiting on gh"), 300))]);
+    try {
+      wire("batman", "b1");
+      nodesStore.getState().update("b1", linked(freshBoard()));
+      const moved = await late(call("batman", "move_board_card", { card: "c1", column: "done" }));
+      expect(moved).not.toBe("still waiting on gh");
+      expect(titles("b1", "done")).toEqual(["Docs"]);
+      // The Manager's own move_card, on the board its mission runs, the same.
+      nodesStore.getState().update("b2", linked(freshBoard()));
+      nodesStore.getState().update("chef", { mission: { ...mission("en_cours", "b2"), project: "C:/code" } });
+      const managed = await late(call("boss", "move_card", { card: "c1", column: "done" }));
+      expect(managed).not.toBe("still waiting on gh");
+      expect(titles("b2", "done")).toEqual(["Docs"]);
+    } finally {
+      release();
+      mockIPC(() => undefined);
+    }
+  });
+
   it("run `gh` nowhere in particular, not in an empty folder, when the agent has none", async () => {
     wire("blank", "b1");
     expect(textOf(await call("blank", "move_board_card", { card: "c1", column: "done" }))).toBe('"Docs" moved to Done.');
