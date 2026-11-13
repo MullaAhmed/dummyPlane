@@ -51,6 +51,9 @@ export const nodesMessages = defineMessages(
     },
     header: {
       agent: "Agent",
+      /** A manager its spawner opened (spawn_agent's role "manager"), in its header and on its Agents row: no mission's Manager. */
+      coordinator: "Manager",
+      coordinatorHint: "Opened as a manager: it runs its task with sub-agents of its own, on a board of its own",
       more: "More actions",
       relaunch: "Restart",
       resumeSession: "Resume the session",

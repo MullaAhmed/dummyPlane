@@ -59,6 +59,8 @@ export interface SpawnArgs {
   skills?: unknown;
   mcp_servers?: unknown;
   plugins?: unknown;
+  /** `manager`: the sub-agent runs its task with sub-agents of its own (`coordinator`); left out, it does the work. */
+  role?: unknown;
 }
 
 /** What spawn_agent answers: a text for the agent, an error when it refused. */
@@ -320,6 +322,10 @@ async function spawnNow(parentId: string, args: SpawnArgs, arrived = Date.now())
   const asked = args.niveau == null || args.niveau === "" ? undefined : args.niveau;
   const level = asked === undefined ? undefined : readLevel(asked);
   if (asked !== undefined && !level) return refuse(t().level(String(asked)));
+  // No role, or an empty one, is none: a sub-agent that does the work, as before roles.
+  const role = args.role == null || args.role === "" ? undefined : args.role;
+  if (role !== undefined && role !== "manager") return refuse(t().role(String(role)));
+  const manager = role === "manager";
   const extras = askedExtras(args);
   if ("bad" in extras) return refuse(t().extrasShape(extras.bad));
   const record = nodesStore.getState().nodes[parentId];
@@ -330,7 +336,10 @@ async function spawnNow(parentId: string, args: SpawnArgs, arrived = Date.now())
   const holder = duplicateWork({ title: given, brief: task }, record.workspaceId, [parentId]);
   if (holder) return refuse(t().duplicate(holder));
   if (spawnDepth(parentId) + 1 > MAX_SPAWN_DEPTH) return refuse(t().tooDeep(MAX_SPAWN_DEPTH));
-  const max = subagentSettingsStore.getState().maxSpawned;
+  // A manager hands its work to sub-agents of its own: it needs a level below it, and none runs another manager.
+  if (manager && parent.coordinator) return refuse(t().managerOfManager);
+  if (manager && spawnDepth(parentId) + 2 > MAX_SPAWN_DEPTH) return refuse(t().managerTooDeep(MAX_SPAWN_DEPTH));
+  const max =subagentSettingsStore.getState().maxSpawned;
   const running = spawnedAtWork();
   if (running.length >= max) return refuse(t().tooMany(running.length, max, seatHolders(running)));
   // Its skills, MCP servers and plugins, as picked: checked before the scene is read, nothing opens on a refusal.
@@ -353,6 +362,8 @@ async function spawnNow(parentId: string, args: SpawnArgs, arrived = Date.now())
   // Right of the parent, NODE_GAP apart; addTerminal then moves it clear of any neighbour.
   const center = { x: element.x + element.width * 1.5 + NODE_GAP, y: element.y + element.height / 2 };
   const payload = withExtras(childPayload(parent, parentId, name, titleOf(args.title, task), undefined, task), picked);
+  // Its marker, not a mission Manager's role: an ordinary sub-agent, whose brief alone makes it a manager.
+  if (manager) payload.coordinator = true;
   // A model router over the spawner chooses the model from the task's level, and refuses a model with no level (`./spawnModel`).
   const routed = spawnModel(parentId, payload.agent, { model, level });
   if (routed.needsLevel) return refuse(t().levelNotModel(routed.needsLevel));
@@ -372,7 +383,9 @@ async function spawnNow(parentId: string, args: SpawnArgs, arrived = Date.now())
   markLaunching(childId, true);
   // Element, spawnedBy and wire all there: the tree takes its flowchart layout, the wire rerouted.
   reflowSpawnTree(workspaceId, childId);
-  void deliver(parentId, childId, name, t().brief(parent.name || "your parent agent", task));
+  // A manager's brief goes before its task, in the text typed only: its terminal keeps the task (`payload.task`).
+  const spawner = parent.name || "your parent agent";
+  void deliver(parentId, childId, name, t().brief(spawner, manager ? `${t().managerBrief(spawner)}${task}` : task));
   const note = modelNote(parentId, payload.agent, routed);
   const after = [note.after, extrasNote(payload.extras)].filter(Boolean).join(" ") || undefined;
   return { text: t().spawned(name, routed.model && modelLabel(routed.model), { ...note, after }) };

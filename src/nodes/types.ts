@@ -69,6 +69,11 @@ export interface TerminalPayload {
    */
   staleTitle?: true;
   /**
+   * A manager its spawner opened (spawn_agent's role "manager"): an ordinary sub-agent, with all its tools, whose
+   * brief has it run its task with sub-agents of its own, on a board of its own. No mission's Manager (`role`).
+   */
+  coordinator?: true;
+  /**
    * Its agent was started by hand in this Shell terminal (`./terminal/shellAgent`): the process it runs is the shell,
    * which dummyPlane started, and the agent in it is the user's own, with none of the terminal's settings, hooks or
    * tools. Its next launch starts the agent with them, on this conversation when it is known. Read only to follow
@@ -374,6 +379,7 @@ export function readTerminalPayload(raw: unknown): TerminalPayload | null {
   if (typeof r.spawnedBy === "string" && r.spawnedBy) payload.spawnedBy = r.spawnedBy;
   if (typeof r.task === "string" && r.task.trim()) payload.task = cutWhole(r.task, MAX_STORED_TASK);
   if (r.staleTitle === true) payload.staleTitle = true;
+  if (r.coordinator === true) payload.coordinator = true;
   if (r.fromShell === true && payload.agent !== "shell") payload.fromShell = true;
   if (r.minimized === true) payload.minimized = true;
   if (r.inputOpen === true) payload.inputOpen = true;

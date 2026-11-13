@@ -104,7 +104,7 @@ it("leaves a terminal as it was when its report is refused: no summary, or a sta
 it("offers spawn_agent to every Claude session, its task required", () => {
   const spawn = agentTools().find((tool) => tool.name === "spawn_agent")!;
   expect(spawn.inputSchema.required).toEqual(["task"]);
-  expect(Object.keys(spawn.inputSchema.properties)).toEqual(["task", "title", "model", "level", "skills", "mcp_servers", "plugins"]);
+  expect(Object.keys(spawn.inputSchema.properties)).toEqual(["task", "title", "model", "level", "skills", "mcp_servers", "plugins", "role"]);
   // The router's levels, as the agent writes them: low… extreme, read from the router's own table.
   expect((spawn.inputSchema.properties as Record<string, { enum?: string[]; description: string }>).level).toMatchObject({ enum: ["low", "medium", "high", "extreme"] });
   expect((spawn.inputSchema.properties as Record<string, { description: string }>).level.description).toContain("extreme Fable 5.2");
@@ -126,6 +126,19 @@ it("lets spawn_agent pick a sub-agent's skills, MCP servers and plugins, which i
   const list = agentTools().find((tool) => tool.name === "installed_extras")!;
   expect(list.inputSchema.properties).toEqual({});
   expect(list.description).toContain("whether it is on by default");
+});
+
+it("lets an agent's spawn_agent open a manager (role), optional, its one value manager; a Fleet's has none", () => {
+  const spawn = agentTools().find((tool) => tool.name === "spawn_agent")!;
+  const role = (spawn.inputSchema.properties as Record<string, { type: string; enum?: string[]; description: string }>).role;
+  expect(role).toMatchObject({ type: "string", enum: ["manager"] });
+  expect(role.description).toContain("open_board");
+  expect(role.description).toContain("a manager cannot open another");
+  expect(spawn.inputSchema.required).toEqual(["task"]);
+  expect(spawn.description).toContain('role "manager"');
+  // A Fleet splits work through its mission; its spawn_agent opens a sub-agent that does the work.
+  expect(Object.keys(spawnAgentSpec(true).inputSchema.properties)).toEqual(["task", "title", "model", "level", "skills", "mcp_servers", "plugins"]);
+  expect(spawnAgentSpec(true).description).not.toContain("role");
 });
 
 it("sends an agent to spawn_agent rather than a Workflow, which dummyPlane refuses like the Agent/Task tool", () => {
@@ -235,7 +248,10 @@ describe("a Fleet's sub-agent (spawn_agent)", () => {
   it("is described to the Fleet as ad-hoc work beside its mission's queue, in its workspace's folder", () => {
     const spawn = spawnAgentSpec(true);
     expect(spawn.name).toBe("spawn_agent");
-    expect(spawn.inputSchema).toEqual(agentTools().find((tool) => tool.name === "spawn_agent")!.inputSchema);
+    // An agent's arguments, but role: a Fleet's work splits through its mission, not a manager of its own.
+    const { role, ...agentArgs } = agentTools().find((tool) => tool.name === "spawn_agent")!.inputSchema.properties as Record<string, unknown>;
+    expect(role).toBeDefined();
+    expect(spawn.inputSchema).toEqual({ ...agentTools().find((tool) => tool.name === "spawn_agent")!.inputSchema, properties: agentArgs });
     expect(spawn.description).toContain("outside your mission's queue");
     expect(spawn.description).toContain("in your workspace's folder");
     expect(spawn.description).toContain("not on your team");

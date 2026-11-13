@@ -9,7 +9,11 @@ export type UiRequest =
   | { kind: "renameWorkspace"; id: string }
   | { kind: "renameTerminal"; id: string }
   | { kind: "renameFleet"; id: string }
-  | { kind: "agentMenu"; view: "agents" | "options" | "ollama" | { install: AgentId }; at?: Point }
+  /**
+   * The ＋ menu opened by a command. `only: "agents"`: the ring's and the palette's "Other agent…" want the agents
+   * alone, not the whole menu; the menu keeps it until it closes, so a sub-view's Back returns to them.
+   */
+  | { kind: "agentMenu"; view: "agents" | "options" | "ollama" | { install: AgentId }; only?: "agents"; at?: Point }
   | { kind: "composeGroup" }
   | { kind: "savePreset" }
   | { kind: "loops" }

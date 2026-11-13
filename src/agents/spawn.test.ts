@@ -14,12 +14,12 @@ import { fleetSession } from "@/nodes/terminal/launch";
 import { HALF_CHARACTER } from "@/lib/cut";
 import { MAX_STORED_TASK, type TerminalPayload } from "@/nodes/types";
 import { agentActivityStore } from "@/store/agentActivity";
-import { nodesStore, terminalOf } from "@/store/nodes";
+import { isManagerRecord, nodesStore, terminalOf } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
 import { quietly } from "./arrivals";
 import { nameForNewAgent } from "./naming";
 import { listExtras, spawnAgent } from "./spawn";
-import { isLaunching, markLaunching, markReported, runningSpawned } from "./spawnFamily";
+import { isLaunching, markLaunching, markReported, runningSpawned, unmarkReported } from "./spawnFamily";
 import { reflowSpawnTree } from "./spawnTree";
 import { addTerminal, placeTerminal } from "./terminals";
 import { isSpawnWire } from "./wires";
@@ -264,6 +264,83 @@ describe("spawn_agent", () => {
   it("keeps the spawner's own title over its task", async () => {
     await spawnAgent("batman", { task: "You are a reviewer. Review the login diff.", title: "Login review" });
     expect(vi.mocked(addTerminal).mock.calls[0][1]).toMatchObject({ title: "Login review", task: "You are a reviewer. Review the login diff." });
+  });
+});
+
+describe("a manager sub-agent (spawn_agent's role)", () => {
+  const delivered = async () => {
+    await vi.waitFor(() => expect(ptySendText).toHaveBeenCalled());
+    return vi.mocked(ptySendText).mock.calls[0][1];
+  };
+
+  it("changes nothing without role, or with an empty one: the task typed as before, no marker on its terminal", async () => {
+    for (const [role, task] of [[undefined, "Write the tests"], [null, "Read the logs"], ["", "Fix the build"]] as const) {
+      vi.mocked(ptySendText).mockClear();
+      expect((await spawnAgent("batman", { task, role })).error).toBeUndefined();
+      expect(await delivered()).toBe(`[dummyPlane · sub-agent of Batman] ${task}\n\nWhen you are done, commit if you changed files, then call report (summary, status): Batman reads it.`);
+      expect(vi.mocked(addTerminal).mock.lastCall![1]).not.toHaveProperty("coordinator");
+    }
+  });
+
+  it("opens an ordinary sub-agent marked as a manager, never as a mission's Manager", async () => {
+    const result = await spawnAgent("batman", { task: "Fix the five login bugs", role: "manager" });
+    expect(result.error).toBeUndefined();
+    const record = nodesStore.getState().nodes.child1;
+    expect(terminalOf(record)).toMatchObject({ coordinator: true, spawnedBy: "batman", agent: "claude", cwd: "C:/code/wt", permission: "work", accountId: "pro" });
+    expect(terminalOf(record)?.role).toBeUndefined();
+    expect(isManagerRecord(record)).toBe(false);
+  });
+
+  it("types a manager's brief before its task, the report line after, and stores the task alone", async () => {
+    const task = "Fix the five login bugs";
+    await spawnAgent("batman", { task, role: "manager" });
+    const text = await delivered();
+    expect(text.startsWith("[dummyPlane · sub-agent of Batman] You are a manager")).toBe(true);
+    // The cap's refusal says "or do this task yourself": a manager waits instead.
+    expect(text).toContain("never take a card's work yourself");
+    const at = text.indexOf(task);
+    for (const tool of ["open_board", "spawn_agent", "move_board_card", "message_agent", "report"]) {
+      expect(text.indexOf(tool)).toBeGreaterThan(-1);
+      expect(text.indexOf(tool)).toBeLessThan(at);
+    }
+    expect(text.endsWith(`${task}\n\nWhen you are done, commit if you changed files, then call report (summary, status): Batman reads it.`)).toBe(true);
+    expect(terminalOf(nodesStore.getState().nodes.child1)?.task).toBe(task);
+  });
+
+  it("refuses a role it does not know, and opens nothing", async () => {
+    const result = await spawnAgent("batman", { task: "Do it", role: "boss" });
+    expect(result).toEqual({ text: expect.stringContaining('Unknown role "boss"'), error: true });
+    expect(addTerminal).not.toHaveBeenCalled();
+  });
+
+  it("refuses a manager whose sub-agents would be past the depth limit, and says why", async () => {
+    await spawnAgent("batman", { task: "Level 1" });
+    // One level down, a manager still has a level below it for its own.
+    expect((await spawnAgent("child1", { task: "Run level 2", role: "manager" })).error).toBeUndefined();
+    await spawnAgent("child1", { task: "Level 2" });
+    const refused = await spawnAgent("child3", { task: "Run level 3", role: "manager" });
+    expect(refused).toEqual({ text: expect.stringContaining("a manager needs a level below it"), error: true });
+    expect(addTerminal).toHaveBeenCalledTimes(3);
+    // Without role, the same task opens: a sub-agent that does the work needs no level below it.
+    expect((await spawnAgent("child3", { task: "Run level 3" })).error).toBeUndefined();
+  });
+
+  it("refuses a manager from a manager, and says why; a manager opens sub-agents that do the work", async () => {
+    await spawnAgent("batman", { task: "Run the release", role: "manager" });
+    const refused = await spawnAgent("child1", { task: "Run the docs", role: "manager" });
+    expect(refused).toEqual({ text: expect.stringContaining("a manager cannot open another"), error: true });
+    expect(addTerminal).toHaveBeenCalledTimes(1);
+    expect((await spawnAgent("child1", { task: "Write the docs" })).error).toBeUndefined();
+    expect(terminalOf(nodesStore.getState().nodes.child2)).toMatchObject({ spawnedBy: "child1" });
+    expect(terminalOf(nodesStore.getState().nodes.child2)).not.toHaveProperty("coordinator");
+  });
+
+  it("takes one seat of the cap, as any sub-agent", async () => {
+    // A report marked by a test above under the same id would free its seat.
+    unmarkReported("child1");
+    subagentSettingsStore.setState({ maxSpawned: 1 });
+    await spawnAgent("batman", { task: "Run the release", role: "manager" });
+    expect(await spawnAgent("child1", { task: "Write the docs" })).toEqual({ text: expect.stringContaining("the most at once is 1"), error: true });
   });
 });
 
