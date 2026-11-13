@@ -49,7 +49,7 @@ let booting: Promise<void> | undefined;
  */
 export function boot(): Promise<void> {
   booting ??= (async () => {
-    // From the first moment: every popup is recorded, the saved history is read below.
+    // From the first moment: what the panel keeps is recorded, the saved list is read below.
     connectNotifications();
     await loadThemeSettings();
     await loadUpdateSettings();

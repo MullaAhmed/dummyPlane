@@ -1,8 +1,8 @@
-// The notification history records every popup the app shows. Popups are sonner's toasts, called from a
-// hundred places, and sonner offers no way to listen to them but a hook that only sees them a tick late.
-// So every import of "sonner" is sent to a shim (src/notifications/sonner.ts) that re-exports sonner and
-// records what its `toast` shows. Only the shim's own folder reads the real package, or the shim would
-// import itself. TypeScript keeps reading the real package's types: the shim is typed the same.
+// Every import of "sonner" is sent to a shim (src/notifications/sonner.ts) that re-exports sonner. It once
+// recorded every popup the app shows in the notification history; the notification panel now keeps three kinds
+// of news, recorded where they happen, and the shim passes sonner through untouched. Only the shim's own
+// folder reads the real package, or the shim would import itself. TypeScript keeps reading the real package's
+// types: the shim is typed the same.
 
 import { fileURLToPath } from "node:url";
 
