@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { afterEach, beforeEach, expect, it } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { accountsStore, openAccounts } from "@/accounts/store";
 import type { TerminalPayload } from "@/nodes/types";
@@ -53,6 +53,60 @@ it("marks a terminal restarting from relaunchSession's call until its new proces
   await restarted;
   expect(seen).toEqual({ kill: [true], gap: [true], spawn: [true] });
   expect(isRestarting("r")).toBe(false);
+});
+
+it("starts a second restart once the first is done, never alongside it, each with its own settings (review 12 Nov)", async () => {
+  const seen: string[] = [];
+  let first = () => {};
+  terminalStatusStore.getState().set("s", { state: "running" });
+  mockIPC((cmd, args) => {
+    const { spec } = args as { spec?: { cwd: string } };
+    if (cmd === "pty_kill") {
+      seen.push("kill");
+      terminalStatusStore.getState().set("s", { state: "exited", code: null });
+    }
+    if (cmd !== "pty_spawn") return 1;
+    seen.push(`spawn ${spec?.cwd}`);
+    // The first one's spawn takes its time: the second one asked meanwhile waits for it.
+    return seen.filter((s) => s.startsWith("spawn")).length === 1 ? new Promise((resolve) => (first = () => resolve(1))) : 1;
+  });
+  const a = relaunchSession("s", fakeTerm(), payload, "new");
+  const b = relaunchSession("s", fakeTerm(), { ...payload, cwd: "C:/moved" }, "new");
+  await vi.waitFor(() => expect(seen).toEqual(["kill", "spawn C:/code"]));
+  first();
+  await Promise.all([a, b]);
+  // The second killed the first one's new process, then started its own, in the folder it was asked for.
+  expect(seen).toEqual(["kill", "spawn C:/code", "kill", "spawn C:/moved"]);
+  expect(statusOf("s").state).toBe("running");
+  expect(isRestarting("s")).toBe(false);
+});
+
+it("does not hold a restart up behind one that failed", async () => {
+  let spawns = 0;
+  mockIPC((cmd) => {
+    if (cmd !== "pty_spawn") return 1;
+    spawns += 1;
+    if (spawns === 1) throw new Error("no shell");
+    return 1;
+  });
+  const a = relaunchSession("x", fakeTerm(), payload, "new");
+  const b = relaunchSession("x", fakeTerm(), payload, "new");
+  await Promise.all([a, b]);
+  expect(spawns).toBe(2);
+  expect(statusOf("x").state).toBe("running");
+  expect(isRestarting("x")).toBe(false);
+});
+
+it("forgets the restart of a terminal removed meanwhile: restored with Ctrl+Z, it starts again without waiting for the lost one", async () => {
+  mockIPC(() => 1);
+  // Its xterm gone, the lost restart never gets its fresh screen.
+  void relaunchSession("lost", fakeTerm(), payload, "new", () => new Promise(() => {}));
+  expect(isRestarting("lost")).toBe(true);
+  terminalStatusStore.getState().remove("lost");
+  expect(isRestarting("lost")).toBe(false);
+  await relaunchSession("lost", fakeTerm(), payload, "new");
+  expect(statusOf("lost").state).toBe("running");
+  expect(isRestarting("lost")).toBe(false);
 });
 
 it("ends the restart of a terminal whose new process could not spawn, and counts two restarts at once", async () => {

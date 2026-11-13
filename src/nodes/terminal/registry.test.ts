@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { ptyResize } from "@/ipc/pty";
 import type { TerminalPayload } from "@/nodes/types";
 import { terminalStatusStore } from "@/store/terminalStatus";
@@ -13,9 +14,12 @@ import {
   webglHolders,
   xtermOf,
 } from "./registry";
-import { reattachSession, restoreSession, startSession } from "./session";
+import { reattachSession, relaunchSession, restoreSession, startSession } from "./session";
+import { nodesStore, sessionOf } from "@/store/nodes";
 import { NEXT_GRANT_MS, WEBGL_CAP, WEBGL_SETTLE_MS } from "./webglPool";
 
+/** Each xterm's key listener (`onKey`), for a test to type in it. */
+const keyListeners = vi.hoisted(() => new WeakMap<object, (event: { key: string; domEvent: KeyboardEvent }) => void>());
 vi.mock("@xterm/xterm", () => ({
   Terminal: class {
     cols = 80;
@@ -32,7 +36,9 @@ vi.mock("@xterm/xterm", () => ({
     dispose() {}
     onWriteParsed() {}
     onData() {}
-    onKey() {}
+    onKey(listener: (event: { key: string; domEvent: KeyboardEvent }) => void) {
+      keyListeners.set(this, listener);
+    }
     onResize() {}
     attachCustomKeyEventHandler() {}
   },
@@ -101,6 +107,32 @@ beforeEach(() => {
 afterEach(() => {
   disposeTerminal(node);
   document.body.replaceChildren();
+});
+
+it("starts a stopped terminal again on a keystroke, but not while it is being started already (review 12 Nov)", async () => {
+  mockIPC(() => undefined);
+  await nodesStore.getState().create(node, { workspaceId: "w1", kind: "terminal", payload: { ...payload, claudeSessionId: "s-old" } });
+  mountTerminal(node, host(), payload, 1);
+  terminalStatusStore.getState().set(node, { state: "exited", code: 0 });
+  const press = () => keyListeners.get(xtermOf(node)!)!({ key: "a", domEvent: new KeyboardEvent("keydown", { key: "a" }) });
+  // Its menu restarted it: the old process's exit makes it look stopped until the new one spawns.
+  terminalStatusStore.getState().restart(node, 1);
+  try {
+    press();
+    await Promise.resolve();
+    expect(relaunchSession).not.toHaveBeenCalled();
+    // No new conversation stored for a start that did not happen.
+    expect(sessionOf(nodesStore.getState().nodes[node])?.claudeSessionId).toBe("s-old");
+  } finally {
+    terminalStatusStore.getState().restart(node, -1);
+  }
+  try {
+    press();
+    await vi.waitFor(() => expect(relaunchSession).toHaveBeenCalledTimes(1));
+    expect(sessionOf(nodesStore.getState().nodes[node])?.claudeSessionId).not.toBe("s-old");
+  } finally {
+    clearMocks();
+  }
 });
 
 it("starts a terminal nothing mounts, and its first mount later shows it without starting nor restoring it", () => {

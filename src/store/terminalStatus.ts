@@ -24,12 +24,24 @@ interface TerminalStatusState {
 
 const STOPPED: TerminalStatus = { state: "stopped" };
 
+const without = <T>(record: Record<string, T>, nodeId: string) => Object.fromEntries(Object.entries(record).filter(([id]) => id !== nodeId));
+
+/** Each terminal's restarts, one after the other (`restartInTurn`): the end of the last one asked. */
+const turns = new Map<string, Promise<void>>();
+/** Bumped when a terminal is removed: a restart of its earlier life that ends late changes nothing of the next. */
+const lives = new Map<string, number>();
+
 export const terminalStatusStore = createStore<TerminalStatusState>()((set) => ({
   statuses: {},
   restarts: {},
   set: (nodeId, status) => set((s) => ({ statuses: { ...s.statuses, [nodeId]: status } })),
-  remove: (nodeId) =>
-    set((s) => ({ statuses: Object.fromEntries(Object.entries(s.statuses).filter(([id]) => id !== nodeId)) })),
+  // A terminal closed mid-restart is restarting no more: one whose new process never came (its xterm gone) would
+  // else hold its mission seat for good, and its next restart, restored with Ctrl+Z, would wait for the lost one.
+  remove: (nodeId) => {
+    turns.delete(nodeId);
+    lives.set(nodeId, (lives.get(nodeId) ?? 0) + 1);
+    set((s) => ({ statuses: without(s.statuses, nodeId), restarts: without(s.restarts, nodeId) }));
+  },
   restart: (nodeId, change) =>
     set((s) => {
       const left = (s.restarts[nodeId] ?? 0) + change;
@@ -49,6 +61,37 @@ export function isRunning(nodeId: string): boolean {
 /** Whether a terminal is being started again: its old process may be gone, its new one not spawned yet. */
 export function isRestarting(nodeId: string): boolean {
   return (terminalStatusStore.getState().restarts[nodeId] ?? 0) > 0;
+}
+
+/**
+ * Runs `restart`, a terminal's restarts one at a time: one asked while another is under way starts once that one has
+ * ended, failed or not, never alongside it (the backend refuses a second start, and the terminal would show an
+ * error with its process running). Marked restarting from the call, though it may wait its turn. The first one asked
+ * runs at once, as a restart always did.
+ */
+export function restartInTurn(nodeId: string, restart: () => Promise<void>): Promise<void> {
+  const life = lives.get(nodeId) ?? 0;
+  terminalStatusStore.getState().restart(nodeId, 1);
+  const run = () =>
+    restart().finally(() => {
+      if ((lives.get(nodeId) ?? 0) === life) terminalStatusStore.getState().restart(nodeId, -1);
+    });
+  const before = turns.get(nodeId);
+  const turn = before ? before.then(run, run) : run();
+  const ended = turn.then(
+    () => undefined,
+    () => undefined,
+  );
+  turns.set(nodeId, ended);
+  void ended.then(() => {
+    if (turns.get(nodeId) === ended) turns.delete(nodeId);
+  });
+  return turn;
+}
+
+/** `isRestarting`, for a component: its restart entries wait while one is under way. */
+export function useRestarting(nodeId: string): boolean {
+  return useStore(terminalStatusStore, (s) => (s.restarts[nodeId] ?? 0) > 0);
 }
 
 export function useTerminalStatus(nodeId: string): TerminalStatus {

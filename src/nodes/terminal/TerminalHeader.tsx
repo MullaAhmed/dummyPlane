@@ -28,8 +28,9 @@ import { cn } from "@/lib/utils";
 import type { TerminalPayload } from "@/nodes/types";
 import type { AgentActivity } from "@/store/agentActivity";
 import { nodesStore } from "@/store/nodes";
-import type { TerminalStatus } from "@/store/terminalStatus";
+import { useRestarting, type TerminalStatus } from "@/store/terminalStatus";
 import { newConversation, switchedAgent, type LaunchMode } from "./launch";
+import { restartByHand } from "./restartByHand";
 import { minimizeTerminal } from "./minimize";
 import { NameField } from "./NameField";
 import { spawnedTask } from "@/agents/taskSummary";
@@ -59,12 +60,15 @@ function TerminalMenu(props: { nodeId: string; payload: TerminalPayload; running
   const t = useMessages(nodesMessages).header;
   const duplicate = useMessages(nodesMessages).terminal.duplicate;
   const quickNoteLabel = useMessages(noteMessages).add;
-  const relaunch = (mode: LaunchMode) => relaunchTerminal(nodeId, payload, mode);
-  const newSession = () => {
-    const fresh = newConversation();
-    nodesStore.getState().update(nodeId, fresh);
-    relaunchTerminal(nodeId, { ...payload, ...fresh }, "new");
-  };
+  // While a restart is under way its entries wait: a second one would kill the session the first is opening.
+  const restarting = useRestarting(nodeId);
+  const relaunch = (mode: LaunchMode) => restartByHand(nodeId, () => relaunchTerminal(nodeId, payload, mode));
+  const newSession = () =>
+    restartByHand(nodeId, () => {
+      const fresh = newConversation();
+      nodesStore.getState().update(nodeId, fresh);
+      return relaunchTerminal(nodeId, { ...payload, ...fresh }, "new");
+    });
   return (
     <HeaderMenu label={t.more}>
       <DropdownMenuItem onSelect={() => openReview(nodeId)}>{t.review}</DropdownMenuItem>
@@ -83,12 +87,20 @@ function TerminalMenu(props: { nodeId: string; payload: TerminalPayload; running
       {payload.agent === "claude" ? (
         <>
           <DropdownMenuLabel>{t.relaunch}</DropdownMenuLabel>
-          <DropdownMenuItem onSelect={() => relaunch("resume")}>{t.resumeSession}</DropdownMenuItem>
-          <DropdownMenuItem onSelect={newSession}>{t.newSession}</DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => relaunch("continue")}>{t.latestInFolder}</DropdownMenuItem>
+          <DropdownMenuItem disabled={restarting} onSelect={() => relaunch("resume")}>
+            {t.resumeSession}
+          </DropdownMenuItem>
+          <DropdownMenuItem disabled={restarting} onSelect={newSession}>
+            {t.newSession}
+          </DropdownMenuItem>
+          <DropdownMenuItem disabled={restarting} onSelect={() => relaunch("continue")}>
+            {t.latestInFolder}
+          </DropdownMenuItem>
         </>
       ) : (
-        <DropdownMenuItem onSelect={() => relaunch("new")}>{t.relaunch}</DropdownMenuItem>
+        <DropdownMenuItem disabled={restarting} onSelect={() => relaunch("new")}>
+          {t.relaunch}
+        </DropdownMenuItem>
       )}
       {/* The router's switch is in the header from 28rem on; here it is, at any width. A Manager's has nothing to route. */}
       {hasRouterSwitch(payload) && (

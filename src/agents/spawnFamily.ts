@@ -1,5 +1,5 @@
 import { isManagerNode, nodesStore, terminalOf } from "@/store/nodes";
-import { statusOf } from "@/store/terminalStatus";
+import { isRestarting, statusOf } from "@/store/terminalStatus";
 import type { ClosingAgents } from "@/store/ui";
 import { sceneAccess } from "./sceneAccess";
 
@@ -91,12 +91,13 @@ export function unmarkReported(nodeId: string) {
 /**
  * A sub-agent created, not stopped, not reported yet. Its report is kept with it (`lastReport`), the set above
  * only for this run: after a restart its resumed session is still a finished one, until new work clears it.
+ * One whose terminal is being started again is at work through it: its old process's exit frees no seat.
  */
 export function atWork(id: string): boolean {
   if (launching.has(id)) return true;
   if (reported.has(id) || terminalOf(nodesStore.getState().nodes[id])?.lastReport) return false;
   const state = statusOf(id).state;
-  return state === "running" || state === "starting";
+  return state === "running" || state === "starting" || isRestarting(id);
 }
 
 /**

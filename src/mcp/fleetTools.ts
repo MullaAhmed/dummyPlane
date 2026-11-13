@@ -28,7 +28,7 @@ import { relaunchMode } from "@/nodes/terminal/launch";
 import { relaunchTerminal, terminalText } from "@/nodes/terminal/registry";
 import { agentActivityStore } from "@/store/agentActivity";
 import { nodeNameOf, nodesStore, terminalOf } from "@/store/nodes";
-import { isRunning, statusOf } from "@/store/terminalStatus";
+import { isRestarting, isRunning, statusOf } from "@/store/terminalStatus";
 import { splitGenerated } from "@/openui/detect";
 import { refused, said, type ToolResult } from "./agentTools";
 import { agentMessages } from "./messages";
@@ -655,6 +655,8 @@ async function relaunch(fleetId: string, mission: Mission, args: Record<string, 
   const member = memberNamed(mission, args.agent);
   if (typeof member === "string") return refused(member);
   if (member.handedTo) return refused(f.relaunchHanded(member.name, member.handedTo));
+  // Already starting again (this tool, its menu, its resume card): a second start would race the first one's spawn.
+  if (isRestarting(member.nodeId)) return refused(f.relaunchUnderWay(member.name));
   // As write reads it: an agent back at its shell is stopped, though its terminal runs.
   if (agentState(member.nodeId) !== "arrêté") return refused(f.relaunchRunning(member.name));
   // Closing a terminal stops it: only a stopped one may be gone.

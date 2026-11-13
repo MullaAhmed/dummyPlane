@@ -14,6 +14,7 @@ import type { TerminalPayload } from "@/nodes/types";
 import { expandTerminal, minimizeTerminal } from "@/nodes/terminal/minimize";
 import { relaunchMode } from "@/nodes/terminal/launch";
 import { pasteImageIntoTerminal, pasteIntoTerminal, relaunchTerminal, stopTerminal, terminalSelection } from "@/nodes/terminal/registry";
+import { restartByHand } from "@/nodes/terminal/restartByHand";
 import { clipboardTextOf, readClipboard } from "@/radial/bridges";
 import { quickNote } from "@/nodes/note/quickNote";
 import { openReview } from "@/review/reviewStore";
@@ -91,11 +92,11 @@ export const CURRENT: readonly Command[] = [
   command("terminal.relaunch", {
     section: terminalSection,
     available: hasTerminal,
-    // Claude and Codex resume their conversation, other agents start anew.
+    // Claude and Codex resume their conversation, other agents start anew. Not a second time while one is under way.
     run: (ctx) => {
       const payload = payloadOf(ctx);
       if (!payload) return;
-      relaunchTerminal(terminalId(ctx), payload, relaunchMode(payload));
+      restartByHand(terminalId(ctx), () => relaunchTerminal(terminalId(ctx), payload, relaunchMode(payload)));
     },
   }),
   command("terminal.stop", {

@@ -7,6 +7,7 @@ import { AccentButton, IconButton } from "@/shell/buttons";
 import { liveNodeIds } from "@/canvas/sceneSync";
 import { createStore, useStore } from "zustand";
 import { isLiveInRust, resumeTerminal } from "@/nodes/terminal/registry";
+import { restartByHand } from "@/nodes/terminal/restartByHand";
 import { nodesStore, useNodes, type NodeRecord } from "@/store/nodes";
 import { terminalStatusStore, type TerminalStatus } from "@/store/terminalStatus";
 import { useMessages } from "@/i18n";
@@ -70,7 +71,8 @@ function ResumeAllToast({ workspaceId }: { workspaceId: string }) {
   };
   const resumeAll = () => {
     answer();
-    ids.forEach((id, i) => setTimeout(() => resumeTerminal(id), i * RELAUNCH_STAGGER_MS));
+    // Each the user's, at its turn: one restarted meanwhile (its menu, its card) is not started a second time.
+    ids.forEach((id, i) => setTimeout(() => restartByHand(id, () => resumeTerminal(id)), i * RELAUNCH_STAGGER_MS));
   };
 
   return (
