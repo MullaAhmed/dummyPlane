@@ -1,6 +1,7 @@
 import { FLEET_CAPABLE } from "@/fleet/capable";
 import { readExtensionChoice, type ExtensionChoice } from "@/ipc/claudeExtensions";
 import type { IssueState } from "@/ipc/github";
+import { readSubagentExtras, type SubagentExtras } from "@/ipc/subagentExtras";
 import { AGENT_IDS, MANAGER_ROLE, STORED_FLEET_ROLE, type AgentId, type OllamaLaunch, type Permission, type ShellKind } from "@/ipc/pty";
 import { readMission, type Mission } from "@/mission/mission";
 import { readEffort, type EffortLevel } from "@/mission/router";
@@ -91,6 +92,11 @@ export interface TerminalPayload {
   inputOpen?: boolean;
   /** Claude only: the skills, plugins, MCP servers and subagents it turns off or on, read at its next launch. */
   extensions?: ExtensionChoice;
+  /**
+   * A sub-agent's, Claude or Codex: the skills, MCP servers and plugins its spawner picked for it with spawn_agent,
+   * read at each of its launches (a restart, a resume) as at its first. A kind left out is its CLI's defaults.
+   */
+  extras?: SubagentExtras;
   /**
    * The launch settings its latest process started with, kept when it starts (`startSession`). Its process outlives
    * a webview reload, so this is stored with the node: while it runs, a setting changed since (its folder above all)
@@ -368,6 +374,8 @@ export function readTerminalPayload(raw: unknown): TerminalPayload | null {
   if (r.stoppedFinished === true) payload.stoppedFinished = true;
   const extensions = readExtensionChoice(r.extensions);
   if (extensions) payload.extensions = extensions;
+  const extras = readSubagentExtras(r.extras);
+  if (extras) payload.extras = extras;
   const launched = readLaunchSettings(r.launched);
   if (launched) payload.launched = launched;
   return payload;

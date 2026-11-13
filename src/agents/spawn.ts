@@ -3,8 +3,11 @@ import { FLEET_CAPABLE } from "@/fleet/capable";
 import { framesFromScene, groupOf } from "@/canvas/groups";
 import { signalWire } from "@/canvas/wireActivity";
 import { messages } from "@/i18n";
-import { readExtensionChoice } from "@/ipc/claudeExtensions";
+import { profileNamed } from "@/accounts/store";
+import { readExtensionChoice, type ExtensionChoice } from "@/ipc/claudeExtensions";
+import { AppError } from "@/ipc/invoke";
 import { ptySendText, ptyWrite, type AgentId } from "@/ipc/pty";
+import { checkSubagentExtras, EXTRA_KINDS, readSubagentExtras, subagentExtras, type ExtraItem, type ExtraKind, type SubagentExtras } from "@/ipc/subagentExtras";
 import { agentMessages } from "@/mcp/messages";
 import { outLevel } from "@/mcp/protocol";
 import { duplicateWork } from "@/mission/activeWork";
@@ -51,6 +54,10 @@ export interface SpawnArgs {
   model?: unknown;
   /** The task's difficulty, as `@/mcp/protocol` hands it (`faible`…): under a model router, it picks the model. */
   niveau?: unknown;
+  /** The skills, MCP servers and plugins the sub-agent gets (`@/ipc/subagentExtras`): each a list of names, left out for its CLI's defaults. */
+  skills?: unknown;
+  mcp_servers?: unknown;
+  plugins?: unknown;
 }
 
 /** What spawn_agent answers: a text for the agent, an error when it refused. */
@@ -97,20 +104,124 @@ export function spawnerOf(record: NodeRecord | undefined, nodeId: string): Termi
   return { ...session, name, cwd: missionFolder(nodeId) || session.cwd, permission };
 }
 
-/** The sub-agent's terminal: its parent's folder, shell, account, skills and plugins (its Edit tab's choice) and mission permissions, its own conversation. */
+/** The CLI a sub-agent of `parent` runs: its parent's when that one has dummyPlane's tools (Claude, Codex), else Claude. */
+export const childAgentOf = (parent: TerminalPayload): AgentId => (FLEET_CAPABLE.includes(parent.agent) ? parent.agent : "claude");
+
+/**
+ * The sub-agent's terminal: its parent's folder, shell, account, skills and plugins (its Edit tab's choice, and the
+ * kinds its own spawner picked for it) and mission permissions, its own conversation.
+ */
 export function childPayload(parent: TerminalPayload, parentId: string, name: string, title: string, model?: string, task?: string): TerminalPayload {
-  // On its parent's CLI when that one has dummyPlane's tools (Claude, Codex), else on Claude.
-  const agent = FLEET_CAPABLE.includes(parent.agent) ? parent.agent : "claude";
+  const agent = childAgentOf(parent);
   const payload = newTerminalPayload({ title, cwd: parent.cwd, agent, command: "", shell: parent.shell, accountId: parent.accountId }, name);
   if (model) payload.model = model;
   // What the parent turned off (skills, plugins, MCP servers, subagents) stays off for what it delegates, as at its own launch.
   const extensions = agent === "claude" ? readExtensionChoice(parent.extensions) : undefined;
   if (extensions) payload.extensions = extensions;
+  // So does what its own spawner picked for it, kind by kind, on the same CLI: a kind its spawn_agent names replaces it (`withExtras`).
+  const extras = agent === parent.agent ? readSubagentExtras(parent.extras) : undefined;
+  if (extras) payload.extras = extras;
   // An unattended mission agent's rules (no git push…) bind what it delegates too.
   if (parent.permission) payload.permission = parent.permission;
   payload.spawnedBy = parentId;
   if (task) payload.task = task.slice(0, MAX_STORED_TASK);
   return payload;
+}
+
+/** spawn_agent's argument for each kind of a pick. */
+const EXTRA_ARGS: Record<ExtraKind, keyof SpawnArgs> = { skills: "skills", mcpServers: "mcp_servers", plugins: "plugins" };
+
+/** The kinds spawn_agent picks, as named (null is left out, as for the model), or the argument that is no list of names. */
+function askedExtras(args: SpawnArgs): SubagentExtras | { bad: string } {
+  const asked: SubagentExtras = {};
+  for (const kind of EXTRA_KINDS) {
+    const raw = args[EXTRA_ARGS[kind]];
+    if (raw === undefined || raw === null) continue;
+    if (!Array.isArray(raw) || !raw.every((name) => typeof name === "string")) return { bad: EXTRA_ARGS[kind] };
+    asked[kind] = raw as string[];
+  }
+  return asked;
+}
+
+/** The Edit tab's switches of each kind (`ExtensionChoice`), which a pick of that kind replaces for the sub-agent. */
+const CHOICE_OF: Record<ExtraKind, keyof ExtensionChoice> = { skills: "skillsOff", mcpServers: "mcpOff", plugins: "plugins" };
+
+/** The profile folder a Claude sub-agent of `parent` starts with: its account's. */
+const configDirOf = (parent: TerminalPayload, agent: AgentId) => (agent === "claude" ? profileNamed(parent.accountId)?.configDir : undefined);
+
+/**
+ * The kinds its spawner picked, checked by Rust against what the sub-agent's CLI loads in its folder before its
+ * terminal opens (`check_subagent_extras`), each name as the CLI writes it; the refusal's text when the pick is
+ * refused or could not be checked. Nothing to check when no kind is picked.
+ */
+async function checkedExtras(parent: TerminalPayload, asked: SubagentExtras): Promise<SubagentExtras | string> {
+  const kinds = EXTRA_KINDS.filter((kind) => asked[kind] !== undefined);
+  if (kinds.length === 0) return {};
+  const agent = childAgentOf(parent);
+  try {
+    const checked = await checkSubagentExtras(agent, parent.cwd, configDirOf(parent, agent), asked);
+    return Object.fromEntries(kinds.map((kind) => [kind, checked[kind] ?? []]));
+  } catch (error) {
+    if (error instanceof AppError && error.kind === "invalidInput") return t().extrasRefused(error.message);
+    return t().extrasUnchecked(error instanceof Error ? error.message : String(error));
+  }
+}
+
+/** The sub-agent's payload with the kinds picked: each replaces what it inherited of that kind, its parent's pick and Edit tab's switches. */
+export function withExtras(payload: TerminalPayload, picked: SubagentExtras): TerminalPayload {
+  const kinds = EXTRA_KINDS.filter((kind) => picked[kind] !== undefined);
+  if (kinds.length === 0) return payload;
+  const extras: SubagentExtras = { ...payload.extras };
+  const choice: ExtensionChoice = { ...payload.extensions };
+  for (const kind of kinds) {
+    extras[kind] = picked[kind];
+    delete choice[CHOICE_OF[kind]];
+  }
+  const next: TerminalPayload = { ...payload, extras };
+  const left = readExtensionChoice(choice);
+  if (left) next.extensions = left;
+  else delete next.extensions;
+  return next;
+}
+
+/** What the answer says the sub-agent gets of each kind picked (inherited kinds included). */
+function extrasNote(extras: SubagentExtras | undefined): string | undefined {
+  if (!extras) return undefined;
+  const label = { skills: "skills", mcpServers: "MCP servers", plugins: "plugins" } as const;
+  const kinds = EXTRA_KINDS.filter((kind) => extras[kind] !== undefined).map((kind) => t().extrasKind(label[kind], extras[kind]!));
+  return kinds.length ? t().extrasPicked(kinds) : undefined;
+}
+
+/**
+ * installed_extras: what a sub-agent of `parentId` could be given, as its CLI lists it in the parent's folder, one
+ * line per item: whether it is on by default, why it cannot be picked, its description.
+ */
+export async function listExtras(parentId: string): Promise<SpawnResult> {
+  const x = messages(agentMessages).extras;
+  const parent = spawnerOf(nodesStore.getState().nodes[parentId], parentId);
+  if (!parent) return refuse(t().gone);
+  const agent = childAgentOf(parent);
+  let installed;
+  try {
+    installed = await subagentExtras(agent, parent.cwd, configDirOf(parent, agent));
+  } catch (error) {
+    return refuse(x.unlisted(error instanceof Error ? error.message : String(error)));
+  }
+  const line = (item: ExtraItem) => {
+    const marks = [
+      !item.on && item.locked !== "off" && x.off,
+      item.locked === "own" && x.own,
+      item.locked === "plugin" && x.plugin(item.plugin),
+      item.locked === "off" && x.offLocked,
+      item.locked === "name" && x.name,
+    ].filter(Boolean);
+    return `- ${item.name}${marks.length ? ` [${marks.join("; ")}]` : ""}${item.description ? `: ${item.description}` : ""}`;
+  };
+  const sections = EXTRA_KINDS.map((kind) => {
+    const items = installed[kind] ?? [];
+    return [`${x.kinds[kind]}:`, ...(items.length ? items.map(line) : [x.none])].join("\n");
+  });
+  return { text: [x.head(AGENTS[agent].label, parent.cwd), ...sections].join("\n\n") };
 }
 
 /** How a family's group is made (./spawnGroup.ts): named after the tree's root, its new agents named from `pantheon`. */
@@ -147,6 +258,8 @@ async function spawnNow(parentId: string, args: SpawnArgs): Promise<SpawnResult>
   const asked = args.niveau == null || args.niveau === "" ? undefined : args.niveau;
   const level = asked === undefined ? undefined : readLevel(asked);
   if (asked !== undefined && !level) return refuse(t().level(String(asked)));
+  const extras = askedExtras(args);
+  if ("bad" in extras) return refuse(t().extrasShape(extras.bad));
   const record = nodesStore.getState().nodes[parentId];
   const parent = spawnerOf(record, parentId);
   if (!record || !parent) return refuse(t().gone);
@@ -158,6 +271,9 @@ async function spawnNow(parentId: string, args: SpawnArgs): Promise<SpawnResult>
   const max = subagentSettingsStore.getState().maxSpawned;
   const running = spawnedAtWork();
   if (running.length >= max) return refuse(t().tooMany(running.length, max, seatHolders(running)));
+  // Its skills, MCP servers and plugins, as picked: checked before the scene is read, nothing opens on a refusal.
+  const picked = await checkedExtras(parent, extras);
+  if (typeof picked === "string") return refuse(picked);
   const workspaceId = record.workspaceId;
   const scene = sceneAccess(workspaceId);
   if (!scene) return refuse(t().noCanvas);
@@ -171,7 +287,7 @@ async function spawnNow(parentId: string, args: SpawnArgs): Promise<SpawnResult>
   const name = await nameForNewAgent(workspaceId, group?.group.pantheon ?? familyPantheon);
   // Right of the parent, NODE_GAP apart; addTerminal then moves it clear of any neighbour.
   const center = { x: element.x + element.width * 1.5 + NODE_GAP, y: element.y + element.height / 2 };
-  const payload = childPayload(parent, parentId, name, titleOf(args.title, task), undefined, task);
+  const payload = withExtras(childPayload(parent, parentId, name, titleOf(args.title, task), undefined, task), picked);
   // A model router over the spawner chooses the model from the task's level, and refuses a model with no level (`./spawnModel`).
   const routed = spawnModel(parentId, payload.agent, { model, level });
   if (routed.needsLevel) return refuse(t().levelNotModel(routed.needsLevel));
@@ -192,7 +308,9 @@ async function spawnNow(parentId: string, args: SpawnArgs): Promise<SpawnResult>
   // Element, spawnedBy and wire all there: the tree takes its flowchart layout, the wire rerouted.
   reflowSpawnTree(workspaceId, childId);
   void deliver(parentId, childId, name, t().brief(parent.name || "your parent agent", task));
-  return { text: t().spawned(name, routed.model && modelLabel(routed.model), modelNote(parentId, payload.agent, routed)) };
+  const note = modelNote(parentId, payload.agent, routed);
+  const after = [note.after, extrasNote(payload.extras)].filter(Boolean).join(" ") || undefined;
+  return { text: t().spawned(name, routed.model && modelLabel(routed.model), { ...note, after }) };
 }
 
 /**

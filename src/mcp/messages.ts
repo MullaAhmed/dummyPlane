@@ -15,6 +15,10 @@ const oneMore = (who: string, task: string, max: number) =>
 /** Tasks `add_tasks` or `propose_plan` refused, each with who is on it already. */
 const taken = (found: readonly { n: number; title: string; who: Holder }[]) => found.map(({ n, title, who }) => `Task ${n} ("${title}"): ${holder(who)}`).join(" ");
 
+/** spawn_agent's description ends with how a sub-agent's skills, MCP servers and plugins are picked. */
+const EXTRAS_HINT =
+  "Optionally choose its skills, mcp_servers and plugins among what installed_extras lists for its CLI in your folder: leave one out for its CLI's defaults, [] for none. A plugin's own skills and MCP servers come with it; the dummyplane server is always kept.";
+
 /**
  * What dummyPlane says to the agents: the MCP
  * tools' descriptions and answers, the plan's and steps' checks, and the
@@ -36,14 +40,16 @@ export const agentMessages = defineMessages({
         "When the sub-agent is done it calls report, and its summary is typed into your terminal as \"[dummyPlane] <name> reported (<status>): <summary>\". " +
         "To give a sub-agent that reported new work, message it with message_agent and pass a title for that work: without one, its terminal still bears the title of the task it finished. " +
         "Give level on every call, the difficulty of this task: the model router, on unless the user turned it off (in Settings, or with the switch on your terminal or on the Fleet or the agent you work under), picks the sub-agent's model from it, and the answer names the model it picked, or why none. While it is on, a Claude model named with no level is refused. " +
-        `A sub-agent can spawn its own, ${depth} levels below a top agent at most; the number running at once is capped by a setting.`,
+        `A sub-agent can spawn its own, ${depth} levels below a top agent at most; the number running at once is capped by a setting. ` +
+        EXTRAS_HINT,
       fleetSpawnAgent: (depth: number) =>
         "For ad-hoc work outside your mission's queue (a lookup, a check, a one-off task): a sub-agent opens as a new terminal beside you, in your workspace's folder, running your CLI. " +
         "It is a regular agent, not a manager: it edits files and runs commands, with the user's usual permissions (overnight, what the night lets the team do). The user can watch it and type into it. " +
         "A mission's work still goes through propose_plan or add_tasks. Use it instead of built-in sub-agents. It returns at once: do not wait or poll. " +
         "When the sub-agent is done it calls report, and its summary is typed into your terminal as \"[dummyPlane] <name> reported (<status>): <summary>\"; it is not on your team: no merge, reassign or next_task for it. " +
         "Give level on every call, the difficulty of this task: with your model router on (mission: router; on unless the user turned it off), it picks the sub-agent's model as a sub-task's level does, the answer naming it, and a Claude model named with no level is refused. " +
-        `A sub-agent can spawn its own, ${depth} levels below you at most; the number running at once is capped by a setting.`,
+        `A sub-agent can spawn its own, ${depth} levels below you at most; the number running at once is capped by a setting. ` +
+        EXTRAS_HINT,
       spawnTask: "The complete instructions: the sub-agent starts from nothing and knows only this.",
       spawnTitle: "A short title for its terminal.",
       spawnModel:
@@ -51,6 +57,14 @@ export const agentMessages = defineMessages({
       spawnLevel:
         "The difficulty of this task; give it on every call. Rate the task, not the model you would like: medium suits most work, low a lookup or a mechanical change, high a hard design or debugging problem, extreme only the hardest. " +
         `The model router, on unless the user turned it off (in Settings, or with the switch on your terminal or on the Fleet or the agent you work under; you cannot see it), chooses the sub-agent's model from it: on Claude ${ROUTER_LEVELS}; on another CLI, the models the user set in Settings. Medium when you give no level. The answer names the model it picked, or says why none.`,
+      spawnSkills:
+        "Optional: the skills the sub-agent gets, by name, among those installed_extras lists. Leave it out for its CLI's defaults; [] for none. A plugin's own skills come with the plugin: pick the plugin.",
+      spawnMcpServers:
+        "Optional: the MCP servers the sub-agent gets, by name, among those installed_extras lists. Leave it out for its CLI's defaults; [] for none but the dummyplane server, which it always keeps. A plugin's own servers come with the plugin.",
+      spawnPlugins:
+        "Optional: the plugins the sub-agent gets (name@marketplace), among those installed_extras lists. Leave it out for its CLI's defaults; [] for none. A plugin brings its own skills and MCP servers.",
+      installedExtras:
+        "The skills, MCP servers and plugins a sub-agent of yours could be given with spawn_agent's skills, mcp_servers and plugins: what its CLI loads in your folder, each described, with whether it is on by default (what the sub-agent gets when you leave that argument out), and why one cannot be picked.",
       linkedAgents:
         "The agents linked to yours by a wire on the canvas (the user draws one with \"+ Link\" under a terminal; spawn_agent's wire to a sub-agent counts too) and, in a mission its Manager runs, your Manager and your teammates, and the Fleet the user linked you to (relation \"fleet\": message_agent reaches it, hand_off hands it a task, read_agent does not read it): name, id, state and relation. Only these can be messaged or read; the first message to one with no wire draws one.",
       messageAgent:
@@ -200,6 +214,27 @@ export const agentMessages = defineMessages({
       tooMany: (running: number, max: number, who: string) =>
         `${plural(running, "sub-agent is", "sub-agents are")} already running, the most at once is ${max} (dummyPlane's Settings), every project counted: ${who}. Wait for one to report, or do this task yourself.`,
       notSent: (name: string, error: string) => `${name} did not get its task: ${error}`,
+      extrasShape: (arg: string) => `Not opened: ${arg} must be a list of names, as installed_extras gives them. Leave it out for the CLI's defaults, or give [] for none.`,
+      extrasRefused: (why: string) => `Not opened: ${why}. installed_extras lists what can be picked.`,
+      extrasUnchecked: (error: string) => `Not opened: the skills, MCP servers and plugins you picked could not be checked: ${error}`,
+      /** After the answer's first sentence: what the sub-agent gets of each kind its spawner picked. */
+      extrasPicked: (kinds: readonly string[]) => `It gets ${kinds.join("; ")}.`,
+      extrasKind: (kind: "skills" | "MCP servers" | "plugins", names: readonly string[]) =>
+        names.length ? `${kind} ${names.join(", ")}` : kind === "MCP servers" ? "no MCP server but dummyplane" : `no ${kind}`,
+    },
+    /** installed_extras's answer. */
+    extras: {
+      head: (cli: string, folder: string) =>
+        `What a sub-agent of yours, running ${cli} in ${folder}, can be given. Leave an argument of spawn_agent out and it gets what is on here for that kind; give a list and it gets exactly those (plus what comes with the plugins it gets); [] for none.`,
+      kinds: { skills: "skills", mcpServers: "mcp_servers", plugins: "plugins" },
+      none: "(none installed)",
+      off: "off by default",
+      own: "always kept",
+      plugin: (plugin?: string) => (plugin ? `comes with the plugin ${plugin}: pick or leave out the plugin` : "comes with a plugin or an app: follows the plugins"),
+      offLocked: "off in the user's settings: only the user can turn it on",
+      name: "a name dummyPlane cannot pass to the CLI",
+      unlisted: (error: string) => `What the sub-agent's CLI loads could not be listed: ${error}`,
+      unavailable: (cli: string) => `A sub-agent of yours runs ${cli}, which takes no skills, MCP servers or plugins from dummyPlane.`,
     },
     /** Why a level picked no model, in spawn_agent's and hand_off's answers. */
     unrouted: {

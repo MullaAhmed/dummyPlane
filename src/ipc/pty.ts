@@ -2,6 +2,7 @@ import { Channel } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type { EffortLevel } from "@/mission/router";
 import type { ExtensionChoice } from "./claudeExtensions";
+import type { SubagentExtras } from "./subagentExtras";
 import { call } from "./invoke";
 
 export type ShellKind = "default" | "powershell" | "pwsh" | "cmd" | "gitbash";
@@ -46,6 +47,8 @@ export interface ClaudeLaunch {
   configDir?: string;
   /** The skills, plugins, MCP servers and subagents this terminal turns off or on. */
   extensions?: ExtensionChoice;
+  /** A sub-agent's: the skills, MCP servers and plugins its spawner picked for it. */
+  extras?: SubagentExtras;
 }
 
 /** What a Codex terminal is for, as `ClaudeLaunch` says it for Claude. Mirrors Rust's `CodexLaunch`. */
@@ -57,6 +60,8 @@ export interface CodexLaunch {
   linear?: boolean;
   /** `-m`, a model a parent agent asked for. */
   model?: string;
+  /** A sub-agent's: the skills, MCP servers and plugins its spawner picked for it. */
+  extras?: SubagentExtras;
 }
 
 /** Agents of the launch menu, in menu order. */

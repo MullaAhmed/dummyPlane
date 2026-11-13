@@ -3,7 +3,7 @@ import { mcpReply, onMcpCall, type McpCall } from "@/ipc/mcp";
 import { notesTool, notesToolSpec } from "@/notes/agentTool";
 import { missionOf } from "@/mission/store";
 import { isManagerRecord, nodesStore, sessionOf, terminalOf } from "@/store/nodes";
-import { AGENT_ONLY, agentTools, declareSteps, markStep, refused, reportTool, spawnAgentSpec, spawnAgentTool } from "./agentTools";
+import { AGENT_ONLY, agentTools, declareSteps, installedExtrasSpec, installedExtrasTool, markStep, refused, reportTool, spawnAgentSpec, spawnAgentTool } from "./agentTools";
 import { BOARD_TOOLS, boardTool, boardTools } from "./boardTools";
 import { linkTool, linkTools } from "./linkTools";
 import { outputGuideSpec, outputGuideTool, outputTools, readNodeSpec, readNodeTool, showOutputTool } from "./nodeTools";
@@ -28,7 +28,7 @@ export async function answer(call: McpCall): Promise<unknown> {
     // while it runs a mission launched before Managers existed.
     const claude = sessionOf(record)?.agent !== "codex";
     const own = fleet
-      ? [...fleetTools({ legacy: runsTheOldWay(missionOf(record)), claude }), spawnAgentSpec(true), ...boardTools(), outputGuideSpec()]
+      ? [...fleetTools({ legacy: runsTheOldWay(missionOf(record)), claude }), spawnAgentSpec(true), installedExtrasSpec(), ...boardTools(), outputGuideSpec()]
       : manager
         ? [...managerTools(), outputGuideSpec()]
         : [...agentTools(), ...linkTools(), ...boardTools(), ...outputTools()];
@@ -47,6 +47,7 @@ export async function answer(call: McpCall): Promise<unknown> {
   if (name === "output_guide") return outputGuideTool();
   // A Fleet's sub-agent is a regular agent in its own terminal, for work beside its mission's queue.
   if (fleet && name === "spawn_agent") return spawnAgentTool(call.nodeId, args);
+  if (fleet && name === "installed_extras") return installedExtrasTool(call.nodeId);
   // The boards the user wired to an agent or a Fleet: theirs to read, and to add cards to or move them on (refused on a mission's own);
   // and open_board, a board of their own opened beside them and wired to them. A Manager has neither: its board is the mission's.
   if (fleet && BOARD_TOOLS.has(name)) return boardTool(call.nodeId, name, args) ?? refused(t().unknown(asked));
@@ -65,6 +66,8 @@ export async function answer(call: McpCall): Promise<unknown> {
       return reportTool(call.nodeId, args);
     case "spawn_agent":
       return spawnAgentTool(call.nodeId, args);
+    case "installed_extras":
+      return installedExtrasTool(call.nodeId);
     case "hand_off":
       return handOffTool(call.nodeId, args);
     case "show_output":
