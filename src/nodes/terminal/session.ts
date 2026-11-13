@@ -1,5 +1,5 @@
 import { AppError } from "@/ipc/invoke";
-import { getScrollback, ptyAttach, ptyKill, ptySpawn } from "@/ipc/pty";
+import { getScrollback, ptyAttach, ptyKill, ptyResize, ptySpawn } from "@/ipc/pty";
 import type { TerminalPayload } from "@/nodes/types";
 import { nodesStore, sessionOf, updateSession } from "@/store/nodes";
 import { isRunning, restartInTurn, stillOpen, terminalStatusStore, waitForExit } from "@/store/terminalStatus";
@@ -90,8 +90,11 @@ export async function startSession(nodeId: string, term: TermSink, payload: Term
     // What the previous run reported (its model, its tokens) no longer stands.
     if (payload.agent === "claude") markLaunch(nodeId);
     if (!open()) return;
-    await ptySpawn(nodeId, spec, term.cols, term.rows, (bytes) => term.write(bytes));
+    const { cols, rows } = term;
+    await ptySpawn(nodeId, spec, cols, rows, (bytes) => term.write(bytes));
     if (!open()) await ptyKill(nodeId);
+    // Laid out again while it was being spawned (shown, expanded, its foot come): that resize found no process to resize.
+    else if (term.cols !== cols || term.rows !== rows) await ptyResize(nodeId, term.cols, term.rows).catch(() => undefined);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     const kind = error instanceof AppError ? error.kind : undefined;
