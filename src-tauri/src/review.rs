@@ -8,8 +8,6 @@ use std::process::{Command, Stdio};
 
 use serde::{Deserialize, Serialize};
 
-use crate::process::hide_window;
-
 /// A diff or a file bigger than this is cut: the panel shows the start.
 pub const MAX_BYTES: usize = 1024 * 1024;
 /// The changes and files listed at most: a folder of thousands of untracked
@@ -52,26 +50,18 @@ pub struct FileText {
     pub truncated: bool,
 }
 
-/// A repository's own config may name a program for git to run whenever it reads the index (`core.fsmonitor`):
-/// a folder unpacked from an archive, or one an agent wrote to, would run it as soon as a panel lists its files.
-/// dummyPlane's git never runs it.
-pub(crate) const NO_FSMONITOR: [&str; 2] = ["-c", "core.fsmonitor=false"];
-
-pub(crate) fn command(dir: &Path, args: &[&str]) -> Command {
-    let mut command = Command::new("git");
+/// `git::command`: nothing the repository's own config names runs.
+pub(crate) fn command(dir: &Path, args: &[&str]) -> Result<Command, String> {
+    let mut command = crate::git::command(dir)?;
     command
         .arg("--no-optional-locks")
         .args(["-c", "core.quotePath=false"])
-        .args(NO_FSMONITOR)
-        .arg("-C")
-        .arg(dir)
         .args(args);
-    hide_window(&mut command);
-    command
+    Ok(command)
 }
 
 fn run(dir: &Path, args: &[&str], codes: &[i32]) -> Result<String, String> {
-    let output = command(dir, args)
+    let output = command(dir, args)?
         .output()
         .map_err(|err| format!("git not found: {err}"))?;
     if output
@@ -91,7 +81,7 @@ pub(crate) fn git(dir: &Path, args: &[&str]) -> Result<String, String> {
 
 /// A diff read up to `MAX_BYTES`, then cut: a huge file is never read whole.
 fn diff_output(dir: &Path, args: &[&str], codes: &[i32]) -> Result<String, String> {
-    let mut child = command(dir, args)
+    let mut child = command(dir, args)?
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
@@ -534,6 +524,20 @@ mod tests {
 
     /// The review panel and the Code Studio list a repository's changes and files as soon as they open: a program
     /// its own config names for git to run then (`core.fsmonitor`) never runs.
+    /// The review panel lists a repository's changes and files as it opens: no filter its own config defines runs.
+    #[test]
+    fn listing_the_changes_runs_no_filter_the_repository_defines() {
+        let Some(dir) = crate::git::test_repos::with_local_filter() else {
+            return;
+        };
+        changes(dir.path(), None).unwrap();
+        files(dir.path()).unwrap();
+        assert!(
+            !dir.path().join(crate::git::test_repos::FILTER_RAN).exists(),
+            "the review panel ran the filter the repository's own config defines"
+        );
+    }
+
     #[test]
     fn listing_a_repository_runs_no_program_it_names() {
         let Some(dir) = repo() else {

@@ -320,14 +320,11 @@ pub(crate) fn run(
 
 /// "owner/name" of the project's `origin` remote; None when it is not on github.com.
 pub fn detect_repo(path: &Path) -> Option<String> {
-    let output = hide_window(
-        Command::new("git")
-            .arg("-C")
-            .arg(path)
-            .args(["remote", "get-url", "origin"]),
-    )
-    .output()
-    .ok()?;
+    let output = crate::git::command(path)
+        .ok()?
+        .args(["remote", "get-url", "origin"])
+        .output()
+        .ok()?;
     if !output.status.success() {
         return None;
     }

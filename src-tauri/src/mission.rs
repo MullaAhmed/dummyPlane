@@ -3,11 +3,8 @@
 //! no force.
 
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 use serde::{Deserialize, Serialize};
-
-use crate::process::hide_window;
 
 /// A worktree dummyPlane made, on a branch of its own.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -88,16 +85,11 @@ pub fn slug(name: &str) -> String {
 }
 
 fn git(dir: &Path, args: &[&str]) -> Result<String, String> {
-    // A merge reads the worktrees' status: never with a program the repository names (`review::NO_FSMONITOR`).
-    let output = hide_window(
-        Command::new("git")
-            .args(crate::review::NO_FSMONITOR)
-            .arg("-C")
-            .arg(dir)
-            .args(args),
-    )
-    .output()
-    .map_err(|err| format!("git not found: {err}"))?;
+    // A merge reads the worktrees' status and runs merge drivers: never a program the repository names (`git::command`).
+    let output = crate::git::command(dir)?
+        .args(args)
+        .output()
+        .map_err(|err| format!("git not found: {err}"))?;
     if output.status.success() {
         Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
     } else {
@@ -165,6 +157,7 @@ fn no_commit() -> String {
 /// The mission's branch, from the project's current commit, and its worktree (where merges happen).
 pub fn prepare(project: &Path, name: &str) -> Result<Worktree, String> {
     let (root, dir) = locate(project)?;
+    crate::git::writable(&root)?;
     // Without a commit, git only says « invalid reference: HEAD » (final review H2).
     if git(&root, &["rev-parse", "--verify", "--quiet", "HEAD"]).is_err() {
         return Err(no_commit());
@@ -175,12 +168,14 @@ pub fn prepare(project: &Path, name: &str) -> Result<Worktree, String> {
 /// An agent's branch, from the mission's, and its worktree. `mission` is the mission's slug.
 pub fn add_agent(project: &Path, mission: &str, agent: &str) -> Result<Worktree, String> {
     let (root, dir) = locate(project)?;
+    crate::git::writable(&root)?;
     let name = format!("{mission}-{}", slug(agent));
     add_worktree(&root, &dir, &name, &format!("dummyplane/{mission}"))
 }
 
 /// Merges an agent's branch into the mission's, in the mission's worktree; a conflict is undone.
 pub fn merge_agent(mission: &Path, agent: &Path, branch: &str) -> Result<MergeReport, String> {
+    crate::git::writable(mission)?;
     let uncommitted = !git(agent, &["status", "--porcelain"])
         .unwrap_or_default()
         .is_empty();
@@ -506,6 +501,51 @@ mod tests {
 
     /// A mission's worktrees share the repository's config: a program it names for git to run as it reads a status
     /// (`core.fsmonitor`) never runs when a Manager merges an agent's work.
+    /// A mission checks its worktrees out and merges them: in a repository whose own config defines a filter, which
+    /// dummyPlane's git does not run, it would write what the filter would have changed (git-crypt's cipher, LFS
+    /// pointers). It does not start.
+    #[test]
+    fn refuses_a_mission_in_a_repository_with_a_filter_of_its_own() {
+        let Some((_parent, proj)) = project() else {
+            return;
+        };
+        run(
+            &proj,
+            &["config", "filter.crypt.clean", "sed s/plain/CIPHER/"],
+        );
+        let err = prepare(&proj, "auth").unwrap_err();
+        assert!(err.contains("crypt"), "{err}");
+        assert_eq!(run(&proj, &["branch", "--list", "dummyplane/*"]), "");
+    }
+
+    /// A Manager merges its agents' work through the night: a merge driver the repository's own config defines,
+    /// given to a file by `.gitattributes`, never runs (the file is left as a conflict instead).
+    #[test]
+    fn merging_runs_no_merge_driver_the_repository_defines() {
+        let Some((_parent, proj)) = project() else {
+            return;
+        };
+        let mission = prepare(&proj, "auth").unwrap();
+        let hulk = add_agent(&proj, &mission.slug, "Hulk").unwrap();
+        commit(Path::new(&hulk.path), "a.txt", "a\nhulk\n", "hulk");
+        let m = Path::new(&mission.path);
+        commit(m, "a.txt", "mission\na\n", "mission");
+        run(
+            &proj,
+            &[
+                "config",
+                "merge.z.driver",
+                "sh -c 'echo ran > merge-ran; exit 0'",
+            ],
+        );
+        std::fs::write(m.join(".gitattributes"), "a.txt merge=z\n").unwrap();
+        let _ = merge_agent(m, Path::new(&hulk.path), &hulk.branch);
+        assert!(
+            !m.join("merge-ran").exists(),
+            "the merge ran the driver the repository's own config defines"
+        );
+    }
+
     #[test]
     fn merging_runs_no_program_the_repository_names() {
         let Some((_parent, proj)) = project() else {
@@ -561,17 +601,18 @@ mod tests {
         );
     }
 
+    /// A hook of the repository's own hooks folder (`.git/hooks`, no config's) still runs, as on the command line:
+    /// one that refuses the merge's commit leaves nothing half done.
     #[test]
     fn a_merge_refused_by_a_hook_is_undone() {
-        let Some((parent, proj)) = project() else {
+        let Some((_parent, proj)) = project() else {
             return;
         };
         let mission = prepare(&proj, "auth").unwrap();
         let hulk = add_agent(&proj, &mission.slug, "Hulk").unwrap();
         commit(Path::new(&hulk.path), "login.txt", "login\n", "login");
-        // Worktrees share the repository's config, so its hooks.
-        let hooks = parent.path().join("hooks");
-        std::fs::create_dir(&hooks).unwrap();
+        // Worktrees share the repository's hooks.
+        let hooks = proj.join(".git").join("hooks");
         std::fs::write(hooks.join("pre-merge-commit"), "#!/bin/sh\nexit 1\n").unwrap();
         #[cfg(unix)]
         {
@@ -583,10 +624,6 @@ mod tests {
             )
             .unwrap();
         }
-        run(
-            &proj,
-            &["config", "core.hooksPath", &hooks.to_string_lossy()],
-        );
         let m = Path::new(&mission.path);
         let err = merge_agent(m, Path::new(&hulk.path), &hulk.branch).unwrap_err();
         assert!(err.contains("was cancelled"), "{err}");
