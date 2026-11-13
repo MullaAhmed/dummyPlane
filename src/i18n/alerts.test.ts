@@ -40,6 +40,7 @@ const TITLES: [string, string][] = [
   [app.updateCheckFailed, "Could not check for updates"],
   [app.startFailed, "dummyPlane could not start"],
   [messages(canvasMessages).saveFailed, "Could not save the canvas"],
+  [messages(canvasMessages).imagesNotSaved, "Could not save the images of the canvas"],
   [messages(canvasMessages).selection.copyFailed, "Could not copy the terminal"],
   [messages(canvasMessages).selection.pickFolderFailed, "Could not open the folder picker"],
   [commands.failed("Overview"), "Overview failed"],
@@ -48,6 +49,7 @@ const TITLES: [string, string][] = [
   [commands.failedLike["workspace.delete"]!, "Could not delete the workspace"],
   [commands.failedLike["group.linkFleet"]!, "Could not create the fleet"],
   [commands.goTo.openFailed, "Could not open the project"],
+  [commands.goTo.openFileFailed, "Could not open the file"],
   [messages(fleetMessages).agent.notSaved, "Could not save the Fleet's agent"],
   [home.addFailed, "Could not add the project"],
   [home.start.agentsFailed, "Could not look for the installed agents"],
@@ -80,6 +82,7 @@ const TITLES: [string, string][] = [
   [shell.window.maximizeFailed, "Could not maximize the window"],
   [shell.window.closeFailed, "Could not close the window"],
   [shell.projectPicker.openFailed, "Could not open the project"],
+  [shell.projectPicker.closeFailed, "Could not close the project"],
   [shell.projectView.loadFailed, "Could not load the workspaces"],
 ];
 

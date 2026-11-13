@@ -48,18 +48,21 @@ function ReviewDrawer({ nodeId }: { nodeId: string }) {
   const t = useMessages(reviewMessages);
   const session = useNodes((s) => sessionOf(s.nodes[nodeId]));
   const [tab, setTab] = useState<"changes" | "files">("changes");
-  // undefined while it is looked for; null: none, the work is compared with HEAD only.
-  const [base, setBase] = useState<string | null | undefined>(undefined);
+  // The base found, with the folder it was found in: a terminal moved to another repository never reads its changes
+  // against the old one's base ("base not found") while the new one's is looked for.
+  const [found, setFound] = useState<{ cwd: string; base: string | null } | undefined>(undefined);
   const [sinceBase, setSinceBase] = useState(true);
   const [refresh, setRefresh] = useState(0);
   const cwd = session?.cwd;
+  // undefined while it is looked for; null: none, the work is compared with HEAD only.
+  const base = found && found.cwd === cwd ? found.base : undefined;
 
   useEffect(() => {
     if (!cwd) return;
     let alive = true;
     const mission = missionBranchFor(nodeId);
-    if (mission) setBase(mission);
-    else reviewDefaultBase(cwd).then((found) => alive && setBase(found), () => alive && setBase(null));
+    if (mission) setFound({ cwd, base: mission });
+    else reviewDefaultBase(cwd).then((branch) => alive && setFound({ cwd, base: branch }), () => alive && setFound({ cwd, base: null }));
     return () => {
       alive = false;
     };
@@ -470,7 +473,8 @@ function FileView({ cwd, file, refresh }: { cwd: string; file: string; refresh: 
   if (error) return <Message>{error}</Message>;
   if (!content) return <Message>{t.readingFile}</Message>;
   if (content.text === null) return <Message>{t.binaryFile(content.size)}</Message>;
-  const lines = content.text.split("\n");
+  // A Windows line end shows no carriage return, as in a diff (parseDiff).
+  const lines = content.text.split(/\r?\n/);
   if (lines[lines.length - 1] === "") lines.pop();
   return (
     <div className="min-w-0 flex-1 overflow-auto font-mono text-xs leading-normal">

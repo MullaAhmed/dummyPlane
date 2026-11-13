@@ -17,6 +17,8 @@ export interface LoadedScene {
 const cache = new Map<string, LoadedScene>();
 // A read in progress is shared: the canvas and the palette ask for the same scene at once.
 const reading = new Map<string, Promise<LoadedScene>>();
+// How many times each workspace was forgotten (deleted): a read under way meanwhile is of a workspace that is gone.
+const forgotten = new Map<string, number>();
 
 export function loadScene(workspaceId: string): Promise<LoadedScene> {
   const cached = cache.get(workspaceId);
@@ -29,7 +31,10 @@ export function loadScene(workspaceId: string): Promise<LoadedScene> {
 }
 
 async function readScene(workspaceId: string): Promise<LoadedScene> {
+  const times = forgotten.get(workspaceId) ?? 0;
   const data = await loadWorkspace(workspaceId);
+  // Deleted while it was read: nothing of it comes back, neither its nodes nor its scene.
+  if ((forgotten.get(workspaceId) ?? 0) !== times) return { initialData: { elements: [], appState: {}, files: {} }, savedFileIds: [] };
   nodesStore.getState().hydrate(workspaceId, data.nodes);
   const files: BinaryFiles = Object.fromEntries(
     data.files.map((f) => [
@@ -47,7 +52,7 @@ async function readScene(workspaceId: string): Promise<LoadedScene> {
     },
     savedFileIds: data.files.map((f) => f.id),
   };
-  // A scene remembered (or forgotten) while the read ran is newer than this read.
+  // A scene remembered while the read ran is newer than this read.
   const current = cache.get(workspaceId);
   if (current) return current;
   cache.set(workspaceId, scene);
@@ -93,4 +98,5 @@ export function editStoredScene(workspaceId: string, edited: readonly Excalidraw
 
 export function forgetScene(workspaceId: string) {
   cache.delete(workspaceId);
+  forgotten.set(workspaceId, (forgotten.get(workspaceId) ?? 0) + 1);
 }

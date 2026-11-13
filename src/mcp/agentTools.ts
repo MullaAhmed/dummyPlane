@@ -9,7 +9,7 @@ import { finishMissionCard, flagMissionCard } from "@/kanban/fleetBoards";
 import { afterReport } from "@/mission/queue";
 import { LEVELS } from "@/mission/router";
 import { isFleetClosed, memberOf, missionOf, missionRunner, updateMember } from "@/mission/store";
-import { spawnAgent } from "@/agents/spawn";
+import { listExtras, spawnAgent } from "@/agents/spawn";
 import { markReported, MAX_SPAWN_DEPTH, spawnedByOf } from "@/agents/spawnFamily";
 import { onAgentReported } from "@/nodes/terminal/minimize";
 import { nodeNameOf, nodesStore, sessionOf, terminalOf } from "@/store/nodes";
@@ -61,6 +61,7 @@ export function agentTools() {
       },
     },
     spawnAgentSpec(),
+    installedExtrasSpec(),
   ];
 }
 
@@ -77,10 +78,18 @@ export function spawnAgentSpec(fleet = false) {
         title: { type: "string", maxLength: 60, description: d.spawnTitle },
         model: { type: "string", description: d.spawnModel },
         level: { type: "string", enum: Object.values(LEVELS).map((l) => l.label), description: d.spawnLevel },
+        skills: { type: "array", items: { type: "string" }, description: d.spawnSkills },
+        mcp_servers: { type: "array", items: { type: "string" }, description: d.spawnMcpServers },
+        plugins: { type: "array", items: { type: "string" }, description: d.spawnPlugins },
       },
       required: ["task"],
     },
   };
+}
+
+/** installed_extras: what spawn_agent's skills, mcp_servers and plugins can name, for the CLI a sub-agent of the caller runs. */
+export function installedExtrasSpec() {
+  return { name: "installed_extras", description: t().tools.installedExtras, inputSchema: { type: "object", properties: {}, required: [] as string[] } };
 }
 
 /** Internal names of the agents' tools (`./protocol.ts`), linked agents' (`./linkTools.ts`) and outputs' (`./nodeTools.ts`) included; spawn_agent is a Fleet's too. */
@@ -110,6 +119,12 @@ export function markStep(nodeId: string, args: Record<string, unknown>): ToolRes
   const step = steps.find((s) => s.title.toLowerCase() === String(args.titre).trim().toLowerCase())!;
   const state = outStep(step.state);
   return said(t().agent.marked(step.title, state));
+}
+
+/** installed_extras: the skills, MCP servers and plugins a sub-agent of the caller could be given (`@/agents/spawn`). */
+export async function installedExtrasTool(nodeId: string): Promise<ToolResult> {
+  const result = await listExtras(nodeId);
+  return result.error ? refused(result.text) : said(result.text);
 }
 
 /** spawn_agent: a sub-agent opens as a terminal beside the caller (`@/agents/spawn`). */

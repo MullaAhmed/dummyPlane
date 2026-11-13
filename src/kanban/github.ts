@@ -14,8 +14,8 @@ import {
 import type { KanbanBoardLink, KanbanPayload } from "@/nodes/types";
 import { nodesStore } from "@/store/nodes";
 import { projectsStore } from "@/store/projects";
-import { moveCard, updateCard } from "./board";
-import { githubKey, mergeGithub, remoteActionsForMove, type MoveContext, type RemoteAction } from "./githubSync";
+import { columnOf, moveCard, updateCard } from "./board";
+import { githubKey, mergeGithub, normalize, remoteActionsForMove, type MoveContext, type RemoteAction } from "./githubSync";
 import { kanbanMessages } from "./messages";
 
 // The Kanban node's GitHub wiring (issue #29): `gh` runs in the project's folder.
@@ -46,6 +46,12 @@ export function reportGithubError(error: unknown) {
   toastError(messages(kanbanMessages).github.failed, { error });
 }
 
+/** No project open, so no folder for `gh`: said, rather than a click doing nothing. False, as a call that did not go through. */
+function noProject(): false {
+  toastError(messages(kanbanMessages).github.noProject);
+  return false;
+}
+
 /** "owner/number" or a Project URL (…/users|orgs/owner/projects/number); null when it is neither. */
 export function parseProject(text: string): KanbanBoardLink["project"] | null {
   const trimmed = text.trim();
@@ -72,7 +78,7 @@ export function linkBoard(nodeId: string, link: KanbanBoardLink | null) {
 }
 
 async function loadProject(path: string, project: NonNullable<KanbanBoardLink["project"]>) {
-  const [items, statuses] = await Promise.all([
+  const [{ items, totalCount }, statuses] = await Promise.all([
     githubListProjectItems(path, project.owner, project.number),
     githubProjectStatuses(path, project.owner, project.number),
   ]);
@@ -82,23 +88,27 @@ async function loadProject(path: string, project: NonNullable<KanbanBoardLink["p
       projectItemIdByKey[githubKey(item.content.repo, item.content.number)] = item.id;
     }
   }
-  return { items, statuses, context: { projectStatuses: statuses, projectItemIdByKey } satisfies MoveContext };
+  return { items, totalCount, statuses, context: { projectStatuses: statuses, projectItemIdByKey } satisfies MoveContext };
 }
 
-/** "Sync": issues (and Project items) merged into the board. True when it went through. */
+/** "Sync": issues (and Project items) merged into the board. True when it went through; a list GitHub cut is told. */
 export async function syncBoard(nodeId: string): Promise<boolean> {
   const link = boardOf(nodeId)?.github;
   const path = projectPath();
-  if (!link || !path) return false;
+  if (!link) return false;
+  if (!path) return noProject();
   try {
-    const issues = await githubListIssues(path, link.repo, CLOSED_WITHIN_DAYS);
+    const { issues, cut } = await githubListIssues(path, link.repo, CLOSED_WITHIN_DAYS);
     const project = link.project ? await loadProject(path, link.project) : null;
     // Read again: the board may have changed while gh answered.
     const board = boardOf(nodeId);
     if (!board) return false;
     if (project) projectContexts.set(nodeId, project.context);
     save(nodeId, mergeGithub(board, { repo: link.repo, issues, projectItems: project?.items, projectStatuses: project?.statuses }));
-    toast.success(messages(kanbanMessages).github.synced(link.repo));
+    const t = messages(kanbanMessages).github;
+    toast.success(t.synced(link.repo));
+    if (cut) toast.warning(t.issuesCut(link.repo));
+    if (project && project.items.length < project.totalCount) toast.warning(t.itemsCut(project.items.length, project.totalCount));
     return true;
   } catch (error) {
     reportGithubError(error);
@@ -106,11 +116,16 @@ export async function syncBoard(nodeId: string): Promise<boolean> {
   }
 }
 
-/** The Project context of a board, read from GitHub when no sync brought it yet. */
-async function moveContext(nodeId: string, path: string, link: KanbanBoardLink | undefined): Promise<MoveContext> {
+/**
+ * The Project context of a board, read from GitHub when no sync brought it yet, or again when it lacks the issue
+ * (`githubKey`) moved to a Status column: one that joined the Project since would not follow, and the next sync take
+ * its card back. A move to any other column changes no Status.
+ */
+async function moveContext(nodeId: string, path: string, link: KanbanBoardLink | undefined, issue: string, column: string): Promise<MoveContext> {
   if (!link?.project) return {};
   const known = projectContexts.get(nodeId);
-  if (known) return known;
+  const toStatus = known?.projectStatuses?.some((status) => normalize(status) === normalize(column));
+  if (known && (known.projectItemIdByKey?.[issue] !== undefined || !toStatus)) return known;
   const { context } = await loadProject(path, link.project);
   projectContexts.set(nodeId, context);
   return context;
@@ -122,32 +137,50 @@ async function run(path: string, link: KanbanBoardLink | undefined, action: Remo
 }
 
 /**
+ * Each board's moves as they reach GitHub, one after the other in the order they were made: two quick moves of a
+ * card would otherwise race there, and GitHub keep whichever call ended last.
+ */
+const githubQueues = new Map<string, Promise<void>>();
+
+/**
  * Moves a card; a linked card's issue (and Project item) follows on GitHub.
- * The remote actions are decided on the board before the move; a failure is
+ * The card lands at once; the remote actions are decided on the board before
+ * the move, with the issue's state the earlier moves left; a failure is
  * told, and the card stays where it was dropped. `folder` is where `gh` runs
  * for a mission, which goes on while the user is in another project.
  */
 export async function moveCardWithGithub(nodeId: string, cardId: string, toColumnId: string, index?: number, folder?: string) {
   const before = boardOf(nodeId);
   if (!before) return;
-  const linked = before.cards[cardId]?.github !== undefined;
+  save(nodeId, moveCard(before, cardId, toColumnId, index));
+  // A place within its column changes nothing on GitHub: the Project is not read for it, nor its failure told.
+  const linked = before.cards[cardId]?.github !== undefined && columnOf(before, cardId)?.id !== toColumnId;
   const path = linked ? (folder ?? projectPath()) : null;
-  let actions: RemoteAction[] = [];
+  if (!path) return;
+  const follow = () => followOnGithub(nodeId, cardId, toColumnId, before, path);
+  const queued = (githubQueues.get(nodeId) ?? Promise.resolve()).then(follow, follow);
+  githubQueues.set(nodeId, queued);
+  await queued;
+}
+
+async function followOnGithub(nodeId: string, cardId: string, toColumnId: string, before: KanbanPayload, path: string) {
+  const link = boardOf(nodeId)?.cards[cardId]?.github;
+  const decided = link ? updateCard(before, cardId, { github: link }) : before;
+  const issue = decided.cards[cardId]?.github;
+  let actions: RemoteAction[];
   let failure: unknown = null;
-  if (path) {
-    try {
-      actions = remoteActionsForMove(before, cardId, toColumnId, await moveContext(nodeId, path, before.github));
-    } catch (error) {
-      failure = error;
-      // Without the Project, the issue's state still follows.
-      actions = remoteActionsForMove(before, cardId, toColumnId);
-    }
+  try {
+    const column = before.columns.find((c) => c.id === toColumnId)?.title ?? "";
+    const context = await moveContext(nodeId, path, before.github, issue ? githubKey(issue.repo, issue.number) : "", column);
+    actions = remoteActionsForMove(decided, cardId, toColumnId, context);
+  } catch (error) {
+    failure = error;
+    // Without the Project, the issue's state still follows.
+    actions = remoteActionsForMove(decided, cardId, toColumnId);
   }
-  const current = boardOf(nodeId);
-  if (current) save(nodeId, moveCard(current, cardId, toColumnId, index));
   for (const action of actions) {
     try {
-      await run(path!, before.github, action);
+      await run(path, before.github, action);
       if (action.type === "setIssueState") setIssueState(nodeId, cardId, action.state);
     } catch (error) {
       failure ??= error;
@@ -168,7 +201,8 @@ export async function createIssueForCard(nodeId: string, cardId: string): Promis
   const card = board?.cards[cardId];
   const repo = board?.github?.repo;
   const path = projectPath();
-  if (!card || card.github || !repo || !path) return false;
+  if (!card || card.github || !repo) return false;
+  if (!path) return noProject();
   try {
     const created = await githubCreateIssue(path, repo, card.title, card.notes);
     const latest = boardOf(nodeId);

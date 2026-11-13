@@ -70,6 +70,24 @@ beforeEach(() => {
 afterEach(() => clearMocks());
 
 describe("projects store", () => {
+  it("opens the project asked last when two opens overlap, whatever order their workspaces load in", async () => {
+    const db = fakeBackend([project("a"), project("b")]);
+    const loaded: (() => void)[] = [];
+    const later = () => new Promise<undefined>((resolve) => loaded.push(() => resolve(undefined)));
+    deps.loadWorkspaces.mockImplementationOnce(later).mockImplementationOnce(later);
+    const first = state().open("a");
+    const second = state().open("b");
+    await vi.waitFor(() => expect(loaded).toHaveLength(2));
+    // B's workspaces come first, then A's, slower.
+    loaded[1]();
+    await second;
+    loaded[0]();
+    await first;
+    expect(deps.loadWorkspaces.mock.calls.map((call) => (call as unknown[])[0])).toEqual(["a", "b"]);
+    expect(state().activeId).toBe("b");
+    expect(db.settings.get("ui.activeProjectId")).toBe("b");
+  });
+
   it("reopens the last project and loads its workspaces", async () => {
     const db = fakeBackend([project("a"), project("b")], "b");
     await state().init();

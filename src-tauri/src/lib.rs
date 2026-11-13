@@ -131,6 +131,7 @@ pub fn run() {
             commands::pty::agent_process_dismiss,
             commands::tokens::token_usage,
             commands::workspace::list_workspaces,
+            commands::workspace::projects_of_nodes,
             commands::workspace::create_workspace,
             commands::workspace::rename_workspace,
             commands::workspace::delete_workspace,
@@ -194,6 +195,8 @@ pub fn run() {
             commands::agents::set_subagent_terminals,
             commands::agents::claude_extensions,
             commands::agents::claude_launch_defaults,
+            commands::agents::subagent_extras,
+            commands::agents::check_subagent_extras,
             commands::agents::codex_linear_login,
         ])
         .build(tauri::generate_context!())

@@ -96,6 +96,15 @@ pub async fn save_node(
     db.with(|conn| nodes::save(conn, &id, &workspace_id, kind, &payload_json))
 }
 
+/// The project each of these nodes belongs to, on screen or not (a loop's targets); a node gone is left out.
+#[tauri::command]
+pub async fn projects_of_nodes(
+    db: State<'_, Db>,
+    node_ids: Vec<String>,
+) -> AppResult<std::collections::HashMap<String, String>> {
+    db.with(|conn| nodes::projects_of(conn, &node_ids))
+}
+
 #[tauri::command]
 pub async fn get_setting(db: State<'_, Db>, key: String) -> AppResult<Option<serde_json::Value>> {
     db.with(|conn| settings::get(conn, &key))

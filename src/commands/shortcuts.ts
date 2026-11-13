@@ -39,7 +39,8 @@ export function shortcutOf(event: KeyLike): Shortcut | null {
 }
 
 function recognized(event: KeyLike): Shortcut | null {
-  if (event.isComposing || event.altKey || event.metaKey) return null;
+  // Chromium's autofill sends a keydown with no key at all: nobody's shortcut.
+  if (typeof event.key !== "string" || event.isComposing || event.altKey || event.metaKey) return null;
   const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
   return match(key, event.ctrlKey, event.shiftKey);
 }
@@ -53,7 +54,7 @@ function recognized(event: KeyLike): Shortcut | null {
  * folds Caps Lock: Caps Lock + I opens it too, Shift+I does not.
  */
 export function isEyeDropperKey(event: KeyLike): boolean {
-  if (event.isComposing || event.ctrlKey || event.altKey || event.metaKey) return false;
+  if (typeof event.key !== "string" || event.isComposing || event.ctrlKey || event.altKey || event.metaKey) return false;
   const key = event.key.toLowerCase();
   return event.shiftKey ? key === "g" || key === "s" : key === "i";
 }

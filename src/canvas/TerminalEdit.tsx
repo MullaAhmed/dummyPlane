@@ -23,6 +23,7 @@ import { requestCloseFleet, renameFleet } from "@/fleet/fleets";
 import { duplicateTerminal, requestClose } from "@/agents/terminals";
 import { claudeLaunchDefaults, type ClaudeLaunchDefaults } from "@/ipc/claudeExtensions";
 import type { Permission, ShellKind } from "@/ipc/pty";
+import { EXTRA_KINDS, type SubagentExtras } from "@/ipc/subagentExtras";
 import { EFFORT_LEVELS, MODEL_CHOICES, modelLabel, readEffort, settingsModelLabel, type EffortLevel } from "@/mission/router";
 import { missionMessages } from "@/mission/messages";
 import { routerInertText } from "@/mission/RouterToggle";
@@ -33,7 +34,7 @@ import { StatusPill } from "@/nodes/terminal/StatusPill";
 import type { TerminalPayload } from "@/nodes/types";
 import { useActivity } from "@/store/agentActivity";
 import { nodeNameOf, nodesStore, sessionOf, updateSession, useNodes, type NodeRecord } from "@/store/nodes";
-import { useTerminalStatus } from "@/store/terminalStatus";
+import { isRunning, useTerminalStatus } from "@/store/terminalStatus";
 import { formatTokens } from "@/usage/usage";
 import { useNodeSession } from "@/usage/usageStore";
 import { IconButton } from "@/shell/buttons";
@@ -151,7 +152,7 @@ export function TerminalEdit({ nodeId, onFold }: { nodeId: string; onFold: () =>
             </PanelTabsContent>
             {KINDS.map((kind) => (
               <PanelTabsContent key={kind} value={kind} className="min-h-0 flex-1">
-                <ExtensionList nodeId={nodeId} kind={kind} cwd={folder} saved={live ? session.cwd : null} choice={session.extensions} lists={lists} onRetry={retry} />
+                <ExtensionList nodeId={nodeId} kind={kind} cwd={folder} saved={live ? session.cwd : null} choice={session.extensions} extras={session.extras} lists={lists} onRetry={retry} />
               </PanelTabsContent>
             ))}
           </PanelTabs>
@@ -315,6 +316,8 @@ function General({ nodeId, record, session, liveFolder }: { nodeId: string; reco
                 <AccountSelect id={ids.account} value={account} disabled={lock === "mission"} onChange={setAccount} />
               </Row>
             )}
+            {/* A sub-agent's: what its spawner picked, on Claude or Codex; read at each launch, never edited here. */}
+            {session.extras && <PickedRow extras={session.extras} />}
             <Row label={t.folder} note={folderNote}>
               {folderMove && <FolderMoveNotice move={folderMove} onRestart={restart} />}
               <FolderField nodeId={nodeId} session={session} lock={lock} />
@@ -357,6 +360,24 @@ function General({ nodeId, record, session, liveFolder }: { nodeId: string; reco
  * Rows of a label and its control: one column of labels, the controls lined up beside it. The labels' column
  * (96 px) holds the longest, "Remote Control", whole at 12 px; the controls keep about 200 px of the panel's 312.
  */
+/** A sub-agent's skills, MCP servers and plugins, as its spawner picked them with spawn_agent: one line per kind picked. */
+function PickedRow({ extras }: { extras: SubagentExtras }) {
+  const t = useMessages(canvasMessages).selection;
+  const kinds = EXTRA_KINDS.filter((kind) => extras[kind] !== undefined);
+  if (kinds.length === 0) return null;
+  return (
+    <Row label={t.extras} note={t.extrasNote}>
+      <p data-extras className="text-xs leading-7 break-words text-dp-text-2">
+        {kinds.map((kind) => (
+          <span key={kind} className="block leading-5 first:pt-1">
+            {t.extrasKinds[kind]}: {extras[kind]?.length ? extras[kind].join(", ") : t.extrasNone}
+          </span>
+        ))}
+      </p>
+    </Row>
+  );
+}
+
 function Rows({ children }: { children: ReactNode }) {
   return <div className="grid grid-cols-[6rem_minmax(0,1fr)] items-start gap-x-3 gap-y-2">{children}</div>;
 }
@@ -722,7 +743,7 @@ function FolderField({ nodeId, session, lock }: { nodeId: string; session: Termi
     // The store as it is after the picker: a mission may have started while it was open.
     const current = latestSession(nodeId);
     if (!current || folderLockOf(nodeId, nodesStore.getState().nodes)) return;
-    const patch = folderChange(current, picked);
+    const patch = folderChange(current, picked, isRunning(nodeId));
     if (!patch?.cwd) return;
     updateSession(nodeId, patch);
     announceFolderMove(nodeId, current, patch.cwd);

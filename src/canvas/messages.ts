@@ -5,6 +5,7 @@ import { ROUTER_LEVELS } from "@/mission/router";
 export const canvasMessages = defineMessages(
   {
     saveFailed: "Could not save the canvas",
+    imagesNotSaved: "Could not save the images of the canvas",
     loadFailed: (error: string) => `Could not load this workspace: ${error}`,
     retryLoad: "Try again",
     loading: "Loading…",
@@ -63,6 +64,8 @@ export const canvasMessages = defineMessages(
       folderMission: "Fixed while its mission runs: this agent works in its own worktree",
       // Claude keeps a conversation with the folder it started in (it cannot resume one from another folder): said when it moves.
       folderNewConversation: "New folder, new conversation: Claude keeps each conversation with its folder",
+      // A running Claude moved back to the folder its process runs in: the conversation that runs is its own again.
+      folderBack: (folder: string) => `Back in ${folder}, where it runs: its conversation goes on`,
       // A running terminal moved: its process stays in the folder it started in until it restarts. Said in a toast
       // that offers the restart (`restartIn`), and at the top of its Folder row (`stillRunningIn`) until then.
       folderMoveRunning: (from: string) => `Still running in ${from} until it restarts`,
@@ -150,6 +153,16 @@ export const canvasMessages = defineMessages(
       },
       offInSettings: "Off in your Claude settings",
       offWithPlugin: "Its plugin is off: turn it on in Plugins first",
+      // A sub-agent's spawner picked this kind with spawn_agent and left this one out: it has no switch to turn it on.
+      leftOutByPick: "Left out by its spawner's pick",
+      // Above a list whose kind a sub-agent's spawner picked: what is on follows the pick, the switches act on top of it.
+      pickedKind: "Picked by its spawner: what it left out is off",
+      // A sub-agent's row under Next launch: the skills, MCP servers and plugins its spawner picked with spawn_agent.
+      extras: "Picked",
+      extrasKinds: { skills: "Skills", mcpServers: "MCP servers", plugins: "Plugins" },
+      extrasNone: "none",
+      // Under the row: a kind it does not show is the CLI's defaults; dummyPlane's own server is always kept.
+      extrasNote: "By its spawner, at spawn. Any other kind is its CLI's defaults; dummyPlane's own server is always kept",
       // A plugin's skill: Claude's skill overrides don't reach it, so it has no switch of its own.
       followsPlugin: "Comes with its plugin: switch the plugin in Plugins",
       // dummyPlane's own server has no switch: its tools are how the terminal reports, marks steps and opens agents.

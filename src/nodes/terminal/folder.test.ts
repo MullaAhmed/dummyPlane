@@ -35,6 +35,24 @@ it("moves a Claude terminal with a conversation of its own, and nothing else", (
   expect(Object.keys(change ?? {}).sort()).toEqual(["claudeSessionId", "codexSessionId", "cwd", "lastReport", "steps"]);
 });
 
+it("keeps the conversation a running Claude runs when it is moved away and back to the folder its process runs in", () => {
+  const launched = { cwd: "D:/work/api", shell: "default", command: "", model: "", effort: "", permission: "", accountId: "" };
+  const running = terminal({ claudeSessionId: "runs", launched });
+  const away = { ...running, ...folderChange(running, "D:/work/web", true) };
+  expect(away.cwd).toBe("D:/work/web");
+  expect(away.claudeSessionId).not.toBe("runs");
+  // Back where its process runs: the next launch resumes the conversation that runs, nothing is lost.
+  const back = { ...away, ...folderChange(away, "d:\\work\\api", true) };
+  expect(back.cwd).toBe("d:\\work\\api");
+  expect(back.claudeSessionId).toBe("runs");
+  // Through another folder on the way, the same.
+  const further = { ...away, ...folderChange(away, "D:/work/docs", true) };
+  expect({ ...further, ...folderChange(further, "D:/work/api", true) }.claudeSessionId).toBe("runs");
+  // Stopped, there is no conversation running to keep: a move back starts one, as any move does.
+  const stopped = { ...running, ...folderChange(running, "D:/work/web", false) };
+  expect({ ...stopped, ...folderChange(stopped, "D:/work/api", false) }.claudeSessionId).not.toBe("runs");
+});
+
 it("moves any other agent by its folder alone", () => {
   expect(folderChange(terminal({ agent: "codex" }), "D:/work/web")).toEqual({ cwd: "D:/work/web" });
 });

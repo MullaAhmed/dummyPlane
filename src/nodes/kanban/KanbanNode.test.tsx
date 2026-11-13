@@ -820,3 +820,25 @@ it("creates the card's issue from a row of the dialog, not a fourth button of it
   await act(async () => button("Cancel").click());
   await view.unmount();
 });
+
+it("offers no second Sync from the board's menu while one runs", async () => {
+  mockIPC(() => undefined);
+  let finish!: (done: boolean) => void;
+  github.syncBoard.mockImplementationOnce(() => new Promise<boolean>((resolve) => (finish = resolve)));
+  await nodesStore.getState().create("syncing", {
+    workspaceId: "w1",
+    kind: "kanban",
+    payload: { columns: [{ id: "todo", title: "To do", cardIds: [] }], cards: {}, github: { repo: "o/r" } },
+  });
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = createRoot(host);
+  await act(async () => root.render(<KanbanNode nodeId="syncing" />));
+  await act(async () => button("Sync").click());
+  await act(async () => press(host.querySelector('button[aria-label="Board menu"]')!, "Enter"));
+  const sync = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((i) => i.textContent === "Sync")!;
+  expect(sync.getAttribute("aria-disabled")).toBe("true");
+  await act(async () => finish(true));
+  await act(async () => root.unmount());
+  document.body.replaceChildren();
+});

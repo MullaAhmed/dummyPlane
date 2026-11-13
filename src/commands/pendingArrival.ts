@@ -20,6 +20,11 @@ export function requestArrival(target: PendingArrival) {
   pending = target;
 }
 
+/** `target` will not come about (the project that holds it would not open): it must not fire at a later visit. Another arrival asked since stays. */
+export function cancelArrival(target: PendingArrival) {
+  if (pending === target) pending = null;
+}
+
 /** An arrival still waits for the scene of `workspaceId`, which may already be the active workspace. */
 export function arrivalPending(workspaceId: string): boolean {
   return pending?.workspaceId === workspaceId;

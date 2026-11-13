@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { flushAll } from "@/lib/flush";
 import { nodesStore } from "@/store/nodes";
-import { editStoredScene, forgetScene, loadScene, rememberScene } from "./sceneCache";
+import { cachedElements, editStoredScene, forgetScene, loadScene, rememberScene } from "./sceneCache";
 
 afterEach(() => {
   forgetScene("w1");
@@ -135,4 +135,19 @@ describe("a stored scene being edited (review)", () => {
     await closing;
     expect(done).toBe(true);
   });
+});
+
+it("forgets the read of a workspace deleted while it ran: neither its scene nor its nodes come back", async () => {
+  let answer = (_: unknown) => {};
+  mockIPC((cmd) => {
+    if (cmd === "load_workspace") return new Promise((resolve) => (answer = resolve));
+  });
+  const read = loadScene("gone");
+  // Deleted meanwhile (`forgetWorkspaces`): its nodes and its scene are dropped.
+  nodesStore.getState().forgetWorkspace("gone");
+  forgetScene("gone");
+  answer({ nodes: [{ id: "ghost", kind: "terminal", payloadJson: JSON.stringify({ title: "T", name: "Storm", agent: "shell", cwd: "C:/code", shell: "default", command: "" }) }], files: [], elementsJson: "[]", appStateJson: null });
+  await read;
+  expect(nodesStore.getState().nodes.ghost).toBeUndefined();
+  expect(cachedElements("gone")).toBeUndefined();
 });

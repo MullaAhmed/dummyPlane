@@ -998,6 +998,43 @@ it("turns a skill off for this terminal alone, and a plugin the user's settings 
   expect(restartNow()).toBeUndefined();
 });
 
+it("shows a sub-agent's pick under Next launch, on Codex as on Claude, and nothing for a terminal without one", async () => {
+  serveExtensions();
+  await mountTerminal(terminal({ agent: "codex", extras: { skills: ["deploy", "review"], mcpServers: [] } }));
+  const picked = host.querySelector("[data-extras]")!;
+  expect(picked.textContent).toContain("Skills: deploy, review");
+  expect(picked.textContent).toContain("MCP servers: none");
+  // A kind left out is its CLI's defaults: not shown, said under the row.
+  expect(picked.textContent).not.toContain("Plugins");
+  expect(host.textContent).toContain("Any other kind is its CLI's defaults");
+  await mountTerminal(terminal());
+  expect(host.querySelector("[data-extras]")).toBeNull();
+});
+
+it("shows a Claude sub-agent's lists as its spawner's pick leaves them, the switches on top of it", async () => {
+  serveExtensions();
+  await mountTerminal(terminal({ extras: { skills: ["review"], plugins: ["figma@claude"] } }));
+  await openTab("Skills");
+  expect(host.textContent).toContain("Picked by its spawner: what it left out is off");
+  // Left out by the pick: off, no switch, and why.
+  const commit = checkbox("commit")!;
+  expect(commit.getAttribute("aria-checked")).toBe("false");
+  expect(commit.disabled).toBe(true);
+  expect(host.querySelector("[data-extension='commit']")?.textContent).toContain("Left out by its spawner's pick");
+  // Picked, though the user's settings turn it off: on, and switched off here like any other.
+  const review = checkbox("review")!;
+  expect(review.getAttribute("aria-checked")).toBe("true");
+  await act(async () => review.click());
+  expect(payloadOf().extensions).toEqual({ skillsOff: ["review"] });
+  await openTab("Plugins");
+  expect(checkbox("figma")!.getAttribute("aria-checked")).toBe("true");
+  // Put back as the pick has it, a plugin's switch is forgotten.
+  await act(async () => checkbox("figma")!.click());
+  expect(payloadOf().extensions).toEqual({ skillsOff: ["review"], plugins: { "figma@claude": false } });
+  await act(async () => checkbox("figma")!.click());
+  expect(payloadOf().extensions).toEqual({ skillsOff: ["review"] });
+});
+
 it("keeps an item the user's own settings turn off, off and disabled, and says why", async () => {
   serveExtensions();
   await mountTerminal(terminal());

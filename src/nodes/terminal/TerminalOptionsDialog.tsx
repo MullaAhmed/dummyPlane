@@ -8,6 +8,7 @@ import { LaunchOptionsForm } from "@/agents/LaunchOptionsForm";
 import type { LaunchOptions } from "@/agents/launchAgent";
 import type { TerminalPayload } from "@/nodes/types";
 import { nodesStore, useNodes } from "@/store/nodes";
+import { isRunning } from "@/store/terminalStatus";
 import { useMessages } from "@/i18n";
 import { nodesMessages } from "@/nodes/messages";
 import { folderChange, folderLockOf } from "./folder";
@@ -37,7 +38,7 @@ export function TerminalOptionsDialog(props: { nodeId: string; payload: Terminal
     // The folder goes through the edit panel's rules: a locked one is not read, a Claude terminal that moves
     // starts a new conversation (it cannot resume one from another folder), and a running one is offered the
     // restart that takes it there.
-    const moved = lock ? null : folderChange(payload, value.cwd);
+    const moved = lock ? null : folderChange(payload, value.cwd, isRunning(nodeId));
     // A title left as it was gives way to the one the move gives (a terminal named after its folder).
     const typed = value.title.trim();
     const retitled = Boolean(typed) && typed !== payload.title;

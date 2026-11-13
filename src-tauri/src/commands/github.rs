@@ -3,7 +3,7 @@
 use std::path::PathBuf;
 
 use crate::error::{AppError, AppResult};
-use crate::github::{self, CreatedIssue, Issue, ProjectItem};
+use crate::github::{self, CreatedIssue, IssueList, ProjectItemList};
 
 /// `gh` waits on the network: off the async runtime's threads.
 async fn blocking<T: Send + 'static>(
@@ -25,7 +25,7 @@ pub async fn github_list_issues(
     path: String,
     repo: String,
     closed_within_days: u32,
-) -> AppResult<Vec<Issue>> {
+) -> AppResult<IssueList> {
     blocking(move || github::list_issues(&PathBuf::from(path), &repo, closed_within_days)).await
 }
 
@@ -34,7 +34,7 @@ pub async fn github_list_project_items(
     path: String,
     owner: String,
     project_number: u32,
-) -> AppResult<Vec<ProjectItem>> {
+) -> AppResult<ProjectItemList> {
     blocking(move || github::list_project_items(&PathBuf::from(path), &owner, project_number)).await
 }
 

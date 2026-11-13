@@ -157,10 +157,13 @@ export function createWorkspacesStore() {
       },
 
       remove: async (id) => {
-        const { workspaces, activeId } = get();
-        const index = workspaces.findIndex((w) => w.id === id);
-        if (index === -1 || !canRemove(workspaces, workspaces[index])) return;
+        const before = get().workspaces;
+        const at = before.findIndex((w) => w.id === id);
+        if (at === -1 || !canRemove(before, before[at])) return;
         await deleteWorkspace(id);
+        // Read again: a tab selected while the backend deleted this one stays selected.
+        const { workspaces, activeId } = get();
+        const index = Math.max(0, workspaces.findIndex((w) => w.id === id));
         const remaining = workspaces.filter((w) => w.id !== id);
         const nextActive = id === activeId ? remaining[Math.min(index, remaining.length - 1)].id : activeId;
         set((s) => ({ lastCanvasId: s.lastCanvasId === id ? null : s.lastCanvasId }));

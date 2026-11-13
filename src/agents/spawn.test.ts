@@ -17,7 +17,7 @@ import { nodesStore, terminalOf } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
 import { quietly } from "./arrivals";
 import { nameForNewAgent } from "./naming";
-import { spawnAgent } from "./spawn";
+import { listExtras, spawnAgent } from "./spawn";
 import { isLaunching, markLaunching, markReported, runningSpawned } from "./spawnFamily";
 import { reflowSpawnTree } from "./spawnTree";
 import { addTerminal, placeTerminal } from "./terminals";
@@ -367,6 +367,118 @@ describe("what a sub-agent inherits of its parent's skills and plugins", () => {
     const payload = vi.mocked(addTerminal).mock.calls[0][1];
     expect(payload.extensions).toEqual(off);
     for (const key of ["role", "linear", "remoteControl", "permission"]) expect(payload).not.toHaveProperty(key);
+  });
+});
+
+describe("a sub-agent's skills, MCP servers and plugins, picked by its spawner", () => {
+  /** What Rust is asked to check, and what it answers: the pick as Claude writes the names, or a refusal. */
+  let checks: { agent: string; cwd: string; pick: Record<string, string[]> }[] = [];
+  let answer: (pick: Record<string, string[]>) => unknown = (pick) => pick;
+  beforeEach(() => {
+    checks = [];
+    answer = (pick) => pick;
+    mockIPC((cmd, args) => {
+      if (cmd !== "check_subagent_extras") return undefined;
+      const { agent, cwd, pick } = args as { agent: string; cwd: string; pick: Record<string, string[]> };
+      checks.push({ agent, cwd, pick });
+      return answer(pick);
+    });
+  });
+
+  it("checks the pick with Rust before anything opens, and stores it on the sub-agent's terminal", async () => {
+    answer = () => ({ skills: ["deploy"], mcpServers: [] });
+    const result = await spawnAgent("batman", { task: "Ship it", skills: ["Deploy", "deploy"], mcp_servers: [] });
+    expect(result.error).toBeUndefined();
+    expect(checks).toEqual([{ agent: "claude", cwd: "C:/code/wt", pick: { skills: ["Deploy", "deploy"], mcpServers: [] } }]);
+    const payload = vi.mocked(addTerminal).mock.calls[0][1];
+    // As Rust wrote the names; plugins left out: Claude's defaults.
+    expect(payload.extras).toEqual({ skills: ["deploy"], mcpServers: [] });
+    expect(result.text).toContain("It gets skills deploy; no MCP server but dummyplane.");
+  });
+
+  it("asks Rust nothing and stores nothing when no kind is picked: today's sub-agent", async () => {
+    const result = await spawnAgent("batman", { task: "Ship it", skills: null });
+    expect(result.error).toBeUndefined();
+    expect(checks).toEqual([]);
+    expect(vi.mocked(addTerminal).mock.calls[0][1]).not.toHaveProperty("extras");
+    expect(result.text).not.toContain("It gets");
+  });
+
+  it("refuses a pick Rust refuses, or one that is no list of names, and opens nothing", async () => {
+    answer = () => {
+      throw { kind: "invalidInput", message: 'not installed for Claude here (skill): "made-up"' };
+    };
+    const refused = await spawnAgent("batman", { task: "Ship it", skills: ["made-up"] });
+    expect(refused).toEqual({ text: 'Not opened: not installed for Claude here (skill): "made-up". installed_extras lists what can be picked.', error: true });
+    const unchecked = await (async () => {
+      answer = () => {
+        throw { kind: "notFound", message: "codex not found in the PATH" };
+      };
+      return spawnAgent("batman", { task: "Ship it", plugins: [] });
+    })();
+    expect(unchecked).toEqual({ text: expect.stringContaining("could not be checked: codex not found in the PATH"), error: true });
+    for (const bad of ["deploy", [1], { deploy: true }]) {
+      const result = await spawnAgent("batman", { task: "Ship it", mcp_servers: bad });
+      expect(result).toEqual({ text: expect.stringContaining("Not opened: mcp_servers must be a list of names"), error: true });
+    }
+    expect(addTerminal).not.toHaveBeenCalled();
+  });
+
+  it("checks a Codex sub-agent's pick against Codex", async () => {
+    await addNode("codexer", terminal("Codexer", { agent: "codex", claudeSessionId: undefined }));
+    await spawnAgent("codexer", { task: "Ship it", plugins: ["pdf@openai-runtime"] });
+    expect(checks).toEqual([{ agent: "codex", cwd: "C:/code/wt", pick: { plugins: ["pdf@openai-runtime"] } }]);
+    expect(vi.mocked(addTerminal).mock.calls[0][1]).toMatchObject({ agent: "codex", extras: { plugins: ["pdf@openai-runtime"] } });
+  });
+
+  it("lists what a sub-agent of the caller could be given, for its CLI in the caller's folder, one line per item", async () => {
+    const asked: unknown[] = [];
+    mockIPC((cmd, args) => {
+      if (cmd !== "subagent_extras") return undefined;
+      asked.push(args);
+      return {
+        skills: [
+          { name: "deploy", description: "Ship to production", on: true },
+          { name: "review", on: false },
+          { name: "stripe:charge", on: true, plugin: "stripe@market", locked: "plugin" },
+        ],
+        mcpServers: [
+          { name: "dummyplane", on: true, locked: "own" },
+          { name: "repo-db", on: false, locked: "off" },
+        ],
+        plugins: [],
+      };
+    });
+    const result = await listExtras("batman");
+    expect(asked).toEqual([{ agent: "claude", cwd: "C:/code/wt", configDir: null }]);
+    expect(result.error).toBeUndefined();
+    const text = result.text;
+    expect(text).toContain("running Claude in C:/code/wt");
+    expect(text).toContain("skills:\n- deploy: Ship to production\n- review [off by default]\n- stripe:charge [comes with the plugin stripe@market: pick or leave out the plugin]");
+    expect(text).toContain("mcp_servers:\n- dummyplane [always kept]\n- repo-db [off in the user's settings: only the user can turn it on]");
+    expect(text).toContain("plugins:\n(none installed)");
+    mockIPC(() => {
+      throw { kind: "notFound", message: "codex not found in the PATH" };
+    });
+    expect(await listExtras("batman")).toEqual({ text: expect.stringContaining("could not be listed: codex not found in the PATH"), error: true });
+    expect(await listExtras("nobody")).toMatchObject({ error: true });
+  });
+
+  it("passes its parent's pick on, kind by kind, a kind it picks replacing the parent's pick and Edit tab's switches", async () => {
+    const extensions = { skillsOff: ["commit"], agentsOff: ["Explore"], plugins: { "caveman@caveman": false } };
+    await addNode("atlas", terminal("Atlas", { extras: { skills: ["deploy"], mcpServers: ["github"] }, extensions }));
+    await spawnAgent("atlas", { task: "One" });
+    expect(vi.mocked(addTerminal).mock.calls[0][1]).toMatchObject({ extras: { skills: ["deploy"], mcpServers: ["github"] }, extensions });
+    // Inherited, the parent's pick is not checked again here: each launch checks it.
+    expect(checks).toEqual([]);
+    await spawnAgent("atlas", { task: "Two", skills: [], plugins: ["stripe@market"] });
+    const payload = vi.mocked(addTerminal).mock.calls[1][1];
+    expect(payload.extras).toEqual({ skills: [], mcpServers: ["github"], plugins: ["stripe@market"] });
+    expect(payload.extensions).toEqual({ agentsOff: ["Explore"] });
+    // A Claude parent's pick names nothing a Codex sub-agent loads: none passes on to another CLI.
+    await addNode("gemma", terminal("Gemma", { agent: "gemini", extras: { skills: ["deploy"] } }));
+    await spawnAgent("gemma", { task: "Three" });
+    expect(vi.mocked(addTerminal).mock.calls[2][1]).not.toHaveProperty("extras");
   });
 });
 

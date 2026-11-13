@@ -1,8 +1,8 @@
 import { AppError } from "@/ipc/invoke";
-import { getScrollback, ptyAttach, ptyKill, ptySpawn } from "@/ipc/pty";
+import { getScrollback, ptyAttach, ptyKill, ptyResize, ptySpawn } from "@/ipc/pty";
 import type { TerminalPayload } from "@/nodes/types";
 import { nodesStore, sessionOf, updateSession } from "@/store/nodes";
-import { isRunning, restartInTurn, terminalStatusStore, waitForExit } from "@/store/terminalStatus";
+import { isRunning, restartInTurn, statusOf, stillOpen, terminalStatusStore, waitForExit } from "@/store/terminalStatus";
 import { accountsStore, loadAccounts } from "@/accounts/store";
 import { markLaunch, markResumedLaunch } from "@/usage/usageStore";
 import { buildSpawnSpec, launchSettingsOf, sameLaunch, type LaunchMode } from "./launch";
@@ -70,6 +70,9 @@ function noteLaunched(nodeId: string, payload: TerminalPayload) {
 }
 
 export async function startSession(nodeId: string, term: TermSink, payload: TerminalPayload, mode: LaunchMode) {
+  // Closed while it starts (its close, its workspace's or project's deletion): the kill that came with it found no
+  // process yet, and the one spawned must not run on for a node gone from the canvas.
+  const open = stillOpen(nodeId);
   // "running" is set before spawning: ConPTY's cursor query arrives before the
   // spawn command returns, and xterm's answer must be let through.
   setStatus(nodeId, { state: "running" });
@@ -86,7 +89,12 @@ export async function startSession(nodeId: string, term: TermSink, payload: Term
     if (payload.agent === "claude" && mode !== "new") markResumedLaunch(nodeId);
     // What the previous run reported (its model, its tokens) no longer stands.
     if (payload.agent === "claude") markLaunch(nodeId);
-    await ptySpawn(nodeId, spec, term.cols, term.rows, (bytes) => term.write(bytes));
+    if (!open()) return;
+    const { cols, rows } = term;
+    await ptySpawn(nodeId, spec, cols, rows, (bytes) => term.write(bytes));
+    if (!open()) await ptyKill(nodeId);
+    // Laid out again while it was being spawned (shown, expanded, its foot come): that resize found no process to resize.
+    else if (term.cols !== cols || term.rows !== rows) await ptyResize(nodeId, term.cols, term.rows).catch(() => undefined);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     const kind = error instanceof AppError ? error.kind : undefined;
@@ -129,7 +137,8 @@ export async function attachSession(nodeId: string, term: TermSink, state: Sessi
  * queries must not reach the new process.
  */
 export async function restoreSession(nodeId: string, term: TermSink, state?: SessionState) {
-  setStatus(nodeId, { state: "stopped" });
+  // A process that exited before its terminal was first shown keeps its exit, its code with it: it was not restored stopped.
+  if (statusOf(nodeId).state !== "exited") setStatus(nodeId, { state: "stopped" });
   const bytes = await getScrollback(nodeId);
   if (bytes.length === 0) return;
   if (state) state.replaying = true;

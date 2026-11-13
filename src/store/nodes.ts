@@ -42,8 +42,13 @@ export interface NodesState {
     id: string,
     patch: Partial<TerminalPayload> | Partial<FleetPayload> | Partial<KanbanPayload> | Partial<FilePayload> | Partial<OutputPayload> | Partial<NotePayload>,
   ) => void;
-  /** Saves a node now, e.g. when an undo brings back a node purged from SQLite. */
+  /** Saves a node now, e.g. when an undo brings back a node purged from SQLite: its changes are saved again from then on. */
   persist: (id: string) => Promise<void>;
+  /**
+   * A node removed from the canvas: kept in memory for an undo, but none of its changes is saved until `persist`
+   * brings it back. The scene's next save purges its row; a late change (its start, an agent's report) would write it back.
+   */
+  close: (id: string) => void;
   /** Drops the nodes of a deleted workspace and returns their ids. */
   forgetWorkspace: (workspaceId: string) => string[];
 }
@@ -52,6 +57,8 @@ const SAVE_DELAY_MS = 500;
 
 export function createNodesStore() {
   const pendingSaves = new Map<string, Debounced<[], Promise<void> | undefined>>();
+  /** The nodes removed from the canvas (`close`), until one is brought back (`persist`). */
+  const closed = new Set<string>();
 
   const store = createStore<NodesState>()((set, get) => {
     const write = (id: string) => {
@@ -75,6 +82,7 @@ export function createNodesStore() {
     };
 
     const saveNow = async (id: string) => {
+      closed.delete(id);
       pendingSaves.get(id)?.cancel();
       await write(id);
     };
@@ -102,16 +110,22 @@ export function createNodesStore() {
         if (!record) return;
         const next = { ...record, payload: { ...record.payload, ...patch } } as NodeRecord;
         set((s) => ({ nodes: { ...s.nodes, [id]: next } }));
-        saveLater(id);
+        if (!closed.has(id)) saveLater(id);
       },
 
       persist: saveNow,
+
+      close: (id) => {
+        closed.add(id);
+        pendingSaves.get(id)?.cancel();
+      },
 
       forgetWorkspace: (workspaceId) => {
         const ids = Object.keys(get().nodes).filter((id) => get().nodes[id].workspaceId === workspaceId);
         for (const id of ids) {
           pendingSaves.get(id)?.cancel();
           pendingSaves.delete(id);
+          closed.delete(id);
         }
         set((s) => ({ nodes: Object.fromEntries(Object.entries(s.nodes).filter(([id]) => !ids.includes(id))) }));
         return ids;

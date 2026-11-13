@@ -48,6 +48,18 @@ describe("a Codex terminal", () => {
     expect(relaunchMode(codex)).toBe("new");
   });
 
+  it("passes a sub-agent's pick to every launch, Claude's or Codex's, and nothing without one", () => {
+    const extras = { skills: [], plugins: ["pdf@openai-runtime"] };
+    for (const mode of ["new", "resume"] as const) {
+      expect(buildSpawnSpec({ ...codex, extras }, mode).codex?.extras).toEqual(extras);
+      expect(buildSpawnSpec({ ...codex, agent: "claude", claudeSessionId: THREAD, extras }, mode).claude?.extras).toEqual(extras);
+    }
+    expect(buildSpawnSpec(codex, "new").codex).not.toHaveProperty("extras");
+    expect(buildSpawnSpec({ ...codex, agent: "claude" }, "new").claude).not.toHaveProperty("extras");
+    // A stored pick that picks no kind is none.
+    expect(buildSpawnSpec({ ...codex, extras: {} }, "new").codex).not.toHaveProperty("extras");
+  });
+
   it("resumes the thread Codex saved, and a new conversation forgets it", () => {
     const saved = { ...codex, codexSessionId: THREAD };
     expect(canResume(saved)).toBe(true);
@@ -56,6 +68,8 @@ describe("a Codex terminal", () => {
     expect(buildSpawnSpec(saved, "new").codex?.sessionId).toBeUndefined();
     expect({ ...saved, ...newConversation() }.codexSessionId).toBeUndefined();
     expect(switchedAgent(saved, "claude").codexSessionId).toBeUndefined();
+    // A spawner's pick names the old CLI's skills, servers and plugins: it goes with it.
+    expect(switchedAgent({ ...saved, extras: { skills: ["deploy"] } }, "claude")).toHaveProperty("extras", undefined);
   });
 
   it("carries a fleet's role, its night and Linear, never a model of Claude's", () => {

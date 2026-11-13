@@ -1,4 +1,5 @@
 import { readExtensionChoice } from "@/ipc/claudeExtensions";
+import { readSubagentExtras } from "@/ipc/subagentExtras";
 import { STORED_FLEET_ROLE, type AgentId, type OllamaLaunch, type ShellKind, type SpawnSpec } from "@/ipc/pty";
 import { AGENTS } from "@/agents/catalog";
 import { LAUNCH_SETTING_KEYS, type LaunchSettings, type TerminalPayload } from "@/nodes/types";
@@ -89,10 +90,11 @@ export const relaunchMode = (payload: TerminalPayload): LaunchMode => (canResume
 
 /**
  * Another agent in the same terminal: the steps, the report and a one-shot mark go with the old one; Claude gets a
- * conversation if it has none. The agent is the user's choice: what `fromShell` followed is over.
+ * conversation if it has none. The agent is the user's choice: what `fromShell` followed is over, and so is a
+ * spawner's pick of skills, MCP servers and plugins, named in the old CLI's words.
  */
 export function switchedAgent(payload: TerminalPayload, agent: AgentId): Partial<TerminalPayload> {
-  const left = { agent, steps: undefined, lastReport: undefined, oneShot: undefined, codexSessionId: undefined, fromShell: undefined };
+  const left = { agent, steps: undefined, lastReport: undefined, oneShot: undefined, codexSessionId: undefined, fromShell: undefined, extras: undefined };
   return agent === "claude" && !payload.claudeSessionId ? { ...left, claudeSessionId: crypto.randomUUID() } : left;
 }
 
@@ -107,6 +109,8 @@ export function buildSpawnSpec(payload: TerminalPayload, mode: LaunchMode): Spaw
     if (payload.linear) spec.claude.linear = true;
     const extensions = readExtensionChoice(payload.extensions);
     if (extensions) spec.claude.extensions = extensions;
+    const extras = readSubagentExtras(payload.extras);
+    if (extras) spec.claude.extras = extras;
     // The profile's folder if it still exists, else the default account.
     const profile = profileNamed(payload.accountId);
     if (profile) spec.claude.configDir = profile.configDir;
@@ -119,6 +123,9 @@ export function buildSpawnSpec(payload: TerminalPayload, mode: LaunchMode): Spaw
     if (payload.linear) spec.codex.linear = true;
     // A Claude model (an edit panel's, kept from a Claude past) is never Codex's: its own model, or the router's from Settings' map.
     if (payload.model && !CLAUDE_MODEL_NAME.test(payload.model)) spec.codex.model = payload.model;
+    // What its spawner picked, in Codex's names: another agent chosen by hand drops it (`switchedAgent`).
+    const extras = readSubagentExtras(payload.extras);
+    if (extras) spec.codex.extras = extras;
   }
   if (payload.agent === "ollama" && payload.ollama) spec.ollama = payload.ollama;
   return spec;

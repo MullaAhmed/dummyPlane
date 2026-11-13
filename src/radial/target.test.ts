@@ -84,6 +84,18 @@ describe("what is under a right press", () => {
     expect(sceneTarget(pick({ x: 700, y: 300 }, scene, groups))).toEqual({ kind: "selection", ids: ["f2"] });
     expect(sceneTarget(pick({ x: 900, y: 900 }, scene, groups))).toEqual({ kind: "canvas" });
   });
+
+  it("never points at a terminal a folded group keeps off the screen: the press is the group's, where a locked one in an open group stays found", () => {
+    const info = (folded: boolean) => ({ dummyplane: { kind: "group", role: "general", pantheon: "greek", ...(folded ? { folded: true } : {}) } });
+    const folded = element("folded", { type: "frame", x: 0, y: 0, width: 400, height: 300, customData: info(true) });
+    const hidden = element("hidden", { type: "embeddable", customData: { kind: "terminal" }, x: 20, y: 20, frameId: "folded", locked: true });
+    const open = element("open", { type: "frame", x: 600, y: 0, width: 400, height: 300, customData: info(false) });
+    const kept = element("kept", { type: "embeddable", customData: { kind: "terminal" }, x: 620, y: 20, frameId: "open", locked: true });
+    const scene = [hidden, folded, kept, open];
+    const groups = { groupIds: new Set(["folded", "open"]) };
+    expect(sceneTarget(pick({ x: 50, y: 50 }, scene, groups))).toEqual({ kind: "group", id: "folded" });
+    expect(sceneTarget(pick({ x: 650, y: 50 }, scene, groups))).toEqual({ kind: "terminal", id: "kept" });
+  });
 });
 
 describe("lines drawn to the left or up", () => {

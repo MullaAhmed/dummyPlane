@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { AppState, BinaryFiles } from "@excalidraw/excalidraw/types";
 import { createNodeElement, nodeKindOf } from "./nodeElement";
@@ -60,6 +60,37 @@ it("flush writes the pending save immediately", () => {
   expect(deps.saveScene).toHaveBeenCalledTimes(1);
 });
 
+describe("a save that fails", () => {
+  const failure = new Error("database is locked");
+  const failing = () => {
+    const saveFailed = vi.fn();
+    const deps = {
+      saveScene: vi.fn(() => Promise.reject(failure)),
+      saveFiles: vi.fn(() => Promise.resolve()),
+      onSceneChanged: vi.fn(),
+      onNodesAdded: vi.fn(),
+      onNodesRemoved: vi.fn(),
+      saveFailed,
+    };
+    return { saveFailed, sync: createSceneSync({ elements: [], savedFileIds: [] }, deps) };
+  };
+
+  it("is told when it was the timed one, which nobody waits for: the canvas is not lost unknowingly", async () => {
+    const { saveFailed, sync } = failing();
+    sync.onChange([], appState(), noFiles, 1);
+    await vi.advanceTimersByTimeAsync(500);
+    expect(saveFailed).toHaveBeenCalledTimes(1);
+    expect(saveFailed).toHaveBeenCalledWith(failure);
+  });
+
+  it("is told once when a flush wrote it, and the flush itself still ends", async () => {
+    const { saveFailed, sync } = failing();
+    sync.onChange([], appState(), noFiles, 1);
+    await expect(sync.flush()).resolves.toBeUndefined();
+    expect(saveFailed).toHaveBeenCalledTimes(1);
+  });
+});
+
 it("reports nodes that appear and disappear, but not the ones it started with", () => {
   const first = createNodeElement("terminal", { x: 0, y: 0 });
   const second = createNodeElement("terminal", { x: 0, y: 0 });
@@ -84,6 +115,57 @@ it("saves each new image once, as a data URL", () => {
   expect(deps.saveFiles).toHaveBeenCalledWith([
     { id: "fresh", mimeType: "image/svg+xml", dataUrl: "data:new", created: 2 },
   ]);
+});
+
+describe("an image that cannot be saved", () => {
+  const failure = new Error("payload too large");
+  const files = { fresh: { id: "fresh", mimeType: "image/png", dataURL: "data:new", created: 2 } } as unknown as BinaryFiles;
+  const failing = () => {
+    const imagesNotSaved = vi.fn();
+    const deps = {
+      saveScene: vi.fn(() => Promise.resolve()),
+      saveFiles: vi.fn(() => Promise.reject(failure)),
+      onSceneChanged: vi.fn(),
+      onNodesAdded: vi.fn(),
+      onNodesRemoved: vi.fn(),
+      imagesNotSaved,
+    };
+    return { deps, imagesNotSaved, sync: createSceneSync({ elements: [], savedFileIds: [] }, deps) };
+  };
+
+  it("is told, not only written to the console", async () => {
+    const { imagesNotSaved, sync } = failing();
+    sync.onChange([], appState(), files, 1);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(imagesNotSaved).toHaveBeenCalledTimes(1);
+    expect(imagesNotSaved).toHaveBeenCalledWith(failure);
+  });
+
+  it("is tried again at the next change, as before, and told only once while it keeps failing", async () => {
+    const { deps, imagesNotSaved, sync } = failing();
+    sync.onChange([], appState(), files, 1);
+    await vi.advanceTimersByTimeAsync(0);
+    sync.onChange([], appState(), files, 2);
+    await vi.advanceTimersByTimeAsync(0);
+    sync.onChange([], appState(), files, 2);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(deps.saveFiles).toHaveBeenCalledTimes(3);
+    expect(imagesNotSaved).toHaveBeenCalledTimes(1);
+  });
+
+  it("is told again once an image was saved and a later one fails", async () => {
+    const { deps, imagesNotSaved, sync } = failing();
+    const later = { later: { id: "later", mimeType: "image/png", dataURL: "data:later", created: 3 } } as unknown as BinaryFiles;
+    sync.onChange([], appState(), files, 1);
+    await vi.advanceTimersByTimeAsync(0);
+    deps.saveFiles.mockImplementationOnce(() => Promise.resolve() as never);
+    sync.onChange([], appState(), files, 2);
+    await vi.advanceTimersByTimeAsync(0);
+    deps.saveFiles.mockImplementation(() => Promise.reject(failure));
+    sync.onChange([], appState(), later, 3);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(imagesNotSaved).toHaveBeenCalledTimes(2);
+  });
 });
 
 it("liveNodeIds skips deleted nodes and plain drawings", () => {

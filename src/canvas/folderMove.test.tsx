@@ -154,6 +154,24 @@ it("says a running terminal stays in its old folder until it restarts, and offer
   expect(spawns[1].claude?.sessionId).not.toBe(spawns[0].claude?.sessionId);
 });
 
+it("moved back to the folder it runs in, keeps the conversation that runs there, says so, and resumes it at the next launch", async () => {
+  const info = vi.spyOn(toast, "info");
+  await startedIn("D:/work/api");
+  const runs = spawns[0].claude!.sessionId;
+  await showEdit();
+  await pickFolder("D:/work/web");
+  expect(stored().claudeSessionId).not.toBe(runs);
+  await pickFolder("D:\\work\\api");
+  expect(stored().cwd).toBe("D:\\work\\api");
+  expect(stored().claudeSessionId).toBe(runs);
+  // Not a new conversation: the one that runs goes on, and nothing waits for a restart.
+  expect(info.mock.calls[info.mock.calls.length - 1]).toEqual(["Back in api, where it runs: its conversation goes on"]);
+  expect(notice()).toBeNull();
+  restartTerminal("t1");
+  await until(() => spawns.length === 2);
+  expect(spawns[1].claude).toMatchObject({ mode: "resume", sessionId: runs });
+});
+
 it("keeps the toast short for a stopped terminal: its next launch is already in the new folder", async () => {
   const info = vi.spyOn(toast, "info");
   await nodesStore.getState().create("t1", { workspaceId: "w", kind: "terminal", payload: claudeIn("D:/work/api") });

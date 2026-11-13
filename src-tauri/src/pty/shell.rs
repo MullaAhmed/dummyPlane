@@ -139,6 +139,9 @@ pub struct ClaudeLaunch {
     /// The skills, plugins, MCP servers and subagents it turns off or on (`agents::extensions`).
     #[serde(default)]
     pub extensions: Option<crate::agents::extensions::ExtensionChoice>,
+    /// A sub-agent's: the skills, MCP servers and plugins its spawner picked for it (`agents::extras`).
+    #[serde(default)]
+    pub extras: Option<crate::agents::extras::Pick>,
 }
 
 /// Claude Code's effort levels, as `claude --effort` takes them (Claude Code
@@ -184,6 +187,9 @@ pub struct CodexLaunch {
     /// `-m`: a model a parent agent asked for its sub-agent.
     #[serde(default)]
     pub model: Option<String>,
+    /// A sub-agent's: the skills, MCP servers and plugins its spawner picked for it (`agents::extras`).
+    #[serde(default)]
+    pub extras: Option<crate::agents::extras::Pick>,
 }
 
 /// What the frontend asks for when it starts a terminal.
@@ -212,6 +218,16 @@ impl SpawnSpec {
             Agent::Codex => self.codex.as_ref().map(|c| c.role).unwrap_or_default(),
             _ => Role::Agent,
         }
+    }
+
+    /// A sub-agent's pick of skills, MCP servers and plugins, when it picks any kind.
+    pub fn extras(&self) -> Option<&crate::agents::extras::Pick> {
+        let pick = match self.agent {
+            Agent::Claude => self.claude.as_ref().and_then(|c| c.extras.as_ref()),
+            Agent::Codex => self.codex.as_ref().and_then(|c| c.extras.as_ref()),
+            _ => None,
+        };
+        pick.filter(|pick| !pick.is_empty())
     }
 
     /// What its mission lets it do unasked.
@@ -275,6 +291,34 @@ pub struct AgentHooks {
     pub mcp_token: Option<String>,
     /// Codex: what goes on its command line after its profile, which a project's config cannot outrank (`codex_profile::cli_args`).
     pub codex_args: Vec<String>,
+    /// Claude: `--strict-mcp-config` for an agent too, its MCP servers being a sub-agent's pick (`agents::extras`).
+    pub strict_mcp: bool,
+    /// Claude: `--chrome` or `--no-chrome`, a sub-agent's MCP pick saying whether it keeps Claude in Chrome.
+    pub chrome: Option<bool>,
+    /// Why a sub-agent's pick could not be applied: it does not start, rather than with everything (`pick_applied`).
+    pub refused: Option<String>,
+}
+
+/// A sub-agent whose spawner picked its skills, MCP servers or plugins starts
+/// with that pick or not at all: its settings, its tools' file or its Codex
+/// profile missing, or the pick refused at launch (a name its CLI no longer
+/// lets dummyPlane turn off), it would start with all of them.
+pub fn pick_applied(agent: Agent, picked: bool, hooks: &AgentHooks) -> Result<(), String> {
+    if !picked {
+        return Ok(());
+    }
+    if let Some(cause) = &hooks.refused {
+        return Err(cause.clone());
+    }
+    let complete = match agent {
+        Agent::Codex => hooks.codex_profile.is_some(),
+        _ => hooks.claude_settings.is_some() && hooks.mcp_config.is_some(),
+    };
+    if complete {
+        Ok(())
+    } else {
+        Err("its settings could not be written (see the log)".to_string())
+    }
 }
 
 /// What keeps a fleet, or a Manager, from coding: its
@@ -557,10 +601,16 @@ fn claude_node_flags(
             // The fleet, and a Manager, read their `--mcp-config` file only: dummyPlane's tools
             // and the servers its MCP tab leaves on (`extensions::servers_on`),
             // never one the panel doesn't list, such as a claude.ai connector.
-            if flag == "--mcp-config" && launch.role.reads_only() {
+            // So does a sub-agent whose spawner picked its servers (`extensions::servers_picked`).
+            if flag == "--mcp-config" && (launch.role.reads_only() || hooks.strict_mcp) {
                 push("--strict-mcp-config", None);
             }
         }
+    }
+    match hooks.chrome {
+        Some(true) => push("--chrome", None),
+        Some(false) => push("--no-chrome", None),
+        None => {}
     }
     if let Some(model) = launch.model.as_deref() {
         push("--model", Some(quote(syntax, checked_model(model)?)));
@@ -1027,6 +1077,7 @@ mod tests {
             linear: false,
             config_dir: None,
             extensions: None,
+            extras: None,
         })
     }
 
@@ -1176,6 +1227,7 @@ mod tests {
             linear: false,
             config_dir: None,
             extensions: None,
+            extras: None,
         });
         let err = agent_command(
             &spec(Agent::Claude, launch),
@@ -1208,6 +1260,7 @@ mod tests {
             linear: false,
             config_dir: None,
             extensions: None,
+            extras: None,
         })
     }
 
@@ -1382,6 +1435,121 @@ mod tests {
             assert!(fleet_tools(Agent::Codex, &partial, true).is_err());
         }
         assert!(fleet_tools(Agent::Codex, &codex_tooled(), false).is_err());
+    }
+
+    #[test]
+    fn a_sub_agent_with_an_mcp_pick_reads_its_servers_alone_and_says_whether_it_keeps_chrome() {
+        let line = |hooks: &AgentHooks| {
+            agent_command(
+                &spec(Agent::Claude, claude(ClaudeMode::Resume, "")),
+                ShellSyntax::PowerShell,
+                hooks,
+            )
+            .unwrap()
+            .unwrap()
+        };
+        // No pick: today's line, byte for byte.
+        assert_eq!(
+            line(&tooled()),
+            format!(
+                r"claude --settings 'C:\data\hooks\n1.json' --mcp-config 'C:\data\mcp\n1.json' --append-system-prompt-file 'C:\data\mcp\n1.md' --resume {SESSION}"
+            )
+        );
+        let picked = AgentHooks {
+            strict_mcp: true,
+            chrome: Some(false),
+            ..tooled()
+        };
+        assert_eq!(
+            line(&picked),
+            format!(
+                r"claude --settings 'C:\data\hooks\n1.json' --mcp-config 'C:\data\mcp\n1.json' --strict-mcp-config --append-system-prompt-file 'C:\data\mcp\n1.md' --no-chrome --resume {SESSION}"
+            )
+        );
+        let chrome = AgentHooks {
+            strict_mcp: true,
+            chrome: Some(true),
+            ..tooled()
+        };
+        assert!(line(&chrome).contains(" --chrome --resume "));
+    }
+
+    #[test]
+    fn a_sub_agent_starts_with_its_pick_or_not_at_all() {
+        // No pick: nothing more is asked of its launch.
+        assert_eq!(
+            pick_applied(Agent::Claude, false, &AgentHooks::default()),
+            Ok(())
+        );
+        assert_eq!(pick_applied(Agent::Claude, true, &tooled()), Ok(()));
+        assert_eq!(pick_applied(Agent::Codex, true, &codex_tooled()), Ok(()));
+        for (agent, hooks) in [
+            (
+                Agent::Claude,
+                AgentHooks {
+                    claude_settings: None,
+                    ..tooled()
+                },
+            ),
+            (
+                Agent::Claude,
+                AgentHooks {
+                    mcp_config: None,
+                    ..tooled()
+                },
+            ),
+            (Agent::Codex, AgentHooks::default()),
+        ] {
+            assert!(pick_applied(agent, true, &hooks).is_err());
+        }
+        let refused = AgentHooks {
+            refused: Some("codex not found in the PATH".into()),
+            ..AgentHooks::default()
+        };
+        assert_eq!(
+            pick_applied(Agent::Codex, true, &refused),
+            Err("codex not found in the PATH".to_string())
+        );
+        // The spec says which launches carry a pick: an empty one is none.
+        let mut launch = claude(ClaudeMode::New, "").unwrap();
+        launch.extras = Some(crate::agents::extras::Pick::default());
+        assert!(spec(Agent::Claude, Some(launch.clone())).extras().is_none());
+        launch.extras = Some(crate::agents::extras::Pick {
+            skills: Some(Vec::new()),
+            ..Default::default()
+        });
+        assert!(spec(Agent::Claude, Some(launch)).extras().is_some());
+    }
+
+    #[test]
+    fn a_codex_sub_agent_s_pick_is_quoted_for_each_shell() {
+        let hooks = AgentHooks {
+            codex_args: vec![
+                "-c".into(),
+                "skills.config=[{name='imagegen',enabled=false},{name='pdf:pdf',enabled=false}]"
+                    .into(),
+                "-c".into(),
+                "plugins.figma@openai-curated.enabled=true".into(),
+            ],
+            ..codex_tooled()
+        };
+        let line = |syntax| {
+            agent_command(&codex_spec(CodexLaunch::default()), syntax, &hooks)
+                .unwrap()
+                .unwrap()
+        };
+        assert_eq!(
+            line(ShellSyntax::PowerShell),
+            "codex -p dummyplane-n1 -c 'skills.config=[{name=''imagegen'',enabled=false},{name=''pdf:pdf'',enabled=false}]' -c 'plugins.figma@openai-curated.enabled=true'"
+        );
+        assert_eq!(
+            line(ShellSyntax::Cmd),
+            "codex -p dummyplane-n1 -c \"skills.config=[{name='imagegen',enabled=false},{name='pdf:pdf',enabled=false}]\" -c \"plugins.figma@openai-curated.enabled=true\""
+        );
+        assert_eq!(
+            line(ShellSyntax::Posix),
+            "codex -p dummyplane-n1 -c 'skills.config=[{name='\\''imagegen'\\'',enabled=false},{name='\\''pdf:pdf'\\'',enabled=false}]' -c 'plugins.figma@openai-curated.enabled=true'"
+        );
     }
 
     fn codex_spec(launch: CodexLaunch) -> SpawnSpec {

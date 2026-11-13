@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   LOOP_TEMPLATES,
+  loopsOf,
   MAX_LOOPS,
+  placeLoops,
   readLoops,
+  readUnplacedLoops,
   stopsAfter,
   validateLoop,
   withLoop,
@@ -77,21 +80,67 @@ describe("stopsAfter", () => {
 describe("readLoops and the list", () => {
   const good = (() => {
     const r = validateLoop(draft());
-    return { ...(r.ok ? r.loop : ({} as LoopDef)), id: "1" };
+    return { ...(r.ok ? r.loop : ({} as LoopDef)), id: "1", projectId: "p1" };
   })();
 
   it("reads a good list, nothing from a damaged setting, and drops an invalid loop alone", () => {
-    expect(readLoops({ version: 1, loops: [good] })).toEqual([good]);
-    for (const bad of [null, 4, "x", [], { version: 2, loops: [good] }, { version: 1, loops: "no" }]) expect(readLoops(bad)).toEqual([]);
+    expect(readLoops({ version: 2, loops: [good] })).toEqual([good]);
+    for (const bad of [null, 4, "x", [], { version: 3, loops: [good] }, { version: 2, loops: "no" }]) expect(readLoops(bad)).toEqual([]);
     const noStop = { ...good, id: "2", maxRuns: undefined };
-    expect(readLoops({ version: 1, loops: [noStop, good, { id: 3 }] })).toEqual([good]);
+    // A loop of version 2 names its project: one without is not read.
+    const noProject = { ...good, id: "4", projectId: undefined };
+    expect(readLoops({ version: 2, loops: [noStop, good, { id: 3 }, noProject] })).toEqual([good]);
   });
 
-  it("keeps at most 30 loops, replaces one by id, removes one by id", () => {
+  it("keeps at most 30 loops per project, replaces one by id, removes one by id", () => {
     const many = Array.from({ length: MAX_LOOPS + 5 }, (_, i) => ({ ...good, id: String(i) }));
-    expect(readLoops({ version: 1, loops: many })).toHaveLength(MAX_LOOPS);
+    const other = { ...good, id: "other", projectId: "p2" };
+    expect(readLoops({ version: 2, loops: [...many, other] })).toEqual([...many.slice(0, MAX_LOOPS), other]);
     expect(withLoop([good], { ...good, name: "Autre" })!.map((l) => l.name)).toEqual(["Autre"]);
     expect(withLoop(many.slice(0, MAX_LOOPS), { ...good, id: "new" })).toBeNull();
+    // A full project leaves room in another, and a loop of the full one can still change.
+    expect(withLoop(many.slice(0, MAX_LOOPS), other)).toHaveLength(MAX_LOOPS + 1);
+    expect(withLoop(many.slice(0, MAX_LOOPS), { ...good, id: "0", name: "Autre" })).toHaveLength(MAX_LOOPS);
     expect(withoutLoop([good], "1")).toEqual([]);
+  });
+});
+
+describe("loops per project", () => {
+  const base = (() => {
+    const r = validateLoop(draft());
+    return r.ok ? r.loop : ({} as LoopDef);
+  })();
+  const v1 = (id: string, targets: string[]) => ({ ...base, id, targets });
+
+  it("reads a setting saved before loops had a project, and only such a one, as loops to place", () => {
+    expect(readUnplacedLoops({ version: 1, loops: [v1("a", ["t1"]), { id: 3 }] })).toEqual([v1("a", ["t1"])]);
+    for (const other of [null, { version: 2, loops: [] }, { version: 1, loops: "no" }]) expect(readUnplacedLoops(other)).toBeNull();
+    // The new reader does not take it for its own.
+    expect(readLoops({ version: 1, loops: [v1("a", ["t1"])] })).toEqual([]);
+  });
+
+  it("places each old loop once: its targets' project, else the project open, else none, and never drops one", () => {
+    const projectOf = { t1: "p1", t2: "p1", t3: "p2" };
+    const placed = placeLoops([v1("same", ["t1", "t2"]), v1("half-gone", ["t1", "gone"]), v1("spread", ["t1", "t3"]), v1("gone", ["gone"])], projectOf, "p9");
+    expect(placed.map((l) => [l.id, l.projectId])).toEqual([
+      ["same", "p1"],
+      ["half-gone", "p1"],
+      ["spread", "p9"],
+      ["gone", "p9"],
+    ]);
+    // No project open: placed in none, which every project shows.
+    expect(placeLoops([v1("gone", ["gone"])], {}, null)[0].projectId).toBe("");
+    expect(placed[0]).toEqual({ ...v1("same", ["t1", "t2"]), projectId: "p1" });
+  });
+
+  it("shows a project its own loops, and those of no project it knows", () => {
+    const loops = [
+      { ...v1("mine", ["t1"]), projectId: "p1" },
+      { ...v1("theirs", ["t3"]), projectId: "p2" },
+      { ...v1("none", ["gone"]), projectId: "" },
+      { ...v1("removed", ["t9"]), projectId: "p-removed" },
+    ];
+    expect(loopsOf(loops, "p1", ["p1", "p2"]).map((l) => l.id)).toEqual(["mine", "none", "removed"]);
+    expect(loopsOf(loops, "p2", ["p1", "p2"]).map((l) => l.id)).toEqual(["theirs", "none", "removed"]);
   });
 });

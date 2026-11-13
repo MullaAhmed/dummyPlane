@@ -1,9 +1,10 @@
 import { useStore } from "zustand";
 import { sendToAgents } from "@/agents/broadcast";
-import { getSetting, setSetting } from "@/ipc/db";
+import { getSetting, projectsOfNodes, setSetting } from "@/ipc/db";
 import { freshText } from "@/nodes/terminal/registry";
 import { agentActivityStore } from "@/store/agentActivity";
 import { nodesStore, terminalOf } from "@/store/nodes";
+import { projectsStore } from "@/store/projects";
 import { acceptsInstruction } from "./engine";
 import { createLoopsStore, LOOPS_KEY, type LoopsState } from "./store";
 
@@ -15,6 +16,7 @@ export const loopsStore = createLoopsStore(
   {
     now: () => Date.now(),
     isLive: (id) => nodesStore.getState().nodes[id]?.kind === "terminal",
+    isAgent: (id) => isAgentTerminal(id),
     activityOf: (id) => agentActivityStore.getState().activities[id]?.activity,
     screenOf: (id) => freshText(id, 40),
     canReceive: (id) => acceptsInstruction(terminalOf(nodesStore.getState().nodes[id])?.agent, freshText(id, 40)),
@@ -23,8 +25,19 @@ export const loopsStore = createLoopsStore(
       return { sent };
     },
   },
-  { read: () => getSetting<unknown>(LOOPS_KEY), write: (value) => setSetting(LOOPS_KEY, value) },
+  {
+    read: () => getSetting<unknown>(LOOPS_KEY),
+    write: (value) => setSetting(LOOPS_KEY, value),
+    projectsOf: projectsOfNodes,
+    activeProject: () => projectsStore.getState().activeId,
+  },
 );
+
+/** A terminal running an agent, not a plain shell: what a loop may target, and type into. */
+export function isAgentTerminal(id: string): boolean {
+  const agent = terminalOf(nodesStore.getState().nodes[id])?.agent;
+  return agent !== undefined && agent !== "shell";
+}
 
 // The idle trigger hears each change of an agent's activity.
 agentActivityStore.subscribe((state, previous) => {
