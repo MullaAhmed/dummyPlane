@@ -1,14 +1,16 @@
 // @vitest-environment happy-dom
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { canvasStore } from "@/canvas/canvasStore";
 import { createRemovalGuard } from "@/canvas/removalGuard";
+import { relaunchSession } from "@/nodes/terminal/session";
 import { nodesStore, type NodeRecord } from "@/store/nodes";
-import { isRunning, terminalStatusStore } from "@/store/terminalStatus";
+import { isAlive, isRunning, terminalStatusStore } from "@/store/terminalStatus";
 import { uiStore } from "@/store/ui";
 import { workspacesStore } from "@/store/workspaces";
-import { closeGroup } from "./groups";
+import { closeGroup, requestCloseGroup } from "./groups";
 import { removeNodes, requestClose } from "./terminals";
 
 // Excalidraw does not load under Vitest (roughjs): its two helpers, as they behave.
@@ -80,6 +82,46 @@ describe("closing running agents, confirmed", () => {
     closeGroup("g");
     expect(scene.every((e) => e.isDeleted)).toBe(true);
     expect(check(scene, ["robin", "cyborg"])).toEqual({ dispose: ["robin", "cyborg"], restore: [], ask: null });
+  });
+});
+
+describe("closing an agent being started again (review 13 Nov)", () => {
+  const term = { cols: 80, rows: 24, write: () => undefined };
+  const shell = { title: "Batman", name: "Batman", agent: "shell" as const, cwd: "C:/code", shell: "default" as const, command: "" };
+  // The pty as the app sees it: a kill answered by the exit boot's pty-exit handler records.
+  beforeEach(() =>
+    mockIPC((cmd, args) => {
+      if (cmd === "pty_kill") terminalStatusStore.getState().set((args as { nodeId: string }).nodeId, { state: "exited", code: null });
+      return cmd === "pty_spawn" ? 1 : undefined;
+    }),
+  );
+  afterEach(() => {
+    clearMocks();
+    uiStore.setState({ closingGroup: null });
+    canvasStore.setState({ frames: [] });
+  });
+
+  it("asks first, as for a running one, from its header and when the canvas loses it: its old process gone, its new one on its way", async () => {
+    const seen: unknown[] = [];
+    await relaunchSession("batman", term, shell, "new", () => {
+      requestClose("batman");
+      seen.push(uiStore.getState().closing, createRemovalGuard(isAlive, scene)(scene, ["batman"]).ask);
+    });
+    expect(seen).toEqual([
+      { agents: ["batman"], remove: ["batman"] },
+      { agents: ["batman"], remove: ["batman"] },
+    ]);
+    expect(scene.find((e) => e.id === "batman")?.isDeleted).toBe(false);
+  });
+
+  it("asks before closing a group one of whose agents is being started again", async () => {
+    canvasStore.setState({ frames: [{ id: "g", name: "Serveurs", x: 0, y: 0, width: 10, height: 10, group: { role: "backend", pantheon: "egypt" }, memberIds: ["batman"] }] });
+    let asked: string | null = null;
+    await relaunchSession("batman", term, shell, "new", () => {
+      requestCloseGroup("g");
+      asked = uiStore.getState().closingGroup;
+    });
+    expect(asked).toBe("g");
   });
 });
 

@@ -13,7 +13,7 @@ import type { TerminalPayload } from "@/nodes/types";
 import { nodesStore, terminalOf } from "@/store/nodes";
 import { messages } from "@/i18n";
 import { agentsMessages } from "./messages";
-import { isRunning, statusOf } from "@/store/terminalStatus";
+import { isAlive, statusOf } from "@/store/terminalStatus";
 import { toastError } from "@/lib/errorToast";
 import { uiStore } from "@/store/ui";
 import { workspacesStore } from "@/store/workspaces";
@@ -333,7 +333,7 @@ export function closeStoredGroup(workspaceId: string, groupId: string) {
 /** Asks first when agents of the group are still running. */
 export function requestCloseGroup(groupId: string) {
   const group = canvasStore.getState().frames.find((f) => f.id === groupId);
-  if (group?.memberIds.some(isRunning)) uiStore.getState().setClosingGroup(groupId);
+  if (group?.memberIds.some(isAlive)) uiStore.getState().setClosingGroup(groupId);
   else closeGroup(groupId);
 }
 

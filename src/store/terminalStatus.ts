@@ -63,18 +63,25 @@ export function isRestarting(nodeId: string): boolean {
   return (terminalStatusStore.getState().restarts[nodeId] ?? 0) > 0;
 }
 
+/** Whether closing the terminal would end a session: its process runs, or it is being started again. */
+export function isAlive(nodeId: string): boolean {
+  return isRunning(nodeId) || isRestarting(nodeId);
+}
+
 /**
  * Runs `restart`, a terminal's restarts one at a time: one asked while another is under way starts once that one has
  * ended, failed or not, never alongside it (the backend refuses a second start, and the terminal would show an
  * error with its process running). Marked restarting from the call, though it may wait its turn. The first one asked
- * runs at once, as a restart always did.
+ * runs at once, as a restart always did. `restart` is told whether its terminal is still there (`current`): closed
+ * meanwhile, nothing may start in its place.
  */
-export function restartInTurn(nodeId: string, restart: () => Promise<void>): Promise<void> {
+export function restartInTurn(nodeId: string, restart: (current: () => boolean) => Promise<void>): Promise<void> {
   const life = lives.get(nodeId) ?? 0;
+  const current = () => (lives.get(nodeId) ?? 0) === life;
   terminalStatusStore.getState().restart(nodeId, 1);
   const run = () =>
-    restart().finally(() => {
-      if ((lives.get(nodeId) ?? 0) === life) terminalStatusStore.getState().restart(nodeId, -1);
+    restart(current).finally(() => {
+      if (current()) terminalStatusStore.getState().restart(nodeId, -1);
     });
   const before = turns.get(nodeId);
   const turn = before ? before.then(run, run) : run();
@@ -82,7 +89,8 @@ export function restartInTurn(nodeId: string, restart: () => Promise<void>): Pro
     () => undefined,
     () => undefined,
   );
-  turns.set(nodeId, ended);
+  // Closed already (in the same tick): the restarts of its next life do not wait for this one.
+  if (current()) turns.set(nodeId, ended);
   void ended.then(() => {
     if (turns.get(nodeId) === ended) turns.delete(nodeId);
   });

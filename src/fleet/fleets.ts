@@ -9,7 +9,7 @@ import { markForAutostart } from "@/nodes/terminal/registry";
 import { messages } from "@/i18n";
 import { nodesMessages } from "@/nodes/messages";
 import { nodesStore } from "@/store/nodes";
-import { isRunning } from "@/store/terminalStatus";
+import { isAlive } from "@/store/terminalStatus";
 import { uiStore } from "@/store/ui";
 import { workspacesStore } from "@/store/workspaces";
 import { sceneAccess } from "@/agents/sceneAccess";
@@ -113,7 +113,7 @@ export function removeFleet(fleetId: string) {
 /** The × and "Close the fleet": a working fleet asks first. */
 export function requestCloseFleet(fleetId: string) {
   const api = canvasStore.getState().api;
-  if (!api || !isRunning(fleetId)) return removeFleet(fleetId);
+  if (!api || !isAlive(fleetId)) return removeFleet(fleetId);
   const wires = fleetWires(api.getSceneElementsIncludingDeleted(), fleetId);
   uiStore.getState().setClosing({ agents: [fleetId], remove: [fleetId, ...wires] });
 }

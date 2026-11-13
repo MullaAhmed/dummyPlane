@@ -25,7 +25,7 @@ import { createNoteActivation, createNoteWatch, onNodesGone } from "@/nodes/note
 import { releaseTeamPermission, setFleetClosed } from "@/mission/store";
 import { disposeTerminal, focusTerminal } from "@/nodes/terminal/registry";
 import { nodesStore } from "@/store/nodes";
-import { isRunning } from "@/store/terminalStatus";
+import { isAlive } from "@/store/terminalStatus";
 import { uiStore } from "@/store/ui";
 import { setActiveTerminal } from "./activeTerminal";
 import { createActivationTracker } from "./activation";
@@ -113,8 +113,8 @@ function LoadedCanvas({ workspaceId, scene }: { workspaceId: string; scene: Load
   const theme = useTheme();
   const palette = usePalette();
   const initialData = useMemo(() => withSceneDefaults(scene.initialData), [scene]);
-  // A running agent never leaves unasked; sceneSync tells which nodes left.
-  const guardRemovals = useMemo(() => createRemovalGuard(isRunning, scene.initialData.elements ?? []), [scene]);
+  // A running agent never leaves unasked, nor one being started again; sceneSync tells which nodes left.
+  const guardRemovals = useMemo(() => createRemovalGuard(isAlive, scene.initialData.elements ?? []), [scene]);
   const removedNow = useRef<string[]>([]);
 
   // The shell (rails, zoom, panels) drives the Excalidraw instance on screen.
