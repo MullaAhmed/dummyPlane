@@ -140,6 +140,33 @@ describe("moveCardWithGithub", () => {
     expect(toast.error).not.toHaveBeenCalled();
   });
 
+  it("moves the Project item of an issue added to the Project since the board last read it", async () => {
+    let items = [item("PVTI_2", 2, "To do")];
+    mockGithub({
+      github_list_issues: () => [issue(1, "open")],
+      github_list_project_items: () => items,
+      github_project_statuses: () => ["To do", "In progress", "Done"],
+    });
+    expect(await syncBoard("b")).toBe(true);
+    // Issue #1 joins the Project on GitHub (an auto-add workflow, a teammate) after the sync.
+    items = [...items, item("PVTI_1", 1, "To do")];
+    await moveCardWithGithub("b", "k1", "doing");
+    expect(calls).toContainEqual(["github_move_project_item", { path: "C:/r", owner: "o", projectNumber: 2, itemId: "PVTI_1", status: "In progress" }]);
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("does not read the Project again for a card outside it moved to a column that is no Status", async () => {
+    mockGithub({
+      github_list_issues: () => [issue(1, "open")],
+      github_list_project_items: () => [item("PVTI_2", 2, "Todo")],
+      github_project_statuses: () => ["Todo", "Done"],
+    });
+    expect(await syncBoard("b")).toBe(true);
+    calls = [];
+    await moveCardWithGithub("b", "k1", "doing");
+    expect(calls).toEqual([]);
+  });
+
   it("keeps the card moved and says why when GitHub refuses", async () => {
     mockGithub({
       github_list_project_items: () => [],

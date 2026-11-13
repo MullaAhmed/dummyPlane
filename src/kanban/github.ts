@@ -106,11 +106,16 @@ export async function syncBoard(nodeId: string): Promise<boolean> {
   }
 }
 
-/** The Project context of a board, read from GitHub when no sync brought it yet. */
-async function moveContext(nodeId: string, path: string, link: KanbanBoardLink | undefined): Promise<MoveContext> {
+/**
+ * The Project context of a board, read from GitHub when no sync brought it yet, or again when it lacks the issue
+ * (`githubKey`) moved to a Status column: one that joined the Project since would not follow, and the next sync take
+ * its card back. A move to any other column changes no Status.
+ */
+async function moveContext(nodeId: string, path: string, link: KanbanBoardLink | undefined, issue: string, column: string): Promise<MoveContext> {
   if (!link?.project) return {};
   const known = projectContexts.get(nodeId);
-  if (known) return known;
+  const toStatus = known?.projectStatuses?.some((status) => status.trim().toLowerCase() === column.trim().toLowerCase());
+  if (known && (known.projectItemIdByKey?.[issue] !== undefined || !toStatus)) return known;
   const { context } = await loadProject(path, link.project);
   projectContexts.set(nodeId, context);
   return context;
@@ -151,10 +156,13 @@ export async function moveCardWithGithub(nodeId: string, cardId: string, toColum
 async function followOnGithub(nodeId: string, cardId: string, toColumnId: string, before: KanbanPayload, path: string) {
   const link = boardOf(nodeId)?.cards[cardId]?.github;
   const decided = link ? updateCard(before, cardId, { github: link }) : before;
+  const issue = decided.cards[cardId]?.github;
   let actions: RemoteAction[];
   let failure: unknown = null;
   try {
-    actions = remoteActionsForMove(decided, cardId, toColumnId, await moveContext(nodeId, path, before.github));
+    const column = before.columns.find((c) => c.id === toColumnId)?.title ?? "";
+    const context = await moveContext(nodeId, path, before.github, issue ? githubKey(issue.repo, issue.number) : "", column);
+    actions = remoteActionsForMove(decided, cardId, toColumnId, context);
   } catch (error) {
     failure = error;
     // Without the Project, the issue's state still follows.
