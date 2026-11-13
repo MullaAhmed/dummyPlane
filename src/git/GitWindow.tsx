@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
-import { GitBranch, RotateCw, Undo2, X } from "lucide-react";
+import { ChevronDown, GitBranch, RotateCw, Undo2, X } from "lucide-react";
 import { toast } from "sonner";
 import { PanelTabs, PanelTabsContent, PanelTabsList, PanelTabsTrigger } from "@/components/PanelTabs";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Textarea } from "@/components/ui/textarea";
 import { useMessages } from "@/i18n";
-import { repoCommit, repoDiscard, repoPush, repoState, type RepoState } from "@/ipc/repo";
+import { repoBranches, repoCommit, repoDiscard, repoPush, repoState, repoSwitch, type RepoState } from "@/ipc/repo";
 import type { ChangedFile } from "@/ipc/review";
 import { cn } from "@/lib/utils";
 import { FILE_STATUS, fileSummary, statusWords } from "@/review/DiffRow";
@@ -115,11 +116,7 @@ function GitDrawer({ path }: { path: string }) {
       <header className="flex h-10 shrink-0 items-center gap-2 border-b border-dp-line px-3">
         <GitBranch className="size-4 shrink-0 text-dp-text-2" />
         <span className="shrink-0 text-sm font-medium">{t.title}</span>
-        {repo && (
-          <span className="min-w-0 truncate font-mono text-xs text-dp-text-2" title={repo.branch}>
-            {repo.branch}
-          </span>
-        )}
+        {repo && <BranchMenu path={path} branch={repo.branch} onSwitched={again} onFailure={setFailure} />}
         {repo && repo.ahead > 0 && <span className="shrink-0 font-mono text-xs text-dp-text-2 tabular-nums">{t.ahead(repo.ahead)}</span>}
         {repo && repo.behind > 0 && <span className="shrink-0 font-mono text-xs text-dp-wait tabular-nums">{t.behind(repo.behind)}</span>}
         <span className="ml-auto flex shrink-0 items-center gap-1">
@@ -159,6 +156,88 @@ function GitDrawer({ path }: { path: string }) {
         )}
       </PanelTabs>
     </aside>
+  );
+}
+
+/**
+ * The branch in the header, and the menu of the project's local branches it opens. A switch is git's
+ * `switch` of an existing branch: when local changes would be overwritten, git refuses and says so here.
+ */
+function BranchMenu({ path, branch, onSwitched, onFailure }: { path: string; branch: string; onSwitched: () => Promise<void>; onFailure: (failure: string | null) => void }) {
+  const t = useMessages(gitMessages).branch;
+  const [open, setOpen] = useState(false);
+  const [names, setNames] = useState<string[] | null>(null);
+  const [switching, setSwitching] = useState(false);
+
+  // A list arriving after the menu was closed, or opened again, is not the one being asked for.
+  const reads = useRef(0);
+  const onOpenChange = (next: boolean) => {
+    // One switch at a time: the menu stays shut until the branch shown is the one git is on.
+    if (next && switching) return;
+    const turn = ++reads.current;
+    setOpen(next);
+    if (!next) return;
+    setNames(null);
+    repoBranches(path).then(
+      (listed) => {
+        if (turn === reads.current) setNames(listed);
+      },
+      (failed: unknown) => {
+        if (turn !== reads.current) return;
+        setOpen(false);
+        onFailure(errorText(failed));
+      },
+    );
+  };
+
+  const switchTo = async (name: string) => {
+    setSwitching(true);
+    onFailure(null);
+    try {
+      await repoSwitch(path, name);
+      toast(t.switched(name));
+    } catch (failed) {
+      onFailure(errorText(failed));
+    } finally {
+      await onSwitched();
+      setSwitching(false);
+    }
+  };
+
+  return (
+    <DropdownMenu open={open} onOpenChange={onOpenChange}>
+      <DropdownMenuTrigger
+        aria-label={t.menu}
+        aria-busy={switching}
+        title={branch}
+        className="flex min-w-0 items-center gap-1 rounded-sm font-mono text-xs text-dp-text-2 hover:text-dp-text focus-visible:ring-2 focus-visible:ring-dp-accent/70 focus-visible:outline-none aria-busy:opacity-60"
+      >
+        <span className="min-w-0 truncate">{branch}</span>
+        <ChevronDown aria-hidden className="size-3.5 shrink-0 text-dp-text-2" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="max-h-72 min-w-48">
+        {names === null ? (
+          <p className="px-2 py-1.5 text-xs text-dp-text-3">{t.reading}</p>
+        ) : (
+          <>
+            {names.map((name) => (
+              <DropdownMenuItem
+                key={name}
+                disabled={name === branch}
+                aria-current={name === branch ? "true" : undefined}
+                title={name === branch ? t.current : undefined}
+                onSelect={() => void switchTo(name)}
+                className="font-mono text-xs"
+              >
+                {name}
+              </DropdownMenuItem>
+            ))}
+            {/* The current branch is always listed, greyed: "none" is the case where it is the only one. */}
+            {names.every((name) => name === branch) && <p className="px-2 py-1.5 text-xs text-dp-text-3">{t.none}</p>}
+          </>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
