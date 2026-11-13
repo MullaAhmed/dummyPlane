@@ -254,6 +254,7 @@ function readQueued(task: QueuedTask): QueuedTask {
     ...(level ? { level } : {}),
     ...(typeof group?.id === "string" && typeof group.name === "string" ? { group: { id: group.id, name: group.name } } : {}),
     ...(typeof task.card === "string" && task.card ? { card: task.card } : {}),
+    ...(typeof task.handedBy === "string" && task.handedBy ? { handedBy: task.handedBy } : {}),
   };
 }
 

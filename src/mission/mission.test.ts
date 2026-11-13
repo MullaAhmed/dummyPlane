@@ -168,6 +168,13 @@ describe("tasks for the queue", () => {
     expect(saved?.members[0].past).toEqual([past]);
     expect(readMission({ state: "plan" })).not.toHaveProperty("queue");
   });
+
+  it("keeps, after a restart, the agent that handed a task over: the Fleet's mission status still names it", () => {
+    const task = { title: "Docs", brief: "B", budgetMin: 1, handedBy: "Batman" };
+    const saved = readMission(JSON.parse(JSON.stringify({ state: "en_cours", queue: [task], plan: [{ ...task, title: "API", agent: "nouveau" }], members: [] })));
+    expect(saved?.queue).toEqual([task]);
+    expect(saved?.plan).toEqual([{ ...task, title: "API", agent: "nouveau" }]);
+  });
 });
 
 describe("a refused plan in English", () => {
