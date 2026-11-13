@@ -99,6 +99,7 @@ impl PtyManager {
         let node_id = node_id.to_string();
         std::thread::spawn(move || {
             let code = child.wait().ok().map(|status| status.exit_code());
+            session.end_tree();
             session.close();
             // Wait for the reader so every byte reaches the sink before the exit
             // is reported, but not for ever: on Windows its pipe only reaches EOF
@@ -744,6 +745,84 @@ mod windows_tests {
             rx.try_recv().is_ok() && rx.try_recv().is_ok(),
             "both exits were handled"
         );
+    }
+
+    /// The `ping`s under `root`, whatever stands between: those this test started, and only those.
+    fn pings_under(root: u32) -> Vec<u32> {
+        let procs = watch::processes();
+        let mut tree = vec![root];
+        let mut pings = Vec::new();
+        while let Some(parent) = tree.pop() {
+            for proc in procs
+                .iter()
+                .filter(|p| p.parent == parent && p.pid != parent)
+            {
+                tree.push(proc.pid);
+                if proc.name == "ping" {
+                    pings.push(proc.pid);
+                }
+            }
+        }
+        pings
+    }
+
+    fn alive(pid: u32, name: &str) -> bool {
+        watch::processes()
+            .iter()
+            .any(|p| p.pid == pid && p.name == name)
+    }
+
+    /// What a terminal starts in a hidden console of its own lives outside its pseudo console, which closing it
+    /// ends: a process PowerShell starts hidden, and the grandchild of a Node program (an agent's Bash tool, its
+    /// dev server, an MCP server) that it starts with `windowsHide`. They stop with the terminal all the same.
+    #[test]
+    fn killing_a_terminal_stops_what_it_started_in_hidden_consoles() {
+        let node = std::process::Command::new("node")
+            .arg("--version")
+            .output()
+            .is_ok_and(|out| out.status.success());
+        let mut input = String::new();
+        if node {
+            // Node puts its child in a job of its own that lets that child's children leave it: as Claude's Bash tool.
+            input.push_str("start /b node -e \"require('child_process').spawn('cmd',['/c','ping','-n','60','127.0.0.1'],{windowsHide:true,stdio:'ignore'});setInterval(()=>{},1000)\"\r");
+        }
+        input.push_str("powershell -NoProfile -Command \"$p = Start-Process ping -ArgumentList '-n','60','127.0.0.1' -WindowStyle Hidden -PassThru; Wait-Process -Id $p.Id\"\r");
+        let mgr = PtyManager::default();
+        let exited = spawn_answering(
+            &mgr,
+            "tree",
+            cmd_plan(&[], Some(&input)),
+            VecSink::default(),
+        );
+        let root = mgr.get("tree").and_then(|session| session.pid).unwrap();
+        let expected = if node { 2 } else { 1 };
+        let mut pings = Vec::new();
+        wait_until("the hidden pings", || {
+            pings = pings_under(root);
+            pings.len() >= expected
+        });
+        mgr.kill("tree");
+        wait_exit(&exited);
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while pings.iter().any(|&pid| alive(pid, "ping")) && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        let left: Vec<u32> = pings
+            .iter()
+            .copied()
+            .filter(|&pid| alive(pid, "ping"))
+            .collect();
+        // Stopped here if the terminal left them: they are this test's.
+        for pid in &left {
+            let _ = std::process::Command::new("taskkill")
+                .args(["/F", "/PID", &pid.to_string()])
+                .output();
+        }
+        assert!(
+            left.is_empty(),
+            "left running after the terminal's kill: {left:?} of {pings:?}"
+        );
+        eprintln!("pings stopped with their terminal: {pings:?} (node: {node})");
     }
 
     #[test]

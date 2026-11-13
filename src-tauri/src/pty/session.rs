@@ -8,6 +8,7 @@ use super::paste::{ImageMarks, PasteMode};
 use super::scrollback::{Capture, SCROLLBACK_CAPACITY, Scrollback, capture_time};
 use super::shell::SpawnPlan;
 use crate::error::{AppError, AppResult};
+use crate::process::ProcessTree;
 use crate::sync::lock;
 
 /// Receives raw PTY output. Implemented by the Tauri channel in production and by
@@ -31,6 +32,8 @@ pub struct Session {
     writer: Mutex<Box<dyn Write + Send>>,
     master: Mutex<Option<Box<dyn MasterPty + Send>>>,
     killer: Mutex<Box<dyn ChildKiller + Send + Sync>>,
+    /// What the process starts, ended with it (`ProcessTree`).
+    tree: ProcessTree,
     output: Mutex<Output>,
     paste: Mutex<PasteMode>,
     images: Mutex<ImageMarks>,
@@ -70,6 +73,8 @@ impl Session {
             cmd.env_remove(key);
         }
         let child = pair.slave.spawn_command(cmd).map_err(pty_err)?;
+        // At once, before the process starts others: they join its tree.
+        let tree = ProcessTree::adopt(child.as_ref());
         // The child owns its end now; keeping ours open would delay EOF on exit.
         drop(pair.slave);
 
@@ -83,6 +88,7 @@ impl Session {
             writer: Mutex::new(writer),
             master: Mutex::new(Some(pair.master)),
             killer: Mutex::new(child.clone_killer()),
+            tree,
             output: Mutex::new(Output {
                 scrollback: Scrollback::with_history(SCROLLBACK_CAPACITY, history),
                 sink: Some(sink),
@@ -141,9 +147,15 @@ impl Session {
         Ok(())
     }
 
-    /// Best effort: the process may already be gone.
+    /// Best effort: the process may already be gone. What it started goes with it, hidden or not.
     pub fn kill(&self) {
+        self.tree.end();
         let _ = lock(&self.killer).kill();
+    }
+
+    /// The process exited: what it started and left running ends too.
+    pub fn end_tree(&self) {
+        self.tree.end();
     }
 
     /// Closing the pseudo console is what lets the reader reach EOF on Windows.
