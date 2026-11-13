@@ -19,6 +19,8 @@ vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: vi.fn(() => Promise.resol
 let calls: { cmd: string; args: Record<string, unknown> }[];
 /** What the tree reads: three entries, unless a test wants more. */
 let entries: { path: string; kind: "file" | "dir" }[];
+/** Whether the tree answers that the project has more files than it lists. */
+let treeIsCut: boolean;
 /** What a file reads. */
 let fileText: string;
 /** What the disk answers to a comparison. */
@@ -29,6 +31,7 @@ let root: Root;
 beforeEach(async () => {
   calls = [];
   disk = "v1";
+  treeIsCut = false;
   entries = [
     { path: "docs", kind: "dir" },
     { path: "docs/guide.md", kind: "file" },
@@ -37,7 +40,7 @@ beforeEach(async () => {
   fileText = "# Guide\n<script>alert(1)</script>\n";
   mockIPC((cmd, args) => {
     calls.push({ cmd, args: args as Record<string, unknown> });
-    if (cmd === "studio_tree") return entries;
+    if (cmd === "studio_tree") return { entries, truncated: treeIsCut };
     if (cmd === "studio_read") return { text: fileText, version: "v1" };
     if (cmd === "studio_version") return disk;
     if (cmd === "studio_write") return { status: "saved", version: "v2" };
@@ -68,6 +71,16 @@ afterEach(async () => {
 
 const modal = () => document.querySelector<HTMLElement>("[data-code-workspace]")!;
 const click = (el: Element | null) => act(async () => (el as HTMLElement).click());
+
+it("says when the project has more files than the tree lists, so that a file past the cut is not taken for a missing one", async () => {
+  await vi.waitFor(() => expect(modal().querySelector('[data-path="docs"]')).not.toBeNull());
+  expect(modal().textContent).not.toContain("are listed");
+  treeIsCut = true;
+  await click(modal().querySelector('button[aria-label="Refresh the tree"]'));
+  await vi.waitFor(() => expect(modal().textContent).toContain("Only the first 3 entries are listed: the filter searches these only"));
+  // The tree itself is still there to browse.
+  expect(modal().querySelector('[data-path="docs"]')).not.toBeNull();
+});
 
 it("browses the tree, edits a file, saves it with Ctrl+S and previews Markdown safely", async () => {
   await vi.waitFor(() => expect(modal().querySelector('[data-path="docs"]')).not.toBeNull());

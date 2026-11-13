@@ -95,6 +95,8 @@ interface FileTreeProps {
 function FileTree({ project, active, expanded, setExpanded, onOpen }: FileTreeProps) {
   const t = useMessages(studioMessages);
   const [entries, setEntries] = useState<TreeEntry[] | null>(null);
+  // The project has more entries than the list holds: said under the tree.
+  const [listCut, setListCut] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [refresh, setRefresh] = useState(0);
@@ -104,7 +106,11 @@ function FileTree({ project, active, expanded, setExpanded, onOpen }: FileTreePr
     setEntries(null);
     setError(null);
     studioTree(project).then(
-      (found) => alive && setEntries(found),
+      (found) => {
+        if (!alive) return;
+        setListCut(found.truncated);
+        setEntries(found.entries);
+      },
       (failure: unknown) => alive && setError(errorText(failure)),
     );
     return () => {
@@ -193,6 +199,8 @@ function FileTree({ project, active, expanded, setExpanded, onOpen }: FileTreePr
             </div>
             {/* The cut is said: a file past it is not missing, the filter finds it (P2-52). */}
             {rows.length > MAX_ROWS && <ListMessage>{t.treeCut(MAX_ROWS)}</ListMessage>}
+            {/* The project's own cut: the filter only searches what was listed, so it says so. */}
+            {listCut && <ListMessage>{t.treeListCut(entries.length)}</ListMessage>}
           </>
         )}
       </div>
