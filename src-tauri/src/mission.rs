@@ -685,6 +685,8 @@ mod tests {
         let hulk = add_agent(&proj, &mission.slug, "Hulk").unwrap();
         commit(Path::new(&hulk.path), "login.txt", "login\n", "login");
         run(&proj, &["config", "commit.gpgsign", "true"]);
+        // `gpg.program` is OpenPGP's, whatever the developer's own config picks.
+        run(&proj, &["config", "gpg.format", "openpgp"]);
         run(&proj, &["config", "gpg.program", &signer(parent.path())]);
         let m = Path::new(&mission.path);
         let report = merge_agent(m, Path::new(&hulk.path), &hulk.branch).unwrap();

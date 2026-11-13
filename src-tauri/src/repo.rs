@@ -755,6 +755,8 @@ mod tests {
         let (dir, root) = repo();
         let program = signer(dir.path());
         raw(&root, &["config", "commit.gpgsign", "true"]);
+        // `gpg.program` is OpenPGP's, whatever the developer's own config picks.
+        raw(&root, &["config", "gpg.format", "openpgp"]);
         raw(&root, &["config", "gpg.program", &program]);
         fs::write(root.join("a.txt"), "two\n").unwrap();
         let err = commit(&root, &[file(&root, "a.txt")], "two").unwrap_err();
