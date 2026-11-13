@@ -5,6 +5,7 @@ import { nodesStore, sessionOf, updateSession } from "@/store/nodes";
 import { isRunning, restartInTurn, statusOf, stillOpen, terminalStatusStore, waitForExit } from "@/store/terminalStatus";
 import { accountsStore, loadAccounts } from "@/accounts/store";
 import { markLaunch, markResumedLaunch } from "@/usage/usageStore";
+import { readSubagentExtras } from "@/ipc/subagentExtras";
 import { buildSpawnSpec, launchSettingsOf, sameLaunch, type LaunchMode } from "./launch";
 import { applyShellAgent } from "./shellAgent";
 import { accountsMessages } from "@/accounts/messages";
@@ -98,7 +99,10 @@ export async function startSession(nodeId: string, term: TermSink, payload: Term
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     const kind = error instanceof AppError ? error.kind : undefined;
-    setStatus(nodeId, kind ? { state: "error", message, kind } : { state: "error", message });
+    // Refused for want of its pick (only a sub-agent's launch carries one): no fleet without its tools, and no retry
+    // of the fleet's own, its card offers to start it again.
+    const refused = kind === "toolsUnavailable" && readSubagentExtras(payload.extras) ? "pickRefused" : kind;
+    setStatus(nodeId, refused ? { state: "error", message, kind: refused } : { state: "error", message });
     // A refused fleet says why over its terminal; a refused Manager, a plain terminal, in it.
     if (kind !== "toolsUnavailable" || nodesStore.getState().nodes[nodeId]?.kind === "terminal") term.write(`\r\n\x1b[31m${message}\x1b[0m\r\n`);
   }

@@ -27,6 +27,8 @@ export const nodesMessages = defineMessages(
       running: "Running",
       error: "Error",
       toolsUnavailable: "Tools unavailable",
+      // A sub-agent whose spawner's pick of skills, MCP servers and plugins could not be set: it did not start.
+      pickRefused: "Pick not set",
       since: (label: string, duration: string) => `${label} for ${duration}`,
       // A finished agent whose process dummyPlane stopped (`@/agents/finishedStop`): an expand or new work starts it again.
       asleep: (label: string) => `${label} · stopped to free memory, expand to resume`,

@@ -66,7 +66,7 @@ export function pillOf(status: TerminalStatus, activity?: PillActivity, indigo =
         tone: status.code === null || status.code === 0 ? "done" : "failed",
       };
     case "error":
-      return { label: status.kind === "toolsUnavailable" ? t.toolsUnavailable : t.error, tone: "failed" };
+      return { label: status.kind === "toolsUnavailable" ? t.toolsUnavailable : status.kind === "pickRefused" ? t.pickRefused : t.error, tone: "failed" };
   }
 }
 
