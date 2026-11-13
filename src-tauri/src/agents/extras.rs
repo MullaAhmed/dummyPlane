@@ -31,8 +31,10 @@
 //! user turns one on (a project's server may wait for their approval).
 
 use std::collections::BTreeSet;
-use std::io;
+use std::io::{self, Read};
 use std::path::Path;
+use std::process::Stdio;
+use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
@@ -301,20 +303,75 @@ pub fn for_claude(
 /// What a Codex command printed, run in the sub-agent's folder (`run_codex`).
 pub type Run<'a> = dyn Fn(&[&str]) -> io::Result<String> + Sync + 'a;
 
+/// How long a Codex listing may run before it is taken for hung. A cold one, which
+/// fetches Codex's marketplaces, took a minute here; a warm one takes a few seconds.
+/// A sub-agent's launch waits for it, and so does every spawn_agent, which are queued one at a time.
+pub const LISTING_LIMIT: Duration = Duration::from_secs(120);
+
 /// Runs `codex <args>` in `cwd`, its input closed, and answers what it printed.
 pub fn run_codex(codex: &Path, args: &[&str], cwd: &Path) -> io::Result<String> {
+    run_codex_within(codex, args, cwd, LISTING_LIMIT)
+}
+
+/// `run_codex`, stopped and refused when Codex has not ended within `limit`.
+pub fn run_codex_within(
+    codex: &Path,
+    args: &[&str],
+    cwd: &Path,
+    limit: Duration,
+) -> io::Result<String> {
     let mut command = std::process::Command::new(codex);
     command
         .args(args)
         .current_dir(cwd)
-        .stdin(std::process::Stdio::null());
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
     crate::process::hide_window(&mut command);
-    let output = command.output()?;
-    if !output.status.success() {
-        let error = String::from_utf8_lossy(&output.stderr);
+    let mut child = command.spawn()?;
+    // Each pipe read on a thread of its own: Codex would stop on a full one before it could end.
+    let read = |pipe: Option<Box<dyn Read + Send>>| {
+        std::thread::spawn(move || {
+            let mut bytes = Vec::new();
+            if let Some(mut pipe) = pipe {
+                let _ = pipe.read_to_end(&mut bytes);
+            }
+            bytes
+        })
+    };
+    let stdout = read(
+        child
+            .stdout
+            .take()
+            .map(|p| Box::new(p) as Box<dyn Read + Send>),
+    );
+    let stderr = read(
+        child
+            .stderr
+            .take()
+            .map(|p| Box::new(p) as Box<dyn Read + Send>),
+    );
+    let started = Instant::now();
+    let status = loop {
+        if let Some(status) = child.try_wait()? {
+            break status;
+        }
+        if started.elapsed() >= limit {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(io::Error::new(
+                io::ErrorKind::TimedOut,
+                format!("it did not answer within {limit:?}"),
+            ));
+        }
+        std::thread::sleep(Duration::from_millis(25));
+    };
+    let stdout = stdout.join().unwrap_or_default();
+    if !status.success() {
+        let error = String::from_utf8_lossy(&stderr.join().unwrap_or_default()).into_owned();
         return Err(io::Error::other(error.trim().to_string()));
     }
-    Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+    Ok(String::from_utf8_lossy(&stdout).into_owned())
 }
 
 /// The commands that list each kind, as Codex 0.167 answers them.
@@ -1188,6 +1245,55 @@ mod tests {
         assert!(codex_plugin_id("a-b@c_d") && !codex_plugin_id("a.b@c") && !codex_plugin_id("ab"));
         assert!(codex_name("pdf:pdf", true) && !codex_name("pdf:pdf", false));
         assert!(!codex_name("-c", true) && !codex_name("a b", true) && !codex_name("a'b", true));
+    }
+
+    /// A stand-in for `codex` that runs `body`, a script of the platform's own kind.
+    fn fake_codex(dir: &Path, body: &str) -> std::path::PathBuf {
+        #[cfg(windows)]
+        {
+            let path = dir.join("codex.cmd");
+            std::fs::write(&path, format!("@echo off\r\n{body}\r\n")).unwrap();
+            path
+        }
+        #[cfg(not(windows))]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let path = dir.join("codex");
+            std::fs::write(&path, format!("#!/bin/sh\n{body}\n")).unwrap();
+            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+            path
+        }
+    }
+
+    #[cfg(windows)]
+    const HANGS: &str = "ping -n 30 127.0.0.1 >nul";
+    #[cfg(not(windows))]
+    const HANGS: &str = "sleep 30";
+
+    #[test]
+    fn a_codex_listing_that_never_answers_is_stopped_and_refused_instead_of_holding_the_launch() {
+        let dir = tempfile::tempdir().unwrap();
+        let codex = fake_codex(dir.path(), HANGS);
+        let started = std::time::Instant::now();
+        let err = run_codex_within(
+            &codex,
+            &["plugin", "list", "--json"],
+            dir.path(),
+            std::time::Duration::from_millis(500),
+        )
+        .unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::TimedOut, "{err}");
+        assert!(err.to_string().contains("did not answer within"), "{err}");
+        assert!(started.elapsed() < std::time::Duration::from_secs(10));
+    }
+
+    #[test]
+    fn a_codex_listing_that_answers_in_time_gives_what_it_printed() {
+        let dir = tempfile::tempdir().unwrap();
+        let codex = fake_codex(dir.path(), "echo listed");
+        let text =
+            run_codex_within(&codex, &[], dir.path(), std::time::Duration::from_secs(30)).unwrap();
+        assert_eq!(text.trim(), "listed");
     }
 
     #[test]
