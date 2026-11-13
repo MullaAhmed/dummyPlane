@@ -495,7 +495,8 @@ async function moveCardTool(fleetId: string, args: Record<string, unknown>): Pro
   const wanted = typeof args.column === "string" ? args.column.trim() : "";
   const column = found.board.columns.find((c) => c.id === wanted) ?? found.board.columns.find((c) => sameName(c.title, wanted));
   if (!column) return refused(f.columnUnknown(wanted, found.board.columns.map((c) => c.title).join(", ")));
-  await moveMissionCard(fleetId, cardId, column.id);
+  // Moved at once; its issue follows in the board's GitHub queue, never in the 30 s Rust gives a tool (`move_board_card`).
+  void moveMissionCard(fleetId, cardId, column.id).catch(() => undefined);
   return said(f.cardMoved(card.title, column.title));
 }
 

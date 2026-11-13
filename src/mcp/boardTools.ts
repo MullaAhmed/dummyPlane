@@ -176,7 +176,9 @@ async function moveBoardCard(nodeId: string, args: Record<string, unknown>): Pro
   // Where `gh` runs for a linked issue: the agent's own folder (a Fleet has none: the project on screen). Never an empty
   // one, which would stand for a folder and keep the issue where it was.
   const folder = terminalOf(nodesStore.getState().nodes[nodeId])?.cwd.trim() || undefined;
-  await moveCardWithGithub(found.board.nodeId, card.id, column.id, undefined, folder);
+  // The card lands at once; its issue follows in the board's GitHub queue, which a slow `gh` holds up to 60 s a call
+  // behind the board's earlier moves, far past the 30 s Rust gives a tool. Its failure is the user's toast, as for a drag.
+  void moveCardWithGithub(found.board.nodeId, card.id, column.id, undefined, folder).catch(() => undefined);
   talk(nodeId, found.board.nodeId);
   return said(t().fleet.cardMoved(card.title, column.title));
 }

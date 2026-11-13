@@ -15,7 +15,8 @@ import { createLoopsStore, LOOPS_KEY, type LoopsState } from "./store";
 export const loopsStore = createLoopsStore(
   {
     now: () => Date.now(),
-    isLive: (id) => nodesStore.getState().nodes[id]?.kind === "terminal",
+    // On the canvas: a closed terminal's record stays in the store for an undo, and is no target.
+    isLive: (id) => nodesStore.getState().nodes[id]?.kind === "terminal" && !nodesStore.getState().isClosed(id),
     isAgent: (id) => isAgentTerminal(id),
     activityOf: (id) => agentActivityStore.getState().activities[id]?.activity,
     screenOf: (id) => freshText(id, 40),
