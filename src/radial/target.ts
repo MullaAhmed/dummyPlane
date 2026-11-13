@@ -1,4 +1,5 @@
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
+import { groupInfoOf } from "@/canvas/groups";
 import { nodeKindOf } from "@/canvas/nodeElement";
 import type { Point } from "@/agents/terminals";
 
@@ -136,10 +137,13 @@ export function sceneTarget({ point, zoom, elements, selectedIds, groupIds }: Sc
       return { kind: "selection", ids: selected.map((e) => e.id) };
     }
   }
+  // The terminals a folded group keeps off the screen are not under the press: the group's frame is.
+  const folded = new Set(elements.filter((e) => e.type === "frame" && groupInfoOf(e)?.folded).map((e) => e.id));
   for (let i = elements.length - 1; i >= 0; i--) {
     const element = elements[i];
     if (element.type === "frame" || element.type === "magicframe" || !hits(element, point, tolerance)) continue;
     const kind = nodeKindOf(element);
+    if (kind === "terminal" && element.frameId && folded.has(element.frameId)) continue;
     if (kind === "terminal" || kind === "fleet") return { kind, id: element.id };
     return drawingAt(element, elements);
   }
