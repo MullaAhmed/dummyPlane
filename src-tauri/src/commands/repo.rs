@@ -41,6 +41,18 @@ pub async fn repo_discard(path: String, file: ChangedFile, stamp: String) -> App
     blocking(move || repo::discard(Path::new(&path), &file, &stamp)).await
 }
 
+/// The local branches the window's branch menu offers.
+#[tauri::command]
+pub async fn repo_branches(path: String) -> AppResult<Vec<String>> {
+    blocking(move || repo::branches(Path::new(&path))).await
+}
+
+/// The window's branch menu, and nothing else: an existing local branch, never forced.
+#[tauri::command]
+pub async fn repo_switch(path: String, branch: String) -> AppResult<()> {
+    blocking(move || repo::switch(Path::new(&path), &branch)).await
+}
+
 /// The window's Push button, and nothing else.
 #[tauri::command]
 pub async fn repo_push(

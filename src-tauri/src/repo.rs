@@ -563,6 +563,37 @@ pub fn push(dir: &Path, branch: &str, target: &str, head: &str) -> Result<(), St
     run(&root, &args).map(|_| ())
 }
 
+/// The local branches of the project, by name, as git lists them.
+pub fn branches(dir: &Path) -> Result<Vec<String>, String> {
+    let root = review::root(dir)?;
+    let listed = run(
+        &root,
+        &["for-each-ref", "--format=%(refname)", "refs/heads"],
+    )?;
+    Ok(listed
+        .lines()
+        .filter_map(|line| line.strip_prefix("refs/heads/"))
+        .map(str::to_string)
+        .collect())
+}
+
+/// The window's branch menu, and nothing else: it switches to a local branch that exists. It never
+/// creates one, never forces, and never guesses a remote one. Git refuses when local changes would be
+/// overwritten, and then nothing has moved.
+pub fn switch(dir: &Path, branch: &str) -> Result<(), String> {
+    let root = review::root(dir)?;
+    if !branches(dir)?.iter().any(|name| name == branch) {
+        return Err(format!("{branch} is not a local branch of this project"));
+    }
+    let current = git::status(&root)
+        .ok_or_else(|| "not a git repository".to_string())?
+        .branch;
+    if current == branch {
+        return Ok(());
+    }
+    run(&root, &["switch", "--quiet", branch]).map(|_| ())
+}
+
 #[cfg(test)]
 mod tests {
     use std::fs;
@@ -1442,5 +1473,40 @@ mod tests {
         assert_eq!(read.no_push.as_deref(), Some("detached"));
         assert!(push_now(&root).is_err());
         assert_eq!(raw(bare.path(), &["for-each-ref"]), "");
+    }
+
+    #[test]
+    fn lists_the_local_branches_and_switches_to_one() {
+        let (_dir, root) = repo();
+        raw(&root, &["branch", "side"]);
+        let mut names = branches(&root).unwrap();
+        names.sort();
+        assert_eq!(names, vec!["main".to_string(), "side".to_string()]);
+        switch(&root, "side").unwrap();
+        assert_eq!(git::status(&root).unwrap().branch, "side");
+        switch(&root, "side").unwrap();
+        assert_eq!(git::status(&root).unwrap().branch, "side");
+    }
+
+    #[test]
+    fn refuses_a_name_that_is_not_a_local_branch() {
+        let (_dir, root) = repo();
+        assert!(switch(&root, "missing").is_err());
+        assert!(switch(&root, "--detach").is_err());
+        assert!(switch(&root, "HEAD").is_err());
+        assert_eq!(git::status(&root).unwrap().branch, "main");
+    }
+
+    #[test]
+    fn a_switch_that_would_overwrite_local_changes_moves_nothing() {
+        let (_dir, root) = repo();
+        raw(&root, &["checkout", "-q", "-b", "side"]);
+        fs::write(root.join("a.txt"), "side\n").unwrap();
+        raw(&root, &["commit", "-q", "-am", "side"]);
+        raw(&root, &["checkout", "-q", "main"]);
+        fs::write(root.join("a.txt"), "dirty\n").unwrap();
+        assert!(switch(&root, "side").is_err());
+        assert_eq!(git::status(&root).unwrap().branch, "main");
+        assert_eq!(fs::read_to_string(root.join("a.txt")).unwrap(), "dirty\n");
     }
 }

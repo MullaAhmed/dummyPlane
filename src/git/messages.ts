@@ -55,5 +55,12 @@ export const gitMessages = defineMessages(
       noCommit: "No commit to push",
       mirror: "This remote is a mirror: push from a terminal",
     },
+    branch: {
+      menu: "Switch branch",
+      reading: "Reading the branches…",
+      none: "No other local branch",
+      current: "Current branch",
+      switched: (branch: string) => `Switched to ${branch}`,
+    },
   },
 );

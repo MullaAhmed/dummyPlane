@@ -154,6 +154,8 @@ pub fn run() {
             commands::repo::repo_commit,
             commands::repo::repo_discard,
             commands::repo::repo_push,
+            commands::repo::repo_branches,
+            commands::repo::repo_switch,
             commands::github::github_detect_repo,
             commands::github::github_list_issues,
             commands::github::github_list_project_items,

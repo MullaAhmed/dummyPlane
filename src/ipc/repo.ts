@@ -51,3 +51,7 @@ export const repoCommit = (path: string, files: ChangedFile[], message: string) 
 export const repoDiscard = (path: string, file: ChangedFile, stamp: string) => call<void>("repo_discard", { path, file, stamp });
 /** Only ever the Push button's click, for the branch, target and commits it showed: refused if they changed. */
 export const repoPush = (path: string, branch: string, target: string, head: string) => call<void>("repo_push", { path, branch, target, head });
+/** The local branches of the project, for the window's branch menu. */
+export const repoBranches = (path: string) => call<string[]>("repo_branches", { path });
+/** Switches to an existing local branch; refused, with git's words, when local changes would be overwritten. */
+export const repoSwitch = (path: string, branch: string) => call<void>("repo_switch", { path, branch });
