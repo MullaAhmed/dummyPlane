@@ -2,6 +2,10 @@
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+// Loaded once with the file, not in a test: the libraries it brings (radix-ui's whole barrel, by the button, takes
+// a second cold and many under load) stay loaded through vi.resetModules, so each test reads again only the app's own
+// modules, and never spends its 5 s waiting for them. OpenUI itself is not loaded: GeneratedText loads it lazily.
+import "./GeneratedText";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
