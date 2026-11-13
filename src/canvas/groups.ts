@@ -1,5 +1,6 @@
 import type { ExcalidrawElement, ExcalidrawFrameElement } from "@excalidraw/excalidraw/element/types";
 import { isRoleId, type RoleId } from "@/agents/roles";
+import { cutWhole } from "@/lib/cut";
 import { nodeKindOf } from "./nodeElement";
 
 export interface Rect {
@@ -21,7 +22,7 @@ export interface GroupInfo {
 
 export const MAX_SPECIALITY = 40;
 
-const readSpeciality = (raw: unknown) => (typeof raw === "string" ? raw.replace(/\s+/g, " ").trim().slice(0, MAX_SPECIALITY).trim() : "");
+const readSpeciality = (raw: unknown) => (typeof raw === "string" ? cutWhole(raw.replace(/\s+/g, " ").trim(), MAX_SPECIALITY).trim() : "");
 
 /** A frame of the scene: a group, or a plain frame drawn by hand (`group` null). */
 export interface SceneFrame extends Rect {
