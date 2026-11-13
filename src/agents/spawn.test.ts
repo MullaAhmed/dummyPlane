@@ -444,7 +444,8 @@ describe("a sub-agent's skills, MCP servers and plugins, picked by its spawner",
         ],
         mcpServers: [
           { name: "dummyplane", on: true, locked: "own" },
-          { name: "repo-db", on: false, locked: "off" },
+          { name: "github", on: false },
+          { name: "repo-db", on: false, locked: "approval" },
         ],
         plugins: [],
       };
@@ -455,7 +456,7 @@ describe("a sub-agent's skills, MCP servers and plugins, picked by its spawner",
     const text = result.text;
     expect(text).toContain("running Claude in C:/code/wt");
     expect(text).toContain("skills:\n- deploy: Ship to production\n- review [off by default]\n- stripe:charge [comes with the plugin stripe@market: pick or leave out the plugin]");
-    expect(text).toContain("mcp_servers:\n- dummyplane [always kept]\n- repo-db [off in the user's settings: only the user can turn it on]");
+    expect(text).toContain("mcp_servers:\n- dummyplane [always kept]\n- github [off by default]\n- repo-db [a project server waiting for the user's approval: only the user approves it]");
     expect(text).toContain("plugins:\n(none installed)");
     mockIPC(() => {
       throw { kind: "notFound", message: "codex not found in the PATH" };

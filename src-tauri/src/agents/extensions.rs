@@ -81,6 +81,10 @@ pub struct ExtensionItem {
     /// The plugin that brings it (`name@marketplace`), for a plugin's skill or MCP server.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub plugin: Option<String>,
+    /// A project's MCP server the user has not approved, or rejected: Claude asks first, and only the user answers.
+    /// Not the same as one switched off, which the user did and a pick may undo.
+    #[serde(skip)]
+    pub awaiting_approval: bool,
 }
 
 impl ExtensionItem {
@@ -99,6 +103,7 @@ impl ExtensionItem {
             enabled,
             fixed: None,
             plugin: None,
+            awaiting_approval: false,
         }
     }
 }
@@ -796,17 +801,19 @@ fn mcp_entries<'a>(
             if name.eq_ignore_ascii_case(OWN_SERVER) || !seen.insert(name.clone()) {
                 continue;
             }
-            let enabled = !switched_off.contains(name)
-                && (source != Source::Project
-                    || (!rejected.contains(name) && (approve_all || approved.contains(name))));
+            let awaiting = source == Source::Project
+                && (rejected.contains(name) || !(approve_all || approved.contains(name)));
+            let enabled = !switched_off.contains(name) && !awaiting;
+            let mut item = ExtensionItem::new(
+                name.clone(),
+                name.clone(),
+                Some(server_summary(server)),
+                source,
+                enabled,
+            );
+            item.awaiting_approval = awaiting;
             items.push(McpEntry {
-                item: ExtensionItem::new(
-                    name.clone(),
-                    name.clone(),
-                    Some(server_summary(server)),
-                    source,
-                    enabled,
-                ),
+                item,
                 server: server.clone(),
                 plugin: None,
                 switched_off: switched_off.contains(name),
@@ -891,15 +898,17 @@ pub fn servers_on(places: &Places, choice: Option<&ExtensionChoice>) -> Map<Stri
 
 /// The MCP servers a sub-agent with an MCP pick gets besides dummyPlane's own
 /// (`agents::extras`), read alone as a fleet's (`--strict-mcp-config`): the
-/// picked ones, which the user's settings leave on, and the servers of the
-/// plugins it keeps (`plugin_on`: the plugin's id and whether the user's
-/// settings turn it on), unless `.claude.json` switches one off for the project.
+/// picked ones, even one the user switched off, but never a project's server the
+/// user has not approved; and the servers of the plugins it keeps (`plugin_on`: the
+/// plugin's id and whether the user's settings turn it on), a server switched off in
+/// `.claude.json` only when the plugin is not named (`plugin_named`: by the pick or the panel).
 /// A plugin's server whose definition needs a plugin setting this cannot fill
 /// is refused, not left out: the sub-agent would lose it unsaid.
 pub fn servers_picked(
     places: &Places,
     picked: &BTreeSet<String>,
     plugin_on: &dyn Fn(&str, bool) -> bool,
+    plugin_named: &dyn Fn(&str) -> bool,
 ) -> Result<Map<String, Value>, String> {
     let scoped = places.scoped_settings();
     let settings: Vec<Value> = scoped.iter().map(|(_, file)| file.clone()).collect();
@@ -912,8 +921,11 @@ pub fn servers_picked(
             continue;
         }
         let server = match entry.plugin {
-            None if entry.item.enabled && picked.contains(&id) => entry.server,
-            Some(plugin) if plugin_on(&plugin.id, plugin.enabled) && !entry.switched_off => {
+            None if picked.contains(&id) && !entry.item.awaiting_approval => entry.server,
+            Some(plugin)
+                if plugin_on(&plugin.id, plugin.enabled)
+                    && (plugin_named(&plugin.id) || !entry.switched_off) =>
+            {
                 with_plugin_paths(&entry.server, plugin, places).ok_or_else(|| {
                     format!(
                         "the MCP server {id} of the plugin {} needs a plugin setting that only Claude fills: leave mcp_servers out, or leave that plugin out",

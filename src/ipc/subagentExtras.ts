@@ -16,8 +16,8 @@ export interface SubagentExtras {
 export const EXTRA_KINDS = ["skills", "mcpServers", "plugins"] as const;
 export type ExtraKind = (typeof EXTRA_KINDS)[number];
 
-/** Why a listed item cannot be picked: dummyPlane's server, a plugin's own item, a server off in the user's settings, a name Codex's line cannot carry. */
-export type ExtraLock = "own" | "plugin" | "off" | "name";
+/** Why a listed item cannot be picked: dummyPlane's server, a plugin's own item, a project server the user has not approved, a name Codex's line cannot carry. */
+export type ExtraLock = "own" | "plugin" | "approval" | "name";
 
 /** One skill, MCP server or plugin a sub-agent can be given. Mirrors Rust's `Extra`. */
 export interface ExtraItem {

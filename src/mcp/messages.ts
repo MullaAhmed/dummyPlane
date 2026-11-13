@@ -231,7 +231,7 @@ export const agentMessages = defineMessages({
       off: "off by default",
       own: "always kept",
       plugin: (plugin?: string) => (plugin ? `comes with the plugin ${plugin}: pick or leave out the plugin` : "comes with a plugin or an app: follows the plugins"),
-      offLocked: "off in the user's settings: only the user can turn it on",
+      approval: "a project server waiting for the user's approval: only the user approves it",
       name: "a name dummyPlane cannot pass to the CLI",
       unlisted: (error: string) => `What the sub-agent's CLI loads could not be listed: ${error}`,
       unavailable: (cli: string) => `A sub-agent of yours runs ${cli}, which takes no skills, MCP servers or plugins from dummyPlane.`,

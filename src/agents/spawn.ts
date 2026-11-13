@@ -209,10 +209,10 @@ export async function listExtras(parentId: string): Promise<SpawnResult> {
   }
   const line = (item: ExtraItem) => {
     const marks = [
-      !item.on && item.locked !== "off" && x.off,
+      !item.on && !item.locked && x.off,
       item.locked === "own" && x.own,
       item.locked === "plugin" && x.plugin(item.plugin),
-      item.locked === "off" && x.offLocked,
+      item.locked === "approval" && x.approval,
       item.locked === "name" && x.name,
     ].filter(Boolean);
     return `- ${item.name}${marks.length ? ` [${marks.join("; ")}]` : ""}${item.description ? `: ${item.description}` : ""}`;

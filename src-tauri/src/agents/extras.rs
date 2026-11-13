@@ -27,8 +27,10 @@
 //!   server, cannot be switched there (Codex then refuses to start: "invalid
 //!   transport"): it follows its plugin.
 //!
-//! A server the user's settings leave off is listed and never picked: only the
-//! user turns one on (a project's server may wait for their approval).
+//! A pick may switch on what the user's settings leave off: a skill, a plugin (and
+//! its servers), an MCP server. Never a project's MCP server the user has not
+//! approved (Claude asks first, Codex only loads a trusted project's): only the
+//! user lets a repository's own server run, so no agent can enable one for it.
 
 use std::collections::BTreeSet;
 use std::io;
@@ -75,8 +77,8 @@ pub enum Locked {
     Own,
     /// A plugin's skill or MCP server (on Codex, an app's server too): it comes with its plugin.
     Plugin,
-    /// An MCP server the user's settings leave off: only the user turns it on.
-    Off,
+    /// A project's MCP server the user has not approved (or rejected): only the user lets it run.
+    Approval,
     /// A name Codex's command line cannot carry: it is neither picked nor turned off.
     Name,
 }
@@ -190,11 +192,12 @@ pub fn claude_installed(places: &Places) -> Installed {
         .into_iter()
         .map(|item| {
             let plugin = item.plugin.clone();
+            let awaiting = item.awaiting_approval;
             let extra = Extra::new(item.id, item.description, item.enabled);
             match (item.fixed, item.source) {
                 (Some(Fixed::Own), _) => extra.locked(Locked::Own),
                 (_, Source::Plugin) => Extra { plugin, ..extra }.locked(Locked::Plugin),
-                _ if !extra.on => extra.locked(Locked::Off),
+                _ if awaiting => extra.locked(Locked::Approval),
                 _ => extra,
             }
         })
@@ -268,6 +271,11 @@ pub fn for_claude(
             .and_then(|c| c.plugins.get(id).copied())
             .unwrap_or_else(|| picked_plugins.as_ref().map_or(default, |p| p.contains(id)))
     };
+    // Named for the session by the user's switch in the panel or by the pick, not left to the user's settings.
+    let plugin_named = |id: &str| {
+        choice.and_then(|c| c.plugins.get(id).copied()) == Some(true)
+            || picked_plugins.as_ref().is_some_and(|p| p.contains(id))
+    };
     if picked_plugins.is_some() {
         let plugins: Map<String, Value> = installed
             .plugins
@@ -286,7 +294,8 @@ pub fn for_claude(
                 .then(|| keep.contains(CHROME_SERVER));
             let mut configured = keep;
             configured.remove(CHROME_SERVER);
-            let servers = extensions::servers_picked(places, &configured, &plugin_on)?;
+            let servers =
+                extensions::servers_picked(places, &configured, &plugin_on, &plugin_named)?;
             (Some(servers), chrome)
         }
         None => (None, None),
@@ -556,8 +565,6 @@ fn codex_servers(all: &str, configured: &str) -> Result<Vec<Extra>, String> {
                 extra.locked(Locked::Plugin)
             } else if !codex_name(&name, false) {
                 extra.locked(Locked::Name)
-            } else if !on {
-                extra.locked(Locked::Off)
             } else {
                 extra
             }
@@ -601,6 +608,15 @@ pub fn for_codex(pick: &Pick, installed: &Installed) -> Result<Vec<String>, Stri
         for name in turned_off(&installed.mcp_servers, &keep, "MCP server")? {
             args.push("-c".to_string());
             args.push(format!("mcp_servers.{name}.enabled=false"));
+        }
+        // What the user turned off and the pick keeps: on.
+        for server in installed
+            .mcp_servers
+            .iter()
+            .filter(|s| s.pickable() && !s.on && keep.contains(&s.name))
+        {
+            args.push("-c".to_string());
+            args.push(format!("mcp_servers.{}.enabled=true", server.name));
         }
     }
     Ok(args)
@@ -675,8 +691,8 @@ pub fn check(pick: &Pick, installed: &Installed, cli: &str) -> Result<Pick, Stri
                         item.name
                     ),
                 }),
-                Some(Locked::Off) => problems.push(format!(
-                    "{kind} \"{}\" is off in the user's settings: only the user can turn it on",
+                Some(Locked::Approval) => problems.push(format!(
+                    "{kind} \"{}\" is a project server waiting for the user's approval: only the user approves one",
                     item.name
                 )),
                 Some(Locked::Name) => problems.push(format!(
@@ -835,7 +851,7 @@ mod tests {
                 ("dummyplane", true, Some(Locked::Own)),
                 ("github", true, None),
                 ("plugin_stripe_api", true, Some(Locked::Plugin)),
-                ("repo-db", false, Some(Locked::Off)),
+                ("repo-db", false, Some(Locked::Approval)),
             ]
         );
         assert_eq!(
@@ -898,7 +914,7 @@ mod tests {
             "{err}"
         );
         assert!(
-            err.contains("\"repo-db\" is off in the user's settings"),
+            err.contains("\"repo-db\" is a project server waiting for the user's approval"),
             "{err}"
         );
         assert!(
@@ -1022,6 +1038,107 @@ mod tests {
         );
     }
 
+    /// The user's setup for a pick that may switch things on: `github` (a user server) and `repo-api` (a project
+    /// server the user approved) switched off for this project, a project server never approved (`repo-db`) and one
+    /// the user rejected, a plugin server switched off, the plugin `linear` off.
+    fn switched_off_places() -> (tempfile::TempDir, Places) {
+        let (root, places) = claude_places();
+        put_json(
+            &root.path().join("cache").join("linear").join(".mcp.json"),
+            json!({ "mcpServers": { "mail": { "type": "http", "url": "https://mail.example" } } }),
+        );
+        put_json(
+            &places.cwd.join(".mcp.json"),
+            json!({ "mcpServers": {
+                "repo-db": { "command": "db-mcp" },
+                "repo-api": { "command": "api-mcp" },
+                "repo-rejected": { "command": "rejected-mcp" },
+            } }),
+        );
+        put_json(
+            &places.claude_json,
+            json!({
+                "claudeInChromeDefaultEnabled": true,
+                "mcpServers": { "github": { "type": "http", "url": "https://api.github.com/mcp" } },
+                "projects": { places.cwd.to_string_lossy(): {
+                    "disabledMcpServers": ["github", "repo-api", "plugin_linear_mail"],
+                    "enabledMcpjsonServers": ["repo-api"],
+                    "disabledMcpjsonServers": ["repo-rejected"],
+                } },
+            }),
+        );
+        (root, places)
+    }
+
+    #[test]
+    fn a_server_the_user_switched_off_can_be_picked_but_a_project_server_awaiting_approval_never_can()
+     {
+        let (_root, places) = switched_off_places();
+        let found = claude_installed(&places);
+        let server = |name: &str| found.mcp_servers.iter().find(|s| s.name == name).unwrap();
+        // Switched off by the user, whatever its scope: theirs to be switched on by a pick.
+        for name in ["github", "repo-api"] {
+            assert!(!server(name).on, "{name}");
+            assert_eq!(server(name).locked, None, "{name}");
+        }
+        // Never approved, or rejected: only the user lets a project's server run.
+        for name in ["repo-db", "repo-rejected"] {
+            assert_eq!(server(name).locked, Some(Locked::Approval), "{name}");
+        }
+        let picked = check(
+            &pick(None, Some(&["github", "repo-api"]), None),
+            &found,
+            "Claude",
+        )
+        .unwrap();
+        assert_eq!(
+            picked.mcp_servers,
+            Some(vec!["github".into(), "repo-api".into()])
+        );
+        for name in ["repo-db", "repo-rejected"] {
+            let err = check(&pick(None, Some(&[name]), None), &found, "Claude").unwrap_err();
+            assert!(
+                err.contains(&format!(
+                    "\"{name}\" is a project server waiting for the user's approval"
+                )),
+                "{err}"
+            );
+        }
+        // At the launch too: a name that reaches it anyway is dropped, never written.
+        let extras = for_claude(
+            &pick(
+                None,
+                Some(&["github", "repo-api", "repo-db", "repo-rejected"]),
+                // No plugin: stripe's server would come with it.
+                Some(&[]),
+            ),
+            None,
+            &places,
+        )
+        .unwrap();
+        let servers = extras.servers.unwrap();
+        assert_eq!(
+            servers.keys().collect::<Vec<_>>(),
+            vec!["github", "repo-api"]
+        );
+    }
+
+    #[test]
+    fn a_picked_plugin_brings_its_servers_the_user_switched_off_too() {
+        let (_root, places) = switched_off_places();
+        // linear is off in the user's settings and its `mail` server is switched off: the pick names the plugin.
+        let extras = for_claude(
+            &pick(None, Some(&[]), Some(&["linear@market"])),
+            None,
+            &places,
+        )
+        .unwrap();
+        assert!(extras.servers.unwrap().contains_key("plugin_linear_mail"));
+        // Left out, the plugin keeps what the user's settings give: nothing of linear.
+        let extras = for_claude(&pick(None, Some(&[]), Some(&[])), None, &places).unwrap();
+        assert!(!extras.servers.unwrap().contains_key("plugin_linear_mail"));
+    }
+
     // ------------------------------------------------------------ Codex
 
     const PLUGINS: &str = r#"{ "installed": [
@@ -1105,7 +1222,7 @@ mod tests {
                 ("cua_repl", true, Some(Locked::Plugin)),
                 ("dummyplane", true, Some(Locked::Own)),
                 ("supabase", true, None),
-                ("vercel", false, Some(Locked::Off)),
+                ("vercel", false, None),
             ]
         );
     }
@@ -1165,6 +1282,24 @@ mod tests {
         );
         assert!(for_codex(&all, &found).unwrap().is_empty());
         assert!(for_codex(&Pick::default(), &found).unwrap().is_empty());
+    }
+
+    #[test]
+    fn a_codex_pick_turns_on_a_server_the_user_turned_off() {
+        let found = codex_installed(&codex(SKILLS), Kinds::ALL).unwrap();
+        let picked = check(
+            &pick(None, Some(&["supabase", "vercel"]), None),
+            &found,
+            "Codex",
+        )
+        .unwrap();
+        assert_eq!(
+            for_codex(&picked, &found).unwrap(),
+            vec!["-c", "mcp_servers.vercel.enabled=true"]
+        );
+        // A server of a plugin or an app still follows its plugin.
+        let err = check(&pick(None, Some(&["cua_repl"]), None), &found, "Codex").unwrap_err();
+        assert!(err.contains("comes with a plugin or an app"), "{err}");
     }
 
     #[test]
