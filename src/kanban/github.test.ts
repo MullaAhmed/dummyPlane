@@ -146,6 +146,13 @@ describe("syncBoard", () => {
     expect(toast.warning).not.toHaveBeenCalled();
   });
 
+  it("says it needs an open project, where gh runs, rather than doing nothing", async () => {
+    projectsStore.setState({ activeId: null });
+    expect(await syncBoard("b")).toBe(false);
+    expect(calls).toEqual([]);
+    expect(errorToasts(vi.mocked(toast.error))).toEqual([{ title: "No project is open: GitHub is reached from a project's folder", description: "" }]);
+  });
+
   it("tells a gh failure and leaves the board as it was", async () => {
     mockGithub({
       github_list_issues: () => {
@@ -339,6 +346,14 @@ describe("createIssueForCard", () => {
     expect(await createIssueForCard("b", "k2")).toBe(true);
     expect(calls).toEqual([["github_create_issue", { path: "C:/r", repo: "o/r", title: "Local", body: "keep" }]]);
     expect(board().cards.k2.github).toEqual({ repo: "o/r", number: 42, url: "https://github.com/o/r/issues/42", state: "open" });
+  });
+
+  it("says it needs an open project, where gh runs, rather than doing nothing", async () => {
+    projectsStore.setState({ activeId: null });
+    expect(await createIssueForCard("b", "k2")).toBe(false);
+    expect(calls).toEqual([]);
+    expect(board().cards.k2.github).toBeUndefined();
+    expect(errorToasts(vi.mocked(toast.error))).toEqual([{ title: "No project is open: GitHub is reached from a project's folder", description: "" }]);
   });
 
   it("does nothing for a card already linked", async () => {
