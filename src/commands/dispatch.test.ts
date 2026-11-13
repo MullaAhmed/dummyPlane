@@ -53,6 +53,14 @@ it("lets a key through when its command is unavailable, or when it is no shortcu
   expect(reachedXterm).toHaveBeenCalledTimes(3);
 });
 
+it("lets a keydown with no key through, as Chromium's autofill sends one: it is no shortcut, and the listener does not throw", () => {
+  const keyless = new Event("keydown", { bubbles: true, cancelable: true });
+  expect(() => xterm.dispatchEvent(keyless)).not.toThrow();
+  expect(keyless.defaultPrevented).toBe(false);
+  expect(run).not.toHaveBeenCalled();
+  expect(reachedXterm).toHaveBeenCalledTimes(1);
+});
+
 it("lets every key through while a modal dialog is open", () => {
   const dialog = document.createElement("div");
   dialog.dataset.slot = "dialog-content";
