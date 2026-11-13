@@ -529,7 +529,9 @@ pub fn hooks_for(
                     let Some(bin) = &codex_bin else {
                         return refused("codex not found in the PATH".into());
                     };
-                    let run = |args: &[&str]| extras::run_codex(bin, args, cwd);
+                    let run = |args: &[&str]| {
+                        extras::run_codex_cached(bin, args, cwd, extras::LISTING_FRESH)
+                    };
                     match extras::codex_installed(&run, extras::Kinds::of(pick))
                         .and_then(|installed| extras::for_codex(pick, &installed))
                     {
@@ -690,6 +692,7 @@ fn installed_extras(
     cwd: &std::path::Path,
     profile: Option<&std::path::Path>,
     kinds: extras::Kinds,
+    max_age: std::time::Duration,
 ) -> AppResult<extras::Installed> {
     match agent {
         Agent::Claude => {
@@ -700,7 +703,8 @@ fn installed_extras(
         Agent::Codex => {
             let codex = which_locate("codex")
                 .ok_or_else(|| AppError::NotFound("codex not found in the PATH".into()))?;
-            let run = |args: &[&str]| extras::run_codex(&codex, args, cwd);
+            // Kept for a while: the first one of a cold Codex outlasts a tool call (`extras::LISTING_WARM`).
+            let run = |args: &[&str]| extras::run_codex_cached(&codex, args, cwd, max_age);
             extras::codex_installed(&run, kinds).map_err(AppError::InvalidInput)
         }
         other => Err(AppError::InvalidInput(format!(
@@ -731,6 +735,7 @@ pub async fn subagent_extras(
             std::path::Path::new(&cwd),
             profile.as_deref(),
             extras::Kinds::ALL,
+            extras::LISTING_WARM,
         )
     })
     .await
@@ -738,28 +743,45 @@ pub async fn subagent_extras(
 }
 
 /// spawn_agent's pick, checked against what the sub-agent's CLI loads in `cwd`
-/// before its terminal opens: the pick as the launch will read it, or why it is refused.
+/// before its terminal opens, and against what its `spawner` has (a sub-agent gets at most that):
+/// the pick as the launch will read it, its ceiling in it, or why it is refused.
 #[tauri::command]
 pub async fn check_subagent_extras(
     agent: Agent,
     cwd: String,
     config_dir: Option<String>,
     pick: extras::Pick,
+    spawner: Option<extras::Spawner>,
 ) -> AppResult<extras::Pick> {
     if pick.is_empty() {
-        return Ok(pick);
+        return Ok(extras::Pick::default());
     }
     let profile = profile_of(config_dir.as_deref())?;
     tauri::async_runtime::spawn_blocking(move || {
         let kinds = extras::Kinds::of(&pick);
-        let installed =
-            installed_extras(agent, std::path::Path::new(&cwd), profile.as_deref(), kinds)?;
         let cli = if agent == Agent::Codex {
             "Codex"
         } else {
             "Claude"
         };
-        extras::check(&pick, &installed, cli).map_err(AppError::InvalidInput)
+        let list = |age| {
+            installed_extras(
+                agent,
+                std::path::Path::new(&cwd),
+                profile.as_deref(),
+                kinds,
+                age,
+            )
+        };
+        // Codex's listings are kept: a refusal is checked again on a fresh one.
+        extras::check_listed(
+            &list,
+            &pick,
+            cli,
+            &spawner.unwrap_or_default(),
+            agent == Agent::Codex,
+            AppError::InvalidInput,
+        )
     })
     .await
     .map_err(|err| AppError::Io(std::io::Error::other(err.to_string())))?

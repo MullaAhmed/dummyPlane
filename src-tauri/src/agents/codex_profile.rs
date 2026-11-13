@@ -240,6 +240,9 @@ pub fn enabled_servers(json: &[u8]) -> io::Result<Vec<Listed>> {
         .collect())
 }
 
+/// How long `codex mcp list` may run before it is taken for hung: a fleet's launch waits for it.
+pub const LIST_LIMIT: std::time::Duration = std::time::Duration::from_secs(120);
+
 /// Runs `codex -p <profile> <args> mcp list --json` in `cwd`, `args` being the session's own (`cli_args`).
 pub fn list_servers(
     codex: &Path,
@@ -247,15 +250,24 @@ pub fn list_servers(
     args: &[String],
     cwd: &Path,
 ) -> io::Result<Vec<Listed>> {
+    list_servers_within(codex, profile, args, cwd, LIST_LIMIT)
+}
+
+/// `list_servers`, stopped (with the processes it started) and refused when Codex has not ended within `limit`.
+pub fn list_servers_within(
+    codex: &Path,
+    profile: &str,
+    args: &[String],
+    cwd: &Path,
+    limit: std::time::Duration,
+) -> io::Result<Vec<Listed>> {
     let mut command = std::process::Command::new(codex);
     command
         .args(["-p", profile])
         .args(args)
         .args(["mcp", "list", "--json"])
-        .current_dir(cwd)
-        .stdin(std::process::Stdio::null());
-    crate::process::hide_window(&mut command);
-    let output = command.output()?;
+        .current_dir(cwd);
+    let output = crate::process::output_within(crate::process::hide_window(&mut command), limit)?;
     if !output.status.success() {
         let error = String::from_utf8_lossy(&output.stderr);
         return Err(io::Error::other(error.trim().to_string()));
@@ -407,6 +419,42 @@ fn newest_days(sessions: &Path, count: usize) -> Vec<PathBuf> {
 mod tests {
     use super::*;
     use std::cell::RefCell;
+
+    /// A stand-in for `codex` that never answers, of the platform's own kind.
+    fn hanging_codex(dir: &Path) -> PathBuf {
+        #[cfg(windows)]
+        {
+            let path = dir.join("codex.cmd");
+            std::fs::write(&path, "@echo off\r\nping -n 30 127.0.0.1 >nul\r\n").unwrap();
+            path
+        }
+        #[cfg(not(windows))]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let path = dir.join("codex");
+            std::fs::write(&path, "#!/bin/sh\nsleep 30\n").unwrap();
+            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+            path
+        }
+    }
+
+    #[test]
+    fn a_server_listing_that_never_answers_is_stopped_and_refused_instead_of_holding_a_fleet_s_launch()
+     {
+        let dir = tempfile::tempdir().unwrap();
+        let codex = hanging_codex(dir.path());
+        let started = std::time::Instant::now();
+        let err = list_servers_within(
+            &codex,
+            "dummyplane-n1",
+            &[],
+            dir.path(),
+            std::time::Duration::from_millis(500),
+        )
+        .unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::TimedOut, "{err}");
+        assert!(started.elapsed() < std::time::Duration::from_secs(10));
+    }
 
     fn on(names: &[&str]) -> Vec<Listed> {
         names

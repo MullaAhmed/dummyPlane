@@ -216,6 +216,9 @@ export const agentMessages = defineMessages({
       notSent: (name: string, error: string) => `${name} did not get its task: ${error}`,
       extrasShape: (arg: string) => `Not opened: ${arg} must be a list of names, as installed_extras gives them. Leave it out for the CLI's defaults, or give [] for none.`,
       extrasRefused: (why: string) => `Not opened: ${why}. installed_extras lists what can be picked.`,
+      /** A first listing of Codex's, which fetches its marketplaces, takes about a minute: the router gives up on a call after 30 s. */
+      extrasSlow: (cli: string) => `Not opened: ${cli} is still listing what it has installed (a first listing takes about a minute). Nothing was started; ask again in a minute and it will be answered at once.`,
+      queuedTooLong: "Not opened: this call waited behind other spawns for longer than dummyPlane answers a call in. Nothing was started; ask again.",
       extrasUnchecked: (error: string) => `Not opened: the skills, MCP servers and plugins you picked could not be checked: ${error}`,
       /** After the answer's first sentence: what the sub-agent gets of each kind its spawner picked. */
       extrasPicked: (kinds: readonly string[]) => `It gets ${kinds.join("; ")}.`,
@@ -231,8 +234,9 @@ export const agentMessages = defineMessages({
       off: "off by default",
       own: "always kept",
       plugin: (plugin?: string) => (plugin ? `comes with the plugin ${plugin}: pick or leave out the plugin` : "comes with a plugin or an app: follows the plugins"),
-      offLocked: "off in the user's settings: only the user can turn it on",
+      approval: "a project server waiting for the user's approval: only the user approves it",
       name: "a name dummyPlane cannot pass to the CLI",
+      slow: (cli: string) => `${cli} is still listing what it has installed (a first listing takes about a minute): ask again in a minute and it will be answered at once.`,
       unlisted: (error: string) => `What the sub-agent's CLI loads could not be listed: ${error}`,
       unavailable: (cli: string) => `A sub-agent of yours runs ${cli}, which takes no skills, MCP servers or plugins from dummyPlane.`,
     },

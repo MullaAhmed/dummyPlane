@@ -7,7 +7,7 @@ import { profileNamed } from "@/accounts/store";
 import { readExtensionChoice, type ExtensionChoice } from "@/ipc/claudeExtensions";
 import { AppError } from "@/ipc/invoke";
 import { ptySendText, ptyWrite, type AgentId } from "@/ipc/pty";
-import { checkSubagentExtras, EXTRA_KINDS, readSubagentExtras, subagentExtras, type ExtraItem, type ExtraKind, type SubagentExtras } from "@/ipc/subagentExtras";
+import { checkSubagentExtras, EXTRA_KINDS, readSubagentExtras, subagentExtras, type ExtraItem, type ExtraKind, type Spawner, type SubagentExtras } from "@/ipc/subagentExtras";
 import { agentMessages } from "@/mcp/messages";
 import { outLevel } from "@/mcp/protocol";
 import { duplicateWork } from "@/mission/activeWork";
@@ -18,6 +18,7 @@ import { whenReady } from "@/mission/ready";
 import { MODEL_ID, modelLabel, readLevel } from "@/mission/router";
 import { newTerminalPayload } from "@/nodes/terminal/launch";
 import { freshText, quietFor } from "@/nodes/terminal/registry";
+import { cutWhole } from "@/lib/cut";
 import { MAX_STORED_TASK, type TerminalPayload } from "@/nodes/types";
 import { isManagerNode, nodeNameOf, nodesStore, terminalOf, type NodeRecord } from "@/store/nodes";
 import { isRunning } from "@/store/terminalStatus";
@@ -71,7 +72,8 @@ let chain: Promise<unknown> = Promise.resolve();
 
 /** spawn_agent of `parentId`'s agent. */
 export function spawnAgent(parentId: string, args: SpawnArgs): Promise<SpawnResult> {
-  const run = chain.then(() => spawnNow(parentId, args));
+  const arrived = Date.now();
+  const run = chain.then(() => spawnNow(parentId, args, arrived));
   chain = run.catch(() => undefined);
   return run;
 }
@@ -124,8 +126,38 @@ export function childPayload(parent: TerminalPayload, parentId: string, name: st
   // An unattended mission agent's rules (no git push…) bind what it delegates too.
   if (parent.permission) payload.permission = parent.permission;
   payload.spawnedBy = parentId;
-  if (task) payload.task = task.slice(0, MAX_STORED_TASK);
+  if (task) payload.task = cutWhole(task, MAX_STORED_TASK);
   return payload;
+}
+
+/**
+ * How long a call waits for Rust's listings of what a CLI has installed: the router gives up on a tool call after
+ * 30 s, and a Codex that is cold takes about a minute. Past it the call is refused, nothing opened, while Rust goes
+ * on reading and keeps what it reads (`extras::LISTING_WARM`): the same call made again is answered at once, and a
+ * pick can never open a sub-agent after its caller was told it had not.
+ */
+export const EXTRAS_BUDGET_MS = 20_000;
+
+/**
+ * How long after it arrived a spawn_agent call may still open its sub-agent: the router answers "not responding" 30 s
+ * after a call came in, and the calls are queued one at a time, so a call can wait behind slow checks. Past it, the call
+ * opens nothing: its caller has been told it did not, and would ask again.
+ */
+export const CALL_DEADLINE_MS = 25_000;
+
+const LATE = Symbol("late");
+
+/** `work`'s answer, or LATE when it has not come within `ms`; a failure of it after that is nobody's. */
+async function inTime<T>(work: Promise<T>, ms = EXTRAS_BUDGET_MS): Promise<T | typeof LATE> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<typeof LATE>((resolve) => {
+    timer = setTimeout(() => resolve(LATE), Math.max(0, Math.min(ms, EXTRAS_BUDGET_MS)));
+  });
+  try {
+    return await Promise.race([work, late]);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /** spawn_agent's argument for each kind of a pick. */
@@ -150,17 +182,32 @@ const CHOICE_OF: Record<ExtraKind, keyof ExtensionChoice> = { skills: "skillsOff
 const configDirOf = (parent: TerminalPayload, agent: AgentId) => (agent === "claude" ? profileNamed(parent.accountId)?.configDir : undefined);
 
 /**
+ * What restricts `parent` for a sub-agent on `agent`: its own pick (names in the same CLI's words) and the switches it set
+ * off in its Edit tab (Claude). Nothing, for a spawner nothing restricts: its sub-agent may get whatever its CLI lists.
+ */
+function limitsOf(parent: TerminalPayload, agent: AgentId): Spawner | undefined {
+  const picked = agent === parent.agent ? readSubagentExtras(parent.extras) : undefined;
+  const { ceiling: _ceiling, ...extras } = picked ?? {};
+  const extensions = agent === "claude" ? readExtensionChoice(parent.extensions) : undefined;
+  if (!picked && !extensions) return undefined;
+  return { ...(picked ? { extras } : {}), ...(extensions ? { extensions } : {}) };
+}
+
+/**
  * The kinds its spawner picked, checked by Rust against what the sub-agent's CLI loads in its folder before its
  * terminal opens (`check_subagent_extras`), each name as the CLI writes it; the refusal's text when the pick is
  * refused or could not be checked. Nothing to check when no kind is picked.
  */
-async function checkedExtras(parent: TerminalPayload, asked: SubagentExtras): Promise<SubagentExtras | string> {
+async function checkedExtras(parent: TerminalPayload, asked: SubagentExtras, budget: number): Promise<SubagentExtras | string> {
   const kinds = EXTRA_KINDS.filter((kind) => asked[kind] !== undefined);
   if (kinds.length === 0) return {};
   const agent = childAgentOf(parent);
   try {
-    const checked = await checkSubagentExtras(agent, parent.cwd, configDirOf(parent, agent), asked);
-    return Object.fromEntries(kinds.map((kind) => [kind, checked[kind] ?? []]));
+    const checked = await inTime(checkSubagentExtras(agent, parent.cwd, configDirOf(parent, agent), asked, limitsOf(parent, agent)), budget);
+    if (checked === LATE) return t().extrasSlow(AGENTS[agent].label);
+    const picked: SubagentExtras = Object.fromEntries(kinds.map((kind) => [kind, checked[kind] ?? []]));
+    if (checked.ceiling) picked.ceiling = checked.ceiling;
+    return picked;
   } catch (error) {
     if (error instanceof AppError && error.kind === "invalidInput") return t().extrasRefused(error.message);
     return t().extrasUnchecked(error instanceof Error ? error.message : String(error));
@@ -173,10 +220,17 @@ export function withExtras(payload: TerminalPayload, picked: SubagentExtras): Te
   if (kinds.length === 0) return payload;
   const extras: SubagentExtras = { ...payload.extras };
   const choice: ExtensionChoice = { ...payload.extensions };
+  // Its ceiling, kind by kind: the one Rust set for a kind it picks, else what it inherited with the pick.
+  const ceiling = { ...extras.ceiling };
   for (const kind of kinds) {
     extras[kind] = picked[kind];
     delete choice[CHOICE_OF[kind]];
+    const bound = picked.ceiling?.[kind];
+    if (bound) ceiling[kind] = bound;
+    else delete ceiling[kind];
   }
+  if (Object.keys(ceiling).length) extras.ceiling = ceiling;
+  else delete extras.ceiling;
   const next: TerminalPayload = { ...payload, extras };
   const left = readExtensionChoice(choice);
   if (left) next.extensions = left;
@@ -203,16 +257,21 @@ export async function listExtras(parentId: string): Promise<SpawnResult> {
   const agent = childAgentOf(parent);
   let installed;
   try {
-    installed = await subagentExtras(agent, parent.cwd, configDirOf(parent, agent));
+    const listed = await inTime(subagentExtras(agent, parent.cwd, configDirOf(parent, agent)));
+    if (listed === LATE) return refuse(x.slow(AGENTS[agent].label));
+    installed = listed;
   } catch (error) {
     return refuse(x.unlisted(error instanceof Error ? error.message : String(error)));
   }
-  const line = (item: ExtraItem) => {
+  // Names and descriptions come from disk: one line each, whatever they hold.
+  const flat = (text: string) => text.replace(/[\u0000-\u001f\u007f-\u009f]+/g, " ").replace(/\s+/g, " ").trim();
+  const line = (listedItem: ExtraItem) => {
+    const item = { ...listedItem, name: flat(listedItem.name), description: listedItem.description && flat(listedItem.description), plugin: listedItem.plugin && flat(listedItem.plugin) };
     const marks = [
-      !item.on && item.locked !== "off" && x.off,
+      !item.on && !item.locked && x.off,
       item.locked === "own" && x.own,
       item.locked === "plugin" && x.plugin(item.plugin),
-      item.locked === "off" && x.offLocked,
+      item.locked === "approval" && x.approval,
       item.locked === "name" && x.name,
     ].filter(Boolean);
     return `- ${item.name}${marks.length ? ` [${marks.join("; ")}]` : ""}${item.description ? `: ${item.description}` : ""}`;
@@ -248,7 +307,10 @@ function modelNote(parentId: string, child: AgentId, routed: SpawnModel): { why?
   return { after: t().levelUnused(outLevel(level), unroutedText(reason, level, parentId), runs) };
 }
 
-async function spawnNow(parentId: string, args: SpawnArgs): Promise<SpawnResult> {
+async function spawnNow(parentId: string, args: SpawnArgs, arrived = Date.now()): Promise<SpawnResult> {
+  /** What is left of the time this call may take, from when it arrived: it waited its turn in the queue too. */
+  const left = () => CALL_DEADLINE_MS - (Date.now() - arrived);
+  if (left() <= 0) return refuse(t().queuedTooLong);
   const task = typeof args.task === "string" ? args.task.trim() : "";
   if (!task) return refuse(t().task);
   const model = typeof args.model === "string" ? args.model.trim() : "";
@@ -272,8 +334,9 @@ async function spawnNow(parentId: string, args: SpawnArgs): Promise<SpawnResult>
   const running = spawnedAtWork();
   if (running.length >= max) return refuse(t().tooMany(running.length, max, seatHolders(running)));
   // Its skills, MCP servers and plugins, as picked: checked before the scene is read, nothing opens on a refusal.
-  const picked = await checkedExtras(parent, extras);
+  const picked = await checkedExtras(parent, extras, left());
   if (typeof picked === "string") return refuse(picked);
+  if (left() <= 0) return refuse(t().queuedTooLong);
   const workspaceId = record.workspaceId;
   const scene = sceneAccess(workspaceId);
   if (!scene) return refuse(t().noCanvas);
@@ -285,6 +348,8 @@ async function spawnNow(parentId: string, args: SpawnArgs): Promise<SpawnResult>
   // A parent in no group gathers its family in a group of its own (./spawnGroup.ts), whose pantheon names them; else beside it, from the workspace's.
   const familyPantheon = !group && withFamilyGroup(scene.elements(), parentId, spawnedBy, familyOptions("")) ? pantheonForNewGroup(workspaceId) : undefined;
   const name = await nameForNewAgent(workspaceId, group?.group.pantheon ?? familyPantheon);
+  // The last moment to refuse: past it, its caller has been told it did not open.
+  if (left() <= 0) return refuse(t().queuedTooLong);
   // Right of the parent, NODE_GAP apart; addTerminal then moves it clear of any neighbour.
   const center = { x: element.x + element.width * 1.5 + NODE_GAP, y: element.y + element.height / 2 };
   const payload = withExtras(childPayload(parent, parentId, name, titleOf(args.title, task), undefined, task), picked);

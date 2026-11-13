@@ -49,7 +49,8 @@ describe("a Codex terminal", () => {
   });
 
   it("passes a sub-agent's pick to every launch, Claude's or Codex's, and nothing without one", () => {
-    const extras = { skills: [], plugins: ["pdf@openai-runtime"] };
+    // With the ceiling its spawner set, which Rust reads again at each launch.
+    const extras = { skills: [], plugins: ["pdf@openai-runtime"], ceiling: { skills: ["a"], plugins: [] } };
     for (const mode of ["new", "resume"] as const) {
       expect(buildSpawnSpec({ ...codex, extras }, mode).codex?.extras).toEqual(extras);
       expect(buildSpawnSpec({ ...codex, agent: "claude", claudeSessionId: THREAD, extras }, mode).claude?.extras).toEqual(extras);

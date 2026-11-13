@@ -15,6 +15,16 @@ use crate::pty::watch::{self, Change, Sighting, SystemProbe};
 use crate::pty::{PtyManager, pty_size};
 use crate::sync::lock;
 
+/// Runs `work` on a thread of its own: it waits on processes (Codex's listings, which take seconds), and a worker of
+/// the async runtime held that long is asked for nothing else.
+async fn off_the_runtime<T: Send + 'static>(
+    work: impl FnOnce() -> T + Send + 'static,
+) -> AppResult<T> {
+    tauri::async_runtime::spawn_blocking(work)
+        .await
+        .map_err(|err| AppError::Io(std::io::Error::other(err.to_string())))
+}
+
 /// Forwards PTY output to the webview as raw bytes (an `ArrayBuffer` in JS).
 struct ChannelSink(Channel<Response>);
 
@@ -209,15 +219,24 @@ pub async fn pty_spawn(
         codex.session_id = None;
     }
     let role = spec.role();
-    let hooks = agents::hooks_for(
-        &app,
-        &node_id,
-        spec.agent,
-        spec.claude.as_ref(),
-        spec.codex.as_ref(),
-        std::path::Path::new(&spec.cwd),
-        profile_dir.as_deref(),
-    );
+    // Off the async runtime: a Codex sub-agent's pick is listed by running Codex, which can take a minute.
+    let hooks = {
+        let (app, node_id) = (app.clone(), node_id.clone());
+        let (agent, claude, codex) = (spec.agent, spec.claude.clone(), spec.codex.clone());
+        let (cwd, profile) = (std::path::PathBuf::from(&spec.cwd), profile_dir.clone());
+        off_the_runtime(move || {
+            agents::hooks_for(
+                &app,
+                &node_id,
+                agent,
+                claude.as_ref(),
+                codex.as_ref(),
+                &cwd,
+                profile.as_deref(),
+            )
+        })
+        .await?
+    };
     if matches!(spec.agent, Agent::Claude | Agent::Codex)
         && role.reads_only()
         && let Err(cause) = fleet_tools(spec.agent, &hooks, agents::server_running(&app))
@@ -443,6 +462,32 @@ pub fn flush_scrollbacks(app: &AppHandle, all: bool) {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn work_that_waits_on_a_process_does_not_hold_the_async_runtime_s_workers() {
+        use std::time::Duration;
+        // As many waits as the runtime has workers: run on them, nothing else could be answered meanwhile.
+        let workers = std::thread::available_parallelism().map_or(4, usize::from);
+        let (tx, rx) = std::sync::mpsc::channel();
+        tauri::async_runtime::block_on(async move {
+            for _ in 0..workers {
+                tauri::async_runtime::spawn(async {
+                    let _ =
+                        super::off_the_runtime(|| std::thread::sleep(Duration::from_millis(1500)))
+                            .await;
+                });
+            }
+            // Let the waits start, then ask the runtime for something else.
+            std::thread::sleep(Duration::from_millis(200));
+            tauri::async_runtime::spawn(async move {
+                let _ = tx.send(());
+            });
+        });
+        assert!(
+            rx.recv_timeout(Duration::from_millis(700)).is_ok(),
+            "a task could not run while the waits held every worker"
+        );
+    }
+
     use std::path::Path;
 
     use super::*;
