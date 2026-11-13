@@ -46,6 +46,12 @@ export function reportGithubError(error: unknown) {
   toastError(messages(kanbanMessages).github.failed, { error });
 }
 
+/** No project open, so no folder for `gh`: said, rather than a click doing nothing. False, as a call that did not go through. */
+function noProject(): false {
+  toastError(messages(kanbanMessages).github.noProject);
+  return false;
+}
+
 /** "owner/number" or a Project URL (…/users|orgs/owner/projects/number); null when it is neither. */
 export function parseProject(text: string): KanbanBoardLink["project"] | null {
   const trimmed = text.trim();
@@ -72,7 +78,7 @@ export function linkBoard(nodeId: string, link: KanbanBoardLink | null) {
 }
 
 async function loadProject(path: string, project: NonNullable<KanbanBoardLink["project"]>) {
-  const [items, statuses] = await Promise.all([
+  const [{ items, totalCount }, statuses] = await Promise.all([
     githubListProjectItems(path, project.owner, project.number),
     githubProjectStatuses(path, project.owner, project.number),
   ]);
@@ -82,23 +88,27 @@ async function loadProject(path: string, project: NonNullable<KanbanBoardLink["p
       projectItemIdByKey[githubKey(item.content.repo, item.content.number)] = item.id;
     }
   }
-  return { items, statuses, context: { projectStatuses: statuses, projectItemIdByKey } satisfies MoveContext };
+  return { items, totalCount, statuses, context: { projectStatuses: statuses, projectItemIdByKey } satisfies MoveContext };
 }
 
-/** "Sync": issues (and Project items) merged into the board. True when it went through. */
+/** "Sync": issues (and Project items) merged into the board. True when it went through; a list GitHub cut is told. */
 export async function syncBoard(nodeId: string): Promise<boolean> {
   const link = boardOf(nodeId)?.github;
   const path = projectPath();
-  if (!link || !path) return false;
+  if (!link) return false;
+  if (!path) return noProject();
   try {
-    const issues = await githubListIssues(path, link.repo, CLOSED_WITHIN_DAYS);
+    const { issues, cut } = await githubListIssues(path, link.repo, CLOSED_WITHIN_DAYS);
     const project = link.project ? await loadProject(path, link.project) : null;
     // Read again: the board may have changed while gh answered.
     const board = boardOf(nodeId);
     if (!board) return false;
     if (project) projectContexts.set(nodeId, project.context);
     save(nodeId, mergeGithub(board, { repo: link.repo, issues, projectItems: project?.items, projectStatuses: project?.statuses }));
-    toast.success(messages(kanbanMessages).github.synced(link.repo));
+    const t = messages(kanbanMessages).github;
+    toast.success(t.synced(link.repo));
+    if (cut) toast.warning(t.issuesCut(link.repo));
+    if (project && project.items.length < project.totalCount) toast.warning(t.itemsCut(project.items.length, project.totalCount));
     return true;
   } catch (error) {
     reportGithubError(error);
@@ -191,7 +201,8 @@ export async function createIssueForCard(nodeId: string, cardId: string): Promis
   const card = board?.cards[cardId];
   const repo = board?.github?.repo;
   const path = projectPath();
-  if (!card || card.github || !repo || !path) return false;
+  if (!card || card.github || !repo) return false;
+  if (!path) return noProject();
   try {
     const created = await githubCreateIssue(path, repo, card.title, card.notes);
     const latest = boardOf(nodeId);

@@ -84,6 +84,29 @@ describe("board", () => {
     expect(restoreCard(gone, card, "id1", 0)).toBe(gone);
   });
 
+  describe("with a card linked to an issue a sync brought back meanwhile", () => {
+    const link = (repo: string) => ({ repo, number: 7, url: "https://github.com/o/r/issues/7", state: "open" as const });
+    const linked = () => updateCard(board(), "id4", { notes: "mine", github: link("o/r") });
+    /** A sync's card for issue #7, at the end of `columnId`. */
+    const synced = (b: ReturnType<typeof board>, columnId: string) => updateCard(addCard(b, columnId, draft("Issue 7"), () => "id9"), "id9", { github: link("O/R") });
+
+    it("puts the deleted card back in place of the sync's, not beside it: one card per issue", () => {
+      const b = linked();
+      const back = restoreCard(synced(removeCard(b, "id4"), "id1"), b.cards.id4, "id1", 0);
+      expect(back.columns[0].cardIds).toEqual(["id4", "id5"]);
+      expect(back.cards.id9).toBeUndefined();
+      expect(back.cards.id4.notes).toBe("mine");
+    });
+
+    it("puts the deleted column back with it, in place of the sync's", () => {
+      const b = linked();
+      const column = b.columns[0];
+      const back = restoreColumn(synced(removeColumn(b, column.id), "id2"), column, { id4: b.cards.id4, id5: b.cards.id5 }, 0);
+      expect(back.columns.map((c) => c.cardIds)).toEqual([["id4", "id5"], ["id6"], []]);
+      expect(back.cards.id9).toBeUndefined();
+    });
+  });
+
   it("adds a card at the end of a column, not to an unknown one", () => {
     const b = board();
     expect(b.columns[0].cardIds).toEqual(["id4", "id5"]);
