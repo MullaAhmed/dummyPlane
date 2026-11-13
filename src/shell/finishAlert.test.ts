@@ -18,6 +18,7 @@ import { projectsStore } from "@/store/projects";
 import { terminalStatusStore } from "@/store/terminalStatus";
 import { workspacesStore } from "@/store/workspaces";
 import { readSource } from "@/theme/cssBlocks";
+import { onRecord, type Recorded } from "@/notifications/capture";
 import { installFinishAlerts, MAX_SUMMARY, MIN_WORK_MS, SETTLE_MS, summaryLine } from "./finishAlert";
 
 const win = vi.hoisted(() => ({ isFocused: vi.fn(() => Promise.resolve(false)) }));
@@ -45,6 +46,9 @@ const notified = () => vi.mocked(sendNotification).mock.calls.map(([options]) =>
 const LONG = MIN_WORK_MS + 5_000;
 const SHORT = MIN_WORK_MS - 5_000;
 let uninstall: () => void;
+/** What the notification panel was told. */
+let recorded: Recorded[] = [];
+let stopRecording: () => void = () => undefined;
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -73,9 +77,12 @@ beforeEach(() => {
   terminalStatusStore.setState({ statuses: { batman: { state: "running" }, robin: { state: "exited", code: 0 }, shell: { state: "running" }, chef: { state: "running" } } });
   agentActivityStore.setState({ activities: {} });
   uninstall = installFinishAlerts();
+  recorded = [];
+  stopRecording = onRecord((n) => recorded.push(n));
 });
 
 afterEach(() => {
+  stopRecording();
   uninstall();
   vi.useRealTimers();
 });
@@ -377,7 +384,63 @@ describe("where it shows", () => {
   });
 });
 
+describe("the notification panel", () => {
+  const panel = () => recorded.map(({ type, kind, title, description, context, read }) => ({ type, kind, title, description, context, read }));
+
+  it("keeps a finish the window was not focused for, unread, with the Windows notification's words and the agent as its plane", async () => {
+    signalFinish({ nodeId: "batman", state: "done", summary: "Login fixed" });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(notified()).toEqual([{ title: "Batman · Done", body: "Login fixed", extra: { nodeId: "batman", finished: true } }]);
+    expect(panel()).toEqual([{ type: "finished", kind: "success", title: "Batman · Done", description: "Login fixed", context: { nodeId: "batman", workspaceId: "w1" }, read: false }]);
+  });
+
+  it("keeps it with Windows notifications off too: the panel is not the Windows notification", async () => {
+    nativeNotificationsStore.setState({ enabled: false });
+    await turn("batman", LONG);
+    expect(sendNotification).not.toHaveBeenCalled();
+    expect(panel()).toMatchObject([{ type: "finished", title: "Batman · Finished", description: "Ready for your next message", read: false }]);
+  });
+
+  it("keeps a finish shown as a toast, unread, with the toast's own words", async () => {
+    win.isFocused.mockResolvedValue(true);
+    workspacesStore.setState({ activeId: "w2" });
+    signalFinish({ nodeId: "batman", state: "blocked", summary: "Needs a key" });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(toast).toHaveBeenCalledWith("Batman · Blocked", expect.objectContaining({ description: "Needs a key" }));
+    expect(panel()).toEqual([{ type: "finished", kind: "warning", title: "Batman · Blocked", description: "Needs a key", context: { nodeId: "batman", workspaceId: "w1" }, read: false }]);
+  });
+
+  it("keeps a finish the user was looking at, read already, with no toast", async () => {
+    win.isFocused.mockResolvedValue(true);
+    activeTerminalStore.setState({ id: "batman" });
+    signalFinish({ nodeId: "batman", state: "failed", summary: "Tests red" });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(toast).not.toHaveBeenCalled();
+    expect(panel()).toMatchObject([{ kind: "error", title: "Batman · Failed", read: true }]);
+  });
+
+  it("keeps nothing for what alerts nothing: a sub-agent, a plain shell, a quick answer", async () => {
+    signalFinish({ nodeId: "robin", state: "done", summary: "Done" });
+    await turn("shell", LONG);
+    await turn("batman", SHORT, 200_000);
+    expect(recorded).toEqual([]);
+  });
+});
+
 describe("the setting", () => {
+  it("turns every finish alert off, and the panel keeps none", async () => {
+    finishAlertsStore.setState({ enabled: false });
+    signalFinish({ nodeId: "batman", state: "done", summary: "Done" });
+    await turn("batman", LONG);
+    win.isFocused.mockResolvedValue(true);
+    activeTerminalStore.setState({ id: "batman" });
+    await turn("batman", LONG, 50_000);
+    activeTerminalStore.setState({ id: null });
+    workspacesStore.setState({ activeId: "w2" });
+    await turn("batman", LONG, 100_000);
+    expect(recorded).toEqual([]);
+  });
+
   it("turns every finish alert off", async () => {
     finishAlertsStore.setState({ enabled: false });
     signalFinish({ nodeId: "batman", state: "done", summary: "Done" });
