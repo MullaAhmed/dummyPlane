@@ -157,6 +157,7 @@ fn no_commit() -> String {
 /// The mission's branch, from the project's current commit, and its worktree (where merges happen).
 pub fn prepare(project: &Path, name: &str) -> Result<Worktree, String> {
     let (root, dir) = locate(project)?;
+    crate::git::writable(&root)?;
     // Without a commit, git only says « invalid reference: HEAD » (final review H2).
     if git(&root, &["rev-parse", "--verify", "--quiet", "HEAD"]).is_err() {
         return Err(no_commit());
@@ -167,12 +168,14 @@ pub fn prepare(project: &Path, name: &str) -> Result<Worktree, String> {
 /// An agent's branch, from the mission's, and its worktree. `mission` is the mission's slug.
 pub fn add_agent(project: &Path, mission: &str, agent: &str) -> Result<Worktree, String> {
     let (root, dir) = locate(project)?;
+    crate::git::writable(&root)?;
     let name = format!("{mission}-{}", slug(agent));
     add_worktree(&root, &dir, &name, &format!("dummyplane/{mission}"))
 }
 
 /// Merges an agent's branch into the mission's, in the mission's worktree; a conflict is undone.
 pub fn merge_agent(mission: &Path, agent: &Path, branch: &str) -> Result<MergeReport, String> {
+    crate::git::writable(mission)?;
     let uncommitted = !git(agent, &["status", "--porcelain"])
         .unwrap_or_default()
         .is_empty();
@@ -498,6 +501,23 @@ mod tests {
 
     /// A mission's worktrees share the repository's config: a program it names for git to run as it reads a status
     /// (`core.fsmonitor`) never runs when a Manager merges an agent's work.
+    /// A mission checks its worktrees out and merges them: in a repository whose own config defines a filter, which
+    /// dummyPlane's git does not run, it would write what the filter would have changed (git-crypt's cipher, LFS
+    /// pointers). It does not start.
+    #[test]
+    fn refuses_a_mission_in_a_repository_with_a_filter_of_its_own() {
+        let Some((_parent, proj)) = project() else {
+            return;
+        };
+        run(
+            &proj,
+            &["config", "filter.crypt.clean", "sed s/plain/CIPHER/"],
+        );
+        let err = prepare(&proj, "auth").unwrap_err();
+        assert!(err.contains("crypt"), "{err}");
+        assert_eq!(run(&proj, &["branch", "--list", "dummyplane/*"]), "");
+    }
+
     /// A Manager merges its agents' work through the night: a merge driver the repository's own config defines,
     /// given to a file by `.gitattributes`, never runs (the file is left as a conflict instead).
     #[test]

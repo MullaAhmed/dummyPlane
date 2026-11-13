@@ -74,6 +74,36 @@ fn command_with(dir: &Path, env: &[(&str, &OsStr)]) -> Result<Command, String> {
     Ok(command)
 }
 
+/// Refuses what would write the repository's index or files (a commit, a discard, a switch, a mission's
+/// worktrees and merges) when its own config defines a filter `command` switches off: git would store the file as
+/// it is on the disk where the filter stores something else (git-crypt's cipher, an LFS pointer), and check out
+/// what the filter would have changed. Its reads go on.
+pub(crate) fn writable(dir: &Path) -> Result<(), String> {
+    let mut filters: Vec<&str> = Vec::new();
+    let overrides = local_drivers(dir, &[])?;
+    for (key, value) in &overrides {
+        let Some(rest) = key.strip_prefix("filter.") else {
+            continue;
+        };
+        let name = [".clean", ".smudge", ".process"]
+            .iter()
+            .find_map(|step| rest.strip_suffix(step));
+        if let Some(name) = name
+            && value.is_empty()
+            && !filters.contains(&name)
+        {
+            filters.push(name);
+        }
+    }
+    if filters.is_empty() {
+        return Ok(());
+    }
+    Err(format!(
+        "This repository's own config defines the filter {}, which dummyPlane's git does not run: commit, discard, switch or merge from a terminal.",
+        filters.join(", ")
+    ))
+}
+
 fn modified(path: &Path) -> Option<SystemTime> {
     std::fs::metadata(path)
         .and_then(|meta| meta.modified())

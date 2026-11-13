@@ -379,6 +379,7 @@ pub fn commit(dir: &Path, files: &[ChangedFile], message: &str) -> Result<String
         return Err("no file chosen".to_string());
     }
     let root = review::root(dir)?;
+    crate::git::writable(&root)?;
     let paths = all_paths(files)?;
     refuse_during_operation(&root)?;
     // `commit --only` would take the new file at the old path too, which nobody chose.
@@ -420,6 +421,7 @@ pub fn commit(dir: &Path, files: &[ChangedFile], message: &str) -> Result<String
 /// the file's stamp in the list the user saw.
 pub fn discard(dir: &Path, file: &ChangedFile, confirmed: &str) -> Result<(), String> {
     let root = review::root(dir)?;
+    crate::git::writable(&root)?;
     let paths = all_paths(std::slice::from_ref(file))?;
     refuse_during_operation(&root)?;
     let current = review::changes(dir, None)?.files;
@@ -582,6 +584,7 @@ pub fn branches(dir: &Path) -> Result<Vec<String>, String> {
 /// overwritten, and then nothing has moved.
 pub fn switch(dir: &Path, branch: &str) -> Result<(), String> {
     let root = review::root(dir)?;
+    crate::git::writable(&root)?;
     if !branches(dir)?.iter().any(|name| name == branch) {
         return Err(format!("{branch} is not a local branch of this project"));
     }
@@ -691,6 +694,29 @@ mod tests {
     fn refuses_a_folder_outside_a_repository() {
         let dir = tempfile::tempdir().unwrap();
         assert!(state(dir.path()).is_err());
+    }
+
+    /// A filter the repository's own config defines (git-crypt's, a local Git LFS) does not run in dummyPlane's git:
+    /// a commit would store the file as it is on the disk, the plain text where the filter stores its cipher, and a
+    /// switch would check out what the filter would have changed. The git window refuses both, and nothing moves.
+    #[test]
+    fn refuses_to_write_through_a_filter_of_the_repository_s_own() {
+        let (_dir, root) = repo();
+        fs::write(root.join(".gitattributes"), "a.txt filter=crypt\n").unwrap();
+        raw(&root, &["add", ".gitattributes"]);
+        raw(&root, &["commit", "-q", "-m", "attributes"]);
+        raw(&root, &["branch", "side"]);
+        raw(
+            &root,
+            &["config", "filter.crypt.clean", "sed s/plain/CIPHER/"],
+        );
+        raw(&root, &["config", "filter.crypt.required", "true"]);
+        fs::write(root.join("a.txt"), "plain\n").unwrap();
+        let err = commit(&root, &[file(&root, "a.txt")], "secret").unwrap_err();
+        assert!(err.contains("crypt") && err.contains("terminal"), "{err}");
+        assert_eq!(raw(&root, &["show", "HEAD:a.txt"]), "one\n");
+        assert!(switch(&root, "side").unwrap_err().contains("crypt"));
+        assert_eq!(raw(&root, &["branch", "--show-current"]).trim(), "main");
     }
 
     /// The git window's Commit runs no hook from a folder the repository's own config points to (`core.hooksPath`).
