@@ -524,6 +524,52 @@ describe("a sub-agent gets at most what its spawner has", () => {
   });
 });
 
+describe("a pick whose check is still being read", () => {
+  afterEach(() => vi.useRealTimers());
+
+  /** Rust answers after `slow` is cleared: a cold Codex takes about a minute to list, a router gives up on a call after 30 s. */
+  function codexAnswering() {
+    const state = { slow: true, release: (_answer: unknown) => {} };
+    mockIPC((cmd, args) => {
+      if (cmd === "check_subagent_extras") return state.slow ? new Promise((resolve) => (state.release = resolve)) : (args as { pick: unknown }).pick;
+      if (cmd === "subagent_extras") return state.slow ? new Promise((resolve) => (state.release = resolve)) : { skills: [], mcpServers: [], plugins: [] };
+      return undefined;
+    });
+    return state;
+  }
+
+  it("is refused in time, nothing opens even when the answer comes after, and the same call made again is answered at once", async () => {
+    vi.useFakeTimers();
+    const rust = codexAnswering();
+    await addNode("codexer", terminal("Codexer", { agent: "codex", claudeSessionId: undefined }));
+    const asked = spawnAgent("codexer", { task: "Ship it", plugins: ["pdf@openai-runtime"] });
+    await vi.advanceTimersByTimeAsync(25_000);
+    const refused = await asked;
+    expect(refused.error).toBe(true);
+    expect(refused.text).toContain("Codex is still listing what it has installed");
+    // The answer of the first listing comes late: the call was already answered, so nothing may open for it.
+    rust.release({ plugins: ["pdf@openai-runtime"] });
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(vi.mocked(addTerminal)).not.toHaveBeenCalled();
+    // Rust has the listings now: the call made again opens one sub-agent, not two.
+    rust.slow = false;
+    const again = await spawnAgent("codexer", { task: "Ship it", plugins: ["pdf@openai-runtime"] });
+    expect(again.error).toBeUndefined();
+    expect(vi.mocked(addTerminal)).toHaveBeenCalledTimes(1);
+  });
+
+  it("says so too when installed_extras is still being read, instead of leaving the call to time out", async () => {
+    vi.useFakeTimers();
+    codexAnswering();
+    await addNode("codexer", terminal("Codexer", { agent: "codex", claudeSessionId: undefined }));
+    const listed = listExtras("codexer");
+    await vi.advanceTimersByTimeAsync(25_000);
+    const result = await listed;
+    expect(result.error).toBe(true);
+    expect(result.text).toContain("Codex is still listing what it has installed");
+  });
+});
+
 describe("spawn_agent from a Fleet", () => {
   /** A Fleet on the canvas, its Claude (or Codex) session started in another folder than its workspace's. */
   async function addFleet(mission?: Mission, agent: "claude" | "codex" = "claude") {

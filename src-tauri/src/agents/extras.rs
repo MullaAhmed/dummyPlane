@@ -32,10 +32,11 @@
 //! approved (Claude asks first, Codex only loads a trusted project's): only the
 //! user lets a repository's own server run, so no agent can enable one for it.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
 use std::io;
 use std::path::Path;
-use std::time::Duration;
+use std::sync::{Arc, LazyLock, Mutex, PoisonError};
+use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
@@ -465,12 +466,8 @@ pub type Run<'a> = dyn Fn(&[&str]) -> io::Result<String> + Sync + 'a;
 /// A sub-agent's launch waits for it, and so does every spawn_agent, which are queued one at a time.
 pub const LISTING_LIMIT: Duration = Duration::from_secs(120);
 
-/// Runs `codex <args>` in `cwd`, its input closed, and answers what it printed.
-pub fn run_codex(codex: &Path, args: &[&str], cwd: &Path) -> io::Result<String> {
-    run_codex_within(codex, args, cwd, LISTING_LIMIT)
-}
-
-/// `run_codex`, stopped and refused when Codex has not ended within `limit`: with the processes it
+/// Runs `codex <args>` in `cwd`, its input closed, and answers what it printed; stopped and refused when Codex has
+/// not ended within `limit`: with the processes it
 /// started, which a shim (`codex.cmd`) leaves running when only it is killed (`process::output_within`).
 pub fn run_codex_within(
     codex: &Path,
@@ -486,6 +483,77 @@ pub fn run_codex_within(
         return Err(io::Error::other(error.trim().to_string()));
     }
     Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+}
+
+/// How old a cached Codex listing may be for a check and for the tool's listing, and for a launch. A cold listing
+/// took a minute here and a warm one a few seconds, while the router gives up on a tool call after 30 s: the first
+/// call that finds Codex cold is refused in time (`spawn_agent`'s budget) and leaves its listings here, so the call
+/// made again a moment later is answered at once.
+pub const LISTING_WARM: Duration = Duration::from_secs(300);
+pub const LISTING_FRESH: Duration = Duration::from_secs(60);
+
+/// One command's last answer, in the folder and the Codex home it ran in; the slot is held while it is being read.
+type Slot = Arc<Mutex<Option<(Instant, String)>>>;
+static LISTINGS: LazyLock<Mutex<HashMap<String, Slot>>> = LazyLock::new(Mutex::default);
+
+/// `run_codex`, answered from the last listing of the same command in the same folder when that is younger than
+/// `max_age` (never one wanted fresh, `Duration::ZERO`). A failure is not kept.
+pub fn run_codex_cached(
+    codex: &Path,
+    args: &[&str],
+    cwd: &Path,
+    max_age: Duration,
+) -> io::Result<String> {
+    run_cached_within(codex, args, cwd, max_age, LISTING_LIMIT)
+}
+
+/// `run_codex_cached` with its own limit. A second caller of the same command waits for the first one's listing
+/// rather than starting another: a retry made while a cold listing is still being read costs nothing more.
+pub fn run_cached_within(
+    codex: &Path,
+    args: &[&str],
+    cwd: &Path,
+    max_age: Duration,
+    limit: Duration,
+) -> io::Result<String> {
+    let key = format!(
+        "{}\u{1}{}\u{1}{}\u{1}{}",
+        codex.display(),
+        cwd.display(),
+        std::env::var("CODEX_HOME").unwrap_or_default(),
+        args.join("\u{2}")
+    );
+    let slot = LISTINGS
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .entry(key)
+        .or_default()
+        .clone();
+    let mut held = slot.lock().unwrap_or_else(PoisonError::into_inner);
+    if let Some((at, text)) = held.as_ref()
+        && at.elapsed() < max_age
+    {
+        return Ok(text.clone());
+    }
+    let text = run_codex_within(codex, args, cwd, limit)?;
+    *held = Some((Instant::now(), text.clone()));
+    Ok(text)
+}
+
+/// A pick checked against what `list` gives for a listing of a given age, a refusal tried once more on a fresh
+/// one when `retry` (Codex's listings are kept: a refusal may be of an old one, a plugin installed since).
+pub fn check_listed<E>(
+    list: &dyn Fn(Duration) -> Result<Installed, E>,
+    pick: &Pick,
+    cli: &str,
+    spawner: &Spawner,
+    retry: bool,
+    refuse: impl Fn(String) -> E,
+) -> Result<Pick, E> {
+    match check_for(pick, &list(LISTING_WARM)?, cli, spawner) {
+        Err(_) if retry => check_for(pick, &list(Duration::ZERO)?, cli, spawner).map_err(refuse),
+        checked => checked.map_err(refuse),
+    }
 }
 
 /// The commands that list each kind, as Codex 0.167 answers them.
@@ -1724,6 +1792,149 @@ mod tests {
             !dir.path().join("marker.txt").exists(),
             "the shim's child outlived the listing that was stopped"
         );
+    }
+
+    /// A `codex` that counts its runs in `count.txt` (in the folder it runs in) and takes `seconds` to answer.
+    fn counting_codex(dir: &Path, seconds: u32) -> std::path::PathBuf {
+        #[cfg(windows)]
+        let body = format!(
+            "echo x>>count.txt\r\nping -n {} 127.0.0.1 >nul\r\necho listed",
+            seconds + 1
+        );
+        #[cfg(not(windows))]
+        let body = format!("echo x >> count.txt\nsleep {seconds}\necho listed");
+        fake_codex(dir, &body)
+    }
+
+    fn runs(dir: &Path) -> usize {
+        std::fs::read_to_string(dir.join("count.txt")).map_or(0, |text| text.lines().count())
+    }
+
+    #[test]
+    fn a_codex_listing_is_kept_for_a_while_per_folder_so_a_retry_after_a_slow_first_one_is_instant()
+    {
+        let dir = tempfile::tempdir().unwrap();
+        let codex = counting_codex(dir.path(), 0);
+        let args = ["plugin", "list", "--json"];
+        let limit = Duration::from_secs(30);
+        let run = |age: Duration| run_cached_within(&codex, &args, dir.path(), age, limit).unwrap();
+        assert_eq!(run(LISTING_WARM).trim(), "listed");
+        assert_eq!(run(LISTING_WARM).trim(), "listed");
+        assert_eq!(runs(dir.path()), 1, "the second answer was the first's");
+        // Too old for this caller (a launch wants a younger one than a check): read again.
+        std::thread::sleep(Duration::from_millis(30));
+        run(Duration::from_millis(10));
+        assert_eq!(runs(dir.path()), 2);
+        // Another command, or another folder, is another listing.
+        run_cached_within(&codex, &["mcp", "list"], dir.path(), LISTING_WARM, limit).unwrap();
+        assert_eq!(runs(dir.path()), 3);
+        // Never kept: a listing wanted fresh.
+        run(Duration::ZERO);
+        assert_eq!(runs(dir.path()), 4);
+    }
+
+    #[test]
+    fn a_failed_listing_is_not_kept_and_two_callers_at_once_share_one_run() {
+        let dir = tempfile::tempdir().unwrap();
+        let hangs = fake_codex(dir.path(), HANGS);
+        let first = run_cached_within(
+            &hangs,
+            &[],
+            dir.path(),
+            LISTING_WARM,
+            Duration::from_millis(300),
+        );
+        assert_eq!(first.unwrap_err().kind(), io::ErrorKind::TimedOut);
+        let second = run_cached_within(
+            &hangs,
+            &[],
+            dir.path(),
+            LISTING_WARM,
+            Duration::from_millis(300),
+        );
+        assert_eq!(
+            second.unwrap_err().kind(),
+            io::ErrorKind::TimedOut,
+            "a failure was kept"
+        );
+        // Two spawns asking while the first listing is still being read: the second waits for it, it does not start another.
+        let slow = counting_codex(dir.path(), 2);
+        let args = ["debug", "prompt-input"];
+        let ask = || {
+            run_cached_within(
+                &slow,
+                &args,
+                dir.path(),
+                LISTING_WARM,
+                Duration::from_secs(30),
+            )
+            .unwrap()
+        };
+        let (a, b) = std::thread::scope(|scope| {
+            let a = scope.spawn(ask);
+            std::thread::sleep(Duration::from_millis(300));
+            let b = scope.spawn(ask);
+            (a.join().unwrap(), b.join().unwrap())
+        });
+        assert_eq!((a.trim(), b.trim()), ("listed", "listed"));
+        assert_eq!(
+            runs(dir.path()),
+            1,
+            "the retry started a second cold listing"
+        );
+    }
+
+    #[test]
+    fn a_refusal_from_an_old_listing_is_checked_once_more_on_a_fresh_one() {
+        let (_root, places) = claude_places();
+        let current = claude_installed(&places);
+        let stale = Installed::default();
+        let ages = std::cell::RefCell::new(Vec::new());
+        let list = |age: Duration| -> Result<Installed, String> {
+            ages.borrow_mut().push(age);
+            Ok(if age == Duration::ZERO {
+                current.clone()
+            } else {
+                stale.clone()
+            })
+        };
+        // deploy was installed after the cached listing was read.
+        let ok = check_listed(
+            &list,
+            &pick(Some(&["deploy"]), None, None),
+            "Codex",
+            &Spawner::default(),
+            true,
+            |e| e,
+        )
+        .unwrap();
+        assert_eq!(ok.skills, Some(vec!["deploy".to_string()]));
+        assert_eq!(*ages.borrow(), vec![LISTING_WARM, Duration::ZERO]);
+        // Still refused on a fresh listing: refused, after that one retry only.
+        ages.borrow_mut().clear();
+        let err = check_listed(
+            &list,
+            &pick(Some(&["made-up"]), None, None),
+            "Codex",
+            &Spawner::default(),
+            true,
+            |e| e,
+        )
+        .unwrap_err();
+        assert!(err.contains("not installed"), "{err}");
+        assert_eq!(ages.borrow().len(), 2);
+        // Claude reads files: no retry.
+        ages.borrow_mut().clear();
+        check_listed(
+            &list,
+            &pick(Some(&["deploy"]), None, None),
+            "Claude",
+            &Spawner::default(),
+            false,
+            |e| e,
+        )
+        .unwrap_err();
+        assert_eq!(ages.borrow().len(), 1);
     }
 
     #[test]

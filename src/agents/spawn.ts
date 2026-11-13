@@ -128,6 +128,29 @@ export function childPayload(parent: TerminalPayload, parentId: string, name: st
   return payload;
 }
 
+/**
+ * How long a call waits for Rust's listings of what a CLI has installed: the router gives up on a tool call after
+ * 30 s, and a Codex that is cold takes about a minute. Past it the call is refused, nothing opened, while Rust goes
+ * on reading and keeps what it reads (`extras::LISTING_WARM`): the same call made again is answered at once, and a
+ * pick can never open a sub-agent after its caller was told it had not.
+ */
+export const EXTRAS_BUDGET_MS = 20_000;
+
+const LATE = Symbol("late");
+
+/** `work`'s answer, or LATE when it has not come within the budget; a failure of it after that is nobody's. */
+async function inTime<T>(work: Promise<T>): Promise<T | typeof LATE> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<typeof LATE>((resolve) => {
+    timer = setTimeout(() => resolve(LATE), EXTRAS_BUDGET_MS);
+  });
+  try {
+    return await Promise.race([work, late]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /** spawn_agent's argument for each kind of a pick. */
 const EXTRA_ARGS: Record<ExtraKind, keyof SpawnArgs> = { skills: "skills", mcpServers: "mcp_servers", plugins: "plugins" };
 
@@ -171,7 +194,8 @@ async function checkedExtras(parent: TerminalPayload, asked: SubagentExtras): Pr
   if (kinds.length === 0) return {};
   const agent = childAgentOf(parent);
   try {
-    const checked = await checkSubagentExtras(agent, parent.cwd, configDirOf(parent, agent), asked, limitsOf(parent, agent));
+    const checked = await inTime(checkSubagentExtras(agent, parent.cwd, configDirOf(parent, agent), asked, limitsOf(parent, agent)));
+    if (checked === LATE) return t().extrasSlow(AGENTS[agent].label);
     const picked: SubagentExtras = Object.fromEntries(kinds.map((kind) => [kind, checked[kind] ?? []]));
     if (checked.ceiling) picked.ceiling = checked.ceiling;
     return picked;
@@ -224,7 +248,9 @@ export async function listExtras(parentId: string): Promise<SpawnResult> {
   const agent = childAgentOf(parent);
   let installed;
   try {
-    installed = await subagentExtras(agent, parent.cwd, configDirOf(parent, agent));
+    const listed = await inTime(subagentExtras(agent, parent.cwd, configDirOf(parent, agent)));
+    if (listed === LATE) return refuse(x.slow(AGENTS[agent].label));
+    installed = listed;
   } catch (error) {
     return refuse(x.unlisted(error instanceof Error ? error.message : String(error)));
   }
