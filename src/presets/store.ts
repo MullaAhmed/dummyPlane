@@ -1,8 +1,8 @@
 import { createStore, useStore } from "zustand";
 import { messages } from "@/i18n";
-import { getSetting, setSetting } from "@/ipc/db";
+import { getSetting, keepSettingAside, setSetting } from "@/ipc/db";
 import { presetsMessages } from "./messages";
-import { freePresetName, MAX_PRESETS, readPresets, storedPresets, withoutPreset, withPreset, type TeamPreset } from "./model";
+import { freePresetName, MAX_PRESETS, presetsLeftOut, readPresets, storedPresets, withoutPreset, withPreset, type TeamPreset } from "./model";
 
 /** The setting that holds the presets. */
 export const PRESETS_KEY = "presets.teams";
@@ -39,7 +39,12 @@ export const presetsStore = createStore<PresetsState>()((set, get) => ({
     if (get().loaded) return Promise.resolve();
     // One read at a time: the palette and a save ask together.
     reading ??= getSetting<unknown>(PRESETS_KEY)
-      .then((raw) => set({ presets: readPresets(raw), loaded: true }))
+      .then(async (raw) => {
+        // Before the list is read into the store, or saved: what the reader leaves out is lost at the next save.
+        const leftOut = presetsLeftOut(raw);
+        if (leftOut !== "none") await keepSettingAside(PRESETS_KEY, leftOut === "some");
+        set({ presets: readPresets(raw), loaded: true });
+      })
       .catch((error: unknown) => console.warn("presets not read", error))
       .finally(() => {
         reading = null;

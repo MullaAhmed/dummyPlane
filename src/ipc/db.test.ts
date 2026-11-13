@@ -2,7 +2,7 @@
 import { afterEach, expect, it } from "vitest";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { flushAll } from "@/lib/flush";
-import { onSettingKept, saveFiles, saveNode, saveScene, setSetting } from "./db";
+import { keepSettingAside, onSettingKept, saveFiles, saveNode, saveScene, setSetting } from "./db";
 
 afterEach(() => clearMocks());
 
@@ -64,4 +64,28 @@ it("tells the listeners when a write kept the text of a value it could not read,
   answer = "loops.list.unreadable.2";
   await setSetting("loops.list", []);
   expect(told).toHaveLength(1);
+});
+
+it("asks Rust to keep the text of a value read only in part, and tells the listeners, in part or whole", async () => {
+  let answer: string | null = "presets.teams.unreadable";
+  const asked: unknown[] = [];
+  mockIPC((cmd, args) => {
+    if (cmd !== "keep_setting") return undefined;
+    asked.push(args);
+    return answer;
+  });
+  const told: [string, string, boolean][] = [];
+  const off = onSettingKept((key, aside, some) => told.push([key, aside, some]));
+  await keepSettingAside("presets.teams", true);
+  await keepSettingAside("presets.teams", false);
+  expect(asked).toEqual([{ key: "presets.teams" }, { key: "presets.teams" }]);
+  expect(told).toEqual([
+    ["presets.teams", "presets.teams.unreadable", true],
+    ["presets.teams", "presets.teams.unreadable", false],
+  ]);
+  // Kept already: nothing said.
+  answer = null;
+  await keepSettingAside("presets.teams", true);
+  expect(told).toHaveLength(2);
+  off();
 });

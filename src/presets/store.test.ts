@@ -69,3 +69,39 @@ it("saves nothing over a list it could not read: a busy database must not wipe t
   expect(saved).toEqual([]);
   expect(presetsStore.getState().loaded).toBe(false);
 });
+
+it("has the text of a setting it reads only in part kept before anything is saved over it, once", async () => {
+  const asked: string[] = [];
+  mockIPC((cmd, args) => {
+    asked.push(cmd);
+    if (cmd === "get_setting") return stored;
+    if (cmd === "keep_setting") return "presets.teams.unreadable";
+    if (cmd === "set_setting") saved.push(args as { key: string; value: unknown });
+  });
+  // Another version: the list reads empty, and the save that follows would replace what the setting holds.
+  stored = { version: 2, presets: [savedPreset("Newer", "9")] };
+  await presetsStore.getState().load();
+  expect(presetsStore.getState().presets).toEqual([]);
+  expect(await presetsStore.getState().save(preset("Tests", "2"))).toBe(true);
+  expect(asked).toEqual(["get_setting", "keep_setting", "set_setting"]);
+  // A damaged preset among good ones: the good stay, the text is kept all the same.
+  asked.length = 0;
+  presetsStore.setState({ presets: [], loaded: false });
+  stored = { version: 1, presets: [savedPreset("Dev HQ", "1"), { id: "2", name: "" }] };
+  await presetsStore.getState().load();
+  expect(presetsStore.getState().presets.map((p) => p.name)).toEqual(["Dev HQ"]);
+  expect(asked).toEqual(["get_setting", "keep_setting"]);
+});
+
+it("keeps nothing aside for a setting it reads whole, or that was never saved", async () => {
+  const asked: string[] = [];
+  mockIPC((cmd) => {
+    asked.push(cmd);
+    return cmd === "get_setting" ? stored : null;
+  });
+  await presetsStore.getState().load();
+  presetsStore.setState({ presets: [], loaded: false });
+  stored = null;
+  await presetsStore.getState().load();
+  expect(asked).toEqual(["get_setting", "get_setting"]);
+});

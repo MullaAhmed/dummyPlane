@@ -4,7 +4,7 @@ import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { toast } from "sonner";
 import { historyKey } from "@/agents/history";
 import { launchFolderKey } from "@/agents/launchFolder";
-import { setSetting } from "@/ipc/db";
+import { keepSettingAside, setSetting } from "@/ipc/db";
 import { LOOPS_KEY } from "@/loops/store";
 import { NOTIFICATIONS_KEY } from "@/notifications/store";
 import { PRESETS_KEY } from "@/presets/store";
@@ -53,4 +53,18 @@ it("says nothing when a write kept nothing", async () => {
   mockIPC(() => null);
   await setSetting(LOOPS_KEY, []);
   expect(toast.warning).not.toHaveBeenCalled();
+});
+
+it("says that only some of a list could not be read, for the loops and the presets that kept part of themselves", async () => {
+  installResetNotice();
+  mockIPC((cmd) => (cmd === "keep_setting" ? "x.unreadable" : undefined));
+  const said = async (key: string, some: boolean) => {
+    vi.mocked(toast.warning).mockClear();
+    await keepSettingAside(key, some);
+    return vi.mocked(toast.warning).mock.calls.map((call) => call[0]);
+  };
+  expect(await said(LOOPS_KEY, true)).toEqual(["Some of your loops could not be read and were left out"]);
+  expect(await said(PRESETS_KEY, true)).toEqual(["Some of your team presets could not be read and were left out"]);
+  // None of it read: as before.
+  expect(await said(LOOPS_KEY, false)).toEqual(["Your loops could not be read and start empty"]);
 });

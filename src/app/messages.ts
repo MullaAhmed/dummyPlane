@@ -28,6 +28,11 @@ export const appMessages = defineMessages(
       order: "A project's workspace order could not be read and starts again",
       levels: "Your model router levels could not be read and start again",
       other: (key: string) => `The setting ${key} could not be read and starts again`,
+      /** A list that was read in part: its damaged entries, or a version this one does not know, were left out. */
+      some: {
+        loops: "Some of your loops could not be read and were left out",
+        presets: "Some of your team presets could not be read and were left out",
+      },
       kept: (aside: string) => `The old text is kept in the settings as ${aside}`,
     },
     /** Any failed start: the start itself, or the projects it reads last. */

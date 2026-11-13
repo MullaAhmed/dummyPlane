@@ -8,8 +8,10 @@ import { appMessages } from "./messages";
  * `presets.teams`, `command.history.<project>`, `launch.folder.<project>`, `ui.notifications`,
  * `ui.workspaceOrder.<project>`, `agents.modelRouterLevels`); any other setting says its key.
  */
-function titleOf(key: string): string {
+function titleOf(key: string, some: boolean): string {
   const t = messages(appMessages).resetList;
+  if (some && key === "loops.list") return t.some.loops;
+  if (some && key === "presets.teams") return t.some.presets;
   if (key === "loops.list") return t.loops;
   if (key === "presets.teams") return t.presets;
   if (key.startsWith("command.history.")) return t.history;
@@ -30,5 +32,5 @@ let installed = false;
 export function installResetNotice() {
   if (installed) return;
   installed = true;
-  onSettingKept((key, aside) => toast.warning(titleOf(key), { description: messages(appMessages).resetList.kept(aside) }));
+  onSettingKept((key, aside, some) => toast.warning(titleOf(key, some), { description: messages(appMessages).resetList.kept(aside) }));
 }

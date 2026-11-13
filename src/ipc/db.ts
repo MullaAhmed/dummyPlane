@@ -93,19 +93,30 @@ export const saveFiles = (workspaceId: string, files: StoredFile[]) =>
 /** Writes the node under its stored kind (`toStoredKind`): the database keeps the name a fleet always had. */
 export const saveNode = (id: string, workspaceId: string, kind: NodeKind, payloadJson: string) =>
   write(() => call<void>("save_node", { id, workspaceId, kind: toStoredKind(kind), payloadJson }));
-type KeptHandler = (key: string, aside: string) => void;
+type KeptHandler = (key: string, aside: string, some: boolean) => void;
 const keptHandlers = new Set<KeptHandler>();
 
 /**
- * Told when a write replaced a saved value that did not parse, and its text was kept under `aside` (Rust's
- * `settings::set`): once for each text, never for a value that read. Returns the way to stop listening.
+ * Told when the text of a saved value was kept under `aside` (Rust's `settings::set`, `settings::keep`): a write
+ * replaced a value that did not parse, or `keepSettingAside` was asked to keep one read only in part (`some`: only
+ * some of its list was left out). Once for each text, never for a value that read. Returns the way to stop listening.
  */
 export function onSettingKept(handler: KeptHandler): () => void {
   keptHandlers.add(handler);
   return () => void keptHandlers.delete(handler);
 }
 
+const told = (key: string, aside: string | null, some: boolean) => {
+  if (aside) for (const handler of keptHandlers) handler(key, aside, some);
+};
+
 export const setSetting = (key: string, value: unknown): Promise<void> =>
-  write(() => call<string | null>("set_setting", { key, value })).then((aside) => {
-    if (aside) for (const handler of keptHandlers) handler(key, aside);
-  });
+  write(() => call<string | null>("set_setting", { key, value })).then((aside) => told(key, aside, false));
+
+/**
+ * Has the text stored under `key` kept aside, whatever it parses as, before a write replaces it: for a list a
+ * store read only in part, a newer version or a damaged entry (`some`: only the entries were left out, not all of
+ * it). Queued with the writes, so that none can overtake it.
+ */
+export const keepSettingAside = (key: string, some: boolean): Promise<void> =>
+  write(() => call<string | null>("keep_setting", { key })).then((aside) => told(key, aside, some));

@@ -42,8 +42,18 @@ fn keep_aside(conn: &Connection, key: &str, text: &str) -> AppResult<Option<Stri
         "INSERT INTO settings (key, value_json) VALUES (?1, ?2)",
         params![aside, kept],
     )?;
-    log::warn!("setting {key} did not parse and is replaced: what it held is kept as {aside}");
+    log::warn!("setting {key} could not be read in full: what it held is kept as {aside}");
     Ok(Some(aside))
+}
+
+/// Keeps the text stored under `key`, whatever it parses as: for a value the interface read in part or
+/// not at all (a newer version, a damaged entry), which its next write would replace. The key it is
+/// kept under, when it is kept now; None when nothing is stored, or that text is kept already.
+pub fn keep(conn: &Connection, key: &str) -> AppResult<Option<String>> {
+    match raw(conn, key)? {
+        Some(text) => keep_aside(conn, key, &text),
+        None => Ok(None),
+    }
 }
 
 /// Stores `value` under `key`. The key under which the text it replaced was kept, when that text
@@ -129,6 +139,38 @@ mod tests {
                 assert_eq!(
                     set(conn, "loops.list", &serde_json::json!([]))?.as_deref(),
                     Some("loops.list.unreadable.2")
+                );
+                Ok(())
+            })
+            .unwrap();
+    }
+
+    /// A value that parses, but whose shape the interface cannot take (a newer version, a damaged
+    /// entry), is read as less than it holds, and the next write replaces it all: the interface asks
+    /// for its text to be kept, whatever it parses as, once, the row itself left as it is.
+    #[test]
+    fn keeps_a_row_that_parses_aside_when_asked_once() {
+        let odd = r#"{"version":99,"presets":[{"id":"1"}]}"#;
+        Db::open_in_memory()
+            .unwrap()
+            .with(|conn| {
+                // Nothing stored: nothing to keep.
+                assert_eq!(keep(conn, "presets.teams")?, None);
+                put_raw(conn, "presets.teams", odd);
+                assert_eq!(
+                    keep(conn, "presets.teams")?.as_deref(),
+                    Some("presets.teams.unreadable")
+                );
+                // Asked at each start while the row stays so: kept once, told once.
+                assert_eq!(keep(conn, "presets.teams")?, None);
+                // The row is as it was, and the kept text reads back as a string.
+                assert_eq!(
+                    get(conn, "presets.teams")?,
+                    Some(serde_json::from_str(odd).unwrap())
+                );
+                assert_eq!(
+                    get(conn, "presets.teams.unreadable")?,
+                    Some(serde_json::json!(odd))
                 );
                 Ok(())
             })

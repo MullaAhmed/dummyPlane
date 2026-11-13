@@ -46,6 +46,8 @@ const TITLES: [string, string][] = [
   [app.resetList.order, "A project's workspace order could not be read and starts again"],
   [app.resetList.levels, "Your model router levels could not be read and start again"],
   [app.resetList.other("ui.theme"), "The setting ui.theme could not be read and starts again"],
+  [app.resetList.some.loops, "Some of your loops could not be read and were left out"],
+  [app.resetList.some.presets, "Some of your team presets could not be read and were left out"],
   [app.startFailed, "dummyPlane could not start"],
   [messages(canvasMessages).saveFailed, "Could not save the canvas"],
   [messages(canvasMessages).imagesNotSaved, "Could not save the images of the canvas"],

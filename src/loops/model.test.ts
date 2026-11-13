@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   LOOP_TEMPLATES,
+  loopsLeftOut,
   loopsOf,
   MAX_LOOPS,
   placeLoops,
@@ -90,6 +91,19 @@ describe("readLoops and the list", () => {
     // A loop of version 2 names its project: one without is not read.
     const noProject = { ...good, id: "4", projectId: undefined };
     expect(readLoops({ version: 2, loops: [noStop, good, { id: 3 }, noProject] })).toEqual([good]);
+  });
+
+  it("says how much of a saved setting it leaves out: nothing, some of its loops, or all of it", () => {
+    expect(loopsLeftOut(null)).toBe("none");
+    expect(loopsLeftOut({ version: 2, loops: [] })).toBe("none");
+    expect(loopsLeftOut({ version: 2, loops: [good] })).toBe("none");
+    expect(loopsLeftOut({ version: 2, loops: [good, { id: 3 }] })).toBe("some");
+    // The setting of a loop without a project is read for its migration: it leaves out only a damaged loop.
+    const { projectId: _none, ...old } = good;
+    expect(loopsLeftOut({ version: 1, loops: [old] })).toBe("none");
+    expect(loopsLeftOut({ version: 1, loops: [old, { id: 3 }] })).toBe("some");
+    // A newer version, another shape: read as no loop at all.
+    for (const other of [{ version: 3, loops: [good] }, { loops: [good] }, { version: 2, loops: "no" }, "x", 4, [good]]) expect(loopsLeftOut(other), JSON.stringify(other)).toBe("all");
   });
 
   it("keeps at most 30 loops per project, replaces one by id, removes one by id", () => {
