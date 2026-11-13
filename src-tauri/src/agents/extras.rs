@@ -828,7 +828,7 @@ pub fn for_codex(pick: &Pick, installed: &Installed) -> Result<Vec<String>, Stri
     let mut args = Vec::new();
     if let Some(names) = &pick.skills {
         let keep = kept(names, &installed.skills, "skill");
-        let off = turned_off(&installed.skills, &keep, "skill")?;
+        let off = turned_off(&installed.skills, &keep, "skill", "Codex")?;
         if !off.is_empty() {
             let entries: Vec<String> = off
                 .iter()
@@ -840,7 +840,7 @@ pub fn for_codex(pick: &Pick, installed: &Installed) -> Result<Vec<String>, Stri
     }
     if let Some(names) = &pick.plugins {
         let keep = kept(names, &installed.plugins, "plugin");
-        turned_off(&installed.plugins, &keep, "plugin")?;
+        turned_off(&installed.plugins, &keep, "plugin", "Codex")?;
         for plugin in installed.plugins.iter().filter(|p| p.pickable()) {
             let on = keep.contains(&plugin.name);
             if on != plugin.on {
@@ -851,7 +851,7 @@ pub fn for_codex(pick: &Pick, installed: &Installed) -> Result<Vec<String>, Stri
     }
     if let Some(names) = &pick.mcp_servers {
         let keep = kept(names, &installed.mcp_servers, "MCP server");
-        for name in turned_off(&installed.mcp_servers, &keep, "MCP server")? {
+        for name in turned_off(&installed.mcp_servers, &keep, "MCP server", "Codex")? {
             args.push("-c".to_string());
             args.push(format!("mcp_servers.{name}.enabled=false"));
         }
@@ -874,6 +874,7 @@ fn turned_off<'a>(
     listed: &'a [Extra],
     keep: &BTreeSet<String>,
     what: &str,
+    cli: &str,
 ) -> Result<Vec<&'a str>, String> {
     let mut off = Vec::new();
     for item in listed
@@ -884,7 +885,7 @@ fn turned_off<'a>(
             None => off.push(item.name.as_str()),
             Some(Locked::Name) => {
                 return Err(format!(
-                    "the {what} \"{}\" cannot be turned off from dummyPlane on Codex: its name holds characters Codex's command line cannot carry",
+                    "the {what} \"{}\" cannot be turned off from dummyPlane on {cli}: its name holds characters {cli} cannot be given",
                     item.name
                 ));
             }
@@ -964,7 +965,9 @@ pub fn check(pick: &Pick, installed: &Installed, cli: &str) -> Result<Pick, Stri
         }
         // Every item of the kind the pick leaves on must be one a launch can turn off.
         let keep: BTreeSet<String> = kept.iter().cloned().collect();
-        if let Err(cause) = turned_off(listed, &keep, kind) {
+        // Claude reads the servers of an MCP pick alone (a strict MCP file): one it cannot name is left out, not left on.
+        let own_file = cli == "Claude" && kind == "MCP server";
+        if !own_file && let Err(cause) = turned_off(listed, &keep, kind, cli) {
             problems.push(cause);
         }
         Some(kept)
@@ -1632,6 +1635,31 @@ mod tests {
         assert!(err.contains("cannot carry"), "{err}");
         // A description is one line without control characters too.
         assert_eq!(short("one\n\ttwo \u{1b}[31mred"), "one two [31mred");
+    }
+
+    #[test]
+    fn an_item_dummyplane_cannot_name_does_not_stop_a_claude_mcp_pick_and_is_refused_in_claude_s_own_words_elsewhere()
+     {
+        let (_root, places) = claude_places();
+        put_json(
+            &places.claude_json,
+            json!({ "mcpServers": { "odd\nname": { "type": "http", "url": "https://x.example" } } }),
+        );
+        let found = claude_installed(&places);
+        // Claude reads the servers it is picked alone: the one it cannot name is left out of that file, not left on.
+        let ok = check(&pick(None, Some(&[]), None), &found, "Claude");
+        assert!(ok.is_ok(), "{ok:?}");
+        // A skill it cannot name stays on whatever the pick says: refused, and not in Codex's words.
+        let stays = Installed {
+            skills: vec![Extra::new("odd".into(), None, true).locked(Locked::Name)],
+            ..Installed::default()
+        };
+        let err = check(&pick(Some(&[]), None, None), &stays, "Claude").unwrap_err();
+        assert!(
+            err.contains("cannot be turned off from dummyPlane on Claude"),
+            "{err}"
+        );
+        assert!(!err.contains("Codex"), "{err}");
     }
 
     // ------------------------------------------------------------ Codex
