@@ -3,6 +3,7 @@ import { STORED_FLEET_KIND } from "./nodeElement";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
+import { openRadial, radialStore } from "@/radial/radialState";
 import { uiStore } from "@/store/ui";
 import { canvasStore } from "./canvasStore";
 import { focusGroup, overview, overviewTargets, releaseToCanvas } from "./canvasFocus";
@@ -23,7 +24,10 @@ beforeEach(() => {
     '<div class="excalidraw excalidraw-container" tabindex="0"><div data-terminal="batman"><textarea></textarea></div></div>';
   container = document.querySelector<HTMLDivElement>(".excalidraw-container")!;
 });
-afterEach(() => document.body.replaceChildren());
+afterEach(() => {
+  document.body.replaceChildren();
+  radialStore.setState({ ring: null });
+});
 
 const withScene = (elements: ExcalidrawElement[]) =>
   canvasStore.setState({
@@ -45,6 +49,13 @@ describe("releaseToCanvas", () => {
     releaseToCanvas();
     expect(uiStore.getState().placing).toBeNull();
     expect(uiStore.getState().linking).toBeNull();
+  });
+
+  it("closes the radial ring: the shortcut, which runs before the ring's own keys, never lets its Escape reach it", () => {
+    withScene([]);
+    openRadial({ client: { x: 1, y: 1 }, center: { x: 400, y: 300 }, kind: "canvas", context: { project: true, workspaceId: "w", terminalCount: 0, terminalId: null }, pressed: false, sliding: false, hovered: null });
+    releaseToCanvas();
+    expect(radialStore.getState().ring).toBeNull();
   });
 
   it("creates no selection and leaves none behind: Suppr must not delete the terminal just left", () => {
