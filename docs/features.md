@@ -72,7 +72,7 @@ Remote Control, missions, the model router, the step timeline and the usage mete
 |---|---|
 | `Ctrl+P` | Go to a terminal, group, fleet, workspace or project |
 | `Ctrl+Shift+P` | Function palette (every command of the app) |
-| `Ctrl+Tab` / `Ctrl+Shift+Tab` | Next / previous terminal, in reading order |
+| `Ctrl+Tab` / `Ctrl+Shift+Tab` | Next / previous terminal, in reading order (those of a folded group are skipped: Go to, `Ctrl+P` and the Agents panel unfold it) |
 | `Shift+Esc` | Give the keyboard back to the canvas |
 | `Ctrl+Shift+A` | Overview |
 | Right-press | Radial menu: click an item, or hold, drag and release |
