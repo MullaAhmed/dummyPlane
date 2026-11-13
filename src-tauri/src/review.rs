@@ -256,6 +256,8 @@ fn changes_limited(dir: &Path, base: Option<&str>, max: usize) -> Result<Changes
             "-z",
             "-M",
             &from,
+            // A file named `HEAD` would make the revision ambiguous.
+            "--",
         ],
     )?;
     let counts = parse_numstat(&git(
@@ -268,6 +270,7 @@ fn changes_limited(dir: &Path, base: Option<&str>, max: usize) -> Result<Changes
             "-z",
             "-M",
             &from,
+            "--",
         ],
     )?);
     let mut files: Vec<ChangedFile> = parse_name_status(&names)
@@ -593,6 +596,21 @@ mod tests {
         let diff = file_diff(dir, bracketed, None).unwrap();
         assert!(diff.contains("+deux"), "{diff}");
         assert!(!diff.contains("trois"), "{diff}");
+    }
+
+    /// git refuses `diff HEAD` when a file is named `HEAD` too, unless `--` ends the revisions:
+    /// the whole list failed with "ambiguous argument".
+    #[test]
+    fn lists_the_changes_whatever_a_file_is_named() {
+        let Some(repo) = repo() else { return };
+        let dir = repo.path();
+        std::fs::write(dir.join("HEAD"), "ref\n").unwrap();
+        std::fs::write(dir.join("a.txt"), "un\ntrois\n").unwrap();
+        let files = changes(dir, None).unwrap().files;
+        assert_eq!(
+            files.iter().map(|f| f.path.as_str()).collect::<Vec<_>>(),
+            ["HEAD", "a.txt"]
+        );
     }
 
     #[test]
