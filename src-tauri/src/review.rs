@@ -292,7 +292,8 @@ fn changes_limited(dir: &Path, base: Option<&str>, max: usize) -> Result<Changes
         .filter(|p| !p.is_empty() && !p.ends_with('/'))
         .collect();
     let truncated = files.len() + untracked.len() > max;
-    for path in untracked.into_iter().take(max) {
+    // The agent's changes to tracked files come first: untracked files take the room left.
+    for path in untracked.into_iter().take(max.saturating_sub(files.len())) {
         let full = root.join(path);
         // Lines are counted below `MAX_BYTES` only; a bigger file shows none.
         let small =
@@ -659,6 +660,31 @@ mod tests {
         assert_eq!((cut.files.len(), cut.truncated), (2, true));
         let whole = changes_limited(dir, None, 3).unwrap();
         assert_eq!((whole.files.len(), whole.truncated), (3, false));
+    }
+
+    /// A folder of thousands of untracked files (an `npm install` without `.gitignore`)
+    /// fills the cut list: the agent's own changes to tracked files must stay in it.
+    #[test]
+    fn a_cut_list_keeps_the_tracked_changes_before_the_untracked_files() {
+        let Some(repo) = repo() else { return };
+        let dir = repo.path();
+        std::fs::write(dir.join("zz.txt"), "un\n").unwrap();
+        sh(dir, &["add", "zz.txt"]);
+        sh(dir, &["commit", "-q", "-m", "zz"]);
+        std::fs::write(dir.join("zz.txt"), "deux\n").unwrap();
+        for name in ["u1.txt", "u2.txt", "u3.txt"] {
+            std::fs::write(dir.join(name), "x\n").unwrap();
+        }
+        let cut = changes_limited(dir, None, 2).unwrap();
+        assert!(cut.truncated);
+        assert_eq!(cut.files.len(), 2);
+        assert!(
+            cut.files
+                .iter()
+                .any(|f| f.path == "zz.txt" && f.status == "modified"),
+            "{:?}",
+            cut.files
+        );
     }
 
     #[test]
