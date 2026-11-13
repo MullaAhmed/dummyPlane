@@ -62,8 +62,8 @@ export const AGENT_COMMANDS: readonly Command[] = [
   command("agent.other", {
     section,
     available: inProject,
-    // The ＋ menu's catalog; from the radial menu, the agent starts at its point.
-    run: (ctx) => requestUi({ kind: "agentMenu", view: "agents", at: ctx.at }),
+    // The agents of the ＋ menu, without what is not one; from the radial menu, the agent starts at its point.
+    run: (ctx) => requestUi({ kind: "agentMenu", view: "agents", only: "agents", at: ctx.at }),
   }),
   command("agent.accounts", { section, available: inProject, run: () => openAccounts() }),
   command("agent.console", { section, available: inProject, run: (ctx) => newConsole(ctx.at) }),

@@ -45,7 +45,7 @@ const byLabel = (label: string) => host.querySelector<HTMLButtonElement>(`[aria-
 
 it("offers the canvas tools in their fixed order, each setting its Excalidraw tool", async () => {
   const labels = [...host.querySelectorAll("button")].map((b) => b.getAttribute("aria-label"));
-  expect(labels).toEqual(["Select (V)", "Hand (H)", "Shapes", "Text (T)", "Pen (P)", "Eraser (E)", "Image", "Launch an agent", "Fit the view"]);
+  expect(labels).toEqual(["Select (V)", "Hand (H)", "Shapes", "Text (T)", "Pen (P)", "Eraser (E)", "Image", "Add to canvas", "Fit the view"]);
   const tools: [string, string][] = [
     ["Select (V)", "selection"],
     ["Hand (H)", "hand"],
@@ -62,14 +62,13 @@ it("offers the canvas tools in their fixed order, each setting its Excalidraw to
 it("holds the catalog, New console, Fleet and Kanban in its ＋", async () => {
   const menuEntries = () =>
     [...document.querySelectorAll<HTMLButtonElement>('[data-slot="popover-content"] button')].map((b) => b.textContent ?? "");
-  await act(async () => byLabel("Launch an agent").click());
+  await act(async () => byLabel("Add to canvas").click());
   const entries = menuEntries();
   // The launch folder comes first (its Change… button), then the agents.
   expect(entries[0]).toBe("Change…");
   expect(entries[1]).toContain("Claude");
-  // New console ends the agents; the Shell, the Fleet and the board come apart, under "Not an agent".
-  expect(entries).toContain("New console");
-  expect(entries.slice(-4, -1)).toEqual([expect.stringContaining("Shell"), expect.stringContaining("Fleet"), expect.stringContaining("Kanban")]);
+  // After the agents: the terminals (New console, then the Shell), then the Fleet and the board.
+  expect(entries.slice(-5, -1)).toEqual(["New console", expect.stringContaining("Shell"), expect.stringContaining("Fleet"), expect.stringContaining("Kanban")]);
   expect(entries).not.toContain("Launch 4 agents");
   const click = (text: string) =>
     [...document.querySelectorAll<HTMLButtonElement>('[data-slot="popover-content"] button')].find((b) => b.textContent === text)!.click();
@@ -83,10 +82,13 @@ it("opens the ＋ menu on request, on the custom command's options or on Ollama'
 });
 
 it("launches the agent chosen in the ＋ menu where the radial menu was opened (Other agent…)", async () => {
-  await act(async () => requestUi({ kind: "agentMenu", view: "agents", at: { x: 10, y: 20 } }));
+  await act(async () => requestUi({ kind: "agentMenu", view: "agents", only: "agents", at: { x: 10, y: 20 } }));
   await act(async () => agentsStore.setState({ agents: [{ id: "claude", available: true }] } as never));
   const menu = document.querySelector('[data-slot="popover-content"]')!;
   expect(menu.textContent).toContain("launched where you clicked");
+  // Only the agents, headed "Launch an agent": the ring's "Other agent…" is not the ＋'s whole menu.
+  expect(menu.textContent).toContain("Launch an agent");
+  for (const other of ["New console", "Fleet", "Kanban", "Terminals"]) expect(menu.textContent, other).not.toContain(other);
   const claude = [...menu.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent?.startsWith("Claude"))!;
   await act(async () => claude.click());
   expect(launchAgent).toHaveBeenCalledWith("claude", expect.objectContaining({ shell: expect.any(String) }), { x: 10, y: 20 });

@@ -11,7 +11,6 @@ import { usageStore } from "@/usage/usageStore";
 import { folderName } from "./ExtensionList";
 import { canvasMessages } from "./messages";
 import { forgetStartedChoice } from "./startedChoice";
-import { withPlane } from "@/notifications/capture";
 
 /** The one toast a terminal's move offers its restart in: a second move replaces it, a move back or a restart takes it away. */
 const toastId = (nodeId: string) => `folder-move:${nodeId}`;
@@ -46,18 +45,16 @@ export function announceFolderMove(nodeId: string, before: TerminalPayload, cwd:
   if (from === null || sameFolder(from, cwd)) {
     // Not running, or back in the folder it runs in: nothing waits for a restart.
     toast.dismiss(toastId(nodeId));
-    if (claude) withPlane({ nodeId }, () => toast.info(from === null ? t.folderNewConversation : t.folderBack(folderName(cwd))));
+    if (claude) toast.info(from === null ? t.folderNewConversation : t.folderBack(folderName(cwd)));
     return;
   }
   const to = folderName(cwd);
-  withPlane({ nodeId }, () =>
-    toast.info(t.folderMoveRunning(folderName(from)), {
-      id: toastId(nodeId),
-      description: claude ? t.folderMoveConversation(to) : t.folderMoveNext(to),
-      action: { label: t.restartIn(to), onClick: () => restartTerminal(nodeId) },
-      duration: OFFER_MS,
-    }),
-  );
+  toast.info(t.folderMoveRunning(folderName(from)), {
+    id: toastId(nodeId),
+    description: claude ? t.folderMoveConversation(to) : t.folderMoveNext(to),
+    action: { label: t.restartIn(to), onClick: () => restartTerminal(nodeId) },
+    duration: OFFER_MS,
+  });
 }
 
 /**
@@ -86,6 +83,6 @@ export function adoptLiveFolder(nodeId: string, folder: string): boolean {
   updateSession(nodeId, patch);
   toast.dismiss(toastId(nodeId));
   const adopted = folderName(patch.cwd);
-  withPlane({ nodeId }, () => toast.info(messages(canvasMessages).selection.folderAdopted(adopted)));
+  toast.info(messages(canvasMessages).selection.folderAdopted(adopted));
   return true;
 }

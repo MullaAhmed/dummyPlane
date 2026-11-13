@@ -8,7 +8,7 @@ pub const AGENT_EN: &str = "You work in dummyPlane, a canvas of agent terminals.
 - declare_steps (argument steps): when your task takes several steps (or the phases of a workflow), declare them before you start, as short titles (for example Plan, Research, Implementation, Verification). dummyPlane shows them as a strip under your terminal.
 - step (arguments title, state): mark each step \"in_progress\" when you start it, \"done\" when it is finished, \"failed\" if it fails.
 A sub-agent opened with spawn_agent does not block you, and marks its steps under its own terminal. Built-in sub-agents and Workflows, when dummyPlane lets them run, keep you waiting until they are done: you cannot mark anything meanwhile, and the strip stays frozen until the end. Either way, when you hand steps to other agents, write the exact title of its step in each agent's instructions and ask it to mark it itself with the tool mcp__dummyplane__step (in_progress when starting, done or failed when finishing). Agents working in parallel each have their own step.
-- spawn_agent (arguments task, title, optional model, optional level, skills, mcp_servers, plugins): opens a new Claude terminal next to yours, in the same folder (the same worktree), that the user can watch and type into. task holds the complete instructions: the sub-agent starts from nothing. title is short. Give level on every call, the task's difficulty (low, medium, high or extreme; medium suits most work): the model router, on unless the user turned it off (in Settings, or with the switch on your terminal or on the fleet or the agent you work under; you cannot see it), picks the sub-agent's model from level, medium with no level, and the tool's answer names the model it picked, or why none; while it is on, a Claude model named with no level is refused. skills, mcp_servers and plugins, each a list of names, choose what the sub-agent gets among what installed_extras lists for its CLI in your folder (with whether each is on by default): leave one out and the sub-agent gets its CLI's defaults for that kind, give an empty list and it gets none of them; a plugin's own skills and MCP servers come with the plugin, and the dummyplane server is always kept. A pick may switch on what the user left off (a skill, a plugin, an MCP server), except a project MCP server the user has not approved: only the user lets a repository's own server run. A sub-agent gets at most what you have yourself: when your own spawner picked yours or the user switched some off for you, a name beyond that is refused, and a kind you leave out stays as yours. Pick only when the task calls for it. Use it to delegate sub-tasks in parallel, one call per sub-agent, instead of the built-in Agent/Task tool or a Workflow, which dummyPlane refuses while its \"Sub-agents as terminals\" setting is on (the default). It returns at once: do not poll or wait in a loop. When the sub-agent finishes, it calls report, and its report arrives in your terminal as a line \"[dummyPlane] <name> reported (<status>): <summary>\". To give a sub-agent that reported new work, message it with message_agent and a title for that work. A sub-agent may open its own, at most 3 levels below a top agent, and a global cap limits the sub-agents running at once: the tool says so when it refuses.
+- spawn_agent (arguments task, title, optional model, optional level, skills, mcp_servers, plugins, role): opens a new Claude terminal next to yours, in the same folder (the same worktree), that the user can watch and type into. task holds the complete instructions: the sub-agent starts from nothing. title is short. Give level on every call, the task's difficulty (low, medium, high or extreme; medium suits most work): the model router, on unless the user turned it off (in Settings, or with the switch on your terminal or on the fleet or the agent you work under; you cannot see it), picks the sub-agent's model from level, medium with no level, and the tool's answer names the model it picked, or why none; while it is on, a Claude model named with no level is refused. skills, mcp_servers and plugins, each a list of names, choose what the sub-agent gets among what installed_extras lists for its CLI in your folder (with whether each is on by default): leave one out and the sub-agent gets its CLI's defaults for that kind, give an empty list and it gets none of them; a plugin's own skills and MCP servers come with the plugin, and the dummyplane server is always kept. A pick may switch on what the user left off (a skill, a plugin, an MCP server), except a project MCP server the user has not approved: only the user lets a repository's own server run. A sub-agent gets at most what you have yourself: when your own spawner picked yours or the user switched some off for you, a name beyond that is refused, and a kind you leave out stays as yours. Pick only when the task calls for it. Give role \"manager\" for a task with several items to hand out rather than do: the sub-agent then does none of the work, it puts the items on a board of its own and hands each to a sub-agent of its own; leave role out for a sub-agent that does the work. Use it to delegate sub-tasks in parallel, one call per sub-agent, instead of the built-in Agent/Task tool or a Workflow, which dummyPlane refuses while its \"Sub-agents as terminals\" setting is on (the default). It returns at once: do not poll or wait in a loop. When the sub-agent finishes, it calls report, and its report arrives in your terminal as a line \"[dummyPlane] <name> reported (<status>): <summary>\". To give a sub-agent that reported new work, message it with message_agent and a title for that work. A sub-agent may open its own, at most 3 levels below a top agent, and a global cap limits the sub-agents running at once: the tool says so when it refuses.
 - report (arguments summary, status, optional check): when dummyPlane has given you a mission sub-task, commit, then finish with a summary and a status (done, blocked, failed); in check, what the user will have to check by hand. It is also how a sub-agent opened with spawn_agent hands its result back to the agent that spawned it: commit first if you changed files.
 - notes (optional argument name): the project's Markdown notes, its memory, in .dummyplane/notes/. With no argument, the list, showing those attached to your group; with name, the text of a note. Read those attached to your group before you start.
 - linked_agents, message_agent (arguments agent, text, optional title), read_agent (arguments agent, optional lines): the agents the user linked to yours with a wire on the canvas (spawn_agent's wire counts too). linked_agents lists them; message_agent types your message into a linked agent's terminal, where it arrives as \"[dummyPlane] Message from <name> ...: <text>\", and title, for new work you give a sub-agent of yours that reported, becomes its terminal's title and its session's name, so they show that work, not the task it finished; read_agent reads the end of its terminal. A linked agent's message reaches you the same way: answer it with message_agent, since the sender cannot see your terminal, and never just to acknowledge it.
@@ -405,7 +405,8 @@ mod tests {
             for_codex(Role::Fleet),
         ] {
             for phrase in [
-                "optional level, skills, mcp_servers, plugins)",
+                // The agent's list goes on with role (`an_agent_hands_a_task_of_several_items_to_a_manager_with_role`).
+                "optional level, skills, mcp_servers, plugins",
                 "among what installed_extras lists for its CLI in your folder",
                 "leave one out and the sub-agent gets its CLI's defaults for that kind, give an empty list and it gets none of them",
                 "a plugin's own skills and MCP servers come with the plugin, and the dummyplane server is always kept",
@@ -543,13 +544,30 @@ mod tests {
     }
 
     #[test]
+    fn an_agent_hands_a_task_of_several_items_to_a_manager_with_role() {
+        // spawn_agent's role "manager" (`@/agents/spawn`): an agent's only, Claude's or Codex's. A Fleet splits its
+        // work through its mission, and a mission's Manager opens no sub-agents.
+        let clause = "Give role \"manager\" for a task with several items to hand out rather than do: the sub-agent then does none of the work, it puts the items on a board of its own and hands each to a sub-agent of its own; leave role out for a sub-agent that does the work.";
+        assert!(AGENT_EN.contains(clause));
+        assert!(for_codex(Role::Agent).contains(clause));
+        for text in [
+            FLEET_EN.to_string(),
+            MANAGER_EN.to_string(),
+            for_codex(Role::Fleet),
+            for_codex(Role::Manager),
+        ] {
+            assert!(!text.contains("role \"manager\""));
+            assert!(!text.contains("plugins, role)"));
+        }
+    }
+
+    #[test]
     fn spawn_agent_takes_a_level_the_model_router_turns_into_a_model() {
         // With the router on, a sub-agent spawned with no model ran the user's default: the level is how the router routes it.
         // On by default now: the user turns it off in Settings or with a switch, and the answer names the model.
-        assert!(
-            AGENT_EN
-                .contains("spawn_agent (arguments task, title, optional model, optional level, skills, mcp_servers, plugins)")
-        );
+        assert!(AGENT_EN.contains(
+            "spawn_agent (arguments task, title, optional model, optional level, skills, mcp_servers, plugins, role)"
+        ));
         assert!(AGENT_EN.contains("Give level on every call, the task's difficulty (low, medium, high or extreme; medium suits most work): the model router, on unless the user turned it off (in Settings, or with the switch on your terminal or on the fleet or the agent you work under; you cannot see it), picks the sub-agent's model from level, medium with no level, and the tool's answer names the model it picked, or why none; while it is on, a Claude model named with no level is refused."));
         assert!(
             FLEET_EN

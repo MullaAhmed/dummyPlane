@@ -41,8 +41,9 @@ export const agentMessages = defineMessages({
         "To give a sub-agent that reported new work, message it with message_agent and pass a title for that work: without one, its terminal still bears the title of the task it finished. " +
         "Give level on every call, the difficulty of this task: the model router, on unless the user turned it off (in Settings, or with the switch on your terminal or on the Fleet or the agent you work under), picks the sub-agent's model from it, and the answer names the model it picked, or why none. While it is on, a Claude model named with no level is refused. " +
         `A sub-agent can spawn its own, ${depth} levels below a top agent at most; the number running at once is capped by a setting. ` +
+        'For a large task with several parts, role "manager" opens a sub-agent that runs it with sub-agents of its own instead of doing it. ' +
         EXTRAS_HINT,
-      fleetSpawnAgent: (depth: number) =>
+      fleetSpawnAgent:(depth: number) =>
         "For ad-hoc work outside your mission's queue (a lookup, a check, a one-off task): a sub-agent opens as a new terminal beside you, in your workspace's folder, running your CLI. " +
         "It is a regular agent, not a manager: it edits files and runs commands, with the user's usual permissions (overnight, what the night lets the team do). The user can watch it and type into it. " +
         "A mission's work still goes through propose_plan or add_tasks. Use it instead of built-in sub-agents. It returns at once: do not wait or poll. " +
@@ -63,6 +64,9 @@ export const agentMessages = defineMessages({
         "Optional: the MCP servers the sub-agent gets, by name, among those installed_extras lists. Leave it out for its CLI's defaults; [] for none but the dummyplane server, which it always keeps. A plugin's own servers come with the plugin.",
       spawnPlugins:
         "Optional: the plugins the sub-agent gets (name@marketplace), among those installed_extras lists. Leave it out for its CLI's defaults; [] for none. A plugin brings its own skills and MCP servers.",
+      spawnRole:
+        'Optional: "manager" for a task with several parts to hand out. The sub-agent does none of the work itself: it opens a board of its own with open_board, one card per part, gives each card to a sub-agent of its own, moves the cards as they report, asks you with message_agent what is not its to decide, and reports when they are done. ' +
+        "It needs a level below it for its sub-agents, and a manager cannot open another. Leave it out for a sub-agent that does the work.",
       installedExtras:
         "The skills, MCP servers and plugins a sub-agent of yours could be given with spawn_agent's skills, mcp_servers and plugins: what its CLI loads in your folder, each described, with whether it is on by default (what the sub-agent gets when you leave that argument out), and why one cannot be picked.",
       linkedAgents:
@@ -190,6 +194,21 @@ export const agentMessages = defineMessages({
       gone: "Your terminal is no longer on the canvas.",
       noCanvas: "Your workspace's canvas is not loaded: open it in dummyPlane, then try again.",
       tooDeep: (max: number) => `Too deep: a sub-agent can only be spawned ${max} levels below a top agent. Do this task yourself.`,
+      role: (role: string) => `Unknown role "${role}": "manager", or leave role out for a sub-agent that does the work.`,
+      managerTooDeep: (max: number) =>
+        `Not opened: a manager needs a level below it for its own sub-agents, and one opened by you would leave none (sub-agents go ${max} levels below a top agent at most). Leave role out for a sub-agent that does the work, or do this task yourself.`,
+      managerOfManager:
+        "Not opened: you are a manager yourself, and a manager cannot open another. Leave role out: give the task to a sub-agent that does the work.",
+      /** Put before a manager's task (spawn_agent's role "manager"), in the text typed into it only: it runs the task with sub-agents of its own. */
+      managerBrief: (parent: string) =>
+        "You are a manager: you run this task with sub-agents of your own, and do not do its work yourself.\n" +
+        "- Split it into items, and open a board of your own with open_board, one card per item.\n" +
+        "- Open one sub-agent per card with spawn_agent (complete instructions, a title, a level), as many at once as the cap on sub-agents running at once allows, and move its card to In progress with move_board_card. " +
+        `When spawn_agent refuses for the cap, wait and open the next one when a report frees a seat; if none of yours is running, tell ${parent} with message_agent. Whatever a refusal says, never take a card's work yourself.\n` +
+        "- Their reports are typed into your terminal: move each card as its report comes in, to Done on done; on blocked or failed, give that sub-agent new work with message_agent, or open another.\n" +
+        `- When a decision is not yours to make, ask ${parent} with message_agent, and carry on with what it does not hold up.\n` +
+        "- When every card is done, finish with report: what your sub-agents did, and what is left.\n\n" +
+        "Your task: ",
       failed: "The sub-agent's terminal could not be created.",
       duplicate: (who: Holder) => `${holder(who)} Message or read that agent instead of starting another.`,
       levelNotModel: (model: string) =>

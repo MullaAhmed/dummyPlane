@@ -3,7 +3,7 @@ import { Crosshair, FileDiff, Pause, Play, Smartphone, X } from "lucide-react";
 import { focusNode } from "@/canvas/focusNode";
 import { Button } from "@/components/ui/button";
 import { useMessages } from "@/i18n";
-import { HeaderButton } from "@/nodes/terminal/TerminalHeader";
+import { HeaderButton, ManagerBadge } from "@/nodes/terminal/TerminalHeader";
 import { openReview } from "@/review/reviewStore";
 import { StatusPill } from "@/nodes/terminal/StatusPill";
 import { Hint } from "@/shell/buttons";
@@ -47,6 +47,8 @@ export function AgentRow(props: { id: string; onOpen?: () => void; trailing?: Re
           {name} <span className="text-dp-text-2">{meta.label}</span>
         </span>
       </Button>
+      {/* Outside the button: its hint is a trigger of its own. */}
+      {payload.coordinator && <ManagerBadge />}
       {remote?.state === "on" && (
         // The same hint as the buttons of the row, not a native title: the row mixes both.
         <Hint label={t.remoteOn}>

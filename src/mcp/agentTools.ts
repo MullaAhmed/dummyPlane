@@ -81,6 +81,8 @@ export function spawnAgentSpec(fleet = false) {
         skills: { type: "array", items: { type: "string" }, description: d.spawnSkills },
         mcp_servers: { type: "array", items: { type: "string" }, description: d.spawnMcpServers },
         plugins: { type: "array", items: { type: "string" }, description: d.spawnPlugins },
+        // An agent's only: a Fleet splits its work through its mission, and its sub-agent does the work.
+        ...(fleet ? {} : { role: { type: "string", enum: ["manager"], description: d.spawnRole } }),
       },
       required: ["task"],
     },

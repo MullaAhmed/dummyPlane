@@ -86,10 +86,30 @@ describe("the agent's tools", () => {
     expect(list.tools.every((t) => typeof t.inputSchema === "object")).toBe(true);
   });
 
+  it("lists every agent tool to a manager sub-agent, none denied, spawn_agent with its role: no mission's Manager's", async () => {
+    await nodesStore.getState().create("robin", {
+      workspaceId: "w1",
+      kind: "terminal",
+      payload: { title: "", name: "Robin", agent: "claude", cwd: "C:/code", shell: "default", command: "", spawnedBy: "batman", coordinator: true },
+    });
+    const list = (await answer({ callId: 1, nodeId: "robin", method: "tools/list", params: {} })) as { tools: { name: string; inputSchema: { properties: object } }[] };
+    const agent = (await answer({ callId: 1, nodeId: "batman", method: "tools/list", params: {} })) as { tools: { name: string }[] };
+    expect(list.tools.map((t) => t.name)).toEqual(agent.tools.map((t) => t.name));
+    for (const name of ["spawn_agent", "open_board", "move_board_card", "message_agent", "report"]) expect(list.tools.map((t) => t.name)).toContain(name);
+    expect(list.tools.find((t) => t.name === "spawn_agent")!.inputSchema.properties).toHaveProperty("role");
+    nodesStore.getState().close("robin");
+  });
+
   it("routes spawn_agent to the agent's sub-agent, a task required", async () => {
     const result = (await call("batman", "spawn_agent", { title: "Tests" })) as { isError?: boolean };
     expect(result.isError).toBe(true);
     expect(textOf(result)).toContain("Give the sub-agent its task");
+  });
+
+  it("hands spawn_agent its role as the agent sent it, a role it does not know refused", async () => {
+    const result = (await call("batman", "spawn_agent", { task: "Do it", role: "boss" })) as { isError?: boolean };
+    expect(result.isError).toBe(true);
+    expect(textOf(result)).toContain('Unknown role "boss"');
   });
 
   it("declares and marks the terminal's steps, saved in its payload", async () => {

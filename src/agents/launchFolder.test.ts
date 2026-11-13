@@ -5,7 +5,7 @@ import type { Workspace } from "@/ipc/db";
 import { projectsStore, type Project } from "@/store/projects";
 import { workspacesStore } from "@/store/workspaces";
 import { defaultLaunchOptions } from "./launchAgent";
-import { folderName, launchFolderKey, launchFolderStore, MAX_RECENT_FOLDERS, pushRecent, readSaved, sameFolder } from "./launchFolder";
+import { folderName, launchFolderKey, launchFolderStore, MAX_RECENT_FOLDERS, pushRecent, readSaved, sameFolder, savedLeftOut } from "./launchFolder";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
 
@@ -24,14 +24,24 @@ let saved: Record<string, unknown>;
 let writes: { key: string; value: unknown }[];
 /** What the backend was told about the folders of workspaces. */
 let folderWrites: { id: string; folder: string | null }[];
+/** The settings whose text was asked to be kept aside, and whether that is refused. */
+let kept: string[];
+let keepFails: boolean;
 
 beforeEach(() => {
+  kept = [];
+  keepFails = false;
   saved = {};
   writes = [];
   folderWrites = [];
   mockIPC((cmd, args) => {
     const { key, value } = args as { key: string; value: unknown };
     if (cmd === "get_setting") return key in saved ? saved[key] : null;
+    if (cmd === "keep_setting") {
+      if (keepFails) throw { kind: "db", message: "database is locked" };
+      kept.push(key);
+      return `${key}.unreadable`;
+    }
     if (cmd === "set_setting") {
       writes.push({ key, value });
       saved[key] = value;
@@ -75,6 +85,50 @@ describe("folders", () => {
   it("reads what was saved, and nothing from what is unreadable", () => {
     expect(readSaved({ folder: "D:\\x", recent: ["D:\\x", "D:\\y", "D:\\x", 3, ""] })).toEqual({ folder: "D:\\x", recent: ["D:\\x", "D:\\y"] });
     for (const raw of [null, undefined, 4, "x", { folder: 3, recent: "no" }]) expect(readSaved(raw)).toEqual({ folder: null, recent: [] });
+  });
+});
+
+describe("savedLeftOut", () => {
+  it("says how much of what was saved for a project is not read: nothing, some, or all of it", () => {
+    for (const whole of [null, undefined, {}, { recent: [] }, { recent: ["D:/a", "D:/b"] }, { folder: "D:/x" }, { folder: "D:/x", recent: ["D:/a"] }, { folder: null, recent: [] }]) {
+      expect(savedLeftOut(whole), JSON.stringify(whole)).toBe("none");
+    }
+    // An entry that is no folder, a blank one, one twice, and what is past the five kept; a legacy folder that is no text.
+    const six = ["D:/1", "D:/2", "D:/3", "D:/4", "D:/5", "D:/6"];
+    for (const part of [{ recent: ["D:/a", 3] }, { recent: ["D:/a", "  "] }, { recent: ["D:/a", "d:/A/"] }, { recent: six }, { folder: 3 }, { folder: "  " }]) {
+      expect(savedLeftOut(part), JSON.stringify(part)).toBe("some");
+    }
+    for (const other of ["x", 4, [], { recent: "no" }]) expect(savedLeftOut(other), JSON.stringify(other)).toBe("all");
+  });
+});
+
+describe("the recent folders, read only in part", () => {
+  it("have their text kept aside before anything is saved over it, and nothing for a list read whole", async () => {
+    saved["launch.folder.p1"] = { recent: ["D:/a", 3] };
+    await open("p1");
+    expect(launchFolderStore.getState().recent).toEqual(["D:/a"]);
+    expect(kept).toEqual(["launch.folder.p1"]);
+    // Kept before the first save: the list is saved at the next folder, never before.
+    expect(writes).toEqual([]);
+    saved["launch.folder.p2"] = { recent: "no" };
+    await open("p2");
+    expect(kept).toEqual(["launch.folder.p1", "launch.folder.p2"]);
+    saved["launch.folder.p1"] = { recent: ["D:/a"] };
+    launchFolderStore.setState({ projectId: null, recent: [], loaded: false });
+    await open("p1");
+    expect(kept).toHaveLength(2);
+  });
+
+  it("stop the read when their text cannot be kept: the list stays unloaded, and nothing is saved over it", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    keepFails = true;
+    saved["launch.folder.p1"] = { recent: ["D:/a", 3] };
+    await open("p1");
+    launchFolderStore.getState().remember("D:/new");
+    await settle();
+    expect(launchFolderStore.getState().loaded).toBe(false);
+    expect(writes).toEqual([]);
+    warn.mockRestore();
   });
 });
 

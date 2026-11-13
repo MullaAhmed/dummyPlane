@@ -19,6 +19,7 @@ import { installFinishedStops } from "@/agents/finishedStop";
 import { installFollowWaiting } from "@/agents/followWaiting";
 import { installWaitingAlerts } from "@/shell/waitingAlert";
 import { installFinishAlerts } from "@/shell/finishAlert";
+import { installBoardDoneAlerts } from "@/shell/boardDoneAlert";
 import { agentActivityStore } from "@/store/agentActivity";
 import { subagentsStore } from "@/store/subagents";
 import { terminalStatusStore } from "@/store/terminalStatus";
@@ -50,7 +51,7 @@ let booting: Promise<void> | undefined;
  */
 export function boot(): Promise<void> {
   booting ??= (async () => {
-    // From the first moment: every popup is recorded, the saved history is read below.
+    // From the first moment: what the panel keeps is recorded, the saved list is read below.
     connectNotifications();
     // Before any setting is read or written: a list a write resets is said at once, once.
     installResetNotice();
@@ -95,6 +96,8 @@ export function boot(): Promise<void> {
     installWaitingAlerts();
     installFollowWaiting();
     installFinishAlerts();
+    // A board whose cards are all done, from here on: those already done say nothing.
+    installBoardDoneAlerts();
     setLivePtys(await ptyList());
     // Once the sessions alive in Rust are known: a finished agent still running after a webview reload stops too.
     installFinishedStops();

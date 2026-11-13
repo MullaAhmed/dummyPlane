@@ -1,128 +1,76 @@
 /**
- * What the notification history sees of a popup, before it knows anything of the app's stores.
+ * What the notification panel is told, before it knows anything of the app's stores.
  *
- * Every `toast` call of the app goes through the shim (`./sonner`), which hands what it showed to `capture`.
- * This file imports nothing of the app on purpose, but the cut (`@/lib/cut`, which imports nothing): the shim sits
- * under `errorToast` and a hundred call sites, and a store imported from here would be a cycle. The history
- * (`./store`) connects at boot with `onCapture`; popups shown before that wait here.
+ * The panel keeps three kinds of news, each recorded where it happens with `recordNotification`: an agent that
+ * finished (`@/shell/finishAlert`), a board whose cards are all done (`@/shell/boardDoneAlert`) and a question an
+ * agent asks (`@/shell/waitingAlert`). Popups are not recorded: the shim (`./sonner`) passes them through as sonner's.
+ * This file imports nothing of the app on purpose, but the cut (`@/lib/cut`, which imports nothing): what records
+ * here sits under many call sites, and a store imported from here would be a cycle. The panel (`./store`) connects
+ * at boot with `onRecord`; news recorded before that waits here.
  */
 
 import { cutWhole, HALF_CHARACTER } from "@/lib/cut";
 
+/** The tone a notification is shown in: the popups' own colours and icons. */
 export type ToastKind = "success" | "error" | "warning" | "info" | "plain";
 
-/**
- * What a popup is about, when it is not the workspace on screen: the node it concerns (its workspace is the
- * node's), or a workspace outright. `text` says what a popup that is only a component (`toast.custom`) shows.
- */
+/** What the panel keeps: an agent that finished, a board whose cards are all done, a question an agent asks. */
+export type NotificationType = "finished" | "board" | "question";
+
+export const NOTIFICATION_TYPES: readonly NotificationType[] = ["finished", "board", "question"];
+
+/** What a notification is about: the node it concerns (its workspace is the node's), or a workspace outright. */
 export interface PlaneContext {
   nodeId?: string;
   workspaceId?: string;
-  text?: string;
 }
 
-/** A popup as the shim saw it: flat text, never React nodes, so it can be stored and saved. */
-export interface Captured {
-  /** The id sonner shows it under: a call that names one again updates the same popup. */
-  toastId: string | number | undefined;
+/** A notification as recorded: flat text, never React nodes, so it can be stored and saved. */
+export interface Recorded {
+  type: NotificationType;
   kind: ToastKind;
   title: string;
   description: string | undefined;
-  /** The label of its action button, when it has one. */
-  action: string | undefined;
   context: PlaneContext | null;
+  /** Read already: the user was looking at what it is about when it happened. */
+  read: boolean;
   at: number;
 }
 
-/** What the shim passes in: sonner's own values, still unflattened. */
-export interface RawToast {
-  toastId?: string | number;
+/** What a call site records. */
+export interface NewNotification {
+  type: NotificationType;
   kind: ToastKind;
-  title: unknown;
-  description?: unknown;
-  action?: unknown;
+  title: string;
+  description?: string;
+  context?: PlaneContext | null;
+  read?: boolean;
 }
 
-/** The longest title and description kept, in characters: a popup is a sentence, not a log. */
+/** The longest title and description kept, in characters: a notification is a sentence, not a log. */
 export const MAX_TITLE = 300;
 export const MAX_DESCRIPTION = 600;
 
-// The history is saved as JSON, which Rust refuses with half a character in it: none is kept, cut here or before it came.
+// The panel's list is saved as JSON, which Rust refuses with half a character in it: none is kept, cut here or before it came.
+const flat = (text: string) => text.replace(HALF_CHARACTER, "").replace(/\s+/g, " ").trim();
 const clip = (text: string, max: number) => (text.length > max ? `${cutWhole(text, max - 1).trimEnd()}…` : text);
 
-/**
- * The words of what a popup shows. A title is a string, a React node (`toastError`'s description is two spans)
- * or a function returning either; the words of a node are its children's, in order. A component that renders its
- * own text from elsewhere has none to read here.
- */
-export function plainText(node: unknown, depth = 0): string {
-  if (depth > 12) return "";
-  if (typeof node === "string") return node.replace(HALF_CHARACTER, "").replace(/\s+/g, " ").trim();
-  if (typeof node === "number") return String(node);
-  if (typeof node === "function") {
-    try {
-      return plainText((node as () => unknown)(), depth + 1);
-    } catch {
-      return "";
-    }
-  }
-  if (Array.isArray(node)) {
-    return node
-      .map((part) => plainText(part, depth + 1))
-      .filter((part) => part !== "")
-      .join(" ");
-  }
-  if (typeof node === "object" && node !== null && "props" in node) {
-    const props = (node as { props?: { children?: unknown } }).props;
-    return plainText(props?.children, depth + 1);
-  }
-  return "";
-}
+type Listener = (notification: Recorded) => void;
 
-/** The label of a toast's action: `{ label, onClick }`, or a node of its own. */
-function actionLabel(action: unknown): string | undefined {
-  const label = plainText(typeof action === "object" && action !== null && "label" in action ? (action as { label: unknown }).label : action);
-  return label === "" ? undefined : label;
-}
-
-let ambient: PlaneContext | null = null;
-
-/**
- * Runs `show` (the toast calls inside it) with the plane the popups are about: a call site that knows its node
- * or workspace says so here, and the popup shown is recorded under it, not under the workspace on screen.
- * The call's arguments stay as they were: sonner never sees the context.
- */
-export function withPlane<T>(context: PlaneContext, show: () => T): T {
-  const outer = ambient;
-  ambient = context;
-  try {
-    return show();
-  } finally {
-    ambient = outer;
-  }
-}
-
-/** The plane the call being made is about, if `withPlane` set one. */
-export function currentPlane(): PlaneContext | null {
-  return ambient;
-}
-
-type Listener = (toast: Captured) => void;
-
-/** Popups shown before the history connects (boot's own); few, and never kept past this many. */
+/** Notifications recorded before the panel connects (boot's own); few, and never kept past this many. */
 const WAITING_MAX = 50;
 let listener: Listener | null = null;
-let waiting: Captured[] = [];
+let waiting: Recorded[] = [];
 
-/** The history takes every popup from now on, and the ones that waited for it first. Returns how to stop. */
-export function onCapture(next: Listener): () => void {
+/** The panel takes every notification from now on, and the ones that waited for it first. Returns how to stop. */
+export function onRecord(next: Listener): () => void {
   listener = next;
   const early = waiting;
   waiting = [];
-  // One that fails to be recorded is lost, not the ones after it, and never the boot that connects the history.
-  for (const toast of early) {
+  // One that fails to be kept is lost, not the ones after it, and never the boot that connects the panel.
+  for (const notification of early) {
     try {
-      next(toast);
+      next(notification);
     } catch (error) {
       console.warn("notification not recorded", error);
     }
@@ -132,25 +80,26 @@ export function onCapture(next: Listener): () => void {
   };
 }
 
-/** Records a popup that was shown. Never throws: a failed record must not turn a popup into an error. */
-export function capture(raw: RawToast): void {
+/**
+ * Records a notification in the panel, where it happened: never a popup, which shows by itself. Never throws:
+ * a failed record must not stop the alert that calls it. One with no words has nothing to list.
+ */
+export function recordNotification({ type, kind, title, description, context = null, read = false }: NewNotification): void {
   try {
-    const context = ambient;
-    const title = clip(plainText(raw.title) || (context?.text ?? ""), MAX_TITLE);
-    // A popup with no words of its own has nothing to list.
-    if (title === "") return;
-    const description = plainText(raw.description);
-    const toast: Captured = {
-      toastId: raw.toastId,
-      kind: raw.kind,
-      title,
-      description: description === "" ? undefined : clip(description, MAX_DESCRIPTION),
-      action: actionLabel(raw.action),
+    const words = clip(flat(title), MAX_TITLE);
+    if (words === "") return;
+    const detail = description === undefined ? "" : flat(description);
+    const notification: Recorded = {
+      type,
+      kind,
+      title: words,
+      description: detail === "" ? undefined : clip(detail, MAX_DESCRIPTION),
       context,
+      read,
       at: Date.now(),
     };
-    if (listener) listener(toast);
-    else waiting = [...waiting, toast].slice(-WAITING_MAX);
+    if (listener) listener(notification);
+    else waiting = [...waiting, notification].slice(-WAITING_MAX);
   } catch (error) {
     console.warn("notification not recorded", error);
   }

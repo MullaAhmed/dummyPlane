@@ -624,3 +624,23 @@ describe("an agent the user started by hand in a Shell terminal", () => {
     await other.unmount();
   });
 });
+
+describe("a manager sub-agent's badge", () => {
+  it("says Manager beside the name of a sub-agent its spawner opened as a manager, and on no other terminal", async () => {
+    const robin = { ...claude, name: "Robin", spawnedBy: "batman", task: "Run the release" } as TerminalPayload;
+    const manager = await mount(<TerminalHeader nodeId="robin" payload={{ ...robin, coordinator: true }} status={{ state: "running" }} />);
+    const badge = manager.host.querySelector("[data-coordinator]");
+    expect(badge?.textContent).toBe("Manager");
+    await manager.unmount();
+    const plain = await mount(<TerminalHeader nodeId="robin" payload={robin} status={{ state: "running" }} />);
+    expect(plain.host.querySelector("[data-coordinator]")).toBeNull();
+    await plain.unmount();
+  });
+
+  it("is not a mission's Manager's, whose title names its mission", async () => {
+    const payload = { ...claude, name: "Manager", title: "Manager · Auth", role: "manager", fleet: "chef" } as TerminalPayload;
+    const view = await mount(<TerminalHeader nodeId="mgr" payload={payload} status={{ state: "running" }} />);
+    expect(view.host.querySelector("[data-coordinator]")).toBeNull();
+    await view.unmount();
+  });
+});

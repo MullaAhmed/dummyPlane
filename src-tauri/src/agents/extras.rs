@@ -1922,24 +1922,36 @@ mod tests {
     }
 
     /// A `codex` shim as npm and bun install it: a `.cmd` that starts the real one, here a process that
-    /// would write `marker.txt` a few seconds on, while the shim itself waits for ever.
+    /// holds `child.lock` open (its output goes there) for some 46 s, while the shim itself waits for ever.
     #[cfg(windows)]
     #[test]
     fn a_stopped_codex_listing_takes_the_processes_its_shim_started_with_it() {
         let dir = tempfile::tempdir().unwrap();
+        let lock = dir.path().join("child.lock");
         let codex = fake_codex(
             dir.path(),
-            "start /b cmd /c \"ping -n 4 127.0.0.1 >nul & echo alive>marker.txt\"\r\nping -n 30 127.0.0.1 >nul",
+            "start /b cmd /c \"ping -n 47 127.0.0.1 >child.lock\"\r\nping -n 60 127.0.0.1 >nul",
         );
-        let err =
-            run_codex_within(&codex, &[], dir.path(), Duration::from_millis(500)).unwrap_err();
+        // Time enough, on a machine under load, for the shim and the process it starts to have started when the
+        // listing is stopped: stopped before that, it would show nothing, and a stop that lands while the shim
+        // starts its child is a race of the machine's speed, not of the code.
+        let err = run_codex_within(&codex, &[], dir.path(), Duration::from_secs(5)).unwrap_err();
         assert_eq!(err.kind(), io::ErrorKind::TimedOut, "{err}");
-        // Long enough for the process the shim started to have written, had it lived on.
-        std::thread::sleep(Duration::from_secs(6));
         assert!(
-            !dir.path().join("marker.txt").exists(),
-            "the shim's child outlived the listing that was stopped"
+            lock.exists(),
+            "the shim did not start its child within the limit: nothing was shown"
         );
+        // Windows does not delete a file a process has open, so it can be once the shim's child, and what that
+        // started, are gone. The child would live on for 46 s: wait for its end, up to a deadline that is long for
+        // a loaded machine to end a process and well short of that.
+        let deadline = Instant::now() + Duration::from_secs(30);
+        while let Err(error) = std::fs::remove_file(&lock) {
+            assert!(
+                Instant::now() < deadline,
+                "the shim's child outlived the listing that was stopped: {error}"
+            );
+            std::thread::sleep(Duration::from_millis(50));
+        }
     }
 
     /// A `codex` that counts its runs in `count.txt` (in the folder it runs in) and takes `seconds` to answer.

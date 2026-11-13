@@ -147,6 +147,21 @@ export function AccountChip({ accountId }: { accountId?: string }) {
   );
 }
 
+/**
+ * A manager its spawner opened (spawn_agent's role "manager", `coordinator`): it runs its task with sub-agents of its
+ * own. Beside its name in its header and on its Agents row; a mission's Manager has none, its title names its mission.
+ */
+export function ManagerBadge() {
+  const t = useMessages(nodesMessages).header;
+  return (
+    <Hint label={t.coordinatorHint}>
+      <span data-coordinator className="shrink-0 rounded-sm border border-dp-line px-1.5 text-xs leading-5 text-dp-text-2">
+        {t.coordinator}
+      </span>
+    </Hint>
+  );
+}
+
 /** The model a mission's router chose; it stays after the mission until cleared. */
 function ModelChip({ nodeId, model }: { nodeId: string; model: string }) {
   const t = useMessages(nodesMessages).header;
@@ -258,6 +273,8 @@ export function TerminalHeader(props: {
       )}
       {/* Renaming, the 28px field takes the row alone: with the task line under it, it would not fit in 36px. */}
       {spawned && !editing ? <NodeTitle name={name} line={spawned.line} detail={spawned.detail} /> : name}
+      {/* At any width, beside the name: the name truncates first. */}
+      {payload.coordinator && !editing && <ManagerBadge />}
       <NodeHeaderEnd>
         {showStatus && (
           <StatusPill

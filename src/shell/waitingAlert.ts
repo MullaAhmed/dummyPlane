@@ -4,11 +4,31 @@ import { nativeNotificationsStore } from "@/app/nativeNotifications";
 import { goToAgent } from "@/commands/goToRun";
 import { currentWaitingAgents, openAgent } from "@/agents/waitingAgents";
 import { messages } from "@/i18n";
+import { recordNotification } from "@/notifications/capture";
+import { notificationsStore } from "@/notifications/store";
 import { agentActivityStore } from "@/store/agentActivity";
 import { projectsStore } from "@/store/projects";
 import { shellMessages } from "./messages";
 
 const warn = (error: unknown) => console.warn("Windows notification failed", error);
+
+/**
+ * A question for the notification panel, whatever the window and the "Windows notifications" setting: the
+ * Windows notification's words, the agent as its plane, unread until the agent no longer waits.
+ */
+function recordQuestion(nodeId: string) {
+  const agent = currentWaitingAgents().find((a) => a.id === nodeId);
+  if (!agent) return;
+  const t = messages(shellMessages).notification;
+  recordNotification({ type: "question", kind: "info", title: t.title(agent.name, t.waiting), description: t.question, context: { nodeId, workspaceId: agent.workspaceId } });
+}
+
+/** The panel's questions whose agent does not wait (any more): answered, or no longer asked. */
+function readAnsweredQuestions() {
+  const activities = agentActivityStore.getState().activities;
+  const asked = new Set(notificationsStore.getState().entries.flatMap((e) => (e.type === "question" && !e.read && e.plane.nodeId ? [e.plane.nodeId] : [])));
+  for (const nodeId of asked) if (activities[nodeId]?.activity !== "waiting") notificationsStore.getState().markQuestionsRead(nodeId);
+}
 
 async function alertFor(nodeId: string) {
   if (!nativeNotificationsStore.getState().enabled) return;
@@ -35,15 +55,25 @@ async function comeBack({ actionId, notification }: ActionPerformed) {
 
 /**
  * A Windows notification when an agent starts waiting while the window is not
- * focused. Installed after the activity snapshot, so a
- * reload does not repeat the waits already known. Its failures are only
- * logged: the notice in the window says the same.
+ * focused, and the question in the notification panel, read once the agent no
+ * longer waits. Installed after the activity snapshot, so a reload does not
+ * repeat the waits already known; a question kept from before whose agent no
+ * longer waits is read then. Its failures are only logged: the notice in the
+ * window says the same.
  */
 export function installWaitingAlerts(): () => void {
   const listening = onAction((event) => void comeBack(event).catch(warn)).catch(warn);
+  readAnsweredQuestions();
   const unsubscribe = agentActivityStore.subscribe((state, previous) => {
     for (const [nodeId, { activity }] of Object.entries(state.activities)) {
-      if (activity === "waiting" && previous.activities[nodeId]?.activity !== "waiting") void alertFor(nodeId).catch(warn);
+      if (activity === "waiting" && previous.activities[nodeId]?.activity !== "waiting") {
+        recordQuestion(nodeId);
+        void alertFor(nodeId).catch(warn);
+      }
+    }
+    // Out of waiting by any way: it works again, goes idle, or its process ended and it left the list.
+    for (const [nodeId, { activity }] of Object.entries(previous.activities)) {
+      if (activity === "waiting" && state.activities[nodeId]?.activity !== "waiting") notificationsStore.getState().markQuestionsRead(nodeId);
     }
   });
   return () => {
