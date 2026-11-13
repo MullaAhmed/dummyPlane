@@ -49,6 +49,47 @@
    #ededed. The DOM colors above are not filtered and keep the ink. */
 :root .excalidraw.excalidraw.theme--dark {
   --color-selection: #000000;
+  /* Selected text in the editors under the filter (see the ::selection rule below), pre-inverted
+     for the near-black palette: v' = 0.93 - 0.86 v per channel, then hue-rotate(180deg), which
+     leaves a grey a grey. Stored #000000 shows #ededed, the lightest ink the filter reaches, and
+     #b6b6b9 shows #505053, the ink's 28 % tint over #101014 as a solid fill. */
+  --editor-selection: #b6b6b9;
+  --editor-selection-ink: #000000;
+}
+
+/* Electric's canvas is a saturated blue: the filter cannot show the ink's tint over it (#4759f4),
+   the nearest it shows is #5163b9 (stored #869bff), still 4.68:1 under the #ededed ink. */
+:root[data-palette="electric"] .excalidraw.excalidraw.theme--dark {
+  --editor-selection: #869bff;
+  --editor-selection-ink: #000000;
+}
+
+/* Calm is light: Excalidraw applies no filter, so these are the colors as shown, the ink's 28 %
+   tint over the cream canvas as a solid fill, and the ink. */
+:root[data-palette="calm"] .excalidraw.excalidraw {
+  --editor-selection: #b1b5a1;
+  --editor-selection-ink: #173f32;
+}
+
+/* Selected text in Excalidraw's own text editors: the textarea of a text, a label or a note typed
+   on the canvas (`.excalidraw-wysiwyg`) and the input that renames a frame, which selects its whole
+   name when it opens. index.css leaves `.excalidraw *` to the browser, whose default highlight the
+   dark theme's filter then inverts: dark selection, dark text. The fill is all but solid and the ink
+   is written too, because the text's own color is the element's stroke and the ground behind it can
+   be any fill; the pair reads on whatever it is over. The fill carries an alpha of 99 % on purpose:
+   a browser may draw a fully opaque ::selection background translucent, in another shade, and
+   leaves one that has an alpha as written. legibility.test.ts computes the pair as shown. */
+.excalidraw .excalidraw-wysiwyg::selection,
+.excalidraw [id*="-frame-name-"] input::selection {
+  background: color-mix(in srgb, var(--editor-selection) 99%, transparent);
+  color: var(--editor-selection-ink);
+}
+
+/* A quick note's text is DOM inside an embeddable, outside the filter: it takes the app's own
+   selection, which index.css withholds from everything under `.excalidraw`. */
+.excalidraw [data-note] *::selection {
+  background: var(--dp-selection);
+  color: var(--dp-text);
 }
 
 /* The dot grid and the canvas color are painted under a transparent canvas. */
