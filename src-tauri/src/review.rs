@@ -1,7 +1,7 @@
 //! What an agent changed, for the review panel: its files
 //! against a base, each file's diff, and the files of its folder, read-only.
 
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::io::Read;
 use std::path::{Component, Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -256,6 +256,8 @@ fn changes_limited(dir: &Path, base: Option<&str>, max: usize) -> Result<Changes
             "-z",
             "-M",
             &from,
+            // A file named `HEAD` would make the revision ambiguous.
+            "--",
         ],
     )?;
     let counts = parse_numstat(&git(
@@ -268,6 +270,7 @@ fn changes_limited(dir: &Path, base: Option<&str>, max: usize) -> Result<Changes
             "-z",
             "-M",
             &from,
+            "--",
         ],
     )?);
     let mut files: Vec<ChangedFile> = parse_name_status(&names)
@@ -286,13 +289,16 @@ fn changes_limited(dir: &Path, base: Option<&str>, max: usize) -> Result<Changes
     // From the root: run in a subfolder, ls-files lists that folder only.
     let root = root(dir)?;
     let untracked = git(&root, &["ls-files", "--others", "--exclude-standard", "-z"])?;
+    // A file taken out of the index and kept on the disk is deleted and untracked at once: one row.
+    let tracked: HashSet<&str> = files.iter().map(|f| f.path.as_str()).collect();
     let untracked: Vec<&str> = untracked
         .split('\0')
         // A nested repository is listed as `nested/`: not a file to diff.
-        .filter(|p| !p.is_empty() && !p.ends_with('/'))
+        .filter(|p| !p.is_empty() && !p.ends_with('/') && !tracked.contains(p))
         .collect();
     let truncated = files.len() + untracked.len() > max;
-    for path in untracked.into_iter().take(max) {
+    // The agent's changes to tracked files come first: untracked files take the room left.
+    for path in untracked.into_iter().take(max.saturating_sub(files.len())) {
         let full = root.join(path);
         // Lines are counted below `MAX_BYTES` only; a bigger file shows none.
         let small =
@@ -347,7 +353,9 @@ pub fn file_diff(dir: &Path, file: &ChangedFile, base: Option<&str>) -> Result<S
         );
     }
     let from = compared(dir, base)?;
+    // A path is never a pattern: `[id].tsx` would also name `i.tsx` and `d.tsx`.
     let mut args = vec![
+        "--literal-pathspecs",
         "diff",
         "--no-color",
         "--no-ext-diff",
@@ -377,8 +385,9 @@ pub struct FileList {
 
 fn files_limited(dir: &Path, max: usize) -> Result<FileList, String> {
     // From the root: run in a subfolder, ls-files lists that folder only.
+    let root = root(dir)?;
     let listed = git(
-        &root(dir)?,
+        &root,
         &[
             "ls-files",
             "--cached",
@@ -387,7 +396,13 @@ fn files_limited(dir: &Path, max: usize) -> Result<FileList, String> {
             "-z",
         ],
     )?;
-    let unique: BTreeSet<&str> = listed.split('\0').filter(|p| !p.is_empty()).collect();
+    // A tracked file the agent deleted is still in the index, with nothing to read.
+    let deleted = git(&root, &["ls-files", "--deleted", "-z"])?;
+    let gone: BTreeSet<&str> = deleted.split('\0').filter(|p| !p.is_empty()).collect();
+    let unique: BTreeSet<&str> = listed
+        .split('\0')
+        .filter(|p| !p.is_empty() && !gone.contains(p))
+        .collect();
     let truncated = unique.len() > max;
     Ok(FileList {
         files: unique.into_iter().take(max).map(str::to_string).collect(),
@@ -574,6 +589,39 @@ mod tests {
         assert!(b.contains("+nouveau"), "{b}");
     }
 
+    /// A path is never a pattern: `[a].txt` (a Next.js `[id]` route) also matched `a.txt`,
+    /// and its diff came with the other file's.
+    #[test]
+    fn a_file_s_diff_is_that_file_s_alone_whatever_its_name_looks_like() {
+        let Some(repo) = repo() else { return };
+        let dir = repo.path();
+        std::fs::write(dir.join("[a].txt"), "un\n").unwrap();
+        sh(dir, &["add", "."]);
+        sh(dir, &["commit", "-q", "-m", "brackets"]);
+        std::fs::write(dir.join("[a].txt"), "deux\n").unwrap();
+        std::fs::write(dir.join("a.txt"), "un\ntrois\n").unwrap();
+        let files = changes(dir, None).unwrap().files;
+        let bracketed = files.iter().find(|f| f.path == "[a].txt").unwrap();
+        let diff = file_diff(dir, bracketed, None).unwrap();
+        assert!(diff.contains("+deux"), "{diff}");
+        assert!(!diff.contains("trois"), "{diff}");
+    }
+
+    /// git refuses `diff HEAD` when a file is named `HEAD` too, unless `--` ends the revisions:
+    /// the whole list failed with "ambiguous argument".
+    #[test]
+    fn lists_the_changes_whatever_a_file_is_named() {
+        let Some(repo) = repo() else { return };
+        let dir = repo.path();
+        std::fs::write(dir.join("HEAD"), "ref\n").unwrap();
+        std::fs::write(dir.join("a.txt"), "un\ntrois\n").unwrap();
+        let files = changes(dir, None).unwrap().files;
+        assert_eq!(
+            files.iter().map(|f| f.path.as_str()).collect::<Vec<_>>(),
+            ["HEAD", "a.txt"]
+        );
+    }
+
     #[test]
     fn reads_the_repository_s_files_but_nothing_outside_it() {
         let Some(repo) = repo() else { return };
@@ -634,6 +682,24 @@ mod tests {
         assert_eq!(file_diff(dir, &file, None), Ok(String::new()));
     }
 
+    /// A tracked file the agent deleted is still in the index, but there is nothing to read:
+    /// listing it sent the viewer to "file not found".
+    #[test]
+    fn the_file_list_leaves_out_a_tracked_file_the_agent_deleted() {
+        let Some(repo) = repo() else { return };
+        let dir = repo.path();
+        std::fs::write(dir.join("b.txt"), "x\n").unwrap();
+        sh(dir, &["add", "b.txt"]);
+        sh(dir, &["commit", "-q", "-m", "b"]);
+        std::fs::remove_file(dir.join("a.txt")).unwrap();
+        let listed = files(dir).unwrap().files;
+        assert_eq!(listed, ["b.txt"]);
+        assert!(read_file(dir, "b.txt").is_ok());
+        // Removed from the index only, it is still on the disk: it is listed, once.
+        sh(dir, &["rm", "-q", "--cached", "b.txt"]);
+        assert_eq!(files(dir).unwrap().files, ["b.txt"]);
+    }
+
     #[test]
     fn the_file_list_says_when_it_was_cut() {
         let Some(repo) = repo() else { return };
@@ -659,6 +725,48 @@ mod tests {
         assert_eq!((cut.files.len(), cut.truncated), (2, true));
         let whole = changes_limited(dir, None, 3).unwrap();
         assert_eq!((whole.files.len(), whole.truncated), (3, false));
+    }
+
+    /// `git rm --cached` leaves the file on the disk: git calls it deleted and untracked at
+    /// once, and the list gave it two rows of one path (two rows lit together, a duplicate key).
+    #[test]
+    fn a_file_taken_out_of_the_index_but_kept_on_the_disk_is_listed_once() {
+        let Some(repo) = repo() else { return };
+        let dir = repo.path();
+        sh(dir, &["rm", "-q", "--cached", "a.txt"]);
+        let listed = changes(dir, None).unwrap().files;
+        assert_eq!(
+            listed
+                .iter()
+                .map(|f| (f.path.as_str(), f.status.as_str()))
+                .collect::<Vec<_>>(),
+            [("a.txt", "deleted")]
+        );
+    }
+
+    /// A folder of thousands of untracked files (an `npm install` without `.gitignore`)
+    /// fills the cut list: the agent's own changes to tracked files must stay in it.
+    #[test]
+    fn a_cut_list_keeps_the_tracked_changes_before_the_untracked_files() {
+        let Some(repo) = repo() else { return };
+        let dir = repo.path();
+        std::fs::write(dir.join("zz.txt"), "un\n").unwrap();
+        sh(dir, &["add", "zz.txt"]);
+        sh(dir, &["commit", "-q", "-m", "zz"]);
+        std::fs::write(dir.join("zz.txt"), "deux\n").unwrap();
+        for name in ["u1.txt", "u2.txt", "u3.txt"] {
+            std::fs::write(dir.join(name), "x\n").unwrap();
+        }
+        let cut = changes_limited(dir, None, 2).unwrap();
+        assert!(cut.truncated);
+        assert_eq!(cut.files.len(), 2);
+        assert!(
+            cut.files
+                .iter()
+                .any(|f| f.path == "zz.txt" && f.status == "modified"),
+            "{:?}",
+            cut.files
+        );
     }
 
     #[test]

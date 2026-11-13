@@ -176,7 +176,7 @@ export function KanbanNode({ nodeId }: { nodeId: string }) {
   const [spot, setSpot] = useState<DropSpot | null>(null);
   const [linking, setLinking] = useState(false);
   const [syncing, setSyncing] = useState(false);
-  // A card moved from the keyboard keeps it: it is focused again where it lands (a GitHub-linked one lands later).
+  // A card moved from the keyboard keeps it: it is focused again where it lands.
   const [landing, setLanding] = useState<(DropSpot & { cardId: string }) | null>(null);
   const [announcement, setAnnouncement] = useState("");
   const rootRef = useRef<HTMLDivElement>(null);

@@ -28,6 +28,13 @@ export const missionMessages = defineMessages({
     routerSwitch: "Model router",
     // Beside a switch the user set, on or off: unsets it, so it follows Settings again, or the Fleet's or spawner's switch above it.
     routerFollow: { settings: "Follow Settings", above: "Follow the switch above" },
+    // A switch with nothing to route (`routerInert`), greyed out on every terminal that has none: why, in its hint, its menu entry's title and its Edit tab's line.
+    routerInert: {
+      agent: (who: string) => `${who} can't open sub-agents, so the router has nothing to route here`,
+      manager: "A Manager opens no sub-agents; its Fleet's switch routes the mission",
+    },
+    // Who "can't open sub-agents": a CLI goes by its name (`AGENTS`), a shell and a custom command by what they are.
+    routerInertWho: { shell: "A shell", custom: "A custom command" },
     linked: (count: number) => plural(count, "agent linked", "agents linked"),
     done: "Done",
     link: "Link",

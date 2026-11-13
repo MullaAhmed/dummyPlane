@@ -45,7 +45,13 @@ export interface RawToast {
 export const MAX_TITLE = 300;
 export const MAX_DESCRIPTION = 600;
 
-const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text);
+/**
+ * Half of a character: a UTF-16 surrogate without its pair, as a cut inside an emoji leaves it (here, or in a summary
+ * or an error detail clipped before it came). The history is saved as JSON, which Rust refuses with one in it: none is kept.
+ */
+const HALF = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g;
+
+const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1).replace(HALF, "").trimEnd()}…` : text);
 
 /**
  * The words of what a popup shows. A title is a string, a React node (`toastError`'s description is two spans)
@@ -54,7 +60,7 @@ const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0
  */
 export function plainText(node: unknown, depth = 0): string {
   if (depth > 12) return "";
-  if (typeof node === "string") return node.replace(/\s+/g, " ").trim();
+  if (typeof node === "string") return node.replace(HALF, "").replace(/\s+/g, " ").trim();
   if (typeof node === "number") return String(node);
   if (typeof node === "function") {
     try {

@@ -24,6 +24,8 @@ The router also picks the model of every sub-agent opened with `spawn_agent` und
 
 Under a router, a sub-agent takes the model of the `level` it is given, and `medium` when it is given none. A model named beside a level is set aside, and a call that names a model with no level is refused, with the levels to choose from: an agent used to asking for one model would otherwise keep every sub-agent on it. To run a sub-agent on a model of your own choosing, turn the router off or set the model in the terminal's Edit tab.
 
+Every terminal shows the switch, in its header, its ⋯ menu and its Edit tab, but it acts only on Claude and Codex, the CLIs that get dummyPlane's tools and so open sub-agents. On any other CLI or a shell it is greyed out, off, and says why when you point at it: nothing opens sub-agents there. So is a Manager's: it opens none, and its fleet's switch is the one that routes the mission.
+
 The fleet and the Manager talk to dummyPlane through a local MCP server. The fleet plans with `propose_plan` and babysits with `add_tasks`, `prioritize`, `board`, `team`, `stop_mission` and `remote_control`; the Manager runs the team with `team`, `read_output`, `write`, `extend`, `interrupt`, `relaunch`, `reassign`, `merge`, `move_card`, `finish` and `need_user`. Both can read the repository, but they are denied `Edit`, `Write`, `NotebookEdit` and `Bash`: the agents write the code. A Codex fleet and its Manager run in Codex's read-only sandbox with approvals off, and get none of your own MCP servers, plugins or browser tools; `remote_control` is Claude's only. A mission launched before the Manager existed is run to its end by its fleet, the old way.
 
 ## Overnight run
