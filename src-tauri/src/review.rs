@@ -399,9 +399,18 @@ fn files_limited(dir: &Path, max: usize) -> Result<FileList, String> {
     // A tracked file the agent deleted is still in the index, with nothing to read.
     let deleted = git(&root, &["ls-files", "--deleted", "-z"])?;
     let gone: BTreeSet<&str> = deleted.split('\0').filter(|p| !p.is_empty()).collect();
+    // A submodule, or any repository added as one (a gitlink, mode 160000), is a folder: nothing to read either.
+    let staged = git(&root, &["ls-files", "--stage", "-z"])?;
+    let gitlinks: BTreeSet<&str> = staged
+        .split('\0')
+        .filter_map(|entry| Some(entry.strip_prefix("160000 ")?.split_once('\t')?.1))
+        .collect();
     let unique: BTreeSet<&str> = listed
         .split('\0')
-        .filter(|p| !p.is_empty() && !gone.contains(p))
+        // An untracked repository inside is listed as its folder, `nested/`.
+        .filter(|p| {
+            !p.is_empty() && !p.ends_with('/') && !gone.contains(p) && !gitlinks.contains(p)
+        })
         .collect();
     let truncated = unique.len() > max;
     Ok(FileList {
@@ -857,6 +866,43 @@ mod tests {
         assert_eq!(read.size, 2 * MAX_BYTES as u64);
         let diff = file_diff(dir, &big, None).unwrap();
         assert!(diff.len() <= MAX_BYTES + 32 && diff.ends_with("[diff truncated]\n"));
+    }
+
+    #[test]
+    fn lists_no_folder_an_untracked_nested_repository_or_a_submodule_is() {
+        let Some(repo) = repo() else { return };
+        let dir = repo.path();
+        // A repository inside, untracked: git lists its folder (`nested/`), with nothing to read.
+        let nested = dir.join("nested");
+        std::fs::create_dir(&nested).unwrap();
+        sh(&nested, &["init", "-q"]);
+        std::fs::write(nested.join("inner.txt"), "dedans\n").unwrap();
+        // A repository added as a submodule is, a gitlink: git lists its path (`sub`), a folder.
+        let sub = dir.join("sub");
+        std::fs::create_dir(&sub).unwrap();
+        sh(&sub, &["init", "-q"]);
+        sh(
+            &sub,
+            &[
+                "-c",
+                "user.name=t",
+                "-c",
+                "user.email=t@t",
+                "-c",
+                "commit.gpgsign=false",
+                "commit",
+                "-q",
+                "--allow-empty",
+                "-m",
+                "init",
+            ],
+        );
+        sh(dir, &["add", "sub"]);
+        let listed = files(dir).unwrap().files;
+        assert_eq!(listed, vec!["a.txt".to_string()]);
+        for path in &listed {
+            assert!(read_file(dir, path).is_ok(), "{path}");
+        }
     }
 
     #[test]
