@@ -15,9 +15,28 @@ export interface Edge {
   to: string;
 }
 
-const FENCE = /^(```|~~~).*?^(```|~~~)[^\n]*$/gms;
+const FENCE = /^(```|~~~)/;
 const INLINE_CODE = /`[^`\n]*`/g;
 const WIKILINK = /\[\[([^[\]\n]+)\]\]/g;
+
+/**
+ * The text without its fenced code, by the reader's rules (`./markdown` parseMarkdown): a line that starts a fence
+ * once trimmed (an indented one too) opens it, a line starting with the same marker closes it, and one never closed
+ * runs to the end. What the reader shows as code is no link.
+ */
+function withoutFences(text: string): string {
+  const lines = text.split(/\r?\n/);
+  const kept: string[] = [];
+  for (let i = 0; i < lines.length; i++) {
+    const fence = FENCE.exec(lines[i].trim());
+    if (!fence) {
+      kept.push(lines[i]);
+      continue;
+    }
+    for (i++; i < lines.length && !lines[i].trim().startsWith(fence[1]); i++);
+  }
+  return kept.join("\n");
+}
 
 /** `[[target]]` or `[[target|label]]`; null when the target could not be a note. */
 export function readLink(inner: string): WikiLink | null {
@@ -29,7 +48,7 @@ export function readLink(inner: string): WikiLink | null {
 
 /** The note's links, in order, code left out. */
 export function linksIn(text: string): WikiLink[] {
-  const prose = text.replace(FENCE, "").replace(INLINE_CODE, "");
+  const prose = withoutFences(text).replace(INLINE_CODE, "");
   return [...prose.matchAll(WIKILINK)].flatMap((match) => readLink(match[1]) ?? []);
 }
 

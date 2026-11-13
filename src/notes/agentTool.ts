@@ -1,6 +1,7 @@
 import { messages } from "@/i18n";
 import { refused, said, type ToolResult } from "@/mcp/agentTools";
 import { linkedTeamAgents } from "@/mission/store";
+import { cutWhole } from "@/lib/cut";
 import { errorText } from "@/studio/parts";
 import { notesAgentList, notesAgentRead } from "./ipc";
 import { notesMessages } from "./messages";
@@ -29,7 +30,7 @@ async function list(nodeId: string, fleet: boolean): Promise<ToolResult> {
 
 async function read(nodeId: string, name: string): Promise<ToolResult> {
   const text = await notesAgentRead(nodeId, name);
-  return said(text.length > MAX_CHARS ? `${text.slice(0, MAX_CHARS)}\n${t().cut(MAX_CHARS)}` : text);
+  return said(text.length > MAX_CHARS ? `${cutWhole(text, MAX_CHARS)}\n${t().cut(MAX_CHARS)}` : text);
 }
 
 /** The tool `notes`: the list without argument, a note with `name`. */

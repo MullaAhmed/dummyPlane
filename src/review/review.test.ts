@@ -60,6 +60,12 @@ describe("reviewMessage", () => {
       "Code review of your changes:\n- src/a.ts:12 — Rename z.\n- src/a.ts (line 11 removed, numbered in the version before your changes) — Why remove y?\n- README.md — Document the option.\nFix what needs fixing, then tell me what you changed.",
     );
   });
+
+  it("never quotes a line cut inside an emoji: the message is typed through Rust, which refuses half of one", () => {
+    // 🎉 straddles the cut at 80 units: its first half would be the last unit kept.
+    const message = reviewMessage([{ file: "src/a.ts", line: 3, lineText: `${"x".repeat(79)}🎉 done`, text: "Shorter." }]);
+    expect(message).toContain(`- src/a.ts:3 \`${"x".repeat(79)}\` — Shorter.`);
+  });
 });
 
 describe("missionBranchFor", () => {

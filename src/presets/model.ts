@@ -4,6 +4,7 @@ import { MAX_GROUP_SIZE } from "@/agents/composer";
 import { isRoleId, type RoleId } from "@/agents/roles";
 import type { AgentId } from "@/ipc/pty";
 import type { Links } from "@/agents/wires";
+import { cutWhole } from "@/lib/cut";
 
 /** A group of a preset: what it is for and who staffs it, placed relative to the team's top-left corner. */
 export interface PresetGroup {
@@ -47,12 +48,7 @@ const STORED_FLEETS_KEY = "orchestrators";
  * surrogate, which the saved setting's JSON cannot carry: Rust refuses it); null when nothing is left.
  */
 export function presetNameOf(raw: string): string | null {
-  const name = raw
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, MAX_NAME)
-    .replace(/[\uD800-\uDBFF]$/, "")
-    .trim();
+  const name = cutWhole(raw.replace(/\s+/g, " ").trim(), MAX_NAME).trim();
   return name === "" ? null : name;
 }
 
@@ -136,6 +132,21 @@ export function readPresets(raw: unknown): TeamPreset[] {
 /** The setting to save for these presets: what `readPresets` reads back, with the stored key for the fleets. */
 export function storedPresets(presets: readonly TeamPreset[]) {
   return { version: PRESETS_VERSION, presets: presets.map(({ fleets, ...rest }) => ({ ...rest, [STORED_FLEETS_KEY]: fleets })) };
+}
+
+/**
+ * `name`, or "name 2", "name 3"… when another preset of `list` has it (whatever the case), as agents' names go
+ * (`@/agents/names`): what keeps two presets apart. A name at the limit gives the number room.
+ */
+export function freePresetName(list: readonly TeamPreset[], name: string): string {
+  const taken = (candidate: string) => list.some((p) => sameName(p.name, candidate));
+  if (!taken(name)) return name;
+  for (let n = 2; ; n++) {
+    const suffix = ` ${n}`;
+    const base = name.length + suffix.length > MAX_NAME ? (presetNameOf(name.slice(0, MAX_NAME - suffix.length)) ?? "") : name;
+    const candidate = `${base}${suffix}`.trim();
+    if (!taken(candidate)) return candidate;
+  }
 }
 
 /** The list with `preset` added, replacing the one of the same name; null when the list is full. */

@@ -77,25 +77,30 @@ fn panic_line(message: &str, location: Option<(&str, u32)>, thread: Option<&str>
     )
 }
 
-/// The local server's token travels as `?t=` / `&t=` and the MCP one as a
-/// bearer: both are cut from whatever reaches the file.
+/// The local server's token travels as `?t=` / `&t=` and in its own header
+/// (`X-dummyPlane-Token`, curl's config), the MCP one as a bearer: each is cut
+/// from whatever reaches the file, the webview's lines included. A header's
+/// name and its scheme are matched whatever their case, as HTTP reads them.
 pub fn redact(text: &str) -> String {
     let query = cut_after(text, &["?t=", "&t="], |c| {
         c == '&' || c == '\'' || c == '"' || c.is_whitespace()
     });
-    cut_after(&query, &["Bearer "], |c| {
+    cut_after(&query, &["bearer ", "x-dummyplane-token: "], |c| {
         c == '\'' || c == '"' || c == ',' || c.is_whitespace()
     })
 }
 
-/// Replaces what follows each marker, up to a character `ends` accepts, with `…`.
+/// Replaces what follows each marker (lowercase ASCII, found whatever the
+/// text's case), up to a character `ends` accepts, with `…`.
 fn cut_after(text: &str, markers: &[&str], ends: impl Fn(char) -> bool) -> String {
     let mut out = String::with_capacity(text.len());
     let mut rest = text;
     loop {
+        // ASCII lowercase keeps every byte where it was: a place found in it is the same in `rest`.
+        let lower = rest.to_ascii_lowercase();
         let next = markers
             .iter()
-            .filter_map(|marker| rest.find(marker).map(|at| (at, marker.len())))
+            .filter_map(|marker| lower.find(marker).map(|at| (at, marker.len())))
             .min();
         let Some((at, len)) = next else {
             out.push_str(rest);
@@ -133,6 +138,33 @@ mod tests {
             redact("nothing to hide: t is fine"),
             "nothing to hide: t is fine"
         );
+    }
+
+    #[test]
+    fn a_token_is_cut_whatever_the_case_of_its_header_or_scheme() {
+        // HTTP ignores the case of a header's name and of its scheme: a library may write either.
+        for line in [
+            "authorization: bearer xyz.789",
+            "AUTHORIZATION: BEARER xyz.789",
+            "{\"Authorization\":\"bEaReR xyz.789\"}",
+        ] {
+            let clean = redact(line);
+            assert!(!clean.contains("xyz.789"), "{clean}");
+        }
+        // The local server's token in its own header, as curl's config and a request carry it.
+        for line in [
+            "header = \"X-dummyPlane-Token: tok-123\"",
+            "x-dummyplane-token: tok-123, other",
+        ] {
+            let clean = redact(line);
+            assert!(!clean.contains("tok-123"), "{clean}");
+        }
+        assert_eq!(
+            redact("x-dummyplane-token: tok-123, other"),
+            "x-dummyplane-token: …, other"
+        );
+        // The cost of ignoring case: one word of prose after "bearer " goes too, never more.
+        assert_eq!(redact("a bearer of news"), "a bearer … news");
     }
 
     #[test]

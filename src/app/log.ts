@@ -18,12 +18,24 @@ function show(value: unknown): string {
   }
 }
 
-/** `console.error("%o failed", x)`: React's format directives are not part of the line. */
-const FORMAT = /^(?:%[oOdisfc]\s*)+/;
+/**
+ * `console.error("%s failed: %o", name, error)`: each format directive takes the next value, wherever it stands, as
+ * the console fills it (React's errors start with them); `%c` takes a style, which is no text, and `%%` is a percent
+ * sign. A directive with no value left stays as written; values left over follow.
+ */
+const DIRECTIVE = /%[oOdisfc%]/g;
 
 const text = (values: unknown[]) => {
   const [first, ...rest] = values;
-  return (typeof first === "string" ? [first.replace(FORMAT, ""), ...rest] : values).map(show).join(" ").trim();
+  if (typeof first !== "string") return values.map(show).join(" ").trim();
+  let next = 0;
+  const line = first.replace(DIRECTIVE, (directive) => {
+    if (directive === "%%") return "%";
+    if (next >= rest.length) return directive;
+    const value = rest[next++];
+    return directive === "%c" ? "" : show(value);
+  });
+  return [line, ...rest.slice(next).map(show)].join(" ").trim();
 };
 
 /**

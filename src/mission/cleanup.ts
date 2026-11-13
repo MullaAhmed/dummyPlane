@@ -11,7 +11,7 @@ import { nodesStore } from "@/store/nodes";
 import { cleanMission } from "./launch";
 import { managerNameOf } from "./manager";
 import { missionMessages } from "./messages";
-import type { Mission } from "./mission";
+import { worktreeOwners, type Mission } from "./mission";
 import { agentState, missionOf } from "./store";
 import { withPlane } from "@/notifications/capture";
 
@@ -79,7 +79,7 @@ export async function cleanUpFinished(fleetId: string): Promise<FleetCleanup> {
   // The folder the cleanup works in, as cleanMission reads it; without one there are no worktrees to lose.
   if (mission.project && mission.slug) {
     try {
-      unsaved.push(...(await missionCleanupUnsaved(mission.project, mission.slug, mission.members.map((m) => m.name))));
+      unsaved.push(...(await missionCleanupUnsaved(mission.project, mission.slug, worktreeOwners(mission))));
     } catch (error) {
       return { cleaned: false, reason: f.cleanCheckFailed(errorText(error)) };
     }

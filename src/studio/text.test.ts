@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { detectEol, smallestChange, toLf, withEol } from "./text";
+import { detectEol, smallestChange, toLf, withEndings, withEol } from "./text";
 
 describe("line endings", () => {
   it("keeps the dominant ending of the file", () => {
@@ -17,6 +17,27 @@ describe("line endings", () => {
 
   it("works in LF, as the editor does", () => {
     expect(toLf("a\r\nb\rc\n")).toBe("a\nb\nc\n");
+  });
+});
+
+describe("writing back what the disk had", () => {
+  const back = (raw: string, edited: string) => withEndings(raw, edited, detectEol(raw));
+
+  it("gives an unedited file back byte for byte, whatever its endings", () => {
+    for (const raw of ["", "a", "a\n", "﻿a\r\n\r\nb\r\n", "a\r\nb\nc\rd", "one\rtwo\n"]) expect(back(raw, toLf(raw)), JSON.stringify(raw)).toBe(raw);
+  });
+
+  it("keeps the ending of the lines before and after the edit, and gives the edited ones the dominant ending", () => {
+    expect(back("a\r\nb\nc\nd\r\n", "a\nb\nC\nd\n")).toBe("a\r\nb\nC\nd\r\n");
+    // Lines inserted take the file's ending; those around them keep theirs.
+    expect(back("a\r\nb\r\nz\n", "a\nb\nnew\nmore\nz\n")).toBe("a\r\nb\r\nnew\r\nmore\r\nz\n");
+    // Lines removed.
+    expect(back("a\r\nb\nc\nd\n", "a\nd\n")).toBe("a\r\nd\n");
+  });
+
+  it("ends a last line that had no ending with the dominant one once a line follows it", () => {
+    expect(back("a\r\nb", "a\nb\nc")).toBe("a\r\nb\r\nc");
+    expect(back("a\nb\r\nc", "a\nb\nC")).toBe("a\nb\r\nC");
   });
 });
 

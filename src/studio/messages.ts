@@ -12,6 +12,8 @@ export const studioMessages = defineMessages({
   treeFailed: (error: string) => `The repository could not be read: ${error}`,
   noMatch: "No file matches",
   treeCut: (count: number) => `Only the first ${count} rows are shown: filter to narrow down`,
+  // The project has more files than the tree can list: a file past the cut is in the project, not in the list or the filter.
+  treeListCut: (count: number) => `Only the first ${count} entries are listed: the filter searches these only`,
   empty: "The repository is empty",
   pickFile: "Pick a file in the tree",
   readingFile: "Reading the file…",

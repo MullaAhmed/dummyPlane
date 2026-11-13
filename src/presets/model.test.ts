@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { SceneFrame } from "@/canvas/groups";
 import {
   capturePreset,
+  freePresetName,
   MAX_NAME,
   MAX_PRESETS,
   presetAgentCount,
@@ -107,6 +108,14 @@ describe("names and the list", () => {
     // Half an emoji is a lone surrogate, which the saved setting's JSON cannot carry to Rust.
     expect(presetNameOf(`${"a".repeat(MAX_NAME - 1)}😀 team`)).toBe("a".repeat(MAX_NAME - 1));
     expect(presetNameOf(`${"a".repeat(MAX_NAME - 2)}😀 team`)).toBe(`${"a".repeat(MAX_NAME - 2)}😀`);
+  });
+
+  it("finds a name of its own for a preset whose name another took, as agents' names go, within the limit", () => {
+    const list = [preset("Dev HQ", "1"), preset("dev hq 2", "2")];
+    expect(freePresetName(list, "QA")).toBe("QA");
+    expect(freePresetName(list, "DEV HQ")).toBe("DEV HQ 3");
+    const long = "x".repeat(MAX_NAME);
+    expect(freePresetName([preset(long, "3")], long)).toBe(`${"x".repeat(MAX_NAME - 2)} 2`);
   });
 
   it("replaces a preset of the same name whatever the case, else appends, and is full at 50", () => {

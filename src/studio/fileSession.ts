@@ -1,6 +1,6 @@
 import { createStore } from "zustand";
 import type { OpenedFile, WriteOutcome } from "@/ipc/studio";
-import { detectEol, toLf, withEol, type Eol } from "./text";
+import { detectEol, toLf, withEndings, type Eol } from "./text";
 
 export interface StudioIo {
   read: (file: string) => Promise<OpenedFile>;
@@ -31,6 +31,8 @@ export interface SessionState {
   baseline: string;
   /** The text in the editor, in LF. */
   draft: string;
+  /** The text as the disk has it, endings as they are: what was read or last written. A save keeps the endings of the lines left alone. */
+  raw: string;
   revision: Revision;
   /** Where the buffer stands against the disk: the version it was read or written at. */
   version: string | null;
@@ -64,7 +66,7 @@ const errorText = (error: unknown) => (error instanceof Error ? error.message : 
 /** A tab closes from the tab bar and quits through the store: its session leaves nothing. */
 const NO_EXITS: SessionExits = { onClose: () => undefined, onQuit: () => undefined };
 
-const empty = { refused: null, baseline: "", draft: "", version: null, eol: "\n", disk: null, error: null } as const;
+const empty = { refused: null, baseline: "", draft: "", raw: "", version: null, eol: "\n", disk: null, error: null } as const;
 
 /**
  * One open file against a disk that agents write to:
@@ -87,7 +89,7 @@ export function createFileSession(io: StudioIo, exits: SessionExits = NO_EXITS) 
         // Typed while the silent reload was reading: the buffer now has changes to protect.
         if (unlessEdited && isDirty(get())) return set({ disk: { version } });
         const lf = toLf(text);
-        set({ ...empty, file, loading: false, baseline: lf, draft: lf, version, eol: detectEol(text), revision: { id: ++revisions, kind } });
+        set({ ...empty, file, loading: false, baseline: lf, draft: lf, raw: text, version, eol: detectEol(text), revision: { id: ++revisions, kind } });
       } catch (error) {
         if (asked !== generation) return;
         if (keeping) throw error;
@@ -96,19 +98,20 @@ export function createFileSession(io: StudioIo, exits: SessionExits = NO_EXITS) 
     };
 
     const write = async (expected: string | null): Promise<boolean> => {
-      const { file, draft, eol } = get();
+      const { file, draft, eol, raw } = get();
       if (!file) return false;
       const asked = ++generation;
       set({ saving: true, error: null });
       try {
-        const outcome = await io.write(file, withEol(draft, eol), expected);
+        const written = withEndings(raw, draft, eol);
+        const outcome = await io.write(file, written, expected);
         // Another file was opened meanwhile: this answer says nothing of it.
         if (asked !== generation) {
           set({ saving: false });
           return false;
         }
         if (outcome.status === "saved") {
-          set({ baseline: draft, version: outcome.version, disk: null, saving: false });
+          set({ baseline: draft, raw: written, version: outcome.version, disk: null, saving: false });
           return true;
         }
         set({ disk: { version: outcome.disk }, pending: null, saving: false });

@@ -15,6 +15,7 @@ import { agentActivityStore } from "@/store/agentActivity";
 import { isManagerNode, nodesStore, terminalOf } from "@/store/nodes";
 import { isRunning } from "@/store/terminalStatus";
 import { refused, said, type ToolResult } from "./agentTools";
+import { cutWhole } from "@/lib/cut";
 import { fleetNamed, fleetPeers, messageFleet } from "./handOff";
 import { agentMessages } from "./messages";
 import { outAgentState } from "./protocol";
@@ -125,7 +126,7 @@ function newWork(nodeId: string, peerId: string, text: string, rawTitle: unknown
   const peer = terminalOf(nodesStore.getState().nodes[peerId]);
   if (!peer || peer.spawnedBy !== nodeId || !peer.lastReport) return null;
   const title = typeof rawTitle === "string" ? clip(oneLine(rawTitle), MAX_TITLE) : "";
-  return { task: text.slice(0, MAX_STORED_TASK), ...(title ? { title, staleTitle: undefined } : { staleTitle: true }) };
+  return { task: cutWhole(text, MAX_STORED_TASK), ...(title ? { title, staleTitle: undefined } : { staleTitle: true }) };
 }
 
 function messageLinked(nodeId: string, args: Record<string, unknown>): ToolResult {

@@ -27,6 +27,7 @@ export const presetsMessages = defineMessages({
     full: "Too many presets (50 at most): delete one first",
     removed: (name: string) => `Preset “${name}” deleted`,
     undo: "Undo",
+    restoredAs: (name: string) => `Preset taken back as “${name}”: another one has its name now`,
     deployed: (name: string, r: DeployResult) =>
       `Team “${name}” deployed: ${plural(r.groups, "group", "groups")}, ${plural(r.agents, "agent", "agents")}, ${plural(r.fleets, "fleet", "fleets")}`,
     substituted: (count: number) => `${plural(count, "agent", "agents")} not found on this computer replaced by the default agent`,
