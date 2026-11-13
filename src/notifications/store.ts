@@ -142,12 +142,16 @@ export function createNotificationsStore() {
 
     add: (toast) =>
       set((s) => {
+        // A popup shown again under the id it has, with the same words, is the same news: read stays read, so an offer
+        // that comes back with each visit to a workspace is not unread each time.
+        const again = toast.toastId === undefined ? undefined : s.entries.find((e) => e.toastId === toast.toastId);
+        const same = again !== undefined && again.title === toast.title && again.description === toast.description;
         const entry: NotificationEntry = {
           id: newId(),
           at: toast.at,
           kind: toast.kind,
           title: toast.title,
-          read: false,
+          read: same && again.read,
           plane: planeOf(toast.context),
           ...(toast.toastId !== undefined ? { toastId: toast.toastId } : {}),
           ...(toast.description !== undefined ? { description: toast.description } : {}),

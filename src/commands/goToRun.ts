@@ -18,7 +18,7 @@ function reachTarget(target: PendingArrival) {
     workspaces.select(target.workspaceId);
     return;
   }
-  if (!reach(target.kind, target.id)) toastError(messages(commandsMessages).goTo.gone(target.label));
+  if (!reach(target.kind, target.id) && !target.quiet) toastError(messages(commandsMessages).goTo.gone(target.label));
 }
 
 /** Enter on a line of "Go to". */
@@ -40,15 +40,19 @@ export function goTo(item: GoToItem) {
   }
 }
 
-/** A node by its id, as an arrival: a fleet reaches like a terminal, whatever else the node is. */
-export function nodeTarget(workspaceId: string, nodeId: string, label: string): PendingArrival {
+/**
+ * A node by its id, as an arrival: a fleet reaches like a terminal, whatever else the node is, and one not
+ * loaded yet (its workspace's scene is read on the first visit) is reached as a terminal is. `quiet`: it says
+ * nothing when the node is gone.
+ */
+export function nodeTarget(workspaceId: string, nodeId: string, label: string, quiet = false): PendingArrival {
   const kind = nodesStore.getState().nodes[nodeId]?.kind === "fleet" ? "fleet" : "terminal";
-  return { workspaceId, kind, id: nodeId, label };
+  return { workspaceId, kind, id: nodeId, label, quiet };
 }
 
 /** A node by its id, wherever it is: its workspace first if it is not on screen. The notification panel's click. */
-export function goToNode(workspaceId: string, nodeId: string, label: string) {
-  reachTarget(nodeTarget(workspaceId, nodeId, label));
+export function goToNode(workspaceId: string, nodeId: string, label: string, quiet = false) {
+  reachTarget(nodeTarget(workspaceId, nodeId, label, quiet));
 }
 
 let lastReached: string | null = null;

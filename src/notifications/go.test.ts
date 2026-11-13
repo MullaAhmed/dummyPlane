@@ -37,6 +37,7 @@ function noted(plane: Partial<Plane>): NotificationEntry {
 const isRead = () => notificationsStore.getState().entries[0].read;
 
 beforeEach(() => {
+  vi.mocked(toast.error).mockClear();
   vi.mocked(arrive).mockClear().mockReturnValue(true);
   select.mockClear();
   open.mockClear();
@@ -97,11 +98,31 @@ describe("a click on a notification", () => {
     expect(open).toHaveBeenCalledWith("p1");
   });
 
-  it("only reads a notification whose node is gone, and goes to its workspace", async () => {
-    await openNotification(noted({ workspaceId: "w2", nodeId: "closed-agent" }));
+  it("reaches a node that is not loaded yet once its workspace's scene is: scenes are read on the first visit, so after a restart no node of an unopened tab is known", async () => {
+    await openNotification(noted({ workspaceId: "w2", nodeId: "not-hydrated-yet" }));
     expect(select).toHaveBeenCalledWith("w2");
     expect(arrive).not.toHaveBeenCalled();
+    // Its scene is read, and the node is in it.
+    nodesStore.setState({ nodes: { "not-hydrated-yet": { workspaceId: "w2", kind: "terminal", payload: { name: "Late" } } } } as never);
+    completeArrival("w2");
+    expect(arrive).toHaveBeenCalledWith("not-hydrated-yet");
+  });
+
+  it("goes to the workspace of a node closed since, and says nothing of it", async () => {
+    vi.mocked(arrive).mockReturnValue(false);
+    await openNotification(noted({ workspaceId: "w2", nodeId: "closed-agent" }));
+    expect(select).toHaveBeenCalledWith("w2");
+    completeArrival("w2");
+    expect(arrive).toHaveBeenCalledWith("closed-agent");
+    expect(toast.error).not.toHaveBeenCalled();
     expect(isRead()).toBe(true);
+  });
+
+  it("says nothing either when the node is gone from the workspace already on screen", async () => {
+    vi.mocked(arrive).mockReturnValue(false);
+    await openNotification(noted({ workspaceId: "w1", nodeId: "closed-agent" }));
+    expect(arrive).toHaveBeenCalledWith("closed-agent");
+    expect(toast.error).not.toHaveBeenCalled();
   });
 
   it("only reads a notification whose workspace was closed: there is nowhere to go", async () => {

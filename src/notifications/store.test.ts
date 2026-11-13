@@ -144,6 +144,17 @@ describe("the history", () => {
     expect(entries()[0]).toMatchObject({ title: "Moving to api", read: false });
   });
 
+  it("keeps an entry read when the same popup is shown again with the same words: an offer that returns with each visit", () => {
+    add({ title: "Resume all conversations?", toastId: "resume-all-w1" });
+    notificationsStore.getState().markRead(entries()[0].id);
+    add({ title: "Resume all conversations?", toastId: "resume-all-w1" });
+    expect(entries()).toHaveLength(1);
+    expect(entries()[0].read).toBe(true);
+    // A new description is news again.
+    add({ title: "Resume all conversations?", description: "2 consoles", toastId: "resume-all-w1" });
+    expect(entries()[0].read).toBe(false);
+  });
+
   it("keeps popups with different ids, and those with none, apart", () => {
     add({ title: "a", toastId: 1 });
     add({ title: "b", toastId: 2 });

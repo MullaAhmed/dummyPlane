@@ -9,6 +9,8 @@ export interface PendingArrival {
   id: string;
   /** For the message when it is gone. */
   label: string;
+  /** Says nothing when it is gone: the click of an old notification, whose node may be closed long since. */
+  quiet?: boolean;
 }
 
 let pending: PendingArrival | null = null;
@@ -33,5 +35,5 @@ export function completeArrival(workspaceId: string) {
   }
   const target = pending;
   pending = null;
-  if (!reach(target.kind, target.id)) toastError(messages(commandsMessages).goTo.gone(target.label));
+  if (!reach(target.kind, target.id) && !target.quiet) toastError(messages(commandsMessages).goTo.gone(target.label));
 }
