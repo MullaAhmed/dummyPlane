@@ -5,6 +5,7 @@ import { ROUTER_LEVELS } from "@/mission/router";
 export const canvasMessages = defineMessages(
   {
     saveFailed: "Could not save the canvas",
+    imagesNotSaved: "Could not save the images of the canvas",
     loadFailed: (error: string) => `Could not load this workspace: ${error}`,
     retryLoad: "Try again",
     loading: "Loading…",

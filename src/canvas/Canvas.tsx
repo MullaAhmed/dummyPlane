@@ -56,6 +56,8 @@ import { canvasMessages } from "./messages";
 const reportSaveError = (error: unknown) => toastError(messages(canvasMessages).saveFailed, { error });
 /** The scene's own: a store that keeps failing says so at every change, in the one toast. */
 const reportSceneSaveError = (error: unknown) => toastError(messages(canvasMessages).saveFailed, { error, id: "scene-save-failed" });
+/** The images' own, in its own toast: they are tried again at every change, and one toast says so for as long as they fail. */
+const reportImagesNotSaved = (error: unknown) => toastError(messages(canvasMessages).imagesNotSaved, { error, id: "scene-images-not-saved" });
 
 /**
  * One Excalidraw instance per workspace; remounted (via `key`) when switching. A scene that
@@ -193,6 +195,7 @@ function LoadedCanvas({ workspaceId, scene }: { workspaceId: string; scene: Load
           saveScene: (elementsJson, appStateJson, nodeIds) => saveScene(workspaceId, elementsJson, appStateJson, nodeIds),
           saveFiles: (files) => saveFiles(workspaceId, files),
           saveFailed: reportSceneSaveError,
+          imagesNotSaved: reportImagesNotSaved,
           onSceneChanged: (elements, appState, files, savedFileIds) =>
             rememberScene(workspaceId, elements, appState, files, savedFileIds),
           // An undo can bring back a node whose row the last scene save purged.

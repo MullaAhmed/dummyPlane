@@ -40,6 +40,7 @@ const TITLES: [string, string][] = [
   [app.updateCheckFailed, "Could not check for updates"],
   [app.startFailed, "dummyPlane could not start"],
   [messages(canvasMessages).saveFailed, "Could not save the canvas"],
+  [messages(canvasMessages).imagesNotSaved, "Could not save the images of the canvas"],
   [messages(canvasMessages).selection.copyFailed, "Could not copy the terminal"],
   [messages(canvasMessages).selection.pickFolderFailed, "Could not open the folder picker"],
   [commands.failed("Overview"), "Overview failed"],

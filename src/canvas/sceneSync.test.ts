@@ -117,6 +117,57 @@ it("saves each new image once, as a data URL", () => {
   ]);
 });
 
+describe("an image that cannot be saved", () => {
+  const failure = new Error("payload too large");
+  const files = { fresh: { id: "fresh", mimeType: "image/png", dataURL: "data:new", created: 2 } } as unknown as BinaryFiles;
+  const failing = () => {
+    const imagesNotSaved = vi.fn();
+    const deps = {
+      saveScene: vi.fn(() => Promise.resolve()),
+      saveFiles: vi.fn(() => Promise.reject(failure)),
+      onSceneChanged: vi.fn(),
+      onNodesAdded: vi.fn(),
+      onNodesRemoved: vi.fn(),
+      imagesNotSaved,
+    };
+    return { deps, imagesNotSaved, sync: createSceneSync({ elements: [], savedFileIds: [] }, deps) };
+  };
+
+  it("is told, not only written to the console", async () => {
+    const { imagesNotSaved, sync } = failing();
+    sync.onChange([], appState(), files, 1);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(imagesNotSaved).toHaveBeenCalledTimes(1);
+    expect(imagesNotSaved).toHaveBeenCalledWith(failure);
+  });
+
+  it("is tried again at the next change, as before, and told only once while it keeps failing", async () => {
+    const { deps, imagesNotSaved, sync } = failing();
+    sync.onChange([], appState(), files, 1);
+    await vi.advanceTimersByTimeAsync(0);
+    sync.onChange([], appState(), files, 2);
+    await vi.advanceTimersByTimeAsync(0);
+    sync.onChange([], appState(), files, 2);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(deps.saveFiles).toHaveBeenCalledTimes(3);
+    expect(imagesNotSaved).toHaveBeenCalledTimes(1);
+  });
+
+  it("is told again once an image was saved and a later one fails", async () => {
+    const { deps, imagesNotSaved, sync } = failing();
+    const later = { later: { id: "later", mimeType: "image/png", dataURL: "data:later", created: 3 } } as unknown as BinaryFiles;
+    sync.onChange([], appState(), files, 1);
+    await vi.advanceTimersByTimeAsync(0);
+    deps.saveFiles.mockImplementationOnce(() => Promise.resolve() as never);
+    sync.onChange([], appState(), files, 2);
+    await vi.advanceTimersByTimeAsync(0);
+    deps.saveFiles.mockImplementation(() => Promise.reject(failure));
+    sync.onChange([], appState(), later, 3);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(imagesNotSaved).toHaveBeenCalledTimes(2);
+  });
+});
+
 it("liveNodeIds skips deleted nodes and plain drawings", () => {
   const node = createNodeElement("note", { x: 0, y: 0 });
   const drawing = { ...createNodeElement("note", { x: 0, y: 0 }), type: "rectangle" } as unknown as ExcalidrawElement;
