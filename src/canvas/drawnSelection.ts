@@ -132,7 +132,11 @@ export function restyleSelection(elements: readonly ExcalidrawElement[], selecte
   });
 }
 
-/** Soft-deletes the selected drawn elements, and the texts bound inside them, as Excalidraw's delete does. */
+/**
+ * Soft-deletes the selected drawn elements, and the texts bound inside them, as Excalidraw's delete does, and as it
+ * does unbinds what is left: an arrow's end that was bound to one of them is free (its points stay where they are),
+ * and no box keeps a deleted arrow or text among its bound elements. One scene, one undo step.
+ */
 export function deleteSelection(elements: readonly ExcalidrawElement[], selected: Selected): ExcalidrawElement[] {
   const ids = new Set(drawnSelectionOf(elements, selected).map((element) => element.id));
   for (const element of elements) {
@@ -140,7 +144,16 @@ export function deleteSelection(elements: readonly ExcalidrawElement[], selected
     const container = (element as { containerId?: string | null }).containerId;
     if (container && ids.has(container)) ids.add(element.id);
   }
-  return elements.map((element) => (ids.has(element.id) && !element.isDeleted ? revise(element, { isDeleted: true }) : element));
+  return elements.map((element) => {
+    if (element.isDeleted) return element;
+    if (ids.has(element.id)) return revise(element, { isDeleted: true });
+    const patch: Record<string, unknown> = {};
+    const arrow = element as { startBinding?: Binding | null; endBinding?: Binding | null };
+    if (arrow.startBinding && ids.has(arrow.startBinding.elementId)) patch.startBinding = null;
+    if (arrow.endBinding && ids.has(arrow.endBinding.elementId)) patch.endBinding = null;
+    if (element.boundElements?.some((bound) => ids.has(bound.id))) patch.boundElements = element.boundElements.filter((bound) => !ids.has(bound.id));
+    return Object.keys(patch).length ? revise(element, patch) : element;
+  });
 }
 
 export interface Duplicate {

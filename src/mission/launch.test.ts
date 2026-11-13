@@ -1144,6 +1144,9 @@ describe("reassignTask", () => {
 
   it("takes the left-behind agent's worktree back itself while the cleanup runs: that cleanup's list is made, and its end blanks the mission", async () => {
     await team();
+    // Its terminal never ran: nothing holds its worktree, the discard goes at once.
+    terminalStatusStore.getState().remove("n9");
+    canvasStore.setState({ frames: [{ id: "f1", x: 0, y: 0, width: 800, height: 500, name: "Mission Auth", group: { role: "general", pantheon: "egyptian" }, memberIds: ["n1"] }] });
     let release: (value: { removed: string[]; kept: string[] }) => void = () => undefined;
     vi.mocked(missionCleanup).mockImplementationOnce(() => new Promise((resolve) => (release = resolve)));
     let cleaning: Promise<unknown> = Promise.resolve();
@@ -1156,7 +1159,7 @@ describe("reassignTask", () => {
       await reassignTask("chef", "batman", "nouveau");
       const name = vi.mocked(missionAddAgent).mock.calls[0][2];
       const made = tree(`auth-${name.toLowerCase()}`);
-      expect(missionDiscard).toHaveBeenCalledWith("C:/code/proj", [{ slug: name, branch: made.branch, path: made.path }]);
+      await vi.waitFor(() => expect(missionDiscard).toHaveBeenCalledWith("C:/code/proj", [{ slug: name, branch: made.branch, path: made.path }]));
     } finally {
       // Never left under way: the next cleanups would join it.
       release({ removed: [], kept: [] });
@@ -1172,11 +1175,46 @@ describe("reassignTask", () => {
       await cleanMission("chef");
       return tree(`${mission}-${agent.toLowerCase()}`);
     });
+    canvasStore.setState({ frames: [{ id: "f1", x: 0, y: 0, width: 800, height: 500, name: "Mission Auth", group: { role: "general", pantheon: "egyptian" }, memberIds: ["n1"] }] });
+    // Its terminal still runs when it is stopped: its process tree holds the worktree as its folder until it exits.
+    vi.mocked(addTerminal).mockImplementationOnce(async () => {
+      terminalStatusStore.getState().set("n9", { state: "running" });
+      return "n9";
+    });
     await reassignTask("chef", "batman", "nouveau");
     const name = vi.mocked(missionAddAgent).mock.calls[0][2];
     const made = tree(`auth-${name.toLowerCase()}`);
-    expect(missionDiscard).toHaveBeenCalledWith("C:/code/proj", [{ slug: name, branch: made.branch, path: made.path }]);
+    expect(stopTerminal).toHaveBeenCalledWith("n9");
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(missionDiscard).not.toHaveBeenCalled();
+    // Its exit comes late: the discard goes then, git no longer finding the folder held.
+    terminalStatusStore.getState().set("n9", { state: "exited", code: 0 });
+    await vi.waitFor(() => expect(missionDiscard).toHaveBeenCalledWith("C:/code/proj", [{ slug: name, branch: made.branch, path: made.path }]));
     expect(missionNow()).not.toHaveProperty("strays");
+  });
+
+  it("says what a left-behind agent's discard left in place, or why it failed, instead of dropping it", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    try {
+      for (const outcome of [{ removed: [], kept: ["auth-x (Permission denied)"] }, new Error("git is gone")]) {
+        warn.mockClear();
+        await team();
+        terminalStatusStore.getState().remove("n9");
+        canvasStore.setState({ frames: [{ id: "f1", x: 0, y: 0, width: 800, height: 500, name: "Mission Auth", group: { role: "general", pantheon: "egyptian" }, memberIds: ["n1"] }] });
+        vi.mocked(missionCleanup).mockResolvedValueOnce({ removed: [], kept: [] });
+        if (outcome instanceof Error) vi.mocked(missionDiscard).mockRejectedValueOnce(outcome);
+        else vi.mocked(missionDiscard).mockResolvedValueOnce(outcome);
+        vi.mocked(missionAddAgent).mockImplementationOnce(async (_project, mission, agent) => {
+          stopMission("chef", { by: "user" });
+          await cleanMission("chef");
+          return tree(`${mission}-${agent.toLowerCase()}`);
+        });
+        await reassignTask("chef", "batman", "nouveau");
+        await vi.waitFor(() => expect(warn).toHaveBeenCalledWith(expect.stringContaining("not discarded"), outcome instanceof Error ? outcome : outcome.kept));
+      }
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   it("gives a sub-task to a new agent in the mission's group, started at once", async () => {
