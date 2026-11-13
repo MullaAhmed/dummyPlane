@@ -6,7 +6,7 @@
 
 use std::path::{Component, Path, PathBuf};
 
-use rusqlite::Connection;
+use rusqlite::{Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 
 use crate::db::settings;
@@ -52,10 +52,26 @@ pub fn checked_dir(dir: &str) -> AppResult<PathBuf> {
     Ok(path.to_path_buf())
 }
 
+/// The stored profiles: none while none were ever stored. A row that is there and cannot be
+/// read is an error, never an empty list: the next add, remove or use would store its list
+/// over it, and every profile would be gone. (`settings::get` reads a value that does not
+/// parse as unset, so the row is read here.)
 pub fn load(conn: &Connection) -> AppResult<Accounts> {
-    Ok(settings::get(conn, KEY)?
-        .and_then(|value| serde_json::from_value(value).ok())
-        .unwrap_or_default())
+    let raw: Option<String> = conn
+        .query_row(
+            "SELECT value_json FROM settings WHERE key = ?1",
+            [KEY],
+            |row| row.get(0),
+        )
+        .optional()?;
+    let Some(raw) = raw else {
+        return Ok(Accounts::default());
+    };
+    serde_json::from_str(&raw).map_err(|err| {
+        AppError::InvalidInput(format!(
+            "the saved Claude accounts cannot be read, and are left as they are: {err}"
+        ))
+    })
 }
 
 fn store(conn: &Connection, accounts: &Accounts) -> AppResult<()> {
@@ -197,6 +213,58 @@ mod tests {
         let file = root.path().join("file.txt");
         std::fs::write(&file, "x").unwrap();
         assert!(bad("D", &file.to_string_lossy()), "a file is not a folder");
+    }
+
+    /// What the row holds, as it is stored.
+    fn stored_text(db: &Db) -> Option<String> {
+        db.with(|conn| {
+            Ok(conn
+                .query_row(
+                    "SELECT value_json FROM settings WHERE key = ?1",
+                    [KEY],
+                    |row| row.get::<_, String>(0),
+                )
+                .ok())
+        })
+        .unwrap()
+    }
+
+    /// A row that no longer reads was an empty list, and the next add, remove or use stored
+    /// that list over it: every profile gone. It is refused, and the row stays as it is.
+    #[test]
+    fn never_writes_over_accounts_it_could_not_read() {
+        let root = tempfile::tempdir().unwrap();
+        let dir = root.path().join("w").to_string_lossy().into_owned();
+        // Valid JSON of another shape (a profile without its folder), then no JSON at all.
+        for text in [
+            r#"{"profiles":[{"id":"p1","name":"Keep"}],"active":null}"#,
+            "{not json",
+        ] {
+            let db = db();
+            db.with(|conn| {
+                conn.execute(
+                    "INSERT INTO settings (key, value_json) VALUES (?1, ?2)",
+                    [KEY, text],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+            assert!(db.with(|conn| load(conn)).is_err(), "{text}");
+            assert!(
+                db.with(|conn| add(conn, "New", &dir)).is_err(),
+                "add {text}"
+            );
+            assert!(db.with(|conn| remove(conn, "p1")).is_err(), "remove {text}");
+            assert!(
+                db.with(|conn| set_active(conn, None)).is_err(),
+                "use {text}"
+            );
+            assert_eq!(stored_text(&db).as_deref(), Some(text));
+            assert!(!Path::new(&dir).exists(), "no folder was made for it");
+        }
+        // Nothing stored yet is an empty list, as before.
+        let fresh = db();
+        assert_eq!(fresh.with(|conn| load(conn)).unwrap(), Accounts::default());
     }
 
     #[test]
