@@ -314,3 +314,24 @@ describe("WebGL", () => {
     expect(webglHolders()).not.toContain(id);
   });
 });
+
+it("writes no row back for a node closed on the canvas, whatever changes it later, and saves it again once an undo brings it back", async () => {
+  const saves: string[] = [];
+  mockIPC((cmd, args) => {
+    // This node's: an earlier test's late save may land meanwhile.
+    if (cmd === "save_node" && (args as { id: string }).id === node) saves.push(node);
+  });
+  await nodesStore.getState().create(node, { workspaceId: "w1", kind: "terminal", payload });
+  saves.length = 0;
+  // Closed: the scene's next save purges its row.
+  disposeTerminal(node);
+  // A late change: its start noting its account, an agent's step or report on its way when it closed.
+  nodesStore.getState().update(node, { title: "late" });
+  await new Promise((resolve) => setTimeout(resolve, 600));
+  expect(saves).toEqual([]);
+  // Ctrl+Z brings it back: the canvas saves it again (`onNodesAdded`), as it is now, and its changes are saved from then on.
+  await nodesStore.getState().persist(node);
+  nodesStore.getState().update(node, { title: "back" });
+  await new Promise((resolve) => setTimeout(resolve, 600));
+  expect(saves).toEqual([node, node]);
+});
