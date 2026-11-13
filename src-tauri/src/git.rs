@@ -25,12 +25,24 @@ const DRIVERS: &str = r"^(filter\..+\.(clean|smudge|process|required)|merge\..+\
 /// How long reading a repository's config may take: past it, dummyPlane runs none of its git.
 const CONFIG_READ_LIMIT: Duration = Duration::from_secs(10);
 
-/// What `local_drivers` read of a repository, kept until one of the files it came from changes.
+/// What `local_entries` read of a repository, kept until one of the files it came from changes.
 struct Drivers {
     /// The repository's config files (its own, its worktree's, those they include), with their time of change.
     watched: Vec<(PathBuf, Option<SystemTime>)>,
-    /// Each driver the repository's own config defines, and the value dummyPlane's git takes instead.
-    overrides: Vec<(String, String)>,
+    /// The driver keys its config and the user's define, in the order git reads them (`overrides_of` reads them).
+    entries: Vec<ConfigEntry>,
+}
+
+/// Who a git call is for. What the user clicks in the git window runs as their terminal would; what dummyPlane
+/// runs on its own runs no program the repository names.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Asked {
+    /// dummyPlane on its own: the branch chip, the review panel, the Code Studio, a mission's merges and cleanup.
+    /// No hook runs, neither from `.git/hooks` nor from a folder the config names.
+    Unasked,
+    /// A git-window button the user clicked (Commit, Push, Switch, Discard): the repository's hooks run, as in
+    /// their terminal. Filters and merge drivers stay off all the same (`writable`).
+    Clicked,
 }
 
 static DRIVERS_READ: LazyLock<Mutex<HashMap<PathBuf, Drivers>>> = LazyLock::new(Default::default);
@@ -84,15 +96,16 @@ fn check_git() -> Result<(), String> {
 /// (`clean`, `smudge`, `process`), merge drivers and hooks folder are switched off, or given back the user's own
 /// (global or system) values when theirs replaced those; `core.fsmonitor` is off whoever set it. Its diff drivers
 /// run only for a diff's text, which `review::file_diff` asks for without them. Agents' own git, in their
-/// terminals, is theirs. An error when the repository's config could not be read: then nothing runs.
-pub(crate) fn command(dir: &Path) -> Result<Command, String> {
-    command_with(dir, &[])
+/// terminals, is theirs. An error when the repository's config could not be read: then nothing runs. `asked`: whether
+/// the user clicked for it (`Asked`).
+pub(crate) fn command(dir: &Path, asked: Asked) -> Result<Command, String> {
+    command_with(dir, asked, &[])
 }
 
 /// `command`, with `env` given to its git and to the read of its config (a test's own global config).
-fn command_with(dir: &Path, env: &[(&str, &OsStr)]) -> Result<Command, String> {
+fn command_with(dir: &Path, asked: Asked, env: &[(&str, &OsStr)]) -> Result<Command, String> {
     check_git()?;
-    let overrides = local_drivers(dir, env)?;
+    let overrides = overrides_of(&local_entries(dir, env)?, asked);
     let mut command = Command::new("git");
     hide_window(&mut command);
     command
@@ -124,7 +137,7 @@ fn command_with(dir: &Path, env: &[(&str, &OsStr)]) -> Result<Command, String> {
 /// what the filter would have changed. Its reads go on.
 pub(crate) fn writable(dir: &Path) -> Result<(), String> {
     let mut filters: Vec<&str> = Vec::new();
-    let overrides = local_drivers(dir, &[])?;
+    let overrides = overrides_of(&local_entries(dir, &[])?, Asked::Clicked);
     for (key, value) in &overrides {
         let Some(rest) = key.strip_prefix("filter.") else {
             continue;
@@ -154,20 +167,20 @@ fn modified(path: &Path) -> Option<SystemTime> {
         .ok()
 }
 
-/// The overrides of the repository at `dir` (`Drivers`), read again only when one of its config files changed.
-fn local_drivers(dir: &Path, env: &[(&str, &OsStr)]) -> Result<Vec<(String, String)>, String> {
+/// The driver keys of the repository at `dir` (`Drivers`), read again only when one of its config files changed.
+fn local_entries(dir: &Path, env: &[(&str, &OsStr)]) -> Result<Vec<ConfigEntry>, String> {
     if let Some(read) = lock(&DRIVERS_READ).get(dir)
         && read.watched.iter().all(|(path, at)| modified(path) == *at)
     {
-        return Ok(read.overrides.clone());
+        return Ok(read.entries.clone());
     }
     let read = read_drivers(dir, env)?;
-    let overrides = read.overrides.clone();
+    let entries = read.entries.clone();
     // A folder that is no repository yet is read again next time: it may become one.
     if !read.watched.is_empty() {
         lock(&DRIVERS_READ).insert(dir.to_path_buf(), read);
     }
-    Ok(overrides)
+    Ok(entries)
 }
 
 /// Runs a git that reads, never one that runs a driver: `rev-parse` and `config`, bounded in time.
@@ -209,7 +222,7 @@ fn read_drivers(dir: &Path, env: &[(&str, &OsStr)]) -> Result<Drivers, String> {
         // No repository here (or no work tree): it has no config of its own.
         return Ok(Drivers {
             watched: Vec::new(),
-            overrides: Vec::new(),
+            entries: Vec::new(),
         });
     };
     let listed = read_git(
@@ -261,7 +274,7 @@ fn read_drivers(dir: &Path, env: &[(&str, &OsStr)]) -> Result<Drivers, String> {
                 (path, at)
             })
             .collect(),
-        overrides: overrides_of(&entries),
+        entries,
     })
 }
 
@@ -315,13 +328,19 @@ fn parse_config_entries(output: &str) -> Vec<ConfigEntry> {
 }
 
 /// What dummyPlane's git takes instead of each driver the repository's own config defines: the user's own value
-/// for it, global or system, when the repository replaced one; else nothing to run (a filter not required).
-fn overrides_of(entries: &[ConfigEntry]) -> Vec<(String, String)> {
+/// for it, global or system, when the repository replaced one; else nothing to run (a filter not required). On a
+/// call nobody clicked, no hook either: an empty hooks folder leaves out `.git/hooks` too.
+fn overrides_of(entries: &[ConfigEntry], asked: Asked) -> Vec<(String, String)> {
     let mut overrides: Vec<(String, String)> = Vec::new();
+    if asked == Asked::Unasked {
+        overrides.push(("core.hookspath".into(), String::new()));
+    }
     for entry in entries.iter().filter(|entry| entry.local) {
         let key = entry.key.as_str();
         if key == "include.path"
             || key.starts_with("includeif.")
+            // Clicked, the hooks run as the repository says; unasked, none does.
+            || key == "core.hookspath"
             || overrides.iter().any(|(seen, _)| seen == key)
         {
             continue;
@@ -383,7 +402,7 @@ pub fn parse_status(output: &str) -> GitStatus {
 /// index would take `.git/index.lock` under them.
 pub fn status(path: &Path) -> Option<GitStatus> {
     // Read every 5 s: never with a program the repository names (`command`).
-    let output = command(path)
+    let output = command(path, Asked::Unasked)
         .ok()?
         .arg("--no-optional-locks")
         .args(["status", "--porcelain=v1", "-b", "--untracked-files=normal"])
@@ -513,7 +532,7 @@ mod tests {
     }
 
     fn status_with(dir: &Path, env: &[(&str, &OsStr)]) {
-        let out = command_with(dir, env)
+        let out = command_with(dir, Asked::Unasked, env)
             .unwrap()
             .args(["status", "--porcelain"])
             .output()
@@ -630,18 +649,25 @@ mod tests {
                 value: None
             }
         );
-        assert_eq!(
-            overrides_of(&entries),
-            [
-                // Replaced by the repository: the user's own value comes back.
-                ("filter.lfs.clean", "git-lfs clean -- %f"),
-                ("filter.x=y.smudge", ""),
-                ("filter.x=y.required", "false"),
-                ("merge.z.driver", ""),
-                ("core.hookspath", "C:/hooks"),
-            ]
-            .map(|(key, value)| (key.to_string(), value.to_string()))
-        );
+        let owned = |pairs: &[(&str, &str)]| {
+            pairs
+                .iter()
+                .map(|(key, value)| (key.to_string(), value.to_string()))
+                .collect::<Vec<_>>()
+        };
+        // Replaced by the repository: the user's own value comes back.
+        let drivers = [
+            ("filter.lfs.clean", "git-lfs clean -- %f"),
+            ("filter.x=y.smudge", ""),
+            ("filter.x=y.required", "false"),
+            ("merge.z.driver", ""),
+        ];
+        // Clicked: the hooks run as the repository says.
+        assert_eq!(overrides_of(&entries, Asked::Clicked), owned(&drivers));
+        // Unasked: none runs, from any folder.
+        let mut unasked = vec![("core.hookspath", "")];
+        unasked.extend(drivers);
+        assert_eq!(overrides_of(&entries, Asked::Unasked), owned(&unasked));
     }
 
     /// A submodule has a config of its own, which an archive brings too: reading the repository around it (the
@@ -696,6 +722,41 @@ mod tests {
         assert!(
             !inner.join(test_repos::FILTER_RAN).exists(),
             "reading the repository ran a filter its submodule's own config defines"
+        );
+    }
+
+    /// What git reads of `key` on a call `asked` for, as dummyPlane runs it.
+    fn read_as(dir: &Path, asked: Asked, key: &str) -> Option<String> {
+        let out = command(dir, asked)
+            .unwrap()
+            .args(["config", "--get", key])
+            .output()
+            .unwrap();
+        out.status
+            .success()
+            .then(|| String::from_utf8_lossy(&out.stdout).trim().to_string())
+    }
+
+    /// Unasked, git finds no hook to run, from `.git/hooks` or from a folder the repository names; clicked, it
+    /// finds the repository's own folder, as the user's terminal would.
+    #[test]
+    fn an_unasked_call_has_no_hooks_folder_and_a_clicked_one_the_repository_s() {
+        let Some(dir) = test_repos::with_local_filter() else {
+            return;
+        };
+        let root = dir.path();
+        assert_eq!(
+            read_as(root, Asked::Unasked, "core.hooksPath").as_deref(),
+            Some("")
+        );
+        test_repos::git(root, &["config", "core.hooksPath", ".husky"]);
+        assert_eq!(
+            read_as(root, Asked::Unasked, "core.hooksPath").as_deref(),
+            Some("")
+        );
+        assert_eq!(
+            read_as(root, Asked::Clicked, "core.hooksPath").as_deref(),
+            Some(".husky")
         );
     }
 

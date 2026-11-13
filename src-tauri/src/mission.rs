@@ -86,7 +86,7 @@ pub fn slug(name: &str) -> String {
 
 fn git(dir: &Path, args: &[&str]) -> Result<String, String> {
     // A merge reads the worktrees' status and runs merge drivers: never a program the repository names (`git::command`).
-    let output = crate::git::command(dir)?
+    let output = crate::git::command(dir, crate::git::Asked::Unasked)?
         .args(args)
         .output()
         .map_err(|err| format!("git not found: {err}"))?;
@@ -601,35 +601,78 @@ mod tests {
         );
     }
 
-    /// A hook of the repository's own hooks folder (`.git/hooks`, no config's) still runs, as on the command line:
-    /// one that refuses the merge's commit leaves nothing half done.
+    /// A Manager merges unasked, through the night: no hook of the repository runs, neither from `.git/hooks` nor
+    /// from a folder its config names, though the user's own commits run them.
     #[test]
-    fn a_merge_refused_by_a_hook_is_undone() {
+    fn merging_runs_no_hook_of_the_repository() {
+        let Some((_parent, proj)) = project() else {
+            return;
+        };
+        let mission = prepare(&proj, "auth").unwrap();
+        let m = Path::new(&mission.path);
+        let hooks = |folder: &Path| {
+            std::fs::create_dir_all(folder).unwrap();
+            for name in ["pre-merge-commit", "post-merge"] {
+                std::fs::write(folder.join(name), "#!/bin/sh\necho ran > hook-ran\n").unwrap();
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::PermissionsExt;
+                    // Git runs a hook only when it is executable.
+                    let mode = std::fs::Permissions::from_mode(0o755);
+                    std::fs::set_permissions(folder.join(name), mode).unwrap();
+                }
+            }
+        };
+        // `.git/hooks`, which the worktrees share; then a folder the repository's config names.
+        let configured = proj.parent().unwrap().join("hooks");
+        for (agent, folder) in [
+            ("Hulk", proj.join(".git").join("hooks")),
+            ("Thor", configured.clone()),
+        ] {
+            hooks(&folder);
+            if folder == configured {
+                run(
+                    &proj,
+                    &["config", "core.hooksPath", &folder.to_string_lossy()],
+                );
+            }
+            let tree = add_agent(&proj, &mission.slug, agent).unwrap();
+            commit(
+                Path::new(&tree.path),
+                &format!("{agent}.txt"),
+                "work\n",
+                "work",
+            );
+            let report = merge_agent(m, Path::new(&tree.path), &tree.branch).unwrap();
+            assert_eq!(report.merge, Merge::Merged);
+            assert!(
+                !m.join("hook-ran").exists(),
+                "a hook of {} ran on a mission's merge",
+                folder.display()
+            );
+        }
+    }
+
+    /// A merge whose commit fails once it is prepared (here, signed with a key nobody has) leaves nothing half done.
+    #[test]
+    fn a_merge_whose_commit_fails_is_undone() {
         let Some((_parent, proj)) = project() else {
             return;
         };
         let mission = prepare(&proj, "auth").unwrap();
         let hulk = add_agent(&proj, &mission.slug, "Hulk").unwrap();
         commit(Path::new(&hulk.path), "login.txt", "login\n", "login");
-        // Worktrees share the repository's hooks.
-        let hooks = proj.join(".git").join("hooks");
-        std::fs::write(hooks.join("pre-merge-commit"), "#!/bin/sh\nexit 1\n").unwrap();
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            // Git runs a hook only when it is executable.
-            std::fs::set_permissions(
-                hooks.join("pre-merge-commit"),
-                std::fs::Permissions::from_mode(0o755),
-            )
-            .unwrap();
-        }
+        run(&proj, &["config", "commit.gpgsign", "true"]);
+        run(
+            &proj,
+            &["config", "user.signingkey", "dummyplane-test-no-such-key"],
+        );
         let m = Path::new(&mission.path);
         let err = merge_agent(m, Path::new(&hulk.path), &hulk.branch).unwrap_err();
         assert!(err.contains("was cancelled"), "{err}");
         assert!(git(m, &["rev-parse", "-q", "--verify", "MERGE_HEAD"]).is_err());
         assert_eq!(run(m, &["status", "--porcelain"]), "");
-        std::fs::remove_file(hooks.join("pre-merge-commit")).unwrap();
+        run(&proj, &["config", "commit.gpgsign", "false"]);
         let again = merge_agent(m, Path::new(&hulk.path), &hulk.branch).unwrap();
         assert_eq!(again.merge, Merge::Merged);
     }
