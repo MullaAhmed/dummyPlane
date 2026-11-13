@@ -296,6 +296,8 @@ describe("a manager sub-agent (spawn_agent's role)", () => {
     await spawnAgent("batman", { task, role: "manager" });
     const text = await delivered();
     expect(text.startsWith("[dummyPlane · sub-agent of Batman] You are a manager")).toBe(true);
+    // The cap's refusal says "or do this task yourself": a manager waits instead.
+    expect(text).toContain("never take a card's work yourself");
     const at = text.indexOf(task);
     for (const tool of ["open_board", "spawn_agent", "move_board_card", "message_agent", "report"]) {
       expect(text.indexOf(tool)).toBeGreaterThan(-1);

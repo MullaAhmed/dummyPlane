@@ -106,6 +106,12 @@ describe("the agent's tools", () => {
     expect(textOf(result)).toContain("Give the sub-agent its task");
   });
 
+  it("hands spawn_agent its role as the agent sent it, a role it does not know refused", async () => {
+    const result = (await call("batman", "spawn_agent", { task: "Do it", role: "boss" })) as { isError?: boolean };
+    expect(result.isError).toBe(true);
+    expect(textOf(result)).toContain('Unknown role "boss"');
+  });
+
   it("declares and marks the terminal's steps, saved in its payload", async () => {
     expect(textOf(await call("batman", "declare_steps", { steps: ["Plan", "Code"] }))).toBe("2 steps declared.");
     expect(textOf(await call("batman", "step", { title: "Plan", state: "done" }))).toBe("Plan: done.");

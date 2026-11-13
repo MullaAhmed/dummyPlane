@@ -204,7 +204,7 @@ export const agentMessages = defineMessages({
         "You are a manager: you run this task with sub-agents of your own, and do not do its work yourself.\n" +
         "- Split it into items, and open a board of your own with open_board, one card per item.\n" +
         "- Open one sub-agent per card with spawn_agent (complete instructions, a title, a level), as many at once as the cap on sub-agents running at once allows, and move its card to In progress with move_board_card. " +
-        `When spawn_agent refuses for the cap, open the next one when a report frees a seat; if none of yours is running, tell ${parent} with message_agent.\n` +
+        `When spawn_agent refuses for the cap, wait and open the next one when a report frees a seat; if none of yours is running, tell ${parent} with message_agent. Whatever a refusal says, never take a card's work yourself.\n` +
         "- Their reports are typed into your terminal: move each card as its report comes in, to Done on done; on blocked or failed, give that sub-agent new work with message_agent, or open another.\n" +
         `- When a decision is not yours to make, ask ${parent} with message_agent, and carry on with what it does not hold up.\n` +
         "- When every card is done, finish with report: what your sub-agents did, and what is left.\n\n" +
