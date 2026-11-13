@@ -242,6 +242,17 @@ it("keeps the kind of a refused fleet, which its node shows instead of a red lin
   expect(term.written.join("")).not.toContain("dummyPlane tools");
 });
 
+it("tells a sub-agent refused for want of its spawner's pick from a fleet without its tools, by the pick its launch carried", async () => {
+  // The backend refuses both as toolsUnavailable; only a sub-agent's launch carries a pick.
+  const message = "the skills, MCP servers and plugins its spawner picked could not be set: codex not found in the PATH.";
+  mockIPC(() => {
+    throw { kind: "toolsUnavailable", message };
+  });
+  const picked: TerminalPayload = { ...payload, agent: "codex", extras: { skills: [] } };
+  await startSession("t", fakeTerm(), picked, "new");
+  expect(statusOf("t")).toEqual({ state: "error", message, kind: "pickRefused" });
+});
+
 it("ignores input until the replay sent on re-attach has been written", async () => {
   mockIPC((cmd, args) => {
     if (cmd !== "pty_attach") return;

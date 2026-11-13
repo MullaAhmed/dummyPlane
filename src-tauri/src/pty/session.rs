@@ -32,6 +32,8 @@ pub struct Session {
     writer: Mutex<Box<dyn Write + Send>>,
     master: Mutex<Option<Box<dyn MasterPty + Send>>>,
     killer: Mutex<Box<dyn ChildKiller + Send + Sync>>,
+    /// The process exited (`end_tree`): the killer is left alone from then on.
+    exited: Exited,
     /// What the process starts, ended with it (`ProcessTree`).
     tree: ProcessTree,
     output: Mutex<Output>,
@@ -42,6 +44,25 @@ pub struct Session {
     /// A plain Shell, whose agent started by hand is looked for (`watch`).
     pub watch_agents: bool,
     pub pid: Option<u32>,
+}
+
+/// Whether a terminal's process exited, marked by its exit thread before the tree ends. portable-pty's killer sends
+/// SIGHUP to the PID it kept (macOS, Linux): a kill in the seconds the exit is still reported would signal a PID
+/// already reaped, maybe someone else's by then.
+#[derive(Default)]
+struct Exited(std::sync::atomic::AtomicBool);
+
+impl Exited {
+    fn mark(&self) {
+        self.0.store(true, std::sync::atomic::Ordering::SeqCst);
+    }
+
+    /// Runs `kill` unless the process exited.
+    fn unless(&self, kill: impl FnOnce()) {
+        if !self.0.load(std::sync::atomic::Ordering::SeqCst) {
+            kill();
+        }
+    }
 }
 
 pub struct Started {
@@ -88,6 +109,7 @@ impl Session {
             writer: Mutex::new(writer),
             master: Mutex::new(Some(pair.master)),
             killer: Mutex::new(child.clone_killer()),
+            exited: Exited::default(),
             tree,
             output: Mutex::new(Output {
                 scrollback: Scrollback::with_history(SCROLLBACK_CAPACITY, history),
@@ -147,14 +169,18 @@ impl Session {
         Ok(())
     }
 
-    /// Best effort: the process may already be gone. What it started goes with it, hidden or not.
+    /// Best effort: the process may already be gone. What it started goes with it, hidden or not. Once it exited
+    /// (`end_tree`), its killer is left alone: its PID is reaped.
     pub fn kill(&self) {
         self.tree.end();
-        let _ = lock(&self.killer).kill();
+        self.exited.unless(|| {
+            let _ = lock(&self.killer).kill();
+        });
     }
 
-    /// The process exited: what it started and left running ends too.
+    /// The process exited: marked so first, then what it started and left running ends too.
     pub fn end_tree(&self) {
+        self.exited.mark();
         self.tree.end();
     }
 
@@ -222,4 +248,23 @@ fn spawn_reader(
             }
         }
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_kill_after_the_exit_leaves_the_killer_alone() {
+        let killed = std::cell::Cell::new(0);
+        let exited = Exited::default();
+        // While it runs, a kill reaches its process.
+        exited.unless(|| killed.set(killed.get() + 1));
+        assert_eq!(killed.get(), 1);
+        // The exit thread marks it before it ends the tree: a close in the seconds the exit is reported signals
+        // no PID, reaped by then.
+        exited.mark();
+        exited.unless(|| killed.set(killed.get() + 1));
+        assert_eq!(killed.get(), 1);
+    }
 }
