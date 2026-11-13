@@ -241,10 +241,15 @@ pub(crate) fn gh(path: &Path, args: &[&str]) -> AppResult<String> {
 
 /// How long one `gh` call may take: a board's moves reach GitHub one after the other, and a
 /// call that never ends would hold every later one.
-const GH_TIMEOUT: Duration = Duration::from_secs(60);
+pub(crate) const GH_TIMEOUT: Duration = Duration::from_secs(60);
 
 /// `gh` at `program`, run in `path`, stopped past `limit`.
-fn run(program: &Path, path: &Path, args: &[&str], limit: Duration) -> AppResult<String> {
+pub(crate) fn run(
+    program: &Path,
+    path: &Path,
+    args: &[&str],
+    limit: Duration,
+) -> AppResult<String> {
     let mut command = Command::new(program);
     command
         .args(args)

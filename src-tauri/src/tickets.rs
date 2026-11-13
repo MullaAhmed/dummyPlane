@@ -3,6 +3,7 @@
 
 use std::path::Path;
 use std::process::Command;
+use std::time::Duration;
 
 use serde::Serialize;
 
@@ -88,14 +89,14 @@ pub fn checks(project: &Path) -> ProjectChecks {
             .arg(project)
             .args(["rev-parse", "--is-inside-work-tree"]),
     );
-    let gh = which_locate("gh").is_some_and(|gh| {
-        succeeds(
-            Command::new(gh)
-                .current_dir(project)
-                .args(["auth", "status"]),
-        )
-    });
+    let gh = which_locate("gh").is_some_and(|gh| logged_in(&gh, project, github::GH_TIMEOUT));
     ProjectChecks { git, gh }
+}
+
+/// `gh auth status` through the Kanban's `gh` call (`github::run`): its PATH, no prompt, and
+/// stopped past `limit`, so a network that never answers does not hold the night's checks.
+fn logged_in(program: &Path, project: &Path, limit: Duration) -> bool {
+    github::run(program, project, &["auth", "status"], limit).is_ok()
 }
 
 #[cfg(test)]
@@ -162,6 +163,29 @@ mod tests {
             Command::new("git").arg("-C").arg(dir.path()).arg("init")
         ));
         assert!(checks(dir.path()).git);
+    }
+
+    #[test]
+    fn a_gh_that_does_not_answer_is_not_ready_and_does_not_hold_the_check() {
+        // A stand-in for a `gh auth status` waiting on a network that never answers: 30 s.
+        let dir = tempfile::tempdir().unwrap();
+        let program = if cfg!(windows) {
+            let script = dir.path().join("gh.cmd");
+            std::fs::write(&script, "@ping -n 30 127.0.0.1 >nul\r\n").unwrap();
+            script
+        } else {
+            let script = dir.path().join("gh");
+            std::fs::write(&script, "#!/bin/sh\nsleep 30\n").unwrap();
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+            }
+            script
+        };
+        let started = std::time::Instant::now();
+        assert!(!logged_in(&program, dir.path(), Duration::from_millis(500)));
+        assert!(started.elapsed() < Duration::from_secs(10));
     }
 
     #[test]
