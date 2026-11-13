@@ -194,6 +194,8 @@ pub fn run() {
             commands::agents::set_subagent_terminals,
             commands::agents::claude_extensions,
             commands::agents::claude_launch_defaults,
+            commands::agents::subagent_extras,
+            commands::agents::check_subagent_extras,
             commands::agents::codex_linear_login,
         ])
         .build(tauri::generate_context!())

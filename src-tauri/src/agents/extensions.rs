@@ -78,7 +78,7 @@ pub struct ExtensionItem {
     /// Listed but not switched here, and why.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub fixed: Option<Fixed>,
-    /// The plugin that brings it (`name@marketplace`), for a plugin's skill.
+    /// The plugin that brings it (`name@marketplace`), for a plugin's skill or MCP server.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub plugin: Option<String>,
 }
@@ -731,6 +731,8 @@ struct McpEntry<'a> {
     server: Value,
     /// The plugin that brings it, for a plugin's server.
     plugin: Option<&'a Plugin>,
+    /// Off for this project in `.claude.json` (`disabledMcpServers`), whatever its plugin.
+    switched_off: bool,
 }
 
 fn mcp_entries<'a>(
@@ -807,6 +809,7 @@ fn mcp_entries<'a>(
                 ),
                 server: server.clone(),
                 plugin: None,
+                switched_off: switched_off.contains(name),
             });
         }
     }
@@ -828,16 +831,19 @@ fn mcp_entries<'a>(
             let off = switched_off.contains(&id)
                 || switched_off.contains(&format!("plugin:{}:{name}", plugin.name));
             let description = Some(format!("{} · {}", plugin.name, server_summary(&server)));
+            let mut item = ExtensionItem::new(
+                id,
+                name,
+                description,
+                Source::Plugin,
+                plugin.enabled && !off,
+            );
+            item.plugin = Some(plugin.id.clone());
             items.push(McpEntry {
-                item: ExtensionItem::new(
-                    id,
-                    name,
-                    description,
-                    Source::Plugin,
-                    plugin.enabled && !off,
-                ),
+                item,
                 server,
                 plugin: Some(plugin),
+                switched_off: off,
             });
         }
     }
@@ -881,6 +887,50 @@ pub fn servers_on(places: &Places, choice: Option<&ExtensionChoice>) -> Map<Stri
         servers.insert(id, server);
     }
     servers
+}
+
+/// The MCP servers a sub-agent with an MCP pick gets besides dummyPlane's own
+/// (`agents::extras`), read alone as a fleet's (`--strict-mcp-config`): the
+/// picked ones, which the user's settings leave on, and the servers of the
+/// plugins it keeps (`plugin_on`: the plugin's id and whether the user's
+/// settings turn it on), unless `.claude.json` switches one off for the project.
+/// A plugin's server whose definition needs a plugin setting this cannot fill
+/// is refused, not left out: the sub-agent would lose it unsaid.
+pub fn servers_picked(
+    places: &Places,
+    picked: &BTreeSet<String>,
+    plugin_on: &dyn Fn(&str, bool) -> bool,
+) -> Result<Map<String, Value>, String> {
+    let scoped = places.scoped_settings();
+    let settings: Vec<Value> = scoped.iter().map(|(_, file)| file.clone()).collect();
+    let claude_json = read_json(&places.claude_json).unwrap_or(Value::Null);
+    let installed = installed_plugins(places, &scoped);
+    let mut servers = Map::new();
+    for entry in mcp_entries(places, &settings, &claude_json, &installed) {
+        let id = entry.item.id;
+        if id.eq_ignore_ascii_case(OWN_SERVER) {
+            continue;
+        }
+        let server = match entry.plugin {
+            None if entry.item.enabled && picked.contains(&id) => entry.server,
+            Some(plugin) if plugin_on(&plugin.id, plugin.enabled) && !entry.switched_off => {
+                with_plugin_paths(&entry.server, plugin, places).ok_or_else(|| {
+                    format!(
+                        "the MCP server {id} of the plugin {} needs a plugin setting that only Claude fills: leave mcp_servers out, or leave that plugin out",
+                        plugin.id
+                    )
+                })?
+            }
+            _ => continue,
+        };
+        servers.insert(id, server);
+    }
+    Ok(servers)
+}
+
+/// The user's own `skillOverrides`, local settings winning over the project's, the project's over the user's.
+pub fn skill_overrides(places: &Places) -> Map<String, Value> {
+    merged_object(&places.settings(), "skillOverrides")
 }
 
 /// A plugin's server with `${CLAUDE_PLUGIN_ROOT}` and `${CLAUDE_PLUGIN_DATA}`

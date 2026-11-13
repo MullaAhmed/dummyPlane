@@ -13,6 +13,7 @@ use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::agents::activity::{Activity, Change, HookSource, Tracker};
 use crate::agents::extensions::{self, ClaudeExtensions, Places};
+use crate::agents::extras;
 use crate::agents::hooks_server::{self, HookHit, HookServer, HookSink};
 use crate::agents::mcp::{Pending, Tokens};
 use crate::agents::subagents::{Emit, Job, SubagentHook, SubagentSnapshot, Subagents};
@@ -427,14 +428,33 @@ pub fn hooks_for(
             // The terminal's own skills, plugins, MCP servers and subagents, from its folder and profile.
             let choice = claude.and_then(|c| c.extensions.as_ref());
             let places = Places::of(cwd, config_dir);
-            let extensions = choice
+            let mut extensions = choice
                 .zip(places.as_ref())
                 .and_then(|(choice, places)| extensions::settings_patch(choice, places));
+            // A sub-agent's pick, over that choice: applied, or the sub-agent does not start (`pick_applied`).
+            let pick = claude
+                .and_then(|c| c.extras.as_ref())
+                .filter(|pick| !pick.is_empty());
+            let picked = match (pick, places.as_ref()) {
+                (None, _) => extras::ClaudeExtras::default(),
+                (Some(pick), Some(places)) => match extras::for_claude(pick, choice, places) {
+                    Ok(picked) => picked,
+                    Err(cause) => return refused(cause),
+                },
+                (Some(_), None) => return refused("no Claude config folder".into()),
+            };
+            if let Some(patch) = &picked.settings {
+                match extensions.as_mut() {
+                    Some(settings) => extensions::apply(settings, patch),
+                    None => extensions = Some(patch.clone()),
+                }
+            }
             // A fleet or a Manager reads no MCP configuration but its own file (`--strict-mcp-config`):
-            // the servers its MCP tab leaves on go into that file.
+            // the servers its MCP tab leaves on go into that file. So does a sub-agent with an MCP pick.
+            let strict_mcp = picked.servers.is_some();
             let servers = match places.as_ref() {
                 Some(places) if role.reads_only() => extensions::servers_on(places, choice),
-                _ => serde_json::Map::new(),
+                _ => picked.servers.unwrap_or_default(),
             };
             // Claude's own colours in the palette's, unless the user chose a theme of their own.
             let theme = claude_theme::for_terminal(
@@ -456,6 +476,7 @@ pub fn hooks_for(
             else {
                 return AgentHooks::default();
             };
+            let chrome = picked.chrome;
             let token = state.mcp_tokens.issue(node_id);
             let files = mcp_files::write(
                 &state.mcp_dir,
@@ -472,6 +493,8 @@ pub fn hooks_for(
                 claude_settings: Some(settings),
                 mcp_config: files.as_ref().map(|f| f.config.clone()),
                 system_prompt: files.map(|f| f.prompt),
+                strict_mcp,
+                chrome,
                 ..Default::default()
             }
         }
@@ -499,6 +522,22 @@ pub fn hooks_for(
             };
             let args = codex_profile::cli_args(role, &server.mcp_url());
             let codex_bin = which_locate("codex");
+            // A sub-agent's pick, after the profile's arguments: Codex lists what it loads in the folder, the rest is turned off.
+            let picked = match launch.extras.as_ref().filter(|pick| !pick.is_empty()) {
+                None => Vec::new(),
+                Some(pick) => {
+                    let Some(bin) = &codex_bin else {
+                        return refused("codex not found in the PATH".into());
+                    };
+                    let run = |args: &[&str]| extras::run_codex(bin, args, cwd);
+                    match extras::codex_installed(&run, extras::Kinds::of(pick))
+                        .and_then(|installed| extras::for_codex(pick, &installed))
+                    {
+                        Ok(picked) => picked,
+                        Err(cause) => return refused(cause),
+                    }
+                }
+            };
             let listed = |name: &str| match &codex_bin {
                 Some(bin) => codex_profile::list_servers(bin, name, &args, cwd),
                 None => Err(std::io::Error::other("codex not found in the PATH")),
@@ -508,12 +547,22 @@ pub fn hooks_for(
                     hooks.codex_profile = Some(codex_profile::profile_name(node_id));
                     hooks.mcp_token = Some(state.mcp_tokens.issue(node_id));
                     hooks.codex_args = args;
+                    hooks.codex_args.extend(picked);
                 }
                 Err(err) => log::error!("tools of {node_id} not written: {err}"),
             }
             hooks
         }
         _ => AgentHooks::default(),
+    }
+}
+
+/// The hooks of a sub-agent whose pick could not be applied: it does not start (`shell::pick_applied`).
+fn refused(cause: String) -> AgentHooks {
+    log::error!("a sub-agent's skills, MCP servers and plugins not set: {cause}");
+    AgentHooks {
+        refused: Some(cause),
+        ..Default::default()
     }
 }
 
@@ -629,6 +678,88 @@ pub async fn claude_extensions(
         let places = Places::of(std::path::Path::new(&cwd), profile.as_deref())
             .ok_or_else(|| AppError::NotFound("Claude config folder".into()))?;
         Ok(extensions::list(&places))
+    })
+    .await
+    .map_err(|err| AppError::Io(std::io::Error::other(err.to_string())))?
+}
+
+/// What a sub-agent on `agent` (Claude or Codex) in `cwd`, with this profile
+/// folder for Claude, would load: what its spawner can pick from (`agents::extras`).
+fn installed_extras(
+    agent: Agent,
+    cwd: &std::path::Path,
+    profile: Option<&std::path::Path>,
+    kinds: extras::Kinds,
+) -> AppResult<extras::Installed> {
+    match agent {
+        Agent::Claude => {
+            let places = Places::of(cwd, profile)
+                .ok_or_else(|| AppError::NotFound("Claude config folder".into()))?;
+            Ok(extras::claude_installed(&places))
+        }
+        Agent::Codex => {
+            let codex = which_locate("codex")
+                .ok_or_else(|| AppError::NotFound("codex not found in the PATH".into()))?;
+            let run = |args: &[&str]| extras::run_codex(&codex, args, cwd);
+            extras::codex_installed(&run, kinds).map_err(AppError::InvalidInput)
+        }
+        other => Err(AppError::InvalidInput(format!(
+            "{other:?} sub-agents take no skills, MCP servers or plugins from dummyPlane"
+        ))),
+    }
+}
+
+fn profile_of(config_dir: Option<&str>) -> AppResult<Option<std::path::PathBuf>> {
+    match config_dir {
+        Some(dir) => Ok(Some(crate::accounts::checked_dir(dir)?)),
+        None => Ok(None),
+    }
+}
+
+/// The skills, MCP servers and plugins a sub-agent on `agent` in `cwd` could
+/// be given, each with whether it is on by default and why one cannot be picked.
+#[tauri::command]
+pub async fn subagent_extras(
+    agent: Agent,
+    cwd: String,
+    config_dir: Option<String>,
+) -> AppResult<extras::Installed> {
+    let profile = profile_of(config_dir.as_deref())?;
+    tauri::async_runtime::spawn_blocking(move || {
+        installed_extras(
+            agent,
+            std::path::Path::new(&cwd),
+            profile.as_deref(),
+            extras::Kinds::ALL,
+        )
+    })
+    .await
+    .map_err(|err| AppError::Io(std::io::Error::other(err.to_string())))?
+}
+
+/// spawn_agent's pick, checked against what the sub-agent's CLI loads in `cwd`
+/// before its terminal opens: the pick as the launch will read it, or why it is refused.
+#[tauri::command]
+pub async fn check_subagent_extras(
+    agent: Agent,
+    cwd: String,
+    config_dir: Option<String>,
+    pick: extras::Pick,
+) -> AppResult<extras::Pick> {
+    if pick.is_empty() {
+        return Ok(pick);
+    }
+    let profile = profile_of(config_dir.as_deref())?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let kinds = extras::Kinds::of(&pick);
+        let installed =
+            installed_extras(agent, std::path::Path::new(&cwd), profile.as_deref(), kinds)?;
+        let cli = if agent == Agent::Codex {
+            "Codex"
+        } else {
+            "Claude"
+        };
+        extras::check(&pick, &installed, cli).map_err(AppError::InvalidInput)
     })
     .await
     .map_err(|err| AppError::Io(std::io::Error::other(err.to_string())))?

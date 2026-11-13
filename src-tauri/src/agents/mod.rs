@@ -3,6 +3,7 @@ pub mod claude_settings;
 pub mod claude_theme;
 pub mod codex_profile;
 pub mod extensions;
+pub mod extras;
 pub mod forked_skills;
 pub mod hooks_server;
 pub mod mcp;
