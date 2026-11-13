@@ -12,7 +12,6 @@ import { defaultLaunchOptions, launchAgent } from "./launchAgent";
 import { agentsMessages } from "./messages";
 import { viewportCenter } from "./placement";
 import type { Point } from "./terminals";
-import { withPlane } from "@/notifications/capture";
 
 const WATCH_EVERY_MS = 4000;
 const WATCH_FOR_MS = 30 * 60_000;
@@ -61,7 +60,7 @@ export async function installAgent(agent: AgentId, at?: Point): Promise<string |
   if (!install) return null;
   const { label } = AGENTS[agent];
   const nodeId = await openCommandTerminal(messages(agentsMessages).install.terminalTitle(label), install.command, install.shell, at);
-  if (nodeId) watchTerminal(nodeId, () => agentDetected(agent), () => withPlane({ nodeId }, () => toast(messages(agentsMessages).install.installed(label))));
+  if (nodeId) watchTerminal(nodeId, () => agentDetected(agent), () => toast(messages(agentsMessages).install.installed(label)));
   return nodeId;
 }
 
@@ -71,7 +70,7 @@ export async function pullOllamaModel(model: string, at?: Point): Promise<string
   const nodeId = await openCommandTerminal(`Ollama · ${model}`, ollamaPullCommand(model), "powershell", at);
   if (nodeId) {
     const pulled = async () => (await listOllamaModels()).some((name) => sameOllamaModel(name, model));
-    watchTerminal(nodeId, pulled, () => withPlane({ nodeId }, () => toast(messages(agentsMessages).ollama.pulled(model))));
+    watchTerminal(nodeId, pulled, () => toast(messages(agentsMessages).ollama.pulled(model)));
   }
   return nodeId;
 }

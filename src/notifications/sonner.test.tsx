@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { toastError } from "@/lib/errorToast";
-import { onRecord, withPlane, type Recorded } from "./capture";
+import { onRecord, type Recorded } from "./capture";
 import { toast } from "./sonner";
 
 // Imported here from the shim's own folder, the real sonner sits under it; `@/lib/errorToast` imports "sonner"
@@ -30,7 +30,6 @@ describe("the toast shim", () => {
       toast.warning("Careful"),
       toast.error("Failed", { description: "remote rejected", action: { label: "Retry", onClick: () => undefined } }),
       toast.message("Plain"),
-      withPlane({ nodeId: "n1" }, () => toast.warning("Past Max agents")),
       toast.custom(() => <div>component</div>, { id: "resume-w2" }),
     ];
     expect(seen).toEqual([]);

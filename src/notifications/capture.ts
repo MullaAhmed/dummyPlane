@@ -23,8 +23,6 @@ export const NOTIFICATION_TYPES: readonly NotificationType[] = ["finished", "boa
 export interface PlaneContext {
   nodeId?: string;
   workspaceId?: string;
-  /** What a popup that is only a component shows: no longer read, the panel records no popups. */
-  text?: string;
 }
 
 /** A notification as recorded: flat text, never React nodes, so it can be stored and saved. */
@@ -56,14 +54,6 @@ export const MAX_DESCRIPTION = 600;
 // The panel's list is saved as JSON, which Rust refuses with half a character in it: none is kept, cut here or before it came.
 const flat = (text: string) => text.replace(HALF_CHARACTER, "").replace(/\s+/g, " ").trim();
 const clip = (text: string, max: number) => (text.length > max ? `${cutWhole(text, max - 1).trimEnd()}…` : text);
-
-/**
- * Runs `show` as it is. It once told the popups shown inside it which node or workspace they were about, for a
- * history of every popup; the panel records no popups now, and its call sites have nothing more to do.
- */
-export function withPlane<T>(_context: PlaneContext, show: () => T): T {
-  return show();
-}
 
 type Listener = (notification: Recorded) => void;
 
