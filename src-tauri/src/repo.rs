@@ -66,11 +66,11 @@ pub struct LogRef {
 
 /// `review::command`, where a path is never a pattern
 /// and git never waits for an answer nobody can type.
-fn command(root: &Path, args: &[&str]) -> Command {
-    let mut command = review::command(root, &["--literal-pathspecs"]);
+fn command(root: &Path, args: &[&str]) -> Result<Command, String> {
+    let mut command = review::command(root, &["--literal-pathspecs"])?;
     command.args(args).env("GIT_TERMINAL_PROMPT", "0");
     command.stdin(Stdio::null());
-    command
+    Ok(command)
 }
 
 /// What git says went wrong: on stderr, but "nothing to commit" comes on stdout.
@@ -85,7 +85,7 @@ fn failure(output: &std::process::Output) -> String {
 }
 
 fn run(root: &Path, args: &[&str]) -> Result<String, String> {
-    let output = command(root, args)
+    let output = command(root, args)?
         .output()
         .map_err(|err| format!("git not found: {err}"))?;
     if output.status.success() {
@@ -97,7 +97,7 @@ fn run(root: &Path, args: &[&str]) -> Result<String, String> {
 
 /// `args` with the paths on stdin: Windows limits a command line to 32 000 characters.
 fn run_on_paths(root: &Path, args: &[&str], paths: &[&str]) -> Result<(), String> {
-    let mut child = command(root, args)
+    let mut child = command(root, args)?
         .args(["--pathspec-from-file=-", "--pathspec-file-nul"])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -691,6 +691,25 @@ mod tests {
     fn refuses_a_folder_outside_a_repository() {
         let dir = tempfile::tempdir().unwrap();
         assert!(state(dir.path()).is_err());
+    }
+
+    /// The git window's Commit runs no hook from a folder the repository's own config points to (`core.hooksPath`).
+    #[test]
+    fn committing_runs_no_hook_the_repository_s_config_points_to() {
+        let (_dir, root) = repo();
+        fs::create_dir(root.join("hooks")).unwrap();
+        fs::write(
+            root.join("hooks").join("pre-commit"),
+            "#!/bin/sh\necho ran > hook-ran\n",
+        )
+        .unwrap();
+        raw(&root, &["config", "core.hooksPath", "hooks"]);
+        fs::write(root.join("a.txt"), "two\n").unwrap();
+        commit(&root, &[file(&root, "a.txt")], "two").unwrap();
+        assert!(
+            !root.join("hook-ran").exists(),
+            "the commit ran a hook of the folder the repository's own config names"
+        );
     }
 
     #[test]

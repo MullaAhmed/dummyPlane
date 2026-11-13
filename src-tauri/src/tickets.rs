@@ -83,12 +83,8 @@ fn succeeds(command: &mut Command) -> bool {
 }
 
 pub fn checks(project: &Path) -> ProjectChecks {
-    let git = succeeds(
-        Command::new("git")
-            .arg("-C")
-            .arg(project)
-            .args(["rev-parse", "--is-inside-work-tree"]),
-    );
+    let git = crate::git::command(project)
+        .is_ok_and(|mut command| succeeds(command.args(["rev-parse", "--is-inside-work-tree"])));
     let gh = which_locate("gh").is_some_and(|gh| logged_in(&gh, project, github::GH_TIMEOUT));
     ProjectChecks { git, gh }
 }
