@@ -66,6 +66,13 @@ export interface TerminalPayload {
    * says its task instead (`spawnedTask`); the title stays, as its Claude session's name does.
    */
   staleTitle?: true;
+  /**
+   * Its agent was started by hand in this Shell terminal (`./terminal/shellAgent`): the process it runs is the shell,
+   * which dummyPlane started, and the agent in it is the user's own, with none of the terminal's settings, hooks or
+   * tools. Its next launch starts the agent with them, on this conversation when it is known. Read only to follow
+   * what the user runs in that shell next; dropped when the agent is chosen by hand, or launched.
+   */
+  fromShell?: true;
   /** Shrunk to a card: its process and screen go on (`./terminal/minimize.ts`). */
   minimized?: boolean;
   /** Its height before it was minimized, given back when it expands. */
@@ -352,6 +359,7 @@ export function readTerminalPayload(raw: unknown): TerminalPayload | null {
   if (typeof r.spawnedBy === "string" && r.spawnedBy) payload.spawnedBy = r.spawnedBy;
   if (typeof r.task === "string" && r.task.trim()) payload.task = r.task.slice(0, MAX_STORED_TASK);
   if (r.staleTitle === true) payload.staleTitle = true;
+  if (r.fromShell === true && payload.agent !== "shell") payload.fromShell = true;
   if (r.minimized === true) payload.minimized = true;
   if (r.inputOpen === true) payload.inputOpen = true;
   if (typeof r.expandedHeight === "number" && Number.isFinite(r.expandedHeight) && r.expandedHeight > 0) payload.expandedHeight = r.expandedHeight;

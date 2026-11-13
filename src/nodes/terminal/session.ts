@@ -6,6 +6,7 @@ import { isRunning, restartInTurn, terminalStatusStore, waitForExit } from "@/st
 import { accountsStore, loadAccounts } from "@/accounts/store";
 import { markLaunch, markResumedLaunch } from "@/usage/usageStore";
 import { buildSpawnSpec, launchSettingsOf, sameLaunch, type LaunchMode } from "./launch";
+import { applyShellAgent } from "./shellAgent";
 import { accountsMessages } from "@/accounts/messages";
 import { messages } from "@/i18n";
 import { nodesMessages } from "@/nodes/messages";
@@ -74,6 +75,8 @@ export async function startSession(nodeId: string, term: TermSink, payload: Term
   setStatus(nodeId, { state: "running" });
   // Noted with the status, before anything is awaited: a restart never shows the old process's settings as this one's.
   noteLaunched(nodeId, payload);
+  // Launched by dummyPlane as the agent it is: no shell stands in front of it any more.
+  if (sessionOf(nodesStore.getState().nodes[nodeId])?.fromShell) updateSession(nodeId, { fromShell: undefined });
   try {
     const started = withConversationId(nodeId, await withAccount(nodeId, payload, mode));
     // The account a new conversation was given meanwhile.
@@ -113,6 +116,8 @@ export async function attachSession(nodeId: string, term: TermSink, state: Sessi
   if (!attached) {
     state.replaying = false;
     setStatus(nodeId, { state: "stopped" });
+  } else {
+    void applyShellAgent(nodeId);
   }
   return attached;
 }

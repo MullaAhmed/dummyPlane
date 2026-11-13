@@ -92,6 +92,16 @@ describe("a one-shot command", () => {
   });
 });
 
+describe("switchedAgent", () => {
+  it("ends what an agent started by hand in the shell was followed for: the user chose the agent", () => {
+    const fromShell = { ...newTerminalPayload({ ...base, agent: "claude", title: "Agent" }), fromShell: true as const };
+    const change = switchedAgent(fromShell, "shell");
+    expect("fromShell" in change).toBe(true);
+    expect(change.fromShell).toBeUndefined();
+    expect(change.agent).toBe("shell");
+  });
+});
+
 describe("buildSpawnSpec", () => {
   it("passes Claude options with the requested mode", () => {
     const payload = newTerminalPayload({ ...base, agent: "claude", title: "Agent" });

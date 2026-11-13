@@ -31,6 +31,7 @@ import { nodesStore } from "@/store/nodes";
 import { useRestarting, type TerminalStatus } from "@/store/terminalStatus";
 import { newConversation, switchedAgent, type LaunchMode } from "./launch";
 import { restartByHand } from "./restartByHand";
+import { leaveShellAgent } from "./shellAgent";
 import { minimizeTerminal } from "./minimize";
 import { NameField } from "./NameField";
 import { spawnedTask } from "@/agents/taskSummary";
@@ -48,6 +49,8 @@ export { HeaderButton };
 
 function switchAgent(nodeId: string, payload: TerminalPayload, agent: AgentId) {
   nodesStore.getState().update(nodeId, switchedAgent(payload, agent));
+  // "Shell" while the agent the user started in it runs: it stays a shell, that process is not turned into the agent again.
+  if (agent === "shell" && payload.fromShell) leaveShellAgent(nodeId);
 }
 
 /**

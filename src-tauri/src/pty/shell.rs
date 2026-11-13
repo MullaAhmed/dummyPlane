@@ -252,6 +252,8 @@ pub struct SpawnPlan {
     pub initial_input: Option<String>,
     /// What `pty_interrupt` writes: the agent's interrupt key.
     pub interrupt: Option<&'static [u8]>,
+    /// A plain Shell: an agent the user starts in it is looked for (`pty::watch`).
+    pub watch_agents: bool,
 }
 
 /// What dummyPlane passes to agents so they report their state.
@@ -986,6 +988,7 @@ pub fn build_plan(
         env_remove: removed_env(std::env::var_os("CLAUDECODE").is_some()),
         initial_input,
         interrupt: interrupt_sequence(spec.agent),
+        watch_agents: spec.agent == Agent::Shell,
     })
 }
 
@@ -1237,6 +1240,27 @@ mod tests {
             .unwrap(),
             None
         );
+    }
+
+    #[test]
+    fn only_a_plain_shell_is_looked_into_for_an_agent_the_user_starts_in_it() {
+        let plan = |agent| {
+            build_plan(
+                "n",
+                &spec(agent, None),
+                &nothing_on_path,
+                &AgentHooks::default(),
+            )
+            .unwrap()
+        };
+        assert!(plan(Agent::Shell).watch_agents);
+        // An agent terminal, a sub-agent and a mission member are agents already; a custom command is the user's own.
+        for agent in [Agent::Aider, Agent::Gemini] {
+            assert!(!plan(agent).watch_agents, "{agent:?}");
+        }
+        let claude_spec = spec(Agent::Claude, claude(ClaudeMode::New, "t"));
+        let claude_plan = build_plan("n", &claude_spec, &nothing_on_path, &AgentHooks::default());
+        assert!(!claude_plan.unwrap().watch_agents);
     }
 
     #[test]

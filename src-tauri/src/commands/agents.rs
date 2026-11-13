@@ -513,6 +513,22 @@ pub fn hooks_for(
     }
 }
 
+/// The agent the user started by hand in a Shell terminal exited: the terminal is back at its shell.
+pub fn agent_left(app: &AppHandle, node_id: &str) {
+    let change = lock(&app.state::<AgentState>().tracker).session_end(node_id, Instant::now());
+    if let Some(change) = change {
+        emit(app, &change);
+    }
+}
+
+/// An agent runs in a Shell terminal again: the terminal has its agent back.
+pub fn agent_back(app: &AppHandle, node_id: &str) {
+    let change = lock(&app.state::<AgentState>().tracker).arrived(node_id, Instant::now());
+    if let Some(change) = change {
+        emit(app, &change);
+    }
+}
+
 /// A process is about to start: idle until it shows otherwise.
 pub fn started(app: &AppHandle, node_id: &str) {
     let change = lock(&app.state::<AgentState>().tracker).start(node_id, Instant::now());

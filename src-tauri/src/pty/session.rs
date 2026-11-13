@@ -34,7 +34,10 @@ pub struct Session {
     output: Mutex<Output>,
     paste: Mutex<PasteMode>,
     images: Mutex<ImageMarks>,
-    interrupt: Option<&'static [u8]>,
+    /// What `interrupt` writes: the agent's key. A Shell has none until an agent runs in it (`set_interrupt`).
+    interrupt: Mutex<Option<&'static [u8]>>,
+    /// A plain Shell, whose agent started by hand is looked for (`watch`).
+    pub watch_agents: bool,
     pub pid: Option<u32>,
 }
 
@@ -86,7 +89,8 @@ impl Session {
             }),
             paste: Mutex::new(PasteMode::default()),
             images: Mutex::new(ImageMarks::default()),
-            interrupt: plan.interrupt,
+            interrupt: Mutex::new(plan.interrupt),
+            watch_agents: plan.watch_agents,
             pid: child.process_id(),
         });
         let reader = spawn_reader(reader, session.clone(), on_output);
@@ -116,10 +120,16 @@ impl Session {
 
     /// Writes the agent's interrupt key; `None` for a plain shell.
     pub fn interrupt(&self) -> AppResult<Option<&'static [u8]>> {
-        if let Some(key) = self.interrupt {
+        let key = *lock(&self.interrupt);
+        if let Some(key) = key {
             self.write(key)?;
         }
-        Ok(self.interrupt)
+        Ok(key)
+    }
+
+    /// The key an agent started by hand in this shell is interrupted with; none once it has left.
+    pub fn set_interrupt(&self, key: Option<&'static [u8]>) {
+        *lock(&self.interrupt) = key;
     }
 
     pub fn resize(&self, size: PtySize) -> AppResult<()> {

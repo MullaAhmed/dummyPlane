@@ -61,3 +61,9 @@ it("leaves a sub-agent's spawner and task behind: a copy was asked nothing", () 
   expect(copy.spawnedBy).toBeUndefined();
   expect(copy.task).toBeUndefined();
 });
+
+it("starts the agent of a copy itself: nothing of the source's shell stands in front of it", () => {
+  const copy = cloneTerminalPayload({ ...claude, fromShell: true }, "Superman");
+  expect(copy.fromShell).toBeUndefined();
+  expect("fromShell" in copy).toBe(false);
+});

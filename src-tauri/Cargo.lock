@@ -948,6 +948,7 @@ dependencies = [
  "tiny_http",
  "uuid",
  "which",
+ "windows-sys 0.61.2",
  "winreg 0.56.0",
 ]
 

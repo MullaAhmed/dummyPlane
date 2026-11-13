@@ -492,3 +492,46 @@ it("writes a quick note from « ⋯ », and the closing menu leaves the keyboard
   expect(document.activeElement).toBe(document.querySelector("[data-new-note]"));
   await view.unmount();
 });
+
+describe("an agent the user started by hand in a Shell terminal", () => {
+  const agentMenu = async (host: HTMLElement) => {
+    const trigger = host.querySelector<HTMLButtonElement>('button[aria-label="Agent"]')!;
+    await act(async () => trigger.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true })));
+    return [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')];
+  };
+  const asked = () => {
+    const calls: { cmd: string; args: unknown }[] = [];
+    mockIPC((cmd, args) => void calls.push({ cmd, args }));
+    return calls;
+  };
+
+  it("is turned back to a shell from the agent menu, and that process is not reported again", async () => {
+    const calls = asked();
+    const payload = { ...claude, fromShell: true } as TerminalPayload;
+    await nodesStore.getState().create("batman", { workspaceId: "w1", kind: "terminal", payload });
+    const view = await mount(<TerminalHeader nodeId="batman" payload={payload} status={{ state: "running" }} />);
+    const shell = (await agentMenu(view.host)).find((item) => item.textContent?.trim().startsWith("Shell"))!;
+    await act(async () => shell.click());
+    expect(nodesStore.getState().nodes.batman?.payload).toMatchObject({ agent: "shell" });
+    expect((nodesStore.getState().nodes.batman?.payload as TerminalPayload).fromShell).toBeUndefined();
+    expect(calls).toContainEqual({ cmd: "agent_process_dismiss", args: { nodeId: "batman" } });
+    await view.unmount();
+  });
+
+  it("reports nothing to the backend when the agent was not started in a shell, or another agent is chosen", async () => {
+    const calls = asked();
+    await nodesStore.getState().create("batman", { workspaceId: "w1", kind: "terminal", payload: claude });
+    const view = await mount(<TerminalHeader nodeId="batman" payload={claude} status={{ state: "running" }} />);
+    const shell = (await agentMenu(view.host)).find((item) => item.textContent?.trim().startsWith("Shell"))!;
+    await act(async () => shell.click());
+    expect(calls.map((call) => call.cmd)).not.toContain("agent_process_dismiss");
+    await view.unmount();
+    const started = { ...claude, fromShell: true } as TerminalPayload;
+    await nodesStore.getState().create("robin", { workspaceId: "w1", kind: "terminal", payload: started });
+    const other = await mount(<TerminalHeader nodeId="robin" payload={started} status={{ state: "running" }} />);
+    const codex = (await agentMenu(other.host)).find((item) => item.textContent?.trim().startsWith("Codex"))!;
+    await act(async () => codex.click());
+    expect(calls.map((call) => call.cmd)).not.toContain("agent_process_dismiss");
+    await other.unmount();
+  });
+});

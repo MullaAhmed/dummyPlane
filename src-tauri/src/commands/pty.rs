@@ -8,9 +8,12 @@ use crate::db::{Db, scrollback};
 use crate::error::{AppError, AppResult};
 use crate::pty::session::OutputSink;
 use crate::pty::shell::{
-    Agent, ClaudeMode, ShellKind, SpawnSpec, build_plan, fleet_tools, which_locate,
+    Agent, ClaudeMode, ShellKind, SpawnSpec, build_plan, fleet_tools, interrupt_sequence,
+    which_locate,
 };
+use crate::pty::watch::{self, Change, Sighting, SystemProbe};
 use crate::pty::{PtyManager, pty_size};
+use crate::sync::lock;
 
 /// Forwards PTY output to the webview as raw bytes (an `ArrayBuffer` in JS).
 struct ChannelSink(Channel<Response>);
@@ -48,6 +51,83 @@ fn mode_label(spec: &SpawnSpec) -> &'static str {
         },
         _ => "plain",
     }
+}
+
+/// An agent the user started by hand in a Shell terminal: the interface turns the terminal into that agent's.
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentProcessEvent {
+    node_id: String,
+    #[serde(flatten)]
+    sighting: Sighting,
+}
+
+/// Looks, as long as the app runs, for the agents started by hand in the Shell terminals that run.
+pub fn watch_shells(app: &AppHandle) {
+    let app = app.clone();
+    std::thread::spawn(move || {
+        loop {
+            std::thread::sleep(watch::SCAN_EVERY);
+            // A scan that panics must not end the watch of every later one.
+            let scan = std::panic::AssertUnwindSafe(|| scan_shells(&app));
+            if std::panic::catch_unwind(scan).is_err() {
+                log::error!("agents in shells: a scan panicked");
+            }
+        }
+    });
+}
+
+/// One scan: nothing is listed while no Shell terminal runs.
+fn scan_shells(app: &AppHandle) {
+    let pty = app.state::<PtyManager>();
+    let roots = pty.watched_roots();
+    let procs = if roots.is_empty() {
+        Vec::new()
+    } else {
+        watch::processes()
+    };
+    let changes = lock(&pty.watch).scan(&roots, &procs, &SystemProbe);
+    for (node_id, change) in changes {
+        match change {
+            Change::Running(sighting) => {
+                log::info!(
+                    "terminal {node_id}: {:?} started by hand in its shell, process {}",
+                    sighting.agent,
+                    sighting.pid
+                );
+                pty.set_interrupt(&node_id, interrupt_sequence(sighting.agent));
+                agents::agent_back(app, &node_id);
+                let _ = app.emit("agent-process", AgentProcessEvent { node_id, sighting });
+            }
+            Change::Ended(pid) => {
+                log::info!(
+                    "terminal {node_id}: the agent started by hand in its shell ended, process {pid}"
+                );
+                pty.set_interrupt(&node_id, None);
+                agents::agent_left(app, &node_id);
+            }
+        }
+    }
+}
+
+/// The agents started by hand in their Shell terminals that still run: what a page that reloads missed.
+#[tauri::command]
+pub async fn agent_process_snapshot(
+    pty: State<'_, PtyManager>,
+) -> AppResult<Vec<AgentProcessEvent>> {
+    Ok(lock(&pty.watch)
+        .running()
+        .into_iter()
+        .map(|(node_id, sighting)| AgentProcessEvent { node_id, sighting })
+        .collect())
+}
+
+/// The user made the terminal a Shell again while its agent runs: that process is not reported again.
+#[tauri::command]
+pub async fn agent_process_dismiss(pty: State<'_, PtyManager>, node_id: String) -> AppResult<()> {
+    lock(&pty.watch).dismiss(&node_id);
+    pty.set_interrupt(&node_id, None);
+    Ok(())
 }
 
 /// A path or program name on one line: a control character in it must not
@@ -362,6 +442,51 @@ mod tests {
     use crate::pty::shell::{ClaudeLaunch, CodexLaunch, Role};
 
     const NODE: &str = "71629153-7cb7-497e-8ec9-908f7a4c5e7a";
+
+    #[test]
+    fn an_agent_started_in_a_shell_reaches_the_interface_in_the_shape_it_reads() {
+        // `AgentProcessEvent` in `src/ipc/pty.ts`: camelCase, the agent's id as the launch menu names it.
+        let event = |agent, session_id: Option<&str>, cwd: Option<&str>| {
+            serde_json::to_value(AgentProcessEvent {
+                node_id: NODE.into(),
+                sighting: Sighting {
+                    agent,
+                    pid: 4242,
+                    session_id: session_id.map(str::to_string),
+                    cwd: cwd.map(str::to_string),
+                },
+            })
+            .unwrap()
+        };
+        assert_eq!(
+            event(
+                Agent::Cursor,
+                Some("0b9c4b5e-6f1a-4c39-9d2e-8f6c2d1a7e10"),
+                Some("D:/work")
+            ),
+            serde_json::json!({
+                "nodeId": NODE,
+                "agent": "cursor",
+                "pid": 4242,
+                "sessionId": "0b9c4b5e-6f1a-4c39-9d2e-8f6c2d1a7e10",
+                "cwd": "D:/work",
+            })
+        );
+        // What is not known is not sent: the interface reads an absent key as "unknown".
+        assert_eq!(
+            event(Agent::Opencode, None, None),
+            serde_json::json!({ "nodeId": NODE, "agent": "opencode", "pid": 4242 })
+        );
+        for (agent, id) in [
+            (Agent::Claude, "claude"),
+            (Agent::Codex, "codex"),
+            (Agent::Gemini, "gemini"),
+            (Agent::Qwen, "qwen"),
+            (Agent::Aider, "aider"),
+        ] {
+            assert_eq!(event(agent, None, None)["agent"], id);
+        }
+    }
 
     fn spec(agent: Agent) -> SpawnSpec {
         SpawnSpec {

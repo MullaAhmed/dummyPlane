@@ -4,6 +4,7 @@ pub mod paste;
 pub mod scrollback;
 pub mod session;
 pub mod shell;
+pub mod watch;
 
 use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -41,6 +42,8 @@ pub struct PtyManager {
     starting: Arc<Mutex<HashSet<String>>>,
     /// What the database holds of a terminal about to be relaunched; taken by its `spawn`.
     histories: Arc<Mutex<HashMap<String, Vec<u8>>>>,
+    /// The agents the user started by hand in the Shell terminals that run (`watch`).
+    pub watch: Arc<Mutex<watch::Watch>>,
 }
 
 /// The right to start one terminal; released when dropped.
@@ -232,6 +235,22 @@ impl PtyManager {
 
     pub fn is_running(&self, node_id: &str) -> bool {
         lock(&self.sessions).contains_key(node_id)
+    }
+
+    /// The running Shell terminals and their shells' processes: where an agent started by hand is looked for.
+    pub fn watched_roots(&self) -> Vec<(String, u32)> {
+        lock(&self.sessions)
+            .iter()
+            .filter(|(_, session)| session.watch_agents)
+            .filter_map(|(id, session)| Some((id.clone(), session.pid?)))
+            .collect()
+    }
+
+    /// The interrupt key of a running terminal: an agent started in its shell, or its end.
+    pub fn set_interrupt(&self, node_id: &str, key: Option<&'static [u8]>) {
+        if let Some(session) = self.get(node_id) {
+            session.set_interrupt(key);
+        }
     }
 
     pub fn list(&self) -> Vec<String> {
@@ -542,6 +561,7 @@ mod windows_tests {
             env_remove: vec![],
             initial_input: initial_input.map(str::to_string),
             interrupt: None,
+            watch_agents: false,
         }
     }
 
@@ -862,6 +882,106 @@ mod windows_tests {
         );
         mgr.kill_all();
         wait_exit(&agent);
+        wait_exit(&shell);
+    }
+
+    #[test]
+    fn only_the_shell_terminals_that_run_are_watched_for_an_agent_started_by_hand() {
+        let mgr = PtyManager::default();
+        let mut shell_plan = cmd_plan(&[], None);
+        shell_plan.watch_agents = true;
+        let shell = spawn_answering(&mgr, "s", shell_plan, VecSink::default());
+        let agent = spawn_answering(&mgr, "a", cmd_plan(&[], None), VecSink::default());
+        let roots = mgr.watched_roots();
+        assert_eq!(roots.len(), 1, "{roots:?}");
+        assert_eq!(roots[0].0, "s");
+        assert!(
+            roots[0].1 > 0,
+            "the shell's process is the root of the search"
+        );
+        mgr.kill_all();
+        wait_exit(&shell);
+        wait_exit(&agent);
+        wait_until("the stopped terminal is no longer watched", || {
+            mgr.watched_roots().is_empty()
+        });
+    }
+
+    /// The shells the app starts, a program named like an agent typed into each, as a user would: the agent is
+    /// found under the shell's process, whatever stands between them (Git Bash's launcher and its forked bash).
+    #[test]
+    fn an_agent_typed_in_each_windows_shell_is_found_under_that_shell() {
+        use super::watch::{find_agent, processes};
+        let system = std::env::var_os("SystemRoot").map(std::path::PathBuf::from);
+        let ping = system.unwrap_or_default().join("System32").join("ping.exe");
+        let dir = tempfile::tempdir().unwrap();
+        let fake = dir.path().join("Claude.exe");
+        std::fs::copy(&ping, &fake).unwrap();
+        let fake = fake.to_string_lossy().replace('\\', "/");
+        let mut tried = Vec::new();
+        for kind in [
+            shell::ShellKind::Cmd,
+            shell::ShellKind::PowerShell,
+            shell::ShellKind::GitBash,
+        ] {
+            let Ok(program) = shell::resolve_shell(kind, &shell::which_locate) else {
+                continue;
+            };
+            let line = match program.syntax {
+                shell::ShellSyntax::Cmd => format!("\"{fake}\" -n 25 127.0.0.1 >nul\r"),
+                shell::ShellSyntax::PowerShell => format!("& '{fake}' -n 25 127.0.0.1 > $null\r"),
+                shell::ShellSyntax::Posix => format!("'{fake}' -n 25 127.0.0.1 > /dev/null\r"),
+            };
+            let mgr = PtyManager::default();
+            let plan = SpawnPlan {
+                program: program.program,
+                args: program.args,
+                cwd: std::env::temp_dir(),
+                env: vec![],
+                env_remove: vec![],
+                initial_input: Some(line),
+                interrupt: None,
+                watch_agents: true,
+            };
+            let exited = spawn_answering(&mgr, "n", plan, VecSink::default());
+            let root = mgr.watched_roots()[0].1;
+            let mut found = None;
+            wait_until(&format!("an agent under {kind:?}"), || {
+                found = find_agent(&processes(), root);
+                found.is_some()
+            });
+            let (agent, pid) = found.unwrap();
+            assert_eq!(agent, shell::Agent::Claude, "{kind:?}");
+            // Left running by the shell's end: stopped here.
+            let _ = std::process::Command::new("taskkill")
+                .args(["/F", "/PID", &pid.to_string()])
+                .output();
+            mgr.kill_all();
+            wait_exit(&exited);
+            tried.push(kind);
+        }
+        assert!(
+            tried.contains(&shell::ShellKind::Cmd),
+            "cmd.exe is on every Windows"
+        );
+        assert!(tried.contains(&shell::ShellKind::PowerShell));
+        eprintln!("agent found under: {tried:?}");
+    }
+
+    #[test]
+    fn an_agent_started_in_a_shell_gives_it_the_agents_interrupt_key_until_it_leaves() {
+        let mgr = PtyManager::default();
+        let mut plan = cmd_plan(&[], None);
+        plan.watch_agents = true;
+        let shell = spawn_answering(&mgr, "s", plan, VecSink::default());
+        assert_eq!(mgr.interrupt("s").unwrap(), None);
+        mgr.set_interrupt("s", Some(b"\x1b"));
+        assert_eq!(mgr.interrupt("s").unwrap(), Some(&b"\x1b"[..]));
+        mgr.set_interrupt("s", None);
+        assert_eq!(mgr.interrupt("s").unwrap(), None);
+        // A terminal that is not there is not an error: its agent may outlive it by a scan.
+        mgr.set_interrupt("nope", Some(b"\x1b"));
+        mgr.kill_all();
         wait_exit(&shell);
     }
 

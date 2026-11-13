@@ -10,9 +10,10 @@ import { accountsStore } from "@/accounts/store";
 import type { ClaudeExtensions, ExtensionItem } from "@/ipc/claudeExtensions";
 import { agentsStore } from "@/agents/agentsStore";
 import { ROUTER_LEVELS } from "@/mission/router";
-import { launchSettingsOf } from "@/nodes/terminal/launch";
+import { launchSettingsOf, switchedAgent } from "@/nodes/terminal/launch";
+import { agentStartedInShell } from "@/nodes/terminal/shellAgent";
 import { readTerminalPayload, type FleetPayload, type TerminalPayload } from "@/nodes/types";
-import { nodesStore } from "@/store/nodes";
+import { nodesStore, sessionOf } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
 import { agentActivityStore } from "@/store/agentActivity";
 import type { SessionUsage } from "@/usage/usage";
@@ -1721,5 +1722,65 @@ describe("the model router's switch in the Edit tab", () => {
   it("is offered to a Codex Fleet too: its team takes the models Settings maps for Codex", async () => {
     await mountFleet({ name: "Fleet", session: fleetSession({ agent: "codex" }) });
     expect(routerSwitch()).not.toBeNull();
+  });
+});
+
+describe("the Edit tab of a Shell terminal an agent was started in", () => {
+  const CONVERSATION = "0b9c4b5e-6f1a-4c39-9d2e-8f6c2d1a7e10";
+  const routerSwitch = () => host.querySelector<HTMLButtonElement>("button[role='switch'][aria-label='Model router']");
+  const startedByHand = (agent: "claude" | "codex") =>
+    act(async () => void agentStartedInShell("t1", { nodeId: "t1", agent, pid: 4242, sessionId: CONVERSATION }));
+
+  it("shows a shell's options alone, then the agent's once Claude runs in it: model, effort, permissions, Remote Control and the router", async () => {
+    terminalStatusStore.getState().set("t1", { state: "running" });
+    await mountTerminal(started(terminal({ agent: "shell", title: "Shell · api" })));
+    expect(select("Model")).toBeNull();
+    expect(select("Permissions")).toBeNull();
+    expect(checkbox("Remote Control")).toBeNull();
+    expect(routerSwitch()).toBeNull();
+    expect(host.textContent).not.toContain("Effort");
+    expect(select("Shell")).not.toBeNull();
+
+    await startedByHand("claude");
+    // Claude's own Edit tab: its tabs, and its settings, with nothing to restart: the process runs as the shell started it.
+    expect(tabs().map((b) => b.textContent)).toEqual(["General", "Skills", "Plugins", "MCP", "Subagents"]);
+    expect(select("Model")).not.toBeNull();
+    expect(host.textContent).toContain("Effort");
+    expect(select("Permissions")).not.toBeNull();
+    expect(checkbox("Remote Control")).not.toBeNull();
+    expect(routerSwitch()).not.toBeNull();
+    expect(restartNow()).toBeUndefined();
+    // Where it runs and who it is are the terminal's own.
+    expect(host.querySelector("[data-folder]")?.textContent).toBe("D:/work/api");
+    expect(field("Name")!.value).toBe("Batman");
+  });
+
+  it("offers the restart only once a setting is changed, which starts Claude with it", async () => {
+    terminalStatusStore.getState().set("t1", { state: "running" });
+    await mountTerminal(started(terminal({ agent: "shell", title: "Shell · api" })));
+    await startedByHand("claude");
+    expect(restartNow()).toBeUndefined();
+    await pick("Permissions", "Files unasked");
+    expect(restartNow()).toBeDefined();
+  });
+
+  it("shows the router switch of a Codex terminal and Claude's other rows nowhere", async () => {
+    terminalStatusStore.getState().set("t1", { state: "running" });
+    await mountTerminal(started(terminal({ agent: "shell", title: "Shell · api" })));
+    await startedByHand("codex");
+    expect(routerSwitch()).not.toBeNull();
+    expect(select("Model")).toBeNull();
+    expect(host.textContent).toContain(`Skills, plugins and MCP servers can be chosen for Claude terminals`);
+  });
+
+  it("goes back to a shell's options when the user turns it back to a shell", async () => {
+    terminalStatusStore.getState().set("t1", { state: "running" });
+    await mountTerminal(started(terminal({ agent: "shell", title: "Shell · api" })));
+    await startedByHand("claude");
+    expect(select("Model")).not.toBeNull();
+    await act(async () => nodesStore.getState().update("t1", switchedAgent(sessionOf(nodesStore.getState().nodes.t1)!, "shell")));
+    expect(select("Model")).toBeNull();
+    expect(routerSwitch()).toBeNull();
+    expect((nodesStore.getState().nodes.t1 as { payload: TerminalPayload }).payload.fromShell).toBeUndefined();
   });
 });
