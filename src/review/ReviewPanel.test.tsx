@@ -207,6 +207,28 @@ it("browses the repository's files, read-only", async () => {
   expect(calls.find((c) => c.cmd === "review_read_file")?.args).toEqual({ path: "C:/code/proj", file: "README.md" });
 });
 
+it("looks for a new folder's base before it lists that folder's changes, never with the old folder's base", async () => {
+  await vi.waitFor(() => expect(text()).toContain("src/a.ts"));
+  let answer: (base: string | null) => void = () => undefined;
+  mockIPC((cmd, args) => {
+    const a = args as { path?: string; base?: string | null };
+    calls.push({ cmd, args: args as Record<string, unknown> });
+    if (cmd === "review_default_base") return new Promise((resolve) => (answer = resolve));
+    // The old folder's branch is not the new repository's.
+    if (cmd === "review_changes" && a.base === "main") throw new Error("base not found: main");
+    if (cmd === "review_changes") return { compared: "def456", truncated: false, files: [] };
+    return undefined;
+  });
+  calls = [];
+  await act(async () => nodesStore.getState().update("batman", { cwd: "C:/code/other" }));
+  expect(calls.filter((c) => c.cmd === "review_changes")).toEqual([]);
+  expect(text()).toContain("Reading the repository…");
+  await act(async () => answer("trunk"));
+  await vi.waitFor(() => expect(text()).toContain("No changes since trunk"));
+  expect(calls.filter((c) => c.cmd === "review_changes").map((c) => c.args)).toEqual([{ path: "C:/code/other", base: "trunk" }]);
+  expect(text()).not.toContain("base not found");
+});
+
 it("keeps its remarks when closed and opened again on the same agent", async () => {
   await act(async () => reviewStore.getState().add({ file: "src/a.ts", line: 2, text: "Why 3?" }));
   await act(async () => reviewStore.getState().close());
