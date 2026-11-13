@@ -174,6 +174,19 @@ describe("moveCardWithGithub", () => {
     expect(calls).toContainEqual(["github_set_issue_state", { path: "C:/mission", repo: "o/r", number: 1, state: "closed" }]);
   });
 
+  it("reorders a linked card within its column without asking GitHub, which has nothing to follow", async () => {
+    mockGithub({
+      github_list_project_items: () => {
+        throw { kind: "github", message: "gh failed: error connecting to api.github.com" };
+      },
+      github_project_statuses: () => [],
+    });
+    await moveCardWithGithub("b", "k1", "todo", 1);
+    expect(calls).toEqual([]);
+    expect(board().columns.find((c) => c.id === "todo")!.cardIds).toEqual(["k2", "k1"]);
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
   it("moves a card without a link locally only", async () => {
     await moveCardWithGithub("b", "k2", "doing", 0);
     expect(calls).toEqual([]);

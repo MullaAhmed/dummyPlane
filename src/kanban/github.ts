@@ -14,7 +14,7 @@ import {
 import type { KanbanBoardLink, KanbanPayload } from "@/nodes/types";
 import { nodesStore } from "@/store/nodes";
 import { projectsStore } from "@/store/projects";
-import { moveCard, updateCard } from "./board";
+import { columnOf, moveCard, updateCard } from "./board";
 import { githubKey, mergeGithub, remoteActionsForMove, type MoveContext, type RemoteAction } from "./githubSync";
 import { kanbanMessages } from "./messages";
 
@@ -130,7 +130,8 @@ async function run(path: string, link: KanbanBoardLink | undefined, action: Remo
 export async function moveCardWithGithub(nodeId: string, cardId: string, toColumnId: string, index?: number, folder?: string) {
   const before = boardOf(nodeId);
   if (!before) return;
-  const linked = before.cards[cardId]?.github !== undefined;
+  // A place within its column changes nothing on GitHub: the Project is not read for it, nor its failure told.
+  const linked = before.cards[cardId]?.github !== undefined && columnOf(before, cardId)?.id !== toColumnId;
   const path = linked ? (folder ?? projectPath()) : null;
   let actions: RemoteAction[] = [];
   let failure: unknown = null;
