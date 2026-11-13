@@ -2,7 +2,7 @@ import { createStore, useStore } from "zustand";
 import { messages } from "@/i18n";
 import { getSetting, setSetting } from "@/ipc/db";
 import { presetsMessages } from "./messages";
-import { readPresets, storedPresets, withoutPreset, withPreset, type TeamPreset } from "./model";
+import { freePresetName, MAX_PRESETS, readPresets, storedPresets, withoutPreset, withPreset, type TeamPreset } from "./model";
 
 /** The setting that holds the presets. */
 export const PRESETS_KEY = "presets.teams";
@@ -15,6 +15,11 @@ interface PresetsState {
   /** False when the list is full. */
   save: (preset: TeamPreset) => Promise<boolean>;
   remove: (id: string) => Promise<void>;
+  /**
+   * Puts a deleted preset back at `index` (the delete's undo), under a name of its own when one saved meanwhile took
+   * its name: both are kept. The name it is back under; null when the list is full.
+   */
+  restore: (preset: TeamPreset, index: number) => Promise<string | null>;
 }
 
 const persist = (presets: TeamPreset[]) => setSetting(PRESETS_KEY, storedPresets(presets));
@@ -54,6 +59,20 @@ export const presetsStore = createStore<PresetsState>()((set, get) => ({
     const next = withoutPreset(get().presets, id);
     set({ presets: next });
     await persist(next);
+  },
+  restore: async (preset, index) => {
+    await read();
+    const list = get().presets;
+    // A second undo: it is back already.
+    const back = list.find((p) => p.id === preset.id);
+    if (back) return back.name;
+    if (list.length >= MAX_PRESETS) return null;
+    const restored = { ...preset, name: freePresetName(list, preset.name) };
+    const at = Math.max(0, Math.min(index, list.length));
+    const next = [...list.slice(0, at), restored, ...list.slice(at)];
+    set({ presets: next });
+    await persist(next);
+    return restored.name;
   },
 }));
 

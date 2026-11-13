@@ -50,11 +50,18 @@ function toText(value: unknown): string {
       return `[${str(p.text)}]`;
     case "Callout":
       return `> ${str(p.title) ? `**${str(p.title)}** ` : ""}${str(p.text)}`;
-    case "Code":
-      return `\`\`\`${str(p.language)}\n${str(p.code)}\n\`\`\``;
+    case "Code": {
+      // A fence longer than any run of backticks in the code, as CommonMark reads one: the code's own ``` never closes it.
+      const code = str(p.code);
+      const longest = Math.max(0, ...(code.match(/`+/g) ?? []).map((run) => run.length));
+      const fence = "`".repeat(Math.max(3, longest + 1));
+      return `${fence}${str(p.language)}\n${code}\n${fence}`;
+    }
     case "Progress": {
       const max = typeof p.max === "number" && p.max > 0 ? p.max : 100;
-      const percent = typeof p.value === "number" ? Math.round((Math.min(Math.max(p.value, 0), max) / max) * 100) : 0;
+      // As the bar draws it (`P.Progress`): a value that is no finite number (1e999 reads as Infinity) is 0%.
+      const value = typeof p.value === "number" && Number.isFinite(p.value) ? Math.min(Math.max(p.value, 0), max) : 0;
+      const percent = Math.round((value / max) * 100);
       return `${str(p.label) || "Progress"}: ${percent}%`;
     }
     case "Link":

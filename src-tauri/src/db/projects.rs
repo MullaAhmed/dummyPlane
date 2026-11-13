@@ -114,8 +114,11 @@ pub fn rename(conn: &Connection, id: &str, name: &str) -> AppResult<()> {
 /// `path` moved from the folder `from` to `to` ("C:\api\web" from "C:\api" to
 /// "D:\api" gives "D:\api\web"); None when `path` is not inside `from`.
 pub fn rebase_path(path: &str, from: &str, to: &str) -> Option<String> {
+    // A drive root keeps its separator (`d:\`): the folder is what comes before it.
     let key = path_key(path);
+    let key = key.trim_end_matches('\\');
     let from_key = path_key(from);
+    let from_key = from_key.trim_end_matches('\\');
     let to = normalize_path(to);
     if key == from_key {
         return Some(to);
@@ -123,12 +126,15 @@ pub fn rebase_path(path: &str, from: &str, to: &str) -> Option<String> {
     if !key.starts_with(&format!("{from_key}\\")) {
         return None;
     }
-    // The rest of the path keeps its own case.
-    let rest: String = normalize_path(path)
+    // The rest of the path keeps its own case: it starts after the folder's separators, never at a length, which
+    // lowercasing may change ("İ" lowercases to two characters).
+    let depth = from_key.split('\\').count();
+    let rest = normalize_path(path)
         .replace('/', "\\")
-        .chars()
-        .skip(from_key.chars().count() + 1)
-        .collect();
+        .split('\\')
+        .skip(depth)
+        .collect::<Vec<_>>()
+        .join("\\");
     Some(format!("{}\\{rest}", to.trim_end_matches(['\\', '/'])))
 }
 
@@ -558,6 +564,35 @@ mod tests {
         assert_eq!(
             rebase_path("C:\\code\\apis", "C:\\code\\api", "D:\\api"),
             None
+        );
+    }
+
+    #[test]
+    fn rebases_paths_out_of_a_drive_root() {
+        assert_eq!(
+            rebase_path("D:\\api\\web", "D:\\", "E:\\work").as_deref(),
+            Some("E:\\work\\api\\web")
+        );
+        assert_eq!(
+            rebase_path("d:/api", "D:", "E:\\work\\").as_deref(),
+            Some("E:\\work\\api")
+        );
+        assert_eq!(
+            rebase_path("D:\\", "D:", "E:\\work").as_deref(),
+            Some("E:\\work")
+        );
+    }
+
+    #[test]
+    fn keeps_the_rest_whole_when_a_folder_lowercases_longer() {
+        // "İ" lowercases to two characters: the rest is found by its separators, never by a length.
+        assert_eq!(
+            rebase_path("C:\\İstanbul\\web\\src", "c:\\İstanbul", "D:\\ist").as_deref(),
+            Some("D:\\ist\\web\\src")
+        );
+        assert_eq!(
+            rebase_path("C:\\İstanbul", "C:\\İSTANBUL\\", "D:\\ist").as_deref(),
+            Some("D:\\ist")
         );
     }
 
