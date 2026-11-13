@@ -547,8 +547,12 @@ export function arrangedElements(input: ArrangeInput): { elements: ExcalidrawEle
 }
 
 /** `arrangedElements`; `treesLaid` once the tree's spawn trees are laid out downward (./arrangeTree.ts). */
-function arrange(input: ArrangeInput, treesLaid: boolean): { elements: ExcalidrawElement[]; movedNodeIds: Set<string> } | null {
-  const { elements, parentOf, isMinimized } = input;
+/**
+ * What an arrange reads of the scene before it lays anything out: its blocks (units), and which of them the selection
+ * asks for (`scope`, tidied inside `insideOne` when the selection lies in one group).
+ */
+function readScene(input: ArrangeInput) {
+  const { elements, parentOf } = input;
   const aspect = input.aspect && Number.isFinite(input.aspect) && input.aspect > 0 ? input.aspect : DEFAULT_ASPECT;
   const layout = input.layout ?? DEFAULT_ARRANGE_LAYOUT;
   const asked = input.scope ?? "auto";
@@ -619,8 +623,6 @@ function arrange(input: ArrangeInput, treesLaid: boolean): { elements: Excalidra
   const selected = (asked === "canvas" ? [] : (input.only ?? [])).filter(
     (id) => nodeIds.has(id) || frameIds.has(id) || (byId.has(id) && groupFrameOf(byId.get(id)!) !== null),
   );
-  // The selection asked for, and nothing in it to arrange: nothing moves, not even the rest.
-  if (asked === "selection" && selected.length === 0) return null;
   const frameOfSelected = (id: string): string | null => {
     if (frameIds.has(id)) return hostOf.get(id) ?? id;
     const e = byId.get(id)!;
@@ -631,6 +633,23 @@ function arrange(input: ArrangeInput, treesLaid: boolean): { elements: Excalidra
   const selectedUnits = new Set(selected.map((id) => unitOf(units.has(id) ? id : frameOfSelected(id)!)));
   // The selection alone when asked for, even of one block (it stays where it is); in `auto`, only from two blocks.
   const scope = insideOne ? new Set([unitOf(insideOne)]) : selectedUnits.size >= 2 || asked === "selection" ? selectedUnits : new Set(unitMembers.keys());
+  return { aspect, layout, asked, live, byId, frames, frameIds, nodes, nodeIds, inFrame, liveParent, attachmentOf, anchorOf, groupFrameOf, units, unitOf, unitMembers, selected, insideOne, selectedUnits, scope };
+}
+
+/**
+ * Whether this arrange takes the whole canvas: no selection of two blocks or more, none lying in one group, and not the
+ * selection alone asked for. The reading `arrangedElements` makes, whether or not anything moves.
+ */
+export function arrangesWholeCanvas(input: ArrangeInput): boolean {
+  const { asked, insideOne, selectedUnits } = readScene(input);
+  return !insideOne && !(selectedUnits.size >= 2 || asked === "selection");
+}
+
+function arrange(input: ArrangeInput, treesLaid: boolean): { elements: ExcalidrawElement[]; movedNodeIds: Set<string> } | null {
+  const { elements, parentOf, isMinimized } = input;
+  const { aspect, layout, asked, live, byId, frames, frameIds, nodes, nodeIds, inFrame, liveParent, attachmentOf, anchorOf, groupFrameOf, units, unitOf, unitMembers, selected, insideOne, scope } = readScene(input);
+  // The selection asked for, and nothing in it to arrange: nothing moves, not even the rest.
+  if (asked === "selection" && selected.length === 0) return null;
 
   // The tree: first, each spawn tree of what is arranged laid out downward from its root, alone (./arrangeTree.ts); then the
   // rest as for any layout, each tree moving whole. Only a tree the rest of the arrange tidies around it, which carries

@@ -1,6 +1,6 @@
 import { useStore } from "zustand";
 import { sendToAgents } from "@/agents/broadcast";
-import { getSetting, projectsOfNodes, setSetting } from "@/ipc/db";
+import { getSetting, keepSettingAside, projectsOfNodes, setSetting } from "@/ipc/db";
 import { freshText, isLiveInRust } from "@/nodes/terminal/registry";
 import { agentActivityStore } from "@/store/agentActivity";
 import { nodesStore, terminalOf } from "@/store/nodes";
@@ -29,6 +29,7 @@ export const loopsStore = createLoopsStore(
   {
     read: () => getSetting<unknown>(LOOPS_KEY),
     write: (value) => setSetting(LOOPS_KEY, value),
+    keepAside: (some) => keepSettingAside(LOOPS_KEY, some),
     projectsOf: projectsOfNodes,
     activeProject: () => projectsStore.getState().activeId,
   },

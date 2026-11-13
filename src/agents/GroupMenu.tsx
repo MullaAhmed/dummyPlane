@@ -17,11 +17,13 @@ import { useUiRequest } from "@/commands/uiRequests";
 import { messages, useMessages } from "@/i18n";
 import { GroupNotesItem } from "@/notes/GroupNotesItem";
 import { uiStore } from "@/store/ui";
+import { shellMessages } from "@/shell/messages";
 import { workspacesStore } from "@/store/workspaces";
 import { useAgents } from "./agentsStore";
 import { pauseAll, resumeAll } from "./broadcast";
 import { agentInk, AGENTS, AGENTS_WITHOUT_OPTIONS } from "./catalog";
-import { arrangeWorkspace } from "./arrangeCanvas";
+import { arrangeAs } from "./arrangeAs";
+import { ARRANGE_LAYOUTS, type ArrangeLayout } from "./arrangeLayout";
 import { agentsMessages } from "./messages";
 import { addAgentToGroup, groupMembers, requestCloseGroup, setGroupFolded, setGroupPantheon, ungroup } from "./groups";
 import { NamesMenu } from "./NamesMenu";
@@ -29,10 +31,10 @@ import { addFleetToGroup } from "@/fleet/fleets";
 import { setRemoteControlAll } from "./remoteControl";
 import { SpecialityMenu } from "./SpecialityMenu";
 
-/** "Arrange as a tree": the group's members inside its frame, in the shown workspace, whatever layout the setting holds. */
-function arrangeGroupAsTree(groupId: string) {
+/** "Arrange" > a layout: the group's members inside its frame, in the shown workspace, in that layout this once; the setting stays. */
+function arrangeGroupAs(groupId: string, layout: ArrangeLayout) {
   const workspaceId = workspacesStore.getState().activeId;
-  if (workspaceId) arrangeWorkspace(workspaceId, { only: [groupId], layout: "tree", undoable: true });
+  if (workspaceId) arrangeAs(workspaceId, { kind: "group", id: groupId }, layout);
 }
 
 /**
@@ -40,6 +42,7 @@ function arrangeGroupAsTree(groupId: string) {
  */
 export function GroupMenu({ groupId, trigger, answersRequests = false }: { groupId: string; trigger?: ReactElement; answersRequests?: boolean }) {
   const t = useMessages(agentsMessages);
+  const layouts = useMessages(shellMessages).settings.arrangeLayouts;
   const [open, setOpen] = useState(false);
   // Opened by the palette, not by its trigger: it shows at once (never animate what the keyboard asked for).
   const [instant, setInstant] = useState(false);
@@ -141,8 +144,17 @@ export function GroupMenu({ groupId, trigger, answersRequests = false }: { group
         <DropdownMenuItem onSelect={() => void setRemoteControlAll(groupMembers(groupId), false)}>{t.remote.turnOff}</DropdownMenuItem>
         <GroupNotesItem groupId={groupId} />
         <DropdownMenuSeparator />
-        {/* Who opened whom, downward, inside its frame: one undo, as the group's Arrange (src/agents/arrangeTree.ts). */}
-        <DropdownMenuItem onSelect={() => arrangeGroupAsTree(groupId)}>{t.groupMenu.arrangeTree}</DropdownMenuItem>
+        {/* Its members inside its frame in a layout of the list, this once (the tree: who opened whom, downward, src/agents/arrangeTree.ts); one undo. */}
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger>{t.groupMenu.arrange}</DropdownMenuSubTrigger>
+          <DropdownMenuSubContent data-arrange-layouts>
+            {ARRANGE_LAYOUTS.map((layout) => (
+              <DropdownMenuItem key={layout} onSelect={() => arrangeGroupAs(groupId, layout)}>
+                {layouts[layout]}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
         <DropdownMenuItem onSelect={() => setGroupFolded(groupId, !folded)}>{folded ? t.groupMenu.unfold : t.groupMenu.fold}</DropdownMenuItem>
         <DropdownMenuItem onSelect={() => ungroup(groupId)}>{t.groupMenu.ungroup}</DropdownMenuItem>
         <DropdownMenuItem variant="destructive" onSelect={() => requestCloseGroup(groupId)}>

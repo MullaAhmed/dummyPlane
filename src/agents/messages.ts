@@ -114,8 +114,8 @@ export const agentsMessages = defineMessages({
       title: "Launch an agent",
       notFound: (binary: string) => `${binary} not found in PATH`,
       newConsole: "New console",
-      /** The heading over the Shell, the Fleet and the board: none of them is an agent. */
-      notAgents: "Not an agent",
+      /** What the ＋ menu adds, in its three sections: the agents, the terminals, then the fleet and the boards. */
+      sections: { agents: "Agents", terminals: "Terminals", boards: "Fleet and boards" },
       fleet: "Fleet",
       fleetHint: "commands groups and agents",
       kanban: "Kanban",
@@ -146,7 +146,7 @@ export const agentsMessages = defineMessages({
     },
     panel: {
       title: "Agents",
-      launchAgent: "Launch an agent",
+      launchAgent: "Add to canvas",
       newConsole: "New console",
       composeGroup: "Compose a group",
       pauseAll: "Pause all",
@@ -191,6 +191,8 @@ export const agentsMessages = defineMessages({
       more: "One agent more",
       launch: (count: number) => `Launch ${count}`,
     },
+    /** The list of layouts an "Arrange as…" opens (./ArrangeLayoutMenu.tsx); the layouts' names are the Settings'. */
+    arrangeMenu: { label: "Arrange as" },
     groupMenu: {
       rename: "Rename",
       speciality: "Speciality",
@@ -205,8 +207,8 @@ export const agentsMessages = defineMessages({
       resumeAll: "Resume all",
       fold: "Fold the group",
       unfold: "Unfold the group",
-      /** Its members as a tree, whatever the "Arrange layout" setting (src/agents/arrangeTree.ts). */
-      arrangeTree: "Arrange as a tree",
+      /** Its members inside its frame in a layout of the list under it, this once (the Settings' layouts). */
+      arrange: "Arrange",
       ungroup: "Ungroup",
       close: "Close the group",
       /** In a terminal's or a Fleet's "⋯", when it stands in a group. */

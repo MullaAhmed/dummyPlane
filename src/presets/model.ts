@@ -129,6 +129,16 @@ export function readPresets(raw: unknown): TeamPreset[] {
   return raw.presets.flatMap((p) => readPreset(p) ?? []).slice(0, MAX_PRESETS);
 }
 
+/**
+ * How much of a saved setting `readPresets` leaves out: nothing, some of its presets (a damaged one), or all of it
+ * (another version, another shape). What it leaves out is lost at the next save, unless its text is kept.
+ */
+export function presetsLeftOut(raw: unknown): "none" | "some" | "all" {
+  if (raw === null || raw === undefined) return "none";
+  if (!isObject(raw) || raw.version !== PRESETS_VERSION || !Array.isArray(raw.presets)) return "all";
+  return raw.presets.length === readPresets(raw).length ? "none" : "some";
+}
+
 /** The setting to save for these presets: what `readPresets` reads back, with the stored key for the fleets. */
 export function storedPresets(presets: readonly TeamPreset[]) {
   return { version: PRESETS_VERSION, presets: presets.map(({ fleets, ...rest }) => ({ ...rest, [STORED_FLEETS_KEY]: fleets })) };

@@ -25,6 +25,9 @@ let projectOf: Record<string, string>;
 let active: string | null;
 let looked: string[][];
 let lookFails: boolean;
+/** What was asked to be kept aside, as `some`, and how many saves had been made when it was. */
+let kept: boolean[];
+let savedWhenKept: number[];
 
 const engineDeps = (): EngineDeps => ({
   now: () => now,
@@ -48,6 +51,10 @@ const io = () => ({
     return Object.fromEntries(ids.flatMap((id) => (projectOf[id] ? [[id, projectOf[id]]] : [])));
   },
   activeProject: () => active,
+  keepAside: async (some: boolean) => {
+    savedWhenKept.push(saved.length);
+    kept.push(some);
+  },
 });
 
 function make() {
@@ -75,6 +82,8 @@ beforeEach(() => {
   active = "p1";
   looked = [];
   lookFails = false;
+  kept = [];
+  savedWhenKept = [];
   stored = { version: LOOPS_VERSION, loops: [loop("1"), loop("2")] };
 });
 
@@ -145,6 +154,37 @@ describe("the loops store", () => {
     await expect(store.getState().remove("1")).rejects.toThrow();
     expect(saved).toEqual([]);
     expect(store.getState().loaded).toBe(false);
+  });
+
+  it("has the text of a setting it reads only in part kept before any save, and of a whole one nothing", async () => {
+    // Another version: it reads as no loop, and the next save would replace what the setting holds.
+    stored = { version: 3, loops: [loop("1")] };
+    const newer = make();
+    await newer.getState().load();
+    expect(newer.getState().loops).toEqual([]);
+    expect(kept).toEqual([false]);
+    // A damaged loop among good ones: the good stay, the text is kept all the same.
+    stored = { version: LOOPS_VERSION, loops: [loop("1"), { id: 9 }] };
+    const damaged = make();
+    await damaged.getState().load();
+    expect(damaged.getState().loops.map((l) => l.id)).toEqual(["1"]);
+    expect(kept).toEqual([false, true]);
+    // Whole, or never saved: nothing.
+    stored = { version: LOOPS_VERSION, loops: [loop("1")] };
+    await make().getState().load();
+    stored = null;
+    await make().getState().load();
+    expect(kept).toEqual([false, true]);
+    // And before any save: the migration of a version 1 with a damaged loop saves only after it kept the text.
+    stored = { version: 1, loops: [{ ...loop("1"), projectId: undefined }, { id: 9 }] };
+    kept = [];
+    savedWhenKept = [];
+    saved = [];
+    const old = make();
+    await old.getState().load();
+    expect(kept).toEqual([true]);
+    expect(savedWhenKept).toEqual([0]);
+    expect(saved).toHaveLength(1);
   });
 
   it("loads the saved loops all off: nothing runs after a restart", async () => {

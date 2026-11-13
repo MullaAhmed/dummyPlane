@@ -11,6 +11,7 @@ vi.mock("@/shell/ProjectView", () => ({ ProjectView: () => null }));
 vi.mock("@/home/HomeScreen", () => ({ HomeScreen: () => null }));
 vi.mock("@/commands/Palette", () => ({ Palette: () => null }));
 vi.mock("@/accounts/AccountsDialog", () => ({ AccountsDialog: () => null }));
+vi.mock("@/agents/ArrangeLayoutMenu", () => ({ ArrangeLayoutMenu: () => null }));
 vi.mock("@/loops/LoopsDialog", () => ({ LoopsDialog: () => null }));
 vi.mock("@/loops/LoopsIndicator", () => ({ LoopsIndicator: () => null }));
 vi.mock("@/presets/SavePresetDialog", () => ({ SavePresetDialog: () => null }));

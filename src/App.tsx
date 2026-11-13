@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { boot } from "@/app/boot";
+import { ArrangeLayoutMenu } from "@/agents/ArrangeLayoutMenu";
 import { GoToLine } from "@/studio/GoToLine";
 import { QuitPrompt } from "@/studio/QuitPrompt";
 import { Palette } from "@/commands/Palette";
@@ -78,6 +79,10 @@ export default function App() {
       <QuietBoundary scope="loops" useResetKey={usePaletteOpenings}>
         <LoopsDialog />
         <LoopsIndicator />
+      </QuietBoundary>
+      {/* The layouts of an "Arrange as…" (a ring's Arrange, the palette's): its next opening tries it again. */}
+      <QuietBoundary scope="arrange layouts" useResetKey={usePaletteOpenings}>
+        <ArrangeLayoutMenu />
       </QuietBoundary>
       <QuietBoundary scope="go to line" useResetKey={usePaletteOpenings}>
         <GoToLine />

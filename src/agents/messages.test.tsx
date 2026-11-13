@@ -136,7 +136,7 @@ describe("components in English", () => {
     canvasStore.setState({ frames: [] });
     await act(async () => root.render(<AgentsPanel />));
     const byLabel = (label: string) => host.querySelector(`[aria-label="${label}"]`);
-    for (const label of ["Launch an agent", "New console", "Compose a group", "Pause all", "Resume all", "More actions", "Close the panel"]) {
+    for (const label of ["Add to canvas", "New console", "Compose a group", "Pause all", "Resume all", "More actions", "Close the panel"]) {
       expect(byLabel(label), label).not.toBeNull();
     }
     const filters = [...host.querySelectorAll<HTMLButtonElement>("[data-filter]")];
@@ -155,7 +155,7 @@ describe("components in English", () => {
     );
     await act(async () => host.querySelector("button")!.click());
     const text = document.body.textContent ?? "";
-    expect(text).toContain("Launch an agent");
+    for (const heading of ["Agents", "Terminals", "Fleet and boards"]) expect(text).toContain(heading);
     expect(text).toContain("New console");
     expect(text).toContain("Fleet");
     expect(text).toContain("commands groups and agents");
