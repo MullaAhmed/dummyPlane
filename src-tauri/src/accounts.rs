@@ -33,11 +33,20 @@ pub struct Accounts {
     pub active: Option<String>,
 }
 
+/// A folder as typed or pasted: trimmed, and out of the quotes Explorer's "Copy as path" puts round it.
+fn unquoted(dir: &str) -> &str {
+    let dir = dir.trim();
+    dir.strip_prefix('"')
+        .and_then(|inner| inner.strip_suffix('"'))
+        .map_or(dir, str::trim)
+}
+
 /// A folder dummyPlane may hand to Claude as `CLAUDE_CONFIG_DIR`: absolute,
-/// without `..` or control characters. Returned as given.
+/// without `..` or control characters. Returned as given, but for its quotes.
 pub fn checked_dir(dir: &str) -> AppResult<PathBuf> {
-    let path = Path::new(dir.trim());
-    let bad = dir.trim().is_empty()
+    let clean = unquoted(dir);
+    let path = Path::new(clean);
+    let bad = clean.is_empty()
         || dir.chars().any(char::is_control)
         || !path.is_absolute()
         || path.components().any(|c| matches!(c, Component::ParentDir));
@@ -102,10 +111,9 @@ pub fn add(conn: &Connection, name: &str, config_dir: &str) -> AppResult<Profile
     }
     let dir = checked_dir(config_dir)?;
     let mut accounts = load(conn)?;
-    let taken = accounts
-        .profiles
-        .iter()
-        .any(|p| p.name.eq_ignore_ascii_case(name) || same_folder(&p.config_dir, config_dir));
+    let taken = accounts.profiles.iter().any(|p| {
+        p.name.eq_ignore_ascii_case(name) || same_folder(&p.config_dir, &dir.to_string_lossy())
+    });
     if taken {
         return Err(AppError::InvalidInput(
             "a profile already has this name or folder".to_string(),
@@ -213,6 +221,30 @@ mod tests {
         let file = root.path().join("file.txt");
         std::fs::write(&file, "x").unwrap();
         assert!(bad("D", &file.to_string_lossy()), "a file is not a folder");
+    }
+
+    /// Explorer's "Copy as path" puts the folder in quotes: the box was refused as "invalid
+    /// profile folder", and the quotes are no part of the folder.
+    #[test]
+    fn takes_a_folder_pasted_with_its_quotes() {
+        let db = db();
+        let root = tempfile::tempdir().unwrap();
+        let dir = root.path().join("quoted");
+        let plain = dir.to_string_lossy().into_owned();
+        let profile = db
+            .with(|conn| add(conn, "Q", &format!("  \"{plain}\" ")))
+            .unwrap();
+        assert_eq!(profile.config_dir, plain);
+        assert!(dir.is_dir());
+        // Quoted or not, it is the same folder.
+        assert!(
+            db.with(|conn| add(conn, "R", &format!("\"{plain}\"")))
+                .is_err()
+        );
+        assert_eq!(checked_dir(&format!("\"{plain}\"")).unwrap(), dir);
+        // A lone quote, or quotes round nothing, are no folder.
+        assert!(checked_dir("\"").is_err());
+        assert!(checked_dir("\"\"").is_err());
     }
 
     /// What the row holds, as it is stored.
