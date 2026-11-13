@@ -348,7 +348,9 @@ pub fn file_diff(dir: &Path, file: &ChangedFile, base: Option<&str>) -> Result<S
         );
     }
     let from = compared(dir, base)?;
+    // A path is never a pattern: `[id].tsx` would also name `i.tsx` and `d.tsx`.
     let mut args = vec![
+        "--literal-pathspecs",
         "diff",
         "--no-color",
         "--no-ext-diff",
@@ -573,6 +575,24 @@ mod tests {
         assert!(a.contains("-deux") && a.contains("+trois"), "{a}");
         let b = file_diff(dir, &files[1], None).unwrap();
         assert!(b.contains("+nouveau"), "{b}");
+    }
+
+    /// A path is never a pattern: `[a].txt` (a Next.js `[id]` route) also matched `a.txt`,
+    /// and its diff came with the other file's.
+    #[test]
+    fn a_file_s_diff_is_that_file_s_alone_whatever_its_name_looks_like() {
+        let Some(repo) = repo() else { return };
+        let dir = repo.path();
+        std::fs::write(dir.join("[a].txt"), "un\n").unwrap();
+        sh(dir, &["add", "."]);
+        sh(dir, &["commit", "-q", "-m", "brackets"]);
+        std::fs::write(dir.join("[a].txt"), "deux\n").unwrap();
+        std::fs::write(dir.join("a.txt"), "un\ntrois\n").unwrap();
+        let files = changes(dir, None).unwrap().files;
+        let bracketed = files.iter().find(|f| f.path == "[a].txt").unwrap();
+        let diff = file_diff(dir, bracketed, None).unwrap();
+        assert!(diff.contains("+deux"), "{diff}");
+        assert!(!diff.contains("trois"), "{diff}");
     }
 
     #[test]
