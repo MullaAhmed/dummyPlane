@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Command } from "cmdk";
 import { FileText } from "lucide-react";
 import { useMessages } from "@/i18n";
+import { toastError } from "@/lib/errorToast";
 import { TITLE_BAR_HEIGHT } from "@/shell/layout";
 import { useProjects } from "@/store/projects";
 import { useFileIndex } from "@/studio/fileIndex";
@@ -206,7 +207,7 @@ function FileSection({ files, line, column }: { files: readonly string[]; line?:
             className={ITEM}
             onSelect={() => {
               closePalette();
-              void openInCodeStudio(path, line, column);
+              void openInCodeStudio(path, line, column).catch((error: unknown) => toastError(t.openFileFailed, { error }));
             }}
           >
             <FileText className="size-3.5 shrink-0 text-dp-text-3" />

@@ -18,7 +18,17 @@ export type RemoteAction =
 const DONE_TITLES = ["done", "closed", "terminé", "termine", "fait", "fermé", "ferme"];
 const DEFAULT_COLUMNS = ["To do", "In progress", "Done"];
 
-const normalize = (title: string) => title.trim().toLowerCase();
+/**
+ * A column's or a Status option's title as they are matched: spaces, case and punctuation aside, so a new board's
+ * "To do" is a Project's "Todo" and "In progress" its "In Progress". A title of punctuation only stays itself.
+ */
+export const normalize = (title: string) => title.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "") || title.trim().toLowerCase();
+
+/** The one of `titles` named `title`, case aside, else one `normalize` makes the same: "Todo" before "To do", "v10" before "v1.0". */
+function closest(titles: readonly string[], title: string): number {
+  const exact = titles.findIndex((t) => t.trim().toLowerCase() === title.trim().toLowerCase());
+  return exact >= 0 ? exact : titles.findIndex((t) => normalize(t) === normalize(title));
+}
 
 /** Identity of an issue across repos: "owner/name#12", repo lowercased so it compares case-insensitively. */
 export const githubKey = (repo: string, number: number) => `${repo.trim().toLowerCase()}#${number}`;
@@ -97,7 +107,7 @@ export function mergeGithub(board: Board, options: MergeOptions): Board {
   const columnOf = (cardId: string) => columns.find((c) => c.cardIds.includes(cardId));
 
   const columnTitled = (title: string) => {
-    const existing = columns.find((c) => normalize(c.title) === normalize(title));
+    const existing = columns[closest(columns.map((c) => c.title), title)];
     if (existing) return existing;
     const created: Column = { id: newId(), title: title.trim(), cardIds: [] };
     columns.push(created);
@@ -170,10 +180,14 @@ export interface MoveContext {
   projectItemIdByKey?: Record<string, string>;
 }
 
+/** A pull request's link (a Project item's): its url is …/pull/<number>. */
+const isPullRequest = (link: GithubLink) => /\/pull\/\d+\/?$/.test(link.url);
+
 /**
  * Remote calls implied by moving `cardId` to `toColumnId` (call it before applying the move locally):
  * - the project item's Status follows when the target column is named like a Status option;
- * - entering the done column (see `doneColumn`) closes an open issue, leaving it reopens a closed one.
+ * - entering the done column (see `doneColumn`) closes an open issue, leaving it reopens a closed one. Never a pull
+ *   request's: done is its merge, not its close, which would drop it unmerged.
  */
 export function remoteActionsForMove(board: Board, cardId: string, toColumnId: string, context: MoveContext = {}): RemoteAction[] {
   const link = board.cards[cardId]?.github;
@@ -184,10 +198,11 @@ export function remoteActionsForMove(board: Board, cardId: string, toColumnId: s
   const actions: RemoteAction[] = [];
 
   const itemId = context.projectItemIdByKey?.[githubKey(link.repo, link.number)];
-  const status = context.projectStatuses?.find((s) => normalize(s) === normalize(to.title));
+  const status = context.projectStatuses?.[closest(context.projectStatuses, to.title)];
   if (itemId && status) actions.push({ type: "moveProjectItem", itemId, status });
 
   const done = doneColumn(board)!;
+  if (isPullRequest(link)) return actions;
   if (to.id === done.id && link.state === "open") {
     actions.push({ type: "setIssueState", repo: link.repo, number: link.number, state: "closed" });
   } else if (from?.id === done.id && link.state === "closed") {

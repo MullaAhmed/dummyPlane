@@ -1,6 +1,6 @@
 import { toastError } from "@/lib/errorToast";
 import { goToNode, nodeTarget } from "@/commands/goToRun";
-import { requestArrival } from "@/commands/pendingArrival";
+import { cancelArrival, requestArrival } from "@/commands/pendingArrival";
 import { messages } from "@/i18n";
 import { nodeNameOf, nodesStore } from "@/store/nodes";
 import { projectsStore } from "@/store/projects";
@@ -31,10 +31,13 @@ export async function openNotification(entry: NotificationEntry) {
     const project = projectsStore.getState().projects.find((p) => p.id === projectId);
     if (!project) return;
     // The canvas of the project opens a moment later: the node is reached once its scene is on screen.
-    if (target) requestArrival(nodeTarget(workspaceId, target.nodeId, target.label, true));
+    const arrival = target ? nodeTarget(workspaceId, target.nodeId, target.label, true) : null;
+    if (arrival) requestArrival(arrival);
     try {
       await projectsStore.getState().open(projectId);
     } catch (error) {
+      // The project did not open: its canvas will not come on screen for this click, and a later visit must not be taken for it.
+      if (arrival) cancelArrival(arrival);
       toastError(t.openFailed(project.name), { error });
       return;
     }

@@ -1,4 +1,5 @@
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
+import { closeRadial } from "@/radial/radialState";
 import { BOTTOM_BAR_HEIGHT, TOP_ROW_HEIGHT } from "@/shell/layout";
 import { uiStore } from "@/store/ui";
 import { canvasStore } from "./canvasStore";
@@ -27,9 +28,11 @@ export function releaseToCanvas(doc: Document = document) {
   if (active instanceof HTMLInputElement) active.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
   if (active instanceof HTMLElement) active.blur();
   canvasStore.getState().api?.updateScene({ appState: { activeEmbeddable: null, selectedElementIds: {}, selectedGroupIds: {} } });
-  // Placement and link modes end here too: their own Escape listeners never see Shift+Escape.
+  // Placement and link modes end here too: their own Escape listeners never see Shift+Escape. Nor does the radial ring's:
+  // the shortcuts' listener comes first (main.tsx) and consumes the key.
   uiStore.getState().setPlacing(null);
   uiStore.getState().setLinking(null);
+  closeRadial();
   doc.querySelector<HTMLElement>(".excalidraw-container")?.focus();
 }
 

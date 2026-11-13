@@ -155,6 +155,19 @@ describe("moveCardWithGithub", () => {
     expect(toast.error).not.toHaveBeenCalled();
   });
 
+  it("reads the Project again for an issue that joined it, moved to a column named like a Status but for spaces or case", async () => {
+    let items = [item("PVTI_2", 2, "To-Do")];
+    mockGithub({
+      github_list_issues: () => [issue(1, "open")],
+      github_list_project_items: () => items,
+      github_project_statuses: () => ["To-Do", "InProgress", "Done"],
+    });
+    expect(await syncBoard("b")).toBe(true);
+    items = [...items, item("PVTI_1", 1, "To-Do")];
+    await moveCardWithGithub("b", "k1", "doing");
+    expect(calls).toContainEqual(["github_move_project_item", { path: "C:/r", owner: "o", projectNumber: 2, itemId: "PVTI_1", status: "InProgress" }]);
+  });
+
   it("does not read the Project again for a card outside it moved to a column that is no Status", async () => {
     mockGithub({
       github_list_issues: () => [issue(1, "open")],
@@ -165,6 +178,25 @@ describe("moveCardWithGithub", () => {
     calls = [];
     await moveCardWithGithub("b", "k1", "doing");
     expect(calls).toEqual([]);
+  });
+
+  it("moves a pull request's Project item into Done, and never runs gh issue close on its number", async () => {
+    mockGithub({
+      github_list_project_items: () => [
+        { id: "PVTI_4", title: "Fix", status: "To do", content: { kind: "pullRequest", repo: "o/r", number: 4, url: "https://github.com/o/r/pull/4", body: "" } },
+      ],
+      github_project_statuses: () => ["To do", "In progress", "Done"],
+    });
+    const before = board();
+    nodesStore.getState().update("b", {
+      columns: before.columns.map((c) => (c.id === "todo" ? { ...c, cardIds: [...c.cardIds, "k4"] } : c)),
+      cards: { ...before.cards, k4: { id: "k4", title: "Fix", notes: "", priority: "none", github: { repo: "o/r", number: 4, url: "https://github.com/o/r/pull/4", state: "open" } } },
+    });
+    await moveCardWithGithub("b", "k4", "done");
+    expect(calls.map(([cmd]) => cmd)).not.toContain("github_set_issue_state");
+    expect(calls).toContainEqual(["github_move_project_item", { path: "C:/r", owner: "o", projectNumber: 2, itemId: "PVTI_4", status: "Done" }]);
+    expect(board().columns.find((c) => c.id === "done")!.cardIds).toEqual(["k4"]);
+    expect(toast.error).not.toHaveBeenCalled();
   });
 
   it("keeps the card moved and says why when GitHub refuses", async () => {

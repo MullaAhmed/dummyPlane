@@ -22,6 +22,8 @@ export interface SceneSyncDeps {
   onNodesRemoved: (ids: string[]) => void;
   /** A scene save that failed, told when it did: the timed saves nobody waits for included, whose rejection would be lost. */
   saveFailed?: (error: unknown) => void;
+  /** New images that could not be saved: they are tried again at the next change, and the console says so when nothing else does. */
+  imagesNotSaved?: (error: unknown) => void;
   delayMs?: number;
 }
 
@@ -51,6 +53,7 @@ export function createSceneSync(
   let liveIds: string[] = [];
   let lastScene: SceneStamp | null = null;
   const savedFiles = new Set(initial.savedFileIds);
+  let imagesFailing = false;
   const hasChanged = createChangeDetector(
     (version: number, appState: SavedAppState) => `${version}:${appState.scrollX}:${appState.scrollY}:${appState.zoom.value}`,
   );
@@ -83,10 +86,18 @@ export function createSceneSync(
       newFiles.forEach((f) => savedFiles.add(f.id));
       deps
         .saveFiles(newFiles.map((f) => ({ id: f.id, mimeType: f.mimeType, dataUrl: f.dataURL, created: f.created })))
-        .catch((error: unknown) => {
-          newFiles.forEach((f) => savedFiles.delete(f.id));
-          console.warn("images not saved", error);
-        });
+        .then(
+          () => {
+            imagesFailing = false;
+          },
+          (error: unknown) => {
+            newFiles.forEach((f) => savedFiles.delete(f.id));
+            // Told once while they keep failing: they are tried again at every change, a pan's frames too.
+            if (!deps.imagesNotSaved) console.warn("images not saved", error);
+            else if (!imagesFailing) deps.imagesNotSaved(error);
+            imagesFailing = true;
+          },
+        );
     }
 
     const view: SavedAppState = { scrollX: appState.scrollX, scrollY: appState.scrollY, zoom: appState.zoom };
