@@ -907,6 +907,67 @@ mod windows_tests {
         });
     }
 
+    /// The shells the app starts, a program named like an agent typed into each, as a user would: the agent is
+    /// found under the shell's process, whatever stands between them (Git Bash's launcher and its forked bash).
+    #[test]
+    fn an_agent_typed_in_each_windows_shell_is_found_under_that_shell() {
+        use super::watch::{find_agent, processes};
+        let system = std::env::var_os("SystemRoot").map(std::path::PathBuf::from);
+        let ping = system.unwrap_or_default().join("System32").join("ping.exe");
+        let dir = tempfile::tempdir().unwrap();
+        let fake = dir.path().join("Claude.exe");
+        std::fs::copy(&ping, &fake).unwrap();
+        let fake = fake.to_string_lossy().replace('\\', "/");
+        let mut tried = Vec::new();
+        for kind in [
+            shell::ShellKind::Cmd,
+            shell::ShellKind::PowerShell,
+            shell::ShellKind::GitBash,
+        ] {
+            let Ok(program) = shell::resolve_shell(kind, &shell::which_locate) else {
+                continue;
+            };
+            let line = match program.syntax {
+                shell::ShellSyntax::Cmd => format!("\"{fake}\" -n 25 127.0.0.1 >nul\r"),
+                shell::ShellSyntax::PowerShell => format!("& '{fake}' -n 25 127.0.0.1 > $null\r"),
+                shell::ShellSyntax::Posix => format!("'{fake}' -n 25 127.0.0.1 > /dev/null\r"),
+            };
+            let mgr = PtyManager::default();
+            let plan = SpawnPlan {
+                program: program.program,
+                args: program.args,
+                cwd: std::env::temp_dir(),
+                env: vec![],
+                env_remove: vec![],
+                initial_input: Some(line),
+                interrupt: None,
+                watch_agents: true,
+            };
+            let exited = spawn_answering(&mgr, "n", plan, VecSink::default());
+            let root = mgr.watched_roots()[0].1;
+            let mut found = None;
+            wait_until(&format!("an agent under {kind:?}"), || {
+                found = find_agent(&processes(), root);
+                found.is_some()
+            });
+            let (agent, pid) = found.unwrap();
+            assert_eq!(agent, shell::Agent::Claude, "{kind:?}");
+            // Left running by the shell's end: stopped here.
+            let _ = std::process::Command::new("taskkill")
+                .args(["/F", "/PID", &pid.to_string()])
+                .output();
+            mgr.kill_all();
+            wait_exit(&exited);
+            tried.push(kind);
+        }
+        assert!(
+            tried.contains(&shell::ShellKind::Cmd),
+            "cmd.exe is on every Windows"
+        );
+        assert!(tried.contains(&shell::ShellKind::PowerShell));
+        eprintln!("agent found under: {tried:?}");
+    }
+
     #[test]
     fn an_agent_started_in_a_shell_gives_it_the_agents_interrupt_key_until_it_leaves() {
         let mgr = PtyManager::default();
@@ -914,12 +975,12 @@ mod windows_tests {
         plan.watch_agents = true;
         let shell = spawn_answering(&mgr, "s", plan, VecSink::default());
         assert_eq!(mgr.interrupt("s").unwrap(), None);
-        mgr.set_interrupt("s", Some(b""));
-        assert_eq!(mgr.interrupt("s").unwrap(), Some(&b""[..]));
+        mgr.set_interrupt("s", Some(b"\x1b"));
+        assert_eq!(mgr.interrupt("s").unwrap(), Some(&b"\x1b"[..]));
         mgr.set_interrupt("s", None);
         assert_eq!(mgr.interrupt("s").unwrap(), None);
         // A terminal that is not there is not an error: its agent may outlive it by a scan.
-        mgr.set_interrupt("nope", Some(b""));
+        mgr.set_interrupt("nope", Some(b"\x1b"));
         mgr.kill_all();
         wait_exit(&shell);
     }

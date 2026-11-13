@@ -189,22 +189,43 @@ struct Quiet {
 
 fn quiet(agent: Agent) -> Quiet {
     match agent {
+        // As `claude --help` lists them (2.1): what runs once, prints or manages something, or starts a session in the background.
         Agent::Claude => Quiet {
-            flags: &["-p", "--print", "-v", "--version", "-h", "--help"],
+            flags: &[
+                "-p",
+                "--print",
+                "-v",
+                "--version",
+                "-h",
+                "--help",
+                "--bg",
+                "--background",
+            ],
             commands: &[
-                "mcp",
-                "config",
+                "agents",
+                "auth",
+                "auto-mode",
                 "doctor",
+                "gateway",
+                "import",
+                "install",
+                "logs",
+                "mcp",
+                "plugin",
+                "plugins",
+                "purge",
+                "respawn",
+                "rm",
+                "setup-token",
+                "stop",
+                "kill",
+                "ultrareview",
                 "update",
                 "upgrade",
-                "install",
                 "migrate-installer",
-                "setup-token",
-                "plugin",
-                "auth",
-                "agents",
             ],
         },
+        // As `codex --help` lists them: `resume` and `fork` are conversations, not among them.
         Agent::Codex => Quiet {
             flags: &["--version", "-V", "-h", "--help"],
             commands: &[
@@ -214,16 +235,29 @@ fn quiet(agent: Agent) -> Quiet {
                 "login",
                 "logout",
                 "mcp",
-                "mcp-server",
+                "plugin",
+                "app-server",
+                "remote-control",
+                "app",
                 "completion",
+                "update",
+                "doctor",
+                "sandbox",
                 "debug",
                 "apply",
                 "a",
+                "queue",
+                "archive",
+                "delete",
+                "unarchive",
+                "migrate-rollouts",
+                "migrate-nfs-db",
                 "cloud",
-                "sandbox",
+                "exec-server",
                 "features",
                 "help",
                 "proto",
+                "mcp-server",
             ],
         },
         Agent::Gemini | Agent::Qwen => Quiet {
@@ -452,24 +486,22 @@ impl Watch {
                     1
                 }
             };
-            match &node.reported {
-                // Reported already: the conversation of a Claude whose record came late.
-                Some(reported) if reported.session_id.is_none() && agent == Agent::Claude => {
-                    if let Some(sighting) = judge(agent, pid, scans, probe)
-                        && sighting.session_id.is_some()
-                    {
-                        node.reported = Some(sighting.clone());
-                        changes.push((id.clone(), Change::Running(sighting)));
-                    }
+            if let Some(known) = node.reported.as_ref().map(|r| r.session_id.clone()) {
+                // Reported already: Claude's record says its conversation as it is now: it came late, or a
+                // `/clear` or a `/resume` in that Claude changed it.
+                if agent == Agent::Claude
+                    && let Some(sighting) = judge(agent, pid, scans, probe)
+                    && sighting.session_id.is_some()
+                    && sighting.session_id != known
+                {
+                    node.reported = Some(sighting.clone());
+                    changes.push((id.clone(), Change::Running(sighting)));
                 }
-                Some(_) => {}
-                None if scans >= CONFIRM_SCANS => {
-                    if let Some(sighting) = judge(agent, pid, scans, probe) {
-                        node.reported = Some(sighting.clone());
-                        changes.push((id.clone(), Change::Running(sighting)));
-                    }
-                }
-                None => {}
+            } else if scans >= CONFIRM_SCANS
+                && let Some(sighting) = judge(agent, pid, scans, probe)
+            {
+                node.reported = Some(sighting.clone());
+                changes.push((id.clone(), Change::Running(sighting)));
             }
         }
         changes
@@ -681,6 +713,18 @@ mod tests {
     impl Fake {
         fn line(self, pid: u32, line: &str) -> Self {
             self.lines.borrow_mut().insert(pid, line.to_string());
+            self
+        }
+
+        fn session(self, pid: u32, id: &str) -> Self {
+            self.records.borrow_mut().insert(
+                pid,
+                ClaudeRecord {
+                    session_id: id.to_string(),
+                    cwd: None,
+                    interactive: true,
+                },
+            );
             self
         }
 
@@ -1037,6 +1081,32 @@ mod tests {
             matches!(&changes[..], [(_, Change::Running(s))] if s.session_id.as_deref() == Some(ID))
         );
         assert_eq!(watch.scan(&roots(), &procs, &with_record), vec![]);
+    }
+
+    #[test]
+    fn a_conversation_that_changes_in_the_claude_that_runs_is_reported_again() {
+        let mut watch = Watch::default();
+        let procs = tree(&[(200, "claude")]);
+        let first = Fake::default().line(200, "claude").record(200, true);
+        watch.scan(&roots(), &procs, &first);
+        assert_eq!(watch.scan(&roots(), &procs, &first).len(), 1);
+        // `/clear` in that Claude: its record names the new conversation.
+        let other = "6c1f0e2a-3b4d-4e5f-8a9b-0c1d2e3f4a5b";
+        let cleared = Fake::default().line(200, "claude").session(200, other);
+        let changes = watch.scan(&roots(), &procs, &cleared);
+        assert!(
+            matches!(&changes[..], [(_, Change::Running(s))] if s.session_id.as_deref() == Some(other) && s.pid == 200),
+            "{changes:?}"
+        );
+        assert_eq!(watch.scan(&roots(), &procs, &cleared), vec![]);
+        assert_eq!(
+            watch.running()[0].1.session_id.as_deref(),
+            Some(other),
+            "the page that reloads is told the new one"
+        );
+        // A record that is gone says nothing new: what was reported stands.
+        let gone = Fake::default().line(200, "claude");
+        assert_eq!(watch.scan(&roots(), &procs, &gone), vec![]);
     }
 
     #[test]

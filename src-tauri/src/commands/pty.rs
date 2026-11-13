@@ -443,6 +443,51 @@ mod tests {
 
     const NODE: &str = "71629153-7cb7-497e-8ec9-908f7a4c5e7a";
 
+    #[test]
+    fn an_agent_started_in_a_shell_reaches_the_interface_in_the_shape_it_reads() {
+        // `AgentProcessEvent` in `src/ipc/pty.ts`: camelCase, the agent's id as the launch menu names it.
+        let event = |agent, session_id: Option<&str>, cwd: Option<&str>| {
+            serde_json::to_value(AgentProcessEvent {
+                node_id: NODE.into(),
+                sighting: Sighting {
+                    agent,
+                    pid: 4242,
+                    session_id: session_id.map(str::to_string),
+                    cwd: cwd.map(str::to_string),
+                },
+            })
+            .unwrap()
+        };
+        assert_eq!(
+            event(
+                Agent::Cursor,
+                Some("0b9c4b5e-6f1a-4c39-9d2e-8f6c2d1a7e10"),
+                Some("D:/work")
+            ),
+            serde_json::json!({
+                "nodeId": NODE,
+                "agent": "cursor",
+                "pid": 4242,
+                "sessionId": "0b9c4b5e-6f1a-4c39-9d2e-8f6c2d1a7e10",
+                "cwd": "D:/work",
+            })
+        );
+        // What is not known is not sent: the interface reads an absent key as "unknown".
+        assert_eq!(
+            event(Agent::Opencode, None, None),
+            serde_json::json!({ "nodeId": NODE, "agent": "opencode", "pid": 4242 })
+        );
+        for (agent, id) in [
+            (Agent::Claude, "claude"),
+            (Agent::Codex, "codex"),
+            (Agent::Gemini, "gemini"),
+            (Agent::Qwen, "qwen"),
+            (Agent::Aider, "aider"),
+        ] {
+            assert_eq!(event(agent, None, None)["agent"], id);
+        }
+    }
+
     fn spec(agent: Agent) -> SpawnSpec {
         SpawnSpec {
             cwd: "/work/app".into(),
