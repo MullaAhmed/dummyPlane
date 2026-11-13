@@ -7,7 +7,7 @@ import { addTerminal } from "@/agents/terminals";
 import { missionAddAgent, missionMerge, missionPrepare } from "@/ipc/mission";
 import { ptySendText } from "@/ipc/pty";
 import { buildSpawnSpec } from "@/nodes/terminal/launch";
-import { relaunchTerminal } from "@/nodes/terminal/registry";
+import { relaunchTerminal, stopTerminal } from "@/nodes/terminal/registry";
 import { relaunchSession } from "@/nodes/terminal/session";
 import type { TerminalPayload } from "@/nodes/types";
 import { agentActivityStore } from "@/store/agentActivity";
@@ -20,8 +20,11 @@ import { launchMission, mergeMember, reassignTask } from "./launch";
 import type { Member, Mission, QueuedTask } from "./mission";
 import { morningReport } from "./morning";
 import { afterReport, giveNext, pumpQueue } from "./queue";
-import { missionOf, updateMember } from "./store";
+import { missionOf, setMission, updateMember } from "./store";
+import { addTeamMember } from "./manager";
+import { isLaunching, markLaunching } from "@/agents/spawnFamily";
 import { activeCount } from "./active";
+import { activeWork } from "./activeWork";
 import { installRestartWatch } from "./restartWatch";
 import { fleetTool, managerTools } from "@/mcp/fleetTools";
 import { modelRouterStore } from "@/app/modelRouterSetting";
@@ -455,6 +458,30 @@ describe("who takes what", () => {
 
 describe("what the review of the queue found", () => {
   const stuck = { summary: "Bloqué", status: "bloque" as const, at: 60_000 };
+
+  it("stops the Manager's new agent of a mission that ended while it was created, and leaves it launching no more: it holds no task", async () => {
+    await setup({ manager: "m1", members: [member("batman", "Batman", { report: done, merged: true })] });
+    // The mission ends while git makes the new agent's worktree.
+    vi.mocked(missionAddAgent).mockImplementationOnce(async (_project, slug, agent) => {
+      setMission("chef", { state: "terminee" });
+      return { slug, branch: `dummyplane/${slug}-${agent.toLowerCase()}`, path: `C:/w/${agent.toLowerCase()}` };
+    });
+    // As the real one: the Manager's new sub-agent, its task on it, launching until its sub-task is typed.
+    vi.mocked(addTeamMember).mockImplementationOnce(async (workspaceId, managerId, payload, task) => {
+      const id = (await addTerminal(workspaceId, payload, { x: 0, y: 0 }, null, {} as never))!;
+      await nodesStore.getState().create(id, { workspaceId, kind: "terminal", payload: { ...payload, spawnedBy: managerId, task } });
+      markLaunching(id, true);
+      return id;
+    });
+    // A real stop: its process exits.
+    vi.mocked(stopTerminal).mockImplementationOnce((id) => terminalStatusStore.getState().set(id, { state: "exited", code: 0 }));
+    await pumpQueue("chef");
+    expect(stopTerminal).toHaveBeenCalledWith("n1");
+    // Its sub-task never comes: still "launching", it would stay at work until a restart.
+    expect(isLaunching("n1")).toBe(false);
+    // The duplicate guard lists no stopped agent as starting on its task.
+    expect(activeWork("w1").map((work) => work.agentId)).not.toContain("n1");
+  });
 
   it("merges one branch at a time: two git merges in one worktree break each other", async () => {
     await setup({ queue: [next, { ...next, title: "Docs" }], members: [member("batman", "Batman", { report: done }), member("aquaman", "Aquaman", { task: "Docs0", report: done })] });
