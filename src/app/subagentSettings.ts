@@ -16,10 +16,10 @@ export const MAX_SPAWNED_CHOICES: readonly number[] = [2, 4, 6, 8, 12];
 
 interface SubagentSettings {
   /**
-   * "Sub-agents open as terminals": Claude's built-in Agent/Task tool and its
-   * Workflow tool are denied (a PreToolUse hook, decided in Rust) and agents
-   * delegate with spawn_agent. Off, the built-in sub-agents and a Workflow's run
-   * and show as read-only mirrors.
+   * "Sub-agents open as terminals": Claude's built-in Agent/Task tool, its
+   * Workflow tool and a skill that forks into a sub-agent (`context: fork`, or
+   * seen forking, as /code-review) are denied (a PreToolUse hook, decided in Rust)
+   * and agents delegate with spawn_agent. Off, they run and show as read-only mirrors.
    */
   terminals: boolean;
   maxSpawned: number;

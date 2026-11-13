@@ -14,6 +14,7 @@ use super::activity::{
     Activity, HookSource, claude_activity, claude_session_ended, clean_message, codex_activity,
     gemini_activity,
 };
+use super::forked_skills::{self, Fork, SKILL_TOOL};
 use super::mcp;
 use super::subagents::SubagentHook;
 
@@ -145,11 +146,14 @@ pub fn set_subagent_terminals(on: bool) {
     SUBAGENT_TERMINALS.store(on, Ordering::Relaxed);
 }
 
-/// The tools refused while sub-agents open as terminals, which `claude_settings`'s
-/// `PreToolUse` matcher names exactly: Claude's built-in sub-agent tool, under its old
-/// name and its current one, and its Workflow tool, whose script fans out sub-agents
-/// the user could only watch as read-only mirrors.
+/// The tools refused while sub-agents open as terminals: Claude's built-in sub-agent
+/// tool, under its old name and its current one, and its Workflow tool, whose script
+/// fans out sub-agents the user could only watch as read-only mirrors.
 pub const BUILTIN_SUBAGENT_TOOLS: [&str; 3] = ["Task", "Agent", WORKFLOW_TOOL];
+
+/// What `claude_settings`'s `PreToolUse` matcher names exactly: the tools above, and
+/// the Skill tool, refused only for a skill that forks into a sub-agent of its own.
+pub const ASKED_TOOLS: [&str; 4] = ["Task", "Agent", WORKFLOW_TOOL, SKILL_TOOL];
 
 const WORKFLOW_TOOL: &str = "Workflow";
 
@@ -177,30 +181,67 @@ fn from_manager(url: &str) -> bool {
         .is_some_and(|(_, query)| query.split('&').any(|pair| pair == MANAGER_TAG))
 }
 
-/// What a `PreToolUse` gets back: a denial of the built-in sub-agent tool and of a
-/// Workflow while sub-agents open as terminals, else no decision. An agent's, a
-/// fleet's and a Manager's alike (`claude_settings` gives them all the hook); an
-/// agent and a fleet are sent to `spawn_agent`, a Manager, which lacks it, to its queue.
+/// A skill that forks is refused like a sub-agent: its work is done in the session, or in
+/// a terminal. The sub-agent is told not to call the skill, which would be refused again.
+fn spawn_agent_instead_of_a_skill(fork: &Fork) -> String {
+    let name = &fork.name;
+    let mut reason = format!(
+        "In dummyPlane, the {name} skill is refused: it runs in a background sub-agent the user cannot watch. Do its work yourself, or delegate it with the dummyplane spawn_agent tool so it opens as a terminal: write in the task what the skill is for and its arguments, and tell the sub-agent not to call the Skill tool for {name}."
+    );
+    if let Some(file) = &fork.file {
+        reason.push_str(&format!(
+            " Its instructions are in {}: the sub-agent can read them and follow them itself.",
+            file.display()
+        ));
+    }
+    reason
+}
+
+/// What a `PreToolUse` gets back: a denial of the built-in sub-agent tool, of a
+/// Workflow and of a skill that forks while sub-agents open as terminals, else no
+/// decision. An agent's, a fleet's and a Manager's alike (`claude_settings` gives
+/// them all the hook); an agent and a fleet are sent to `spawn_agent`, a Manager,
+/// which lacks it, to its queue.
 fn pre_tool_use(json: &Value, terminals: bool, manager: bool) -> Option<Value> {
-    let tool = json["tool_name"]
-        .as_str()
-        .filter(|tool| BUILTIN_SUBAGENT_TOOLS.contains(tool))?;
-    let reason = if manager {
-        QUEUE_INSTEAD
-    } else if tool == WORKFLOW_TOOL {
-        SPAWN_AGENTS_INSTEAD_OF_A_WORKFLOW
+    pre_tool_use_with(json, terminals, manager, forked_skills::lookup)
+}
+
+/// `pre_tool_use`, told by `fork` whether the skill a Skill call names forks.
+fn pre_tool_use_with(
+    json: &Value,
+    terminals: bool,
+    manager: bool,
+    fork: impl FnOnce(&Value) -> Option<Fork>,
+) -> Option<Value> {
+    if !terminals {
+        return None;
+    }
+    let tool = json["tool_name"].as_str()?;
+    let reason = if BUILTIN_SUBAGENT_TOOLS.contains(&tool) {
+        if manager {
+            QUEUE_INSTEAD.to_string()
+        } else if tool == WORKFLOW_TOOL {
+            SPAWN_AGENTS_INSTEAD_OF_A_WORKFLOW.to_string()
+        } else {
+            SPAWN_AGENT_INSTEAD.to_string()
+        }
+    } else if tool == SKILL_TOOL {
+        let fork = fork(json)?;
+        if manager {
+            QUEUE_INSTEAD.to_string()
+        } else {
+            spawn_agent_instead_of_a_skill(&fork)
+        }
     } else {
-        SPAWN_AGENT_INSTEAD
+        return None;
     };
-    terminals.then(|| {
-        json!({
-            "hookSpecificOutput": {
-                "hookEventName": "PreToolUse",
-                "permissionDecision": "deny",
-                "permissionDecisionReason": reason,
-            }
-        })
-    })
+    Some(json!({
+        "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "deny",
+            "permissionDecisionReason": reason,
+        }
+    }))
 }
 
 /// A hook or a status line. A panic in the sink is answered 500 rather than
@@ -403,6 +444,10 @@ fn status_of(request: &mut Request, token: &str, sink: &dyn HookSink) -> (u16, O
                     None => (204, None),
                 };
             }
+            if event == "PostToolUse" {
+                // A skill that forked is refused from now on, a bundled one included.
+                forked_skills::learn_from(&json);
+            }
             if claude_session_ended(event, json["reason"].as_str()) {
                 (Some(Activity::Idle), true)
             } else {
@@ -498,6 +543,7 @@ fn mcp_response(request: &mut Request, sink: &dyn HookSink) -> (u16, Option<Valu
 mod tests {
     use std::io::{Read, Write};
     use std::net::TcpStream;
+    use std::path::PathBuf;
     use std::sync::{Arc, Mutex, mpsc};
     use std::time::{Duration, Instant};
 
@@ -925,6 +971,15 @@ mod tests {
         response
     }
 
+    /// A tool refused must be one the settings file asks about, or the refusal never runs.
+    #[test]
+    fn the_matcher_asks_about_every_refused_tool_and_the_skill_tool() {
+        for tool in BUILTIN_SUBAGENT_TOOLS.iter().chain([&SKILL_TOOL]) {
+            assert!(ASKED_TOOLS.contains(tool), "{tool}");
+        }
+        assert_eq!(ASKED_TOOLS.len(), BUILTIN_SUBAGENT_TOOLS.len() + 1);
+    }
+
     #[test]
     fn only_the_built_in_subagent_tool_is_denied_and_only_while_the_switch_is_on() {
         let call = |tool: &str| json!({ "hook_event_name": "PreToolUse", "tool_name": tool });
@@ -1011,6 +1066,90 @@ mod tests {
         // Switched off, it runs, a Manager's too.
         assert_eq!(pre_tool_use(&call, false, false), None);
         assert_eq!(pre_tool_use(&call, false, true), None);
+    }
+
+    /// Regression: Batman's /code-review, a skill that forks, ran as a read-only mirror
+    /// with "Sub-agents as terminals" on: the Skill tool was never asked about.
+    #[test]
+    fn a_skill_that_forks_is_refused_and_one_that_runs_inline_is_not() {
+        let call = |skill: &str| {
+            json!({
+                "hook_event_name": "PreToolUse", "tool_name": "Skill",
+                "tool_input": { "skill": skill, "args": "601" }
+            })
+        };
+        let bundled = |json: &Value| {
+            (json["tool_input"]["skill"] == "code-review").then(|| Fork {
+                name: "code-review".into(),
+                file: None,
+            })
+        };
+        let reason = |json: &Value, manager| {
+            pre_tool_use_with(json, true, manager, bundled).unwrap()["hookSpecificOutput"]
+                ["permissionDecisionReason"]
+                .as_str()
+                .unwrap()
+                .to_string()
+        };
+        let agent = reason(&call("code-review"), false);
+        for phrase in [
+            "the code-review skill is refused",
+            "Do its work yourself",
+            "spawn_agent",
+            "not to call the Skill tool for code-review",
+        ] {
+            assert!(agent.contains(phrase), "{phrase}: {agent}");
+        }
+        assert!(!agent.contains("Its instructions are in"), "{agent}");
+        assert_eq!(reason(&call("code-review"), true), QUEUE_INSTEAD);
+        // Inline, it runs; switched off, a forking one runs too, and is not looked up.
+        assert_eq!(pre_tool_use_with(&call("run"), true, false, bundled), None);
+        let unasked = |_: &Value| -> Option<Fork> { panic!("looked up with the switch off") };
+        assert_eq!(
+            pre_tool_use_with(&call("code-review"), false, false, unasked),
+            None
+        );
+        // A skill that is a file: the sub-agent is pointed to it.
+        let file = PathBuf::from("C:/Users/u/.claude/skills/research/SKILL.md");
+        let on_disk = |_: &Value| {
+            Some(Fork {
+                name: "research".into(),
+                file: Some(file.clone()),
+            })
+        };
+        let decision = pre_tool_use_with(&call("research"), true, false, on_disk).unwrap();
+        let text = decision["hookSpecificOutput"]["permissionDecisionReason"]
+            .as_str()
+            .unwrap();
+        assert!(
+            text.contains(&format!("Its instructions are in {}", file.display())),
+            "{text}"
+        );
+    }
+
+    #[test]
+    fn a_skill_seen_forking_through_post_tool_use_is_refused_from_then_on() {
+        let (tx, rx) = mpsc::channel();
+        let server = start(Arc::new(TestSink::new(tx))).unwrap();
+        let path = format!("/hook/claude/n1?t={}", server.token);
+        // A name of this test's own: the list of skills seen forking is the process's.
+        let skill = "dummyplane-test-forking-skill";
+        let pre = json!({
+            "hook_event_name": "PreToolUse", "tool_name": "Skill",
+            "tool_input": { "skill": skill }
+        });
+        assert_eq!(pre_tool_use(&pre, true, false), None);
+        let post = json!({
+            "hook_event_name": "PostToolUse", "tool_name": "Skill",
+            "tool_input": { "skill": skill },
+            "tool_response": { "success": true, "commandName": skill, "status": "forked" }
+        });
+        let (status, _) = exchange(server.port, "POST", &path, &[], post.to_string().as_bytes());
+        assert_eq!(status, 204);
+        // Still an activity, as any tool's end.
+        assert!(rx.recv_timeout(Duration::from_secs(2)).is_ok());
+        let decision = pre_tool_use(&pre, true, false).unwrap();
+        assert_eq!(decision["hookSpecificOutput"]["permissionDecision"], "deny");
     }
 
     /// Puts the switch back on, even when an assertion fails.
@@ -1105,8 +1244,10 @@ mod tests {
             head.contains("\r\ncontent-type: application/json\r\n"),
             "{head}"
         );
-        // Another tool's call goes on, without a decision.
+        // Another tool's call goes on, without a decision; the Skill tool's too, for a
+        // skill that names none or has not been seen forking.
         for tool in [
+            "Skill",
             "TaskStop",
             "Bash",
             "mcp__dummyplane__spawn_agent",

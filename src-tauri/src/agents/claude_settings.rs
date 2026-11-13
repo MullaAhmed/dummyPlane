@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 
 use serde_json::{Value, json};
 
-use super::hooks_server::{BUILTIN_SUBAGENT_TOOLS, manager_hook_url, valid_node_id};
+use super::hooks_server::{ASKED_TOOLS, manager_hook_url, valid_node_id};
 use crate::pty::shell::{Permission, Role};
 
 const NOTIFICATIONS: &str =
@@ -42,8 +42,9 @@ pub fn settings_json(url: &str, role: Role) -> Value {
             // terminals" reaches the sessions already running. A fleet's go to
             // spawn_agent too, as regular agents in terminals of their own; a
             // Manager's team starts from the queue. The matcher names exactly the
-            // tools the hook server refuses, the Workflow tool among them.
-            "PreToolUse": [{ "matcher": BUILTIN_SUBAGENT_TOOLS.join("|"), "hooks": [pre_tool] }],
+            // tools the hook server may refuse: the Workflow tool among them, and the
+            // Skill tool, for a skill that forks into a sub-agent of its own.
+            "PreToolUse": [{ "matcher": ASKED_TOOLS.join("|"), "hooks": [pre_tool] }],
         },
         "permissions": permissions,
     })
@@ -352,7 +353,7 @@ mod tests {
         let agent = settings_json(URL, Role::Agent);
         assert_eq!(
             agent["hooks"]["PreToolUse"],
-            json!([{ "matcher": "Task|Agent|Workflow", "hooks": [hook] }])
+            json!([{ "matcher": "Task|Agent|Workflow|Skill", "hooks": [hook] }])
         );
         // A fleet has spawn_agent too: its built-in sub-agents are asked about the same way,
         // and the hook server answers it as an agent (`hooks_server::pre_tool_use`); only a
@@ -364,9 +365,10 @@ mod tests {
     }
 
     /// Regression: the matcher named Task and Agent only, so a Workflow's sub-agents
-    /// ran unasked with "Sub-agents as terminals" on, drawn as read-only mirrors.
+    /// ran unasked with "Sub-agents as terminals" on, drawn as read-only mirrors; then
+    /// it missed the Skill tool, through which a skill that forks (/code-review) did the same.
     #[test]
-    fn the_settings_file_asks_dummyplane_before_a_workflow_too() {
+    fn the_settings_file_asks_dummyplane_before_a_workflow_or_a_skill_too() {
         let dir = tempfile::tempdir().unwrap();
         for role in [Role::Agent, Role::Fleet, Role::Manager] {
             let path = write(dir.path(), "n1", URL, role, None, None).unwrap();
@@ -374,7 +376,7 @@ mod tests {
             let matcher = read["hooks"]["PreToolUse"][0]["matcher"].as_str().unwrap();
             assert_eq!(
                 matcher.split('|').collect::<Vec<_>>(),
-                ["Task", "Agent", "Workflow"],
+                ["Task", "Agent", "Workflow", "Skill"],
                 "{role:?}"
             );
         }
@@ -774,7 +776,7 @@ until [ -e release ] || [ ! -e statusline.sh ]; do sleep 0.05; done\n\
         assert_eq!(
             manager["hooks"]["PreToolUse"],
             json!([{
-                "matcher": "Task|Agent|Workflow",
+                "matcher": "Task|Agent|Workflow|Skill",
                 "hooks": [{ "type": "http", "url": format!("{URL}&role=manager"), "timeout": 2 }]
             }])
         );

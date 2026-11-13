@@ -16,7 +16,9 @@ use crate::agents::extensions::{self, ClaudeExtensions, Places};
 use crate::agents::hooks_server::{self, HookHit, HookServer, HookSink};
 use crate::agents::mcp::{Pending, Tokens};
 use crate::agents::subagents::{Emit, Job, SubagentHook, SubagentSnapshot, Subagents};
-use crate::agents::{claude_settings, claude_theme, codex_profile, mcp_files, prompts};
+use crate::agents::{
+    claude_settings, claude_theme, codex_profile, forked_skills, mcp_files, prompts,
+};
 use crate::error::{AppError, AppResult};
 use crate::pty::shell::{
     Agent, AgentHooks, ClaudeLaunch, CodexLaunch, find_git_bash, which_locate,
@@ -156,6 +158,8 @@ pub fn setup(app: &AppHandle) -> tauri::Result<()> {
     if let Some(home) = codex_profile::codex_home() {
         codex_profile::clear(&home);
     }
+    // The skills seen forking before: refused from the first call of this run.
+    forked_skills::init(app.path().app_data_dir()?.join("forked-skills.json"));
     let hooks = match hooks_server::start(AppSink(app.clone())) {
         Ok(server) => {
             log::info!("local server on port {}", server.port);
