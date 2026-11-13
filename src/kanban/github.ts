@@ -122,33 +122,47 @@ async function run(path: string, link: KanbanBoardLink | undefined, action: Remo
 }
 
 /**
+ * Each board's moves as they reach GitHub, one after the other in the order they were made: two quick moves of a
+ * card would otherwise race there, and GitHub keep whichever call ended last.
+ */
+const githubQueues = new Map<string, Promise<void>>();
+
+/**
  * Moves a card; a linked card's issue (and Project item) follows on GitHub.
- * The remote actions are decided on the board before the move; a failure is
+ * The card lands at once; the remote actions are decided on the board before
+ * the move, with the issue's state the earlier moves left; a failure is
  * told, and the card stays where it was dropped. `folder` is where `gh` runs
  * for a mission, which goes on while the user is in another project.
  */
 export async function moveCardWithGithub(nodeId: string, cardId: string, toColumnId: string, index?: number, folder?: string) {
   const before = boardOf(nodeId);
   if (!before) return;
+  save(nodeId, moveCard(before, cardId, toColumnId, index));
   // A place within its column changes nothing on GitHub: the Project is not read for it, nor its failure told.
   const linked = before.cards[cardId]?.github !== undefined && columnOf(before, cardId)?.id !== toColumnId;
   const path = linked ? (folder ?? projectPath()) : null;
-  let actions: RemoteAction[] = [];
+  if (!path) return;
+  const follow = () => followOnGithub(nodeId, cardId, toColumnId, before, path);
+  const queued = (githubQueues.get(nodeId) ?? Promise.resolve()).then(follow, follow);
+  githubQueues.set(nodeId, queued);
+  await queued;
+}
+
+async function followOnGithub(nodeId: string, cardId: string, toColumnId: string, before: KanbanPayload, path: string) {
+  const link = boardOf(nodeId)?.cards[cardId]?.github;
+  const decided = link ? updateCard(before, cardId, { github: link }) : before;
+  let actions: RemoteAction[];
   let failure: unknown = null;
-  if (path) {
-    try {
-      actions = remoteActionsForMove(before, cardId, toColumnId, await moveContext(nodeId, path, before.github));
-    } catch (error) {
-      failure = error;
-      // Without the Project, the issue's state still follows.
-      actions = remoteActionsForMove(before, cardId, toColumnId);
-    }
+  try {
+    actions = remoteActionsForMove(decided, cardId, toColumnId, await moveContext(nodeId, path, before.github));
+  } catch (error) {
+    failure = error;
+    // Without the Project, the issue's state still follows.
+    actions = remoteActionsForMove(decided, cardId, toColumnId);
   }
-  const current = boardOf(nodeId);
-  if (current) save(nodeId, moveCard(current, cardId, toColumnId, index));
   for (const action of actions) {
     try {
-      await run(path!, before.github, action);
+      await run(path, before.github, action);
       if (action.type === "setIssueState") setIssueState(nodeId, cardId, action.state);
     } catch (error) {
       failure ??= error;
