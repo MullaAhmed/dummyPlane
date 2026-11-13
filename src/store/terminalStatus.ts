@@ -63,6 +63,12 @@ export function isRestarting(nodeId: string): boolean {
   return (terminalStatusStore.getState().restarts[nodeId] ?? 0) > 0;
 }
 
+/** Tells, when called, whether the terminal is still the one it was at this call: closed since (`remove`), it is not. */
+export function stillOpen(nodeId: string): () => boolean {
+  const life = lives.get(nodeId) ?? 0;
+  return () => (lives.get(nodeId) ?? 0) === life;
+}
+
 /** Whether closing the terminal would end a session: its process runs, or it is being started again. */
 export function isAlive(nodeId: string): boolean {
   return isRunning(nodeId) || isRestarting(nodeId);
