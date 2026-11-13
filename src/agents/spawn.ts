@@ -18,6 +18,7 @@ import { whenReady } from "@/mission/ready";
 import { MODEL_ID, modelLabel, readLevel } from "@/mission/router";
 import { newTerminalPayload } from "@/nodes/terminal/launch";
 import { freshText, quietFor } from "@/nodes/terminal/registry";
+import { cutWhole } from "@/lib/cut";
 import { MAX_STORED_TASK, type TerminalPayload } from "@/nodes/types";
 import { isManagerNode, nodeNameOf, nodesStore, terminalOf, type NodeRecord } from "@/store/nodes";
 import { isRunning } from "@/store/terminalStatus";
@@ -124,7 +125,7 @@ export function childPayload(parent: TerminalPayload, parentId: string, name: st
   // An unattended mission agent's rules (no git push…) bind what it delegates too.
   if (parent.permission) payload.permission = parent.permission;
   payload.spawnedBy = parentId;
-  if (task) payload.task = task.slice(0, MAX_STORED_TASK);
+  if (task) payload.task = cutWhole(task, MAX_STORED_TASK);
   return payload;
 }
 

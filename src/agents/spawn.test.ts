@@ -11,6 +11,7 @@ import { notify } from "@/mission/events";
 import { NEW_MISSION, type Member, type Mission } from "@/mission/mission";
 import { whenReady } from "@/mission/ready";
 import { fleetSession } from "@/nodes/terminal/launch";
+import { HALF_CHARACTER } from "@/lib/cut";
 import { MAX_STORED_TASK, type TerminalPayload } from "@/nodes/types";
 import { agentActivityStore } from "@/store/agentActivity";
 import { nodesStore, terminalOf } from "@/store/nodes";
@@ -237,6 +238,15 @@ describe("spawn_agent", () => {
     expect(title.length).toBeLessThanOrEqual(60);
     expect(title.startsWith("Refactor the very long module")).toBe(true);
     expect(title).not.toContain("\n");
+  });
+
+  it("stores a task cut at its limit without the half of an emoji the cut may leave: Rust refuses a lone surrogate when read_node reads it", async () => {
+    // The emoji is two UTF-16 units and starts on the last unit that is kept.
+    const task = `${"a".repeat(MAX_STORED_TASK - 1)}😀 and the rest of the brief`;
+    await spawnAgent("batman", { task });
+    const stored = vi.mocked(addTerminal).mock.calls[0][1].task!;
+    expect(stored).toBe("a".repeat(MAX_STORED_TASK - 1));
+    expect(stored).not.toMatch(HALF_CHARACTER);
   });
 
   it("says a brief in a line for its title, and keeps the task's start for the line under its name", async () => {
