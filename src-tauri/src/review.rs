@@ -350,6 +350,8 @@ pub fn file_diff(dir: &Path, file: &ChangedFile, base: Option<&str>) -> Result<S
                 "diff",
                 "--no-color",
                 "--no-ext-diff",
+                // Nor a program the repository's config names to make text of the file (`textconv`).
+                "--no-textconv",
                 "--no-index",
                 "--",
                 "/dev/null",
@@ -365,6 +367,7 @@ pub fn file_diff(dir: &Path, file: &ChangedFile, base: Option<&str>) -> Result<S
         "diff",
         "--no-color",
         "--no-ext-diff",
+        "--no-textconv",
         "--no-relative",
         "-M",
         from.as_str(),
@@ -629,6 +632,39 @@ mod tests {
         assert!(a.contains("-deux") && a.contains("+trois"), "{a}");
         let b = file_diff(dir, &files[1], None).unwrap();
         assert!(b.contains("+nouveau"), "{b}");
+    }
+
+    /// A repository's config may name a program to turn a file into text for a diff (`diff.<driver>.textconv`),
+    /// and its `.gitattributes` gives that driver to its files: the panel's diff of a file, tracked or not, never
+    /// runs it, and shows the file's own text.
+    #[test]
+    fn a_file_s_diff_runs_no_program_the_repository_names() {
+        let Some(repo) = repo() else { return };
+        let dir = repo.path();
+        sh(
+            dir,
+            &[
+                "config",
+                "diff.evil.textconv",
+                "sh -c 'echo ran > textconv-ran; cat \"$1\"' -",
+            ],
+        );
+        std::fs::write(dir.join(".gitattributes"), "*.txt diff=evil\n").unwrap();
+        std::fs::write(dir.join("a.txt"), "un\ntrois\n").unwrap();
+        std::fs::write(dir.join("b.txt"), "nouveau\n").unwrap();
+        let files = changes(dir, None).unwrap().files;
+        for name in ["a.txt", "b.txt"] {
+            let file = files.iter().find(|file| file.path == name).unwrap();
+            let diff = file_diff(dir, file, None).unwrap();
+            assert!(
+                diff.contains("+trois") || diff.contains("+nouveau"),
+                "{diff}"
+            );
+        }
+        assert!(
+            !dir.join("textconv-ran").exists(),
+            "git ran the program the repository's diff.evil.textconv names"
+        );
     }
 
     /// A path is never a pattern: `[a].txt` (a Next.js `[id]` route) also matched `a.txt`,
