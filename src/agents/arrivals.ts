@@ -2,6 +2,7 @@ import { toast } from "sonner";
 import { messages } from "@/i18n";
 import { workspacesStore } from "@/store/workspaces";
 import { agentsMessages } from "./messages";
+import { withPlane } from "@/notifications/capture";
 
 /** What brings a terminal nobody asked for onto the canvas: it words the notice. */
 export type ArrivalSource = "mission" | "spawn";
@@ -41,16 +42,18 @@ function flush(key: string) {
   const where = workspaceId === activeId ? undefined : workspaces.find((w) => w.id === workspaceId)?.name;
   const t = messages(agentsMessages).arrival;
   const first = agents[0];
-  toast(t[source](agents.map((a) => a.name), where), {
-    action: {
-      label: t.show,
-      // Imported late: the commands reach into the agents.
-      onClick: () =>
-        void import("@/commands/goToRun").then(({ goTo }) =>
-          goTo({ key: first.nodeId, kind: "terminal", label: first.name, keywords: [], workspaceId, targetId: first.nodeId }),
-        ),
-    },
-  });
+  withPlane({ nodeId: first.nodeId, workspaceId }, () =>
+    toast(t[source](agents.map((a) => a.name), where), {
+      action: {
+        label: t.show,
+        // Imported late: the commands reach into the agents.
+        onClick: () =>
+          void import("@/commands/goToRun").then(({ goTo }) =>
+            goTo({ key: first.nodeId, kind: "terminal", label: first.name, keywords: [], workspaceId, targetId: first.nodeId }),
+          ),
+      },
+    }),
+  );
 }
 
 /** Tells, without taking the focus, that terminals arrived on their own; several at once are one notice. */

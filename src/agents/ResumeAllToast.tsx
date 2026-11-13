@@ -10,9 +10,10 @@ import { isLiveInRust, resumeTerminal } from "@/nodes/terminal/registry";
 import { restartByHand } from "@/nodes/terminal/restartByHand";
 import { nodesStore, useNodes, type NodeRecord } from "@/store/nodes";
 import { terminalStatusStore, type TerminalStatus } from "@/store/terminalStatus";
-import { useMessages } from "@/i18n";
+import { messages, useMessages } from "@/i18n";
 import { agentsMessages } from "./messages";
 import { workspaceResumeOffer, type ResumeOffer } from "./resumable";
+import { withPlane } from "@/notifications/capture";
 
 /**
  * The offer sits bottom-right, where the agents panel may reach: the panel stops above it. `leftOut`: it has the
@@ -106,10 +107,13 @@ export function offerResumeAll(workspaceId: string) {
   const offer = offerOf(nodesStore.getState().nodes, terminalStatusStore.getState().statuses, workspaceId);
   if (offer.resume.length === 0) return;
   resumeOfferStore.setState({ open: true, leftOut: offer.stayStopped.length > 0 });
-  toast.custom(() => <ResumeAllToast workspaceId={workspaceId} />, {
-    id: toastId(workspaceId),
-    duration: Infinity,
-  });
+  // A component: its words are the history's entry.
+  withPlane({ workspaceId, text: messages(agentsMessages).resumeAll.title }, () =>
+    toast.custom(() => <ResumeAllToast workspaceId={workspaceId} />, {
+      id: toastId(workspaceId),
+      duration: Infinity,
+    }),
+  );
 }
 
 /** Leaving the workspace hides the offer without answering it. */

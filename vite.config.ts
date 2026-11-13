@@ -4,12 +4,14 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { fileURLToPath, URL } from "node:url";
 import { excalidrawThinSelection } from "./scripts/excalidraw-thin-selection.mjs";
+import { routeSonner } from "./scripts/route-sonner.mjs";
 
 const host = process.env.TAURI_DEV_HOST;
 
 // https://vite.dev/config/
 export default defineConfig(() => ({
-  plugins: [react(), tailwindcss(), excalidrawThinSelection()],
+  // Every popup is recorded in the notification history: "sonner" is the shim's, see scripts/route-sonner.mjs.
+  plugins: [routeSonner(), react(), tailwindcss(), excalidrawThinSelection()],
   // In dev, Excalidraw is pre-bundled apart from the app's plugins: the same rewrite runs there.
   optimizeDeps: { rolldownOptions: { plugins: [excalidrawThinSelection()] } },
   resolve: {

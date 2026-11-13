@@ -9,6 +9,7 @@ import type { Member, Mission } from "./mission";
 import { missionMessages } from "./messages";
 import { pumpQueue } from "./queue";
 import { isFleetClosed, missionOf, missionRunner } from "./store";
+import { withPlane } from "@/notifications/capture";
 
 /** The running missions, of fleets still open, that `nodeId` is a member of. */
 function memberships(nodeId: string): { fleetId: string; mission: Mission; member: Member }[] {
@@ -36,7 +37,7 @@ function restartBegan(nodeId: string) {
     // The one restart that crosses the line: Resume all's next ones, past it already, say nothing more.
     if (!newlyCounted || active !== mission.maxAgents + 1) continue;
     notify(missionRunner(fleetId), messages(agentMessages).lines.pastMaxAgents(member.name, active, mission.maxAgents));
-    toast(messages(missionMessages).pastMaxAgents(member.name, mission.name ?? "", active, mission.maxAgents));
+    withPlane({ nodeId }, () => toast(messages(missionMessages).pastMaxAgents(member.name, mission.name ?? "", active, mission.maxAgents)));
   }
 }
 
