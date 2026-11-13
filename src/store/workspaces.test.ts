@@ -164,6 +164,18 @@ describe("workspaces store", () => {
     expect(state().activeId).toBe("w1");
   });
 
+  it("keeps the tab the user selected while the active one was being deleted", async () => {
+    fakeBackend(["A", "B", "C"]);
+    await state().load("p1");
+    state().select("w2");
+    const removed = state().remove("w2");
+    // Clicked while the backend deletes it.
+    state().select("w1");
+    await removed;
+    expect(state().activeId).toBe("w1");
+    expect(names()).toEqual(["A", "C"]);
+  });
+
   it("saves the pantheon of a workspace", async () => {
     const db = fakeBackend(["A"]);
     await state().load("p1");

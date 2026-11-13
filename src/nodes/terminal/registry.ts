@@ -450,9 +450,10 @@ export function pasteImageIntoTerminal(nodeId: string, data: DataTransfer): bool
   return image !== null;
 }
 
-/** Stops the process and frees the terminal of a node removed from the canvas. */
+/** Stops the process and frees the terminal of a node removed from the canvas; its record waits, unsaved, for an undo. */
 export function disposeTerminal(nodeId: string) {
   stopTerminal(nodeId);
+  nodesStore.getState().close(nodeId);
   // Before the xterm: its context is freed now, and the pool does not lend it again.
   webglPool.forget(nodeId);
   entries.get(nodeId)?.term.dispose();

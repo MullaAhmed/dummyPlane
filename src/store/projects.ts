@@ -71,6 +71,8 @@ export interface ProjectsState {
 }
 
 export function createProjectsStore(deps: ProjectsDeps) {
+  /** Counts the opens asked for: only the last one asked shows its project. */
+  let opens = 0;
   return createStore<ProjectsState>()((set, get) => ({
     projects: [],
     activeId: null,
@@ -90,9 +92,12 @@ export function createProjectsStore(deps: ProjectsDeps) {
     },
 
     open: async (id) => {
+      const asked = ++opens;
       await flushAll();
       await openProject(id);
       await deps.loadWorkspaces(id);
+      // Another project was asked for meanwhile: it is the one to show, with its own workspaces.
+      if (asked !== opens) return;
       const now = Date.now();
       set((s) => ({
         activeId: id,
