@@ -166,6 +166,14 @@ describe("what dummyPlane types to agents, in English", () => {
       expect(await mergeMission("chef")).toBe("Branch dummyplane/auth:\nBatman: merged (uncommitted changes in its worktree are not merged)\nAquaman: conflict, merge undone — a.ts");
     }));
 
+  it("tells the Manager a merge went unsigned when the repository alone names its signing program", () =>
+    english(async () => {
+      const done = { summary: "ok", status: "termine" as const, at: 1 };
+      await setup({ state: "en_cours", worktree: "C:/w/auth", branch: "dummyplane/auth", members: [member("batman", "Batman", true, { report: done })] });
+      vi.mocked(missionMerge).mockResolvedValue({ merge: { kind: "merged" }, uncommitted: false, unsigned: true });
+      expect(await mergeMission("chef")).toBe("Branch dummyplane/auth:\nBatman: merged (not signed: the signing program is set in this repository only)");
+    }));
+
   it("refuses a reassignment in English, and tells the previous agent in English", () =>
     english(async () => {
       const report = { summary: "API done", status: "termine" as const, at: 1 };

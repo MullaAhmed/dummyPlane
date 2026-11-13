@@ -406,8 +406,8 @@ export function mergeMember(fleetId: string, worktree: string, member: Member): 
   const m = t().merge;
   return oneMergeAtATime(worktree, async () => {
     try {
-      const { merge, uncommitted } = await missionMerge(worktree, member.worktree, member.branch);
-      const note = uncommitted ? m.uncommitted : "";
+      const { merge, uncommitted, unsigned } = await missionMerge(worktree, member.worktree, member.branch);
+      const note = (uncommitted ? m.uncommitted : "") + (unsigned ? m.unsigned : "");
       if (merge.kind === "conflict") return { line: m.conflict(member.name, merge.files.join(", "), note), merged: false, uncommitted };
       const said = merge.kind === "merged" ? m.merged : member.merged ? m.already : m.empty;
       // It may have taken another task meanwhile: that one is not merged.

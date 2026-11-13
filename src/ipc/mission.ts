@@ -13,6 +13,8 @@ export interface MergeReport {
   merge: Merge;
   /** Changes left uncommitted in the agent's worktree: not merged. */
   uncommitted: boolean;
+  /** The merge's commit went unsigned where the user signs: the signing program is set in the repository only. */
+  unsigned?: boolean;
 }
 
 export interface Cleanup {

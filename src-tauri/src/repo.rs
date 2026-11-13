@@ -735,6 +735,36 @@ mod tests {
         assert_eq!(raw(&root, &["branch", "--show-current"]).trim(), "main");
     }
 
+    /// A signing program that leaves `gpg-ran` in the folder git runs it in, then fails: what a repository may name.
+    fn signer(dir: &Path) -> String {
+        let script = dir.join("sign.sh");
+        std::fs::write(&script, "#!/bin/sh\necho ran > gpg-ran\nexit 1\n").unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = std::fs::Permissions::from_mode(0o755);
+            std::fs::set_permissions(&script, mode).unwrap();
+        }
+        script.to_string_lossy().replace('\\', "/")
+    }
+
+    /// The git window's Commit signs as the user's terminal would, with the signing program the repository names
+    /// (a per-repository identity): here one that fails, whose failure is the commit's.
+    #[test]
+    fn a_commit_signs_with_the_repository_s_own_program() {
+        let (dir, root) = repo();
+        let program = signer(dir.path());
+        raw(&root, &["config", "commit.gpgsign", "true"]);
+        raw(&root, &["config", "gpg.program", &program]);
+        fs::write(root.join("a.txt"), "two\n").unwrap();
+        let err = commit(&root, &[file(&root, "a.txt")], "two").unwrap_err();
+        assert!(
+            root.join("gpg-ran").exists(),
+            "the repository's signing program did not run"
+        );
+        assert!(err.contains("gpg"), "{err}");
+    }
+
     /// The git window's Commit is the user's: it runs the repository's hooks as their terminal would, those of
     /// `.git/hooks` and those of a folder its config names (Husky's `core.hooksPath`), and a hook that refuses the
     /// commit is the commit's error, with what the hook said.

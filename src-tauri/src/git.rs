@@ -19,8 +19,49 @@ const NO_FSMONITOR: [&str; 2] = ["-c", "core.fsmonitor=false"];
 const NO_SUBMODULE_STATUS: [&str; 2] = ["-c", "diff.ignoreSubmodules=dirty"];
 
 /// The keys of a config whose values git runs, or that point to what it runs: a filter's commands (and whether it
-/// must run), a merge driver's, and the folder of the hooks. Read with the includes, which name more files to watch.
-const DRIVERS: &str = r"^(filter\..+\.(clean|smudge|process|required)|merge\..+\.driver|core\.hookspath|include\.path|includeif\..+\.path)$";
+/// must run), a merge driver's, the folder of the hooks, the signing programs, the SSH command and the credential
+/// helpers; and whether commits are signed. Read with the includes, which name more files to watch.
+const DRIVERS: &str = r"^(filter\..+\.(clean|smudge|process|required)|merge\..+\.driver|core\.hookspath|gpg\.program|gpg\..+\.program|gpg\.ssh\.defaultkeycommand|core\.sshcommand|credential\.helper|credential\..+\.helper|commit\.gpgsign|include\.path|includeif\..+\.path)$";
+
+/// A program git runs to sign a commit: `gpg.program`, a format's own (`gpg.ssh.program`…), or the one that finds
+/// an SSH key.
+fn is_signing_program(key: &str) -> bool {
+    key == "gpg.program"
+        || key == "gpg.ssh.defaultkeycommand"
+        || (key.starts_with("gpg.") && key.ends_with(".program"))
+}
+
+/// A credential helper, for every remote or for one (`credential.<url>.helper`): a list, which an empty value empties.
+fn is_credential_helper(key: &str) -> bool {
+    key == "credential.helper" || (key.starts_with("credential.") && key.ends_with(".helper"))
+}
+
+/// What git connects or signs with, which a click uses as the repository says and dummyPlane on its own never.
+fn is_user_program(key: &str) -> bool {
+    is_signing_program(key) || is_credential_helper(key) || key == "core.sshcommand"
+}
+
+/// Whether a signing program is set in the repository's own config and nowhere in the user's: dummyPlane's own
+/// commits then go unsigned.
+fn signing_here_only(entries: &[ConfigEntry]) -> bool {
+    entries.iter().any(|entry| {
+        entry.local
+            && is_signing_program(&entry.key)
+            && !entries
+                .iter()
+                .any(|other| !other.local && other.key == entry.key)
+    })
+}
+
+/// A config boolean as git reads it; a key written without `=` is true.
+fn config_true(value: Option<&str>) -> bool {
+    value.is_none_or(|value| {
+        matches!(
+            value.trim().to_ascii_lowercase().as_str(),
+            "true" | "yes" | "on"
+        ) || value.trim().parse::<i64>().is_ok_and(|n| n != 0)
+    })
+}
 
 /// How long reading a repository's config may take: past it, dummyPlane runs none of its git.
 const CONFIG_READ_LIMIT: Duration = Duration::from_secs(10);
@@ -40,8 +81,9 @@ pub(crate) enum Asked {
     /// dummyPlane on its own: the branch chip, the review panel, the Code Studio, a mission's merges and cleanup.
     /// No hook runs, neither from `.git/hooks` nor from a folder the config names.
     Unasked,
-    /// A git-window button the user clicked (Commit, Push, Switch, Discard): the repository's hooks run, as in
-    /// their terminal. Filters and merge drivers stay off all the same (`writable`).
+    /// A git-window button the user clicked (Commit, Push, Switch, Discard): the repository's hooks run, and its
+    /// signing, SSH and credential settings are used, as in their terminal. Filters and merge drivers stay off all
+    /// the same (`writable`).
     Clicked,
 }
 
@@ -114,6 +156,12 @@ fn command_with(dir: &Path, asked: Asked, env: &[(&str, &OsStr)]) -> Result<Comm
         .args(NO_SUBMODULE_STATUS)
         .arg("-C")
         .arg(dir);
+    if asked == Asked::Unasked {
+        // Nobody is there to answer: an authentication that fails says nothing rather than asks.
+        command
+            .env("GIT_TERMINAL_PROMPT", "0")
+            .env("GCM_INTERACTIVE", "never");
+    }
     // As `-c` would, but a driver's name may hold a `=`, which `-c` would read as the end of the key. After those
     // the environment already gives.
     let base = std::env::var("GIT_CONFIG_COUNT")
@@ -161,6 +209,19 @@ pub(crate) fn writable(dir: &Path) -> Result<(), String> {
     ))
 }
 
+/// Whether dummyPlane's own commits in this repository go unsigned where the user signs: commits are signed here,
+/// with a signing program set in the repository's own config only, which `command` does not run unasked (and turns
+/// signing off for). A mission's merge says so to its Manager.
+pub(crate) fn unsigned(dir: &Path) -> Result<bool, String> {
+    let entries = local_entries(dir, &[])?;
+    let signs = entries
+        .iter()
+        .rev()
+        .find(|entry| entry.key == "commit.gpgsign")
+        .is_some_and(|entry| config_true(entry.value.as_deref()));
+    Ok(signs && signing_here_only(&entries))
+}
+
 fn modified(path: &Path) -> Option<SystemTime> {
     std::fs::metadata(path)
         .and_then(|meta| meta.modified())
@@ -169,6 +230,10 @@ fn modified(path: &Path) -> Option<SystemTime> {
 
 /// The driver keys of the repository at `dir` (`Drivers`), read again only when one of its config files changed.
 fn local_entries(dir: &Path, env: &[(&str, &OsStr)]) -> Result<Vec<ConfigEntry>, String> {
+    // Another environment (a test's own global config) reads other entries: never cached.
+    if !env.is_empty() {
+        return Ok(read_drivers(dir, env)?.entries);
+    }
     if let Some(read) = lock(&DRIVERS_READ).get(dir)
         && read.watched.iter().all(|(path, at)| modified(path) == *at)
     {
@@ -329,7 +394,9 @@ fn parse_config_entries(output: &str) -> Vec<ConfigEntry> {
 
 /// What dummyPlane's git takes instead of each driver the repository's own config defines: the user's own value
 /// for it, global or system, when the repository replaced one; else nothing to run (a filter not required). On a
-/// call nobody clicked, no hook either: an empty hooks folder leaves out `.git/hooks` too.
+/// call nobody clicked, no hook either (an empty hooks folder leaves out `.git/hooks` too), and the repository's
+/// signing programs, SSH command and credential helpers give way to the user's own, or to none: then its commits
+/// are not signed (`unsigned`).
 fn overrides_of(entries: &[ConfigEntry], asked: Asked) -> Vec<(String, String)> {
     let mut overrides: Vec<(String, String)> = Vec::new();
     if asked == Asked::Unasked {
@@ -341,9 +408,27 @@ fn overrides_of(entries: &[ConfigEntry], asked: Asked) -> Vec<(String, String)> 
             || key.starts_with("includeif.")
             // Clicked, the hooks run as the repository says; unasked, none does.
             || key == "core.hookspath"
+            // Data, as the keys are: whether to sign, not with what.
+            || key == "commit.gpgsign"
             || overrides.iter().any(|(seen, _)| seen == key)
         {
             continue;
+        }
+        if is_user_program(key) {
+            if asked == Asked::Clicked {
+                continue;
+            }
+            if is_credential_helper(key) {
+                // The list emptied, then the user's own helpers, in their order.
+                overrides.push((key.to_string(), String::new()));
+                overrides.extend(
+                    entries
+                        .iter()
+                        .filter(|other| !other.local && other.key == key)
+                        .filter_map(|other| Some((key.to_string(), other.value.clone()?))),
+                );
+                continue;
+            }
         }
         let users = entries
             .iter()
@@ -359,6 +444,9 @@ fn overrides_of(entries: &[ConfigEntry], asked: Asked) -> Vec<(String, String)> 
             key.to_string(),
             users.unwrap_or_else(|| neutral.to_string()),
         ));
+    }
+    if asked == Asked::Unasked && signing_here_only(entries) {
+        overrides.push(("commit.gpgsign".into(), "false".into()));
     }
     overrides
 }
@@ -625,6 +713,62 @@ mod tests {
         assert!(recent_enough("not git").is_err());
     }
 
+    /// Unasked, the repository's signing programs, SSH command and credential helpers give way to the user's
+    /// own, or to none, and with no signing program of the user's its commits go unsigned; clicked, git reads them as
+    /// it does.
+    #[test]
+    fn overrides_the_repository_s_signing_ssh_and_credentials_unasked() {
+        let entry = |local: bool, key: &str, value: &str| ConfigEntry {
+            local,
+            origin: None,
+            key: key.into(),
+            value: Some(value.into()),
+        };
+        let entries = [
+            entry(false, "credential.helper", "manager"),
+            entry(false, "gpg.program", "C:/gpg/gpg.exe"),
+            entry(true, "commit.gpgsign", "true"),
+            entry(true, "gpg.program", "evil"),
+            entry(true, "gpg.ssh.program", "evil-ssh-keygen"),
+            entry(true, "core.sshcommand", "evil-ssh"),
+            entry(true, "credential.helper", "evil-helper"),
+        ];
+        assert_eq!(overrides_of(&entries, Asked::Clicked), Vec::new());
+        let expected = [
+            ("core.hookspath", ""),
+            ("gpg.program", "C:/gpg/gpg.exe"),
+            ("gpg.ssh.program", ""),
+            ("core.sshcommand", ""),
+            ("credential.helper", ""),
+            ("credential.helper", "manager"),
+            ("commit.gpgsign", "false"),
+        ]
+        .map(|(key, value)| (key.to_string(), value.to_string()));
+        assert_eq!(overrides_of(&entries, Asked::Unasked), expected);
+        assert!(signing_here_only(&entries));
+        // The user's own `gpg.ssh.program` too: nothing of the repository's is left to sign with.
+        let mut users = entries.to_vec();
+        users.push(entry(false, "gpg.ssh.program", "C:/ssh/ssh-keygen.exe"));
+        assert!(!signing_here_only(&users));
+    }
+
+    #[test]
+    fn reads_a_config_boolean_as_git_does() {
+        for yes in [
+            None,
+            Some("true"),
+            Some("Yes"),
+            Some("on"),
+            Some("1"),
+            Some("2"),
+        ] {
+            assert!(config_true(yes), "{yes:?}");
+        }
+        for no in [Some("false"), Some("no"), Some("off"), Some("0"), Some("")] {
+            assert!(!config_true(no), "{no:?}");
+        }
+    }
+
     #[test]
     fn reads_the_drivers_and_overrides_the_repository_s_own() {
         let output = [
@@ -735,6 +879,74 @@ mod tests {
         out.status
             .success()
             .then(|| String::from_utf8_lossy(&out.stdout).trim().to_string())
+    }
+
+    /// What git reads of every `key` on a call `asked` for, with `env` (a test's own global config).
+    fn read_all_as(dir: &Path, asked: Asked, env: &[(&str, &OsStr)], key: &str) -> Vec<String> {
+        let out = command_with(dir, asked, env)
+            .unwrap()
+            .args(["config", "--get-all", key])
+            .output()
+            .unwrap();
+        String::from_utf8_lossy(&out.stdout)
+            .lines()
+            .map(str::to_string)
+            .collect()
+    }
+
+    /// Unasked, git connects, if ever, with the user's own SSH command and credential helpers, never those the
+    /// repository names; clicked (Push), with the repository's, as the user's terminal would.
+    #[test]
+    fn an_unasked_call_takes_the_user_s_ssh_and_credentials_and_a_clicked_one_the_repository_s() {
+        let Some(dir) = test_repos::with_local_filter() else {
+            return;
+        };
+        let root = dir.path();
+        let global = root.join("global.gitconfig");
+        std::fs::write(
+            &global,
+            "[core]\n\tsshCommand = ssh -i mine\n[credential]\n\thelper = manager\n",
+        )
+        .unwrap();
+        let env = [("GIT_CONFIG_GLOBAL", global.as_os_str())];
+        test_repos::git(root, &["config", "core.sshCommand", "evil-ssh"]);
+        test_repos::git(root, &["config", "credential.helper", "evil-helper"]);
+        assert_eq!(
+            read_all_as(root, Asked::Unasked, &env, "core.sshCommand")
+                .last()
+                .map(String::as_str),
+            Some("ssh -i mine")
+        );
+        assert_eq!(
+            read_all_as(root, Asked::Clicked, &env, "core.sshCommand")
+                .last()
+                .map(String::as_str),
+            Some("evil-ssh")
+        );
+        // An empty helper empties git's list: what follows the last one is what git asks.
+        let helpers = read_all_as(root, Asked::Unasked, &env, "credential.helper");
+        let asked = helpers
+            .rsplit(|helper| helper.is_empty())
+            .next()
+            .unwrap()
+            .to_vec();
+        // The user's own, system and global (this test's), as listed before the repository's.
+        let users: Vec<String> = helpers
+            .iter()
+            .take_while(|helper| *helper != "evil-helper")
+            .cloned()
+            .collect();
+        assert!(users.contains(&"manager".to_string()), "{helpers:?}");
+        assert_eq!(asked, users, "{helpers:?}");
+        let helpers = read_all_as(root, Asked::Clicked, &env, "credential.helper");
+        assert_eq!(helpers.last().map(String::as_str), Some("evil-helper"));
+        // Nothing of the user's: nothing to run.
+        assert_eq!(
+            read_all_as(root, Asked::Unasked, &[], "core.sshCommand")
+                .last()
+                .map(String::as_str),
+            Some("")
+        );
     }
 
     /// Unasked, git finds no hook to run, from `.git/hooks` or from a folder the repository names; clicked, it

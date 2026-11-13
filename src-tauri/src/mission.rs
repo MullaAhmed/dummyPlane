@@ -33,6 +33,9 @@ pub struct MergeReport {
     pub merge: Merge,
     /// The agent left changes uncommitted in its worktree: they are not merged.
     pub uncommitted: bool,
+    /// The merge's commit went unsigned where the user signs: the signing program is set in this repository only,
+    /// and dummyPlane's own git runs none it names (`git::unsigned`).
+    pub unsigned: bool,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
@@ -187,12 +190,14 @@ pub fn merge_agent(mission: &Path, agent: &Path, branch: &str) -> Result<MergeRe
         return Ok(MergeReport {
             merge: Merge::Empty,
             uncommitted,
+            unsigned: false,
         });
     }
     match git(mission, &["merge", "--no-ff", "--no-edit", branch]) {
         Ok(_) => Ok(MergeReport {
             merge: Merge::Merged,
             uncommitted,
+            unsigned: crate::git::unsigned(mission)?,
         }),
         Err(err) => {
             let files: Vec<String> = git(mission, &["diff", "--name-only", "--diff-filter=U"])
@@ -213,6 +218,7 @@ pub fn merge_agent(mission: &Path, agent: &Path, branch: &str) -> Result<MergeRe
             Ok(MergeReport {
                 merge: Merge::Conflict { files },
                 uncommitted,
+                unsigned: false,
             })
         }
     }
@@ -588,7 +594,8 @@ mod tests {
             merge_agent(m, Path::new(&hulk.path), &hulk.branch).unwrap(),
             MergeReport {
                 merge: Merge::Merged,
-                uncommitted: false
+                uncommitted: false,
+                unsigned: false
             }
         );
         assert!(m.join("login.txt").exists());
@@ -596,7 +603,8 @@ mod tests {
             merge_agent(m, Path::new(&wolverine.path), &wolverine.branch).unwrap(),
             MergeReport {
                 merge: Merge::Empty,
-                uncommitted: true
+                uncommitted: true,
+                unsigned: false
             }
         );
     }
@@ -651,6 +659,45 @@ mod tests {
                 folder.display()
             );
         }
+    }
+
+    /// A signing program that leaves `gpg-ran` in the folder git runs it in, then fails: what a repository may name.
+    fn signer(dir: &Path) -> String {
+        let script = dir.join("sign.sh");
+        std::fs::write(&script, "#!/bin/sh\necho ran > gpg-ran\nexit 1\n").unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = std::fs::Permissions::from_mode(0o755);
+            std::fs::set_permissions(&script, mode).unwrap();
+        }
+        script.to_string_lossy().replace('\\', "/")
+    }
+
+    /// A mission's merge commit is signed with the user's own signing program, never one the repository alone names:
+    /// then it goes unsigned, and its report says so for the Manager.
+    #[test]
+    fn a_merge_is_not_signed_by_a_program_the_repository_alone_names() {
+        let Some((parent, proj)) = project() else {
+            return;
+        };
+        let mission = prepare(&proj, "auth").unwrap();
+        let hulk = add_agent(&proj, &mission.slug, "Hulk").unwrap();
+        commit(Path::new(&hulk.path), "login.txt", "login\n", "login");
+        run(&proj, &["config", "commit.gpgsign", "true"]);
+        run(&proj, &["config", "gpg.program", &signer(parent.path())]);
+        let m = Path::new(&mission.path);
+        let report = merge_agent(m, Path::new(&hulk.path), &hulk.branch).unwrap();
+        assert_eq!(report.merge, Merge::Merged);
+        assert!(
+            report.unsigned,
+            "the report does not say the merge went unsigned"
+        );
+        assert!(
+            !m.join("gpg-ran").exists(),
+            "the repository's signing program ran on a mission's merge"
+        );
+        assert!(!run(m, &["cat-file", "-p", "HEAD"]).contains("gpgsig"));
     }
 
     /// A merge whose commit fails once it is prepared (here, signed with a key nobody has) leaves nothing half done.
