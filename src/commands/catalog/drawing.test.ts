@@ -4,10 +4,12 @@ import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { canvasStore } from "@/canvas/canvasStore";
 import { CANVAS_KEYS, copyCanvasSelection, openNativeMenuAt, pasteOnCanvasAt, pressCanvasKey, startTextAt, ungroupDrawings } from "@/radial/bridges";
 import { arrangeWorkspace } from "@/agents/arrangeCanvas";
+import { clientOf } from "@/agents/placement";
 import { ungroup } from "@/agents/groups";
 import { groupSelection } from "@/agents/selectionGroup";
 import { exportCurrentPng, exportCurrentScene, importIntoScene } from "@/shell/sceneActions";
 import { labelOf, sectionOf, type CommandContext } from "../command";
+import { pendingUiRequest } from "../uiRequests";
 import { DRAWING, SCENE } from "./drawing";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
@@ -329,7 +331,7 @@ describe("Dessin, sur la sélection", () => {
 
 describe("Scene", () => {
   it("exports, imports and saves a PNG as the settings menu does", async () => {
-    expect(SCENE.map((c) => labelOf(c, busy))).toEqual(["Export scene…", "Import scene…", "Export as PNG…", "Arrange", "Arrange the whole canvas", "Arrange the selection", "Arrange the selection as a tree"]);
+    expect(SCENE.map((c) => labelOf(c, busy))).toEqual(["Export scene…", "Import scene…", "Export as PNG…", "Arrange", "Arrange as…", "Arrange the whole canvas", "Arrange the selection", "Arrange the selection as a tree"]);
     for (const command of SCENE.slice(0, 3)) await command.run(busy);
     expect([exportCurrentScene, importIntoScene, exportCurrentPng].every((f) => vi.mocked(f).mock.calls.length === 1)).toBe(true);
   });
@@ -341,10 +343,24 @@ describe("Scene", () => {
     expect(arrange.available({ ...busy, project: false })).toBe(false);
   });
 
+  it("asks which layout to arrange in, for the ring's selection, at the ring's point or else the middle of the canvas, and arranges nothing until one is picked", async () => {
+    const as = SCENE.find((c) => c.id === "scene.arrangeAs")!;
+    vi.mocked(arrangeWorkspace).mockClear();
+    const view = { ...canvasStore.getState().view, width: 1000, height: 600, offsetLeft: 40, offsetTop: 30, scrollX: 5, scrollY: 7, zoom: 2 };
+    canvasStore.setState({ view });
+    expect([as.available(busy), as.available({ ...busy, project: false })]).toEqual([true, false]);
+    await as.run({ ...busy, selectionIds: ["a", "b"], at: { x: 10, y: 20 } });
+    expect(pendingUiRequest()).toEqual({ kind: "arrangeMenu", workspaceId: "w1", target: { kind: "scene", only: ["a", "b"] }, at: clientOf({ x: 10, y: 20 }, view) });
+    // From the palette: Excalidraw's own selection (none here), at the middle of the canvas.
+    await as.run(busy);
+    expect(pendingUiRequest()).toEqual({ kind: "arrangeMenu", workspaceId: "w1", target: { kind: "scene", only: [] }, at: { x: 540, y: 330 } });
+    expect(arrangeWorkspace).not.toHaveBeenCalled();
+  });
+
   it("lists Arrange the whole canvas and Arrange the selection in the Scene section, next to Arrange", () => {
     const ids = SCENE.map((c) => c.id);
-    expect(ids.slice(ids.indexOf("scene.arrange"))).toEqual(["scene.arrange", "scene.arrangeCanvas", "scene.arrangeSelection", "scene.arrangeSelectionTree"]);
-    for (const id of ["scene.arrangeCanvas", "scene.arrangeSelection", "scene.arrangeSelectionTree"]) {
+    expect(ids.slice(ids.indexOf("scene.arrange"))).toEqual(["scene.arrange", "scene.arrangeAs", "scene.arrangeCanvas", "scene.arrangeSelection", "scene.arrangeSelectionTree"]);
+    for (const id of ["scene.arrangeAs", "scene.arrangeCanvas", "scene.arrangeSelection", "scene.arrangeSelectionTree"]) {
       const command = SCENE.find((c) => c.id === id)!;
       expect(sectionOf(command, busy)).toBe("Scene");
       expect(command.keywords).toContain("arrange");

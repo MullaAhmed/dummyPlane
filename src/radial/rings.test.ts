@@ -59,19 +59,19 @@ describe("the rings", () => {
   });
 
   it("names each ring's positions clockwise from the top, More last", () => {
-    expect(labels("canvas")).toEqual(["Launch Claude", "Launch Shell", "New terminal in folder…", "Fleet", "Paste", "Arrange", "Other agent…", "Kanban"]);
+    expect(labels("canvas")).toEqual(["Launch Claude", "Launch Shell", "New terminal in folder…", "Fleet", "Paste", "Arrange as…", "Other agent…", "Kanban"]);
     expect(labels("terminal")).toEqual(["Copy", "Paste", "Rename", "Restart", "Close", "Quick note on this terminal", "Pause", "More"]);
-    expect(labels("group")).toEqual(["Add an agent…", "Rename the group", "Link a fleet", "Pause group", "Close the group", "Arrange the group", "Resume group", "More"]);
+    expect(labels("group")).toEqual(["Add an agent…", "Rename the group", "Link a fleet", "Pause group", "Close the group", "Arrange the group as…", "Resume group", "More"]);
     expect(labels("fleet")).toEqual(["Write an instruction", "Rename", "Delete", "Link", "Paste", "Quick note on this Fleet", "More"]);
-    expect(labels("selection")).toEqual(["Copy", "Paste", "Duplicate", "Bring to front", "Delete", "Send to back", "Arrange", "More"]);
+    expect(labels("selection")).toEqual(["Copy", "Paste", "Duplicate", "Bring to front", "Delete", "Send to back", "Arrange as…", "More"]);
   });
 
   it("puts what the ring has no room for in its More arc, clockwise", () => {
     // The canvas ring has Kanban in More's place, and no arc (12 Nov).
     expect(arcLabels("canvas")).toEqual([]);
-    expect(arcLabels("terminal")).toEqual(["Stop the process", "Duplicate", "Review changes", "Remove from group", "Arrange the group"]);
+    expect(arcLabels("terminal")).toEqual(["Stop the process", "Duplicate", "Review changes", "Remove from group", "Arrange the group as…"]);
     expect(arcLabels("group")).toEqual(["Ungroup", "Fold the group", "Zoom to group"]);
-    expect(arcLabels("fleet")).toEqual(["Arrange", "Remove from group"]);
+    expect(arcLabels("fleet")).toEqual(["Arrange as…", "Remove from group"]);
     // Excalidraw's own full menu last: nothing of it is lost.
     expect(arcLabels("selection")).toEqual(["Lock", "More drawing options…"]);
   });
@@ -79,7 +79,7 @@ describe("the rings", () => {
   it("keeps every function the rings had before their arcs, on the ring or in its arc", () => {
     const before: Record<RingKind, string[]> = {
       // Overview, export, import and PNG left the canvas ring for Kanban (12 Nov): the palette keeps them.
-      canvas: ["agent.launch.claude", "agent.launch.shell", "agent.inFolder", "agent.fleet", "drawing.paste", "scene.arrange", "agent.other", "studio.kanban"],
+      canvas: ["agent.launch.claude", "agent.launch.shell", "agent.inFolder", "agent.fleet", "drawing.paste", "scene.arrangeAs", "agent.other", "studio.kanban"],
       terminal: ["terminal.copy", "terminal.paste", "terminal.rename", "terminal.relaunch", "terminal.close", "terminal.note", "terminal.pause", "terminal.stop"],
       group: ["group.addAgent", "group.rename", "group.linkFleet", "group.pause", "group.close", "group.ungroup", "group.resume", "group.frame"],
       fleet: ["fleet.write", "fleet.rename", "fleet.remove", "fleet.link", "fleet.paste", "fleet.note"],
@@ -91,14 +91,32 @@ describe("the rings", () => {
     }
   });
 
+  it("points every Arrange wedge at the list of layouts instead of arranging at once, each in its place and still named Arrange", () => {
+    // No ring gains or loses a slot: the wedge keeps its place and its name.
+    expect(RINGS.canvas[5]).toMatchObject({ command: "scene.arrangeAs", short: "arrange" });
+    expect(RINGS.group[5]).toMatchObject({ command: "group.arrangeAs", short: "arrange" });
+    expect(RINGS.selection[6]).toMatchObject({ command: "scene.arrangeAs", short: "arrange" });
+    expect(ARCS.terminal.filter((slot) => slot.short === "arrange")).toHaveLength(1);
+    expect(ARCS.fleet.filter((slot) => slot.short === "arrange")).toHaveLength(1);
+    // None is left that arranges at once: whatever the ring, the command of an Arrange wedge asks for a layout.
+    const arranging = [...Object.values(RINGS), ...Object.values(ARCS)].flat().filter((slot) => slot.short === "arrange");
+    expect(arranging).toHaveLength(5);
+    for (const slot of arranging) {
+      for (const context of [ctx, { ...ctx, terminalId: "nobody", groupId: undefined }]) {
+        const id = typeof slot.command === "function" ? slot.command(context) : slot.command;
+        expect(id).toMatch(/^(scene|group)\.arrangeAs$/);
+      }
+    }
+  });
+
   it("arranges a node's group from its More, or else the whole canvas, never Excalidraw's selection elsewhere", () => {
     const arrange = (kind: RingKind, context: CommandContext) => lineOf(ARCS[kind].find((slot) => slot.short === "arrange")!, context)!;
     // Batman stands in g1: its group, inside the frame.
-    expect([arrange("terminal", ctx).command!.id, arrange("terminal", ctx).context.groupId]).toEqual(["group.arrange", "g1"]);
+    expect([arrange("terminal", ctx).command!.id, arrange("terminal", ctx).context.groupId]).toEqual(["group.arrangeAs", "g1"]);
     // A terminal in no group, the Fleet in none: the canvas, whole.
     const loose = { ...ctx, terminalId: "nobody", groupId: undefined };
-    expect([arrange("terminal", loose).command!.id, arrange("terminal", loose).context.selectionIds]).toEqual(["scene.arrange", []]);
-    expect([arrange("fleet", ctx).command!.id, arrange("fleet", ctx).context.selectionIds]).toEqual(["scene.arrange", []]);
+    expect([arrange("terminal", loose).command!.id, arrange("terminal", loose).context.selectionIds]).toEqual(["scene.arrangeAs", []]);
+    expect([arrange("fleet", ctx).command!.id, arrange("fleet", ctx).context.selectionIds]).toEqual(["scene.arrangeAs", []]);
     // The ring's own context is left as it was.
     expect(ctx.selectionIds).toBeUndefined();
   });
@@ -198,7 +216,7 @@ describe("the selection ring with terminals selected", () => {
     selecting({ a: true, b: true });
     expect(wedgeCountOf("selection")).toBe(8);
     expect([second().label, second().short, second().Icon, second().enabled]).toEqual(["Group selection", "Group", Group, true]);
-    expect(labels("selection")).toEqual(["Copy", "Group selection", "Duplicate", "Bring to front", "Delete", "Send to back", "Arrange", "More"]);
+    expect(labels("selection")).toEqual(["Copy", "Group selection", "Duplicate", "Bring to front", "Delete", "Send to back", "Arrange as…", "More"]);
   });
 
   it("keeps Paste with a drawing, or a single terminal, selected", () => {
@@ -262,7 +280,7 @@ describe("the selection ring's Ungroup", () => {
   it("greys the selection's Arrange for drawings alone, which Arrange leaves where they are, and offers it with a node", () => {
     const arrange = (...ids: string[]) => lineOf(RINGS.selection[6]!, { ...ctx, selectionIds: ids })!;
     selecting();
-    expect([arrange("r1", "r2").label, arrange("r1", "r2").enabled, arrange("r1", "r2").reason]).toEqual(["Arrange", false, "drawings stay where they are"]);
+    expect([arrange("r1", "r2").short, arrange("r1", "r2").enabled, arrange("r1", "r2").reason]).toEqual(["Arrange", false, "drawings stay where they are"]);
     expect([arrange("loose", "free").enabled, arrange("loose", "free").reason]).toEqual([true, null]);
     expect(arrange("note", "a").enabled).toBe(true);
   });
