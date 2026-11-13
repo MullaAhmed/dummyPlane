@@ -383,8 +383,9 @@ pub struct FileList {
 
 fn files_limited(dir: &Path, max: usize) -> Result<FileList, String> {
     // From the root: run in a subfolder, ls-files lists that folder only.
+    let root = root(dir)?;
     let listed = git(
-        &root(dir)?,
+        &root,
         &[
             "ls-files",
             "--cached",
@@ -393,7 +394,13 @@ fn files_limited(dir: &Path, max: usize) -> Result<FileList, String> {
             "-z",
         ],
     )?;
-    let unique: BTreeSet<&str> = listed.split('\0').filter(|p| !p.is_empty()).collect();
+    // A tracked file the agent deleted is still in the index, with nothing to read.
+    let deleted = git(&root, &["ls-files", "--deleted", "-z"])?;
+    let gone: BTreeSet<&str> = deleted.split('\0').filter(|p| !p.is_empty()).collect();
+    let unique: BTreeSet<&str> = listed
+        .split('\0')
+        .filter(|p| !p.is_empty() && !gone.contains(p))
+        .collect();
     let truncated = unique.len() > max;
     Ok(FileList {
         files: unique.into_iter().take(max).map(str::to_string).collect(),
@@ -671,6 +678,24 @@ mod tests {
             removed: None,
         };
         assert_eq!(file_diff(dir, &file, None), Ok(String::new()));
+    }
+
+    /// A tracked file the agent deleted is still in the index, but there is nothing to read:
+    /// listing it sent the viewer to "file not found".
+    #[test]
+    fn the_file_list_leaves_out_a_tracked_file_the_agent_deleted() {
+        let Some(repo) = repo() else { return };
+        let dir = repo.path();
+        std::fs::write(dir.join("b.txt"), "x\n").unwrap();
+        sh(dir, &["add", "b.txt"]);
+        sh(dir, &["commit", "-q", "-m", "b"]);
+        std::fs::remove_file(dir.join("a.txt")).unwrap();
+        let listed = files(dir).unwrap().files;
+        assert_eq!(listed, ["b.txt"]);
+        assert!(read_file(dir, "b.txt").is_ok());
+        // Removed from the index only, it is still on the disk: it is listed, once.
+        sh(dir, &["rm", "-q", "--cached", "b.txt"]);
+        assert_eq!(files(dir).unwrap().files, ["b.txt"]);
     }
 
     #[test]
