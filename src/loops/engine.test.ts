@@ -227,6 +227,76 @@ describe("the output trigger", () => {
   });
 });
 
+describe("the output trigger, when the text appears while its agent cannot take the instruction", () => {
+  const watch = () => {
+    const e = engine();
+    e.start(loop({ targets: ["a"], trigger: { kind: "output", text: "FAIL" }, maxRuns: 10 }));
+    return e;
+  };
+
+  for (const [busy, set, free] of [
+    ["at work", () => (activities.a = "working"), () => (activities.a = "idle")],
+    ["waiting for the user", () => (activities.a = "waiting"), () => (activities.a = "idle")],
+    ["unable to take input", () => gone.add("a"), () => gone.delete("a")],
+  ] as const) {
+    it(`fires once the agent is free again when the text appeared while it was ${busy} and is still on screen`, async () => {
+      const e = watch();
+      set();
+      screens.a = "3 tests FAIL";
+      await tick(e, 2000);
+      await tick(e, 2000);
+      expect(sent).toEqual([]);
+      free();
+      await tick(e, 2000);
+      expect(sent).toEqual([{ ids: ["a"], text: "fais un point" }]);
+      // Once per appearance: still on screen, it does not fire again.
+      await tick(e, COOLDOWN_MS);
+      await tick(e, COOLDOWN_MS);
+      expect(sent).toHaveLength(1);
+    });
+  }
+
+  it("does not fire when the text is gone by the time the agent is free", async () => {
+    const e = watch();
+    activities.a = "working";
+    screens.a = "FAIL";
+    await tick(e, 2000);
+    screens.a = "all green";
+    await tick(e, 2000);
+    activities.a = "idle";
+    await tick(e, 2000);
+    await tick(e, COOLDOWN_MS);
+    expect(sent).toEqual([]);
+  });
+
+  it("fires at once when the text appears while the agent is free, as before, and again only for a new appearance", async () => {
+    const e = watch();
+    activities.a = "idle";
+    screens.a = "FAIL";
+    await tick(e, 2000);
+    expect(sent).toHaveLength(1);
+    // At work again with the text still there: no second run, none queued for later.
+    activities.a = "working";
+    await tick(e, COOLDOWN_MS);
+    activities.a = "idle";
+    await tick(e, COOLDOWN_MS);
+    expect(sent).toHaveLength(1);
+    screens.a = "ok";
+    await tick(e, 2000);
+    screens.a = "FAIL";
+    await tick(e, 2000);
+    expect(sent).toHaveLength(2);
+  });
+
+  it("never types into an agent at work, even when the text appears there", async () => {
+    const e = watch();
+    activities.a = "working";
+    screens.a = "FAIL";
+    for (let i = 0; i < 5; i++) await tick(e, COOLDOWN_MS);
+    expect(sent).toEqual([]);
+  });
+});
+
 describe("the spending guards", () => {
   it("never sends to an agent that is waiting for an answer, a permission dialog included", async () => {
     activities.a = "waiting";

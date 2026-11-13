@@ -333,6 +333,19 @@ describe("moveCardWithGithub", () => {
     expect(toast.error).not.toHaveBeenCalled();
   });
 
+  it("says no project is open when a linked card's issue cannot follow, the card moving all the same", async () => {
+    projectsStore.setState({ activeId: null });
+    await moveCardWithGithub("b", "k1", "done");
+    expect(calls).toEqual([]);
+    expect(board().columns.find((c) => c.id === "done")!.cardIds).toEqual(["k1"]);
+    expect(errorToasts(vi.mocked(toast.error))).toEqual([{ title: "No project is open: GitHub is reached from a project's folder", description: "" }]);
+    // Within its column, or unlinked, nothing has to follow: nothing is said.
+    toast.error.mockClear();
+    await moveCardWithGithub("b", "k1", "done", 0);
+    await moveCardWithGithub("b", "k2", "doing");
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
   it("moves a card without a link locally only", async () => {
     await moveCardWithGithub("b", "k2", "doing", 0);
     expect(calls).toEqual([]);

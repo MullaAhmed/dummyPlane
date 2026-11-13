@@ -155,8 +155,10 @@ export async function moveCardWithGithub(nodeId: string, cardId: string, toColum
   save(nodeId, moveCard(before, cardId, toColumnId, index));
   // A place within its column changes nothing on GitHub: the Project is not read for it, nor its failure told.
   const linked = before.cards[cardId]?.github !== undefined && columnOf(before, cardId)?.id !== toColumnId;
-  const path = linked ? (folder ?? projectPath()) : null;
-  if (!path) return;
+  if (!linked) return;
+  // No folder for `gh`: the card stays moved, and the user is told its issue did not follow.
+  const path = folder ?? projectPath();
+  if (!path) return void noProject();
   const follow = () => followOnGithub(nodeId, cardId, toColumnId, before, path);
   const queued = (githubQueues.get(nodeId) ?? Promise.resolve()).then(follow, follow);
   githubQueues.set(nodeId, queued);

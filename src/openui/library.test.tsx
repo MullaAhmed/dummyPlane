@@ -254,6 +254,13 @@ describe("what OpenUI may not do in dummyPlane", () => {
     expect((devtools.OpenUIDevtools as () => unknown)()).toBeNull();
   });
 
+  it("keeps every style of a token inside another one: emphasis in a quote keeps the quote's ink, in a heading its weight", () => {
+    const quote = highlight("> quoted *em* text", "markdown", "calm")!;
+    expect(quote[0].find((token) => token.text === "em")?.style).toEqual({ color: "var(--dp-text-2)", fontStyle: "italic" });
+    const heading = highlight("# Head *em*", "markdown", "calm")!;
+    expect(heading[0].find((token) => token.text === "em")?.style).toEqual({ fontWeight: "600", fontStyle: "italic" });
+  });
+
   it("highlights only the languages the Code Studio knows, in the palette's colours", () => {
     const lines = highlight("let a = 'x';\nfn()", "typescript", "calm")!;
     expect(lines).toHaveLength(2);

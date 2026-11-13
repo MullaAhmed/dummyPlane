@@ -37,8 +37,8 @@ export const issueUrl = (version: string) => `${REPO}/issues/new?template=bug_re
 
 export const guideUrl = () => `${REPO}/blob/main/docs/troubleshooting.md`;
 
-/** A Windows user folder: what Rust may not have shortened still never leaves the PC. */
-const USER_FOLDER = /[A-Za-z]:[\\/]Users[\\/][^\\/\s]+/gi;
+/** A Windows user folder, up to the next separator or the line's end (a user name may hold spaces): what Rust may not have shortened still never leaves the PC. */
+const USER_FOLDER = /[A-Za-z]:[\\/]Users[\\/][^\\/\r\n]+/gi;
 
 /**
  * "Copy the diagnostic": English keys, for any maintainer to read; no token,

@@ -42,9 +42,17 @@ export const PRESETS_VERSION = 1;
  */
 const STORED_FLEETS_KEY = "orchestrators";
 
-/** A name as kept: spaces folded and trimmed, cut at the limit; null when nothing is left. */
+/**
+ * A name as kept: spaces folded and trimmed, cut at the limit, never inside a character (half an emoji is a lone
+ * surrogate, which the saved setting's JSON cannot carry: Rust refuses it); null when nothing is left.
+ */
 export function presetNameOf(raw: string): string | null {
-  const name = raw.replace(/\s+/g, " ").trim().slice(0, MAX_NAME).trim();
+  const name = raw
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, MAX_NAME)
+    .replace(/[\uD800-\uDBFF]$/, "")
+    .trim();
   return name === "" ? null : name;
 }
 

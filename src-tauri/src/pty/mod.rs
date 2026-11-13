@@ -863,6 +863,157 @@ mod windows_tests {
         assert!(!left, "ping {ping} outlived its terminal's end");
     }
 
+    /// A program the terminal started that shows a window of its own (`code .`, a browser a login opened) stays open
+    /// when the terminal closes, and so do the helpers it started; what has no window still stops, a Node program's
+    /// grandchild included (an agent's dev server beside the browser it opened). The window here is a form PowerShell
+    /// shows, off the screen, from a hidden console of its own, as a GUI app has none of the terminal's.
+    #[test]
+    fn killing_a_terminal_spares_what_it_started_with_a_window_and_its_helpers() {
+        let dir = tempfile::tempdir().unwrap();
+        let shown = dir.path().join("shown.txt");
+        let script = dir.path().join("app.ps1");
+        let app_script = [
+            "Start-Process ping -ArgumentList '-n','60','127.0.0.1' -WindowStyle Hidden"
+                .to_string(),
+            "Add-Type -AssemblyName System.Windows.Forms".to_string(),
+            "$f = New-Object System.Windows.Forms.Form".to_string(),
+            "$f.Text = 'dummyPlane test window'".to_string(),
+            "$f.ShowInTaskbar = $false".to_string(),
+            "$f.StartPosition = 'Manual'".to_string(),
+            "$f.Location = New-Object System.Drawing.Point(-20000, -20000)".to_string(),
+            format!(
+                "$f.Add_Shown({{ Set-Content -LiteralPath '{}' -Value $PID }})",
+                shown.display()
+            ),
+            "[System.Windows.Forms.Application]::Run($f)".to_string(),
+        ]
+        .join("\r\n");
+        std::fs::write(&script, app_script).unwrap();
+        let node = std::process::Command::new("node")
+            .arg("--version")
+            .output()
+            .is_ok_and(|out| out.status.success());
+        let mut input = String::new();
+        if node {
+            // Node puts its child in a job of its own that lets that child's children leave it: as Claude's Bash tool.
+            input.push_str("start /b node -e \"require('child_process').spawn('cmd',['/c','ping','-n','60','127.0.0.1'],{windowsHide:true,stdio:'ignore'});setInterval(()=>{},1000)\"\r");
+        }
+        input.push_str(&format!(
+            "powershell -NoProfile -Command \"Start-Process powershell -WindowStyle Hidden -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File','{}'; $p = Start-Process ping -ArgumentList '-n','60','127.0.0.1' -WindowStyle Hidden -PassThru; Wait-Process -Id $p.Id\"\r",
+            script.display()
+        ));
+        let mgr = PtyManager::default();
+        let exited = spawn_answering(&mgr, "win", cmd_plan(&[], Some(&input)), VecSink::default());
+        let root = mgr.get("win").and_then(|session| session.pid).unwrap();
+        // The pings with no window above them: PowerShell's hidden one, and Node's grandchild.
+        let windowless = if node { 2 } else { 1 };
+        let (mut app, mut helper, mut background) = (0, 0, Vec::new());
+        wait_until("the window, its helper and the hidden pings", || {
+            app = std::fs::read_to_string(&shown)
+                .ok()
+                .and_then(|pid| pid.trim().parse().ok())
+                .unwrap_or(0);
+            let procs = watch::processes();
+            let pings = pings_under(root);
+            helper = pings
+                .iter()
+                .copied()
+                .find(|&pid| procs.iter().any(|p| p.pid == pid && p.parent == app))
+                .unwrap_or(0);
+            background = pings.into_iter().filter(|&pid| pid != helper).collect();
+            app != 0 && helper != 0 && background.len() >= windowless
+        });
+        mgr.kill("win");
+        wait_exit(&exited);
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while background.iter().any(|&pid| alive(pid, "ping")) && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        // Long enough for the terminal's session, and its job's handle, to be gone.
+        std::thread::sleep(Duration::from_millis(1500));
+        let states = (
+            background.iter().any(|&pid| alive(pid, "ping")),
+            alive(app, "powershell"),
+            alive(helper, "ping"),
+        );
+        // This test's own: stopped here, whatever the terminal did.
+        for pid in background.iter().copied().chain([app, helper]) {
+            let _ = std::process::Command::new("taskkill")
+                .args(["/F", "/PID", &pid.to_string()])
+                .output();
+        }
+        assert_eq!(
+            states,
+            (false, true, true),
+            "(a hidden ping alive, window alive, its helper alive), node: {node}"
+        );
+    }
+
+    /// Whether `pid` owns a visible top-level window, of whatever kind: what a test waits for before the kill.
+    fn has_visible_window(pid: u32) -> bool {
+        use windows_sys::Win32::Foundation::{HWND, LPARAM};
+        use windows_sys::Win32::UI::WindowsAndMessaging::{
+            EnumWindows, GetWindowThreadProcessId, IsWindowVisible,
+        };
+        unsafe extern "system" fn each(window: HWND, wanted: LPARAM) -> windows_sys::core::BOOL {
+            // SAFETY: `wanted` is the pair `has_visible_window` lends for the time of `EnumWindows`.
+            unsafe {
+                let wanted = &mut *(wanted as *mut (u32, bool));
+                let mut owner = 0u32;
+                GetWindowThreadProcessId(window, &mut owner);
+                if owner == wanted.0 && IsWindowVisible(window) != 0 {
+                    wanted.1 = true;
+                    return 0;
+                }
+            }
+            1
+        }
+        let mut wanted = (pid, false);
+        // SAFETY: the callback only writes to `wanted`, which outlives the call.
+        unsafe { EnumWindows(Some(each), &raw mut wanted as LPARAM) };
+        wanted.1
+    }
+
+    /// A program in a console window of its own (`start` in cmd, `Start-Process` in PowerShell: how an agent keeps a
+    /// server running) is no app of the user's, though Windows names it its window's owner: it stops with the
+    /// terminal, its window with it.
+    #[test]
+    fn killing_a_terminal_stops_a_program_it_started_in_a_console_window_of_its_own() {
+        let mgr = PtyManager::default();
+        let exited = spawn_answering(
+            &mgr,
+            "console",
+            cmd_plan(
+                &[],
+                Some("start \"dummyPlane test console\" /min ping -n 60 127.0.0.1\r"),
+            ),
+            VecSink::default(),
+        );
+        let root = mgr.get("console").and_then(|session| session.pid).unwrap();
+        let mut ping = 0;
+        wait_until("the ping in its console window", || {
+            ping = pings_under(root).first().copied().unwrap_or(0);
+            ping != 0 && has_visible_window(ping)
+        });
+        mgr.kill("console");
+        wait_exit(&exited);
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while alive(ping, "ping") && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        let left = alive(ping, "ping");
+        // This test's own, if the terminal left it.
+        if left {
+            let _ = std::process::Command::new("taskkill")
+                .args(["/F", "/PID", &ping.to_string()])
+                .output();
+        }
+        assert!(
+            !left,
+            "ping {ping}, in its console window, outlived the terminal"
+        );
+    }
+
     #[test]
     fn reports_each_changed_scrollback_once() {
         let mgr = PtyManager::default();

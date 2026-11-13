@@ -76,9 +76,12 @@ fn kill_tree(child: &mut Child) {
 ///
 /// On Windows, a job object the process is put in as soon as it is spawned: what it starts joins the job, whatever
 /// console it gets, and none may leave it (a job that let them would also let go those an agent's own job lets out,
-/// as Node's does). The job is ended by `end`, and by Windows once its handle closes, dummyPlane's exit or crash
-/// included. On macOS and Linux, the process leads a session of its own (portable-pty starts it so) and its
-/// process group is hung up: a shell passes that on to its jobs.
+/// as Node's does). `end` ends it but for the apps with a window on screen it holds (`code .`, a browser a login
+/// opened) and what they started: they are the user's now. If dummyPlane crashes, Windows ends the job whole as its
+/// handle closes, those apps included: a crash must not leave every dev server and MCP server behind.
+/// On macOS and Linux, the process leads a session of its own (portable-pty starts it so) and its process group is
+/// hung up: a shell passes that on to its jobs, so a GUI app it started in its own group gets the hang-up too, and
+/// most close on it; one started through `open` (macOS) or `xdg-open`, or with `nohup` or `setsid`, is not in it.
 ///
 /// A command run outside a terminal is stopped by `output_within` instead (`kill_tree`), only past its limit: a
 /// job closed after each run would also end the helpers it leaves running on purpose (a credential cache).
@@ -132,17 +135,49 @@ impl ProcessTree {
 
 #[cfg(windows)]
 mod job {
-    use std::os::windows::io::RawHandle;
+    use std::collections::{HashMap, HashSet};
+    use std::os::windows::io::{AsRawHandle, FromRawHandle, OwnedHandle, RawHandle};
 
-    use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
+    use windows_sys::Win32::Foundation::{CloseHandle, FILETIME, HANDLE, HWND, LPARAM};
     use windows_sys::Win32::System::JobObjects::{
-        AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
-        JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectExtendedLimitInformation,
-        SetInformationJobObject, TerminateJobObject,
+        AssignProcessToJobObject, CreateJobObjectW, IsProcessInJob,
+        JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE, JOBOBJECT_BASIC_PROCESS_ID_LIST,
+        JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectBasicProcessIdList,
+        JobObjectExtendedLimitInformation, QueryInformationJobObject, SetInformationJobObject,
+        TerminateJobObject,
     };
+    use windows_sys::Win32::System::Threading::{
+        GetExitCodeProcess, GetProcessTimes, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
+        PROCESS_TERMINATE, TerminateProcess,
+    };
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        EnumWindows, GetClassNameW, GetWindowThreadProcessId, IsWindowVisible,
+    };
+    use windows_sys::core::BOOL;
 
-    /// A job whose processes all end when it is ended, or when its handle closes.
+    /// How many times the job is looked at again while it ends: a process may have started another meanwhile.
+    const ROUNDS: usize = 5;
+    /// `GetExitCodeProcess`'s answer for a process that runs.
+    const STILL_ACTIVE: u32 = 259;
+
+    /// A job whose processes end when it is ended, but for the windowed apps it holds (`spared`); and all of them
+    /// when its handle closes while it was never ended (a crash).
     pub struct Job(HANDLE);
+
+    /// A process of the job, as `spared` reads it.
+    #[derive(Debug, Clone, Copy)]
+    pub struct Info {
+        pub pid: u32,
+        pub parent: u32,
+        /// When it was created (`GetProcessTimes`): a child is created after its parent.
+        pub created: u64,
+    }
+
+    /// A process of the job, held open: its pid cannot go to another process while it is.
+    struct Member {
+        info: Info,
+        handle: OwnedHandle,
+    }
 
     // SAFETY: a job's handle may be used and closed from any thread.
     unsafe impl Send for Job {}
@@ -174,17 +209,248 @@ mod job {
             }
         }
 
-        /// Ends every process in the job, its first one with exit code 1, as `TerminateProcess` did.
+        /// Ends the job's processes, its first one with exit code 1 as `TerminateProcess` did, but the apps with a
+        /// window on screen and what they started (`spared`). Those spared live on: the job no longer ends them
+        /// when its handle closes. A window that appears while the job ends is seen at the next round.
         pub fn end(&self) {
-            // SAFETY: the handle is this job's, open until it drops.
-            unsafe { TerminateJobObject(self.0, 1) };
+            let mut kept = false;
+            for _ in 0..ROUNDS {
+                let members = self.members();
+                let infos: Vec<Info> = members.iter().map(|member| member.info).collect();
+                let spared = spared(&infos, &windowed());
+                if spared.is_empty() {
+                    // SAFETY: the handle is this job's, open until it drops.
+                    unsafe { TerminateJobObject(self.0, 1) };
+                    return;
+                }
+                kept = true;
+                let doomed: Vec<&Member> = members
+                    .iter()
+                    .filter(|member| !spared.contains(&member.info.pid))
+                    .collect();
+                if doomed.is_empty() {
+                    break;
+                }
+                for member in doomed {
+                    // SAFETY: a handle opened with PROCESS_TERMINATE, held by `member`.
+                    unsafe { TerminateProcess(member.handle.as_raw_handle() as HANDLE, 1) };
+                }
+            }
+            if kept {
+                self.spare_on_close();
+            }
+        }
+
+        /// What runs in the job, each held open and checked to be the job's (its pid may have gone to another
+        /// process since the list was read). Those already ending are left out.
+        fn members(&self) -> Vec<Member> {
+            let pids = self.pids();
+            let parents: HashMap<u32, u32> = crate::pty::watch::processes()
+                .into_iter()
+                .map(|proc| (proc.pid, proc.parent))
+                .collect();
+            pids.into_iter()
+                .filter_map(|pid| {
+                    // SAFETY: the handle opened is owned at once; the calls are given room for what they write.
+                    unsafe {
+                        let raw = OpenProcess(
+                            PROCESS_TERMINATE | PROCESS_QUERY_LIMITED_INFORMATION,
+                            0,
+                            pid,
+                        );
+                        if raw.is_null() {
+                            return None;
+                        }
+                        let handle = OwnedHandle::from_raw_handle(raw as RawHandle);
+                        let mut inside: BOOL = 0;
+                        if IsProcessInJob(raw, self.0, &mut inside) == 0 || inside == 0 {
+                            return None;
+                        }
+                        let mut code = 0u32;
+                        if GetExitCodeProcess(raw, &mut code) == 0 || code != STILL_ACTIVE {
+                            return None;
+                        }
+                        let mut times = [FILETIME::default(); 4];
+                        let [created, exited, kernel, user] = &mut times;
+                        if GetProcessTimes(raw, created, exited, kernel, user) == 0 {
+                            return None;
+                        }
+                        let created = (u64::from(created.dwHighDateTime) << 32)
+                            | u64::from(created.dwLowDateTime);
+                        let parent = parents.get(&pid).copied().unwrap_or(0);
+                        Some(Member {
+                            info: Info {
+                                pid,
+                                parent,
+                                created,
+                            },
+                            handle,
+                        })
+                    }
+                })
+                .collect()
+        }
+
+        /// The pids of the job's processes, as Windows lists them.
+        fn pids(&self) -> Vec<u32> {
+            let header = std::mem::offset_of!(JOBOBJECT_BASIC_PROCESS_ID_LIST, ProcessIdList)
+                / size_of::<usize>();
+            let mut room = 64;
+            loop {
+                let mut buffer = vec![0usize; header + room];
+                // SAFETY: the buffer is as long as the call is told, and aligned for the list it fills.
+                let read = unsafe {
+                    QueryInformationJobObject(
+                        self.0,
+                        JobObjectBasicProcessIdList,
+                        buffer.as_mut_ptr().cast(),
+                        (buffer.len() * size_of::<usize>()) as u32,
+                        std::ptr::null_mut(),
+                    )
+                };
+                // SAFETY: the buffer starts with the list's header, whether the call filled it whole or not.
+                let list = unsafe { &*buffer.as_ptr().cast::<JOBOBJECT_BASIC_PROCESS_ID_LIST>() };
+                let assigned = list.NumberOfAssignedProcesses as usize;
+                let listed = (list.NumberOfProcessIdsInList as usize).min(room);
+                if (read == 0 || listed < assigned) && room < 65_536 {
+                    room = (assigned + 16).max(room * 2);
+                    continue;
+                }
+                return buffer[header..header + listed]
+                    .iter()
+                    .map(|&pid| pid as u32)
+                    .collect();
+            }
+        }
+
+        /// Its handle's closing no longer ends what it holds: the apps it spared stay open once the terminal is gone.
+        fn spare_on_close(&self) {
+            let limits = JOBOBJECT_EXTENDED_LIMIT_INFORMATION::default();
+            // SAFETY: the handle is this job's; the limits are as long as the call is told.
+            unsafe {
+                SetInformationJobObject(
+                    self.0,
+                    JobObjectExtendedLimitInformation,
+                    (&raw const limits).cast(),
+                    size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+                )
+            };
+        }
+    }
+
+    /// The class of the window Windows gives a console program of its own console: Windows names that program
+    /// its owner, but it is a console process (`start` in cmd, an agent's `Start-Process` server), not an app.
+    const CONSOLE_WINDOW: &str = "ConsoleWindowClass";
+
+    /// Whether `window` is a console's.
+    ///
+    /// # Safety
+    /// `window` is a window `EnumWindows` handed.
+    unsafe fn is_console(window: HWND) -> bool {
+        let mut class = [0u16; 64];
+        // SAFETY: the buffer is as long as the call is told.
+        let len = unsafe { GetClassNameW(window, class.as_mut_ptr(), class.len() as i32) };
+        len > 0 && String::from_utf16_lossy(&class[..len as usize]) == CONSOLE_WINDOW
+    }
+
+    /// The processes that own a visible top-level window, on the whole desktop, a console's window left out.
+    pub fn windowed() -> HashSet<u32> {
+        unsafe extern "system" fn each(window: HWND, found: LPARAM) -> BOOL {
+            // SAFETY: `found` is the set `windowed` lends for the time of `EnumWindows`.
+            unsafe {
+                if IsWindowVisible(window) != 0 && !is_console(window) {
+                    let mut pid = 0u32;
+                    GetWindowThreadProcessId(window, &mut pid);
+                    if pid != 0 {
+                        (*(found as *mut HashSet<u32>)).insert(pid);
+                    }
+                }
+            }
+            1
+        }
+        let mut found = HashSet::new();
+        // SAFETY: the callback only adds to `found`, which outlives the call.
+        unsafe { EnumWindows(Some(each), &raw mut found as LPARAM) };
+        found
+    }
+
+    /// Which of a job's processes stay when it ends: those with a window on screen (`windowed`), and what they
+    /// started, down to the last child (Chrome's and VS Code's windowless helpers). A parent is known by its pid,
+    /// which goes to another process once it ended: a process is the child only of one created before it.
+    pub fn spared(members: &[Info], windowed: &HashSet<u32>) -> HashSet<u32> {
+        let created: HashMap<u32, u64> = members
+            .iter()
+            .map(|member| (member.pid, member.created))
+            .collect();
+        let mut spared: HashSet<u32> = members
+            .iter()
+            .filter(|member| windowed.contains(&member.pid))
+            .map(|member| member.pid)
+            .collect();
+        loop {
+            let more: Vec<u32> = members
+                .iter()
+                .filter(|member| {
+                    !spared.contains(&member.pid)
+                        && spared.contains(&member.parent)
+                        && created
+                            .get(&member.parent)
+                            .is_some_and(|&parent| parent <= member.created)
+                })
+                .map(|member| member.pid)
+                .collect();
+            if more.is_empty() {
+                return spared;
+            }
+            spared.extend(more);
         }
     }
 
     impl Drop for Job {
         fn drop(&mut self) {
-            // SAFETY: closed once, here. What still runs in the job ends with it (KILL_ON_JOB_CLOSE).
+            // SAFETY: closed once, here. What still runs in a job never ended ends with it (KILL_ON_JOB_CLOSE).
             unsafe { CloseHandle(self.0) };
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        fn info(pid: u32, parent: u32, created: u64) -> Info {
+            Info {
+                pid,
+                parent,
+                created,
+            }
+        }
+
+        #[test]
+        fn spares_the_windowed_apps_and_what_they_started_and_nothing_else() {
+            let members = [
+                // The terminal's shell, an agent under it, its dev server: no window.
+                info(10, 1, 100),
+                info(11, 10, 110),
+                info(12, 11, 120),
+                // A browser the agent opened (its window), a helper of the browser, and the helper's own child.
+                info(20, 11, 200),
+                info(21, 20, 210),
+                info(22, 21, 220),
+            ];
+            let windowed = HashSet::from([20, 999]);
+            assert_eq!(spared(&members, &windowed), HashSet::from([20, 21, 22]));
+            // No window: nothing stays.
+            assert!(spared(&members, &HashSet::new()).is_empty());
+        }
+
+        #[test]
+        fn a_parent_pid_given_back_to_a_windowed_app_spares_no_older_process() {
+            // 30's parent ended, and its pid went to a browser created later: 30 is not the browser's.
+            let members = [info(30, 40, 100), info(40, 1, 500), info(41, 40, 600)];
+            assert_eq!(
+                spared(&members, &HashSet::from([40])),
+                HashSet::from([40, 41])
+            );
         }
     }
 }
