@@ -942,6 +942,71 @@ mod windows_tests {
         );
     }
 
+    /// Whether `pid` owns a visible top-level window, of whatever kind: what a test waits for before the kill.
+    fn has_visible_window(pid: u32) -> bool {
+        use windows_sys::Win32::Foundation::{HWND, LPARAM};
+        use windows_sys::Win32::UI::WindowsAndMessaging::{
+            EnumWindows, GetWindowThreadProcessId, IsWindowVisible,
+        };
+        unsafe extern "system" fn each(window: HWND, wanted: LPARAM) -> windows_sys::core::BOOL {
+            // SAFETY: `wanted` is the pair `has_visible_window` lends for the time of `EnumWindows`.
+            unsafe {
+                let wanted = &mut *(wanted as *mut (u32, bool));
+                let mut owner = 0u32;
+                GetWindowThreadProcessId(window, &mut owner);
+                if owner == wanted.0 && IsWindowVisible(window) != 0 {
+                    wanted.1 = true;
+                    return 0;
+                }
+            }
+            1
+        }
+        let mut wanted = (pid, false);
+        // SAFETY: the callback only writes to `wanted`, which outlives the call.
+        unsafe { EnumWindows(Some(each), &raw mut wanted as LPARAM) };
+        wanted.1
+    }
+
+    /// A program in a console window of its own (`start` in cmd, `Start-Process` in PowerShell: how an agent keeps a
+    /// server running) is no app of the user's, though Windows names it its window's owner: it stops with the
+    /// terminal, its window with it.
+    #[test]
+    fn killing_a_terminal_stops_a_program_it_started_in_a_console_window_of_its_own() {
+        let mgr = PtyManager::default();
+        let exited = spawn_answering(
+            &mgr,
+            "console",
+            cmd_plan(
+                &[],
+                Some("start \"dummyPlane test console\" /min ping -n 60 127.0.0.1\r"),
+            ),
+            VecSink::default(),
+        );
+        let root = mgr.get("console").and_then(|session| session.pid).unwrap();
+        let mut ping = 0;
+        wait_until("the ping in its console window", || {
+            ping = pings_under(root).first().copied().unwrap_or(0);
+            ping != 0 && has_visible_window(ping)
+        });
+        mgr.kill("console");
+        wait_exit(&exited);
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while alive(ping, "ping") && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        let left = alive(ping, "ping");
+        // This test's own, if the terminal left it.
+        if left {
+            let _ = std::process::Command::new("taskkill")
+                .args(["/F", "/PID", &ping.to_string()])
+                .output();
+        }
+        assert!(
+            !left,
+            "ping {ping}, in its console window, outlived the terminal"
+        );
+    }
+
     #[test]
     fn reports_each_changed_scrollback_once() {
         let mgr = PtyManager::default();

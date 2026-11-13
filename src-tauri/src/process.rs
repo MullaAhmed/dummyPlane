@@ -151,7 +151,7 @@ mod job {
         PROCESS_TERMINATE, TerminateProcess,
     };
     use windows_sys::Win32::UI::WindowsAndMessaging::{
-        EnumWindows, GetWindowThreadProcessId, IsWindowVisible,
+        EnumWindows, GetClassNameW, GetWindowThreadProcessId, IsWindowVisible,
     };
     use windows_sys::core::BOOL;
 
@@ -338,12 +338,27 @@ mod job {
         }
     }
 
-    /// The processes that own a visible top-level window, on the whole desktop.
+    /// The class of the window Windows gives a console program of its own console: Windows names that program
+    /// its owner, but it is a console process (`start` in cmd, an agent's `Start-Process` server), not an app.
+    const CONSOLE_WINDOW: &str = "ConsoleWindowClass";
+
+    /// Whether `window` is a console's.
+    ///
+    /// # Safety
+    /// `window` is a window `EnumWindows` handed.
+    unsafe fn is_console(window: HWND) -> bool {
+        let mut class = [0u16; 64];
+        // SAFETY: the buffer is as long as the call is told.
+        let len = unsafe { GetClassNameW(window, class.as_mut_ptr(), class.len() as i32) };
+        len > 0 && String::from_utf16_lossy(&class[..len as usize]) == CONSOLE_WINDOW
+    }
+
+    /// The processes that own a visible top-level window, on the whole desktop, a console's window left out.
     pub fn windowed() -> HashSet<u32> {
         unsafe extern "system" fn each(window: HWND, found: LPARAM) -> BOOL {
             // SAFETY: `found` is the set `windowed` lends for the time of `EnumWindows`.
             unsafe {
-                if IsWindowVisible(window) != 0 {
+                if IsWindowVisible(window) != 0 && !is_console(window) {
                     let mut pid = 0u32;
                     GetWindowThreadProcessId(window, &mut pid);
                     if pid != 0 {
