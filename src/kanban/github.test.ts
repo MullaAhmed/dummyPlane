@@ -155,6 +155,19 @@ describe("moveCardWithGithub", () => {
     expect(toast.error).not.toHaveBeenCalled();
   });
 
+  it("reads the Project again for an issue that joined it, moved to a column named like a Status but for spaces or case", async () => {
+    let items = [item("PVTI_2", 2, "To-Do")];
+    mockGithub({
+      github_list_issues: () => [issue(1, "open")],
+      github_list_project_items: () => items,
+      github_project_statuses: () => ["To-Do", "InProgress", "Done"],
+    });
+    expect(await syncBoard("b")).toBe(true);
+    items = [...items, item("PVTI_1", 1, "To-Do")];
+    await moveCardWithGithub("b", "k1", "doing");
+    expect(calls).toContainEqual(["github_move_project_item", { path: "C:/r", owner: "o", projectNumber: 2, itemId: "PVTI_1", status: "InProgress" }]);
+  });
+
   it("does not read the Project again for a card outside it moved to a column that is no Status", async () => {
     mockGithub({
       github_list_issues: () => [issue(1, "open")],

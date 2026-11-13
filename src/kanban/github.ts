@@ -15,7 +15,7 @@ import type { KanbanBoardLink, KanbanPayload } from "@/nodes/types";
 import { nodesStore } from "@/store/nodes";
 import { projectsStore } from "@/store/projects";
 import { columnOf, moveCard, updateCard } from "./board";
-import { githubKey, mergeGithub, remoteActionsForMove, type MoveContext, type RemoteAction } from "./githubSync";
+import { githubKey, mergeGithub, normalize, remoteActionsForMove, type MoveContext, type RemoteAction } from "./githubSync";
 import { kanbanMessages } from "./messages";
 
 // The Kanban node's GitHub wiring (issue #29): `gh` runs in the project's folder.
@@ -114,7 +114,7 @@ export async function syncBoard(nodeId: string): Promise<boolean> {
 async function moveContext(nodeId: string, path: string, link: KanbanBoardLink | undefined, issue: string, column: string): Promise<MoveContext> {
   if (!link?.project) return {};
   const known = projectContexts.get(nodeId);
-  const toStatus = known?.projectStatuses?.some((status) => status.trim().toLowerCase() === column.trim().toLowerCase());
+  const toStatus = known?.projectStatuses?.some((status) => normalize(status) === normalize(column));
   if (known && (known.projectItemIdByKey?.[issue] !== undefined || !toStatus)) return known;
   const { context } = await loadProject(path, link.project);
   projectContexts.set(nodeId, context);

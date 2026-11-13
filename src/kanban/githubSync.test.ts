@@ -231,6 +231,30 @@ describe("mergeGithub with project items", () => {
     expect(cardsIn(result, "Todo")).toEqual(["id2"]);
   });
 
+  it("takes a column for the Status whose title differs only in spaces, case or punctuation", () => {
+    // A new board's columns against a Project's default Status options: no "Todo" column added after "Done".
+    const start = board([["To do", ["a"]], ["In progress", []], ["Done", []]], [linkedCard("a", 1)]);
+    const result = mergeGithub(start, {
+      repo: REPO,
+      issues: [issue(1), issue(2)],
+      projectItems: [item(1, "In-Progress"), item(2, "Todo"), item(3, "DONE!")],
+      projectStatuses: ["Todo", "In-Progress", "DONE!"],
+      newId: ids(),
+    });
+    expect(columnTitles(result)).toEqual(["To do", "In progress", "Done"]);
+    expect(cardsIn(result, "To do")).toEqual(["id1"]);
+    expect(cardsIn(result, "In progress")).toEqual(["a"]);
+    expect(cardsIn(result, "Done")).toEqual(["id2"]);
+  });
+
+  it("prefers the column titled like the Status itself to one that differs only in spaces or punctuation", () => {
+    // A board that already has both, from a sync before they were one: a new "Todo" card joins the "Todo" ones.
+    const start = board([["To do", []], ["Todo", ["a"]]], [linkedCard("a", 1)]);
+    const result = mergeGithub(start, { repo: REPO, issues: [issue(1), issue(2)], projectItems: [item(1, "Todo"), item(2, "Todo")], newId: ids() });
+    expect(cardsIn(result, "Todo")).toEqual(["a", "id1"]);
+    expect(cardsIn(result, "To do")).toEqual([]);
+  });
+
   it("creates a missing Status column once, at the end", () => {
     const result = mergeGithub(board([["Todo", []]]), {
       repo: REPO,
@@ -373,6 +397,18 @@ describe("remoteActionsForMove", () => {
       { type: "moveProjectItem", itemId: "PVTI_1", status: "In progress" },
       { type: "setIssueState", repo: REPO, number: 1, state: "closed" },
     ]);
+  });
+
+  it("sends the Status option named like the column but for spaces, case or punctuation", () => {
+    const b = board([["To do", []], ["In progress", ["a"]], ["Done", []]], [linkedCard("a", 1)]);
+    const context = { projectStatuses: ["Todo", "In-Progress", "Done"], projectItemIdByKey: { [githubKey(REPO, 1)]: "PVTI_1" } };
+    expect(remoteActionsForMove(b, "a", "to-do", context)).toEqual([{ type: "moveProjectItem", itemId: "PVTI_1", status: "Todo" }]);
+  });
+
+  it("sends the Status option titled like the column itself before one that differs only in punctuation", () => {
+    const b = board([["Todo", ["a"]], ["v10", []], ["Done", []]], [linkedCard("a", 1)]);
+    const context = { projectStatuses: ["v1.0", "v10"], projectItemIdByKey: { [githubKey(REPO, 1)]: "PVTI_1" } };
+    expect(remoteActionsForMove(b, "a", "v10", context)).toEqual([{ type: "moveProjectItem", itemId: "PVTI_1", status: "v10" }]);
   });
 
   it("never closes or reopens a pull request: its Project Status alone follows its card", () => {
