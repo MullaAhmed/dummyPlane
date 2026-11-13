@@ -25,7 +25,8 @@ export function useSaveKey(save: () => void) {
   latest.current = save;
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (!(event.ctrlKey || event.metaKey) || event.altKey || event.key.toLowerCase() !== "s") return;
+      // A keydown with no key (WebView2's autofill sends one) is no Ctrl+S, whatever else it carries.
+      if (typeof event.key !== "string" || !(event.ctrlKey || event.metaKey) || event.altKey || event.key.toLowerCase() !== "s") return;
       event.preventDefault();
       event.stopPropagation();
       latest.current();

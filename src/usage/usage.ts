@@ -229,7 +229,8 @@ export function nodeSession(sessions: Readonly<Record<string, SessionUsage>>, no
 
 /** "67.8 k", "1.2 M" tokens. */
 export function formatTokens(count: number): string {
-  if (count >= 1_000_000) return `${formatDecimal(count / 1_000_000, 1)} M`;
+  // From 999.95 k, one decimal of thousands would read "1000.0 k".
+  if (count >= 999_950) return `${formatDecimal(count / 1_000_000, 1)} M`;
   if (count >= 1_000) return `${formatDecimal(count / 1_000, 1)} k`;
   return String(count);
 }
