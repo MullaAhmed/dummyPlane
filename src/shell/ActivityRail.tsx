@@ -5,6 +5,7 @@ import { useWorkspaceAgentCounts } from "@/agents/agentCounts";
 import { setAgentsPanel, useAgentsPanel } from "@/agents/agentsPanelState";
 import { useMessages } from "@/i18n";
 import { openNotes } from "@/notes/notesStore";
+import { NotificationsButton } from "@/notifications/NotificationPanel";
 import { useProjects } from "@/store/projects";
 import { isCode, isNotes, useWorkspaces } from "@/store/workspaces";
 import { studioMessages } from "@/studio/messages";
@@ -53,6 +54,7 @@ export function ActivityRail() {
       <RailButton label={t.notes} active={notesOnScreen} aria-current={notesOnScreen ? "page" : undefined} disabled={!inProject} onClick={openNotes}>
         <BookOpen />
       </RailButton>
+      <NotificationsButton />
       <Separator className="my-1 bg-dp-line data-horizontal:w-6" />
       <SettingsMenu
         side="left"

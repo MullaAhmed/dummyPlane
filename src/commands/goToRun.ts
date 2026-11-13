@@ -1,6 +1,7 @@
 import { toastError } from "@/lib/errorToast";
 import { currentWaitingAgents, nextWaiting, type OpenAgent } from "@/agents/waitingAgents";
 import { messages } from "@/i18n";
+import { nodesStore } from "@/store/nodes";
 import { projectsStore } from "@/store/projects";
 import { workspacesStore } from "@/store/workspaces";
 import type { GoToItem } from "./goTo";
@@ -37,6 +38,17 @@ export function goTo(item: GoToItem) {
     default:
       if (item.workspaceId && item.targetId) reachTarget({ workspaceId: item.workspaceId, kind: item.kind, id: item.targetId, label: item.label });
   }
+}
+
+/** A node by its id, as an arrival: a fleet reaches like a terminal, whatever else the node is. */
+export function nodeTarget(workspaceId: string, nodeId: string, label: string): PendingArrival {
+  const kind = nodesStore.getState().nodes[nodeId]?.kind === "fleet" ? "fleet" : "terminal";
+  return { workspaceId, kind, id: nodeId, label };
+}
+
+/** A node by its id, wherever it is: its workspace first if it is not on screen. The notification panel's click. */
+export function goToNode(workspaceId: string, nodeId: string, label: string) {
+  reachTarget(nodeTarget(workspaceId, nodeId, label));
 }
 
 let lastReached: string | null = null;
