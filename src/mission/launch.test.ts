@@ -161,7 +161,7 @@ describe("what dummyPlane types to agents, in English", () => {
       const done = { summary: "ok", status: "termine" as const, at: 1 };
       await setup({ state: "en_cours", worktree: "C:/w/auth", branch: "dummyplane/auth", members: [member("batman", "Batman", true, { report: done }), member("n1", "Aquaman", false, { report: done })] });
       vi.mocked(missionMerge).mockImplementation(async (_mission, _agent, branch) =>
-        branch.endsWith("batman") ? { merge: { kind: "merged" }, uncommitted: true } : { merge: { kind: "conflict", files: ["a.ts"] }, uncommitted: false },
+        branch.endsWith("batman") ? { merge: { kind: "merged" }, uncommitted: true, head: "c0ffee" } : { merge: { kind: "conflict", files: ["a.ts"] }, uncommitted: false, head: "c0ffee" },
       );
       expect(await mergeMission("chef")).toBe("Branch dummyplane/auth:\nBatman: merged (uncommitted changes in its worktree are not merged)\nAquaman: conflict, merge undone — a.ts");
     }));
@@ -793,7 +793,7 @@ it("merges the branches of the agents done, and says what happened to each", asy
     members: [member("batman", "Batman", true, { report: done }), member("n1", "Aquaman", false, { report: done }), member("n2", "Flash", false, { report: { ...done, status: "bloque" } })],
   });
   vi.mocked(missionMerge).mockImplementation(async (_mission, _agent, branch) =>
-    branch.endsWith("batman") ? { merge: { kind: "merged" }, uncommitted: true } : { merge: { kind: "conflict", files: ["a.ts"] }, uncommitted: false },
+    branch.endsWith("batman") ? { merge: { kind: "merged" }, uncommitted: true, head: "c0ffee" } : { merge: { kind: "conflict", files: ["a.ts"] }, uncommitted: false, head: "c0ffee" },
   );
   expect(await mergeMission("chef")).toBe(
     "Branch dummyplane/auth:\nBatman: merged (uncommitted changes in its worktree are not merged)\nAquaman: conflict, merge undone — a.ts",
@@ -805,12 +805,27 @@ it("merges the branches of the agents done, and says what happened to each", asy
   expect(missionNow().members.map((m) => m.merged === true)).toEqual([true, false, false]);
 });
 
+it("squashes an agent's work under its sub-task and report, keeps the head taken in, and takes only what came after next time", async () => {
+  const done = { summary: "Login form done.", status: "termine" as const, at: 1, check: "Try a wrong password" };
+  await setup({ state: "en_cours", worktree: "C:/w/auth", branch: "dummyplane/auth", members: [member("n1", "Aquaman", false, { task: "Login", report: done })] });
+  vi.mocked(missionMerge).mockResolvedValueOnce({ merge: { kind: "merged" }, uncommitted: false, head: "h1" });
+  await mergeMission("chef");
+  // One commit named after its sub-task, its report as the body: never a branch's name.
+  expect(missionMerge).toHaveBeenLastCalledWith("C:/w/auth", "C:/w/n1", "dummyplane/auth-n1", "Login\n\nLogin form done.\n\nTo check by hand: Try a wrong password", undefined);
+  expect(missionNow().members[0]).toMatchObject({ merged: true, squashed: "h1" });
+  // New commits since: the next merge starts from the head the last one took in.
+  vi.mocked(missionMerge).mockResolvedValueOnce({ merge: { kind: "merged" }, uncommitted: false, head: "h2" });
+  await mergeMission("chef");
+  expect(vi.mocked(missionMerge).mock.lastCall?.[4]).toBe("h1");
+  expect(missionNow().members[0].squashed).toBe("h2");
+});
+
 it("cleans a finished mission and frees the fleet for the next, its settings kept", async () => {
   await setup({ state: "terminee", budgetMin: 90, maxAgents: 3, project: "C:/code/proj", slug: "auth", summary: "ok", members: [member("batman", "Batman", true)] });
   // An old global budget is no setting any more: the next mission does without it.
   vi.mocked(missionCleanup).mockResolvedValue({ removed: ["auth-batman", "auth"], kept: [] });
   expect(await cleanMission("chef")).toEqual({ removed: ["auth-batman", "auth"], kept: [] });
-  expect(missionCleanup).toHaveBeenCalledWith("C:/code/proj", "auth", ["Batman"]);
+  expect(missionCleanup).toHaveBeenCalledWith("C:/code/proj", "auth", [{ name: "Batman" }]);
   expect(missionNow()).toEqual({ state: "redaction", maxAgents: 3, members: [] });
 });
 
@@ -899,7 +914,7 @@ it("cleans the worktree of every agent of the mission, those the queue started i
   await setup({ state: "terminee", project: "C:/code/proj", slug: "auth", summary: "ok", members });
   vi.mocked(missionCleanup).mockResolvedValue({ removed: [], kept: [] });
   await cleanMission("chef");
-  expect(missionCleanup).toHaveBeenCalledWith("C:/code/proj", "auth", ["Batman", "Aquaman", "Cyborg"]);
+  expect(missionCleanup).toHaveBeenCalledWith("C:/code/proj", "auth", [{ name: "Batman" }, { name: "Aquaman" }, { name: "Cyborg" }]);
 });
 
 it("keeps the router setting when the mission is cleaned (backlog 27 oct)", async () => {
@@ -961,7 +976,7 @@ describe("what the final review of H2 found", () => {
   it("keeps a merged branch merged when nothing new came since", async () => {
     const done = { summary: "ok", status: "termine" as const, at: 1 };
     await setup({ state: "en_cours", worktree: "C:/w/auth", branch: "dummyplane/auth", members: [member("batman", "Batman", true, { report: done, merged: true })] });
-    vi.mocked(missionMerge).mockResolvedValue({ merge: { kind: "empty" }, uncommitted: false });
+    vi.mocked(missionMerge).mockResolvedValue({ merge: { kind: "empty" }, uncommitted: false, head: "c0ffee" });
     expect(await mergeMission("chef")).toBe("Branch dummyplane/auth:\nBatman: already merged, nothing new");
     expect(missionNow().members[0].merged).toBe(true);
   });
@@ -1139,7 +1154,7 @@ describe("reassignTask", () => {
     expect(missionNow().members.map((m) => m.name)).not.toContain(name);
     vi.mocked(missionCleanup).mockResolvedValueOnce({ removed: [], kept: [] });
     await cleanMission("chef");
-    expect(missionCleanup).toHaveBeenCalledWith("C:/code/proj", "auth", ["Batman", "Aquaman", name]);
+    expect(missionCleanup).toHaveBeenCalledWith("C:/code/proj", "auth", [{ name: "Batman" }, { name: "Aquaman" }, { name }]);
   });
 
   it("takes the left-behind agent's worktree back itself while the cleanup runs: that cleanup's list is made, and its end blanks the mission", async () => {
@@ -1407,7 +1422,7 @@ describe("a sub-task dummyPlane has not typed yet, after a restart or a relaunch
 it("leaves a handed-over agent's branch to its successor when merging (final review H3)", async () => {
   const done = { summary: "ok", status: "termine" as const, at: 1 };
   await setup({ state: "en_cours", worktree: "C:/w/auth", branch: "dummyplane/auth", members: [member("batman", "Batman", true, { report: done, handedTo: "Aquaman" }), member("n1", "Aquaman", false, { report: done })] });
-  vi.mocked(missionMerge).mockResolvedValue({ merge: { kind: "merged" }, uncommitted: false });
+  vi.mocked(missionMerge).mockResolvedValue({ merge: { kind: "merged" }, uncommitted: false, head: "c0ffee" });
   await mergeMission("chef");
   expect(vi.mocked(missionMerge).mock.calls.map(([, , branch]) => branch)).toEqual(["dummyplane/auth-n1"]);
 });

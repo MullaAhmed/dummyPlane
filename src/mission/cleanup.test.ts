@@ -50,6 +50,6 @@ describe("cleanUpFinished", () => {
     });
     await setup({ state: "terminee", name: "Auth", project: "C:/code/proj", slug: "auth", branch: "dummyplane/auth", members: [], strays: ["Superman"] });
     await cleanUpFinished("chef");
-    expect(asked).toEqual([{ project: "C:/code/proj", mission: "auth", agents: ["Superman"] }]);
+    expect(asked).toEqual([{ project: "C:/code/proj", mission: "auth", agents: [{ name: "Superman" }] }]);
   });
 });

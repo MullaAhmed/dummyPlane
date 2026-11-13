@@ -105,7 +105,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   // A test that failed mid-restart leaves no terminal restarting behind it.
   terminalStatusStore.setState({ restarts: {} });
-  vi.mocked(missionMerge).mockResolvedValue({ merge: { kind: "merged" }, uncommitted: false });
+  vi.mocked(missionMerge).mockResolvedValue({ merge: { kind: "merged" }, uncommitted: false, head: "c0ffee" });
   for (const id of ["chef", "batman", "aquaman"]) terminalStatusStore.getState().set(id, { state: "running" });
   agentActivityStore.setState({ activities: {} });
   workspacesStore.setState({ activeId: "w1" });
@@ -150,7 +150,8 @@ describe("an agent that reports « done »", () => {
   it("has its branch merged, then a new agent takes the next task in a new terminal: its own conversation is left alone", async () => {
     await setup({});
     await afterReport("chef", "batman");
-    expect(missionMerge).toHaveBeenCalledWith("C:/w/auth", "C:/w/batman", "dummyplane/auth-batman");
+    // One commit named after its sub-task, its report as the body: never a branch name.
+    expect(missionMerge).toHaveBeenCalledWith("C:/w/auth", "C:/w/batman", "dummyplane/auth-batman", "Login\n\nLogin fait", undefined);
     // Merged first: the new worktree, cut from the mission's branch, starts from its work.
     expect(vi.mocked(missionMerge).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(missionAddAgent).mock.invocationCallOrder[0]);
     expect(missionAddAgent).toHaveBeenCalledWith("C:/code/proj", "auth", created()[0].name);
@@ -214,7 +215,7 @@ describe("an agent that reports « done »", () => {
     await setup({});
     // Out of sight: no new agent takes its seat meanwhile.
     workspacesStore.setState({ activeId: "w2" });
-    vi.mocked(missionMerge).mockResolvedValueOnce({ merge: { kind: "conflict", files: ["a.ts"] }, uncommitted: false });
+    vi.mocked(missionMerge).mockResolvedValueOnce({ merge: { kind: "conflict", files: ["a.ts"] }, uncommitted: false, head: "c0ffee" });
     await afterReport("chef", "batman");
     expect(missionNow().members[0]).toMatchObject({ task: "Login", report: done });
     expect(missionNow().members[0].merged).toBeUndefined();
@@ -231,7 +232,7 @@ describe("an agent that reports « done »", () => {
 
   it("goes on with the queue after a conflict, as before: the seat goes to a new agent", async () => {
     await setup({});
-    vi.mocked(missionMerge).mockResolvedValueOnce({ merge: { kind: "conflict", files: ["a.ts"] }, uncommitted: false });
+    vi.mocked(missionMerge).mockResolvedValueOnce({ merge: { kind: "conflict", files: ["a.ts"] }, uncommitted: false, head: "c0ffee" });
     await afterReport("chef", "batman");
     expect(lines()[0]).toBe("Batman: conflict, merge undone — a.ts");
     expect(missionNow().members[0].task).toBe("Login");
@@ -240,7 +241,7 @@ describe("an agent that reports « done »", () => {
 
   it("passes on that uncommitted changes were left out of the merge", async () => {
     await setup({});
-    vi.mocked(missionMerge).mockResolvedValueOnce({ merge: { kind: "merged" }, uncommitted: true });
+    vi.mocked(missionMerge).mockResolvedValueOnce({ merge: { kind: "merged" }, uncommitted: true, head: "c0ffee" });
     await afterReport("chef", "batman");
     expect(lines()[0]).toContain("uncommitted");
     expect(created().map((m) => m.task)).toEqual(["API"]);
@@ -267,7 +268,7 @@ describe("an agent that reports « done »", () => {
     await setup({});
     terminalStatusStore.getState().set("batman", { state: "stopped" });
     await afterReport("chef", "batman");
-    expect(missionMerge).toHaveBeenCalledWith("C:/w/auth", "C:/w/batman", "dummyplane/auth-batman");
+    expect(missionMerge).toHaveBeenCalledWith("C:/w/auth", "C:/w/batman", "dummyplane/auth-batman", "Login\n\nLogin fait", undefined);
     expect(relaunchTerminal).not.toHaveBeenCalled();
     expect(created().map((m) => m.task)).toEqual(["API"]);
   });
@@ -495,7 +496,7 @@ describe("what the review of the queue found", () => {
       most = Math.max(most, ++running);
       await new Promise((resolve) => setTimeout(resolve, 5));
       running--;
-      return { merge: { kind: "merged" }, uncommitted: false };
+      return { merge: { kind: "merged" }, uncommitted: false, head: "c0ffee" };
     });
     await pumpQueue("chef");
     expect(vi.mocked(missionMerge)).toHaveBeenCalledTimes(2);
@@ -564,12 +565,12 @@ describe("what the review of the queue found", () => {
 
   it("does not mark the new task merged when a merge ends after the agent moved on", async () => {
     await setup({});
-    let release!: (report: { merge: { kind: "merged" }; uncommitted: boolean }) => void;
+    let release!: (report: { merge: { kind: "merged" }; uncommitted: boolean; head: string }) => void;
     vi.mocked(missionMerge).mockReturnValueOnce(new Promise((resolve) => (release = resolve)));
     const merging = mergeMember("chef", "C:/w/auth", missionNow().members[0]);
     const moved = { ...missionNow().members[0], task: "API", report: undefined };
     nodesStore.getState().update("chef", { mission: { ...missionNow(), members: [moved] } });
-    release({ merge: { kind: "merged" }, uncommitted: false });
+    release({ merge: { kind: "merged" }, uncommitted: false, head: "c0ffee" });
     await merging;
     expect(missionNow().members[0].merged).toBeUndefined();
   });
@@ -612,7 +613,7 @@ describe("what the review of the queue found", () => {
     workspacesStore.setState({ activeId: "w1" });
     // Done, its branch goes in first: on a conflict, no new agent starts from a branch without its work.
     nodesStore.getState().update("chef", { mission: { ...missionNow(), members: [member("batman", "Batman", { report: done })] } });
-    vi.mocked(missionMerge).mockResolvedValueOnce({ merge: { kind: "conflict", files: ["a.ts"] }, uncommitted: false });
+    vi.mocked(missionMerge).mockResolvedValueOnce({ merge: { kind: "conflict", files: ["a.ts"] }, uncommitted: false, head: "c0ffee" });
     expect(await giveNext("chef", missionNow().members[0])).toEqual({ refused: "Nothing starts for now: Batman's branch is not merged." });
     expect(missionAddAgent).not.toHaveBeenCalled();
     expect(missionNow().members[0].abandoned).toBeUndefined();

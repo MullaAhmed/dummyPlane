@@ -29,7 +29,7 @@ import { notify } from "./events";
 import { missionFolder } from "./folder";
 import { addTeamMember, fleetNameOf, reflowTeam, removeManager, setUpBoard, undoSetup, type MissionSetup } from "./manager";
 import { nightSession } from "./overnight";
-import { NEW_AGENT, NEW_MISSION, oneLine, pastTask, queuedTask, reassignable, sameName, worktreeOwners, type Member, type Mission, type SubTask } from "./mission";
+import { NEW_AGENT, NEW_MISSION, oneLine, pastTask, queuedTask, reassignable, sameName, squashMessage, worktreeOwners, type Member, type Mission, type SubTask } from "./mission";
 import { whenReady } from "./ready";
 import { modelRouterStore } from "@/app/modelRouterSetting";
 import { levelModel, modelLabel } from "./router";
@@ -401,18 +401,29 @@ function oneMergeAtATime<T>(worktree: string, merge: () => Promise<T>): Promise<
   return turn;
 }
 
-/** Merges one member's branch into the mission's: what to say of it, and whether its branch is in. */
+/**
+ * Squashes one member's branch into the mission's, one commit named after its sub-task (`squashMessage`): what to say
+ * of it, and whether its branch is in. Only what came after its last merge is taken (`squashed`, read when its turn
+ * comes: a merge queued before it may have taken some in).
+ */
 export function mergeMember(fleetId: string, worktree: string, member: Member): Promise<{ line: string; merged: boolean; uncommitted: boolean }> {
   const m = t().merge;
+  const current = () => missionOf(nodesStore.getState().nodes[fleetId])?.members.find((other) => other.nodeId === member.nodeId);
   return oneMergeAtATime(worktree, async () => {
     try {
-      const { merge, uncommitted } = await missionMerge(worktree, member.worktree, member.branch);
+      const before = current();
+      const since = before?.branch === member.branch ? before.squashed : undefined;
+      const { merge, uncommitted, head } = await missionMerge(worktree, member.worktree, member.branch, squashMessage(member), since);
       const note = uncommitted ? m.uncommitted : "";
       if (merge.kind === "conflict") return { line: m.conflict(member.name, merge.files.join(", "), note), merged: false, uncommitted };
       const said = merge.kind === "merged" ? m.merged : member.merged ? m.already : m.empty;
-      // It may have taken another task meanwhile: that one is not merged.
-      const now = missionOf(nodesStore.getState().nodes[fleetId])?.members.find((other) => other.nodeId === member.nodeId);
-      if (now?.task === member.task && now.report?.at === member.report?.at) updateMember(fleetId, member.nodeId, { merged: true });
+      // What its branch holds up to `head` is in, whatever task it is on now; it may have taken another meanwhile,
+      // and that one is not merged.
+      const now = current();
+      if (now?.branch === member.branch) {
+        const same = now.task === member.task && now.report?.at === member.report?.at;
+        updateMember(fleetId, member.nodeId, { ...(head ? { squashed: head } : {}), ...(same ? { merged: true } : {}) });
+      }
       return { line: m.line(member.name, said, note), merged: true, uncommitted };
     } catch (error) {
       return { line: m.failed(member.name, errorText(error)), merged: false, uncommitted: false };

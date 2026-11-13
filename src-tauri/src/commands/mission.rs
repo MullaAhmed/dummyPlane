@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use crate::error::{AppError, AppResult};
-use crate::mission::{self, Cleanup, MergeReport, Worktree};
+use crate::mission::{self, AgentBranch, Cleanup, MergeReport, Worktree};
 use crate::power::KeepAwake;
 use crate::tickets::{self, ProjectChecks};
 
@@ -34,14 +34,26 @@ pub async fn mission_add_agent(
     blocking(move || mission::add_agent(Path::new(&project), &mission, &agent)).await
 }
 
-/// `mission` and `agent` are the worktrees' paths.
+/// `mission` and `agent` are the worktrees' paths; `message`, the squash's commit message; `since`, the head the
+/// agent's last merge took in.
 #[tauri::command]
 pub async fn mission_merge(
     mission: String,
     agent: String,
     branch: String,
+    message: String,
+    since: Option<String>,
 ) -> AppResult<MergeReport> {
-    blocking(move || mission::merge_agent(Path::new(&mission), Path::new(&agent), &branch)).await
+    blocking(move || {
+        mission::merge_agent(
+            Path::new(&mission),
+            Path::new(&agent),
+            &branch,
+            &message,
+            since.as_deref(),
+        )
+    })
+    .await
 }
 
 /// The project's `BACKLOG.md`.
@@ -74,7 +86,7 @@ pub fn set_keep_awake(awake: tauri::State<'_, KeepAwake>, on: bool) {
 pub async fn mission_cleanup_unsaved(
     project: String,
     mission: String,
-    agents: Vec<String>,
+    agents: Vec<AgentBranch>,
 ) -> AppResult<Vec<String>> {
     blocking(move || mission::cleanup_unsaved(Path::new(&project), &mission, &agents)).await
 }
@@ -90,7 +102,7 @@ pub async fn mission_discard(project: String, trees: Vec<Worktree>) -> AppResult
 pub async fn mission_cleanup(
     project: String,
     mission: String,
-    agents: Vec<String>,
+    agents: Vec<AgentBranch>,
 ) -> AppResult<Cleanup> {
     blocking(move || mission::cleanup(Path::new(&project), &mission, &agents)).await
 }

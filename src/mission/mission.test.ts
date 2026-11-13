@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { budgetBar, budgetOf, clockText, memberTime, NEW_MISSION, nightMin, noNewWork, oneLine, overruns, proposedPlan, proposedTasks, readMission, remainingGlobal, sameName, spentMin, windingDown, type Member, type Mission } from "./mission";
+import { budgetBar, budgetOf, clockText, memberTime, NEW_MISSION, nightMin, noNewWork, oneLine, overruns, proposedPlan, proposedTasks, readMission, remainingGlobal, sameName, spentMin, squashMessage, windingDown, worktreeOwners, type Member, type Mission } from "./mission";
 
 const task = (agent: string, budget = 20) => ({ titre: "Login", consigne: "Fais le login", agent, budget_min: budget });
 const args = (...sous_taches: object[]) => ({ nom: "Auth", tache: "Ajoute l'authentification", sous_taches });
@@ -167,6 +167,22 @@ describe("tasks for the queue", () => {
     expect(saved?.queue).toEqual([{ title: "A", brief: "B", budgetMin: 1, level: "faible", group: { id: "g", name: "G" } }]);
     expect(saved?.members[0].past).toEqual([past]);
     expect(readMission({ state: "plan" })).not.toHaveProperty("queue");
+  });
+
+  it("keeps, after a restart, the head an agent's last merge took in: the next merge and the cleanups need it", () => {
+    const member = { nodeId: "n", name: "Batman", task: "A", budgetMin: 1, linked: false, branch: "b", worktree: "w", squashed: "c0ffee" };
+    const saved = readMission(JSON.parse(JSON.stringify({ state: "terminee", members: [member, { ...member, nodeId: "m", name: "Robin", squashed: 3 }], strays: ["Superman"] })));
+    expect(saved?.members.map((m) => m.squashed)).toEqual(["c0ffee", undefined]);
+    // What the cleanups are told: each agent with the head its squash took in, a stray with none.
+    expect(worktreeOwners(saved!)).toEqual([{ name: "Batman", squashed: "c0ffee" }, { name: "Robin" }, { name: "Superman" }]);
+  });
+
+  it("names an agent's squash after its sub-task, its report and what it leaves to check as the body, never half a character", () => {
+    const report = { summary: "  Login form done.\n\n# Notes\nTyped. ", status: "termine" as const, at: 1 };
+    expect(squashMessage({ task: "Login\nform", report })).toBe("Login form\n\nLogin form done.\n\n# Notes\nTyped.");
+    expect(squashMessage({ task: "Login", report: { ...report, check: "Try a wrong password" } })).toContain("\n\nTo check by hand: Try a wrong password");
+    expect(squashMessage({ task: "Login" })).toBe("Login");
+    expect(squashMessage({ task: "Login", report: { ...report, summary: "Shipped \uD83C" } })).toBe("Login\n\nShipped ");
   });
 
   it("keeps, after a restart, the agents a stop left behind: the cleanup still removes their worktrees", () => {

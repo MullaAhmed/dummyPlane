@@ -83,7 +83,7 @@ describe("clean_up_mission", () => {
         "Its summary is no longer in the panel: tell the user what it said, if you have not. Summary: Login and API shipped. To check by hand: Read the migration.",
     );
     // The same check the panel's cleanup would keep nothing from: the project, the mission's slug, every member.
-    expect(asked).toEqual([{ project: "C:/code/proj", mission: "auth", agents: ["Batman"] }]);
+    expect(asked).toEqual([{ project: "C:/code/proj", mission: "auth", agents: [{ name: "Batman" }] }]);
     expect(missionOf(nodesStore.getState().nodes.chef)).toMatchObject({ state: "redaction", maxAgents: 3, members: [] });
   });
 

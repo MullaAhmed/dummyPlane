@@ -1,5 +1,7 @@
 import { messages } from "@/i18n";
+import type { AgentBranch } from "@/ipc/mission";
 import type { Permission } from "@/ipc/pty";
+import { HALF_CHARACTER } from "@/lib/cut";
 import { agentMessages } from "@/mcp/messages";
 import { readLevel, type Level } from "./router";
 import type { TicketSource } from "./tickets";
@@ -80,6 +82,11 @@ export interface Member {
   brief?: string;
   report?: Report;
   merged?: boolean;
+  /**
+   * The head of its branch its last merge took in, squashed into one commit of the mission's: the next merge takes
+   * only what came after it, and the cleanups know the branch is in (a squashed branch is no ancestor of the mission's).
+   */
+  squashed?: string;
   /** Minutes added by `prolonger`. */
   extraMin?: number;
   /** The overruns already told: 1 at 100 % of its budget, 2 at 200 %. */
@@ -221,6 +228,7 @@ function readMember(raw: unknown): Member | null {
   // Typed already: what was left of it is no longer to type.
   else if (typeof r.brief === "string" && r.brief) member.brief = r.brief;
   if (r.merged === true) member.merged = true;
+  if (typeof r.squashed === "string" && r.squashed) member.squashed = r.squashed;
   const report = r.report as Record<string, unknown> | undefined;
   if (report && typeof report.summary === "string" && typeof report.status === "string" && STATUSES.includes(report.status)) {
     member.report = { summary: report.summary, status: report.status as ReportStatus, at: typeof report.at === "number" ? report.at : 0, ...(typeof report.check === "string" ? { check: report.check } : {}) };
@@ -430,7 +438,21 @@ export function pastTask(member: Member, report: Report): PastTask {
 export const reassignable = (mission: Mission) => mission.members.filter((m) => !m.handedTo && !m.abandoned);
 
 /** The agents whose worktrees a mission's cleanup removes: its members, and those its end left behind (`strays`). */
-export const worktreeOwners = (mission: Mission) => [...mission.members.map((m) => m.name), ...(mission.strays ?? [])];
+export const worktreeOwners = (mission: Mission): AgentBranch[] => [
+  ...mission.members.map((m) => ({ name: m.name, ...(m.squashed ? { squashed: m.squashed } : {}) })),
+  ...(mission.strays ?? []).map((name) => ({ name })),
+];
+
+/**
+ * The commit message an agent's work is squashed under: its sub-task's title, then what its report said and what it
+ * leaves to check by hand. Never a branch's name. Half a character is dropped: the message goes to git through Rust.
+ */
+export function squashMessage(member: Pick<Member, "task" | "report">): string {
+  const summary = member.report?.summary.trim();
+  const check = member.report?.check?.trim();
+  const body = [summary, check ? `To check by hand: ${check}` : ""].filter((part): part is string => !!part);
+  return [oneLine(member.task), ...body].join("\n\n").replace(HALF_CHARACTER, "");
+}
 
 /** A member's budget with its extensions. */
 export const budgetOf = (member: Member) => member.budgetMin + (member.extraMin ?? 0);

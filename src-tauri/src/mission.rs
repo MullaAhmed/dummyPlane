@@ -2,8 +2,9 @@
 //! dummyPlane works beside the user's folder, never in their branch: no push,
 //! no force.
 
+use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 use serde::{Deserialize, Serialize};
 
@@ -36,7 +37,36 @@ pub struct MergeReport {
     pub merge: Merge,
     /// The agent left changes uncommitted in its worktree: they are not merged.
     pub uncommitted: bool,
+    /// The agent's branch head the merge looked at: what its squash took in, kept by the mission so that the next
+    /// merge takes only what came after it, and so that the cleanups know the branch is in.
+    pub head: String,
 }
+
+/// An agent of the mission as the cleanups name it, with the head of its branch its last merge took in (`squashed`):
+/// a squashed branch is no ancestor of the mission's, so git alone cannot tell it is in.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentBranch {
+    pub name: String,
+    #[serde(default)]
+    pub squashed: Option<String>,
+}
+
+/// Whether the repository's hooks run when an agent's work is squashed into the mission branch. They are programs
+/// the repository names, which an agent can write, run on dummyPlane's own commit: off, none runs (the decision of
+/// 13 Nov). The user's own merge of the mission branch runs them as any of their commits does.
+const SQUASH_RUNS_HOOKS: bool = false;
+
+/// A hooks folder no hook can be in: with it, git finds none to run, `post-commit` included (`--no-verify` only skips
+/// the checks).
+const NO_HOOKS: [&str; 2] = [
+    "-c",
+    if cfg!(windows) {
+        "core.hooksPath=NUL"
+    } else {
+        "core.hooksPath=/dev/null"
+    },
+];
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -98,6 +128,43 @@ fn git(dir: &Path, args: &[&str]) -> Result<String, String> {
     )
     .output()
     .map_err(|err| format!("git not found: {err}"))?;
+    if output.status.success() {
+        Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+    } else {
+        Err(String::from_utf8_lossy(&output.stderr).trim().to_string())
+    }
+}
+
+/// `git` for the squash of an agent's work: no hook the repository names runs (`SQUASH_RUNS_HOOKS`), and `input`,
+/// when given, is what git reads on its standard input: a commit's message is never an argument, nor a shell's.
+fn squash_git(dir: &Path, args: &[&str], input: Option<&str>) -> Result<String, String> {
+    let mut command = Command::new("git");
+    command.args(crate::review::NO_FSMONITOR);
+    if !SQUASH_RUNS_HOOKS {
+        command.args(NO_HOOKS);
+    }
+    command
+        .arg("-C")
+        .arg(dir)
+        .args(args)
+        .stdin(if input.is_some() {
+            Stdio::piped()
+        } else {
+            Stdio::null()
+        })
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    let mut child = hide_window(&mut command)
+        .spawn()
+        .map_err(|err| format!("git not found: {err}"))?;
+    if let (Some(input), Some(mut stdin)) = (input, child.stdin.take()) {
+        stdin
+            .write_all(input.as_bytes())
+            .map_err(|err| format!("git did not take its input: {err}"))?;
+    }
+    let output = child
+        .wait_with_output()
+        .map_err(|err| format!("git did not answer: {err}"))?;
     if output.status.success() {
         Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
     } else {
@@ -179,48 +246,90 @@ pub fn add_agent(project: &Path, mission: &str, agent: &str) -> Result<Worktree,
     add_worktree(&root, &dir, &name, &format!("dummyplane/{mission}"))
 }
 
-/// Merges an agent's branch into the mission's, in the mission's worktree; a conflict is undone.
-pub fn merge_agent(mission: &Path, agent: &Path, branch: &str) -> Result<MergeReport, String> {
+/// Squashes an agent's branch into the mission's, in the mission's worktree: one commit, whose message is `message`
+/// (the sub-task, then what the agent reported; never a branch's name), with the user's git identity and no hook of
+/// the repository (`SQUASH_RUNS_HOOKS`). `since` is the head its last merge took in: only what came after it is
+/// taken, with it as the merge's base, as a squashed branch is no ancestor of the mission's. A conflict, or a commit
+/// git refuses, is undone: the mission's worktree is left as it was.
+pub fn merge_agent(
+    mission: &Path,
+    agent: &Path,
+    branch: &str,
+    message: &str,
+    since: Option<&str>,
+) -> Result<MergeReport, String> {
     let uncommitted = !git(agent, &["status", "--porcelain"])
         .unwrap_or_default()
         .is_empty();
-    let ahead = git(
+    let head = git(
         mission,
-        &["rev-list", "--count", &format!("HEAD..{branch}")],
+        &["rev-parse", "--verify", &format!("{branch}^{{commit}}")],
     )?;
-    if ahead == "0" {
-        return Ok(MergeReport {
-            merge: Merge::Empty,
-            uncommitted,
-        });
-    }
-    match git(mission, &["merge", "--no-ff", "--no-edit", branch]) {
-        Ok(_) => Ok(MergeReport {
-            merge: Merge::Merged,
-            uncommitted,
-        }),
-        Err(err) => {
-            let files: Vec<String> = git(mission, &["diff", "--name-only", "--diff-filter=U"])
-                .unwrap_or_default()
-                .lines()
-                .map(str::to_string)
-                .collect();
-            if files.is_empty() {
-                // A hook that refused the commit leaves the merge half done:
-                // the next merges would all fail on it (final review H2).
-                if git(mission, &["rev-parse", "-q", "--verify", "MERGE_HEAD"]).is_ok() {
-                    let _ = git(mission, &["merge", "--abort"]);
-                    return Err(format!("Merging {branch} failed and was cancelled: {err}"));
-                }
-                return Err(err);
-            }
-            let _ = git(mission, &["merge", "--abort"]);
-            Ok(MergeReport {
-                merge: Merge::Conflict { files },
-                uncommitted,
-            })
+    let report = |merge| MergeReport {
+        merge,
+        uncommitted,
+        head: head.clone(),
+    };
+    let base = match since {
+        Some(since) if since == head => return Ok(report(Merge::Empty)),
+        // Its history rewritten since (a reset, a rebase): what came after its last merge cannot be told.
+        Some(since) if git(mission, &["merge-base", "--is-ancestor", since, &head]).is_err() => {
+            return Err(format!(
+                "The branch {branch} was rewritten since its last merge: dummyPlane takes in only the commits added on top of it."
+            ));
         }
+        Some(since) => since.to_string(),
+        None => git(mission, &["merge-base", "HEAD", &head])?,
+    };
+    let tree = |commit: &str| git(mission, &["rev-parse", &format!("{commit}^{{tree}}")]);
+    if tree(&base)? == tree(&head)? {
+        return Ok(report(Merge::Empty));
     }
+    // One commit from `base` to the agent's work: cherry-pick takes `base`, its parent, as the merge's base. Never
+    // kept, never signed.
+    let step = squash_git(
+        mission,
+        &[
+            "commit-tree",
+            "--no-gpg-sign",
+            "-p",
+            &base,
+            &format!("{head}^{{tree}}"),
+        ],
+        Some("dummyPlane: an agent's work, from its base"),
+    )?;
+    if let Err(err) = squash_git(mission, &["cherry-pick", "--no-commit", &step], None) {
+        let files: Vec<String> = git(mission, &["diff", "--name-only", "--diff-filter=U"])
+            .unwrap_or_default()
+            .lines()
+            .map(str::to_string)
+            .collect();
+        undo_squash(mission);
+        if files.is_empty() {
+            return Err(format!("Merging {branch} failed and was cancelled: {err}"));
+        }
+        return Ok(report(Merge::Conflict { files }));
+    }
+    // Everything it brings is in already.
+    if git(mission, &["diff", "--cached", "--quiet"]).is_ok() {
+        undo_squash(mission);
+        return Ok(report(Merge::Empty));
+    }
+    let mut commit = vec!["commit", "-q", "--cleanup=whitespace", "-F", "-"];
+    if !SQUASH_RUNS_HOOKS {
+        commit.push("--no-verify");
+    }
+    if let Err(err) = squash_git(mission, &commit, Some(message)) {
+        // A commit refused (a hook, a signing that failed) leaves the squash staged: the next merges would take it in.
+        undo_squash(mission);
+        return Err(format!("Merging {branch} failed and was cancelled: {err}"));
+    }
+    Ok(report(Merge::Merged))
+}
+
+/// Takes a squash back: the index and the files it changed as they were, a conflict's included, other local changes kept.
+fn undo_squash(mission: &Path) {
+    let _ = squash_git(mission, &["reset", "--merge"], None);
 }
 
 /// Never forced: a worktree with uncommitted changes stays.
@@ -278,20 +387,64 @@ fn merged_branches(root: &Path, mission: &str) -> Result<String, String> {
     )
 }
 
-/// Removes the worktrees whose branch is merged into the mission's, then the
+/// Whether an agent's branch is in the mission's: one of `merged` (merged the old way, an ancestor of it), at the head
+/// its own squash took in (`own`) or on the same files (an empty commit since), or an ancestor of a head any squash
+/// took in (`squashed`): a branch handed over gets in through its successor's.
+fn branch_in(
+    root: &Path,
+    branch: &str,
+    own: Option<&str>,
+    merged: &[&str],
+    squashed: &[&str],
+) -> bool {
+    if merged.contains(&branch) {
+        return true;
+    }
+    let Ok(head) = git(
+        root,
+        &["rev-parse", "--verify", &format!("{branch}^{{commit}}")],
+    ) else {
+        return false;
+    };
+    if own.is_some_and(|own| same_work(root, own, &head)) {
+        return true;
+    }
+    squashed
+        .iter()
+        .any(|squash| git(root, &["merge-base", "--is-ancestor", &head, squash]).is_ok())
+}
+
+/// Two commits that hold the same work: the same, or the same files (a commit with no change on top of the other).
+fn same_work(root: &Path, a: &str, b: &str) -> bool {
+    let tree = |commit: &str| git(root, &["rev-parse", &format!("{commit}^{{tree}}")]).ok();
+    a == b || tree(a).is_some_and(|tree_a| tree(b) == Some(tree_a))
+}
+
+/// Removes the worktrees whose branch is in the mission's (`branch_in`), then the
 /// mission's own when none is left; the branches stay for the user.
-pub fn cleanup(project: &Path, mission: &str, agents: &[String]) -> Result<Cleanup, String> {
+pub fn cleanup(project: &Path, mission: &str, agents: &[AgentBranch]) -> Result<Cleanup, String> {
     let (root, dir) = locate(project)?;
     let merged = merged_branches(&root, mission)?;
     let merged: Vec<&str> = merged.lines().map(str::trim).collect();
+    let squashed: Vec<&str> = agents
+        .iter()
+        .filter_map(|a| a.squashed.as_deref())
+        .collect();
     let mut done = Cleanup::default();
     for agent in agents {
-        let name = format!("{mission}-{}", slug(agent));
+        let name = format!("{mission}-{}", slug(&agent.name));
         let path = dir.join(&name);
         if !path.exists() {
             continue;
         }
-        if merged.contains(&format!("dummyplane/{name}").as_str()) {
+        let branch = format!("dummyplane/{name}");
+        if branch_in(
+            &root,
+            &branch,
+            agent.squashed.as_deref(),
+            &merged,
+            &squashed,
+        ) {
             remove_worktree(&root, name, &path, &mut done);
         } else {
             done.kept.push(format!("{name} (branch not merged)"));
@@ -310,20 +463,31 @@ pub fn cleanup(project: &Path, mission: &str, agents: &[String]) -> Result<Clean
 pub fn cleanup_unsaved(
     project: &Path,
     mission: &str,
-    agents: &[String],
+    agents: &[AgentBranch],
 ) -> Result<Vec<String>, String> {
     let (root, dir) = locate(project)?;
     let merged = merged_branches(&root, mission)?;
     let merged: Vec<&str> = merged.lines().map(str::trim).collect();
+    let squashed: Vec<&str> = agents
+        .iter()
+        .filter_map(|a| a.squashed.as_deref())
+        .collect();
     let mut unsaved = Vec::new();
     for agent in agents {
-        let name = format!("{mission}-{}", slug(agent));
+        let name = format!("{mission}-{}", slug(&agent.name));
         let path = dir.join(&name);
         if !path.exists() {
             continue;
         }
         let mut reasons = Vec::new();
-        if !merged.contains(&format!("dummyplane/{name}").as_str()) {
+        let branch = format!("dummyplane/{name}");
+        if !branch_in(
+            &root,
+            &branch,
+            agent.squashed.as_deref(),
+            &merged,
+            &squashed,
+        ) {
             reasons.push("branch not merged");
         }
         if !git(&path, &["status", "--porcelain"])?.is_empty() {
@@ -519,12 +683,7 @@ mod tests {
             &["config", "core.fsmonitor", "echo ran > fsmonitor-ran"],
         );
         std::fs::write(Path::new(&hulk.path).join("draft.txt"), "x").unwrap();
-        merge_agent(
-            Path::new(&mission.path),
-            Path::new(&hulk.path),
-            &hulk.branch,
-        )
-        .unwrap();
+        squash(Path::new(&mission.path), &hulk);
         for tree in [&mission.path, &hulk.path] {
             assert!(
                 !Path::new(tree).join("fsmonitor-ran").exists(),
@@ -533,68 +692,193 @@ mod tests {
         }
     }
 
+    /// An agent's work squashed into the mission, under a message of its own.
+    fn squash(m: &Path, agent: &Worktree) -> MergeReport {
+        merge_agent(
+            m,
+            Path::new(&agent.path),
+            &agent.branch,
+            "An agent's sub-task",
+            None,
+        )
+        .unwrap()
+    }
+
+    fn agent(name: &str, squashed: Option<&str>) -> AgentBranch {
+        AgentBranch {
+            name: name.into(),
+            squashed: squashed.map(str::to_string),
+        }
+    }
+
+    fn read(dir: &Path, file: &str) -> String {
+        std::fs::read_to_string(dir.join(file)).unwrap()
+    }
+
     #[test]
-    fn merges_an_agents_commits_into_the_mission() {
+    fn squashes_an_agents_work_into_one_commit_named_after_its_sub_task() {
         let Some((_parent, proj)) = project() else {
             return;
         };
         let mission = prepare(&proj, "auth").unwrap();
         let hulk = add_agent(&proj, &mission.slug, "Hulk").unwrap();
         let wolverine = add_agent(&proj, &mission.slug, "Wolverine").unwrap();
-        commit(Path::new(&hulk.path), "login.txt", "login\n", "login");
+        let h = Path::new(&hulk.path);
+        commit(h, "login.txt", "login\n", "login form");
+        commit(h, "login.txt", "login\nsubmit\n", "submit button");
         std::fs::write(Path::new(&wolverine.path).join("draft.txt"), "x").unwrap();
         let m = Path::new(&mission.path);
+        let before = run(m, &["rev-parse", "HEAD"]);
+        // A report's Markdown heading is part of the message, not a comment git drops.
+        let message = "Login form\n\n# What was done\nThe form and its submit button.";
         assert_eq!(
-            merge_agent(m, Path::new(&hulk.path), &hulk.branch).unwrap(),
+            merge_agent(m, h, &hulk.branch, message, None).unwrap(),
             MergeReport {
                 merge: Merge::Merged,
-                uncommitted: false
+                uncommitted: false,
+                head: run(h, &["rev-parse", "HEAD"]),
             }
         );
-        assert!(m.join("login.txt").exists());
+        // One commit on the mission's, of one parent: the agent's own commits stay out of its history.
         assert_eq!(
-            merge_agent(m, Path::new(&wolverine.path), &wolverine.branch).unwrap(),
-            MergeReport {
-                merge: Merge::Empty,
-                uncommitted: true
-            }
+            run(m, &["rev-list", "--count", &format!("{before}..HEAD")]),
+            "1"
         );
+        assert_eq!(run(m, &["rev-parse", "HEAD^"]), before);
+        assert!(git(m, &["merge-base", "--is-ancestor", &hulk.branch, "HEAD"]).is_err());
+        assert_eq!(run(m, &["log", "-1", "--format=%B"]), message);
+        assert_eq!(run(m, &["log", "-1", "--format=%an <%ae>"]), "t <t@t>");
+        assert_eq!(read(m, "login.txt"), "login\nsubmit\n");
+        assert_eq!(run(m, &["status", "--porcelain"]), "");
+        // Nothing committed: nothing to take in, its uncommitted file said.
+        let empty = merge_agent(
+            m,
+            Path::new(&wolverine.path),
+            &wolverine.branch,
+            "API",
+            None,
+        )
+        .unwrap();
+        assert_eq!((empty.merge, empty.uncommitted), (Merge::Empty, true));
     }
 
     #[test]
-    fn a_merge_refused_by_a_hook_is_undone() {
+    fn a_merge_again_takes_only_what_came_after_the_last_one() {
+        let Some((_parent, proj)) = project() else {
+            return;
+        };
+        let mission = prepare(&proj, "auth").unwrap();
+        let hulk = add_agent(&proj, &mission.slug, "Hulk").unwrap();
+        let h = Path::new(&hulk.path);
+        let m = Path::new(&mission.path);
+        commit(h, "a.txt", "b\n", "first pass");
+        let first = squash(m, &hulk);
+        // The agent changes its own line again: from its fork, the line would conflict with its own squash.
+        commit(h, "a.txt", "c\n", "second pass");
+        let fresh = merge_agent(m, h, &hulk.branch, "Login", None).unwrap();
+        assert!(matches!(fresh.merge, Merge::Conflict { .. }));
+        assert_eq!(run(m, &["status", "--porcelain"]), "");
+        let again = merge_agent(m, h, &hulk.branch, "Login, again", Some(&first.head)).unwrap();
+        assert_eq!(again.merge, Merge::Merged);
+        assert_eq!(read(m, "a.txt"), "c\n");
+        // Nothing new since: nothing is taken, even past a change of the mission's on the same line.
+        commit(m, "a.txt", "mission\n", "mission side");
+        let head = run(m, &["rev-parse", "HEAD"]);
+        let none = merge_agent(m, h, &hulk.branch, "Login", Some(&again.head)).unwrap();
+        assert_eq!(none.merge, Merge::Empty);
+        assert_eq!(run(m, &["rev-parse", "HEAD"]), head);
+        assert_eq!(read(m, "a.txt"), "mission\n");
+    }
+
+    #[test]
+    fn a_branch_rewritten_since_its_merge_is_refused() {
+        let Some((_parent, proj)) = project() else {
+            return;
+        };
+        let mission = prepare(&proj, "auth").unwrap();
+        let hulk = add_agent(&proj, &mission.slug, "Hulk").unwrap();
+        let h = Path::new(&hulk.path);
+        let m = Path::new(&mission.path);
+        commit(h, "login.txt", "login\n", "login");
+        let first = squash(m, &hulk);
+        run(h, &["reset", "-q", "--hard", "HEAD~1"]);
+        commit(h, "other.txt", "other\n", "another history");
+        let head = run(m, &["rev-parse", "HEAD"]);
+        let err = merge_agent(m, h, &hulk.branch, "Login", Some(&first.head)).unwrap_err();
+        assert!(err.contains("rewritten"), "{err}");
+        assert_eq!(run(m, &["rev-parse", "HEAD"]), head);
+    }
+
+    /// A merge's commit is dummyPlane's: no hook the repository names runs on it (`SQUASH_RUNS_HOOKS`), not even
+    /// those `--no-verify` leaves.
+    #[test]
+    fn a_squash_runs_no_hook_the_repository_names() {
         let Some((parent, proj)) = project() else {
             return;
         };
         let mission = prepare(&proj, "auth").unwrap();
         let hulk = add_agent(&proj, &mission.slug, "Hulk").unwrap();
         commit(Path::new(&hulk.path), "login.txt", "login\n", "login");
-        // Worktrees share the repository's config, so its hooks.
+        // Worktrees share the repository's config, so its hooks: each one would leave a mark, and refuse.
         let hooks = parent.path().join("hooks");
         std::fs::create_dir(&hooks).unwrap();
-        std::fs::write(hooks.join("pre-merge-commit"), "#!/bin/sh\nexit 1\n").unwrap();
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            // Git runs a hook only when it is executable.
-            std::fs::set_permissions(
-                hooks.join("pre-merge-commit"),
-                std::fs::Permissions::from_mode(0o755),
+        let marks = hooks.to_string_lossy().replace('\\', "/");
+        let names = [
+            "pre-commit",
+            "prepare-commit-msg",
+            "commit-msg",
+            "post-commit",
+            "reference-transaction",
+            "post-rewrite",
+        ];
+        for name in names {
+            let hook = hooks.join(name);
+            std::fs::write(
+                &hook,
+                format!("#!/bin/sh\necho ran > '{marks}/ran-{name}'\nexit 1\n"),
             )
             .unwrap();
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                // Git runs a hook only when it is executable.
+                std::fs::set_permissions(&hook, std::fs::Permissions::from_mode(0o755)).unwrap();
+            }
         }
         run(
             &proj,
             &["config", "core.hooksPath", &hooks.to_string_lossy()],
         );
         let m = Path::new(&mission.path);
-        let err = merge_agent(m, Path::new(&hulk.path), &hulk.branch).unwrap_err();
+        assert_eq!(squash(m, &hulk).merge, Merge::Merged);
+        for name in names {
+            assert!(
+                !hooks.join(format!("ran-{name}")).exists(),
+                "the {name} hook ran"
+            );
+        }
+    }
+
+    #[test]
+    fn a_squash_whose_commit_git_refuses_is_undone() {
+        let Some((_parent, proj)) = project() else {
+            return;
+        };
+        let mission = prepare(&proj, "auth").unwrap();
+        let hulk = add_agent(&proj, &mission.slug, "Hulk").unwrap();
+        commit(Path::new(&hulk.path), "login.txt", "login\n", "login");
+        // A signing that cannot run refuses the commit.
+        run(&proj, &["config", "commit.gpgsign", "true"]);
+        run(&proj, &["config", "gpg.program", "dummyplane-no-such-gpg"]);
+        let m = Path::new(&mission.path);
+        let head = run(m, &["rev-parse", "HEAD"]);
+        let err = merge_agent(m, Path::new(&hulk.path), &hulk.branch, "Login", None).unwrap_err();
         assert!(err.contains("was cancelled"), "{err}");
-        assert!(git(m, &["rev-parse", "-q", "--verify", "MERGE_HEAD"]).is_err());
         assert_eq!(run(m, &["status", "--porcelain"]), "");
-        std::fs::remove_file(hooks.join("pre-merge-commit")).unwrap();
-        let again = merge_agent(m, Path::new(&hulk.path), &hulk.branch).unwrap();
-        assert_eq!(again.merge, Merge::Merged);
+        assert_eq!(run(m, &["rev-parse", "HEAD"]), head);
+        assert!(!m.join("login.txt").exists());
+        run(&proj, &["config", "commit.gpgsign", "false"]);
+        assert_eq!(squash(m, &hulk).merge, Merge::Merged);
     }
 
     #[test]
@@ -606,8 +890,11 @@ mod tests {
         let hulk = add_agent(&proj, &mission.slug, "Hulk").unwrap();
         let m = Path::new(&mission.path);
         commit(m, "a.txt", "mission\n", "mission side");
-        commit(Path::new(&hulk.path), "a.txt", "hulk\n", "agent side");
-        let report = merge_agent(m, Path::new(&hulk.path), &hulk.branch).unwrap();
+        let h = Path::new(&hulk.path);
+        commit(h, "a.txt", "hulk\n", "agent side");
+        // A new file comes with the conflict: it goes with the squash, staged and on disk.
+        commit(h, "new.txt", "new\n", "a new file");
+        let report = squash(m, &hulk);
         assert_eq!(
             report.merge,
             Merge::Conflict {
@@ -615,10 +902,52 @@ mod tests {
             }
         );
         assert_eq!(run(m, &["status", "--porcelain"]), "");
+        assert!(!m.join("new.txt").exists());
+        assert_eq!(read(m, "a.txt").trim_end(), "mission");
+    }
+
+    #[test]
+    fn cleanup_knows_squashed_and_handed_over_branches_are_in_and_skips_removed_ones() {
+        let Some((parent, proj)) = project() else {
+            return;
+        };
+        let mission = prepare(&proj, "auth").unwrap();
+        let m = Path::new(&mission.path);
+        let hulk = add_agent(&proj, &mission.slug, "Hulk").unwrap();
+        let wolverine = add_agent(&proj, &mission.slug, "Wolverine").unwrap();
+        let thor = add_agent(&proj, &mission.slug, "Thor").unwrap();
+        // Hulk hands its task over: Wolverine takes its branch in, then finishes; Hulk's gets in through its squash.
+        commit(Path::new(&hulk.path), "login.txt", "login\n", "login");
+        let w = Path::new(&wolverine.path);
+        run(w, &["merge", "-q", "--no-edit", &hulk.branch]);
+        commit(w, "api.txt", "api\n", "api");
+        let wolverine_in = squash(m, &wolverine);
+        // A commit with no change since its squash: its work is still in.
+        run(w, &["commit", "-q", "--allow-empty", "-m", "nothing more"]);
+        // Thor's worktree went with its own cleanup already.
+        commit(Path::new(&thor.path), "docs.txt", "docs\n", "docs");
+        let thor_in = squash(m, &thor);
+        run(&proj, &["worktree", "remove", &thor.path]);
+        let agents = vec![
+            agent("Hulk", None),
+            agent("Wolverine", Some(&wolverine_in.head)),
+            agent("Thor", Some(&thor_in.head)),
+        ];
         assert_eq!(
-            std::fs::read_to_string(m.join("a.txt")).unwrap().trim_end(),
-            "mission"
+            cleanup_unsaved(&proj, &mission.slug, &agents).unwrap(),
+            Vec::<String>::new()
         );
+        let done = cleanup(&proj, &mission.slug, &agents).unwrap();
+        assert_eq!(
+            done.removed,
+            vec![
+                "auth-hulk".to_string(),
+                "auth-wolverine".to_string(),
+                "auth".to_string()
+            ]
+        );
+        assert!(done.kept.is_empty());
+        assert!(!parent.path().join("proj.worktrees").join("auth").exists());
     }
 
     #[test]
@@ -659,8 +988,8 @@ mod tests {
         commit(Path::new(&hulk.path), "login.txt", "login\n", "login");
         commit(Path::new(&wolverine.path), "api.txt", "api\n", "api");
         let m = Path::new(&mission.path);
-        merge_agent(m, Path::new(&hulk.path), &hulk.branch).unwrap();
-        let names = vec!["Hulk".to_string(), "Wolverine".to_string()];
+        let hulk_in = squash(m, &hulk);
+        let names = vec![agent("Hulk", Some(&hulk_in.head)), agent("Wolverine", None)];
         let first = cleanup(&proj, &mission.slug, &names).unwrap();
         assert_eq!(first.removed, vec!["auth-hulk".to_string()]);
         assert_eq!(
@@ -668,7 +997,11 @@ mod tests {
             vec!["auth-wolverine (branch not merged)".to_string()]
         );
         assert!(m.exists());
-        merge_agent(m, Path::new(&wolverine.path), &wolverine.branch).unwrap();
+        let wolverine_in = squash(m, &wolverine);
+        let names = vec![
+            agent("Hulk", Some(&hulk_in.head)),
+            agent("Wolverine", Some(&wolverine_in.head)),
+        ];
         let second = cleanup(&proj, &mission.slug, &names).unwrap();
         assert_eq!(
             second.removed,
@@ -693,13 +1026,13 @@ mod tests {
         commit(Path::new(&hulk.path), "login.txt", "login\n", "login");
         commit(Path::new(&wolverine.path), "api.txt", "api\n", "api");
         let m = Path::new(&mission.path);
-        merge_agent(m, Path::new(&hulk.path), &hulk.branch).unwrap();
+        let hulk_in = squash(m, &hulk);
         // Thor never committed but left a file; Hulk is merged and clean; Wolverine's branch is not merged.
         std::fs::write(Path::new(&thor.path).join("draft.txt"), "draft\n").unwrap();
         let names = vec![
-            "Hulk".to_string(),
-            "Wolverine".to_string(),
-            "Thor".to_string(),
+            agent("Hulk", Some(&hulk_in.head)),
+            agent("Wolverine", None),
+            agent("Thor", None),
         ];
         let unsaved = cleanup_unsaved(&proj, &mission.slug, &names).unwrap();
         assert_eq!(
@@ -714,7 +1047,12 @@ mod tests {
         let done = cleanup(&proj, &mission.slug, &names).unwrap();
         assert_eq!(done.kept, unsaved);
         // Everything saved: nothing unsaved.
-        merge_agent(m, Path::new(&wolverine.path), &wolverine.branch).unwrap();
+        let wolverine_in = squash(m, &wolverine);
+        let names = vec![
+            agent("Hulk", Some(&hulk_in.head)),
+            agent("Wolverine", Some(&wolverine_in.head)),
+            agent("Thor", None),
+        ];
         std::fs::remove_file(Path::new(&thor.path).join("draft.txt")).unwrap();
         assert_eq!(
             cleanup_unsaved(&proj, &mission.slug, &names).unwrap(),

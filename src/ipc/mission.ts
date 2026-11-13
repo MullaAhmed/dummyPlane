@@ -13,6 +13,17 @@ export interface MergeReport {
   merge: Merge;
   /** Changes left uncommitted in the agent's worktree: not merged. */
   uncommitted: boolean;
+  /** The agent's branch head the merge looked at: what its squash took in (`Member.squashed`). */
+  head: string;
+}
+
+/**
+ * An agent as the cleanups name it, with the head its last merge took in: a squashed branch is no ancestor of the
+ * mission's, so git alone cannot tell it is in.
+ */
+export interface AgentBranch {
+  name: string;
+  squashed?: string;
 }
 
 export interface Cleanup {
@@ -23,14 +34,18 @@ export interface Cleanup {
 export const missionPrepare = (project: string, name: string) => call<Worktree>("mission_prepare", { project, name });
 /** `mission`: the mission's slug; `agent`: the agent's name. */
 export const missionAddAgent = (project: string, mission: string, agent: string) => call<Worktree>("mission_add_agent", { project, mission, agent });
-/** `mission`, `agent`: their worktrees' paths. */
-export const missionMerge = (mission: string, agent: string, branch: string) => call<MergeReport>("mission_merge", { mission, agent, branch });
-export const missionCleanup = (project: string, mission: string, agents: string[]) => call<Cleanup>("mission_cleanup", { project, mission, agents });
+/**
+ * Squashes an agent's branch into the mission's, one commit of `message`. `mission`, `agent`: their worktrees' paths;
+ * `since`: the head the agent's last merge took in, so that only what came after it is taken.
+ */
+export const missionMerge = (mission: string, agent: string, branch: string, message: string, since?: string) =>
+  call<MergeReport>("mission_merge", { mission, agent, branch, message, since: since ?? null });
+export const missionCleanup = (project: string, mission: string, agents: AgentBranch[]) => call<Cleanup>("mission_cleanup", { project, mission, agents });
 /**
  * What `missionCleanup` would leave in place, found without touching anything: the worktrees whose branch is not
  * merged into the mission's or that hold uncommitted changes, each as "name (reason)". Empty: nothing is unsaved.
  */
-export const missionCleanupUnsaved = (project: string, mission: string, agents: string[]) => call<string[]>("mission_cleanup_unsaved", { project, mission, agents });
+export const missionCleanupUnsaved = (project: string, mission: string, agents: AgentBranch[]) => call<string[]>("mission_cleanup_unsaved", { project, mission, agents });
 /** What a night needs of the project. */
 export interface ProjectChecks {
   git: boolean;
