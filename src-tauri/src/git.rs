@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{LazyLock, Mutex};
 use std::time::{Duration, SystemTime};
 
@@ -34,6 +35,48 @@ struct Drivers {
 
 static DRIVERS_READ: LazyLock<Mutex<HashMap<PathBuf, Drivers>>> = LazyLock::new(Default::default);
 
+/// The oldest git that reads config from the environment (`GIT_CONFIG_COUNT`) and gives `rev-parse`'s paths
+/// absolute: an older one would take none of `command`'s overrides, and run the repository's drivers.
+const OLDEST_GIT: (u32, u32) = (2, 31);
+
+/// Set once the installed git was found recent enough; checked again until then (git may be installed meanwhile).
+static GIT_RECENT: AtomicBool = AtomicBool::new(false);
+
+/// `major.minor` of `git --version`'s answer.
+fn version_of(answer: &str) -> Option<(u32, u32)> {
+    let mut parts = answer.trim().strip_prefix("git version ")?.split('.');
+    Some((parts.next()?.parse().ok()?, parts.next()?.parse().ok()?))
+}
+
+/// Whether `git --version`'s answer names a git `command` can keep a repository's drivers from running with.
+fn recent_enough(answer: &str) -> Result<(), String> {
+    match version_of(answer) {
+        Some(version) if version >= OLDEST_GIT => Ok(()),
+        Some((major, minor)) => Err(format!(
+            "git {major}.{minor} is older than {}.{}: dummyPlane cannot keep a repository's own drivers from running with it, so it runs no git. Update git.",
+            OLDEST_GIT.0, OLDEST_GIT.1
+        )),
+        None => Err(format!(
+            "git's version was not understood: {}",
+            answer.trim()
+        )),
+    }
+}
+
+fn check_git() -> Result<(), String> {
+    if GIT_RECENT.load(Ordering::Relaxed) {
+        return Ok(());
+    }
+    let mut command = Command::new("git");
+    hide_window(&mut command);
+    command.arg("--version");
+    let answer = output_within(&mut command, CONFIG_READ_LIMIT)
+        .map_err(|err| format!("git not found: {err}"))?;
+    recent_enough(&String::from_utf8_lossy(&answer.stdout))?;
+    GIT_RECENT.store(true, Ordering::Relaxed);
+    Ok(())
+}
+
 /// A git command for the repository at `dir`, as dummyPlane runs all of its own: its window hidden, and nothing
 /// the repository's own config (`.git/config`, the files it includes, its worktree's config) names for git to run.
 /// Such a repository may come from an archive, or an agent may have written to it, and dummyPlane reads it unasked
@@ -48,6 +91,7 @@ pub(crate) fn command(dir: &Path) -> Result<Command, String> {
 
 /// `command`, with `env` given to its git and to the read of its config (a test's own global config).
 fn command_with(dir: &Path, env: &[(&str, &OsStr)]) -> Result<Command, String> {
+    check_git()?;
     let overrides = local_drivers(dir, env)?;
     let mut command = Command::new("git");
     hide_window(&mut command);
@@ -549,6 +593,17 @@ mod tests {
             !marker.exists(),
             "a filter the config defined after a read ran"
         );
+    }
+
+    /// An older git takes none of the overrides, which it would read as nothing: dummyPlane runs no git with it.
+    #[test]
+    fn runs_no_git_older_than_the_one_that_takes_the_overrides() {
+        assert_eq!(recent_enough("git version 2.54.0.windows.1\n"), Ok(()));
+        assert_eq!(recent_enough("git version 2.31.0"), Ok(()));
+        let old = recent_enough("git version 2.30.9.windows.1").unwrap_err();
+        assert!(old.contains("2.30") && old.contains("2.31"), "{old}");
+        assert!(recent_enough("git version 1.9.5.msysgit.0").is_err());
+        assert!(recent_enough("not git").is_err());
     }
 
     #[test]
