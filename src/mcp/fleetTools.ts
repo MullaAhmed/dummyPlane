@@ -31,6 +31,7 @@ import { agentActivityStore } from "@/store/agentActivity";
 import { nodeNameOf, nodesStore, terminalOf } from "@/store/nodes";
 import { isRestarting, isRunning, statusOf } from "@/store/terminalStatus";
 import { splitGenerated } from "@/openui/detect";
+import { cutWhole } from "@/lib/cut";
 import { refused, said, type ToolResult } from "./agentTools";
 import { agentMessages } from "./messages";
 import { outAgent, outAgentState, outLevel, outMission, outReport, outStep } from "./protocol";
@@ -647,7 +648,7 @@ async function interrupt(mission: Mission, args: Record<string, unknown>): Promi
 const ECHO_MAX = 80;
 const echoed = (text: string) => {
   const line = oneLine(text);
-  return line.length > ECHO_MAX ? `${line.slice(0, ECHO_MAX - 1)}…` : line;
+  return line.length > ECHO_MAX ? `${cutWhole(line, ECHO_MAX - 1)}…` : line;
 };
 
 /** Whether a member's terminal is gone from the canvas: a closed one keeps its record, its element deleted, for Ctrl+Z. */

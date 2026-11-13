@@ -103,6 +103,11 @@ describe("names and the list", () => {
     expect(presetNameOf("x".repeat(MAX_NAME + 20))).toHaveLength(MAX_NAME);
   });
 
+  it("never cuts a long name inside an emoji: the presets are saved through Rust, which refuses half of one", () => {
+    // 🎉 straddles the cut: its first half would be the last unit kept.
+    expect(presetNameOf(`${"x".repeat(MAX_NAME - 1)}🎉 crew`)).toBe("x".repeat(MAX_NAME - 1));
+  });
+
   it("replaces a preset of the same name whatever the case, else appends, and is full at 50", () => {
     const list = [preset("Dev HQ", "1"), preset("Tests", "2")];
     expect(withPreset(list, preset("dev hq", "9"))!.map((p) => p.id)).toEqual(["9", "2"]);

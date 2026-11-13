@@ -50,6 +50,8 @@ describe("readTerminalPayload", () => {
     const robin = { title: "Tests", name: "Robin", agent: "claude", cwd: "C:/code", shell: "default", command: "", spawnedBy: "batman", task: "Write the tests" };
     expect(readTerminalPayload(robin)).toEqual(robin);
     expect(readTerminalPayload({ ...robin, task: "x".repeat(MAX_STORED_TASK + 50) })?.task).toHaveLength(MAX_STORED_TASK);
+    // Never inside an emoji: read_node says the task through Rust, which refuses half of one.
+    expect(readTerminalPayload({ ...robin, task: `${"x".repeat(MAX_STORED_TASK - 1)}🎉 more` })?.task).toBe("x".repeat(MAX_STORED_TASK - 1));
     expect(readTerminalPayload({ ...robin, task: "  " })?.task).toBeUndefined();
     expect(readTerminalPayload({ ...robin, task: 42 })?.task).toBeUndefined();
   });

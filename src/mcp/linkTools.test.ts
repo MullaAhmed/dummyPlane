@@ -12,6 +12,7 @@ import { withAgentLink, withWire } from "@/agents/wires";
 import { activeWork } from "@/mission/activeWork";
 import { notify, sendCommand } from "@/mission/events";
 import { terminalText } from "@/nodes/terminal/registry";
+import { MAX_STORED_TASK } from "@/nodes/types";
 import { agentActivityStore } from "@/store/agentActivity";
 import { nodesStore, terminalOf } from "@/store/nodes";
 import { terminalStatusStore } from "@/store/terminalStatus";
@@ -235,6 +236,12 @@ describe("new work for a sub-agent that reported", () => {
     expect(payloadOf("aquaman").title).toHaveLength(60);
     expect(payloadOf("aquaman")).toMatchObject({ task: "Fix the 008 bug." });
     expect(payloadOf("aquaman").staleTitle).toBeUndefined();
+  });
+
+  it("never keeps a long task cut inside an emoji: read_node says it through Rust, which refuses half of one", async () => {
+    // 🎉 straddles the cut: its first half would be the last unit kept.
+    await call("batman", "message_agent", { agent: "Aquaman", text: `${"x".repeat(MAX_STORED_TASK - 1)}🎉 then report.` });
+    expect(payloadOf("aquaman").task).toBe("x".repeat(MAX_STORED_TASK - 1));
   });
 
   it("changes nothing for a sub-agent still on its task, nor for a message not sent", async () => {

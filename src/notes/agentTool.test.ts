@@ -77,6 +77,13 @@ describe("the notes tool", () => {
     expect(text).toContain("note cut");
   });
 
+  it("never cuts a long note inside an emoji: the answer goes to Rust as JSON, which refuses half of one", async () => {
+    // 🎉 straddles the cut: its first half would be the last unit kept.
+    mockIPC(() => `${"x".repeat(99_999)}🎉${"y".repeat(100)}`);
+    const text = textOf(await notesTool("flash", false, { name: "long" }));
+    expect(text.startsWith(`${"x".repeat(99_999)}\n`)).toBe(true);
+  });
+
   it("describes itself in English", () => {
     expect(notesToolSpec().description).toContain("Markdown");
   });
