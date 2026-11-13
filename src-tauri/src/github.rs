@@ -3,13 +3,13 @@
 
 use std::path::Path;
 use std::process::Command;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::error::{AppError, AppResult};
-use crate::process::hide_window;
+use crate::process::{hide_window, output_within};
 
 /// Enough for a Kanban; `gh` stops at 30 by default.
 const ISSUE_LIMIT: &str = "200";
@@ -232,10 +232,19 @@ fn unreadable(detail: impl std::fmt::Display) -> AppError {
 }
 
 /// Runs `gh` in `path`; a missing CLI, a missing login and a failed call each say so.
-fn gh(path: &Path, args: &[&str]) -> AppResult<String> {
+pub(crate) fn gh(path: &Path, args: &[&str]) -> AppResult<String> {
     let program = crate::pty::shell::which_locate("gh").ok_or_else(|| {
         AppError::Github("GitHub CLI (gh) not found: install it (https://cli.github.com) then run `gh auth login`.".to_string())
     })?;
+    run(&program, path, args, GH_TIMEOUT)
+}
+
+/// How long one `gh` call may take: a board's moves reach GitHub one after the other, and a
+/// call that never ends would hold every later one.
+const GH_TIMEOUT: Duration = Duration::from_secs(60);
+
+/// `gh` at `program`, run in `path`, stopped past `limit`.
+fn run(program: &Path, path: &Path, args: &[&str], limit: Duration) -> AppResult<String> {
     let mut command = Command::new(program);
     command
         .args(args)
@@ -244,7 +253,16 @@ fn gh(path: &Path, args: &[&str]) -> AppResult<String> {
     if let Some(env_path) = crate::pty::env_path::current() {
         command.env("PATH", env_path);
     }
-    let output = hide_window(&mut command).output()?;
+    let output = output_within(hide_window(&mut command), limit).map_err(|err| {
+        if err.kind() == std::io::ErrorKind::TimedOut {
+            AppError::Github(format!(
+                "GitHub did not answer within {} s: gh was stopped.",
+                limit.as_secs()
+            ))
+        } else {
+            err.into()
+        }
+    })?;
     if output.status.success() {
         return Ok(String::from_utf8_lossy(&output.stdout).into_owned());
     }
@@ -530,6 +548,29 @@ mod tests {
             }
         );
         assert!(parse_created_issue("nothing").is_err());
+    }
+
+    #[test]
+    fn stops_a_gh_call_that_does_not_answer() {
+        // A stand-in for a `gh` waiting on a network that never answers: it would run 30 s.
+        let (program, args): (&str, &[&str]) = if cfg!(windows) {
+            ("ping", &["-n", "30", "127.0.0.1"])
+        } else {
+            ("sleep", &["30"])
+        };
+        let started = std::time::Instant::now();
+        let error = run(
+            Path::new(program),
+            &std::env::temp_dir(),
+            args,
+            Duration::from_millis(500),
+        )
+        .unwrap_err();
+        assert!(started.elapsed() < Duration::from_secs(10));
+        assert!(
+            matches!(&error, AppError::Github(message) if message.contains("did not answer")),
+            "{error}"
+        );
     }
 
     #[test]
