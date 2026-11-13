@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type ReactElement } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type FormEvent, type ReactElement, type ReactNode } from "react";
 import { Check, Kanban, Network, SquareTerminal } from "lucide-react";
 import { toastError } from "@/lib/errorToast";
 import { useUiRequest } from "@/commands/uiRequests";
@@ -37,7 +37,20 @@ const FIRST_CONTROL = "button:not(:disabled), input:not(:disabled), [tabindex]:n
 /** One entry of the menu: an icon, a name, sometimes a line under it. */
 const ROW = "h-auto w-full justify-start gap-2.5 rounded-md border-0 px-2 py-1.5 text-left font-normal whitespace-normal";
 
-/** "Launch an agent", opened from the tool rail's ＋ or the agents panel. */
+/** One section of the ＋ menu: a small heading and its rows, a group a screen reader names by it. */
+function Section({ name, title, children }: { name: string; title: string; children: ReactNode }) {
+  const heading = useId();
+  return (
+    <div role="group" aria-labelledby={heading} className="flex flex-col">
+      <p id={heading} data-section={name} className="dp-label px-2 pb-1 pt-1">
+        {title}
+      </p>
+      {children}
+    </div>
+  );
+}
+
+/** "Add to canvas", opened from the tool rail's ＋ or the agents panel. */
 export function AgentMenu({
   trigger,
   side = "right",
@@ -242,64 +255,68 @@ export function AgentMenu({
           <>
             <LaunchFolderBar />
             <Separator className="my-1.5" />
-            <p className="dp-label px-2 pb-1 pt-1">{t.agentMenu.title}</p>
             <div ref={agentRows} className="flex flex-col">
-              {AGENT_ORDER.filter((id) => id !== "shell").map(agentRow)}
-              {/* New console starts the default agent: one more agent row. */}
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => {
-                  setOpen(false);
-                  newConsole(placeAt ?? undefined);
-                }}
-                className={ROW}
-              >
-                <span className="grid size-7 place-items-center rounded-md bg-dp-field text-dp-text-2">
-                  <SquareTerminal className="size-4" />
-                </span>
-                <span className="min-w-0 flex-1 text-(length:--text-ui) font-medium text-dp-text">{t.agentMenu.newConsole}</span>
-              </Button>
-              {/* What is not an agent: a plain Shell, a Fleet, a board (12 Nov: they sat among the agents). */}
+              <Section name="agents" title={t.agentMenu.sections.agents}>
+                {AGENT_ORDER.filter((id) => id !== "shell").map(agentRow)}
+              </Section>
               <Separator className="my-1" />
-              <p data-not-agents className="dp-label px-2 pb-1 pt-1">{t.agentMenu.notAgents}</p>
-              {agentRow("shell")}
-              {/* Placed the same way as an agent. */}
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => {
-                  setOpen(false);
-                  if (placeAt) placeFleet(placeAt);
-                  else uiStore.getState().setPlacing({ fleet: true });
-                }}
-                className={ROW}
-              >
-                <span className="grid size-7 place-items-center rounded-md bg-dp-accent-soft text-dp-accent-ink">
-                  <Network className="size-4" />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block text-(length:--text-ui) font-medium text-dp-text">{t.agentMenu.fleet}</span>
-                  <span className="block text-xs text-dp-text-2">{t.agentMenu.fleetHint}</span>
-                </span>
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => {
-                  setOpen(false);
-                  placeKanban(placeAt ?? undefined);
-                }}
-                className={ROW}
-              >
-                <span className="grid size-7 place-items-center rounded-md bg-dp-field text-dp-text-2">
-                  <Kanban className="size-4" />
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block text-(length:--text-ui) font-medium text-dp-text">{t.agentMenu.kanban}</span>
-                  <span className="block text-xs text-dp-text-2">{t.agentMenu.kanbanHint}</span>
-                </span>
-              </Button>
+              <Section name="terminals" title={t.agentMenu.sections.terminals}>
+                {/* New console starts the default agent. */}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => {
+                    setOpen(false);
+                    newConsole(placeAt ?? undefined);
+                  }}
+                  className={ROW}
+                >
+                  <span className="grid size-7 place-items-center rounded-md bg-dp-field text-dp-text-2">
+                    <SquareTerminal className="size-4" />
+                  </span>
+                  <span className="min-w-0 flex-1 text-(length:--text-ui) font-medium text-dp-text">{t.agentMenu.newConsole}</span>
+                </Button>
+                {agentRow("shell")}
+              </Section>
+              <Separator className="my-1" />
+              <Section name="boards" title={t.agentMenu.sections.boards}>
+                {/* Placed the same way as an agent. */}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => {
+                    setOpen(false);
+                    if (placeAt) placeFleet(placeAt);
+                    else uiStore.getState().setPlacing({ fleet: true });
+                  }}
+                  className={ROW}
+                >
+                  <span className="grid size-7 place-items-center rounded-md bg-dp-accent-soft text-dp-accent-ink">
+                    <Network className="size-4" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-(length:--text-ui) font-medium text-dp-text">{t.agentMenu.fleet}</span>
+                    <span className="block text-xs text-dp-text-2">{t.agentMenu.fleetHint}</span>
+                  </span>
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => {
+                    setOpen(false);
+                    placeKanban(placeAt ?? undefined);
+                  }}
+                  className={ROW}
+                >
+                  <span className="grid size-7 place-items-center rounded-md bg-dp-field text-dp-text-2">
+                    <Kanban className="size-4" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-(length:--text-ui) font-medium text-dp-text">{t.agentMenu.kanban}</span>
+                    <span className="block text-xs text-dp-text-2">{t.agentMenu.kanbanHint}</span>
+                  </span>
+                </Button>
+              </Section>
             </div>
             <div className="mt-1 flex items-center justify-between border-t border-dp-line px-2 pt-2 text-xs text-dp-text-2">
               <span>{placeAt ? t.agentMenu.placedWhereClicked : t.agentMenu.thenClickCanvas}</span>

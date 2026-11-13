@@ -114,8 +114,8 @@ export const agentsMessages = defineMessages({
       title: "Launch an agent",
       notFound: (binary: string) => `${binary} not found in PATH`,
       newConsole: "New console",
-      /** The heading over the Shell, the Fleet and the board: none of them is an agent. */
-      notAgents: "Not an agent",
+      /** What the ＋ menu adds, in its three sections: the agents, the terminals, then the fleet and the boards. */
+      sections: { agents: "Agents", terminals: "Terminals", boards: "Fleet and boards" },
       fleet: "Fleet",
       fleetHint: "commands groups and agents",
       kanban: "Kanban",
@@ -146,7 +146,7 @@ export const agentsMessages = defineMessages({
     },
     panel: {
       title: "Agents",
-      launchAgent: "Launch an agent",
+      launchAgent: "Add to canvas",
       newConsole: "New console",
       composeGroup: "Compose a group",
       pauseAll: "Pause all",

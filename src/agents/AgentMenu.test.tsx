@@ -11,6 +11,7 @@ import { projectsStore, type Project } from "@/store/projects";
 import { uiStore } from "@/store/ui";
 import { workspacesStore } from "@/store/workspaces";
 import { agentsStore } from "./agentsStore";
+import { AGENT_ORDER } from "./catalog";
 import { AgentMenu } from "./AgentMenu";
 import { launchFolderKey, launchFolderStore } from "./launchFolder";
 import { installAgent, pullOllamaModel } from "./installAgent";
@@ -443,13 +444,53 @@ describe("the keyboard follows the menu's views (WCAG 2.4.3)", () => {
   });
 });
 
-it("lists the agents under their heading, and the Shell, the Fleet and the board apart: none is an agent (12 Nov)", async () => {
+/** The menu's sections and rows, in the order the keyboard and the eye meet them. */
+const menuOrder = () =>
+  [...document.body.querySelectorAll<HTMLElement>('[data-slot="popover-content"] [data-section], [data-slot="popover-content"] button')].flatMap((el) => {
+    if (el.dataset.section) return [`§${el.textContent}`];
+    if (el.dataset.agentPick) return [el.dataset.agentPick];
+    if (el.dataset.install || el.dataset.launchOptions !== undefined) return [];
+    const text = el.textContent ?? "";
+    return ["New console", "Fleet", "Kanban"].filter((name) => text.startsWith(name));
+  });
+
+it("groups what the menu adds under three small headings: Agents, Terminals, then Fleet and boards", async () => {
   await openMenu();
-  const heading = document.body.querySelector("[data-not-agents]")!;
-  expect(heading.textContent).toBe("Not an agent");
-  const after = (node: Element) => Boolean(heading.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING);
-  expect(after(document.body.querySelector('[data-agent-pick="shell"]')!)).toBe(true);
-  expect(after(button("Fleet")!)).toBe(true);
-  expect(after(button("Kanban")!)).toBe(true);
-  for (const agent of ["claude", "codex", "custom"]) expect(after(document.body.querySelector(`[data-agent-pick="${agent}"]`)!), agent).toBe(false);
+  const agents = AGENT_ORDER.filter((id) => id !== "shell");
+  expect(menuOrder()).toEqual(["§Agents", ...agents, "§Terminals", "New console", "shell", "§Fleet and boards", "Fleet", "Kanban"]);
+  // The heading that said what is not an agent is gone: the sections say it.
+  expect(document.body.querySelector("[data-not-agents]")).toBeNull();
+  expect(document.body.textContent).not.toContain("Not an agent");
+  // Each section is a group named by its heading, for a screen reader.
+  for (const group of document.body.querySelectorAll<HTMLElement>('[data-slot="popover-content"] [role="group"]')) {
+    expect(document.getElementById(group.getAttribute("aria-labelledby")!)?.hasAttribute("data-section")).toBe(true);
+  }
+  expect(document.body.querySelectorAll('[data-slot="popover-content"] [role="group"]')).toHaveLength(3);
+});
+
+it("keeps the launch folder on top and the place hint with Options at the bottom, around the sections", async () => {
+  await openMenu();
+  const content = document.body.querySelector<HTMLElement>('[data-slot="popover-content"]')!;
+  const buttons = [...content.querySelectorAll<HTMLButtonElement>("button")];
+  expect(buttons[0].textContent).toBe("Change…");
+  expect(buttons[buttons.length - 1].textContent).toBe("Options");
+  expect(content.textContent).toContain("then click on the canvas to place it");
+});
+
+it("takes the keyboard on the first usable agent, and Tab follows the sections", async () => {
+  agentsStore.setState({ agents, shells: ["powershell"], loaded: true });
+  await openMenu();
+  expect(document.activeElement?.textContent).toContain("Claude");
+  const content = document.body.querySelector<HTMLElement>('[data-slot="popover-content"]')!;
+  const tabbable = [...content.querySelectorAll<HTMLButtonElement>("button:not(:disabled)")].map((b) => b.textContent ?? "");
+  const at = (text: string) => tabbable.findIndex((label) => label.startsWith(text));
+  expect(at("Change…")).toBe(0);
+  expect([at("Claude"), at("New console"), at("Shell"), at("Fleet"), at("Kanban"), at("Options")]).toEqual(
+    [at("Claude"), at("New console"), at("Shell"), at("Fleet"), at("Kanban"), at("Options")].sort((a, b) => a - b),
+  );
+  expect(at("Claude")).toBeGreaterThan(at("Change…"));
+  expect(at("Options")).toBe(tabbable.length - 1);
+  // Escape closes it.
+  await act(async () => document.activeElement!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+  expect(document.body.querySelector('[data-slot="popover-content"]')).toBeNull();
 });
