@@ -514,16 +514,19 @@ fn plugin_description(root: &Path) -> Option<String> {
 fn codex_skills(text: &str, plugins: &[CodexPlugin]) -> Result<Vec<Extra>, String> {
     let prompt: Value =
         serde_json::from_str(text).map_err(|err| format!("Codex's prompt: {err}"))?;
+    // The heading on a line of its own: a sentence that names it ("under \"### Available skills\"") comes first in
+    // some prompts, and read as the list it would be empty.
     let section = strings(&prompt)
         .into_iter()
         .find_map(|text| {
-            text.split_once("### Available skills")
-                .map(|(_, rest)| rest.to_string())
+            let mut lines = text.lines();
+            lines.find(|line| line.trim_end() == "### Available skills")?;
+            Some(lines.collect::<Vec<_>>().join("\n"))
         })
         .ok_or("Codex's prompt lists no skills section")?;
     let mut seen = BTreeSet::new();
     let mut skills = Vec::new();
-    for line in section.lines().skip(1) {
+    for line in section.lines() {
         let Some(entry) = line.strip_prefix("- ") else {
             break;
         };
@@ -1285,6 +1288,22 @@ mod tests {
         assert_eq!(err.kind(), io::ErrorKind::TimedOut, "{err}");
         assert!(err.to_string().contains("did not answer within"), "{err}");
         assert!(started.elapsed() < std::time::Duration::from_secs(10));
+    }
+
+    #[test]
+    fn a_sentence_naming_the_skills_heading_before_the_list_is_not_taken_for_the_list() {
+        // As Codex 0.167 prints it when its instructions name the section before the catalog: the first text that
+        // holds the heading is a sentence. Read as the list it is empty, and an empty pick would leave every skill on.
+        let text = json!([
+            { "type": "message", "content": [{ "type": "input_text",
+                "text": "They are listed in the \"## Skills\" section under \"### Available skills\".\n\nEach entry includes a name." }] },
+            { "type": "message", "content": [{ "type": "input_text",
+                "text": "<skills_instructions>\n## Skills\n### Available skills\n- imagegen: Make images. (file: r0/imagegen/SKILL.md)\n- pdf:pdf: Read PDFs. (file: r1/pdf/SKILL.md)\n### How to use skills\n- x: not a skill" }] },
+        ])
+        .to_string();
+        let skills = codex_skills(&text, &[]).unwrap();
+        let names: Vec<&str> = skills.iter().map(|s| s.name.as_str()).collect();
+        assert_eq!(names, vec!["imagegen", "pdf:pdf"]);
     }
 
     #[test]
