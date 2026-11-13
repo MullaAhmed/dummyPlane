@@ -1,4 +1,5 @@
 import type { KanbanCard, KanbanColumn, KanbanPayload, KanbanPriority } from "@/nodes/types";
+import { githubKey } from "./githubSync";
 
 /** Operations on a Kanban board (issue #29). Each returns a new board and leaves its input untouched. */
 
@@ -29,16 +30,37 @@ export function removeColumn(board: KanbanPayload, columnId: string): KanbanPayl
 }
 
 /**
- * Puts a removed column back at `index`, with its cards (the delete's undo). A column already on the board
- * stays as it is, and a card placed elsewhere since stays where it is.
+ * `board` without the cards linked to the issues of `restored` that are not `known`: those a sync made for them
+ * meanwhile. The restored ones take their place: two cards of one issue, a sync would update only one. A known card,
+ * on the board when the delete was made or deleted (and maybe put back) since, stays with its notes: it is no
+ * newcomer, and nothing would bring it back.
  */
-export function restoreColumn(board: KanbanPayload, column: KanbanColumn, cards: Readonly<Record<string, KanbanCard>>, index: number): KanbanPayload {
+function withoutTwins(board: KanbanPayload, restored: readonly KanbanCard[], known: ReadonlySet<string>): KanbanPayload {
+  const issues = new Set(restored.flatMap((card) => (card.github ? [githubKey(card.github.repo, card.github.number)] : [])));
+  if (issues.size === 0) return board;
+  const twins = Object.values(board.cards).filter((card) => !known.has(card.id) && card.github && issues.has(githubKey(card.github.repo, card.github.number)));
+  return twins.reduce((b, twin) => removeCard(b, twin.id), board);
+}
+
+/**
+ * Puts a removed column back at `index`, with its cards (the delete's undo). A column already on the board
+ * stays as it is, a card placed elsewhere since stays where it is, and a card a sync made meanwhile for the
+ * issue of one of them gives way to it. `known` are the cards no sync made: see `withoutTwins`.
+ */
+export function restoreColumn(
+  board: KanbanPayload,
+  column: KanbanColumn,
+  cards: Readonly<Record<string, KanbanCard>>,
+  index: number,
+  known: ReadonlySet<string>,
+): KanbanPayload {
   if (board.columns.some((c) => c.id === column.id)) return board;
   const placed = new Set(board.columns.flatMap((c) => c.cardIds));
   const cardIds = column.cardIds.filter((id) => cards[id] !== undefined && !placed.has(id));
-  const columns = [...board.columns];
+  const base = withoutTwins(board, cardIds.map((id) => cards[id]), known);
+  const columns = [...base.columns];
   columns.splice(Math.max(0, Math.min(index, columns.length)), 0, { ...column, cardIds });
-  return { ...board, columns, cards: { ...board.cards, ...Object.fromEntries(cardIds.map((id) => [id, cards[id]])) } };
+  return { ...base, columns, cards: { ...base.cards, ...Object.fromEntries(cardIds.map((id) => [id, cards[id]])) } };
 }
 
 export interface CardDraft {
@@ -76,13 +98,17 @@ export function removeCard(board: KanbanPayload, cardId: string): KanbanPayload 
   return { columns: board.columns.map((c) => ({ ...c, cardIds: c.cardIds.filter((id) => id !== cardId) })), cards };
 }
 
-/** Puts a removed card back at `index` of its column (the delete's undo); nothing changes once the card is back or its column gone. */
-export function restoreCard(board: KanbanPayload, card: KanbanCard, columnId: string, index: number): KanbanPayload {
+/**
+ * Puts a removed card back at `index` of its column (the delete's undo), in place of a card a sync made meanwhile
+ * for its issue, one not `known` (see `withoutTwins`); nothing changes once the card is back or its column gone.
+ */
+export function restoreCard(board: KanbanPayload, card: KanbanCard, columnId: string, index: number, known: ReadonlySet<string>): KanbanPayload {
   if (board.cards[card.id] || !board.columns.some((c) => c.id === columnId)) return board;
+  const base = withoutTwins(board, [card], known);
   return {
-    ...board,
-    columns: board.columns.map((c) => (c.id === columnId ? { ...c, cardIds: [...c.cardIds.slice(0, Math.max(0, index)), card.id, ...c.cardIds.slice(Math.max(0, index))] } : c)),
-    cards: { ...board.cards, [card.id]: card },
+    ...base,
+    columns: base.columns.map((c) => (c.id === columnId ? { ...c, cardIds: [...c.cardIds.slice(0, Math.max(0, index)), card.id, ...c.cardIds.slice(Math.max(0, index))] } : c)),
+    cards: { ...base.cards, [card.id]: card },
   };
 }
 

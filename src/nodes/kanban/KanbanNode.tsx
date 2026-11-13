@@ -127,6 +127,15 @@ function commit(nodeId: string, change: (board: KanbanPayload) => KanbanPayload)
 }
 
 /**
+ * The cards deleted here, this run, whether put back since or not: none is a sync's newcomer, so no Undo removes one
+ * as its card's twin. Two deletes undone in turn would otherwise lose the card the first Undo put back.
+ */
+const deletedCards = new Set<string>();
+
+/** The cards no sync made, read when Undo is clicked: those on the board at the delete, and those deleted here. */
+const knownCards = (atDelete: KanbanPayload) => new Set([...Object.keys(atDelete.cards), ...deletedCards]);
+
+/**
  * Deletes a column and its cards, or a card, at once, and offers to take it back: a node's payload is outside
  * the canvas's undo history. The undo puts back what was removed, where it was, without undoing what changed since.
  */
@@ -136,9 +145,10 @@ function removeColumnUndoable(nodeId: string, columnId: string, t: Messages) {
   if (!board || index < 0) return;
   const column = board.columns[index];
   const cards = Object.fromEntries(column.cardIds.flatMap((id) => (board.cards[id] ? [[id, board.cards[id]] as const] : [])));
+  for (const id of Object.keys(cards)) deletedCards.add(id);
   commit(nodeId, (b) => removeColumn(b, columnId));
   toast(t.columnRemoved(column.title, Object.keys(cards).length), {
-    action: { label: t.undo, onClick: () => commit(nodeId, (b) => restoreColumn(b, column, cards, index)) },
+    action: { label: t.undo, onClick: () => commit(nodeId, (b) => restoreColumn(b, column, cards, index, knownCards(board))) },
   });
 }
 
@@ -148,9 +158,10 @@ function removeCardUndoable(nodeId: string, cardId: string, t: Messages) {
   const column = board && columnOf(board, cardId);
   if (!card || !column) return;
   const index = column.cardIds.indexOf(cardId);
+  deletedCards.add(cardId);
   commit(nodeId, (b) => removeCard(b, cardId));
   toast(t.cardRemoved(card.title), {
-    action: { label: t.undo, onClick: () => commit(nodeId, (b) => restoreCard(b, card, column.id, index)) },
+    action: { label: t.undo, onClick: () => commit(nodeId, (b) => restoreCard(b, card, column.id, index, knownCards(board))) },
   });
 }
 
@@ -346,7 +357,9 @@ export function KanbanNode({ nodeId }: { nodeId: string }) {
             <DropdownMenuItem onSelect={() => setLinking(true)}>{board.github ? t.github.editLink : t.github.link}</DropdownMenuItem>
             {board.github && (
               <>
-                <DropdownMenuItem onSelect={() => void sync()}>{t.github.sync}</DropdownMenuItem>
+                <DropdownMenuItem disabled={syncing} onSelect={() => void sync()}>
+                  {t.github.sync}
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem variant="destructive" onSelect={() => linkBoard(nodeId, null)}>
                   {t.github.unlink}

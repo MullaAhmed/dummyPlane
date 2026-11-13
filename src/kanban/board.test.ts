@@ -24,6 +24,9 @@ const ids = () => {
 
 const draft = (title: string) => ({ title, notes: "", priority: "none" as const });
 
+/** The cards no sync made, for an undo: here, those of the board when the delete was made. */
+const known = (b: { cards: Record<string, unknown> }) => new Set(Object.keys(b.cards));
+
 function board() {
   const newId = ids();
   let b = emptyBoard(["To do", "Doing", "Done"], newId);
@@ -59,14 +62,14 @@ describe("board", () => {
     const column = b.columns[0];
     const cards = { id4: b.cards.id4, id5: b.cards.id5 };
     const removed = removeColumn(b, column.id);
-    const back = restoreColumn(removed, column, cards, 0);
+    const back = restoreColumn(removed, column, cards, 0, known(b));
     expect(back.columns).toEqual(b.columns);
     expect(back.cards).toEqual(b.cards);
     // A second undo, or a column already there, changes nothing.
-    expect(restoreColumn(back, column, cards, 0)).toBe(back);
+    expect(restoreColumn(back, column, cards, 0, known(b))).toBe(back);
     // A card placed elsewhere since stays there; the index is clamped to the board.
     const elsewhere = addCard(removed, "id3", draft("again"), () => "id5");
-    const kept = restoreColumn(elsewhere, column, cards, 9);
+    const kept = restoreColumn(elsewhere, column, cards, 9, known(b));
     expect(kept.columns.map((c) => c.id)).toEqual(["id2", "id3", "id1"]);
     expect(kept.columns[2].cardIds).toEqual(["id4"]);
     expect(kept.cards.id5.title).toBe("again");
@@ -76,12 +79,47 @@ describe("board", () => {
     const b = board();
     const card = b.cards.id4;
     const removed = removeCard(b, "id4");
-    const back = restoreCard(removed, card, "id1", 0);
+    const back = restoreCard(removed, card, "id1", 0, known(b));
     expect(back.columns[0].cardIds).toEqual(["id4", "id5"]);
     expect(back.cards.id4).toEqual(card);
-    expect(restoreCard(back, card, "id1", 0)).toBe(back);
+    expect(restoreCard(back, card, "id1", 0, known(b))).toBe(back);
     const gone = removeColumn(removed, "id1");
-    expect(restoreCard(gone, card, "id1", 0)).toBe(gone);
+    expect(restoreCard(gone, card, "id1", 0, known(b))).toBe(gone);
+  });
+
+  describe("with a card linked to an issue a sync brought back meanwhile", () => {
+    const link = (repo: string) => ({ repo, number: 7, url: "https://github.com/o/r/issues/7", state: "open" as const });
+    const linked = () => updateCard(board(), "id4", { notes: "mine", github: link("o/r") });
+    /** A sync's card for issue #7, at the end of `columnId`. */
+    const synced = (b: ReturnType<typeof board>, columnId: string) => updateCard(addCard(b, columnId, draft("Issue 7"), () => "id9"), "id9", { github: link("O/R") });
+
+    it("puts the deleted card back in place of the sync's, not beside it: one card per issue", () => {
+      const b = linked();
+      const back = restoreCard(synced(removeCard(b, "id4"), "id1"), b.cards.id4, "id1", 0, known(b));
+      expect(back.columns[0].cardIds).toEqual(["id4", "id5"]);
+      expect(back.cards.id9).toBeUndefined();
+      expect(back.cards.id4.notes).toBe("mine");
+    });
+
+    it("puts the deleted column back with it, in place of the sync's", () => {
+      const b = linked();
+      const column = b.columns[0];
+      const back = restoreColumn(synced(removeColumn(b, column.id), "id2"), column, { id4: b.cards.id4, id5: b.cards.id5 }, 0, known(b));
+      expect(back.columns.map((c) => c.cardIds)).toEqual([["id4", "id5"], ["id6"], []]);
+      expect(back.cards.id9).toBeUndefined();
+    });
+
+    it("leaves a card that already shared the issue when the card was deleted: only a sync's newcomer gives way", () => {
+      // Two cards of one issue from before (an older sync, a race): deleting one and taking it back keeps the other.
+      const b = updateCard(linked(), "id6", { notes: "theirs", github: link("o/r") });
+      const back = restoreCard(removeCard(b, "id4"), b.cards.id4, "id1", 0, known(b));
+      expect(back.cards.id6.notes).toBe("theirs");
+      expect(back.columns.map((c) => c.cardIds)).toEqual([["id4", "id5"], ["id6"], []]);
+      const column = b.columns[1];
+      const kept = restoreColumn(removeColumn(b, column.id), column, { id6: b.cards.id6 }, 1, known(b));
+      expect(kept.cards.id4.notes).toBe("mine");
+      expect(kept.columns.map((c) => c.cardIds)).toEqual([["id4", "id5"], ["id6"], []]);
+    });
   });
 
   it("adds a card at the end of a column, not to an unknown one", () => {

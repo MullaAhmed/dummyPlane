@@ -2,10 +2,12 @@
  * What the notification history sees of a popup, before it knows anything of the app's stores.
  *
  * Every `toast` call of the app goes through the shim (`./sonner`), which hands what it showed to `capture`.
- * This file imports nothing of the app on purpose: the shim sits under `errorToast` and a hundred call
- * sites, and a store imported from here would be a cycle. The history (`./store`) connects at boot with
- * `onCapture`; popups shown before that wait here.
+ * This file imports nothing of the app on purpose, but the cut (`@/lib/cut`, which imports nothing): the shim sits
+ * under `errorToast` and a hundred call sites, and a store imported from here would be a cycle. The history
+ * (`./store`) connects at boot with `onCapture`; popups shown before that wait here.
  */
+
+import { cutWhole, HALF_CHARACTER } from "@/lib/cut";
 
 export type ToastKind = "success" | "error" | "warning" | "info" | "plain";
 
@@ -45,13 +47,8 @@ export interface RawToast {
 export const MAX_TITLE = 300;
 export const MAX_DESCRIPTION = 600;
 
-/**
- * Half of a character: a UTF-16 surrogate without its pair, as a cut inside an emoji leaves it (here, or in a summary
- * or an error detail clipped before it came). The history is saved as JSON, which Rust refuses with one in it: none is kept.
- */
-const HALF = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g;
-
-const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1).replace(HALF, "").trimEnd()}…` : text);
+// The history is saved as JSON, which Rust refuses with half a character in it: none is kept, cut here or before it came.
+const clip = (text: string, max: number) => (text.length > max ? `${cutWhole(text, max - 1).trimEnd()}…` : text);
 
 /**
  * The words of what a popup shows. A title is a string, a React node (`toastError`'s description is two spans)
@@ -60,7 +57,7 @@ const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0
  */
 export function plainText(node: unknown, depth = 0): string {
   if (depth > 12) return "";
-  if (typeof node === "string") return node.replace(HALF, "").replace(/\s+/g, " ").trim();
+  if (typeof node === "string") return node.replace(HALF_CHARACTER, "").replace(/\s+/g, " ").trim();
   if (typeof node === "number") return String(node);
   if (typeof node === "function") {
     try {

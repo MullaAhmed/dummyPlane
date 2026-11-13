@@ -169,6 +169,11 @@ it("writes token counts short", () => {
   expect([formatTokens(950), formatTokens(67_785), formatTokens(1_250_000)]).toEqual(["950", "67.8 k", "1.3 M"]);
 });
 
+it("passes to millions where thousands would round up to a thousand", () => {
+  // 999.95 k and up round to "1000.0 k": that is "1.0 M".
+  expect([formatTokens(999_949), formatTokens(999_950), formatTokens(999_999), formatTokens(1_000_000)]).toEqual(["999.9 k", "1.0 M", "1.0 M", "1.0 M"]);
+});
+
 it("reads a model's own limit alone, without the session or week windows (backlog 27 oct)", () => {
   const { limits } = readStatus({ session_id: "s", rate_limits: { seven_day_fable: { used_percentage: 40, resets_at: 1 } } }, "n", 0);
   expect(limits?.fiveHour).toBeUndefined();

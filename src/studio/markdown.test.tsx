@@ -14,6 +14,13 @@ describe("renderMarkdown", () => {
     expect(out).toContain(">Six</h6>");
   });
 
+  it("keeps a hash that ends a title (C#, F#), and drops only a closing sequence after a space", () => {
+    const out = html("# C#\n## F# and C#\n### Closed ###");
+    expect(out).toContain(">C#</h1>");
+    expect(out).toContain(">F# and C#</h2>");
+    expect(out).toContain(">Closed</h3>");
+  });
+
   it("renders paragraphs separated by blank lines", () => {
     const out = html("first line\nsame para\n\nsecond");
     expect(out).toContain("<p>first line same para</p>");
@@ -32,6 +39,21 @@ describe("renderMarkdown", () => {
     expect(out).toContain('data-lang="ts"');
     expect(out).toContain("const a = **b**;\n&lt;b&gt;x&lt;/b&gt;");
     expect(out).not.toContain("<strong>");
+  });
+
+  it("takes the first word of a fence's info string as its language, and closes the block where its closing fence is", () => {
+    // `title=` and `{1,3}` follow the language in READMEs: the fence was not seen, and its closing fence opened one over the text after it.
+    const out = html('```json title="package.json" {1}\n{"a": 1}\n```\nafter');
+    expect(out).toContain('data-lang="json"');
+    expect(out).not.toContain("title=");
+    expect(out).toMatch(/<\/pre><p>after<\/p>/);
+  });
+
+  it("reads a file saved with a byte order mark (Notepad, PowerShell) from its first line", () => {
+    // The file is read as it is on the disk: the mark came in front of its first line, which was then no heading.
+    const out = html("﻿# Title\n\ntext");
+    expect(out).toContain(">Title</h1>");
+    expect(out).not.toContain("# Title");
   });
 
   it("renders inline formatting", () => {

@@ -18,8 +18,10 @@ export const isMarkdown = (path: string) => ["md", "markdown", "mdx"].includes(e
  * Never uses innerHTML: raw HTML in the source is shown as literal text.
  */
 
-const FENCE = /^\s*```\s*([\w+#.-]*)\s*$/;
-const HEADING = /^(#{1,6})\s+(.*?)\s*#*\s*$/;
+// The language, then whatever else the info string says (`title="a.json"`, `{1,3}`): never a backtick, or it is inline code.
+const FENCE = /^\s*```\s*([\w+#.-]*)[^`]*$/;
+// A closing sequence of hashes counts after a space only: `# C#` is a heading named "C#".
+const HEADING = /^(#{1,6})\s+(.*?)(?:\s+#+)?\s*$/;
 const HR = /^\s*([-*_])(\s*\1){2,}\s*$/;
 const QUOTE = /^\s*>\s?(.*)$/;
 const UL = /^\s*[-*+]\s+(.*)$/;
@@ -182,7 +184,8 @@ function startsBlock(line: string, next: string | undefined): boolean {
  * relative links open in the studio, `options.link` draws its links, `className` sizes it.
  */
 export function renderMarkdown(source: string, options: MarkdownOptions = {}): ReactNode {
-  const lines = source.replace(/\r\n?/g, "\n").split("\n");
+  // A byte order mark comes in front of the first line of a file saved by Notepad or PowerShell.
+  const lines = source.replace(/^﻿/, "").replace(/\r\n?/g, "\n").split("\n");
   const blocks: ReactNode[] = [];
   let i = 0;
   while (i < lines.length) {

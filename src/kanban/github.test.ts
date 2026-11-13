@@ -7,11 +7,19 @@ import { projectsStore } from "@/store/projects";
 import { createIssueForCard, linkBoard, moveCardWithGithub, parseProject, syncBoard } from "./github";
 import { errorToasts } from "@/lib/errorToast.testkit";
 
-const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
+const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), warning: vi.fn() }));
 vi.mock("sonner", () => ({ toast }));
 
 type Handler = (args: Record<string, unknown>) => unknown;
 let calls: [string, Record<string, unknown>][] = [];
+
+/** A list a handler gives bare is the whole of it: nothing was cut. */
+function listed(cmd: string, answer: unknown) {
+  if (!Array.isArray(answer)) return answer;
+  if (cmd === "github_list_issues") return { issues: answer, cut: false };
+  if (cmd === "github_list_project_items") return { items: answer, totalCount: answer.length };
+  return answer;
+}
 
 /** IPC with GitHub commands answered by `handlers`; saves succeed. */
 function mockGithub(handlers: Record<string, Handler>) {
@@ -19,7 +27,8 @@ function mockGithub(handlers: Record<string, Handler>) {
   mockIPC((cmd, args) => {
     const payload = (args ?? {}) as Record<string, unknown>;
     if (cmd.startsWith("github_")) calls.push([cmd, payload]);
-    return handlers[cmd]?.(payload);
+    const answer = handlers[cmd]?.(payload);
+    return answer instanceof Promise ? answer.then((value) => listed(cmd, value)) : listed(cmd, answer);
   });
 }
 
@@ -51,6 +60,7 @@ const linked = (number: number, state: "open" | "closed") => ({ repo: "o/r", num
 beforeEach(async () => {
   toast.success.mockClear();
   toast.error.mockClear();
+  toast.warning.mockClear();
   mockGithub({});
   projectsStore.setState({ projects: [{ id: "p", name: "r", path: "C:/r", position: 0, lastOpenedAt: 0, workspaceCount: 1, missing: false, liveAgents: 0 }], activeId: "p" });
   await nodesStore.getState().create("b", {
@@ -111,6 +121,36 @@ describe("syncBoard", () => {
     expect(b.columns.find((c) => c.id === "done")!.cardIds).toEqual([shipped.id]);
     expect(b.github).toEqual({ repo: "o/r", project: { owner: "o", number: 2 } });
     expect(toast.success).toHaveBeenCalled();
+  });
+
+  it("says when GitHub had more issues or Project items than a sync reads", async () => {
+    mockGithub({
+      github_list_issues: () => ({ issues: [issue(1, "open")], cut: true }),
+      github_list_project_items: () => ({ items: [item("PVTI_1", 1, "To do")], totalCount: 812 }),
+      github_project_statuses: () => ["To do", "In progress", "Done"],
+    });
+    expect(await syncBoard("b")).toBe(true);
+    expect(toast.warning.mock.calls.map(([text]) => text)).toEqual([
+      "Not every issue of o/r was read: it has more open or recently closed ones than a sync takes, and the others are not on the board",
+      "Read 1 of the Project's 812 items: the others are not on the board",
+    ]);
+  });
+
+  it("says nothing more when every issue and Project item was read", async () => {
+    mockGithub({
+      github_list_issues: () => [issue(1, "open")],
+      github_list_project_items: () => [item("PVTI_1", 1, "To do")],
+      github_project_statuses: () => ["To do", "In progress", "Done"],
+    });
+    expect(await syncBoard("b")).toBe(true);
+    expect(toast.warning).not.toHaveBeenCalled();
+  });
+
+  it("says it needs an open project, where gh runs, rather than doing nothing", async () => {
+    projectsStore.setState({ activeId: null });
+    expect(await syncBoard("b")).toBe(false);
+    expect(calls).toEqual([]);
+    expect(errorToasts(vi.mocked(toast.error))).toEqual([{ title: "No project is open: GitHub is reached from a project's folder", description: "" }]);
   });
 
   it("tells a gh failure and leaves the board as it was", async () => {
@@ -293,6 +333,19 @@ describe("moveCardWithGithub", () => {
     expect(toast.error).not.toHaveBeenCalled();
   });
 
+  it("says no project is open when a linked card's issue cannot follow, the card moving all the same", async () => {
+    projectsStore.setState({ activeId: null });
+    await moveCardWithGithub("b", "k1", "done");
+    expect(calls).toEqual([]);
+    expect(board().columns.find((c) => c.id === "done")!.cardIds).toEqual(["k1"]);
+    expect(errorToasts(vi.mocked(toast.error))).toEqual([{ title: "No project is open: GitHub is reached from a project's folder", description: "" }]);
+    // Within its column, or unlinked, nothing has to follow: nothing is said.
+    toast.error.mockClear();
+    await moveCardWithGithub("b", "k1", "done", 0);
+    await moveCardWithGithub("b", "k2", "doing");
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
   it("moves a card without a link locally only", async () => {
     await moveCardWithGithub("b", "k2", "doing", 0);
     expect(calls).toEqual([]);
@@ -306,6 +359,14 @@ describe("createIssueForCard", () => {
     expect(await createIssueForCard("b", "k2")).toBe(true);
     expect(calls).toEqual([["github_create_issue", { path: "C:/r", repo: "o/r", title: "Local", body: "keep" }]]);
     expect(board().cards.k2.github).toEqual({ repo: "o/r", number: 42, url: "https://github.com/o/r/issues/42", state: "open" });
+  });
+
+  it("says it needs an open project, where gh runs, rather than doing nothing", async () => {
+    projectsStore.setState({ activeId: null });
+    expect(await createIssueForCard("b", "k2")).toBe(false);
+    expect(calls).toEqual([]);
+    expect(board().cards.k2.github).toBeUndefined();
+    expect(errorToasts(vi.mocked(toast.error))).toEqual([{ title: "No project is open: GitHub is reached from a project's folder", description: "" }]);
   });
 
   it("does nothing for a card already linked", async () => {

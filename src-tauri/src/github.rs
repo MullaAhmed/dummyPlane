@@ -11,9 +11,27 @@ use serde_json::Value;
 use crate::error::{AppError, AppResult};
 use crate::process::{hide_window, output_within};
 
-/// Enough for a Kanban; `gh` stops at 30 by default.
-const ISSUE_LIMIT: &str = "200";
-const ITEM_LIMIT: &str = "500";
+/// Enough for a Kanban; `gh` stops at 30 by default. It is asked for one more, to know
+/// when a list was cut.
+const ISSUE_LIMIT: usize = 200;
+const ITEM_LIMIT: usize = 500;
+
+/// The issues of a sync, and whether GitHub had more open, or recently closed, ones than
+/// it reads: the user is told, rather than left with a board quietly short.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IssueList {
+    pub issues: Vec<Issue>,
+    pub cut: bool,
+}
+
+/// The items of a Project, and how many it holds: more than `items` when the list was cut.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectItemList {
+    pub items: Vec<ProjectItem>,
+    pub total_count: u64,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -120,16 +138,23 @@ pub fn parse_issues(json: &str) -> AppResult<Vec<Issue>> {
         .collect())
 }
 
-/// `gh project item-list --format json`: `{ items: [{ id, title, status?, content }] }`.
+/// `gh project item-list --format json`: `{ items: [{ id, title, status?, content }], totalCount }`.
+/// `totalCount` should be all the Project holds, past `--limit` too (not checked against a
+/// real Project that large); never fewer than the items listed.
 /// The Status field comes as the lowercased field name.
-pub fn parse_project_items(json: &str) -> AppResult<Vec<ProjectItem>> {
+pub fn parse_project_items(json: &str) -> AppResult<ProjectItemList> {
     let root: Value = serde_json::from_str(json).map_err(unreadable)?;
-    let items = root
+    let raw = root
         .get("items")
         .and_then(Value::as_array)
         .ok_or_else(|| unreadable("items"))?;
+    let total_count = root
+        .get("totalCount")
+        .and_then(Value::as_u64)
+        .unwrap_or(0)
+        .max(raw.len() as u64);
     let text = |value: &Value, key: &str| value.get(key).and_then(Value::as_str).map(String::from);
-    Ok(items
+    let items = raw
         .iter()
         .filter_map(|item| {
             let content = item.get("content").unwrap_or(&Value::Null);
@@ -153,7 +178,15 @@ pub fn parse_project_items(json: &str) -> AppResult<Vec<ProjectItem>> {
                 },
             })
         })
-        .collect())
+        .collect();
+    Ok(ProjectItemList { items, total_count })
+}
+
+/// The first `limit` of a list `gh` was asked one more of, and whether it had more.
+fn within_limit<T>(mut listed: Vec<T>, limit: usize) -> (Vec<T>, bool) {
+    let cut = listed.len() > limit;
+    listed.truncate(limit);
+    (listed, cut)
 }
 
 /// `gh project field-list --format json`: the single-select field named Status.
@@ -241,10 +274,15 @@ pub(crate) fn gh(path: &Path, args: &[&str]) -> AppResult<String> {
 
 /// How long one `gh` call may take: a board's moves reach GitHub one after the other, and a
 /// call that never ends would hold every later one.
-const GH_TIMEOUT: Duration = Duration::from_secs(60);
+pub(crate) const GH_TIMEOUT: Duration = Duration::from_secs(60);
 
 /// `gh` at `program`, run in `path`, stopped past `limit`.
-fn run(program: &Path, path: &Path, args: &[&str], limit: Duration) -> AppResult<String> {
+pub(crate) fn run(
+    program: &Path,
+    path: &Path,
+    args: &[&str],
+    limit: Duration,
+) -> AppResult<String> {
     let mut command = Command::new(program);
     command
         .args(args)
@@ -299,7 +337,8 @@ pub fn detect_repo(path: &Path) -> Option<String> {
 const ISSUE_FIELDS: &str = "number,title,body,state,url,closedAt,labels";
 
 /// Open issues, then those closed within the last `closed_within_days` days.
-pub fn list_issues(path: &Path, repo: &str, closed_within_days: u32) -> AppResult<Vec<Issue>> {
+pub fn list_issues(path: &Path, repo: &str, closed_within_days: u32) -> AppResult<IssueList> {
+    let limit = (ISSUE_LIMIT + 1).to_string();
     let open = gh(
         path,
         &[
@@ -310,12 +349,12 @@ pub fn list_issues(path: &Path, repo: &str, closed_within_days: u32) -> AppResul
             "--state",
             "open",
             "--limit",
-            ISSUE_LIMIT,
+            &limit,
             "--json",
             ISSUE_FIELDS,
         ],
     )?;
-    let mut issues = parse_issues(&open)?;
+    let (mut issues, mut cut) = within_limit(parse_issues(&open)?, ISSUE_LIMIT);
     if closed_within_days > 0 {
         let today = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -336,18 +375,23 @@ pub fn list_issues(path: &Path, repo: &str, closed_within_days: u32) -> AppResul
                 "--search",
                 &search,
                 "--limit",
-                ISSUE_LIMIT,
+                &limit,
                 "--json",
                 ISSUE_FIELDS,
             ],
         )?;
-        issues.extend(parse_issues(&closed)?);
+        let (closed, more) = within_limit(parse_issues(&closed)?, ISSUE_LIMIT);
+        issues.extend(closed);
+        cut |= more;
     }
-    Ok(issues)
+    Ok(IssueList { issues, cut })
 }
 
-pub fn list_project_items(path: &Path, owner: &str, number: u32) -> AppResult<Vec<ProjectItem>> {
+/// The first `ITEM_LIMIT` items; `total_count` past them when the Project had more, which
+/// the extra one asked for shows whatever `gh`'s `totalCount` means.
+pub fn list_project_items(path: &Path, owner: &str, number: u32) -> AppResult<ProjectItemList> {
     let number = number.to_string();
+    let limit = (ITEM_LIMIT + 1).to_string();
     let json = gh(
         path,
         &[
@@ -357,12 +401,22 @@ pub fn list_project_items(path: &Path, owner: &str, number: u32) -> AppResult<Ve
             "--owner",
             owner,
             "--limit",
-            ITEM_LIMIT,
+            &limit,
             "--format",
             "json",
         ],
     )?;
-    parse_project_items(&json)
+    Ok(within_item_limit(parse_project_items(&json)?, ITEM_LIMIT))
+}
+
+/// The first `limit` items of a list `gh` was asked one more of; its count stays past
+/// them when it had more.
+fn within_item_limit(list: ProjectItemList, limit: usize) -> ProjectItemList {
+    let (items, _) = within_limit(list.items, limit);
+    ProjectItemList {
+        items,
+        total_count: list.total_count,
+    }
 }
 
 fn status_field(path: &Path, owner: &str, number: &str) -> AppResult<StatusField> {
@@ -500,7 +554,9 @@ mod tests {
           {"id":"PVTI_2","title":"Idea","content":{"type":"DraftIssue","title":"Idea","body":"maybe"}},
           {"id":"PVTI_3","title":"Fix","status":"","content":{"type":"PullRequest","number":4,"repository":"a/b","url":"https://github.com/a/b/pull/4"}}
         ],"totalCount":3}"#;
-        let items = parse_project_items(json).unwrap();
+        let list = parse_project_items(json).unwrap();
+        assert_eq!(list.total_count, 3);
+        let items = list.items;
         assert_eq!(items.len(), 3);
         assert_eq!(items[0].status.as_deref(), Some("In Progress"));
         assert_eq!(items[0].content.kind, "issue");
@@ -512,6 +568,23 @@ mod tests {
         assert_eq!(items[2].content.kind, "pullRequest");
         assert_eq!(items[2].status, None);
         assert!(parse_project_items("{}").is_err());
+    }
+
+    #[test]
+    fn says_when_a_list_was_cut() {
+        // A Project of 812 items, `gh` stopping at its limit.
+        let cut = parse_project_items(r#"{"items":[{"id":"PVTI_1","title":"A","content":{"type":"DraftIssue"}}],"totalCount":812}"#).unwrap();
+        assert_eq!((cut.items.len(), cut.total_count), (1, 812));
+        // Asked for one more than it keeps: an extra one means more were left out.
+        assert_eq!(within_limit(vec![1, 2, 3], 2), (vec![1, 2], true));
+        assert_eq!(within_limit(vec![1, 2], 2), (vec![1, 2], false));
+        // A `totalCount` that only counts what `gh` listed still leaves the count past the items kept.
+        let item = r#"{"id":"PVTI","title":"A","content":{"type":"DraftIssue"}}"#;
+        let json = format!(r#"{{"items":[{item},{item},{item}],"totalCount":3}}"#);
+        let kept = within_item_limit(parse_project_items(&json).unwrap(), 2);
+        assert_eq!((kept.items.len(), kept.total_count), (2, 3));
+        let whole = within_item_limit(parse_project_items(&json).unwrap(), 3);
+        assert_eq!((whole.items.len(), whole.total_count), (3, 3));
     }
 
     #[test]
