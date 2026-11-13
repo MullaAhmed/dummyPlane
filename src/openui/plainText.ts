@@ -59,7 +59,9 @@ function toText(value: unknown): string {
     }
     case "Progress": {
       const max = typeof p.max === "number" && p.max > 0 ? p.max : 100;
-      const percent = typeof p.value === "number" ? Math.round((Math.min(Math.max(p.value, 0), max) / max) * 100) : 0;
+      // As the bar draws it (`P.Progress`): a value that is no finite number (1e999 reads as Infinity) is 0%.
+      const value = typeof p.value === "number" && Number.isFinite(p.value) ? Math.min(Math.max(p.value, 0), max) : 0;
+      const percent = Math.round((value / max) * 100);
       return `${str(p.label) || "Progress"}: ${percent}%`;
     }
     case "Link":
