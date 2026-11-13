@@ -518,6 +518,8 @@ export const agentMessages = defineMessages({
       goAhead: (names: string, branch: string) => `Go-ahead: the team is formed — ${names}. Mission branch: ${branch}. Each agent gets its sub-task as soon as its terminal is ready.`,
       waiting: (name: string) => `${name} is waiting for the user (a dialog is open in its terminal).`,
       stopped: (name: string) => `${name} stopped: its terminal is no longer running.`,
+      restarted: (name: string) =>
+        `${name} restarted: its terminal runs again, and what it was doing stopped with the old process. See where it stands with read_output, then write it what is left.`,
       budgetOver: (name: string, task: string, budget: number) =>
         `Budget used up: ${name} (${task}) went past its ${budget} min without reporting. Decide: write, extend, interrupt or reassign.`,
       targetOver: (name: string, task: string, budget: number) =>
@@ -541,6 +543,7 @@ export const agentMessages = defineMessages({
       boardFinished: (summary: string) => `The board is finished: ${summary}`,
       needsUser: (manager: string, reason: string) => `${manager} needs the user: ${reason}`,
       managerStopped: (manager: string) => `${manager} stopped: its terminal is no longer running. The board waits: relaunch it from its node, or stop_mission.`,
+      managerRestarted: (manager: string) => `${manager} restarted: its terminal runs again, and it takes the board up from where it stands. Nothing to do.`,
       pastMaxAgents: (name: string, active: number, max: number) =>
         `The user started ${name} again while the team was full: ${active} agents are at work, past Max active agents (${max}). The queue starts no new agent until fewer than ${max} are at work; nothing to do meanwhile.`,
     },

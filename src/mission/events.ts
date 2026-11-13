@@ -127,18 +127,37 @@ export function installMissionEvents(): () => void {
     }
     flushAll();
   });
+  /** Its Manager, or its Fleet for a Manager, hears how a member's terminal went: stopped, or restarted. */
+  const tell = (nodeId: string, how: "stopped" | "restarted") => {
+    tellFleetOfManager(nodeId, how === "stopped" ? lines().managerStopped : lines().managerRestarted);
+    const found = memberOf(nodeId);
+    if (!found) return;
+    const runner = missionRunner(found.fleetId);
+    talk(nodeId, runner);
+    notify(runner, (how === "stopped" ? lines().stopped : lines().restarted)(found.member.name));
+  };
+  /** The terminals being restarted, and whether each ran when its restart began: its end says how it went, once. */
+  const restarting = new Map<string, boolean>();
   const offStatus = terminalStatusStore.subscribe((state, previous) => {
-    // A terminal removed from the canvas leaves the statuses: it stopped too.
+    // In this order: a close mid-restart changes its status and its restart in one update, and is told once.
+    for (const nodeId of Object.keys(state.restarts)) {
+      if (!previous.restarts[nodeId]) restarting.set(nodeId, state.statuses[nodeId]?.state === "running");
+    }
+    // A terminal removed from the canvas leaves the statuses: it stopped too. Not yet while it restarts: its old
+    // process's exit is part of it.
     for (const nodeId of new Set([...Object.keys(previous.statuses), ...Object.keys(state.statuses)])) {
       const started = previous.statuses[nodeId]?.state !== "running" && state.statuses[nodeId]?.state === "running";
       if (started && takesLines(nodeId)) awaitPrompt(nodeId);
       if (previous.statuses[nodeId]?.state !== "running" || state.statuses[nodeId]?.state === "running") continue;
-      tellFleetOfManager(nodeId, lines().managerStopped);
-      const found = memberOf(nodeId);
-      if (!found) continue;
-      const runner = missionRunner(found.fleetId);
-      talk(nodeId, runner);
-      notify(runner, lines().stopped(found.member.name));
+      if (!restarting.has(nodeId)) tell(nodeId, "stopped");
+    }
+    // Its restart over: back running, it restarted; not, it stopped, if it ran before (else that stop was told then).
+    for (const nodeId of Object.keys(previous.restarts)) {
+      if (state.restarts[nodeId]) continue;
+      const ran = restarting.get(nodeId);
+      restarting.delete(nodeId);
+      if (state.statuses[nodeId]?.state === "running") tell(nodeId, "restarted");
+      else if (ran) tell(nodeId, "stopped");
     }
     flushAll();
   });
