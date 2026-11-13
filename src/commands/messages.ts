@@ -29,6 +29,7 @@ export const commandsMessages = defineMessages({
       live: (count: number) => plural(count, "active", "active"),
       shown: "shown",
       openFailed: "Could not open the project",
+      openFileFailed: "Could not open the file",
       gone: (label: string) => `${label} no longer exists`,
       unreadable: (name: string) => `Workspace ${name} is unreadable`,
       atLine: (line: number) => `line ${line}`,

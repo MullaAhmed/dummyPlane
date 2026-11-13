@@ -49,6 +49,7 @@ const TITLES: [string, string][] = [
   [commands.failedLike["workspace.delete"]!, "Could not delete the workspace"],
   [commands.failedLike["group.linkFleet"]!, "Could not create the fleet"],
   [commands.goTo.openFailed, "Could not open the project"],
+  [commands.goTo.openFileFailed, "Could not open the file"],
   [messages(fleetMessages).agent.notSaved, "Could not save the Fleet's agent"],
   [home.addFailed, "Could not add the project"],
   [home.start.agentsFailed, "Could not look for the installed agents"],

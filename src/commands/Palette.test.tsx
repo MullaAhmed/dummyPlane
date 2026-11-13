@@ -207,6 +207,21 @@ describe("the palette", () => {
     expect(paletteStore.getState().open).toBe(false);
     expect(openInCodeStudio).toHaveBeenCalledWith("src/App.tsx", 42, undefined);
   });
+
+  it("says so when the file cannot be opened in the Code Studio, where its rejection was lost", async () => {
+    const error = vi.spyOn(toast, "error").mockImplementation(() => "");
+    vi.mocked(openInCodeStudio).mockRejectedValueOnce(new Error("no such file"));
+    mockIPC((cmd) => (cmd === "studio_tree" ? [{ path: "src/App.tsx", kind: "file" }] : undefined));
+    canvasStore.setState({ api: { getSceneElements: () => [], getAppState: () => ({ selectedElementIds: {} }) } as unknown as ExcalidrawImperativeAPI });
+    projectsStore.setState({ view: "project", activeId: "p1" } as never);
+    workspacesStore.setState({ workspaces: [{ id: "w1", projectId: "p1", name: "Workspace 1", position: 0, pantheon: null }], activeId: "w1" } as never);
+    await act(async () => openPalette("goTo", busy));
+    await act(async () => new Promise<void>((resolve) => setTimeout(resolve, 0)));
+    await act(async () => setPaletteQuery("App.tsx"));
+    await act(async () => press("Enter"));
+    await act(async () => new Promise<void>((resolve) => setTimeout(resolve, 0)));
+    expect(error.mock.calls[0]?.[0]).toBe("Could not open the file");
+  });
 });
 
 describe("Escape and held keys", () => {
