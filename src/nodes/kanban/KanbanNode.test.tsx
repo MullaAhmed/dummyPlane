@@ -842,3 +842,76 @@ it("offers no second Sync from the board's menu while one runs", async () => {
   await act(async () => root.unmount());
   document.body.replaceChildren();
 });
+
+/**
+ * A board of `columns` whose cards `a` and `b` are both linked to issue #7, each with notes of its own. The ids are
+ * the test's own: the board remembers the cards it deleted for the whole run, and other tests delete c1 and c2.
+ */
+async function twoOfOneIssue(id: string, columns: { id: string; title: string; cardIds: string[] }[], [a, b]: [string, string]) {
+  const view = await mountBoard(id, columns);
+  const record = nodesStore.getState().nodes[id];
+  if (record?.kind !== "kanban") throw new Error("not a kanban");
+  const github = { repo: "o/r", number: 7, url: "https://github.com/o/r/issues/7", state: "open" as const };
+  const cards = record.payload.cards;
+  await act(async () => nodesStore.getState().update(id, { cards: { [a]: { ...cards[a], notes: "A's notes", github }, [b]: { ...cards[b], notes: "B's notes", github } } }));
+  const notes = () => {
+    const now = nodesStore.getState().nodes[id];
+    return now?.kind === "kanban" ? Object.fromEntries(Object.values(now.payload.cards).map((card) => [card.id, card.notes])) : {};
+  };
+  const deleteCard = async (cardId: string) => {
+    await act(async () => press(view.cardButton(cardId), "Enter"));
+    await act(async () => button("Delete").click());
+  };
+  const deleteColumn = async (title: string) => {
+    await act(async () => press(view.host.querySelector(`button[aria-label="${title} column menu"]`)!, "Enter"));
+    const remove = [...document.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((i) => i.textContent === "Delete the column")!;
+    await act(async () => remove.click());
+  };
+  const undos = () => toast.mock.calls.map(([, options]) => (options as unknown as { action: { onClick: () => void } }).action.onClick);
+  return { ...view, notes, deleteCard, deleteColumn, undos, both: { [a]: "A's notes", [b]: "B's notes" } };
+}
+
+it("keeps both cards of one issue when their two deletes are undone, in either order (two Undo toasts at once)", async () => {
+  for (const order of [[0, 1], [1, 0]]) {
+    toast.mockClear();
+    const id = `two-undos-${order.join("")}`;
+    const [a, b] = [`${id}-a`, `${id}-b`];
+    const view = await twoOfOneIssue(id, [{ id: "todo", title: "To do", cardIds: [a, b] }], [a, b]);
+    await view.deleteCard(a);
+    await view.deleteCard(b);
+    const undos = view.undos();
+    for (const i of order) await act(async () => undos[i]());
+    expect(view.notes()).toEqual(view.both);
+    await view.unmount();
+  }
+});
+
+it("keeps both cards of one issue when a card's delete and its twin's column's are undone, in either order", async () => {
+  // The card deleted first, then the column holding its twin; and the column first, then the card.
+  for (const columnFirst of [false, true]) {
+    for (const order of [[0, 1], [1, 0]]) {
+      toast.mockClear();
+      const id = `card-and-column-${columnFirst ? "column" : "card"}-${order.join("")}`;
+      const [a, b] = [`${id}-a`, `${id}-b`];
+      const view = await twoOfOneIssue(
+        id,
+        [
+          { id: "todo", title: "To do", cardIds: [a] },
+          { id: "doing", title: "Doing", cardIds: [b] },
+        ],
+        [a, b],
+      );
+      if (columnFirst) {
+        await view.deleteColumn("Doing");
+        await view.deleteCard(a);
+      } else {
+        await view.deleteCard(a);
+        await view.deleteColumn("Doing");
+      }
+      const undos = view.undos();
+      for (const i of order) await act(async () => undos[i]());
+      expect(view.notes()).toEqual(view.both);
+      await view.unmount();
+    }
+  }
+});
