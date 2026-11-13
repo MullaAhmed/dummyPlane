@@ -8,6 +8,17 @@ describe("rebasePath", () => {
     expect(rebasePath("C:\\code\\api\\web", "C:\\code\\api", "D:\\")).toBe("D:\\web");
   });
 
+  it("moves a path out of a drive root", () => {
+    expect(rebasePath("D:\\api\\web", "D:\\", "E:\\work")).toBe("E:\\work\\api\\web");
+    expect(rebasePath("d:/api", "D:", "E:\\work\\")).toBe("E:\\work\\api");
+    expect(rebasePath("D:\\", "D:", "E:\\work")).toBe("E:\\work");
+  });
+
+  it("keeps the rest of the path whole when a folder's name lowercases longer (İ)", () => {
+    expect(rebasePath("C:\\İstanbul\\web\\src", "c:\\İstanbul", "D:\\ist")).toBe("D:\\ist\\web\\src");
+    expect(rebasePath("C:\\İstanbul", "C:\\İSTANBUL\\", "D:\\ist")).toBe("D:\\ist");
+  });
+
   it("leaves paths outside the folder alone", () => {
     expect(rebasePath("C:\\code\\apis", "C:\\code\\api", "D:\\api")).toBeNull();
     expect(rebasePath("E:\\other", "C:\\code\\api", "D:\\api")).toBeNull();
