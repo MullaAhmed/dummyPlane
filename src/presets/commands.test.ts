@@ -83,4 +83,30 @@ describe("the lines of the palette", () => {
     options.action.onClick();
     await vi.waitFor(() => expect(presetsStore.getState().presets.map((p) => p.name)).toEqual(["Dev HQ"]));
   });
+
+  const undoOf = (name: string) =>
+    (vi.mocked(toast).mock.calls.find(([text]) => text === `Preset “${name}” deleted`)! as unknown as [string, { action: { onClick: () => void } }])[1].action.onClick;
+
+  it("takes a deleted preset back at its place in the list", async () => {
+    const list = [preset("Dev HQ", "1"), preset("QA", "2"), preset("Docs", "3")];
+    presetsStore.setState({ presets: list, loaded: true });
+    runCommand(presetCommands(list)[4], project);
+    await vi.waitFor(() => expect(presetsStore.getState().presets.map((p) => p.id)).toEqual(["1", "3"]));
+    undoOf("QA")();
+    await vi.waitFor(() => expect(presetsStore.getState().presets.map((p) => p.id)).toEqual(["1", "2", "3"]));
+  });
+
+  it("never takes a deleted preset back over one saved meanwhile under its name: both stay, the old one renamed", async () => {
+    const [, , remove] = presetCommands([preset("Dev HQ", "1")]);
+    runCommand(remove, project);
+    await vi.waitFor(() => expect(presetsStore.getState().presets).toEqual([]));
+    await presetsStore.getState().save(preset("dev hq", "9"));
+    undoOf("Dev HQ")();
+    await vi.waitFor(() => expect(presetsStore.getState().presets).toHaveLength(2));
+    expect(presetsStore.getState().presets.map((p) => [p.id, p.name])).toEqual([
+      ["1", "Dev HQ 2"],
+      ["9", "dev hq"],
+    ]);
+    expect(toast).toHaveBeenCalledWith("Preset taken back as “Dev HQ 2”: another one has its name now");
+  });
 });
