@@ -127,3 +127,39 @@ mod job {
         }
     }
 }
+
+#[cfg(all(test, windows))]
+mod tests {
+    use std::os::windows::io::AsRawHandle;
+    use std::process::Stdio;
+    use std::time::{Duration, Instant};
+
+    use super::*;
+
+    /// dummyPlane's exit, the installer's after an update or a crash closes the job's handle without ending it:
+    /// Windows ends what it holds, a terminal still being started when its tree was ended included.
+    #[test]
+    fn a_job_ends_its_processes_when_its_handle_closes() {
+        let mut command = Command::new("ping");
+        hide_window(&mut command)
+            .args(["-n", "30", "127.0.0.1"])
+            .stdout(Stdio::null());
+        let mut ping = command.spawn().unwrap();
+        let job = job::Job::holding(ping.as_raw_handle()).unwrap();
+        assert!(ping.try_wait().unwrap().is_none());
+        drop(job);
+        let deadline = Instant::now() + Duration::from_secs(5);
+        let ended = loop {
+            if ping.try_wait().unwrap().is_some() {
+                break true;
+            }
+            if Instant::now() >= deadline {
+                break false;
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        };
+        // This test's own, if Windows left it.
+        let _ = ping.kill();
+        assert!(ended, "the ping outlived its job's handle");
+    }
+}
