@@ -49,6 +49,8 @@ export interface NodesState {
    * brings it back. The scene's next save purges its row; a late change (its start, an agent's report) would write it back.
    */
   close: (id: string) => void;
+  /** Whether `close` took the node off the canvas, and no `persist` brought it back: its record is only an undo's. */
+  isClosed: (id: string) => boolean;
   /** Drops the nodes of a deleted workspace and returns their ids. */
   forgetWorkspace: (workspaceId: string) => string[];
 }
@@ -119,6 +121,8 @@ export function createNodesStore() {
         closed.add(id);
         pendingSaves.get(id)?.cancel();
       },
+
+      isClosed: (id) => closed.has(id),
 
       forgetWorkspace: (workspaceId) => {
         const ids = Object.keys(get().nodes).filter((id) => get().nodes[id].workspaceId === workspaceId);
