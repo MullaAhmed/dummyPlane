@@ -33,6 +33,19 @@ it("writes what a bug report needs, the home folder as ~ even when Rust missed i
   expect(diagnosticText(sample)).not.toMatch(/Mathieu|Users/i);
 });
 
+it("never lets part of a user name with a space through, as Windows allows one", () => {
+  const spaced: Diagnostics = {
+    ...sample,
+    agents: [{ id: "claude", path: "C:\\Users\\Ada Lovelace\\.local\\bin\\claude.exe" }],
+    gitBash: null,
+    dataDir: "C:\\Users\\Ada Lovelace",
+  };
+  const text = diagnosticText(spaced);
+  expect(text).toContain("  claude: ~\\.local\\bin\\claude.exe");
+  expect(text).toContain("Data: ~\n");
+  expect(text).not.toMatch(/Ada|Lovelace|Users/i);
+});
+
 it("prefills the version in a new issue, and links the English guide", () => {
   expect(issueUrl("1.0.0-beta.1")).toBe("https://github.com/MullaAhmed/dummyPlane/issues/new?template=bug_report.yml&version=1.0.0-beta.1");
   expect(guideUrl()).toBe("https://github.com/MullaAhmed/dummyPlane/blob/main/docs/troubleshooting.md");
