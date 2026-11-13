@@ -115,6 +115,8 @@ export const shellMessages = defineMessages(
       } satisfies Record<ArrangeLayout, string>,
       subagentTerminals: "Sub-agents as terminals",
       maxSpawned: "Sub-agents at once",
+      // On, a finished sub-agent shrunk to its card stops its process a minute later; an expand or new work resumes it.
+      stopFinished: "Stop finished agents",
       // On, every agent's sub-agents, hand_off tasks and mission agents take the model of their level; a node's switch set off still vetoes it.
       modelRouter: "Model router",
       modelLevels: "Models by level…",

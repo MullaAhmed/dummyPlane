@@ -1,5 +1,5 @@
 import { useId, type ReactElement, type ReactNode } from "react";
-import { Bell, BellRing, Bot, CircleArrowDown, Download, FileText, Gauge, ImageDown, Info, LayoutDashboard, LayoutGrid, LifeBuoy, LocateFixed, RefreshCw, Route, SlidersHorizontal, SquareTerminal, Upload } from "lucide-react";
+import { Bell, BellRing, Bot, CircleArrowDown, CirclePause, Download, FileText, Gauge, ImageDown, Info, LayoutDashboard, LayoutGrid, LifeBuoy, LocateFixed, RefreshCw, Route, SlidersHorizontal, SquareTerminal, Upload } from "lucide-react";
 import { arrangeWorkspace } from "@/agents/arrangeCanvas";
 import { ARRANGE_LAYOUTS, readArrangeLayout } from "@/agents/arrangeLayout";
 import { showAbout } from "@/app/about";
@@ -12,7 +12,7 @@ import { chooseFleetAgent, fleetAgent, useFleetAgent } from "@/fleet/fleetAgent"
 import { fleetMessages } from "@/fleet/messages";
 import { openLogDir } from "@/app/logs";
 import { setNativeNotifications, useNativeNotifications } from "@/app/nativeNotifications";
-import { MAX_SPAWNED_CHOICES, setMaxSpawned, setSubagentTerminalsSetting, useSubagentSettings } from "@/app/subagentSettings";
+import { MAX_SPAWNED_CHOICES, setMaxSpawned, setStopFinished, setSubagentTerminalsSetting, useSubagentSettings } from "@/app/subagentSettings";
 import { setModelRouterOn, useModelRouter } from "@/app/modelRouterSetting";
 import { checkForUpdate, setAutoUpdates, useUpdates } from "@/app/updates";
 import { PALETTES, readThemeChoice, setThemeChoice, usePalette, type ThemeChoice } from "@/app/theme";
@@ -118,6 +118,7 @@ export function SettingsMenu({
   const fleetCli = useFleetAgent(() => fleetAgent());
   const subagentTerminals = useSubagentSettings((s) => s.terminals);
   const maxSpawned = useSubagentSettings((s) => s.maxSpawned);
+  const stopFinished = useSubagentSettings((s) => s.stopFinished);
   const modelRouter = useModelRouter((s) => s.on);
   return (
     <DropdownMenu>
@@ -157,6 +158,10 @@ export function SettingsMenu({
             onSelect={stayOpen}
           >
             <SquareTerminal className={ICON} /> {t.subagentTerminals}
+          </DropdownMenuCheckboxItem>
+          {/* On, a sub-agent that reported done and shrank to its card stops its process a minute later, its screen and conversation kept. */}
+          <DropdownMenuCheckboxItem className={CHOICE} checked={stopFinished} onCheckedChange={(on) => void setStopFinished(on === true)} onSelect={stayOpen}>
+            <CirclePause className={ICON} /> {t.stopFinished}
           </DropdownMenuCheckboxItem>
           <DropdownMenuSub>
             <DropdownMenuSubTrigger className={ITEM}>

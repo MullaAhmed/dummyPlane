@@ -165,6 +165,19 @@ describe("a running agent that reported", () => {
     expect(pillOf({ state: "starting" }, undefined, false, "done")).toEqual({ label: "Starting", tone: "stopped" });
   });
 
+  it("still reads its report once dummyPlane stopped its process to free memory: its card shows what it last showed", () => {
+    const done = { label: "Done", tone: "done", report: "done" };
+    expect(pillOf({ state: "exited", code: 1 }, undefined, false, "done", true)).toEqual(done);
+    // After an app restart.
+    expect(pillOf({ state: "stopped" }, undefined, false, "done", true)).toEqual(done);
+    // Started again, it reads its activity as any running agent; a failed start says so.
+    expect(pillOf({ state: "starting" }, undefined, false, "done", true)).toEqual({ label: "Starting", tone: "stopped" });
+    expect(pillOf(running, "working", false, "done", true)).toEqual({ label: "Working", tone: "working" });
+    expect(pillOf({ state: "error", message: "x" }, undefined, false, "done", true)).toEqual({ label: "Error", tone: "failed" });
+    // Not stopped by dummyPlane: its exit is what it says.
+    expect(pillOf({ state: "exited", code: 1 }, undefined, false, "done")).toEqual({ label: "Exited · 1", tone: "failed" });
+  });
+
   it("takes the dot that its Done tone says: a ring in the ok colour", () => {
     expect(DOT_OF_TONE[pillOf(running, "idle", false, "done").tone]).toBe("done");
   });

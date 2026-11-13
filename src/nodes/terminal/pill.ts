@@ -41,9 +41,12 @@ export function pillActivity(status: TerminalStatus, activity?: AgentActivity, s
  * work and whose last `report` stands has finished: done, blocked or failed
  * rather than Ready. As soon as it works again it is Working. A shell whose
  * Claude exited says so, whatever the shell does: the node has no agent.
+ * `asleep`: a finished agent whose process dummyPlane stopped to free its memory
+ * (`@/agents/finishedStop`): stopped, it still reads its report.
  */
-export function pillOf(status: TerminalStatus, activity?: PillActivity, indigo = false, report?: TerminalReportStatus): Pill {
+export function pillOf(status: TerminalStatus, activity?: PillActivity, indigo = false, report?: TerminalReportStatus, asleep = false): Pill {
   const t = messages(nodesMessages).pill;
+  if (asleep && report && (status.state === "stopped" || status.state === "exited")) return { label: t[report], tone: REPORT_TONES[report], report };
   switch (status.state) {
     case "starting":
       return { label: t.starting, tone: "stopped" };

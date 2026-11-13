@@ -7,6 +7,7 @@ import { appMessages } from "./messages";
 
 const TERMINALS_KEY = "agents.subagentTerminals";
 const MAX_KEY = "agents.maxSpawned";
+const STOP_FINISHED_KEY = "agents.stopFinished";
 
 /** Sub-agents opened with spawn_agent that may run at once, all trees together. */
 export const DEFAULT_MAX_SPAWNED = 6;
@@ -22,9 +23,14 @@ interface SubagentSettings {
    */
   terminals: boolean;
   maxSpawned: number;
+  /**
+   * "Stop finished agents": a sub-agent that reported done and shrank to its card stops its process a minute later,
+   * its screen and conversation kept (`@/agents/finishedStop`). Off, finished agents run on until closed.
+   */
+  stopFinished: boolean;
 }
 
-export const subagentSettingsStore = createStore<SubagentSettings>()(() => ({ terminals: true, maxSpawned: DEFAULT_MAX_SPAWNED }));
+export const subagentSettingsStore = createStore<SubagentSettings>()(() => ({ terminals: true, maxSpawned: DEFAULT_MAX_SPAWNED, stopFinished: true }));
 export const useSubagentSettings = <T,>(selector: (s: SubagentSettings) => T) => useStore(subagentSettingsStore, selector);
 
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error));
@@ -42,8 +48,8 @@ function pushToHooks(on: boolean) {
 /** At boot. An unreadable setting keeps the defaults. */
 export async function loadSubagentSettings() {
   try {
-    const [terminals, max] = await Promise.all([getSetting<unknown>(TERMINALS_KEY), getSetting<unknown>(MAX_KEY)]);
-    subagentSettingsStore.setState({ terminals: terminals !== false, maxSpawned: readMaxSpawned(max) });
+    const [terminals, max, stopFinished] = await Promise.all([getSetting<unknown>(TERMINALS_KEY), getSetting<unknown>(MAX_KEY), getSetting<unknown>(STOP_FINISHED_KEY)]);
+    subagentSettingsStore.setState({ terminals: terminals !== false, maxSpawned: readMaxSpawned(max), stopFinished: stopFinished !== false });
   } catch (error) {
     console.warn(`sub-agent settings: ${message(error)}`);
   }
@@ -61,4 +67,9 @@ export async function setSubagentTerminalsSetting(terminals: boolean) {
 export async function setMaxSpawned(maxSpawned: number) {
   subagentSettingsStore.setState({ maxSpawned: readMaxSpawned(maxSpawned) });
   await saved(MAX_KEY, subagentSettingsStore.getState().maxSpawned);
+}
+
+export async function setStopFinished(stopFinished: boolean) {
+  subagentSettingsStore.setState({ stopFinished });
+  await saved(STOP_FINISHED_KEY, stopFinished);
 }

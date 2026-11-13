@@ -39,6 +39,11 @@ interface Entry {
   lastOutput?: number;
   /** When the user last typed in it: an event typed meanwhile would join their half-written text. */
   lastInput?: number;
+  /**
+   * When the user last pressed a key in it, pasted into it or focused it: a finished agent they are at stays
+   * running (`@/agents/finishedStop`). Unlike `lastInput`, xterm's own answers to its program's queries never count.
+   */
+  lastTouch?: number;
   /** Where the current session's output starts; above it is the previous session's (final review H2). */
   since?: IMarker;
   /** Its WebGL renderer, while the pool lends it a context (./webglPool.ts); xterm's DOM renderer otherwise. */
@@ -127,8 +132,17 @@ function create(nodeId: string): Entry {
   // which reads text only and would send an empty paste for an image. The
   // terminal is looked up again once the image is saved: it may have been
   // closed meanwhile.
-  screen.addEventListener("paste", (event) => takeOverPaste(event, (text) => pasteIntoTerminal(nodeId, text)), {
-    capture: true,
+  screen.addEventListener(
+    "paste",
+    (event) => {
+      entry.lastTouch = Date.now();
+      takeOverPaste(event, (text) => pasteIntoTerminal(nodeId, text));
+    },
+    { capture: true },
+  );
+  // Its xterm's textarea takes the focus: the focus event does not bubble, focusin does.
+  screen.addEventListener("focusin", () => {
+    entry.lastTouch = Date.now();
   });
   term.onData((data) => {
     entry.lastInput = Date.now();
@@ -137,6 +151,7 @@ function create(nodeId: string): Entry {
   // Typing in a terminal where nothing runs starts it again.
   // onKey, not onData: xterm also answers the queries of a restored screen.
   term.onKey(({ domEvent }) => {
+    entry.lastTouch = Date.now();
     // The user types in it: new work, its last report no longer stands (./minimize.ts).
     if (!entry.session.replaying && isTypingKey(domEvent)) onNewWork(nodeId);
     const oneShot = sessionOf(nodesStore.getState().nodes[nodeId])?.oneShot;
@@ -337,6 +352,19 @@ export function quietFor(nodeId: string): number {
 export function typedAgo(nodeId: string): number {
   const last = entries.get(nodeId)?.lastInput;
   return last === undefined ? Infinity : Date.now() - last;
+}
+
+/** How long since the user last pressed a key in the terminal, pasted into it or focused it; Infinity if never. */
+export function touchedAgo(nodeId: string): number {
+  const last = entries.get(nodeId)?.lastTouch;
+  return last === undefined ? Infinity : Date.now() - last;
+}
+
+/** Whether the keyboard is in the terminal now. */
+export function hasFocus(nodeId: string): boolean {
+  const screen = entries.get(nodeId)?.screen;
+  const active = typeof document === "undefined" ? null : document.activeElement;
+  return screen !== undefined && active !== null && screen.contains(active);
 }
 
 /** The last `lines` lines its current session wrote: a relaunched agent is judged on its new screen (final review H2). */

@@ -6,10 +6,12 @@ import type { TerminalPayload } from "@/nodes/types";
 import { terminalStatusStore } from "@/store/terminalStatus";
 import {
   disposeTerminal,
+  hasFocus,
   layoutTerminal,
   markForAutostart,
   mountTerminal,
   startUnseen,
+  touchedAgo,
   unmountTerminal,
   webglHolders,
   xtermOf,
@@ -131,6 +133,33 @@ it("starts a stopped terminal again on a keystroke, but not while it is being st
     await vi.waitFor(() => expect(relaunchSession).toHaveBeenCalledTimes(1));
     expect(sessionOf(nodesStore.getState().nodes[node])?.claudeSessionId).not.toBe("s-old");
   } finally {
+    clearMocks();
+  }
+});
+
+it("tells how long since the user pressed a key in it or focused it, and whether it has the keyboard now", async () => {
+  mockIPC(() => undefined);
+  await nodesStore.getState().create(node, { workspaceId: "w1", kind: "terminal", payload });
+  const shown = host();
+  mountTerminal(node, shown, payload, 1);
+  terminalStatusStore.getState().set(node, { state: "running" });
+  vi.useFakeTimers({ toFake: ["Date"] });
+  try {
+    vi.setSystemTime(10_000);
+    expect(touchedAgo(node)).toBe(Infinity);
+    expect(hasFocus(node)).toBe(false);
+    keyListeners.get(xtermOf(node)!)!({ key: "Escape", domEvent: new KeyboardEvent("keydown", { key: "Escape" }) });
+    vi.setSystemTime(15_000);
+    expect(touchedAgo(node)).toBe(5000);
+    // xterm's textarea, inside the screen the registry gave the host.
+    const field = (shown.firstElementChild as HTMLElement).appendChild(document.createElement("textarea"));
+    field.focus();
+    expect(hasFocus(node)).toBe(true);
+    expect(touchedAgo(node)).toBe(0);
+    field.blur();
+    expect(hasFocus(node)).toBe(false);
+  } finally {
+    vi.useRealTimers();
     clearMocks();
   }
 });

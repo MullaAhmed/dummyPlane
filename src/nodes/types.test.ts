@@ -60,6 +60,12 @@ describe("readTerminalPayload", () => {
     expect(readTerminalPayload({ ...robin, staleTitle: "yes" })).toEqual(robin);
   });
 
+  it("keeps across a restart that dummyPlane stopped a finished sub-agent to free its memory", () => {
+    const robin = { title: "Tests", name: "Robin", agent: "claude", cwd: "C:/code", shell: "default", command: "", spawnedBy: "batman", claudeSessionId: "s1" };
+    expect(readTerminalPayload({ ...robin, stoppedFinished: true })).toEqual({ ...robin, stoppedFinished: true });
+    expect(readTerminalPayload({ ...robin, stoppedFinished: "yes" })).toEqual(robin);
+  });
+
   it("rejects what cannot be launched", () => {
     expect(readTerminalPayload(null)).toBeNull();
     expect(readTerminalPayload({ agent: "vim", cwd: "C:/" })).toBeNull();

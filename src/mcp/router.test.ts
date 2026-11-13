@@ -12,6 +12,7 @@ import { pauseAgents } from "@/agents/broadcast";
 import { setRemoteControl } from "@/agents/remoteControl";
 import { ptySendText } from "@/ipc/pty";
 import { relaunchTerminal, terminalText } from "@/nodes/terminal/registry";
+import { wakeFinished } from "@/agents/finishedStop";
 import { notify } from "@/mission/events";
 import { endMission, reassignTask } from "@/mission/launch";
 import { stopMission } from "@/mission/stop";
@@ -22,7 +23,9 @@ import { terminalStatusStore } from "@/store/terminalStatus";
 import { modelRouterStore } from "@/app/modelRouterSetting";
 
 vi.mock("@/ipc/pty", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/ipc/pty")>()), ptySendText: vi.fn(() => Promise.resolve()) }));
-vi.mock("@/nodes/terminal/registry", () => ({ terminalText: vi.fn(() => "ligne 1\nligne 2"), relaunchTerminal: vi.fn(() => Promise.resolve()) }));
+vi.mock("@/nodes/terminal/registry", () => ({ terminalText: vi.fn(() => "ligne 1\nligne 2"), relaunchTerminal: vi.fn(() => Promise.resolve()), isLiveInRust: vi.fn(() => false) }));
+// The start of a stopped finished agent (`@/agents/finishedStop`): its own tests cover it.
+vi.mock("@/agents/finishedStop", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/agents/finishedStop")>()), wakeFinished: vi.fn(() => Promise.resolve(true)) }));
 vi.mock("@/mission/launch", () => ({
   mergeMission: vi.fn(() => Promise.resolve("Branch dummyplane/auth :\nBatman : merged")),
   endMission: vi.fn(),
@@ -401,6 +404,37 @@ describe("the fleet's tools", () => {
       agentActivityStore.getState().apply({ nodeId: "batman", activity: "idle", since: 0 });
       expect(textOf(await call("chef", "write", { agent: "Batman", text: "Relance\nles tests" }))).toBe("Written to Batman.");
       expect(ptySendText).toHaveBeenCalledWith("batman", "Relance les tests");
+    });
+
+    it("starts again a member dummyPlane stopped once it had finished, and writes once its session is ready", async () => {
+      vi.mocked(ptySendText).mockClear();
+      vi.mocked(notify).mockClear();
+      nodesStore.getState().update("batman", { claudeSessionId: "s-batman", stoppedFinished: true });
+      terminalStatusStore.getState().set("batman", { state: "exited", code: 1 });
+      let wake!: (ready: boolean) => void;
+      vi.mocked(wakeFinished).mockImplementationOnce(() => new Promise<boolean>((resolve) => (wake = resolve)));
+      try {
+        expect(textOf(await call("chef", "write", { agent: "Batman", text: "Fix the login" }))).toBe(
+          "Batman had finished, and dummyPlane stopped its session to free memory: it starts again on its own conversation, and your text is written once its session is ready.",
+        );
+        expect(wakeFinished).toHaveBeenCalledWith("batman");
+        // Nothing typed while its session opens: it would land in its shell.
+        expect(ptySendText).not.toHaveBeenCalled();
+        terminalStatusStore.getState().set("batman", { state: "running" });
+        wake(true);
+        await vi.waitFor(() => expect(ptySendText).toHaveBeenCalledWith("batman", "Fix the login"));
+        // One that does not start again: its caller hears it.
+        terminalStatusStore.getState().set("batman", { state: "exited", code: 1 });
+        vi.mocked(wakeFinished).mockResolvedValueOnce(false);
+        await call("chef", "write", { agent: "Batman", text: "Again" });
+        await vi.waitFor(() =>
+          expect(notify).toHaveBeenCalledWith("chef", "Batman did not start again, or its session did not open: your text was not written. relaunch starts it again."),
+        );
+        expect(ptySendText).not.toHaveBeenCalledWith("batman", "Again");
+      } finally {
+        nodesStore.getState().update("batman", { claudeSessionId: undefined, stoppedFinished: undefined });
+        terminalStatusStore.getState().set("batman", { state: "running" });
+      }
     });
 
     it("takes an agent's report to its fleet", async () => {
