@@ -234,7 +234,15 @@ export function LoopsDialog() {
                     <Button size="sm" variant={running ? "destructive" : "default"} onClick={() => (running ? loopsStore.getState().stop(loop.id) : loopsStore.getState().start(loop.id))}>
                       {running ? t.turnOff : t.turnOn}
                     </Button>
-                    <Button size="sm" variant="ghost" className={ROW_BUTTON} onClick={() => setForm(formOf(loop))}>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className={ROW_BUTTON}
+                      onClick={() => {
+                        setForm(formOf(loop));
+                        setError(null);
+                      }}
+                    >
                       {t.edit}
                     </Button>
                     <Button size="sm" variant="ghost" className={ROW_REMOVE} onClick={() => void remove(loop, index)}>

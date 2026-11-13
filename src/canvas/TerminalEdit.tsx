@@ -25,7 +25,8 @@ import { claudeLaunchDefaults, type ClaudeLaunchDefaults } from "@/ipc/claudeExt
 import type { Permission, ShellKind } from "@/ipc/pty";
 import { EFFORT_LEVELS, MODEL_CHOICES, modelLabel, readEffort, settingsModelLabel, type EffortLevel } from "@/mission/router";
 import { missionMessages } from "@/mission/messages";
-import { followRouter, hasRouterSwitch, setRouter, useRouterFollow, useRouterOn } from "@/mission/routerState";
+import { routerInertText } from "@/mission/RouterToggle";
+import { followRouter, setRouter, useRouterFollow, useRouterOn } from "@/mission/routerState";
 import { folderChange, folderLockOf, sameFolder, type FolderLock } from "@/nodes/terminal/folder";
 import { newConversation, SHELL_LABELS } from "@/nodes/terminal/launch";
 import { StatusPill } from "@/nodes/terminal/StatusPill";
@@ -276,8 +277,8 @@ function General({ nodeId, record, session, liveFolder }: { nodeId: string; reco
           </div>
         </Row>
         {claude && <RemoteRow nodeId={nodeId} wanted={session.remoteControl === true} running={running} />}
-        {/* A Fleet's router is its mission's, a terminal's is its own, on Claude or Codex; a Manager's has nothing to route (no plan gives it a sub-task). */}
-        {session && hasRouterSwitch(session) && <RouterRow nodeId={nodeId} fleet={fleet} />}
+        {/* A Fleet's router is its mission's, a terminal's is its own. On every terminal, greyed out, with why, where it has nothing to route: a Manager's (its Fleet's switch routes), a CLI's without dummyPlane's tools. */}
+        {session && <RouterRow nodeId={nodeId} fleet={fleet} inert={fleet ? undefined : routerInertText(session)} />}
       </Rows>
       {session && (
         <div role="group" aria-labelledby={`${ids.model}-heading`} className="grid grid-cols-1 gap-2">
@@ -598,8 +599,40 @@ function remoteState(link: RemoteLink | undefined, wanted: boolean, running: boo
  * there, set at the node or followed from above it or from Settings (`@/mission/routerState`). The same switch as its
  * header's and, like Remote Control, applied at once: it is no launch setting, so it never offers "Restart now". A
  * real switch (`role="switch"`) in the panel's checkbox, named by its visible label, described by the line under it.
+ * A terminal with nothing to route (`inert`, why in words) shows it greyed out instead.
  */
-function RouterRow({ nodeId, fleet }: { nodeId: string; fleet: boolean }) {
+function RouterRow({ nodeId, fleet, inert }: { nodeId: string; fleet: boolean; inert?: string }) {
+  return inert ? <InertRouterRow reason={inert} /> : <ActiveRouterRow nodeId={nodeId} fleet={fleet} />;
+}
+
+/**
+ * The router's row on a terminal that has nothing to route (`routerInertText` says why): the same switch, off whatever
+ * Settings say, greyed out, changing nothing, with no "Follow". The line under it says why, in place of what the switch
+ * does: it is what describes it. `aria-disabled`, not `disabled`: it keeps the keyboard, and the label still reaches it.
+ */
+function InertRouterRow({ reason }: { reason: string }) {
+  const t = useMessages(canvasMessages).selection;
+  const id = useId();
+  return (
+    <Row label={t.modelRouter} htmlFor={id} note={reason} noteId={`${id}-note`}>
+      <div className="flex h-7 items-center gap-2">
+        <Checkbox
+          id={id}
+          role="switch"
+          aria-label={t.modelRouter}
+          aria-describedby={`${id}-note`}
+          aria-disabled
+          checked={false}
+          onCheckedChange={() => undefined}
+          onMouseDown={keepCanvasFocus}
+          className={cn(QUIET_BOX, "cursor-not-allowed opacity-50")}
+        />
+      </div>
+    </Row>
+  );
+}
+
+function ActiveRouterRow({ nodeId, fleet }: { nodeId: string; fleet: boolean }) {
   const t = useMessages(canvasMessages).selection;
   const id = useId();
   const on = useRouterOn(nodeId);

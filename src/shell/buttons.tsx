@@ -103,18 +103,20 @@ export function ToolButton({
 /**
  * A small icon button of panels, tabs and bars: 28 px. Its name shows in the same hint as
  * the rails' (`hintSide`, below by default), never in a native `title`: the two would stack,
- * and a bar mixing them would show two kinds of tooltip.
+ * and a bar mixing them would show two kinds of tooltip. `hint` says more than the name
+ * when there is more to say (why the button does nothing); the name stays its accessible one.
  */
 export function IconButton({
   label,
+  hint = label,
   hintSide = "bottom",
   className,
   onFocus,
   ...props
-}: ComponentProps<"button"> & Labelled & { hintSide?: HintSide }) {
+}: ComponentProps<"button"> & Labelled & { hint?: ReactNode; hintSide?: HintSide }) {
   return (
     <HintedButton
-      hint={label}
+      hint={hint}
       hintSide={hintSide}
       variant="ghost"
       size="icon-sm"

@@ -31,6 +31,9 @@ let repo: RepoState;
 let history: LogEntry[];
 let calls: { cmd: string; args: Record<string, unknown> }[];
 let fail: Record<string, string>;
+/** Answers a command waits for, in turn, instead of the usual one: the test decides when each arrives. */
+let held: Record<string, Promise<unknown>[]>;
+let branches: string[];
 let host: HTMLDivElement;
 let root: Root;
 
@@ -41,13 +44,17 @@ beforeEach(() => {
   history = [{ hash: "abcdef0123", shortHash: "abcdef0", author: "Mathilde", date: 1_700_000_000, subject: "feat: the first one", parents: [], refs: [] }];
   calls = [];
   fail = {};
+  held = {};
+  branches = ["main", "side"];
   vi.mocked(toast).mockClear();
   vi.mocked(toast.error).mockClear();
   mockIPC((cmd, args) => {
     calls.push({ cmd, args: args as Record<string, unknown> });
+    if (held[cmd]?.length) return held[cmd].shift();
     if (fail[cmd]) throw fail[cmd];
     if (cmd === "repo_state") return repo;
     if (cmd === "repo_history") return history;
+    if (cmd === "repo_branches") return branches;
     if (cmd === "review_file_diff") return "@@ -1,2 +1,2 @@\n ctx\n-old\n+new\n";
     if (cmd === "repo_commit") return "1234567";
   });
@@ -416,6 +423,97 @@ describe("pushing", () => {
   it("has one caller in the whole application: the window's button", () => {
     const callers = Object.entries(sourceFiles()).filter(([, text]) => /repoPush|repo_push/.test(text));
     expect(callers.map(([path]) => path.replace(/\\/g, "/").replace(/^.*src\//, "")).sort()).toEqual(["git/GitWindow.tsx", "ipc/repo.ts"]);
+  });
+});
+
+describe("the branch", () => {
+  // Radix opens its menus on the pointer's press, not on a click.
+  const openBranches = async () => act(async () => labelled("Switch branch").dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, cancelable: true, button: 0 })));
+  const item = (name: string) => [...document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')].find((i) => i.textContent === name);
+
+  it("lists the local branches and switches to the one picked, then reads again", async () => {
+    await render();
+    await openBranches();
+    expect(called("repo_branches")).toEqual([{ cmd: "repo_branches", args: { path: "C:/code/api" } }]);
+    expect(item("main")!.getAttribute("data-disabled")).not.toBeNull();
+    calls = [];
+    await act(async () => item("side")!.click());
+    expect(called("repo_switch")).toEqual([{ cmd: "repo_switch", args: { path: "C:/code/api", branch: "side" } }]);
+    expect(called("repo_state").length).toBe(1);
+    expect(toast).toHaveBeenCalledWith("Switched to side");
+  });
+
+  it("shows git's refusal, keeps the window open and the branch as it was", async () => {
+    fail.repo_switch = "error: Your local changes to the following files would be overwritten by checkout";
+    await render();
+    await openBranches();
+    calls = [];
+    await act(async () => item("side")!.click());
+    expect(document.body.querySelector("[role='alert']")!.textContent).toContain("would be overwritten by checkout");
+    expect(toast).not.toHaveBeenCalledWith("Switched to side");
+    expect(gitWindowStore.getState().path).toBe("C:/code/api");
+    // Git moved nothing, and the window still reads the repo again to show what is there.
+    expect(called("repo_switch").length).toBe(1);
+    expect(called("repo_state").length).toBe(1);
+  });
+
+  it("offers only the existing local branches, never a new one", async () => {
+    await render();
+    await openBranches();
+    expect(document.body.querySelectorAll('[role="menuitem"]').length).toBe(2);
+    expect(document.body.textContent).not.toMatch(/new branch|create branch/i);
+    expect(document.body.textContent).not.toContain("No other local branch");
+  });
+
+  it("says there is no other local branch when the current one is the only one", async () => {
+    branches = ["main"];
+    await render();
+    await openBranches();
+    const items = [...document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')];
+    expect(items.map((i) => i.textContent)).toEqual(["main"]);
+    expect(items[0].getAttribute("data-disabled")).not.toBeNull();
+    expect(document.body.textContent).toContain("No other local branch");
+  });
+
+  it("keeps the newest list when the menu is opened again while an older read is pending", async () => {
+    let late!: (names: string[]) => void;
+    held.repo_branches = [new Promise<string[]>((resolve) => (late = resolve))];
+    await render();
+    await openBranches();
+    expect(document.body.textContent).toContain("Reading the branches");
+    await act(async () => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })));
+    expect(document.body.querySelector("[role='menu']")).toBeNull();
+    await openBranches();
+    expect(item("side")).toBeTruthy();
+    await act(async () => late(["main", "stale"]));
+    expect(item("stale")).toBeUndefined();
+    expect(item("side")).toBeTruthy();
+  });
+
+  it("closes the menu and shows the failure when the branches cannot be read", async () => {
+    fail.repo_branches = "fatal: not a git repository";
+    await render();
+    await openBranches();
+    expect(document.body.querySelector("[role='menu']")).toBeNull();
+    expect(document.body.querySelector("[role='alert']")!.textContent).toContain("not a git repository");
+    expect(document.body.textContent).not.toContain("No other local branch");
+  });
+
+  it("does not open the menu again while a switch is under way, and switches once", async () => {
+    let done!: () => void;
+    held.repo_switch = [new Promise<void>((resolve) => (done = resolve))];
+    await render();
+    await openBranches();
+    await act(async () => item("side")!.click());
+    expect(labelled("Switch branch").getAttribute("aria-busy")).toBe("true");
+    await openBranches();
+    expect(document.body.querySelector("[role='menu']")).toBeNull();
+    expect(called("repo_branches").length).toBe(1);
+    await act(async () => done());
+    expect(labelled("Switch branch").getAttribute("aria-busy")).toBe("false");
+    expect(called("repo_switch").length).toBe(1);
+    await openBranches();
+    expect(item("side")).toBeTruthy();
   });
 });
 
