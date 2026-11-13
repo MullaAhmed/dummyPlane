@@ -2,7 +2,7 @@ import { AppError } from "@/ipc/invoke";
 import { getScrollback, ptyAttach, ptyKill, ptySpawn } from "@/ipc/pty";
 import type { TerminalPayload } from "@/nodes/types";
 import { nodesStore, sessionOf, updateSession } from "@/store/nodes";
-import { isRunning, restartInTurn, terminalStatusStore, waitForExit } from "@/store/terminalStatus";
+import { isRunning, restartInTurn, stillOpen, terminalStatusStore, waitForExit } from "@/store/terminalStatus";
 import { accountsStore, loadAccounts } from "@/accounts/store";
 import { markLaunch, markResumedLaunch } from "@/usage/usageStore";
 import { buildSpawnSpec, launchSettingsOf, sameLaunch, type LaunchMode } from "./launch";
@@ -70,6 +70,9 @@ function noteLaunched(nodeId: string, payload: TerminalPayload) {
 }
 
 export async function startSession(nodeId: string, term: TermSink, payload: TerminalPayload, mode: LaunchMode) {
+  // Closed while it starts (its close, its workspace's or project's deletion): the kill that came with it found no
+  // process yet, and the one spawned must not run on for a node gone from the canvas.
+  const open = stillOpen(nodeId);
   // "running" is set before spawning: ConPTY's cursor query arrives before the
   // spawn command returns, and xterm's answer must be let through.
   setStatus(nodeId, { state: "running" });
@@ -86,7 +89,9 @@ export async function startSession(nodeId: string, term: TermSink, payload: Term
     if (payload.agent === "claude" && mode !== "new") markResumedLaunch(nodeId);
     // What the previous run reported (its model, its tokens) no longer stands.
     if (payload.agent === "claude") markLaunch(nodeId);
+    if (!open()) return;
     await ptySpawn(nodeId, spec, term.cols, term.rows, (bytes) => term.write(bytes));
+    if (!open()) await ptyKill(nodeId);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     const kind = error instanceof AppError ? error.kind : undefined;
