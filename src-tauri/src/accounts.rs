@@ -91,12 +91,16 @@ fn store(conn: &Connection, accounts: &Accounts) -> AppResult<()> {
     )
 }
 
+/// Whether two spellings name one folder: in any case, with either separator, and without
+/// what changes nothing in a path (a doubled or a final separator, a `.` segment).
 fn same_folder(a: &str, b: &str) -> bool {
     let clean = |s: &str| {
-        s.trim()
-            .trim_end_matches(['\\', '/'])
+        unquoted(s)
             .to_lowercase()
-            .replace('\\', "/")
+            .split(['\\', '/'])
+            .filter(|segment| !segment.is_empty() && *segment != ".")
+            .collect::<Vec<_>>()
+            .join("/")
     };
     clean(a) == clean(b)
 }
@@ -245,6 +249,35 @@ mod tests {
         // A lone quote, or quotes round nothing, are no folder.
         assert!(checked_dir("\"").is_err());
         assert!(checked_dir("\"\"").is_err());
+    }
+
+    /// `.` segments and doubled separators name the same folder: it was added twice.
+    #[test]
+    fn a_folder_spelled_another_way_is_the_same_folder() {
+        let db = db();
+        let root = tempfile::tempdir().unwrap();
+        let base = root.path().to_string_lossy().into_owned();
+        let first = root.path().join("a").join("b");
+        db.with(|conn| add(conn, "A", &first.to_string_lossy()))
+            .unwrap();
+        for (n, spelled) in [
+            format!("{base}/./a/b"),
+            format!("{base}\\a\\\\b"),
+            format!("{base}//a/b//"),
+            format!("{base}\\.\\a\\.\\b\\"),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            assert!(
+                db.with(|conn| add(conn, &format!("N{n}"), &spelled))
+                    .is_err(),
+                "{spelled}"
+            );
+        }
+        // Another folder is another folder.
+        db.with(|conn| add(conn, "B", &format!("{base}/./a/c")))
+            .unwrap();
     }
 
     /// What the row holds, as it is stored.
