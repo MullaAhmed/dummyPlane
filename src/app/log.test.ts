@@ -54,6 +54,21 @@ it("survives a value whose text cannot be made", () => {
   expect(sent[0][1]).toContain("failed:");
 });
 
+it("fills every directive with its value, as the console does, not only those at the start", () => {
+  const { sent, target } = recorder();
+  const fakeConsole = { warn: vi.fn(), error: vi.fn() } as unknown as Console;
+  installLogging(target, fakeConsole, new EventTarget() as unknown as Window);
+  fakeConsole.error("%s failed: %o", "save", new Error("disk full"));
+  // %c's value is a style, never text; a directive with no value left stays as written; %% is a percent sign.
+  fakeConsole.warn("%cstyled%c %d%% done, then %s", "color: red", "", 50, "more", "extra");
+  fakeConsole.warn("left %s");
+  expect(sent).toEqual([
+    ["error", "save failed: Error: disk full"],
+    ["warn", "styled 50% done, then more extra"],
+    ["warn", "left %s"],
+  ]);
+});
+
 it("drops the literal %o React leaves at the start of its errors", () => {
   const { sent, target } = recorder();
   const fakeConsole = { warn: vi.fn(), error: vi.fn() } as unknown as Console;
