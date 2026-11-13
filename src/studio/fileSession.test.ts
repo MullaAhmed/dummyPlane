@@ -85,6 +85,25 @@ describe("saving", () => {
     expect(s().version).toBe("v:x\r\nz\r\n");
   });
 
+  it("leaves the line endings of the lines it did not edit, in a file that mixes them or holds a lone CR", async () => {
+    // Two CRLF lines among LF ones: the file reads as LF, and every line was rewritten as such.
+    const mixed = session({ "m.txt": "a\r\nb\nc\nd\r\n" });
+    await mixed.s().open("m.txt");
+    mixed.s().edit("a\nb\nC\nd\n");
+    expect(await mixed.s().save()).toBe(true);
+    expect(mixed.disk["m.txt"]).toBe("a\r\nb\nC\nd\r\n");
+    // The next save starts from what the first wrote.
+    mixed.s().edit("a\nb\nC\nd\ne\n");
+    expect(await mixed.s().save()).toBe(true);
+    expect(mixed.disk["m.txt"]).toBe("a\r\nb\nC\nd\r\ne\n");
+
+    const old = session({ "c.txt": "one\rtwo\nthree\n" });
+    await old.s().open("c.txt");
+    old.s().edit("one\ntwo\nTHREE\n");
+    expect(await old.s().save()).toBe(true);
+    expect(old.disk["c.txt"]).toBe("one\rtwo\nTHREE\n");
+  });
+
   it("writes nothing when nothing changed", async () => {
     const { io, s } = session({ "a.ts": "x" });
     await s().open("a.ts");
