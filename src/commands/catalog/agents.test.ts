@@ -124,7 +124,8 @@ describe("Agents", () => {
 
   it("opens the Agent menu on its catalog, the chosen agent launched at the radial menu's point (Other agent…)", async () => {
     await find("agent.other").run({ ...busy, at: { x: 1, y: 2 } });
-    expect(pendingUiRequest()).toEqual({ kind: "agentMenu", view: "agents", at: { x: 1, y: 2 } });
+    // Only the agents: it is the ring's and the palette's "Other agent…", not the ＋'s whole menu.
+    expect(pendingUiRequest()).toEqual({ kind: "agentMenu", view: "agents", only: "agents", at: { x: 1, y: 2 } });
   });
 
   it("asks for a folder, then starts the default agent there, where the radial menu was opened when it says so", async () => {

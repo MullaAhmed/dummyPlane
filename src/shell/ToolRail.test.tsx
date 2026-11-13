@@ -82,10 +82,13 @@ it("opens the ＋ menu on request, on the custom command's options or on Ollama'
 });
 
 it("launches the agent chosen in the ＋ menu where the radial menu was opened (Other agent…)", async () => {
-  await act(async () => requestUi({ kind: "agentMenu", view: "agents", at: { x: 10, y: 20 } }));
+  await act(async () => requestUi({ kind: "agentMenu", view: "agents", only: "agents", at: { x: 10, y: 20 } }));
   await act(async () => agentsStore.setState({ agents: [{ id: "claude", available: true }] } as never));
   const menu = document.querySelector('[data-slot="popover-content"]')!;
   expect(menu.textContent).toContain("launched where you clicked");
+  // Only the agents, headed "Launch an agent": the ring's "Other agent…" is not the ＋'s whole menu.
+  expect(menu.textContent).toContain("Launch an agent");
+  for (const other of ["New console", "Fleet", "Kanban", "Terminals"]) expect(menu.textContent, other).not.toContain(other);
   const claude = [...menu.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent?.startsWith("Claude"))!;
   await act(async () => claude.click());
   expect(launchAgent).toHaveBeenCalledWith("claude", expect.objectContaining({ shell: expect.any(String) }), { x: 10, y: 20 });

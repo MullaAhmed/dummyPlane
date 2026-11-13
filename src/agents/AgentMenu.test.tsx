@@ -494,3 +494,85 @@ it("takes the keyboard on the first usable agent, and Tab follows the sections",
   await act(async () => document.activeElement!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
   expect(document.body.querySelector('[data-slot="popover-content"]')).toBeNull();
 });
+
+describe("the agents-only popover of Other agent… (the ring's and the palette's)", () => {
+  const agentsOnly = AGENT_ORDER.filter((id) => id !== "shell");
+  const content = () => document.body.querySelector<HTMLElement>('[data-slot="popover-content"]')!;
+  /** The request the command makes: the agents alone, where the click was. */
+  const ask = (extra: { at?: { x: number; y: number } } = {}) =>
+    act(async () => requestUi({ kind: "agentMenu", view: "agents", only: "agents", ...extra }));
+  const mount = () => act(async () => root.render(<AgentMenu answersRequests trigger={() => <button type="button">open</button>} />));
+  /** Escape, from where the keyboard is: the menu closes. */
+  const close = async () => {
+    await act(async () => document.activeElement!.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+    expect(document.body.querySelector('[data-slot="popover-content"]')).toBeNull();
+  };
+  /** A sub-view's Back is its first control. */
+  const goBack = () => act(async () => content().querySelector<HTMLButtonElement>("button")!.click());
+
+  it("holds only the launch folder, the agents, Custom and Ollama among them, and the footer, headed Launch an agent", async () => {
+    await mount();
+    await ask({ at: { x: 5, y: 6 } });
+    expect(menuOrder()).toEqual(["§Launch an agent", ...agentsOnly]);
+    expect(agentsOnly).toContain("custom");
+    expect(agentsOnly).toContain("ollama");
+    const buttons = [...content().querySelectorAll<HTMLButtonElement>("button")];
+    expect(buttons[0].textContent).toBe("Change…");
+    expect(buttons[buttons.length - 1].textContent).toBe("Options");
+    expect(content().textContent).toContain("launched where you clicked");
+    for (const gone of ["New console", "Fleet", "Kanban"]) expect(button(gone), gone).toBeUndefined();
+    expect(document.body.querySelector('[data-agent-pick="shell"]')).toBeNull();
+    expect(document.body.querySelectorAll('[data-slot="popover-content"] [role="group"]')).toHaveLength(1);
+  });
+
+  it("takes the keyboard on the first usable agent", async () => {
+    agentsStore.setState({ agents, shells: ["powershell"], loaded: true });
+    await mount();
+    await ask();
+    expect(document.activeElement?.textContent).toContain("Claude");
+  });
+
+  it("stays agents-only when Back leaves Custom, Ollama, an Install or the Options, and gives the keyboard back to what opened it", async () => {
+    // Ollama is there to be picked: a missing one has its Install, which is tried too.
+    agents = only("claude", "ollama");
+    agentsStore.setState({ agents, shells: ["powershell"], loaded: true });
+    await mount();
+    await ask();
+    for (const opener of ['[data-agent-pick="custom"]', '[data-agent-pick="ollama"]', "[data-install]", "[data-launch-options]"]) {
+      const from = content().querySelector<HTMLButtonElement>(opener)!;
+      from.focus();
+      await act(async () => from.click());
+      expect(menuOrder(), opener).not.toContain("§Launch an agent");
+      await goBack();
+      expect(menuOrder(), opener).toEqual(["§Launch an agent", ...agentsOnly]);
+      expect(document.activeElement, opener).toBe(content().querySelector(opener));
+    }
+  });
+
+  it("is the ＋'s whole menu again once the trigger opens it", async () => {
+    // The agents are known: the keyboard enters the menu, and Escape is heard from it.
+    agentsStore.setState({ agents, shells: ["powershell"], loaded: true });
+    await mount();
+    await ask();
+    await close();
+    await act(async () => host.querySelector("button")!.click());
+    expect(menuOrder()).toEqual(["§Agents", ...agentsOnly, "§Terminals", "New console", "shell", "§Fleet and boards", "Fleet", "Kanban"]);
+  });
+
+  it("does not hold a request that did not ask for it: the palette's custom agent goes back to the whole menu", async () => {
+    // The agents are known: the keyboard enters the menu, and Escape is heard from it.
+    agentsStore.setState({ agents, shells: ["powershell"], loaded: true });
+    await mount();
+    await ask();
+    // Still open: another request, the palette's "Launch a custom agent…", for the Custom form.
+    await act(async () => requestUi({ kind: "agentMenu", view: "options" }));
+    expect(content().textContent).toContain("Launch the custom command");
+    await goBack();
+    expect(menuOrder()).toContain("§Terminals");
+    // And from closed: the same, whatever the menu was before.
+    await close();
+    await act(async () => requestUi({ kind: "agentMenu", view: "ollama" }));
+    await goBack();
+    expect(menuOrder()).toContain("§Terminals");
+  });
+});
