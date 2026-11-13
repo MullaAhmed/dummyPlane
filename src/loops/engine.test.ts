@@ -110,13 +110,73 @@ describe("the idle trigger", () => {
     e.activity("a", "idle", "working");
     await tick(e);
     expect(sent).toHaveLength(1);
+    // The idle of the pause was held: it goes when the pause ends.
+    await tick(e, COOLDOWN_MS);
+    expect(sent).toHaveLength(2);
     await tick(e, COOLDOWN_MS);
     e.activity("a", "idle", "waiting");
     await tick(e);
-    expect(sent).toHaveLength(2);
+    expect(sent).toHaveLength(3);
     e.activity("zz", "idle", "working");
     await tick(e, COOLDOWN_MS);
-    expect(sent).toHaveLength(2);
+    expect(sent).toHaveLength(3);
+  });
+
+  it("holds an idle that comes during the pause, and sends once it ends: the agent stays idle, no other idle would come", async () => {
+    const e = engine();
+    e.start(loop({ trigger: { kind: "idle" }, maxRuns: 10 }));
+    e.activity("a", "idle", "working");
+    await tick(e);
+    // A quick answer: idle again ten seconds after the run.
+    e.activity("a", "working", "idle");
+    e.activity("a", "idle", "working");
+    await tick(e, 10_000);
+    expect(sent).toHaveLength(1);
+    await tick(e, COOLDOWN_MS);
+    expect(sent).toEqual([
+      { ids: ["a"], text: "fais un point" },
+      { ids: ["a"], text: "fais un point" },
+    ]);
+  });
+
+  it("relaunches every target that went idle together, one each pause, not only the first", async () => {
+    const e = engine();
+    e.start(loop({ trigger: { kind: "idle" }, maxRuns: 10 }));
+    e.activity("a", "idle", "working");
+    e.activity("b", "idle", "working");
+    await tick(e);
+    expect(sent.map((s) => s.ids)).toEqual([["a"]]);
+    await tick(e, COOLDOWN_MS);
+    expect(sent.map((s) => s.ids)).toEqual([["a"], ["b"]]);
+  });
+
+  it("relaunches the target that has waited longest, so one that answers fast never keeps the others idle", async () => {
+    const e = engine();
+    e.start(loop({ trigger: { kind: "idle" }, maxRuns: 10 }));
+    e.activity("a", "idle", "working");
+    e.activity("b", "idle", "working");
+    await tick(e);
+    // a answers within the pause and is idle again: b went idle first.
+    e.activity("a", "working", "idle");
+    e.activity("a", "idle", "working");
+    await tick(e, COOLDOWN_MS);
+    expect(sent.map((s) => s.ids)).toEqual([["a"], ["b"]]);
+    await tick(e, COOLDOWN_MS);
+    expect(sent.map((s) => s.ids)).toEqual([["a"], ["b"], ["a"]]);
+  });
+
+  it("forgets a held idle when its agent works again before the pause ends: nothing is typed into its work", async () => {
+    const e = engine();
+    e.start(loop({ trigger: { kind: "idle" }, maxRuns: 10 }));
+    e.activity("a", "idle", "working");
+    await tick(e);
+    e.activity("a", "working", "idle");
+    e.activity("a", "idle", "working");
+    await tick(e, 10_000);
+    // The user gave it work of their own.
+    e.activity("a", "working", "idle");
+    await tick(e, COOLDOWN_MS);
+    expect(sent).toHaveLength(1);
   });
 });
 
