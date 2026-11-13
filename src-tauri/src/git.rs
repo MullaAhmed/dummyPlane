@@ -14,6 +14,9 @@ use crate::sync::lock;
 /// A repository's own config may name a program for git to run whenever it reads the index (`core.fsmonitor`).
 const NO_FSMONITOR: [&str; 2] = ["-c", "core.fsmonitor=false"];
 
+/// A hooks folder no hook can be in: an empty `core.hooksPath` would have git look for them at the drive's root.
+const NO_HOOKS: &str = if cfg!(windows) { "NUL" } else { "/dev/null" };
+
 /// A submodule's state is read from its commit, not from its files: git would read those in a git of the
 /// submodule's own, with its own config's filters, which `command` never sees. Its uncommitted changes go unseen.
 const NO_SUBMODULE_STATUS: [&str; 2] = ["-c", "diff.ignoreSubmodules=dirty"];
@@ -394,13 +397,13 @@ fn parse_config_entries(output: &str) -> Vec<ConfigEntry> {
 
 /// What dummyPlane's git takes instead of each driver the repository's own config defines: the user's own value
 /// for it, global or system, when the repository replaced one; else nothing to run (a filter not required). On a
-/// call nobody clicked, no hook either (an empty hooks folder leaves out `.git/hooks` too), and the repository's
+/// call nobody clicked, no hook either (a hooks folder no hook can be in, `.git/hooks` left out too), and the repository's
 /// signing programs, SSH command and credential helpers give way to the user's own, or to none: then its commits
 /// are not signed (`unsigned`).
 fn overrides_of(entries: &[ConfigEntry], asked: Asked) -> Vec<(String, String)> {
     let mut overrides: Vec<(String, String)> = Vec::new();
     if asked == Asked::Unasked {
-        overrides.push(("core.hookspath".into(), String::new()));
+        overrides.push(("core.hookspath".into(), NO_HOOKS.into()));
     }
     for entry in entries.iter().filter(|entry| entry.local) {
         let key = entry.key.as_str();
@@ -735,7 +738,7 @@ mod tests {
         ];
         assert_eq!(overrides_of(&entries, Asked::Clicked), Vec::new());
         let expected = [
-            ("core.hookspath", ""),
+            ("core.hookspath", NO_HOOKS),
             ("gpg.program", "C:/gpg/gpg.exe"),
             ("gpg.ssh.program", ""),
             ("core.sshcommand", ""),
@@ -809,7 +812,7 @@ mod tests {
         // Clicked: the hooks run as the repository says.
         assert_eq!(overrides_of(&entries, Asked::Clicked), owned(&drivers));
         // Unasked: none runs, from any folder.
-        let mut unasked = vec![("core.hookspath", "")];
+        let mut unasked = vec![("core.hookspath", NO_HOOKS)];
         unasked.extend(drivers);
         assert_eq!(overrides_of(&entries, Asked::Unasked), owned(&unasked));
     }
@@ -959,12 +962,12 @@ mod tests {
         let root = dir.path();
         assert_eq!(
             read_as(root, Asked::Unasked, "core.hooksPath").as_deref(),
-            Some("")
+            Some(NO_HOOKS)
         );
         test_repos::git(root, &["config", "core.hooksPath", ".husky"]);
         assert_eq!(
             read_as(root, Asked::Unasked, "core.hooksPath").as_deref(),
-            Some("")
+            Some(NO_HOOKS)
         );
         assert_eq!(
             read_as(root, Asked::Clicked, "core.hooksPath").as_deref(),
