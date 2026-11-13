@@ -88,9 +88,16 @@ pub fn slug(name: &str) -> String {
 }
 
 fn git(dir: &Path, args: &[&str]) -> Result<String, String> {
-    let output = hide_window(Command::new("git").arg("-C").arg(dir).args(args))
-        .output()
-        .map_err(|err| format!("git not found: {err}"))?;
+    // A merge reads the worktrees' status: never with a program the repository names (`review::NO_FSMONITOR`).
+    let output = hide_window(
+        Command::new("git")
+            .args(crate::review::NO_FSMONITOR)
+            .arg("-C")
+            .arg(dir)
+            .args(args),
+    )
+    .output()
+    .map_err(|err| format!("git not found: {err}"))?;
     if output.status.success() {
         Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
     } else {
@@ -495,6 +502,35 @@ mod tests {
             parent.path().join("proj.worktrees").join("auth-hulk")
         ));
         assert!(Path::new(&agent.path).join("m.txt").exists());
+    }
+
+    /// A mission's worktrees share the repository's config: a program it names for git to run as it reads a status
+    /// (`core.fsmonitor`) never runs when a Manager merges an agent's work.
+    #[test]
+    fn merging_runs_no_program_the_repository_names() {
+        let Some((_parent, proj)) = project() else {
+            return;
+        };
+        let mission = prepare(&proj, "auth").unwrap();
+        let hulk = add_agent(&proj, &mission.slug, "Hulk").unwrap();
+        commit(Path::new(&hulk.path), "login.txt", "login\n", "login");
+        run(
+            &proj,
+            &["config", "core.fsmonitor", "echo ran > fsmonitor-ran"],
+        );
+        std::fs::write(Path::new(&hulk.path).join("draft.txt"), "x").unwrap();
+        merge_agent(
+            Path::new(&mission.path),
+            Path::new(&hulk.path),
+            &hulk.branch,
+        )
+        .unwrap();
+        for tree in [&mission.path, &hulk.path] {
+            assert!(
+                !Path::new(tree).join("fsmonitor-ran").exists(),
+                "git ran the program the repository's core.fsmonitor names, in {tree}"
+            );
+        }
     }
 
     #[test]

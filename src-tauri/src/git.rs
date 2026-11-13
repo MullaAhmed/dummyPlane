@@ -46,6 +46,8 @@ pub fn status(path: &Path) -> Option<GitStatus> {
     let output = hide_window(
         Command::new("git")
             .arg("--no-optional-locks")
+            // Read every 5 s: never with a program the repository names (`review::NO_FSMONITOR`).
+            .args(crate::review::NO_FSMONITOR)
             .arg("-C")
             .arg(path)
             .args(["status", "--porcelain=v1", "-b", "--untracked-files=normal"]),
@@ -136,5 +138,29 @@ mod tests {
         let before = std::fs::read(&index).unwrap();
         status(dir.path()).unwrap();
         assert_eq!(std::fs::read(&index).unwrap(), before);
+    }
+
+    /// A repository's own config can name a program git runs as it reads the status (`core.fsmonitor`): one
+    /// unpacked from an archive, or written by an agent, would run it every 5 s as the branch chip reads it.
+    #[test]
+    fn reading_the_status_runs_no_program_the_repository_names() {
+        let dir = tempfile::tempdir().unwrap();
+        let git = |args: &[&str]| {
+            Command::new("git")
+                .arg("-C")
+                .arg(dir.path())
+                .args(args)
+                .output()
+        };
+        if git(&["init", "-q"]).is_err() {
+            return; // git is not installed on this machine
+        }
+        git(&["config", "core.fsmonitor", "echo ran > fsmonitor-ran"]).unwrap();
+        std::fs::write(dir.path().join("a.txt"), "x").unwrap();
+        status(dir.path()).unwrap();
+        assert!(
+            !dir.path().join("fsmonitor-ran").exists(),
+            "git ran the program the repository's core.fsmonitor names"
+        );
     }
 }

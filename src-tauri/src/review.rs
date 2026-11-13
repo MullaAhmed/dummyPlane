@@ -52,11 +52,17 @@ pub struct FileText {
     pub truncated: bool,
 }
 
+/// A repository's own config may name a program for git to run whenever it reads the index (`core.fsmonitor`):
+/// a folder unpacked from an archive, or one an agent wrote to, would run it as soon as a panel lists its files.
+/// dummyPlane's git never runs it.
+pub(crate) const NO_FSMONITOR: [&str; 2] = ["-c", "core.fsmonitor=false"];
+
 pub(crate) fn command(dir: &Path, args: &[&str]) -> Command {
     let mut command = Command::new("git");
     command
         .arg("--no-optional-locks")
         .args(["-c", "core.quotePath=false"])
+        .args(NO_FSMONITOR)
         .arg("-C")
         .arg(dir)
         .args(args);
@@ -521,6 +527,26 @@ mod tests {
         sh(dir.path(), &["add", "a.txt"]);
         sh(dir.path(), &["commit", "-q", "-m", "init"]);
         Some(dir)
+    }
+
+    /// The review panel and the Code Studio list a repository's changes and files as soon as they open: a program
+    /// its own config names for git to run then (`core.fsmonitor`) never runs.
+    #[test]
+    fn listing_a_repository_runs_no_program_it_names() {
+        let Some(dir) = repo() else {
+            return;
+        };
+        sh(
+            dir.path(),
+            &["config", "core.fsmonitor", "echo ran > fsmonitor-ran"],
+        );
+        std::fs::write(dir.path().join("a.txt"), "un\ntrois\n").unwrap();
+        changes(dir.path(), None).unwrap();
+        files(dir.path()).unwrap();
+        assert!(
+            !dir.path().join("fsmonitor-ran").exists(),
+            "git ran the program the repository's core.fsmonitor names"
+        );
     }
 
     #[test]
