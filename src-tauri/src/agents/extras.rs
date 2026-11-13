@@ -96,26 +96,38 @@ pub struct Spawner {
     pub extensions: Option<ExtensionChoice>,
 }
 
-/// The most a sub-agent of `spawner` may get of the kinds `kinds` names: what the spawner has. A spawner with its
-/// own pick of a kind has that pick; one that only switched items off has everything its CLI lists but those; what
-/// the user switched on for it in its panel (a plugin) is its too. No pick and no switch off: no cap on that kind,
-/// and none at all (`None`) for a spawner nothing restricts, whose sub-agent may get whatever its CLI lists.
+/// The most a sub-agent of `spawner` may get of the kinds `kinds` names: what the spawner has. A spawner restricted
+/// at all (its own pick, or a switch it set off) has, of each kind, its pick or else what its CLI gives by default (the
+/// items that are on) less the switches it set off, and what the user switched on for it in its panel (a plugin).
+/// None at all (`None`) for a spawner nothing restricts, whose sub-agent may get whatever its CLI lists.
 pub fn ceiling_of(spawner: &Spawner, installed: &Installed, kinds: Kinds) -> Option<Ceiling> {
     let own = spawner.extras.as_ref();
     let choice = spawner.extensions.as_ref();
+    // Restricted at all: its own pick, or a switch it has off. A spawner nothing restricts may give anything.
+    let restricted = own.is_some_and(|p| !p.is_empty())
+        || choice.is_some_and(|c| {
+            !c.skills_off.is_empty()
+                || !c.agents_off.is_empty()
+                || !c.mcp_off.is_empty()
+                || c.plugins.values().any(|on| !on)
+        });
+    if !restricted {
+        return None;
+    }
     let bound = |named: bool,
                  picked: Option<&Vec<String>>,
                  listed: &[Extra],
                  off: BTreeSet<String>,
                  on: BTreeSet<String>| {
-        if !named || (picked.is_none() && off.is_empty()) {
+        if !named {
             return None;
         }
+        // No pick on this kind: what it has by default, the items on, not the ones its settings leave off.
         let mut names: BTreeSet<String> = match picked {
             Some(picked) => picked.iter().cloned().collect(),
             None => listed
                 .iter()
-                .filter(|item| item.pickable())
+                .filter(|item| item.pickable() && item.on)
                 .map(|item| item.name.clone())
                 .collect(),
         };
@@ -1422,7 +1434,11 @@ mod tests {
         // Its pick, less the switches it set off, plus a plugin the user switched on in its panel.
         let ceiling = ceiling_of(&restricted(), &found, Kinds::ALL).unwrap();
         assert_eq!(ceiling.skills, Some(vec!["deploy".to_string()]));
-        assert_eq!(ceiling.mcp_servers, None);
+        // A kind it has no pick on is what it has by default: the servers that are on, not every one installed.
+        assert_eq!(
+            ceiling.mcp_servers,
+            Some(vec!["claude-in-chrome".to_string(), "github".to_string()])
+        );
         assert_eq!(
             ceiling.plugins,
             Some(vec![
@@ -1430,7 +1446,7 @@ mod tests {
                 "stripe@market".to_string()
             ])
         );
-        // Switches off and no pick: everything it can give but those (dummyPlane's own server is never listed).
+        // Switches off and no pick: what it has by default but those (dummyPlane's own server is never listed).
         let off = Spawner {
             extras: None,
             extensions: Some(ExtensionChoice {
@@ -1439,7 +1455,9 @@ mod tests {
             }),
         };
         let ceiling = ceiling_of(&off, &found, Kinds::ALL).unwrap();
-        assert_eq!(ceiling.skills, None);
+        // review is off in the user's settings: a spawner restricted at all does not have it to give.
+        assert_eq!(ceiling.skills, Some(vec!["deploy".to_string()]));
+        assert_eq!(ceiling.plugins, Some(vec!["stripe@market".to_string()]));
         let servers = ceiling.mcp_servers.unwrap();
         assert!(
             servers.contains(&"claude-in-chrome".to_string()),
@@ -1500,6 +1518,52 @@ mod tests {
         // Nothing restricts the top-level agent: no ceiling at all.
         let ok = check_for(&forged, &found, "Claude", &Spawner::default()).unwrap();
         assert_eq!(ok.ceiling, None);
+    }
+
+    #[test]
+    fn a_restricted_spawner_cannot_widen_through_a_kind_it_has_no_pick_on_but_an_unrestricted_one_can()
+     {
+        let (_root, places) = claude_places();
+        let found = claude_installed(&places);
+        let check = |pick: &Pick, spawner: &Spawner| check_for(pick, &found, "Claude", spawner);
+        // Only skills picked: the plugin linear is off in the user's settings, and it has no say to switch it on.
+        let skills_only = Spawner {
+            extras: Some(pick(Some(&["deploy"]), None, None)),
+            extensions: None,
+        };
+        let err = check(&pick(None, None, Some(&["linear@market"])), &skills_only).unwrap_err();
+        assert!(
+            err.contains("plugin \"linear@market\" is beyond what its spawner has"),
+            "{err}"
+        );
+        // Only a switch off: review is off in the user's settings, deploy is switched off for it.
+        let switched = Spawner {
+            extras: None,
+            extensions: Some(ExtensionChoice {
+                skills_off: vec!["deploy".into()],
+                ..ExtensionChoice::default()
+            }),
+        };
+        let err = check(&pick(Some(&["review", "deploy"]), None, None), &switched).unwrap_err();
+        assert!(err.contains("skill \"review\" is beyond"), "{err}");
+        assert!(err.contains("skill \"deploy\" is beyond"), "{err}");
+        // What it has by default, it may hand down.
+        assert!(
+            check(
+                &pick(None, Some(&["github"]), Some(&["stripe@market"])),
+                &switched
+            )
+            .is_ok()
+        );
+        // Nothing restricts the top-level agent: it may switch on what the user's settings leave off (B).
+        let free = Spawner::default();
+        assert!(
+            check(
+                &pick(Some(&["review"]), None, Some(&["linear@market"])),
+                &free
+            )
+            .is_ok()
+        );
     }
 
     #[test]
