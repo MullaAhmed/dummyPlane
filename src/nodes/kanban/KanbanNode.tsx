@@ -346,7 +346,9 @@ export function KanbanNode({ nodeId }: { nodeId: string }) {
             <DropdownMenuItem onSelect={() => setLinking(true)}>{board.github ? t.github.editLink : t.github.link}</DropdownMenuItem>
             {board.github && (
               <>
-                <DropdownMenuItem onSelect={() => void sync()}>{t.github.sync}</DropdownMenuItem>
+                <DropdownMenuItem disabled={syncing} onSelect={() => void sync()}>
+                  {t.github.sync}
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem variant="destructive" onSelect={() => linkBoard(nodeId, null)}>
                   {t.github.unlink}
