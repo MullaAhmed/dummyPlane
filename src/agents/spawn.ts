@@ -255,7 +255,10 @@ export async function listExtras(parentId: string): Promise<SpawnResult> {
   } catch (error) {
     return refuse(x.unlisted(error instanceof Error ? error.message : String(error)));
   }
-  const line = (item: ExtraItem) => {
+  // Names and descriptions come from disk: one line each, whatever they hold.
+  const flat = (text: string) => text.replace(/[\u0000-\u001f\u007f-\u009f]+/g, " ").replace(/\s+/g, " ").trim();
+  const line = (listedItem: ExtraItem) => {
+    const item = { ...listedItem, name: flat(listedItem.name), description: listedItem.description && flat(listedItem.description), plugin: listedItem.plugin && flat(listedItem.plugin) };
     const marks = [
       !item.on && !item.locked && x.off,
       item.locked === "own" && x.own,
