@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { arrangeLayoutStore } from "@/app/arrangeLayoutSetting";
 import { NODE_SIZE, toStoredKind, type NodeKind } from "@/canvas/nodeElement";
-import { arrangeWorkspace } from "./arrangeCanvas";
+import { arrangeCoversCanvas, arrangeWorkspace } from "./arrangeCanvas";
 import { NODE_GAP } from "./groupLayout";
 
 vi.mock("@excalidraw/excalidraw", () => ({ CaptureUpdateAction: { IMMEDIATELY: "IMMEDIATELY", NEVER: "NEVER" } }));
@@ -173,5 +173,17 @@ describe("arrangeWorkspace", () => {
     expect(write).toHaveBeenCalledTimes(1);
     scene = write.mock.calls[0][0] as ExcalidrawElement[];
     expect(arrangeWorkspace("w", { undoable: true })).toBe(false);
+  });
+});
+
+describe("arrangeCoversCanvas", () => {
+  it("says whether an Arrange of the selection takes the whole canvas, as the arrange itself reads it", () => {
+    scene = looseTerminals();
+    expect(arrangeCoversCanvas("w")).toBe(true);
+    expect(arrangeCoversCanvas("w", [])).toBe(true);
+    expect(arrangeCoversCanvas("w", ["a"])).toBe(true);
+    expect(arrangeCoversCanvas("w", ["a", "b"])).toBe(false);
+    // Whether or not anything would move.
+    expect(arrangeCoversCanvas("w", ["a", "b", "c", "d"])).toBe(false);
   });
 });
