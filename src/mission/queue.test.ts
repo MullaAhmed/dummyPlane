@@ -28,9 +28,10 @@ import { activeWork } from "./activeWork";
 import { installRestartWatch } from "./restartWatch";
 import { fleetTool, managerTools } from "@/mcp/fleetTools";
 import { modelRouterStore } from "@/app/modelRouterSetting";
+import { subagentSettingsStore } from "@/app/subagentSettings";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
-vi.mock("@/ipc/mission", () => ({ missionPrepare: vi.fn(), missionAddAgent: vi.fn(), missionMerge: vi.fn(), missionCleanup: vi.fn(), missionDiscard: vi.fn() }));
+vi.mock("@/ipc/mission", () => ({ missionPrepare: vi.fn(), missionAddAgent: vi.fn(), missionMerge: vi.fn(), missionCleanup: vi.fn(), missionDiscard: vi.fn(), missionRemoveAgent: vi.fn() }));
 vi.mock("@/ipc/pty", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/ipc/pty")>()),
   ptySendText: vi.fn(() => Promise.resolve()),
@@ -101,6 +102,8 @@ async function setup(mission: Partial<Mission>) {
 beforeEach(() => {
   // The router as before Settings had one: only a switch set on routes. The global setting has its own tests.
   modelRouterStore.setState({ on: false, levels: {} });
+  // "Stop finished agents" off: no merge closes its agent here; `launch.test.ts` tests the cleanup after a merge.
+  subagentSettingsStore.setState({ stopFinished: false });
   mockIPC(() => undefined);
   vi.clearAllMocks();
   // A test that failed mid-restart leaves no terminal restarting behind it.

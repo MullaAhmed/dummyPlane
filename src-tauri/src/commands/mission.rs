@@ -91,6 +91,17 @@ pub async fn mission_cleanup_unsaved(
     blocking(move || mission::cleanup_unsaved(Path::new(&project), &mission, &agents)).await
 }
 
+/// An agent whose work is squashed into the mission's cleans up after itself: its worktree, then its branch while it
+/// is still what the squash took in. What git refuses is kept, with why.
+#[tauri::command]
+pub async fn mission_remove_agent(
+    project: String,
+    mission: String,
+    agent: AgentBranch,
+) -> AppResult<Cleanup> {
+    blocking(move || mission::remove_agent(Path::new(&project), &mission, &agent)).await
+}
+
 /// A launch that failed: what it created goes (final review H2).
 #[tauri::command]
 pub async fn mission_discard(project: String, trees: Vec<Worktree>) -> AppResult<Cleanup> {

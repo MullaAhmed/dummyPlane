@@ -166,7 +166,7 @@ export const agentMessages = defineMessages({
         "Refused while it runs or is already starting again, for an agent that handed its sub-task over, for one whose terminal the user closed, and, while Max active agents are at work, for one whose terminal stopped after it got its sub-task and before it reported: stopped, it holds no seat. An agent back at its shell keeps its seat, and one that reported takes none: neither is refused for Max active agents. Once it is up, write tells it what is left; a sub-task it never got, dummyPlane types itself.",
       reassign: "Manager (or the Fleet of a mission run the old way). Give a sub-task to another mission agent that has reported, or to a \"new\" agent: it gets the previous agent's report and branch. " +
         "While Max active agents are at work, a sub-task whose holder holds no seat (it reported, or its terminal stopped after its sub-task) is refused, to \"new\" and to an agent that has reported alike; from an agent at work, its seat goes with the sub-task.",
-      merge: "Manager (or the Fleet of a mission run the old way). Merge into the mission's branch the branches of the agents that reported \"done\"; says what was merged and the conflicts.",
+      merge: "Manager (or the Fleet of a mission run the old way). Merge into the mission's branch the branches of the agents that reported \"done\", each squashed into one commit named after its sub-task; says what was merged and the conflicts. A merge also closes each merged agent made for the mission, its worktree and branch removed: send it any follow-up before merging, and give its next sub-task to new.",
       finish: "Manager (or the Fleet of a mission run the old way). Close the mission with your summary: the agents created for it close, the linked agents go back to the project's folder.",
       managerFinish: "Manager. Close the mission with your summary once the board's work is merged and checked: the agents created for it close, the linked agents go back to the project's folder, and the Fleet hears that the board is finished, with your summary.",
       remoteControl: "Fleet. Turn Remote Control (follow and drive a session from claude.ai or the phone) on or off for linked or mission Claude agents, or for yourself: gives their links.",
@@ -608,8 +608,18 @@ export const agentMessages = defineMessages({
       already: "already merged, nothing new",
       empty: "nothing to merge (no commit)",
       line: (name: string, said: string, note: string) => `${name}: ${said}${note}`,
+      /** After `merged` for an agent made for the mission: the merge closes it (`cleanUpAfterMerge`). */
+      closes: " — it closes now, its worktree and branch removed",
       failed: (name: string, error: string) => `${name}: failed — ${error}`,
       header: (branch: string) => `Branch ${branch}:`,
+      /** Why a merged agent stays open: its worktree goes with the mission's cleanup instead. */
+      staysOpen: (name: string, why: "handed" | "subAgents" | "user") =>
+        `${name} stays open after its merge: ${
+          why === "handed" ? "a sub-task was handed to it" : why === "subAgents" ? "one of its own sub-agents is still at work" : "the user is at its terminal"
+        }. Its worktree goes with the mission's cleanup.`,
+      /** What git refused to remove of a merged agent: nothing was forced. */
+      kept: (name: string, kept: readonly string[]) =>
+        `${name} is closed after its merge, but git kept ${kept.join("; ")}: nothing was forced. It goes with the mission's cleanup, or by hand.`,
     },
     reassign: {
       noMission: "No mission under way.",
@@ -622,6 +632,9 @@ export const agentMessages = defineMessages({
       abandoned: (title: string, titles: readonly string[]) =>
         `"${title}" was abandoned by next_task: it stays with its agent's report, and nobody takes it over. ${reassignTakes("The sub-tasks reassign takes:", titles)}`,
       notMerged: (name: string, task: string) => `${name} finished "${task}" but its branch is not merged: call merge first.`,
+      /** The same, for an agent its merge will close (Stop finished agents on): it takes no other sub-task. */
+      notMergedCloses: (name: string, task: string) => `${name} finished "${task}" but its branch is not merged: merge it, then give the sub-task to new.`,
+      cleanedUp: (name: string) => `${name} is merged and cleaned up: give the sub-task to new.`,
       createFailed: "The new agent could not be created.",
     },
     launch: {

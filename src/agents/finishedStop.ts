@@ -109,6 +109,15 @@ function busy(nodeId: string): boolean {
   );
 }
 
+/**
+ * The user took a finished agent over: they are at it, were this last minute, or its stop was given up for its
+ * report (`declined`). It is theirs: nothing stops or closes it until its next report.
+ */
+export function takenOver(nodeId: string): boolean {
+  const report = terminalOf(nodesStore.getState().nodes[nodeId])?.lastReport;
+  return hasFocus(nodeId) || touchedAgo(nodeId) < FINISHED_STOP_DELAY_MS || (report !== undefined && declined.get(nodeId) === report);
+}
+
 function fire(nodeId: string) {
   timers.delete(nodeId);
   if (!due(nodeId)) return;

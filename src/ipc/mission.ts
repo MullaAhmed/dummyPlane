@@ -42,6 +42,12 @@ export const missionMerge = (mission: string, agent: string, branch: string, mes
   call<MergeReport>("mission_merge", { mission, agent, branch, message, since: since ?? null });
 export const missionCleanup = (project: string, mission: string, agents: AgentBranch[]) => call<Cleanup>("mission_cleanup", { project, mission, agents });
 /**
+ * An agent whose work is squashed in cleans up after itself: its worktree, then its branch while it still holds only
+ * what the squash took in (`agent.squashed`). What git refuses is kept, as "name (why)"; a branch's name starts
+ * with `dummyplane/`.
+ */
+export const missionRemoveAgent = (project: string, mission: string, agent: AgentBranch) => call<Cleanup>("mission_remove_agent", { project, mission, agent });
+/**
  * What `missionCleanup` would leave in place, found without touching anything: the worktrees whose branch is not
  * merged into the mission's or that hold uncommitted changes, each as "name (reason)". Empty: nothing is unsaved.
  */

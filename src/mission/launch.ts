@@ -12,7 +12,7 @@ import { linkFleet } from "@/fleet/fleets";
 import { sceneAccess } from "@/agents/sceneAccess";
 import { addTerminal, removeFromStoredScene, removeNodes } from "@/agents/terminals";
 import { messages } from "@/i18n";
-import { missionAddAgent, missionCleanup, missionDiscard, missionMerge, missionPrepare, type Cleanup, type Worktree } from "@/ipc/mission";
+import { missionAddAgent, missionCleanup, missionDiscard, missionMerge, missionPrepare, missionRemoveAgent, type Cleanup, type Worktree } from "@/ipc/mission";
 import { readExtensionChoice, type ExtensionChoice } from "@/ipc/claudeExtensions";
 import { ptySendText, ptyWrite, type AgentId, type Permission } from "@/ipc/pty";
 import { newConversation, newTerminalPayload } from "@/nodes/terminal/launch";
@@ -22,9 +22,10 @@ import { agentMessages } from "@/mcp/messages";
 import { outReport } from "@/mcp/protocol";
 import { nodeNameOf, nodesStore, sessionOf, terminalOf } from "@/store/nodes";
 import { isRunning, waitForExit } from "@/store/terminalStatus";
-import { markLaunching } from "@/agents/spawnFamily";
-import { wakeable, wakeFinished, wakingUp } from "@/agents/finishedStop";
-import { activeCount, freeSeat, handingOver, hasSeat, holdSeat, oneAtATime } from "./active";
+import { hasSpawnedAtWork, markLaunching } from "@/agents/spawnFamily";
+import { takenOver, wakeable, wakeFinished, wakingUp } from "@/agents/finishedStop";
+import { subagentSettingsStore } from "@/app/subagentSettings";
+import { activeCount, freeSeat, handingOver, hasSeat, holdSeat, moving, oneAtATime } from "./active";
 import { notify } from "./events";
 import { missionFolder } from "./folder";
 import { addTeamMember, fleetNameOf, reflowTeam, removeManager, setUpBoard, undoSetup, type MissionSetup } from "./manager";
@@ -34,7 +35,7 @@ import { whenReady } from "./ready";
 import { modelRouterStore } from "@/app/modelRouterSetting";
 import { levelModel, modelLabel } from "./router";
 import { levelsRequired, routesLinked, teamAgent, teamModel } from "./teamModel";
-import { canvasKnown, linkedTeamAgents, linkedGroups, missionOf, missionRunner, fleetShown, releaseSpawnedPermission, setMission, updateMember, workspaceCanvas } from "./store";
+import { canvasKnown, linkedTeamAgents, linkedGroups, missionOf, missionRunner, fleetShown, releaseSpawnedPermission, setMission, spawnedUnder, updateMember, workspaceCanvas } from "./store";
 
 const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));
 const t = () => messages(agentMessages);
@@ -420,15 +421,77 @@ export function mergeMember(fleetId: string, worktree: string, member: Member): 
       // What its branch holds up to `head` is in, whatever task it is on now; it may have taken another meanwhile,
       // and that one is not merged.
       const now = current();
+      let closes = false;
       if (now?.branch === member.branch) {
         const same = now.task === member.task && now.report?.at === member.report?.at;
         updateMember(fleetId, member.nodeId, { ...(head ? { squashed: head } : {}), ...(same ? { merged: true } : {}) });
+        // Its work all in, nothing left uncommitted: an agent made for the mission cleans up after itself.
+        closes = same && !uncommitted && head !== "" && closesAfterMerge(now);
       }
-      return { line: m.line(member.name, said, note), merged: true, uncommitted };
+      // Outside the merge queue: its wait for the agent's exit holds no other merge.
+      if (closes) void cleanUpAfterMerge(fleetId, member.nodeId, head);
+      return { line: m.line(member.name, said, `${note}${closes ? m.closes : ""}`), merged: true, uncommitted };
     } catch (error) {
       return { line: m.failed(member.name, errorText(error)), merged: false, uncommitted: false };
     }
   });
+}
+
+/**
+ * A merged agent closes, with its worktree and branch, when it is one made for the mission whose report is done:
+ * a linked agent goes back to the user's project at the mission's end, a blocked or failed one waits to be looked at.
+ * With "Stop finished agents" off in Settings, nothing closes mid-mission: the mission's cleanup does it all.
+ */
+function closesAfterMerge(member: Member): boolean {
+  return subagentSettingsStore.getState().stopFinished && !member.linked && member.report?.status === "termine" && !member.cleanedUp;
+}
+
+/** How long the cleanup waits for the merge queue to let an agent go (`moving`), past which it stays for the mission's cleanup. */
+const MOVING_WAIT_MS = 60_000;
+const MOVING_POLL_MS = 250;
+
+/**
+ * Once its work is squashed in (`head`), an agent made for the mission cleans up after itself: it stops with its own
+ * sub-agents, which share its folder, and once they exited (their process trees hold the worktree), its worktree and
+ * branch go (`missionRemoveAgent`, never forced). Only then do their nodes leave the canvas; its report stays on its
+ * card and in the panel. Not while the merge queue moves it on, a sub-task is handed to it, one of its sub-agents is
+ * at work or the user took its terminal over: it stays open, and its worktree goes with the mission's cleanup. What
+ * git refuses stays, and its Manager is told which and why.
+ */
+async function cleanUpAfterMerge(fleetId: string, nodeId: string, head: string) {
+  for (let waited = 0; moving.has(nodeId) && waited < MOVING_WAIT_MS; waited += MOVING_POLL_MS) {
+    await new Promise((resolve) => setTimeout(resolve, MOVING_POLL_MS));
+  }
+  const record = nodesStore.getState().nodes[fleetId];
+  const mission = missionOf(record);
+  const member = mission?.members.find((m) => m.nodeId === nodeId);
+  // Read again: anything may have changed while the queue held it.
+  if (!record || mission?.state !== "en_cours" || !mission.project || !mission.slug || !member) return;
+  // Its task handed to another meanwhile: its branch is the successor's to take in.
+  if (!member.merged || member.handedTo || member.squashed !== head || !closesAfterMerge(member)) return;
+  const m = t().merge;
+  const runner = missionRunner(fleetId);
+  const handed = moving.has(nodeId) || handingOver.has(nodeId) || member.brief !== undefined;
+  const why = handed ? "handed" : hasSpawnedAtWork(nodeId) ? "subAgents" : takenOver(nodeId) ? "user" : null;
+  if (why) {
+    notify(runner, m.staysOpen(member.name, why));
+    return;
+  }
+  // From now on it takes no other sub-task (`reassign`).
+  updateMember(fleetId, nodeId, { cleanedUp: true });
+  const family = [nodeId, ...spawnedUnder(nodeId)];
+  // Its stop is no crash to tell its Manager of (`./events`), and its card reads its report.
+  nodesStore.getState().update(nodeId, { stoppedFinished: true });
+  for (const id of family) stopTerminal(id);
+  await Promise.all(family.map((id) => waitForExit(id)));
+  try {
+    const { kept } = await missionRemoveAgent(mission.project, mission.slug, { name: member.name, squashed: head });
+    // A branch's name starts with `dummyplane/`: anything else kept is its worktree, which its nodes stand for.
+    if (!kept.some((what) => !what.startsWith("dummyplane/"))) removeTeam(fleetId, record.workspaceId, undefined, family);
+    if (kept.length > 0) notify(runner, m.kept(member.name, kept));
+  } catch (error) {
+    notify(runner, m.kept(member.name, [errorText(error)]));
+  }
 }
 
 /** `merge`: the branches of the agents done since the last merge. */
@@ -437,8 +500,9 @@ export async function mergeMission(fleetId: string): Promise<string> {
   const mission = missionOf(nodesStore.getState().nodes[fleetId]);
   if (!mission?.worktree) return m.noBranch;
   // Merged ones too: a merge with nothing new is harmless, and new commits after a merge get in (final review H2).
-  // A handed-over agent's branch goes in through its successor's (final review H3).
-  const ready = mission.members.filter((m) => m.report?.status === "termine" && !m.handedTo);
+  // A handed-over agent's branch goes in through its successor's (final review H3). One its merge closed is in, its
+  // branch gone with it (`cleanUpAfterMerge`).
+  const ready = mission.members.filter((m) => m.report?.status === "termine" && !m.handedTo && !m.cleanedUp);
   if (ready.length === 0) return m.nothing;
   const lines: string[] = [];
   for (const member of ready) lines.push((await mergeMember(fleetId, mission.worktree, member)).line);
@@ -620,12 +684,15 @@ export async function reassignTask(fleetId: string, fromNodeId: string, target: 
     const found = mission.members.find((m) => sameName(m.name, target) && m.nodeId !== from.nodeId && !m.handedTo);
     if (!found) return r.notOther(target);
     if (!found.report) return r.notDone(found.name);
+    // Its merge closed it, its worktree gone (`cleanUpAfterMerge`).
+    if (found.cleanedUp) return r.cleanedUp(found.name);
     asleep = wakingUp(found.nodeId) !== undefined || wakeable(found.nodeId);
     // Any other stopped session would only say "did not start" a minute later.
     if (!isRunning(found.nodeId) && !asleep) return r.targetStopped(found.name);
     // Its entry takes the new sub-task: its finished work must be in the mission's branch first (final review H3).
     const finished = found.report.status === "termine";
-    if (finished && !found.merged) return r.notMerged(found.name, found.task);
+    // An agent its merge will close takes no other sub-task: its next one goes to a new agent.
+    if (finished && !found.merged) return closesAfterMerge(found) ? r.notMergedCloses(found.name, found.task) : r.notMerged(found.name, found.task);
     // Back to work, it takes a seat: one more, unless it or the agent it takes over from holds one now, which it frees.
     const addsSeat = !hasSeat(mission, found.nodeId) && !hasSeat(mission, from.nodeId);
     if (addsSeat && activeCount(fleetId, mission) >= mission.maxAgents) return r.targetTeamFull(found.name, task.title, mission.maxAgents);

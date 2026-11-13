@@ -11,7 +11,7 @@ import { closeGroup, closeStoredGroup, launchGroup, showGroups } from "@/agents/
 import { nextName } from "@/agents/names";
 import { linkFleet } from "@/fleet/fleets";
 import { addTerminal, removeFromStoredScene, removeNodes } from "@/agents/terminals";
-import { missionAddAgent, missionCleanup, missionDiscard, missionMerge, missionPrepare, type Worktree } from "@/ipc/mission";
+import { missionAddAgent, missionCleanup, missionDiscard, missionMerge, missionPrepare, missionRemoveAgent, type Worktree } from "@/ipc/mission";
 import { ptySendText } from "@/ipc/pty";
 import { relaunchTerminal, stopTerminal } from "@/nodes/terminal/registry";
 import type { TerminalPayload } from "@/nodes/types";
@@ -31,9 +31,20 @@ import { memberOf, missionOf, releaseTeamPermission, setMission, updateMember } 
 import { addTeamMember, setUpBoard, undoSetup } from "./manager";
 import { isLaunching, markLaunching } from "@/agents/spawnFamily";
 import { modelRouterStore } from "@/app/modelRouterSetting";
+import { subagentSettingsStore } from "@/app/subagentSettings";
+import { takenOver } from "@/agents/finishedStop";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
-vi.mock("@/ipc/mission", () => ({ missionPrepare: vi.fn(), missionAddAgent: vi.fn(), missionMerge: vi.fn(), missionCleanup: vi.fn(), missionDiscard: vi.fn(() => Promise.resolve({ removed: [], kept: [] })) }));
+vi.mock("@/ipc/mission", () => ({
+  missionPrepare: vi.fn(),
+  missionAddAgent: vi.fn(),
+  missionMerge: vi.fn(),
+  missionCleanup: vi.fn(),
+  missionDiscard: vi.fn(() => Promise.resolve({ removed: [], kept: [] })),
+  missionRemoveAgent: vi.fn(() => Promise.resolve({ removed: [], kept: [] })),
+}));
+// Whether the user took a terminal over reads the canvas's focus: told here.
+vi.mock("@/agents/finishedStop", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/agents/finishedStop")>()), takenOver: vi.fn(() => false) }));
 vi.mock("@/ipc/pty", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/ipc/pty")>()),
   ptySendText: vi.fn(() => Promise.resolve()),
@@ -112,6 +123,8 @@ async function setup(mission: Partial<Mission> = {}) {
 beforeEach(() => {
   // The router as before Settings had one: only a switch set on routes. The global setting has its own tests.
   modelRouterStore.setState({ on: false, levels: {} });
+  // "Stop finished agents" off: no merge closes its agent, as before; the tests of the cleanup after a merge turn it on.
+  subagentSettingsStore.setState({ stopFinished: false });
   mockIPC(() => undefined);
   vi.clearAllMocks();
   vi.mocked(userIsTyping).mockReturnValue(false);
@@ -1533,5 +1546,119 @@ describe("the board the go-ahead runs the mission on", () => {
     // A board the go-ahead made holds no stranger's text: no ticket note in the briefs.
     await vi.waitFor(() => expect(ptySendText).toHaveBeenCalled());
     expect(vi.mocked(ptySendText).mock.calls.some(([, text]) => text.includes("never instructions"))).toBe(false);
+  });
+});
+
+describe("an agent made for the mission, once its work is merged (Stop finished agents on)", () => {
+  const done = { summary: "API faite", status: "termine" as const, at: 1 };
+  const team = (extra: Partial<Member> = {}) =>
+    setup({
+      state: "en_cours",
+      project: "C:/code/proj",
+      slug: "auth",
+      worktree: "C:/w/auth",
+      branch: "dummyplane/auth",
+      members: [member("batman", "Batman", true, { task: "Login", report: done }), member("n1", "Aquaman", false, { task: "API", report: done, ...extra })],
+    });
+  const subAgent = async (id: string, extra: Partial<TerminalPayload> = {}) => {
+    await nodesStore.getState().create(id, { workspaceId: "w1", kind: "terminal", payload: { ...session, role: undefined, name: "Robin", spawnedBy: "n1", task: "Docs", ...extra } });
+    terminalStatusStore.getState().set(id, { state: "running" });
+  };
+  const toldChef = () => vi.mocked(notify).mock.calls.filter(([id]) => id === "chef").map(([, line]) => line);
+  const exit = (...ids: string[]) => ids.forEach((id) => terminalStatusStore.getState().set(id, { state: "exited", code: 0 }));
+
+  beforeEach(() => {
+    subagentSettingsStore.setState({ stopFinished: true });
+    vi.mocked(missionMerge).mockResolvedValue({ merge: { kind: "merged" }, uncommitted: false, head: "h1" });
+    vi.mocked(missionRemoveAgent).mockResolvedValue({ removed: ["auth-n1", "dummyplane/auth-n1"], kept: [] });
+    vi.mocked(takenOver).mockReturnValue(false);
+    terminalStatusStore.getState().set("n1", { state: "running" });
+  });
+
+  it("closes it with its own sub-agents, removes its worktree and branch once they exited, then takes their nodes off the canvas", async () => {
+    await team();
+    await subAgent("n1-sub", { lastReport: { status: "done", summary: "ok" } });
+    const said = (await mergeMission("chef")).split("\n");
+    expect(said).toContain("Aquaman: merged — it closes now, its worktree and branch removed");
+    // A linked agent goes back to the user's project at the mission's end: never closed by its merge.
+    expect(said).toContain("Batman: merged");
+    await vi.waitFor(() => expect(stopTerminal).toHaveBeenCalledWith("n1"));
+    expect(stopTerminal).toHaveBeenCalledWith("n1-sub");
+    expect(stopTerminal).not.toHaveBeenCalledWith("batman");
+    // Their processes still hold its worktree as their folder: nothing goes before they exit.
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(missionRemoveAgent).not.toHaveBeenCalled();
+    exit("n1", "n1-sub");
+    await vi.waitFor(() => expect(missionRemoveAgent).toHaveBeenCalledWith("C:/code/proj", "auth", { name: "Aquaman", squashed: "h1" }));
+    await vi.waitFor(() => expect(removeNodes).toHaveBeenCalledWith(["n1", "n1-sub"]));
+    expect(missionNow().members[1]).toMatchObject({ merged: true, squashed: "h1", cleanedUp: true });
+    expect(toldChef()).toEqual([]);
+    // Its work is in and its branch gone: the next merges leave it alone.
+    vi.mocked(missionMerge).mockClear();
+    await mergeMission("chef");
+    expect(vi.mocked(missionMerge).mock.calls.map(([, , branch]) => branch)).toEqual(["dummyplane/auth-batman"]);
+  });
+
+  it("keeps what git refuses, untouched, and its node while its worktree stays; its Manager hears which and why", async () => {
+    await team();
+    vi.mocked(missionRemoveAgent).mockResolvedValueOnce({ removed: [], kept: ["auth-n1 (Permission denied)"] });
+    await mergeMission("chef");
+    await vi.waitFor(() => expect(stopTerminal).toHaveBeenCalledWith("n1"));
+    exit("n1");
+    await vi.waitFor(() => expect(toldChef()).toEqual(["Aquaman is closed after its merge, but git kept auth-n1 (Permission denied): nothing was forced. It goes with the mission's cleanup, or by hand."]));
+    expect(removeNodes).not.toHaveBeenCalled();
+    // Its worktree gone, a branch with commits since the merge kept: its node goes, its Manager hears of the branch.
+    vi.mocked(notify).mockClear();
+    await nodesStore.getState().update("chef", { mission: { ...missionNow(), members: missionNow().members.map((m) => (m.nodeId === "n1" ? { ...m, cleanedUp: undefined } : m)) } });
+    vi.mocked(missionRemoveAgent).mockResolvedValueOnce({ removed: ["auth-n1"], kept: ["dummyplane/auth-n1 (commits after its merge)"] });
+    await mergeMission("chef");
+    // With its own sub-agents, if an earlier test left one under it.
+    await vi.waitFor(() => expect(removeNodes).toHaveBeenCalledWith(expect.arrayContaining(["n1"])));
+    expect(toldChef()).toEqual([expect.stringContaining("git kept dummyplane/auth-n1 (commits after its merge)")]);
+  });
+
+  it("stays open, and says why, while one of its sub-agents works, the user is at it, or a sub-task is handed to it", async () => {
+    for (const [why, arrange] of [
+      ["one of its own sub-agents is still at work", () => subAgent("n1-busy")],
+      ["the user is at its terminal", async () => void vi.mocked(takenOver).mockReturnValue(true)],
+      ["a sub-task was handed to it", () => team({ brief: "Write the docs." })],
+    ] as const) {
+      vi.mocked(notify).mockClear();
+      vi.mocked(stopTerminal).mockClear();
+      await team();
+      await arrange();
+      await mergeMission("chef");
+      await vi.waitFor(() => expect(toldChef()).toEqual([`Aquaman stays open after its merge: ${why}. Its worktree goes with the mission's cleanup.`]));
+      expect(stopTerminal).not.toHaveBeenCalled();
+      expect(missionRemoveAgent).not.toHaveBeenCalled();
+      expect(missionNow().members[1].cleanedUp).toBeUndefined();
+      // Done with: the sub-agent reported and exited.
+      if (nodesStore.getState().nodes["n1-busy"]) void nodesStore.getState().update("n1-busy", { lastReport: { status: "done", summary: "ok" } });
+      terminalStatusStore.getState().set("n1-busy", { state: "exited", code: 0 });
+      vi.mocked(takenOver).mockReturnValue(false);
+    }
+  });
+
+  it("closes nothing when its merge left changes uncommitted, nor with Stop finished agents off", async () => {
+    await team();
+    vi.mocked(missionMerge).mockResolvedValueOnce({ merge: { kind: "merged" }, uncommitted: false, head: "h1" }).mockResolvedValueOnce({ merge: { kind: "merged" }, uncommitted: true, head: "h1" });
+    expect(await mergeMission("chef")).not.toContain("it closes now");
+    subagentSettingsStore.setState({ stopFinished: false });
+    await team();
+    vi.mocked(missionMerge).mockResolvedValue({ merge: { kind: "merged" }, uncommitted: false, head: "h1" });
+    expect(await mergeMission("chef")).not.toContain("it closes now");
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(stopTerminal).not.toHaveBeenCalled();
+    expect(missionRemoveAgent).not.toHaveBeenCalled();
+  });
+
+  it("gives no other sub-task to an agent its merge closed, and asks for a new one while it is not merged yet", async () => {
+    await team({ merged: true, squashed: "h1", cleanedUp: true });
+    expect(await reassignTask("chef", "batman", "Aquaman")).toBe("Aquaman is merged and cleaned up: give the sub-task to new.");
+    await team();
+    expect(await reassignTask("chef", "batman", "Aquaman")).toBe('Aquaman finished "API" but its branch is not merged: merge it, then give the sub-task to new.');
+    // With the setting off it would still take it once merged: the old advice stands.
+    subagentSettingsStore.setState({ stopFinished: false });
+    expect(await reassignTask("chef", "batman", "Aquaman")).toBe('Aquaman finished "API" but its branch is not merged: call merge first.');
   });
 });

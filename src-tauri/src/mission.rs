@@ -420,6 +420,51 @@ fn same_work(root: &Path, a: &str, b: &str) -> bool {
     a == b || tree(a).is_some_and(|tree_a| tree(b) == Some(tree_a))
 }
 
+/// An agent cleans up after itself once its work is squashed into the mission's: its worktree goes, never forced
+/// (uncommitted changes, or a folder a process still holds, keep it), then its branch, only while its head is still
+/// the one its squash took in (`agent.squashed`) or holds the same files: a commit made after the merge keeps it. A
+/// squashed branch is no ancestor of the mission's, so git would call it unmerged: it is deleted on that check
+/// instead. What is kept is named with why.
+pub fn remove_agent(project: &Path, mission: &str, agent: &AgentBranch) -> Result<Cleanup, String> {
+    let (root, dir) = locate(project)?;
+    let name = format!("{mission}-{}", slug(&agent.name));
+    let path = dir.join(&name);
+    let mut done = Cleanup::default();
+    if path.exists() {
+        if !git(&path, &["status", "--porcelain"])?.is_empty() {
+            done.kept.push(format!("{name} (uncommitted changes)"));
+            return Ok(done);
+        }
+        remove_worktree(&root, name.clone(), &path, &mut done);
+        // Its branch is checked out there while the worktree stays.
+        if !done.kept.is_empty() {
+            return Ok(done);
+        }
+    }
+    let branch = format!("dummyplane/{name}");
+    let Ok(head) = git(
+        &root,
+        &["rev-parse", "--verify", &format!("{branch}^{{commit}}")],
+    ) else {
+        return Ok(done);
+    };
+    match agent.squashed.as_deref() {
+        Some(squashed) if same_work(&root, squashed, &head) => {
+            match git(&root, &["branch", "-D", &branch]) {
+                Ok(_) => done.removed.push(branch),
+                Err(err) => {
+                    let cause = err.lines().next().unwrap_or_default().trim().to_string();
+                    done.kept.push(format!("{branch} ({cause})"));
+                }
+            }
+        }
+        _ => done
+            .kept
+            .push(format!("{branch} (commits after its merge)")),
+    }
+    Ok(done)
+}
+
 /// Removes the worktrees whose branch is in the mission's (`branch_in`), then the
 /// mission's own when none is left; the branches stay for the user.
 pub fn cleanup(project: &Path, mission: &str, agents: &[AgentBranch]) -> Result<Cleanup, String> {
@@ -1064,5 +1109,90 @@ mod tests {
             cleanup_unsaved(&proj, &mission.slug, &names).unwrap(),
             vec!["auth (uncommitted changes)".to_string()]
         );
+    }
+
+    fn branch_exists(proj: &Path, branch: &str) -> bool {
+        git(
+            proj,
+            &["rev-parse", "--verify", &format!("refs/heads/{branch}")],
+        )
+        .is_ok()
+    }
+
+    #[test]
+    fn an_agent_squashed_cleans_up_its_worktree_and_branch_while_they_hold_only_what_was_squashed()
+    {
+        let Some((_parent, proj)) = project() else {
+            return;
+        };
+        let mission = prepare(&proj, "auth").unwrap();
+        let m = Path::new(&mission.path);
+        let hulk = add_agent(&proj, &mission.slug, "Hulk").unwrap();
+        let thor = add_agent(&proj, &mission.slug, "Thor").unwrap();
+        commit(Path::new(&hulk.path), "login.txt", "login\n", "login");
+        commit(Path::new(&thor.path), "api.txt", "api\n", "api");
+        let hulk_in = squash(m, &hulk);
+        let thor_in = squash(m, &thor);
+        // A commit with no change since its squash holds nothing more: it goes too.
+        run(
+            Path::new(&thor.path),
+            &["commit", "-q", "--allow-empty", "-m", "nothing more"],
+        );
+        for (who, squashed, tree) in [("Hulk", &hulk_in, &hulk), ("Thor", &thor_in, &thor)] {
+            let done =
+                remove_agent(&proj, &mission.slug, &agent(who, Some(&squashed.head))).unwrap();
+            assert_eq!(
+                done.removed,
+                vec![tree.slug.clone(), tree.branch.clone()],
+                "{who}"
+            );
+            assert!(done.kept.is_empty(), "{who}: {:?}", done.kept);
+            assert!(!Path::new(&tree.path).exists());
+            assert!(!branch_exists(&proj, &tree.branch));
+        }
+        // Gone already: nothing to do, nothing said.
+        assert_eq!(
+            remove_agent(&proj, &mission.slug, &agent("Hulk", Some(&hulk_in.head))).unwrap(),
+            Cleanup::default()
+        );
+    }
+
+    #[test]
+    fn an_agent_cleaning_up_keeps_what_git_would_lose_and_says_why() {
+        let Some((_parent, proj)) = project() else {
+            return;
+        };
+        let mission = prepare(&proj, "auth").unwrap();
+        let m = Path::new(&mission.path);
+        let hulk = add_agent(&proj, &mission.slug, "Hulk").unwrap();
+        let thor = add_agent(&proj, &mission.slug, "Thor").unwrap();
+        commit(Path::new(&hulk.path), "login.txt", "login\n", "login");
+        commit(Path::new(&thor.path), "api.txt", "api\n", "api");
+        let hulk_in = squash(m, &hulk);
+        let thor_in = squash(m, &thor);
+        // Hulk committed after its merge: its worktree goes, its branch holds that commit and stays.
+        commit(
+            Path::new(&hulk.path),
+            "late.txt",
+            "late\n",
+            "after the merge",
+        );
+        let done = remove_agent(&proj, &mission.slug, &agent("Hulk", Some(&hulk_in.head))).unwrap();
+        assert_eq!(done.removed, vec![hulk.slug.clone()]);
+        assert_eq!(
+            done.kept,
+            vec![format!("{} (commits after its merge)", hulk.branch)]
+        );
+        assert!(branch_exists(&proj, &hulk.branch));
+        // Thor left a file uncommitted: its worktree stays, its branch with it.
+        std::fs::write(Path::new(&thor.path).join("draft.txt"), "draft\n").unwrap();
+        let done = remove_agent(&proj, &mission.slug, &agent("Thor", Some(&thor_in.head))).unwrap();
+        assert!(done.removed.is_empty());
+        assert_eq!(
+            done.kept,
+            vec![format!("{} (uncommitted changes)", thor.slug)]
+        );
+        assert!(Path::new(&thor.path).join("draft.txt").exists());
+        assert!(branch_exists(&proj, &thor.branch));
     }
 }

@@ -423,17 +423,20 @@ function Team({ mission }: { mission: Mission }) {
             ) : member.sentAt !== undefined ? (
               <MemberTime spent={memberTime(mission, member, now)} budget={budgetOf(member)} />
             ) : null}
-            {/* -my-1: its 24px box reaches into the row's padding, so the row keeps its height. */}
-            <HintedButton
-              hint={t.reviewTitle(member.name)}
-              variant="ghost"
-              size="xs"
-              aria-label={t.reviewLabel(member.name)}
-              onClick={() => openReview(member.nodeId)}
-              className="-my-1 shrink-0 px-1.5 font-mono font-normal text-dp-text-2 hover:bg-dp-field"
-            >
-              {t.diff}
-            </HintedButton>
+            {/* -my-1: its 24px box reaches into the row's padding, so the row keeps its height. An agent its merge
+                closed has no worktree left to compare: its work is in the mission's branch. */}
+            {!member.cleanedUp && (
+              <HintedButton
+                hint={t.reviewTitle(member.name)}
+                variant="ghost"
+                size="xs"
+                aria-label={t.reviewLabel(member.name)}
+                onClick={() => openReview(member.nodeId)}
+                className="-my-1 shrink-0 px-1.5 font-mono font-normal text-dp-text-2 hover:bg-dp-field"
+              >
+                {t.diff}
+              </HintedButton>
+            )}
             {member.report && <ReportWord report={member.report} merged={member.merged === true} />}
           </li>
         );

@@ -87,6 +87,8 @@ export interface Member {
    * only what came after it, and the cleanups know the branch is in (a squashed branch is no ancestor of the mission's).
    */
   squashed?: string;
+  /** Closed once its work was merged, its worktree and branch removed (`cleanUpAfterMerge`): it takes no other sub-task. */
+  cleanedUp?: true;
   /** Minutes added by `prolonger`. */
   extraMin?: number;
   /** The overruns already told: 1 at 100 % of its budget, 2 at 200 %. */
@@ -229,6 +231,7 @@ function readMember(raw: unknown): Member | null {
   else if (typeof r.brief === "string" && r.brief) member.brief = r.brief;
   if (r.merged === true) member.merged = true;
   if (typeof r.squashed === "string" && r.squashed) member.squashed = r.squashed;
+  if (r.cleanedUp === true) member.cleanedUp = true;
   const report = r.report as Record<string, unknown> | undefined;
   if (report && typeof report.summary === "string" && typeof report.status === "string" && STATUSES.includes(report.status)) {
     member.report = { summary: report.summary, status: report.status as ReportStatus, at: typeof report.at === "number" ? report.at : 0, ...(typeof report.check === "string" ? { check: report.check } : {}) };
