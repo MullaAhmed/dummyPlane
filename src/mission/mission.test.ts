@@ -169,6 +169,11 @@ describe("tasks for the queue", () => {
     expect(readMission({ state: "plan" })).not.toHaveProperty("queue");
   });
 
+  it("keeps, after a restart, the agents a stop left behind: the cleanup still removes their worktrees", () => {
+    expect(readMission({ state: "terminee", members: [], strays: ["Superman", 3, ""] })?.strays).toEqual(["Superman"]);
+    expect(readMission({ state: "terminee", members: [] })).not.toHaveProperty("strays");
+  });
+
   it("keeps, after a restart, the agent that handed a task over: the Fleet's mission status still names it", () => {
     const task = { title: "Docs", brief: "B", budgetMin: 1, handedBy: "Batman" };
     const saved = readMission(JSON.parse(JSON.stringify({ state: "en_cours", queue: [task], plan: [{ ...task, title: "API", agent: "nouveau" }], members: [] })));

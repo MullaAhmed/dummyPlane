@@ -4,6 +4,7 @@ import { MAX_GROUP_SIZE } from "@/agents/composer";
 import { isRoleId, type RoleId } from "@/agents/roles";
 import type { AgentId } from "@/ipc/pty";
 import type { Links } from "@/agents/wires";
+import { cutWhole } from "@/lib/cut";
 
 /** A group of a preset: what it is for and who staffs it, placed relative to the team's top-left corner. */
 export interface PresetGroup {
@@ -47,12 +48,7 @@ const STORED_FLEETS_KEY = "orchestrators";
  * surrogate, which the saved setting's JSON cannot carry: Rust refuses it); null when nothing is left.
  */
 export function presetNameOf(raw: string): string | null {
-  const name = raw
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, MAX_NAME)
-    .replace(/[\uD800-\uDBFF]$/, "")
-    .trim();
+  const name = cutWhole(raw.replace(/\s+/g, " ").trim(), MAX_NAME).trim();
   return name === "" ? null : name;
 }
 

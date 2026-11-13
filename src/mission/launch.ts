@@ -29,7 +29,7 @@ import { notify } from "./events";
 import { missionFolder } from "./folder";
 import { addTeamMember, fleetNameOf, reflowTeam, removeManager, setUpBoard, undoSetup, type MissionSetup } from "./manager";
 import { nightSession } from "./overnight";
-import { NEW_AGENT, NEW_MISSION, oneLine, pastTask, queuedTask, reassignable, sameName, type Member, type Mission, type SubTask } from "./mission";
+import { NEW_AGENT, NEW_MISSION, oneLine, pastTask, queuedTask, reassignable, sameName, worktreeOwners, type Member, type Mission, type SubTask } from "./mission";
 import { whenReady } from "./ready";
 import { modelRouterStore } from "@/app/modelRouterSetting";
 import { levelModel, modelLabel } from "./router";
@@ -300,6 +300,15 @@ export async function launchMission(fleetId: string): Promise<void> {
   const mission = missionOf(record);
   const session = sessionOf(record);
   if (!record || !mission || !session || mission.state !== "plan" || !mission.plan?.length) return;
+  // Max agents lowered since the plan (the panel, a night's dialog): a linked agent's sub-task past it would go to the
+  // queue, and to a new agent, unsaid. The plan's own rule, read again (`proposedPlan`).
+  const late = mission.plan.findIndex((task, i) => task.agent !== NEW_AGENT && i >= mission.maxAgents);
+  if (late !== -1) {
+    const error = t().plan.waitsForNew(late + 1, mission.maxAgents);
+    setMission(fleetId, { error });
+    notify(fleetId, t().lines.couldNotStart(error));
+    return;
+  }
   // The router was turned on after the plan (its switch, or Settings): without levels, every agent would get its CLI's default model.
   const required = levelsRequired(fleetId, mission);
   const unrated = required ? mission.plan.filter((task) => !task.level) : [];
@@ -354,6 +363,10 @@ export function endMission(fleetId: string, summary: string, ui?: string) {
   if (!record || mission?.state !== "en_cours") return;
   // Ended first: the agents stopping now are no events.
   setMission(fleetId, { state: "terminee", summary, ...(ui ? { summaryUi: ui } : {}), endedAt: Date.now() });
+  // What it kept in memory goes with it: no merge starts in a mission no longer running (`fusionner`, the queue), and
+  // what its runner was told is of no next mission. Imported late: the queue imports this module.
+  if (mission.worktree) merging.delete(mission.worktree);
+  void import("./queue").then(({ forgetTold }) => forgetTold(fleetId)).catch(() => undefined);
   // The user hears it, if away (`@/shell/finishAlert`).
   signalFinish({ nodeId: fleetId, state: "done", summary });
   // A linked agent the router routed goes back on its CLI's own model; one it did not route keeps its own, as through its sub-task.
@@ -378,6 +391,9 @@ export function endMission(fleetId: string, summary: string, ui?: string) {
 
 /** The merges under way, by mission worktree: git merges one branch at a time there. */
 const merging = new Map<string, Promise<unknown>>();
+
+/** Whether a mission worktree still has its line of merges kept. */
+export const mergeLineKept = (worktree: string) => merging.has(worktree);
 
 function oneMergeAtATime<T>(worktree: string, merge: () => Promise<T>): Promise<T> {
   const turn = (merging.get(worktree) ?? Promise.resolve()).then(merge, merge);
@@ -446,13 +462,32 @@ async function cleanMissionNow(fleetId: string): Promise<Cleanup | string> {
   // Its Manager goes with it; its board stays, still the Fleet's: the next mission runs on it.
   removeManager(fleetId);
   try {
-    return mission.project && mission.slug ? await missionCleanup(mission.project, mission.slug, mission.members.map((m) => m.name)) : { removed: [], kept: [] };
+    return mission.project && mission.slug ? await missionCleanup(mission.project, mission.slug, worktreeOwners(mission)) : { removed: [], kept: [] };
   } catch (error) {
     return errorText(error);
   } finally {
     // Freed even when git fails (project moved, worktrees removed by hand): never stuck "finished" (final review H2).
     nodesStore.getState().update(fleetId, { mission: next });
   }
+}
+
+/**
+ * A new agent made for `mission` (a reassign's, the queue's) that ended while it was created: stopped and off the
+ * canvas, as the end took the agents made for it, never a member, its sub-task never typed, so no longer launching
+ * (it would count as at work). Its worktree goes with the mission's cleanup, as a member's; a mission cleaned up
+ * meanwhile, or whose cleanup is under way (its list made), takes it back now, never forced.
+ */
+export function leftBehind(fleetId: string, mission: Mission, made: Member) {
+  stopTerminal(made.nodeId);
+  markLaunching(made.nodeId, false);
+  const workspaceId = nodesStore.getState().nodes[fleetId]?.workspaceId;
+  if (workspaceId) removeTeam(fleetId, workspaceId, undefined, [made.nodeId]);
+  const ended = missionOf(nodesStore.getState().nodes[fleetId]);
+  if (ended?.state === "terminee" && ended.slug === mission.slug && !cleaning.has(fleetId)) {
+    setMission(fleetId, { strays: [...(ended.strays ?? []), made.name] });
+    return;
+  }
+  if (mission.project) void missionDiscard(mission.project, [{ slug: made.name, branch: made.branch, path: made.worktree }]).catch(() => undefined);
 }
 
 /**
@@ -555,11 +590,9 @@ export async function reassignTask(fleetId: string, fromNodeId: string, target: 
     }
     if (typeof made === "string") return made;
     // Stopped or ended meanwhile, as in the queue: its team is gone, this one would sit idle in its worktree, and a
-    // mission no longer running takes no member, nor pauses its linked agent gone back to the project. Its sub-task
-    // never comes: it is no longer launching, or it would count as at work.
+    // mission no longer running takes no member, nor pauses its linked agent gone back to the project.
     if (missionOf(nodesStore.getState().nodes[fleetId])?.state !== "en_cours") {
-      stopTerminal(made.nodeId);
-      markLaunching(made.nodeId, false);
+      leftBehind(fleetId, mission, made);
       return r.noMission;
     }
     to = made;

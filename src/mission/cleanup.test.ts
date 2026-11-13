@@ -41,4 +41,15 @@ describe("cleanUpFinished", () => {
     expect(text).toContain(`${"x".repeat(1499)}…`);
     expect(text).not.toMatch(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/);
   });
+
+  it("checks the worktree of an agent a stop left behind too, as the cleanup will remove it", async () => {
+    const asked: unknown[] = [];
+    mockIPC((command, args) => {
+      if (command === "mission_cleanup_unsaved") asked.push(args);
+      return command === "mission_cleanup_unsaved" ? [] : undefined;
+    });
+    await setup({ state: "terminee", name: "Auth", project: "C:/code/proj", slug: "auth", branch: "dummyplane/auth", members: [], strays: ["Superman"] });
+    await cleanUpFinished("chef");
+    expect(asked).toEqual([{ project: "C:/code/proj", mission: "auth", agents: ["Superman"] }]);
+  });
 });

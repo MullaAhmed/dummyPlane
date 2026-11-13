@@ -1,3 +1,4 @@
+import { cutWhole } from "@/lib/cut";
 import type { KanbanAgentStatus, KanbanColumn, KanbanPayload, KanbanPriority } from "@/nodes/types";
 import { addCard, addColumn, columnOf, updateCard, type NewId } from "./board";
 import { doneColumn } from "./githubSync";
@@ -151,7 +152,7 @@ export function planRequest(board: KanbanPayload, columnId: string, texts: Reque
   const items = cards.map((card, i) => {
     const parts = [`${i + 1}) [${card.id}] ${oneLine(card.title)}`];
     const notes = oneLine(card.notes);
-    if (notes) parts.push(notes.length > MAX_NOTES ? `${notes.slice(0, MAX_NOTES - 1)}…` : notes);
+    if (notes) parts.push(notes.length > MAX_NOTES ? `${cutWhole(notes, MAX_NOTES - 1)}…` : notes);
     if (card.priority !== "none") parts.push(texts.priorities[card.priority]);
     if (card.due) parts.push(texts.due(card.due));
     if (card.github) parts.push(texts.issue(card.github.number, card.github.repo));

@@ -539,6 +539,12 @@ describe("the fleet's tools", () => {
       expect(await call("chef", "reassign", { subtask: "Paiement", agent: "new" })).toMatchObject({ isError: true });
     });
 
+    it("never echoes a long unknown sub-task cut inside an emoji: the answer goes to Rust as JSON, which refuses half of one", async () => {
+      // 🎉 straddles the cut at 79 units: its first half would be the last unit kept.
+      const result = await call("chef", "reassign", { subtask: `${"x".repeat(78)}🎉 and the rest of a whole brief`, agent: "new" });
+      expect(textOf(result)).toContain(`No sub-task "${"x".repeat(78)}…"`);
+    });
+
     it("merges and ends the mission through dummyPlane; no new plan meanwhile", async () => {
       expect(textOf(await call("chef", "merge", {}))).toBe("Branch dummyplane/auth :\nBatman : merged");
       expect(await call("chef", "propose_plan", plan)).toMatchObject({ isError: true });

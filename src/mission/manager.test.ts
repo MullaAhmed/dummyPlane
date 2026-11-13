@@ -135,6 +135,16 @@ describe("setUpBoard at the go-ahead", () => {
     expect(missionOf(nodesStore.getState().nodes.chef)?.boardMade).toBe(true);
   });
 
+  it("forgets the board it made and dropped when the Manager has nothing to start on: no mission points at a board gone", async () => {
+    // A Fleet without its session: the Manager's terminal cannot be made.
+    await nodesStore.getState().create("chef", { workspaceId: "w1", kind: "fleet", payload: { name: "Chef", mission: { state: "lancement", maxAgents: 4, members: [], name: "Auth" } } });
+    await expect(setUpBoard("chef", "w1", missionOf(nodesStore.getState().nodes.chef)!, "claude", quietly("mission"))).rejects.toThrow();
+    expect(removeNodes).toHaveBeenCalledOnce();
+    const mission = missionOf(nodesStore.getState().nodes.chef);
+    expect(mission?.board).toBeUndefined();
+    expect(mission?.boardMade).toBeUndefined();
+  });
+
   it("takes back what a failed launch made: the Manager and a new board, never a board the user handed over", async () => {
     await fleet();
     const setup = await setUpBoard("chef", "w1", missionOf(nodesStore.getState().nodes.chef)!, "claude", quietly("mission"));

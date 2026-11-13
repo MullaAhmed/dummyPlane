@@ -93,6 +93,8 @@ describe("group frame elements", () => {
     const withSpeciality = (speciality: unknown) => groupInfoOf(frame("g", { customData: { dummyplane: { kind: "group", role: "backend", pantheon: "greek", speciality } } }));
     expect(withSpeciality("  API\n et  bases ")).toEqual({ role: "backend", pantheon: "greek", speciality: "API et bases" });
     expect(withSpeciality("x".repeat(60))?.speciality).toHaveLength(MAX_SPECIALITY);
+    // Never inside an emoji: a preset saves the speciality through Rust, which refuses half of one.
+    expect(withSpeciality(`${"x".repeat(MAX_SPECIALITY - 1)}🎉 and more`)?.speciality).toBe("x".repeat(MAX_SPECIALITY - 1));
     for (const none of ["", "   ", 12, null, undefined]) expect(withSpeciality(none)).toEqual({ role: "backend", pantheon: "greek" });
   });
 

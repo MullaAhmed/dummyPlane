@@ -1,4 +1,5 @@
 import { messages } from "@/i18n";
+import { cutWhole } from "@/lib/cut";
 import { agentMessages } from "@/mcp/messages";
 import { missionOf } from "@/mission/store";
 import { nodesStore } from "@/store/nodes";
@@ -106,7 +107,7 @@ export function reviewMessage(remarks: readonly Remark[]): string {
   const said = messages(agentMessages).review;
   const items = remarks.map((r) => {
     const where = r.line === undefined ? r.file : r.side === "old" ? said.removedLine(r.file, r.line) : `${r.file}:${r.line}`;
-    const quoted = r.lineText?.trim() ? ` \`${r.lineText.trim().slice(0, 80)}\`` : "";
+    const quoted = r.lineText?.trim() ? ` \`${cutWhole(r.lineText.trim(), 80)}\`` : "";
     return `- ${where}${quoted} — ${r.text.replace(/\s*\n\s*/g, " ").trim()}`;
   });
   return [said.intro, ...items, said.outro].join("\n");
