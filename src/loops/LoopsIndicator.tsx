@@ -7,7 +7,9 @@ import { loopsMessages } from "./messages";
 
 /**
  * Visible as long as a loop runs: how many, how many runs
- * so far, and "Stop all" one click away. Each run costs real usage.
+ * so far, and "Stop all" one click away. Each run costs real usage. It counts
+ * every project's loops and stops them all, wherever the user is (home
+ * included): a loop left running in a project out of sight is the one to brake.
  */
 export function LoopsIndicator() {
   const t = useMessages(loopsMessages).indicator;

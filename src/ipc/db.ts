@@ -63,6 +63,8 @@ onFlushAll(() => write(() => Promise.resolve()));
 
 export const loadWorkspace = (id: string) => call<WorkspaceData>("load_workspace", { id });
 export const getSetting = <T>(key: string) => call<T | null>("get_setting", { key });
+/** The project of each node still saved, on screen or not, by node id; a node gone is left out. */
+export const projectsOfNodes = (nodeIds: string[]) => call<Record<string, string>>("projects_of_nodes", { nodeIds });
 
 export const listProjects = () => call<Project[]>("list_projects");
 export const createProject = (path: string) => write(() => call<Project>("create_project", { path }));

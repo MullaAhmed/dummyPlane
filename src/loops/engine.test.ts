@@ -13,9 +13,13 @@ let sent: { ids: string[]; text: string }[];
 let reach: number | null;
 let runtimes: Record<string, LoopRuntime>;
 
+/** Plain shell terminals: no agent in them. */
+const shells = new Set<string>();
+
 const deps = (): EngineDeps => ({
   now: () => now,
   isLive: (id) => live.has(id),
+  isAgent: (id) => !shells.has(id),
   activityOf: (id) => activities[id],
   screenOf: (id) => screens[id] ?? "",
   canReceive: (id) => !gone.has(id),
@@ -27,6 +31,7 @@ const deps = (): EngineDeps => ({
 
 const loop = (over: Partial<LoopDef> = {}): LoopDef => ({
   id: "l1",
+  projectId: "p1",
   name: "Point",
   instruction: "fais un point",
   targets: ["a", "b"],
@@ -403,8 +408,32 @@ describe("the timing race: an agent is closed between the check and the send", (
   });
 });
 
+describe("a plain shell among a loop's targets", () => {
+  it("is never typed into, and a loop with no agent left stops and says why", async () => {
+    shells.clear();
+    shells.add("a");
+    now = 0;
+    const e = engine();
+    e.start(loop({ targets: ["a", "b"], trigger: { kind: "interval", minutes: 1 } }));
+    now += MIN;
+    await e.tick();
+    expect(sent).toEqual([{ ids: ["b"], text: "fais un point" }]);
+    shells.add("b");
+    now += MIN;
+    await e.tick();
+    expect(runtimes.l1).toMatchObject({ running: false, stoppedBecause: "noAgents" });
+    expect(sent).toHaveLength(1);
+    shells.clear();
+  });
+
+  it("takes no instruction even when the engine is asked whether it would", () => {
+    expect(acceptsInstruction("shell", "PS C:\\code> ")).toBe(false);
+    expect(acceptsInstruction("custom", "anything")).toBe(true);
+  });
+});
+
 describe("a terminal whose Claude has quit (review)", () => {
-  const def: LoopDef = { id: "q", name: "Q", instruction: "del build", targets: ["a", "b"], trigger: { kind: "interval", minutes: 1 }, maxRuns: 2 };
+  const def: LoopDef = { id: "q", name: "Q", instruction: "del build", targets: ["a", "b"], trigger: { kind: "interval", minutes: 1 }, maxRuns: 2, projectId: "p1" };
 
   it("gets nothing typed, and the others still do", async () => {
     gone.clear();

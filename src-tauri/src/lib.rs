@@ -131,6 +131,7 @@ pub fn run() {
             commands::pty::agent_process_dismiss,
             commands::tokens::token_usage,
             commands::workspace::list_workspaces,
+            commands::workspace::projects_of_nodes,
             commands::workspace::create_workspace,
             commands::workspace::rename_workspace,
             commands::workspace::delete_workspace,

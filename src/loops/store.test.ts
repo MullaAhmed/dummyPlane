@@ -6,6 +6,7 @@ import { createLoopsStore } from "./store";
 
 const loop = (id: string, over: Partial<LoopDef> = {}): LoopDef => ({
   id,
+  projectId: "p1",
   name: `Boucle ${id}`,
   instruction: "go",
   targets: ["a"],
@@ -19,10 +20,16 @@ let saved: unknown[];
 let now: number;
 let timers: { start: ReturnType<typeof vi.fn>; stop: ReturnType<typeof vi.fn>; fire: () => void };
 let sent: string[][];
+/** Where the nodes are saved, the project open, and what the migration asked. */
+let projectOf: Record<string, string>;
+let active: string | null;
+let looked: string[][];
+let lookFails: boolean;
 
 const engineDeps = (): EngineDeps => ({
   now: () => now,
   isLive: () => true,
+  isAgent: () => true,
   activityOf: () => undefined,
   screenOf: () => "",
   canReceive: () => true,
@@ -30,6 +37,17 @@ const engineDeps = (): EngineDeps => ({
     sent.push(ids);
     return { sent: ids.length };
   },
+});
+
+const io = () => ({
+  read: async () => stored,
+  write: async (value: unknown) => void saved.push(value),
+  projectsOf: async (ids: string[]) => {
+    looked.push(ids);
+    if (lookFails) throw new Error("db closed");
+    return Object.fromEntries(ids.flatMap((id) => (projectOf[id] ? [[id, projectOf[id]]] : [])));
+  },
+  activeProject: () => active,
 });
 
 function make() {
@@ -44,10 +62,7 @@ function make() {
   };
   return createLoopsStore(
     engineDeps(),
-    {
-      read: async () => stored,
-      write: async (value) => void saved.push(value),
-    },
+    io(),
     { setInterval: timers.start as never, clearInterval: timers.stop as never },
   );
 }
@@ -56,12 +71,76 @@ beforeEach(() => {
   now = 0;
   saved = [];
   sent = [];
+  projectOf = {};
+  active = "p1";
+  looked = [];
+  lookFails = false;
   stored = { version: LOOPS_VERSION, loops: [loop("1"), loop("2")] };
+});
+
+describe("loops saved before they belonged to a project", () => {
+  /** A loop as version 1 saved it: no project. */
+  const old = (id: string, targets: string[]) => {
+    const { projectId: _none, ...rest } = loop(id, { targets });
+    return rest;
+  };
+
+  it("are placed once, each in its targets' project or the one open, and saved so", async () => {
+    projectOf = { a: "p1", b: "p2" };
+    active = "p3";
+    stored = { version: 1, loops: [old("1", ["a"]), old("2", ["b"]), old("3", ["a", "b"]), old("4", ["gone"])] };
+    const store = make();
+    await store.getState().load();
+    expect(looked).toEqual([["a", "b", "gone"]]);
+    expect(store.getState().loops.map((l) => [l.id, l.projectId])).toEqual([
+      ["1", "p1"],
+      ["2", "p2"],
+      ["3", "p3"],
+      ["4", "p3"],
+    ]);
+    // Saved in the new shape at once, every loop kept: the next start reads them as they are.
+    expect(saved).toEqual([{ version: LOOPS_VERSION, loops: store.getState().loops }]);
+    stored = saved[0];
+    const again = make();
+    await again.getState().load();
+    expect(again.getState().loops).toEqual(store.getState().loops);
+    expect(looked).toHaveLength(1);
+  });
+
+  it("stay as they were when their targets' projects cannot be read, and are placed at the next read", async () => {
+    stored = { version: 1, loops: [old("1", ["a"])] };
+    lookFails = true;
+    const store = make();
+    await store.getState().load();
+    expect(store.getState().loaded).toBe(false);
+    expect(saved).toEqual([]);
+    await expect(store.getState().save(loop("9"))).rejects.toThrow();
+    lookFails = false;
+    projectOf = { a: "p2" };
+    await store.getState().load();
+    expect(store.getState().loops.map((l) => [l.id, l.projectId])).toEqual([["1", "p2"]]);
+  });
+});
+
+describe("a loop whose targets are shells", () => {
+  it("never types into a shell and stops saying so, an agent beside it still served", async () => {
+    const deps = { ...engineDeps(), isAgent: (id: string) => id !== "shell" };
+    const store = createLoopsStore(deps, io(), { setInterval: () => 1 as never, clearInterval: () => undefined });
+    stored = { version: LOOPS_VERSION, loops: [loop("mixed", { targets: ["shell", "a"] }), loop("shell-only", { targets: ["shell"] })] };
+    await store.getState().load();
+    store.getState().start("mixed");
+    store.getState().start("shell-only");
+    now = 60_000;
+    await store.tick();
+    expect(sent).toEqual([["a"]]);
+    expect(store.getState().runtime["shell-only"]).toMatchObject({ running: false, stoppedBecause: "noAgents" });
+    expect(store.getState().runtime.mixed.running).toBe(true);
+  });
 });
 
 describe("the loops store", () => {
   it("saves nothing over a list it could not read: a read error must not wipe the loops (review)", async () => {
-    const store = createLoopsStore(engineDeps(), { read: () => Promise.reject(new Error("database is locked")), write: async (value) => void saved.push(value) });
+    const store = createLoopsStore(engineDeps(), { ...io(), read: () => Promise.reject(new Error("database is locked")) });
     await expect(store.getState().save(loop("9"))).rejects.toThrow();
     await expect(store.getState().remove("1")).rejects.toThrow();
     expect(saved).toEqual([]);
@@ -164,10 +243,7 @@ describe("the loops store", () => {
 
   it("does not save over a list it has not read", async () => {
     let release: (value: unknown) => void = () => undefined;
-    const store = createLoopsStore(engineDeps(), {
-      read: () => new Promise((resolve) => (release = resolve)),
-      write: async (value) => void saved.push(value),
-    });
+    const store = createLoopsStore(engineDeps(), { ...io(), read: () => new Promise((resolve) => (release = resolve)) });
     const saving = store.getState().save(loop("3"));
     release({ version: LOOPS_VERSION, loops: [loop("1")] });
     expect(await saving).toBe("ok");
