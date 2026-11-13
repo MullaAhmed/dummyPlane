@@ -1,7 +1,7 @@
 //! What an agent changed, for the review panel: its files
 //! against a base, each file's diff, and the files of its folder, read-only.
 
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::io::Read;
 use std::path::{Component, Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -289,10 +289,12 @@ fn changes_limited(dir: &Path, base: Option<&str>, max: usize) -> Result<Changes
     // From the root: run in a subfolder, ls-files lists that folder only.
     let root = root(dir)?;
     let untracked = git(&root, &["ls-files", "--others", "--exclude-standard", "-z"])?;
+    // A file taken out of the index and kept on the disk is deleted and untracked at once: one row.
+    let tracked: HashSet<&str> = files.iter().map(|f| f.path.as_str()).collect();
     let untracked: Vec<&str> = untracked
         .split('\0')
         // A nested repository is listed as `nested/`: not a file to diff.
-        .filter(|p| !p.is_empty() && !p.ends_with('/'))
+        .filter(|p| !p.is_empty() && !p.ends_with('/') && !tracked.contains(p))
         .collect();
     let truncated = files.len() + untracked.len() > max;
     // The agent's changes to tracked files come first: untracked files take the room left.
@@ -723,6 +725,23 @@ mod tests {
         assert_eq!((cut.files.len(), cut.truncated), (2, true));
         let whole = changes_limited(dir, None, 3).unwrap();
         assert_eq!((whole.files.len(), whole.truncated), (3, false));
+    }
+
+    /// `git rm --cached` leaves the file on the disk: git calls it deleted and untracked at
+    /// once, and the list gave it two rows of one path (two rows lit together, a duplicate key).
+    #[test]
+    fn a_file_taken_out_of_the_index_but_kept_on_the_disk_is_listed_once() {
+        let Some(repo) = repo() else { return };
+        let dir = repo.path();
+        sh(dir, &["rm", "-q", "--cached", "a.txt"]);
+        let listed = changes(dir, None).unwrap().files;
+        assert_eq!(
+            listed
+                .iter()
+                .map(|f| (f.path.as_str(), f.status.as_str()))
+                .collect::<Vec<_>>(),
+            [("a.txt", "deleted")]
+        );
     }
 
     /// A folder of thousands of untracked files (an `npm install` without `.gitignore`)
