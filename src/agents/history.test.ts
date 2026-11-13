@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
-import { browseHistory, HISTORY_SIZE, historyStore, pushHistory } from "./history";
+import { browseHistory, HISTORY_SIZE, historyLeftOut, historyStore, pushHistory } from "./history";
 
 afterEach(() => clearMocks());
 
@@ -80,5 +80,68 @@ describe("historyStore, a command sent before the history is read", () => {
     // Never the new command alone over the saved history.
     expect(saved.every((s) => (s.value as string[]).length === 3)).toBe(true);
     expect(saved.length).toBeGreaterThan(0);
+  });
+});
+
+describe("historyLeftOut", () => {
+  it("says how much of a saved history is not read: nothing, some entries, or all of it", () => {
+    expect(historyLeftOut(null)).toBe("none");
+    expect(historyLeftOut([])).toBe("none");
+    expect(historyLeftOut(["a", "b"])).toBe("none");
+    // A command that is no text, and the oldest ones past the 50 kept.
+    expect(historyLeftOut(["a", 3, "b"])).toBe("some");
+    expect(historyLeftOut(Array.from({ length: HISTORY_SIZE + 1 }, (_, i) => `c${i}`))).toBe("some");
+    for (const other of ["x", 4, { a: 1 }, true]) expect(historyLeftOut(other), JSON.stringify(other)).toBe("all");
+  });
+});
+
+describe("historyStore, a history read only in part", () => {
+  /** The IPC calls made, in order, with what `get_setting` answers for the project. */
+  function backend(raw: unknown, keepFails = false) {
+    const calls: [string, unknown][] = [];
+    mockIPC((cmd, args) => {
+      calls.push([cmd, args]);
+      if (cmd === "get_setting") return raw;
+      if (cmd === "keep_setting") {
+        if (keepFails) throw { kind: "db", message: "database is locked" };
+        return "command.history.x.unreadable";
+      }
+    });
+    return calls;
+  }
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+  it("has its text kept aside before anything is saved over it: a damaged entry, another shape", async () => {
+    const calls = backend(["a", 3, "b"]);
+    await historyStore.getState().load("part-1");
+    expect(historyStore.getState().entries).toEqual(["a", "b"]);
+    historyStore.getState().add("c");
+    await settle();
+    expect(calls.map(([cmd]) => cmd)).toEqual(["get_setting", "keep_setting", "set_setting"]);
+    expect(calls[1][1]).toEqual({ key: "command.history.part-1" });
+    // Not an array at all: all of it is left out, kept all the same.
+    const other = backend({ not: "a list" });
+    await historyStore.getState().load("part-2");
+    expect(historyStore.getState().entries).toEqual([]);
+    expect(other.map(([cmd]) => cmd)).toEqual(["get_setting", "keep_setting"]);
+  });
+
+  it("keeps nothing aside for a history it reads whole, or that was never saved", async () => {
+    const whole = backend(["a", "b"]);
+    await historyStore.getState().load("part-3");
+    const none = backend(null);
+    await historyStore.getState().load("part-4");
+    expect([...whole, ...none].map(([cmd]) => cmd)).toEqual(["get_setting", "get_setting"]);
+  });
+
+  it("stops the read when its text cannot be kept: nothing is saved over what was not kept", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const calls = backend(["a", 3], true);
+    await historyStore.getState().load("part-5");
+    historyStore.getState().add("vite");
+    await settle();
+    expect(historyStore.getState().loaded).toBe(false);
+    expect(calls.map(([cmd]) => cmd)).toEqual(["get_setting", "keep_setting"]);
+    warn.mockRestore();
   });
 });

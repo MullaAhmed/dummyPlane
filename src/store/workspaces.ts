@@ -3,6 +3,7 @@ import {
   createWorkspace,
   deleteWorkspace,
   getSetting,
+  keepSettingAside,
   listWorkspaces,
   renameWorkspace,
   setSetting,
@@ -73,6 +74,32 @@ export function canRemove(workspaces: readonly Workspace[], workspace: Workspace
 /** The names the project's single tabs are created with. */
 const SINGLE_NAMES: Record<Exclude<WorkspaceKind, "canvas">, string> = { code: "Code", notes: "Notes" };
 
+/**
+ * How much of a saved order `inSavedOrder` leaves out: nothing, some entries (one that is no id), or all of it (not a
+ * list). An id of a tab since deleted is no loss. What is left out is lost at the next save, unless its text is kept.
+ */
+export function orderLeftOut(raw: unknown): "none" | "some" | "all" {
+  if (raw === null || raw === undefined) return "none";
+  if (!Array.isArray(raw)) return "all";
+  const ids = raw.filter((id) => typeof id === "string").length;
+  return ids === raw.length ? "none" : ids === 0 ? "all" : "some";
+}
+
+/**
+ * The order saved for the project's tabs, its text kept aside first when it reads only in part. Nothing (the tabs as
+ * they are) when it could not be read, or kept: a failed keep stops the read, as a failed read does.
+ */
+async function readOrder(projectId: string): Promise<unknown> {
+  try {
+    const saved = await getSetting<unknown>(orderKey(projectId));
+    const leftOut = orderLeftOut(saved);
+    if (leftOut !== "none") await keepSettingAside(orderKey(projectId), leftOut === "some");
+    return saved;
+  } catch {
+    return null;
+  }
+}
+
 /** The workspaces in the order saved for the project; unknown ids are dropped, new ones go last. */
 export function inSavedOrder(workspaces: Workspace[], saved: unknown): Workspace[] {
   if (!Array.isArray(saved)) return workspaces;
@@ -126,7 +153,7 @@ export function createWorkspacesStore() {
           let workspaces = (await listWorkspaces(projectId)).map(withKind);
           if (!workspaces.some(isCanvas))
             workspaces = [withKind(await createWorkspace(projectId, nextDefaultName(workspaces))), ...workspaces];
-          workspaces = inSavedOrder(workspaces, await getSetting<unknown>(orderKey(projectId)).catch(() => null));
+          workspaces = inSavedOrder(workspaces, await readOrder(projectId));
           const saved = (await getSetting<string>(activeKey(projectId))) ?? (await getSetting<string>(LEGACY_ACTIVE_KEY));
           const activeId = workspaces.some((w) => w.id === saved) ? saved! : workspaces[0].id;
           if (get().projectId === projectId) set({ workspaces, activeId, status: "ready" });
