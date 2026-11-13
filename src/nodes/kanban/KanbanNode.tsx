@@ -138,7 +138,7 @@ function removeColumnUndoable(nodeId: string, columnId: string, t: Messages) {
   const cards = Object.fromEntries(column.cardIds.flatMap((id) => (board.cards[id] ? [[id, board.cards[id]] as const] : [])));
   commit(nodeId, (b) => removeColumn(b, columnId));
   toast(t.columnRemoved(column.title, Object.keys(cards).length), {
-    action: { label: t.undo, onClick: () => commit(nodeId, (b) => restoreColumn(b, column, cards, index)) },
+    action: { label: t.undo, onClick: () => commit(nodeId, (b) => restoreColumn(b, column, cards, index, board.cards)) },
   });
 }
 
@@ -150,7 +150,7 @@ function removeCardUndoable(nodeId: string, cardId: string, t: Messages) {
   const index = column.cardIds.indexOf(cardId);
   commit(nodeId, (b) => removeCard(b, cardId));
   toast(t.cardRemoved(card.title), {
-    action: { label: t.undo, onClick: () => commit(nodeId, (b) => restoreCard(b, card, column.id, index)) },
+    action: { label: t.undo, onClick: () => commit(nodeId, (b) => restoreCard(b, card, column.id, index, board.cards)) },
   });
 }
 
