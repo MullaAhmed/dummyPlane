@@ -7,11 +7,19 @@ import { projectsStore } from "@/store/projects";
 import { createIssueForCard, linkBoard, moveCardWithGithub, parseProject, syncBoard } from "./github";
 import { errorToasts } from "@/lib/errorToast.testkit";
 
-const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
+const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), warning: vi.fn() }));
 vi.mock("sonner", () => ({ toast }));
 
 type Handler = (args: Record<string, unknown>) => unknown;
 let calls: [string, Record<string, unknown>][] = [];
+
+/** A list a handler gives bare is the whole of it: nothing was cut. */
+function listed(cmd: string, answer: unknown) {
+  if (!Array.isArray(answer)) return answer;
+  if (cmd === "github_list_issues") return { issues: answer, cut: false };
+  if (cmd === "github_list_project_items") return { items: answer, totalCount: answer.length };
+  return answer;
+}
 
 /** IPC with GitHub commands answered by `handlers`; saves succeed. */
 function mockGithub(handlers: Record<string, Handler>) {
@@ -19,7 +27,8 @@ function mockGithub(handlers: Record<string, Handler>) {
   mockIPC((cmd, args) => {
     const payload = (args ?? {}) as Record<string, unknown>;
     if (cmd.startsWith("github_")) calls.push([cmd, payload]);
-    return handlers[cmd]?.(payload);
+    const answer = handlers[cmd]?.(payload);
+    return answer instanceof Promise ? answer.then((value) => listed(cmd, value)) : listed(cmd, answer);
   });
 }
 
@@ -51,6 +60,7 @@ const linked = (number: number, state: "open" | "closed") => ({ repo: "o/r", num
 beforeEach(async () => {
   toast.success.mockClear();
   toast.error.mockClear();
+  toast.warning.mockClear();
   mockGithub({});
   projectsStore.setState({ projects: [{ id: "p", name: "r", path: "C:/r", position: 0, lastOpenedAt: 0, workspaceCount: 1, missing: false, liveAgents: 0 }], activeId: "p" });
   await nodesStore.getState().create("b", {
@@ -111,6 +121,29 @@ describe("syncBoard", () => {
     expect(b.columns.find((c) => c.id === "done")!.cardIds).toEqual([shipped.id]);
     expect(b.github).toEqual({ repo: "o/r", project: { owner: "o", number: 2 } });
     expect(toast.success).toHaveBeenCalled();
+  });
+
+  it("says when GitHub had more issues or Project items than a sync reads", async () => {
+    mockGithub({
+      github_list_issues: () => ({ issues: [issue(1, "open")], cut: true }),
+      github_list_project_items: () => ({ items: [item("PVTI_1", 1, "To do")], totalCount: 812 }),
+      github_project_statuses: () => ["To do", "In progress", "Done"],
+    });
+    expect(await syncBoard("b")).toBe(true);
+    expect(toast.warning.mock.calls.map(([text]) => text)).toEqual([
+      "Not every issue of o/r was read: it has more open or recently closed ones than a sync takes, and the others are not on the board",
+      "Read 1 of the Project's 812 items: the others are not on the board",
+    ]);
+  });
+
+  it("says nothing more when every issue and Project item was read", async () => {
+    mockGithub({
+      github_list_issues: () => [issue(1, "open")],
+      github_list_project_items: () => [item("PVTI_1", 1, "To do")],
+      github_project_statuses: () => ["To do", "In progress", "Done"],
+    });
+    expect(await syncBoard("b")).toBe(true);
+    expect(toast.warning).not.toHaveBeenCalled();
   });
 
   it("tells a gh failure and leaves the board as it was", async () => {

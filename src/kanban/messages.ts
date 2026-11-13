@@ -29,6 +29,9 @@ export const kanbanMessages = defineMessages({
   github: {
     failed: "Could not reach GitHub",
     synced: (repo: string) => `Synced with ${repo}`,
+    issuesCut: (repo: string) =>
+      `Not every issue of ${repo} was read: it has more open or recently closed ones than a sync takes, and the others are not on the board`,
+    itemsCut: (read: number, total: number) => `Read ${read} of the Project's ${total} items: the others are not on the board`,
     created: (number: number) => `Issue #${number} created`,
   },
 });
