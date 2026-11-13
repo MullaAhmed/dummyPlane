@@ -22,8 +22,7 @@ import { modelLabel } from "@/mission/router";
 import { openReview } from "@/review/reviewStore";
 import { ROLES } from "@/agents/roles";
 import type { AgentId } from "@/ipc/pty";
-import { NodeRouterToggle, RouterMenuItem } from "@/mission/RouterToggle";
-import { hasRouterSwitch } from "@/mission/routerState";
+import { NodeRouterToggle, RouterMenuItem, routerInertText } from "@/mission/RouterToggle";
 import { cn } from "@/lib/utils";
 import type { TerminalPayload } from "@/nodes/types";
 import type { AgentActivity } from "@/store/agentActivity";
@@ -105,13 +104,9 @@ function TerminalMenu(props: { nodeId: string; payload: TerminalPayload; running
           {t.relaunch}
         </DropdownMenuItem>
       )}
-      {/* The router's switch is in the header from 28rem on; here it is, at any width. A Manager's has nothing to route. */}
-      {hasRouterSwitch(payload) && (
-        <>
-          <DropdownMenuSeparator />
-          <RouterMenuItem nodeId={nodeId} />
-        </>
-      )}
+      {/* The router's switch is in the header from 28rem on; here it is, at any width. Greyed out where it has nothing to route. */}
+      <DropdownMenuSeparator />
+      <RouterMenuItem nodeId={nodeId} inert={routerInertText(payload)} />
       {/* The model chip says it from 28rem of header on; here it is said, and cleared, at any width. */}
       {payload.model && (
         <>
@@ -278,8 +273,8 @@ export function TerminalHeader(props: {
         <div className={cn(WIDE_ONLY, "items-center gap-1")}>
           {payload.agent === "claude" && <AccountChip accountId={payload.accountId} />}
           {payload.model && <ModelChip nodeId={nodeId} model={payload.model} />}
-          {/* A Manager runs a board, never a plan's agent: the router has nothing to give it. */}
-          {hasRouterSwitch(payload) && <NodeRouterToggle nodeId={nodeId} />}
+          {/* On every terminal; greyed out, with why, where it has nothing to route (a Manager, a CLI without dummyPlane's tools). */}
+          <NodeRouterToggle nodeId={nodeId} inert={routerInertText(payload)} />
         </div>
         {payload.agent === "claude" && <RemoteButton nodeId={nodeId} wanted={payload.remoteControl === true} running={running} />}
         <TerminalMenu nodeId={nodeId} payload={payload} running={running} onDuplicate={onDuplicate} />
