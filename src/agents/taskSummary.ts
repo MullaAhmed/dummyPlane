@@ -1,3 +1,4 @@
+import { cutWhole } from "@/lib/cut";
 import type { TerminalPayload } from "@/nodes/types";
 
 /**
@@ -173,7 +174,7 @@ function withoutAsides(text: string): string {
 /** At most `max` characters, cut at a word, with "…". */
 export function clip(text: string, max: number): string {
   if (text.length <= max) return text;
-  const cut = text.slice(0, max - 1);
+  const cut = cutWhole(text, max - 1);
   const space = cut.lastIndexOf(" ");
   return `${(space > max / 2 ? cut.slice(0, space) : cut).replace(/[\s,;:.–—-]+$/, "")}…`;
 }

@@ -165,4 +165,9 @@ describe("the pieces", () => {
     expect(clip("one two three four", 12)).toBe("one two…");
     expect(clip("short", 12)).toBe("short");
   });
+
+  it("clip never cuts inside an emoji, where no word ends: half of one is a character Rust refuses in JSON", () => {
+    // 🎉 straddles the cut: its first half would be the last unit kept.
+    expect(clip(`${"x".repeat(30)}🎉${"y".repeat(20)}`, 32)).toBe(`${"x".repeat(30)}…`);
+  });
 });
