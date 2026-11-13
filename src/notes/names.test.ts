@@ -17,6 +17,12 @@ describe("note names", () => {
     expect(isNoteName("console")).toBe(true);
   });
 
+  it("refuses the same device names as Rust: spaces before the dot, superscript ports, the console's", () => {
+    // `notes::is_valid_name` refuses these; the field said they were fine and the disk answered "note name refused".
+    for (const name of ["con .x", "CON  .md", "nul ", "COM¹", "lpt³.txt", "com²", "CONIN$", "conout$.log"]) expect(isNoteName(name), name).toBe(false);
+    for (const name of ["COM10", "com9x", "CONIN", "CON$", "console .x", "COM¹²"]) expect(isNoteName(name), name).toBe(true);
+  });
+
   it("stops at 120 characters", () => {
     expect(isNoteName("a".repeat(120))).toBe(true);
     expect(isNoteName("a".repeat(121))).toBe(false);
