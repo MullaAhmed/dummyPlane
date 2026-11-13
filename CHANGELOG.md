@@ -39,6 +39,7 @@ dummyPlane's first release will be 0.1.0; until then, its changes are listed und
 - **Sub-agents start without what their parent turned off.** The skills, plugins, MCP servers and subagents turned off in a terminal's or a Fleet's Edit tab now stay off for the Claude agents it opens: `spawn_agent` sub-agents, a mission's new team agents and the agents of a group staffed for it. Each starts with its own copy of the choice; a linked agent keeps its own, and a Codex agent gets none.
 - **A manager is told its sub-agent's card is its to move.** When a sub-agent reports to an agent or a Fleet with a Kanban board wired to it, and no mission runs that board, the report it hears now ends by saying that the card is its to move: to *Done* when the sub-agent is done, to *Blocked* otherwise. A board run by a mission moves its cards by itself, as before.
 - **A skill that forks into a sub-agent is refused while sub-agents open as terminals.** A skill such as `/code-review`, known from its file's `context: fork` or from having forked once, is refused like the Workflow tool, and the agent is sent to `spawn_agent`.
+- **A setting that cannot be read is no longer lost.** A stored value that does not parse is kept under its key and `.unreadable` before anything replaces it, so the loops, presets and history, which read it as unset and wrote a list built from nothing, no longer destroy what you had. A bad row still never blocks startup.
 - **Kanban boards and GitHub:**
   - **A linked card lands at once.** A card linked to an issue moves on the board as soon as it is dropped, and two quick moves reach GitHub in their order, so the issue and its Project item end where the card did.
   - **A reorder stays local.** Moving a linked card within its column no longer reads the Project from GitHub, nor reports a failure when offline.
@@ -50,6 +51,7 @@ dummyPlane's first release will be 0.1.0; until then, its changes are listed und
   - **Undo after a sync keeps one card per issue.** Undoing the delete of a linked card, or its column, after a sync brought its issue back puts your card back in place of the sync's copy. A card that already shared the issue, or one an earlier Undo put back, stays with its notes.
   - **"No project is open" is said.** *Sync*, *Create the issue on GitHub* and a linked card moved while no project is open now say so, instead of doing nothing or moving the card without its issue.
   - **The board menu's *Sync* is greyed out while a sync runs,** as the header's *Sync* button already was.
+  - **An agent's `move_board_card` and the Manager's `move_card` answer once the card has moved,** its issue following in the board's queue, where a slow `gh` behind the board's earlier moves made them fail past the 30 s a tool has.
 - **Missions:**
   - **An overnight mission reads its own repository's issues.** It names the project's `origin` to `gh`, so a fork no longer reads its upstream's issues, and `gh` never prompts or hangs there.
   - **The overnight run's checks no longer hang:** its check that `gh` is logged in has a time limit, the refreshed PATH and no prompt.
@@ -63,6 +65,7 @@ dummyPlane's first release will be 0.1.0; until then, its changes are listed und
   - **A plan whose *Max agents* was lowered under a linked agent's sub-task is not launched,** and says why, instead of sending that sub-task to the queue and a new agent without a word.
   - **A go-ahead whose Manager cannot be made** no longer leaves the mission pointing at the board it made and dropped.
   - **An ended mission no longer stays in memory:** its line of merges and what the queue told its runner piled up, mission after mission, for the app's whole life.
+  - **The Fleet's `tickets` tool answers within the 30 s a tool has,** saying GitHub did not answer in time, where a `gh` that got no answer held it to its own 60 s limit and the Fleet only heard that dummyPlane was not responding.
 - **Terminals:**
   - **A terminal that exited off screen reads *Exited* with its code** when first shown, instead of *Stopped*, and *Resume all* no longer offers it as a conversation to restore.
   - **A Claude terminal moved away and back to the folder its process runs in keeps its conversation:** its next launch resumes it, and the toast says so.
@@ -70,9 +73,16 @@ dummyPlane's first release will be 0.1.0; until then, its changes are listed und
   - **A terminal laid out again while it is being started** gives its process the new size, instead of drawing the agent at the old width until the next resize.
   - **A terminal closed while it is being started,** or whose workspace or project is deleted then, has its process stopped as soon as it starts, instead of an agent left running unseen.
   - **A closed node no longer comes back as a ghost:** a change that reached it after its close no longer writes it back to the database.
-- **Sub-agents on Codex:**
+  - **On macOS and Linux, a terminal's process group is hung up once,** at its exit or its kill, so a close in the seconds its exit is still being reported no longer signals the group of a process already gone.
+  - **A sub-agent's launch lists what Codex has installed on a thread of its own,** instead of holding one of the app's async workers for the seconds, or the minute, the listing takes.
+- **Sub-agents:**
   - **Codex's skills list is read from its own heading,** so a sentence naming "### Available skills" before the list, as Codex 0.167 prints it in some setups, no longer reads as an empty list that left every skill on.
   - **A Codex listing that never ends is stopped** after two minutes and refused, instead of holding the sub-agent's launch, and every `spawn_agent` queued behind it.
+  - **A cold Codex no longer opens a sub-agent twice.** Its listings are kept for five minutes, and `spawn_agent` and `installed_extras` answer within twenty seconds that Codex is still listing, with nothing opened, where the caller heard "not responding" while the sub-agent opened anyway and a retry opened another.
+  - **A `spawn_agent` call that waited behind other spawns past 25 seconds is refused** instead of opening, so no sub-agent opens after its caller heard "not responding" and asked again.
+  - **The Codex listings of a sub-agent's pick and of a Fleet's servers have a time limit,** and stopping one past it ends the processes its shim started too.
+  - **An MCP pick on Claude is no longer refused for a server whose name dummyPlane cannot pass on,** which Claude's own strict file leaves out, and the refusals left name the CLI they are about.
+  - **A `spawn_agent` task cut at its length limit no longer keeps half an emoji,** which Rust refused when `read_node` read the sub-agent before a restart.
 - **The review panel:**
   - **A cut list of changes keeps the agent's changes to tracked files** before the untracked ones, which an install folder without a `.gitignore` filled first.
   - **A file name with brackets,** such as a Next.js `[id]` route, gets its own diff only, not those of the files its pattern also matches.
@@ -104,6 +114,7 @@ dummyPlane's first release will be 0.1.0; until then, its changes are listed und
   - **Editing a loop opens its form clean,** without the error an unsaved form left on a valid loop.
   - **A loop on idle relaunches an agent that went idle again during its 30 s pause,** and every target that went idle together, one each pause.
   - **A watched text that appears while its agent is busy** fires once the agent is free again, if it is still on screen, once per appearance.
+  - **A loop whose every target was closed stops and says no agent is left,** where the record kept of a closed terminal, for an undo, still counted as a target and kept the loop running with nothing to send.
 - **Notes, the Code Studio and the rest:**
   - **A Markdown heading keeps a hash that ends its title,** as in C# or F#, in the note reader and the studio preview.
   - **The Markdown preview drops a byte order mark,** so a file saved by Notepad or PowerShell starts with its heading, and reads a code fence's language from the first word of its info string, so a fence with a title no longer opens a block over the text after it.
@@ -114,11 +125,18 @@ dummyPlane's first release will be 0.1.0; until then, its changes are listed und
   - **A highlighted token inside another, in an output's Code block, keeps both styles,** so emphasis in a Markdown quote keeps the quote's colour, and in a heading its weight.
   - **Output tokens are no longer undercounted:** a message Claude Code logs in several lines as it streams is counted once, at its largest count, where about one message in a hundred came out too low.
   - **A wikilink inside a code fence** is left out of the backlinks and the graph by the same rules as the note reader.
-  - **The project tree says when it was cut at its limit of entries,** so a file past the cut is no longer taken for a missing one.
+  - **The project tree says when it was cut,** at its limit of entries, or where its walk left a folder unentered at the depth limit, so a file past the cut is no longer taken for a missing one.
   - **Saving a file in the Code Studio keeps the line endings of the lines you did not edit,** so a file that mixes CRLF and LF, or holds a lone CR, is no longer rewritten with one ending throughout.
   - **Undoing a preset's delete puts it back at its place in the list,** and never over a preset saved meanwhile under its name: both are kept, the one taken back renamed.
   - **An output's Code block copied as text, or read by an agent,** is fenced with more backticks than its code holds, so code that shows a fenced block of its own no longer closes it early. A Progress copied that way says the share its bar shows.
   - **The log file hides a bearer token and dummyPlane's own token header whatever their case,** where only an exact `Bearer` was caught and the token header not at all, and a console line sent to it fills each of its format directives with its value.
+
+### Security
+- **A repository's `core.fsmonitor` program is never run.** git runs it whenever it reads the index, and a repository's own `.git/config` may name one: a project unpacked from an archive with its `.git`, or a repository an agent wrote to. dummyPlane's own git calls (the branch chip's status every 5 s, the review panel, the Code Studio and a mission's merge) now turn it off.
+- **The review panel never runs a repository's textconv program.** A `.gitattributes` could give every file a `diff.<driver>.textconv` command from the repository's config, which ran on each diff the panel showed. The panel's diffs now skip it and show the file's own text.
+- **A sub-agent gets at most what its spawner has.** Its pick of skills, MCP servers and plugins is checked in Rust against the spawner's own pick and the switches it turned off, before the terminal opens and again at each launch, where it does not start. A restricted agent can no longer widen its sub-agents by naming items or by leaving a kind out: of each kind, it hands down only its pick or what its CLI gives by default.
+- **A pick never turns on a project's MCP server you have not approved,** which a spawner could otherwise have enabled for a repository's own server. It may still switch on a skill, a plugin or an MCP server your settings leave off.
+- **`installed_extras` lists names without control characters,** one line each, so a newline in a server's key or a skill's name can no longer begin a line of the spawner's context, and such a name can no longer be picked.
 
 ## [0.1.0] - 2026-11-12
 

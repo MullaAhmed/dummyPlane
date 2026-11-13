@@ -2,6 +2,9 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { showAbout } from "@/app/about";
+import { arrive } from "@/canvas/arrive";
+import { canvasStore } from "@/canvas/canvasStore";
+import { createNodeElement } from "@/canvas/nodeElement";
 import { fitScene, zoomTo } from "@/canvas/viewActions";
 import { agentsPanelStore } from "@/agents/agentsPanelState";
 import { currentWaitingAgents } from "@/agents/waitingAgents";
@@ -11,6 +14,7 @@ import { closeWindow, minimizeWindow, toggleMaximizeWindow, windowStore } from "
 import { removeWorkspace } from "@/shell/workspaceActions";
 import { projectsStore } from "@/store/projects";
 import { workspacesStore } from "@/store/workspaces";
+import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { labelOf, type Command, type CommandContext } from "../command";
 import { goToNextWaiting } from "../goToRun";
 import { pendingUiRequest } from "../uiRequests";
@@ -52,6 +56,62 @@ beforeEach(() => {
   } as never);
 });
 afterAll(() => clearMocks());
+
+describe("Ctrl+Tab", () => {
+  /** A group folded onto its label holding h1 and h2 (hidden), and two terminals standing loose, below. */
+  const terminal = (id: string, x: number, y: number, frameId: string | null = null) => ({ ...createNodeElement("terminal", { x, y }), id, frameId }) as ExcalidrawElement;
+  const group = (folded: boolean) =>
+    ({
+      id: "g",
+      type: "frame",
+      x: 0,
+      y: 0,
+      width: 2000,
+      height: 600,
+      isDeleted: false,
+      frameId: null,
+      groupIds: [],
+      name: "Group",
+      customData: { dummyplane: { kind: "group", role: "general", pantheon: "greek", ...(folded ? { folded: true } : {}) } },
+    }) as unknown as ExcalidrawElement;
+  const scene = (folded: boolean, loose = ["l1", "l2"]) => [
+    terminal("h1", 400, 300, "g"),
+    terminal("h2", 1200, 300, "g"),
+    group(folded),
+    ...loose.map((id, i) => terminal(id, 400 + 800 * i, 1400)),
+  ];
+  const press = (id: "terminal.next" | "terminal.previous", from: string | null) => find(NAVIGATION, id).run({ ...busy, terminalId: from });
+  const withScene = (elements: ExcalidrawElement[]) => canvasStore.setState({ api: { getSceneElements: () => elements } as never });
+
+  beforeEach(() => vi.mocked(arrive).mockClear());
+
+  it("goes round the terminals on the screen, skipping those a folded group keeps off it", async () => {
+    withScene(scene(true));
+    await press("terminal.next", "l1");
+    await press("terminal.next", "l2");
+    await press("terminal.previous", "l1");
+    expect(vi.mocked(arrive).mock.calls.map(([id]) => id)).toEqual(["l2", "l1", "l2"]);
+  });
+
+  it("starts from the first or the last when the terminal it leaves is hidden, and does nothing when all of them are", async () => {
+    withScene(scene(true));
+    await press("terminal.next", "h1");
+    await press("terminal.previous", "h2");
+    expect(vi.mocked(arrive).mock.calls.map(([id]) => id)).toEqual(["l1", "l2"]);
+    vi.mocked(arrive).mockClear();
+    withScene(scene(true, []));
+    await press("terminal.next", "h1");
+    await press("terminal.previous", null);
+    expect(arrive).not.toHaveBeenCalled();
+  });
+
+  it("goes through an open group's terminals too", async () => {
+    withScene(scene(false));
+    await press("terminal.next", "h2");
+    await press("terminal.next", "l2");
+    expect(vi.mocked(arrive).mock.calls.map(([id]) => id)).toEqual(["l1", "h1"]);
+  });
+});
 
 describe("Navigation", () => {
   it("lists the functions, in their fixed order", () => {

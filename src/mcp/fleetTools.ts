@@ -346,6 +346,12 @@ async function cleanUpMission(fleetId: string): Promise<ToolResult> {
 }
 
 /**
+ * How long `tickets` waits for its source: under the 30 s Rust gives a tool, past which the Fleet only hears "dummyPlane
+ * is not responding", where a `gh` that gets no answer runs up to its own 60 s limit.
+ */
+const TICKETS_WAIT_MS = 20_000;
+
+/**
  * `tickets`: dummyPlane reads the source, the fleet may not run commands.
  * It reads in the folder recorded when the team was formed: only before the launch is the live one used.
  */
@@ -354,10 +360,19 @@ async function tickets(fleetId: string, mission: Mission): Promise<ToolResult> {
   if (!mission.tickets || !project) return refused(t().fleet.noTickets);
   // Linear's tickets are the fleet's to read, with Linear's own read-only tools.
   if (mission.tickets.kind === "linear") return json({ note: t().fleet.ticketsNote, linear: t().fleet.linearTickets(mission.tickets.team, mission.tickets.label) });
+  const reading = readTickets(project, mission.tickets);
+  // Read on past the wait, it ends unheard: its failure then is no one's.
+  reading.catch(() => undefined);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<"late">((resolve) => (timer = setTimeout(() => resolve("late"), TICKETS_WAIT_MS)));
   try {
-    return json({ note: t().fleet.ticketsNote, tickets: await readTickets(project, mission.tickets) });
+    const read = await Promise.race([reading, late]);
+    if (read === "late") return refused(t().fleet.ticketsLate);
+    return json({ note: t().fleet.ticketsNote, tickets: read });
   } catch (error) {
     return refused(t().fleet.ticketsFailed(error instanceof Error ? error.message : String(error)));
+  } finally {
+    clearTimeout(timer);
   }
 }
 

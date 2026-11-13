@@ -85,7 +85,7 @@ describe("what is under a right press", () => {
     expect(sceneTarget(pick({ x: 900, y: 900 }, scene, groups))).toEqual({ kind: "canvas" });
   });
 
-  it("never points at a terminal a folded group keeps off the screen: the press is the group's, where a locked one in an open group stays found", () => {
+  it("never points at a terminal a folded group keeps off the screen, and a folded group is only its label: its body is the canvas's, where a locked terminal in an open group stays found", () => {
     const info = (folded: boolean) => ({ dummyplane: { kind: "group", role: "general", pantheon: "greek", ...(folded ? { folded: true } : {}) } });
     const folded = element("folded", { type: "frame", x: 0, y: 0, width: 400, height: 300, customData: info(true) });
     const hidden = element("hidden", { type: "embeddable", customData: { kind: "terminal" }, x: 20, y: 20, frameId: "folded", locked: true });
@@ -93,8 +93,18 @@ describe("what is under a right press", () => {
     const kept = element("kept", { type: "embeddable", customData: { kind: "terminal" }, x: 620, y: 20, frameId: "open", locked: true });
     const scene = [hidden, folded, kept, open];
     const groups = { groupIds: new Set(["folded", "open"]) };
-    expect(sceneTarget(pick({ x: 50, y: 50 }, scene, groups))).toEqual({ kind: "group", id: "folded" });
+    // Its body shows nothing, whatever stood there: a press is the canvas's. Its label, above the frame, is the group's.
+    expect(sceneTarget(pick({ x: 50, y: 50 }, scene, groups))).toEqual({ kind: "canvas" });
+    expect(sceneTarget(pick({ x: 390, y: 290 }, scene, groups))).toEqual({ kind: "canvas" });
+    expect(sceneTarget(pick({ x: 50, y: -10 }, scene, groups))).toEqual({ kind: "group", id: "folded" });
+    expect(sceneTarget(pick({ x: 50, y: 0 }, scene, groups))).toEqual({ kind: "group", id: "folded" });
+    expect(sceneTarget(pick({ x: 450, y: -10 }, scene, groups))).toEqual({ kind: "canvas" });
+    // The label keeps its height on screen, whatever the zoom.
+    expect(sceneTarget(pick({ x: 50, y: -40 }, scene, { ...groups, zoom: 0.5 }))).toEqual({ kind: "group", id: "folded" });
+    expect(sceneTarget(pick({ x: 50, y: -40 }, scene, groups))).toEqual({ kind: "canvas" });
+    // An open group is its whole frame, as before.
     expect(sceneTarget(pick({ x: 650, y: 50 }, scene, groups))).toEqual({ kind: "terminal", id: "kept" });
+    expect(sceneTarget(pick({ x: 900, y: 250 }, scene, groups))).toEqual({ kind: "group", id: "open" });
   });
 });
 
