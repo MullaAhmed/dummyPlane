@@ -31,7 +31,11 @@ export const loopsMessages = defineMessages({
       name: "Name",
       instruction: "Instruction sent",
       targets: "Agents",
-      noTargets: "No agent on the canvas",
+      noTargets: "No agent in this project",
+      // A loop whose only targets are plain shells (saved before loops were agents only): it stays off.
+      noAgent: "no agent among its targets: edit it to choose agents",
+      // Loops of other projects still run; the indicator's Stop all stops them with this project's.
+      elsewhere: (running: number) => `${plural(running, "loop runs", "loops run")} in other projects: Stop all, at the bottom left, stops them too.`,
       trigger: "Trigger",
       triggers: { interval: "Every N minutes", idle: "An agent becomes idle", output: "Output contains a text" },
       // A number reads as a sentence, the field between the words: "Every 30 minutes", "At most 5 runs".
@@ -54,7 +58,13 @@ export const loopsMessages = defineMessages({
       off: "off",
       round: (runs: number, max: number | undefined) => (max === undefined ? `run ${runs}` : `run ${runs} / ${max}`),
       untilEnd: (minutes: number) => `ends in ${minutes} min`,
-      stopped: { runs: "done: runs reached", duration: "done: duration reached", manual: "stopped", noTargets: "stopped: no agent left" } as Record<StopReason, string>,
+      stopped: {
+        runs: "done: runs reached",
+        duration: "done: duration reached",
+        manual: "stopped",
+        noTargets: "stopped: no agent left",
+        noAgents: "stopped: its targets are shells, not agents",
+      } as Record<StopReason, string>,
       cost: (loop: { trigger: LoopTrigger; maxRuns?: number; maxMinutes?: number }) => {
         const parts: string[] = [];
         if (loop.maxRuns !== undefined) parts.push(plural(loop.maxRuns, "run", "runs"));
@@ -73,7 +83,7 @@ export const loopsMessages = defineMessages({
         minutes: "The duration is 1 to 1440 minutes",
         stop: "Set an end: a number of runs or a duration",
       } as Record<LoopError, string>,
-      full: "Too many loops (30 at most): delete one first",
+      full: "Too many loops in this project (30 at most): delete one first",
       failed: "Could not change the loops",
     },
   });

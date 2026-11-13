@@ -20,14 +20,25 @@ export interface LoopDraft {
 /** A valid loop: it has a name, an instruction, a target and at least one stop condition. */
 export interface LoopDef extends LoopDraft {
   id: string;
+  /**
+   * The project whose agents it targets: only that project shows it and turns it on. "" for a loop placed in no
+   * project (`placeLoops`), which every project shows until it is saved in one.
+   */
+  projectId: string;
 }
 
+/** A loop of a setting saved before loops belonged to a project (version 1). */
+export type UnplacedLoop = Omit<LoopDef, "projectId">;
+
+/** The most loops of one project. */
 export const MAX_LOOPS = 30;
 export const MAX_RUNS = 1000;
 export const MAX_MINUTES = 1440;
 export const MAX_TEXT = 200;
-/** Version of the saved setting (`loops.list`). */
-export const LOOPS_VERSION = 1;
+/** Version of the saved setting (`loops.list`): 2 since each loop names its project. */
+export const LOOPS_VERSION = 2;
+/** The version before loops belonged to a project, read once to place them (`placeLoops`). */
+const UNPLACED_VERSION = 1;
 
 export type LoopError = "name" | "instruction" | "targets" | "interval" | "text" | "runs" | "minutes" | "stop";
 
@@ -94,7 +105,7 @@ function readTrigger(raw: unknown): LoopTrigger | null {
   return null;
 }
 
-function readLoop(raw: unknown): LoopDef | null {
+function readLoop(raw: unknown): UnplacedLoop | null {
   if (!isObject(raw) || typeof raw.id !== "string" || typeof raw.name !== "string" || typeof raw.instruction !== "string") return null;
   const trigger = readTrigger(raw.trigger);
   if (!trigger || !Array.isArray(raw.targets) || !raw.targets.every((t): t is string => typeof t === "string")) return null;
@@ -109,17 +120,50 @@ function readLoop(raw: unknown): LoopDef | null {
   return result.ok ? { ...result.loop, id: raw.id } : null;
 }
 
-/** The loops of the saved setting: an invalid one is left out, the others stay. */
+/** The loops of the saved setting: an invalid one is left out, the others stay, MAX_LOOPS at most per project. */
 export function readLoops(raw: unknown): LoopDef[] {
   if (!isObject(raw) || raw.version !== LOOPS_VERSION || !Array.isArray(raw.loops)) return [];
+  const loops = raw.loops.flatMap((l) => {
+    const loop = readLoop(l);
+    return loop && isObject(l) && typeof l.projectId === "string" ? [{ ...loop, projectId: l.projectId }] : [];
+  });
+  return loops.filter((loop, i) => loops.slice(0, i).filter((l) => l.projectId === loop.projectId).length < MAX_LOOPS);
+}
+
+/** The loops of a setting saved before loops belonged to a project; null when it is not one (`placeLoops`). */
+export function readUnplacedLoops(raw: unknown): UnplacedLoop[] | null {
+  if (!isObject(raw) || raw.version !== UNPLACED_VERSION || !Array.isArray(raw.loops)) return null;
   return raw.loops.flatMap((l) => readLoop(l) ?? []).slice(0, MAX_LOOPS);
 }
 
-/** The list with `loop` added, or replacing the one of its id; null when the list is full. */
+/**
+ * Version 1's loops placed in a project, once: the project all their targets still saved belong to (`projectOf`, by
+ * node id); a loop whose targets are gone, or lie in several projects, goes to the project open at the migration
+ * (`active`), else to none (""), which every project shows. None is ever left out.
+ */
+export function placeLoops(loops: readonly UnplacedLoop[], projectOf: Readonly<Record<string, string>>, active: string | null): LoopDef[] {
+  return loops.map((loop) => {
+    const projects = new Set(loop.targets.flatMap((id) => projectOf[id] ?? []));
+    const only = projects.size === 1 ? [...projects][0] : undefined;
+    return { ...loop, projectId: only ?? active ?? "" };
+  });
+}
+
+/** The loops a project shows: its own, and those of no project it knows (placed in none, or of a project removed since). */
+export function loopsOf(list: readonly LoopDef[], projectId: string | null, known: readonly string[]): LoopDef[] {
+  return list.filter((l) => l.projectId === projectId || !known.includes(l.projectId));
+}
+
+/** A project's list is full: MAX_LOOPS loops other than `id` already belong to it. */
+export const projectFull = (list: readonly LoopDef[], projectId: string, id?: string) =>
+  list.filter((l) => l.projectId === projectId && l.id !== id).length >= MAX_LOOPS;
+
+/** The list with `loop` added, or replacing the one of its id; null when its project's list is full. */
 export function withLoop(list: readonly LoopDef[], loop: LoopDef): LoopDef[] | null {
+  if (projectFull(list, loop.projectId, loop.id)) return null;
   const at = list.findIndex((l) => l.id === loop.id);
   if (at !== -1) return list.map((l, i) => (i === at ? loop : l));
-  return list.length >= MAX_LOOPS ? null : [...list, loop];
+  return [...list, loop];
 }
 
 export function withoutLoop(list: readonly LoopDef[], id: string): LoopDef[] {

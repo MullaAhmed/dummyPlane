@@ -62,6 +62,24 @@ pub fn ids_of_workspace(conn: &Connection, workspace_id: &str) -> AppResult<Vec<
     Ok(ids.collect::<rusqlite::Result<_>>()?)
 }
 
+/// The project of each node that is still saved, by node id: a node gone (or never saved) is left out.
+pub fn projects_of(
+    conn: &Connection,
+    node_ids: &[String],
+) -> AppResult<std::collections::HashMap<String, String>> {
+    let mut stmt = conn.prepare(
+        "SELECT w.project_id FROM nodes n JOIN workspaces w ON w.id = n.workspace_id WHERE n.id = ?1",
+    )?;
+    let mut found = std::collections::HashMap::new();
+    for id in node_ids {
+        let mut rows = stmt.query_map([id], |row| row.get::<_, String>(0))?;
+        if let Some(project) = rows.next().transpose()? {
+            found.insert(id.clone(), project);
+        }
+    }
+    Ok(found)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -95,6 +113,26 @@ mod tests {
                 save(conn, "a1", &a.id, NodeKind::Terminal, "{}")?;
                 save(conn, "b1", &b.id, NodeKind::Note, "{}")?;
                 assert_eq!(ids_of_workspace(conn, &a.id)?, vec!["a1".to_string()]);
+                Ok(())
+            })
+            .unwrap();
+    }
+
+    #[test]
+    fn finds_the_project_of_each_saved_node_and_leaves_a_gone_one_out() {
+        Db::open_in_memory()
+            .unwrap()
+            .with(|conn| {
+                let a = test_workspace(conn, "A")?;
+                let other = crate::db::projects::create(conn, "C:/dummyplane-tests-other")?;
+                let b = crate::db::workspaces::create(conn, &other.id, "B", "canvas")?;
+                save(conn, "a1", &a.id, NodeKind::Terminal, "{}")?;
+                save(conn, "b1", &b.id, NodeKind::Terminal, "{}")?;
+                let found = projects_of(conn, &["a1".into(), "b1".into(), "gone".into()])?;
+                assert_eq!(found.len(), 2);
+                assert_eq!(found["a1"], a.project_id);
+                assert_eq!(found["b1"], other.id);
+                assert!(projects_of(conn, &[])?.is_empty());
                 Ok(())
             })
             .unwrap();

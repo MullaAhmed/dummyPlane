@@ -8,7 +8,7 @@ export const COOLDOWN_MS = 30_000;
 /** How often the engine is ticked (output screens are read at each tick). */
 export const TICK_MS = 2000;
 
-export type StopReason = "runs" | "duration" | "manual" | "noTargets";
+export type StopReason = "runs" | "duration" | "manual" | "noTargets" | "noAgents";
 
 /** What the interface shows of a loop. */
 export interface LoopRuntime {
@@ -23,6 +23,8 @@ export interface EngineDeps {
   now: () => number;
   /** The agent is still on the canvas. */
   isLive: (nodeId: string) => boolean;
+  /** The target is an agent: a plain shell is never typed into, a loop's targets are agents only. */
+  isAgent: (nodeId: string) => boolean;
   activityOf: (nodeId: string) => Activity | undefined;
   /** What the agent's terminal shows now. */
   screenOf: (nodeId: string) => string;
@@ -44,8 +46,12 @@ interface State {
   busy: boolean;
 }
 
-/** A Claude or a Codex that quit leaves its shell running, and the shell would run the text as a command (README mission). */
+/**
+ * A Claude or a Codex that quit leaves its shell running, and the shell would run the text as a command (README
+ * mission); a plain shell terminal would too, so it never takes one.
+ */
 export function acceptsInstruction(agent: AgentId | undefined, screen: string): boolean {
+  if (agent === "shell") return false;
   return !agent || promptUp(agent, screen);
 }
 
@@ -89,7 +95,7 @@ export function createLoopEngine(deps: EngineDeps, onChange: (id: string, runtim
 
   /** One send to `ids`; counted only if it reached someone. */
   async function run(state: State, ids: string[]) {
-    const targets = ids.filter((id) => deps.isLive(id) && deps.activityOf(id) !== "waiting" && deps.canReceive(id));
+    const targets = ids.filter((id) => deps.isLive(id) && deps.isAgent(id) && deps.activityOf(id) !== "waiting" && deps.canReceive(id));
     if (targets.length === 0 || state.busy) return;
     state.busy = true;
     state.lastRunAt = deps.now();
@@ -113,8 +119,11 @@ export function createLoopEngine(deps: EngineDeps, onChange: (id: string, runtim
     const { def } = state;
     const now = deps.now();
     if (def.maxMinutes !== undefined && now - (state.runtime.startedAt ?? now) >= def.maxMinutes * 60_000) return stop(def.id, "duration");
-    const targets = def.targets.filter(deps.isLive);
-    if (targets.length === 0) return stop(def.id, "noTargets");
+    const live = def.targets.filter(deps.isLive);
+    if (live.length === 0) return stop(def.id, "noTargets");
+    // A loop saved when shells could be targets: none of its own is an agent, it says so rather than send nothing.
+    const targets = live.filter(deps.isAgent);
+    if (targets.length === 0) return stop(def.id, "noAgents");
     if (state.busy) return;
     const { trigger } = def;
     if (trigger.kind === "interval") {

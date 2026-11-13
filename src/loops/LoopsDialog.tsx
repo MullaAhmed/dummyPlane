@@ -9,10 +9,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { useUiRequest } from "@/commands/uiRequests";
 import { messages, useMessages } from "@/i18n";
 import { AccentButton, QuietButton } from "@/shell/buttons";
-import { nodeNameOf, useNodes } from "@/store/nodes";
+import { nodeNameOf, useNodes, type NodeRecord } from "@/store/nodes";
+import { useProjects } from "@/store/projects";
+import { useWorkspaces } from "@/store/workspaces";
 import { useLoops, loopsStore } from "./live";
 import { loopsMessages } from "./messages";
-import { LOOP_TEMPLATES, validateLoop, type LoopDef, type LoopError, type LoopTrigger } from "./model";
+import { LOOP_TEMPLATES, loopsOf, validateLoop, type LoopDef, type LoopError, type LoopTrigger } from "./model";
 
 interface Form {
   /** The loop being edited; null for a new one. */
@@ -52,13 +54,20 @@ const BLANK: Form = { id: null, name: "", instruction: "", targets: [], trigger:
 
 const number = (value: string) => (value.trim() === "" ? undefined : Number(value));
 
-function formOf(loop: LoopDef): Form {
+/** A plain shell terminal: never a loop's target, its text would run as a command. */
+const isShell = (node: NodeRecord | undefined) => node?.kind === "terminal" && node.payload.agent === "shell";
+
+/**
+ * The form of a loop. Its targets lose a shell and an agent of another project (a loop saved before loops were
+ * agents only, and per project); one not on screen (a canvas not opened yet) stays, its project unknown here.
+ */
+function formOf(loop: LoopDef, nodes: Record<string, NodeRecord>, inProject: (workspaceId: string) => boolean): Form {
   const { trigger } = loop;
   return {
     id: loop.id,
     name: loop.name,
     instruction: loop.instruction,
-    targets: loop.targets,
+    targets: loop.targets.filter((id) => !isShell(nodes[id]) && (nodes[id] === undefined || inProject(nodes[id].workspaceId))),
     trigger: trigger.kind,
     minutes: trigger.kind === "interval" ? String(trigger.minutes) : "30",
     text: trigger.kind === "output" ? trigger.text : "",
@@ -73,7 +82,10 @@ function triggerOf(form: Form): LoopTrigger {
   return { kind: "interval", minutes: Number(form.minutes) };
 }
 
-/** The loops: the list and the form, opened by the palette or the indicator. */
+/**
+ * The open project's loops: the list and the form, opened by the palette or the indicator. A loop targets the
+ * project's agents only, never a plain shell; a loop placed in no project shows in each until it is saved in one.
+ */
 export function LoopsDialog() {
   const t = useMessages(loopsMessages).dialog;
   const formId = useId();
@@ -83,14 +95,23 @@ export function LoopsDialog() {
   const [error, setError] = useState<LoopError | null>(null);
   // The loop just deleted: its row gives way to an Undo in its place, until the dialog closes. Not a toast: the
   // modal dialog keeps the pointer and the keyboard off everything outside it, a toast's button included.
-  const [deleted, setDeleted] = useState<{ loop: LoopDef; index: number } | null>(null);
+  // `index`: its place in every project's list, where Undo puts it back; `at`: its row among this project's.
+  const [deleted, setDeleted] = useState<{ loop: LoopDef; index: number; at: number } | null>(null);
   // The row the keyboard goes to next: the Undo that replaced a deleted loop, or the loop taken back.
   const [focusRow, setFocusRow] = useState<string | null>(null);
   const list = useRef<HTMLDivElement>(null);
-  const loops = useLoops((s) => s.loops);
+  const all = useLoops((s) => s.loops);
   const runtime = useLoops((s) => s.runtime);
   const nodes = useNodes((s) => s.nodes);
-  const terminals = Object.entries(nodes).filter(([, node]) => node.kind === "terminal");
+  const projectId = useProjects((s) => s.activeId);
+  const projects = useProjects((s) => s.projects);
+  const workspaces = useWorkspaces((s) => s.workspaces);
+  const inProject = (workspaceId: string) => workspaces.some((w) => w.id === workspaceId);
+  const loops = loopsOf(all, projectId, projects.map((p) => p.id));
+  // Running in another project: the indicator counts them, and its Stop all stops them too.
+  const elsewhere = all.filter((l) => runtime[l.id]?.running && !loops.includes(l)).length;
+  // The agents of the open project: a plain shell would run the instruction as a command.
+  const terminals = Object.entries(nodes).filter(([, node]) => node.kind === "terminal" && !isShell(node) && inProject(node.workspaceId));
   useUiRequest("loops", () => {
     setForm(null);
     setDeleted(null);
@@ -132,14 +153,15 @@ export function LoopsDialog() {
   }, [focusRow]);
 
   // Deleted at once, and taken back from its row: the loop's instruction, targets and limits are the user's work.
-  const remove = async (loop: LoopDef, index: number) => {
+  const remove = async (loop: LoopDef, at: number) => {
+    const index = all.findIndex((l) => l.id === loop.id);
     try {
       await loopsStore.getState().remove(loop.id);
     } catch (e) {
       toastError(messages(loopsMessages).dialog.failed, { error: e });
       return;
     }
-    setDeleted({ loop, index });
+    setDeleted({ loop, index, at });
     setFocusRow(DELETED_ROW);
   };
 
@@ -173,7 +195,8 @@ export function LoopsDialog() {
       return;
     }
     try {
-      const result = await loopsStore.getState().save({ ...checked.loop, id: form.id ?? crypto.randomUUID() });
+      // Saved in the open project: a loop placed in none becomes its own.
+      const result = await loopsStore.getState().save({ ...checked.loop, id: form.id ?? crypto.randomUUID(), projectId: projectId ?? "" });
       if (result === "full") toastError(messages(loopsMessages).dialog.full);
       else setForm(null);
     } catch (e) {
@@ -197,6 +220,11 @@ export function LoopsDialog() {
         {form === null ? (
           <div ref={list} className="flex flex-col gap-2">
             {loops.length === 0 && !deleted && <p className="py-4 text-center text-xs text-dp-text-2">{t.empty}</p>}
+            {elsewhere > 0 && (
+              <p data-loops-elsewhere className="text-xs text-dp-text-2">
+                {t.elsewhere(elsewhere)}
+              </p>
+            )}
             {withDeleted(
               deleted && (
                 <div key={DELETED_ROW} data-loop-row={DELETED_ROW} className="flex items-center gap-2 rounded-md border border-dashed border-dp-line px-3 py-2">
@@ -208,10 +236,12 @@ export function LoopsDialog() {
                   </Button>
                 </div>
               ),
-              deleted?.index ?? 0,
+              deleted?.at ?? 0,
               loops.map((loop, index) => {
                 const state = runtime[loop.id];
                 const running = state?.running === true;
+                // Saved when shells could be targets, it has no agent left to type into: it says so, and stays off.
+                const noAgent = !running && loop.targets.every((id) => isShell(nodes[id]));
                 const left =
                   running && loop.maxMinutes !== undefined && state.startedAt !== null
                     ? Math.max(0, Math.ceil(loop.maxMinutes - (Date.now() - state.startedAt) / 60_000))
@@ -226,12 +256,19 @@ export function LoopsDialog() {
                       <p className="font-mono text-xs text-dp-text-3 tabular-nums">
                         {running
                           ? `${t.round(state.runs, loop.maxRuns)}${left === null ? "" : ` · ${t.untilEnd(left)}`}`
-                          : state?.stoppedBecause
-                            ? `${t.stopped[state.stoppedBecause]} · ${t.round(state.runs, loop.maxRuns)}`
-                            : t.off}
+                          : noAgent
+                            ? t.noAgent
+                            : state?.stoppedBecause
+                              ? `${t.stopped[state.stoppedBecause]} · ${t.round(state.runs, loop.maxRuns)}`
+                              : t.off}
                       </p>
                     </div>
-                    <Button size="sm" variant={running ? "destructive" : "default"} onClick={() => (running ? loopsStore.getState().stop(loop.id) : loopsStore.getState().start(loop.id))}>
+                    <Button
+                      size="sm"
+                      variant={running ? "destructive" : "default"}
+                      disabled={noAgent}
+                      onClick={() => (running ? loopsStore.getState().stop(loop.id) : loopsStore.getState().start(loop.id))}
+                    >
                       {running ? t.turnOff : t.turnOn}
                     </Button>
                     <Button
@@ -239,7 +276,7 @@ export function LoopsDialog() {
                       variant="ghost"
                       className={ROW_BUTTON}
                       onClick={() => {
-                        setForm(formOf(loop));
+                        setForm(formOf(loop, nodes, inProject));
                         setError(null);
                       }}
                     >

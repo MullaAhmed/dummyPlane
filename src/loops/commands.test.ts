@@ -10,8 +10,8 @@ vi.mock("@excalidraw/excalidraw", () => ({}));
 vi.mock("./live", async () => {
   const { createLoopsStore } = await import("./store");
   const store = createLoopsStore(
-    { now: () => 0, isLive: () => true, activityOf: () => undefined, screenOf: () => "", canReceive: () => true, send: async () => ({ sent: 0 }) },
-    { read: async () => null, write: async () => undefined },
+    { now: () => 0, isLive: () => true, isAgent: () => true, activityOf: () => undefined, screenOf: () => "", canReceive: () => true, send: async () => ({ sent: 0 }) },
+    { read: async () => null, write: async () => undefined, projectsOf: async () => ({}), activeProject: () => "p1" },
     { setInterval: () => 0 as never, clearInterval: () => undefined },
   );
   return { loopsStore: store };
@@ -19,7 +19,7 @@ vi.mock("./live", async () => {
 
 const project: CommandContext = { project: true, workspaceId: "w1", terminalCount: 1, terminalId: null };
 const home: CommandContext = { project: false, workspaceId: null, terminalCount: 0, terminalId: null };
-const loop = { id: "1", name: "Point", instruction: "go", targets: ["a"], trigger: { kind: "interval", minutes: 5 } as const, maxRuns: 2 };
+const loop = { id: "1", name: "Point", instruction: "go", targets: ["a"], trigger: { kind: "interval", minutes: 5 } as const, maxRuns: 2, projectId: "p1" };
 
 beforeEach(() => {
   loopsStore.setState({ loops: [loop], loaded: true, runtime: {} });

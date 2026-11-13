@@ -1,11 +1,13 @@
 // @vitest-environment happy-dom
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import { requestUi } from "@/commands/uiRequests";
 import { accessibleDescription, getByRole } from "@/lib/a11y";
 import { nodesStore } from "@/store/nodes";
+import { projectsStore } from "@/store/projects";
+import { workspacesStore } from "@/store/workspaces";
 import { LoopsDialog } from "./LoopsDialog";
 import { LoopsIndicator } from "./LoopsIndicator";
 import { loopsStore } from "./live";
@@ -19,8 +21,16 @@ vi.mock("./live", async () => {
   const { useStore } = await import("zustand");
   const { createLoopsStore } = await import("./store");
   const store = createLoopsStore(
-    { now: () => Date.now(), isLive: () => true, activityOf: () => undefined, screenOf: () => "", canReceive: () => true, send: async (ids) => (sends.push(ids), { sent: ids.length }) },
-    { read: async () => null, write: async () => undefined },
+    {
+      now: () => Date.now(),
+      isLive: () => true,
+      isAgent: () => true,
+      activityOf: () => undefined,
+      screenOf: () => "",
+      canReceive: () => true,
+      send: async (ids) => (sends.push(ids), { sent: ids.length }),
+    },
+    { read: async () => null, write: async () => undefined, projectsOf: async () => ({}), activeProject: () => "p1" },
     { setInterval: () => 0 as never, clearInterval: () => undefined },
   );
   return { loopsStore: store, useLoops: (selector: (s: never) => unknown) => useStore(store, selector as never) };
@@ -35,6 +45,9 @@ beforeEach(async () => {
   mockIPC(() => null);
   sends.length = 0;
   loopsStore.setState({ loops: [], loaded: true, runtime: {} });
+  // Project p1 is open, its canvas w1; p2 is another project, its canvas w2.
+  projectsStore.setState({ activeId: "p1", projects: [project("p1"), project("p2")] as never });
+  workspacesStore.setState({ projectId: "p1", workspaces: [{ id: "w1", projectId: "p1", name: "Main", position: 0, pantheon: null, kind: "canvas", folder: null }] });
   await nodesStore.getState().create("batman", {
     workspaceId: "w1",
     kind: "terminal",
@@ -58,6 +71,10 @@ afterEach(async () => {
   document.body.replaceChildren();
   clearMocks();
 });
+
+function project(id: string) {
+  return { id, name: id, path: `C:/${id}`, position: 0, createdAt: 0, lastOpenedAt: 0, missing: false };
+}
 
 const button = (label: string) => [...document.querySelectorAll<HTMLButtonElement>("button")].find((b) => b.textContent === label)!;
 /** A field found as a screen reader finds it: by its role and the name its visible label gives it. */
@@ -125,6 +142,74 @@ it("saves a bounded loop, lists it off with its end, turns it on, shows the runs
   expect(document.querySelector("[data-loops-indicator]")).toBeNull();
 });
 
+describe("loops target agents only, and each project has its own", () => {
+  const loop = (id: string, projectId: string, targets: string[] = ["batman"]) => ({
+    id,
+    name: `Loop ${id}`,
+    instruction: "go",
+    targets,
+    trigger: { kind: "interval" as const, minutes: 30 },
+    maxRuns: 3,
+    projectId,
+  });
+  const terminal = (name: string, workspaceId: string, agent: "claude" | "shell") => ({
+    workspaceId,
+    kind: "terminal" as const,
+    payload: { title: name, name, agent, cwd: "C:/code", shell: "default" as const, command: "" },
+  });
+  const targets = () => [...document.querySelectorAll<HTMLElement>("[data-target]")].map((t) => t.dataset.target);
+  const rows = () => [...document.querySelectorAll<HTMLElement>("[data-loop-row]")].map((r) => r.dataset.loopRow);
+
+  beforeEach(async () => {
+    await nodesStore.getState().create("console", terminal("Console", "w1", "shell"));
+    await nodesStore.getState().create("thor", terminal("Thor", "w2", "claude"));
+  });
+
+  it("offers this project's agents as targets, never a plain shell nor another project's agent", async () => {
+    await open();
+    await act(async () => button("New loop").click());
+    expect(targets()).toEqual(["batman"]);
+  });
+
+  it("lists this project's loops and those of no project, saves a loop in this project, and says what runs elsewhere", async () => {
+    loopsStore.setState({ loops: [loop("mine", "p1"), loop("theirs", "p2", ["thor"]), loop("none", "")], loaded: true, runtime: {} });
+    await act(async () => loopsStore.getState().start("theirs"));
+    await open();
+    expect(rows()).toEqual(["mine", "none"]);
+    // The other project's loop still runs: the indicator counts it, and the list says where it is.
+    expect(document.querySelector("[data-loops-indicator]")?.textContent).toContain("1 loop");
+    expect(document.querySelector("[data-loops-elsewhere]")?.textContent).toBe("1 loop runs in other projects: Stop all, at the bottom left, stops them too.");
+    // Saved here, a loop of no project becomes this project's.
+    const edits = [...document.querySelectorAll<HTMLButtonElement>("button")].filter((b) => b.textContent === "Edit");
+    await act(async () => edits[1].click());
+    await act(async () => button("Save").click());
+    await vi.waitFor(() => expect(loopsStore.getState().loops.find((l) => l.id === "none")?.projectId).toBe("p1"));
+    // Another project open: its own loops only.
+    await act(async () => projectsStore.setState({ activeId: "p2" }));
+    expect(rows()).toEqual(["theirs"]);
+    expect(document.querySelector("[data-loops-elsewhere]")).toBeNull();
+    // Stop all, from the indicator, stops every project's loop.
+    await act(async () => document.querySelector<HTMLButtonElement>("[data-loops-indicator] button[data-stop-all]")!.click());
+    expect(loopsStore.getState().runningCount()).toBe(0);
+  });
+
+  it("shows a loop whose only target is a shell as having no agent, off, and drops the shell when it is edited", async () => {
+    loopsStore.setState({ loops: [loop("old", "p1", ["console"]), loop("mixed", "p1", ["console", "batman"])], loaded: true, runtime: {} });
+    await open();
+    const [old, mixed] = [...document.querySelectorAll<HTMLElement>("[data-loop-row]")];
+    expect(old.textContent).toContain("no agent among its targets: edit it to choose agents");
+    const turnOn = (row: HTMLElement) => [...row.querySelectorAll("button")].find((b) => b.textContent === "Turn on")!;
+    expect(turnOn(old).disabled).toBe(true);
+    // An agent beside the shell: it runs, and only the agent is typed into.
+    expect(turnOn(mixed).disabled).toBe(false);
+    await act(async () => [...old.querySelectorAll("button")].find((b) => b.textContent === "Edit")!.click());
+    expect(targets()).toEqual(["batman"]);
+    await act(async () => button("Save").click());
+    expect(document.body.textContent).toContain("Choose at least one agent");
+    expect(loopsStore.getState().loops[0].targets).toEqual(["console"]);
+  });
+});
+
 it("shows no indicator while nothing runs", () => {
   expect(document.querySelector("[data-loops-indicator]")).toBeNull();
 });
@@ -181,7 +266,7 @@ it("ties an error to the field it is about", async () => {
 
 it("opens a loop to edit without the error a form left before it", async () => {
   loopsStore.setState({
-    loops: [{ id: "a", name: "Point", instruction: "go", targets: ["batman"], trigger: { kind: "interval", minutes: 30 }, maxRuns: 3 }],
+    loops: [{ id: "a", name: "Point", instruction: "go", targets: ["batman"], trigger: { kind: "interval", minutes: 30 }, maxRuns: 3, projectId: "p1" }],
     loaded: true,
     runtime: {},
   });
@@ -206,7 +291,7 @@ it("names the indicator by what it shows first", async () => {
 
 it("deletes a loop at once and takes it back, turned off and at its place, from an Undo in its row (audit P2 #42)", async () => {
   toast.mockClear();
-  const loop = (id: string, name: string) => ({ id, name, instruction: "go", targets: ["batman"], trigger: { kind: "interval" as const, minutes: 30 }, maxRuns: 3 });
+  const loop = (id: string, name: string) => ({ id, name, instruction: "go", targets: ["batman"], trigger: { kind: "interval" as const, minutes: 30 }, maxRuns: 3, projectId: "p1" });
   loopsStore.setState({ loops: [loop("a", "Point"), loop("b", "Tests")], loaded: true, runtime: {} });
   await open();
   await act(async () => loopsStore.getState().start("a"));
