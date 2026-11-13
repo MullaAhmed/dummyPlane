@@ -89,7 +89,29 @@ pub struct ProcessTree {
     #[cfg(windows)]
     job: Option<job::Job>,
     #[cfg(unix)]
-    leader: Option<u32>,
+    leader: Leader,
+}
+
+/// The process that leads a terminal's group (macOS, Linux), hung up once: the first `end` takes it, the exit's or a
+/// kill's. A later one, a close or the stop of every terminal while its exit is still reported (its session lives up
+/// to `READER_DRAIN_TIMEOUT` past it), signals nothing: its PID, reaped, may lead someone else's group by then.
+#[cfg(any(unix, test))]
+struct Leader(std::sync::atomic::AtomicU32);
+
+#[cfg(any(unix, test))]
+impl Leader {
+    fn new(pid: Option<u32>) -> Self {
+        // 0 for none: no child process has it.
+        Self(std::sync::atomic::AtomicU32::new(pid.unwrap_or(0)))
+    }
+
+    /// Hands the leader's PID to `signal`, the first time only.
+    fn hang_up(&self, signal: impl FnOnce(u32)) {
+        match self.0.swap(0, std::sync::atomic::Ordering::SeqCst) {
+            0 => {}
+            pid => signal(pid),
+        }
+    }
 }
 
 impl ProcessTree {
@@ -110,26 +132,26 @@ impl ProcessTree {
         #[cfg(unix)]
         {
             Self {
-                leader: child.process_id(),
+                leader: Leader::new(child.process_id()),
             }
         }
     }
 
-    /// Ends every process of the tree. Idempotent: a tree already ended has none.
+    /// Ends every process of the tree. Idempotent: a tree already ended has none, and its group is hung up once.
     pub fn end(&self) {
         #[cfg(windows)]
         if let Some(job) = &self.job {
             job.end();
         }
         #[cfg(unix)]
-        if let Some(leader) = self.leader {
+        self.leader.hang_up(|leader| {
             unsafe extern "C" {
                 fn killpg(pgrp: i32, sig: i32) -> i32;
             }
             const SIGHUP: i32 = 1;
             // SAFETY: signals the process group the terminal's process leads, and nothing else.
             unsafe { killpg(leader as i32, SIGHUP) };
-        }
+        });
     }
 }
 
@@ -474,6 +496,19 @@ mod tests {
         let error = output_within(&mut command, Duration::from_millis(500)).unwrap_err();
         assert_eq!(error.kind(), io::ErrorKind::TimedOut);
         assert!(started.elapsed() < Duration::from_secs(10));
+    }
+
+    #[test]
+    fn hangs_a_terminal_s_group_up_once_and_never_after_its_end() {
+        let sent = std::cell::RefCell::new(Vec::new());
+        let leader = Leader::new(Some(4242));
+        // The exit's end, then a close while the exit is still reported: 4242, reaped, may lead someone else's group.
+        leader.hang_up(|pid| sent.borrow_mut().push(pid));
+        leader.hang_up(|pid| sent.borrow_mut().push(pid));
+        assert_eq!(*sent.borrow(), vec![4242]);
+        // A child with no PID has no group to hang up.
+        Leader::new(None).hang_up(|pid| sent.borrow_mut().push(pid));
+        assert_eq!(*sent.borrow(), vec![4242]);
     }
 
     #[test]
