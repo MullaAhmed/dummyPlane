@@ -363,6 +363,10 @@ export function endMission(fleetId: string, summary: string, ui?: string) {
   if (!record || mission?.state !== "en_cours") return;
   // Ended first: the agents stopping now are no events.
   setMission(fleetId, { state: "terminee", summary, ...(ui ? { summaryUi: ui } : {}), endedAt: Date.now() });
+  // What it kept in memory goes with it: no merge starts in a mission no longer running (`fusionner`, the queue), and
+  // what its runner was told is of no next mission. Imported late: the queue imports this module.
+  if (mission.worktree) merging.delete(mission.worktree);
+  void import("./queue").then(({ forgetTold }) => forgetTold(fleetId)).catch(() => undefined);
   // The user hears it, if away (`@/shell/finishAlert`).
   signalFinish({ nodeId: fleetId, state: "done", summary });
   // A linked agent the router routed goes back on its CLI's own model; one it did not route keeps its own, as through its sub-task.
@@ -387,6 +391,9 @@ export function endMission(fleetId: string, summary: string, ui?: string) {
 
 /** The merges under way, by mission worktree: git merges one branch at a time there. */
 const merging = new Map<string, Promise<unknown>>();
+
+/** Whether a mission worktree still has its line of merges kept. */
+export const mergeLineKept = (worktree: string) => merging.has(worktree);
 
 function oneMergeAtATime<T>(worktree: string, merge: () => Promise<T>): Promise<T> {
   const turn = (merging.get(worktree) ?? Promise.resolve()).then(merge, merge);

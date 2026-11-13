@@ -16,10 +16,10 @@ import { isRunning, statusOf, terminalStatusStore } from "@/store/terminalStatus
 import { toast } from "sonner";
 import { workspacesStore } from "@/store/workspaces";
 import { notify } from "./events";
-import { launchMission, mergeMember, reassignTask } from "./launch";
+import { endMission, launchMission, mergeLineKept, mergeMember, reassignTask } from "./launch";
 import type { Member, Mission, QueuedTask } from "./mission";
 import { morningReport } from "./morning";
-import { afterReport, giveNext, pumpQueue } from "./queue";
+import { afterReport, giveNext, pumpQueue, toldKept } from "./queue";
 import { missionOf, setMission, updateMember } from "./store";
 import { addTeamMember } from "./manager";
 import { isLaunching, markLaunching } from "@/agents/spawnFamily";
@@ -653,6 +653,17 @@ describe("what the fleet hears when nobody is left working", () => {
     await setup({ queue: [], members: [member("batman", "Batman", { report: done }), member("aquaman", "Aquaman", { task: "Docs" })] });
     await afterReport("chef", "batman");
     expect(lines()).toEqual([]);
+  });
+
+  it("forgets, once the mission ends, what it told its runner and its line of merges: nothing piles up mission after mission", async () => {
+    await setup({ queue: [] });
+    await afterReport("chef", "batman");
+    await mergeMember("chef", "C:/w/auth", missionNow().members[0]);
+    expect(toldKept("chef")).toBeGreaterThan(0);
+    expect(mergeLineKept("C:/w/auth")).toBe(true);
+    endMission("chef", "Done.");
+    expect(mergeLineKept("C:/w/auth")).toBe(false);
+    await vi.waitFor(() => expect(toldKept("chef")).toBe(0));
   });
 });
 

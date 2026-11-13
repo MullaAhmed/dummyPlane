@@ -203,6 +203,18 @@ function tellIfIdle(fleetId: string) {
   notify(missionRunner(fleetId), line);
 }
 
+/** The fleet's keys in what the queue remembers having told its runner: `fleetId:startedAt…`. */
+const toldBy = (fleetId: string) => (key: string) => key.startsWith(`${fleetId}:`);
+
+/** How many lines the queue remembers having told a fleet's runner: an idle team, a duplicate skipped. */
+export const toldKept = (fleetId: string) => [...idleTold.keys()].filter(toldBy(fleetId)).length + [...duplicateTold].filter(toldBy(fleetId)).length;
+
+/** Its mission ended (`endMission`): what its runner was told goes with it, or it would pile up mission after mission. */
+export function forgetTold(fleetId: string) {
+  for (const key of [...idleTold.keys()].filter(toldBy(fleetId))) idleTold.delete(key);
+  for (const key of [...duplicateTold].filter(toldBy(fleetId))) duplicateTold.delete(key);
+}
+
 /**
  * An agent reported: whatever its status, it no
  * longer counts against Max agents, and a new agent, in a new terminal, takes
