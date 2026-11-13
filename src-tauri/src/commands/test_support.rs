@@ -24,6 +24,7 @@ pub fn run_terminal(pty: &PtyManager, node_id: &str) -> mpsc::Receiver<()> {
         env_remove: vec![],
         initial_input: None,
         interrupt: None,
+        watch_agents: false,
     };
     let (tx, rx) = mpsc::channel();
     pty.spawn(

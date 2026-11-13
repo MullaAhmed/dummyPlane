@@ -7,6 +7,8 @@ export function cloneTerminalPayload(source: TerminalPayload, name: string): Ter
   delete copy.codexSessionId;
   // Its steps belong to the source's conversation.
   delete copy.steps;
+  // A copy starts its agent itself: nothing of the source's shell stands for it.
+  delete copy.fromShell;
   // A mission's model and Remote Control were asked for the source only.
   delete copy.model;
   delete copy.remoteControl;

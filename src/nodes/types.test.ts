@@ -66,6 +66,14 @@ describe("readTerminalPayload", () => {
     expect(readTerminalPayload({ ...robin, stoppedFinished: "yes" })).toEqual(robin);
   });
 
+  it("keeps across a restart that the agent of a terminal was started by hand in its shell, for an agent only", () => {
+    const batman = { title: "Claude · api", name: "Batman", agent: "claude", cwd: "C:/code", shell: "default", command: "", claudeSessionId: "s1" };
+    expect(readTerminalPayload({ ...batman, fromShell: true })).toEqual({ ...batman, fromShell: true });
+    expect(readTerminalPayload({ ...batman, fromShell: "yes" })).toEqual(batman);
+    // A shell has no agent to have started in it.
+    expect(readTerminalPayload({ ...batman, agent: "shell", fromShell: true })?.fromShell).toBeUndefined();
+  });
+
   it("rejects what cannot be launched", () => {
     expect(readTerminalPayload(null)).toBeNull();
     expect(readTerminalPayload({ agent: "vim", cwd: "C:/" })).toBeNull();

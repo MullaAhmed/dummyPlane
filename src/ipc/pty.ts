@@ -94,6 +94,31 @@ export function onCodexSession(handler: (event: CodexSessionEvent) => void): Pro
 /** Codex's sign-in to Linear's read-only server, in the browser; resolves once the user has signed in. */
 export const codexLinearLogin = () => call<void>("codex_linear_login");
 
+/**
+ * An agent the user started by hand in a Shell terminal, found as a process under its shell (Rust's
+ * `AgentProcessEvent`): that terminal is the agent's from then on (`@/nodes/terminal/shellAgent`).
+ */
+export interface AgentProcessEvent {
+  nodeId: string;
+  /** Never Shell, Custom or Ollama: none of them is found by its program. */
+  agent: AgentId;
+  pid: number;
+  /** The conversation it runs, when it could be known for sure. */
+  sessionId?: string;
+  /** The folder it runs in, when it says: the shell may have changed folder before starting it. */
+  cwd?: string;
+}
+
+export function onAgentProcess(handler: (event: AgentProcessEvent) => void): Promise<UnlistenFn> {
+  return listen<AgentProcessEvent>("agent-process", (event) => handler(event.payload));
+}
+
+/** The agents started by hand in their Shell terminals that still run: what a page that reloads missed. */
+export const agentProcessSnapshot = () => call<AgentProcessEvent[]>("agent_process_snapshot");
+
+/** The terminal is a Shell again while its agent runs: that process is not reported again. */
+export const dismissAgentProcess = (nodeId: string) => call<void>("agent_process_dismiss", { nodeId });
+
 export interface AgentInfo {
   id: AgentId;
   available: boolean;

@@ -162,6 +162,14 @@ impl Tracker {
         Some(flipped(node_id, node, now))
     }
 
+    /// An agent started by hand runs in the terminal's shell again, seen as a process (`pty::watch`), whose
+    /// hooks and status line never report: the terminal has its agent back. Only a change for one that had left it.
+    pub fn arrived(&mut self, node_id: &str, now: Instant) -> Option<Change> {
+        let node = self.nodes.get_mut(node_id)?;
+        node.left.take()?;
+        Some(flipped(node_id, node, now))
+    }
+
     pub fn hook(
         &mut self,
         node_id: &str,
@@ -999,6 +1007,21 @@ mod tests {
         // A restarted process starts with its agent.
         tracker.session_end("a", t0 + ms(9000));
         assert!(!tracker.start("a", t0 + ms(9500)).left);
+    }
+
+    #[test]
+    fn an_agent_started_by_hand_seen_as_a_process_brings_the_agent_back_at_once() {
+        let t0 = Instant::now();
+        let mut tracker = started(t0);
+        // Nothing left: nothing changes.
+        assert_eq!(tracker.arrived("a", t0), None);
+        tracker.session_end("a", t0);
+        // Unlike a status line, a process seen is not the leaving session's last render.
+        let back = tracker.arrived("a", t0 + ms(500)).unwrap();
+        assert!(!back.left);
+        assert_eq!(back.since, t0 + ms(500));
+        assert_eq!(tracker.arrived("a", t0 + ms(900)), None);
+        assert_eq!(tracker.arrived("zzz", t0), None);
     }
 
     #[test]

@@ -8,6 +8,7 @@ import { isAlive, isRestarting, statusOf, terminalStatusStore } from "@/store/te
 import { folderChange } from "./folder";
 import { relaunchMode } from "./launch";
 import { acceptsInput, attachSession, reattachSession, relaunchSession, restoreSession, startSession, type TermSink } from "./session";
+import { agentStartedInShell } from "./shellAgent";
 
 const payload: TerminalPayload = { title: "A", name: "", cwd: "C:/code", agent: "shell", command: "", shell: "default" };
 
@@ -318,4 +319,37 @@ it("restarts a running Claude terminal moved to another folder in that folder, o
   expect(spec.cwd).toBe("C:\code\web");
   expect(spec.claude.sessionId).not.toBe(claude.claudeSessionId);
   expect(spec.claude.mode).toBe("resume");
+});
+
+it("restarts a terminal that became Claude's in its shell as Claude, on the conversation it ran, and no shell stands in front of it any more", async () => {
+  const ran = "0b9c4b5e-6f1a-4c39-9d2e-8f6c2d1a7e10";
+  mockIPC((cmd, args) => {
+    calls.push({ cmd, args: args as Record<string, unknown> });
+    if (cmd === "pty_kill") setTimeout(() => terminalStatusStore.getState().set("h", { state: "exited", code: 1 }), 5);
+    return 1;
+  });
+  await nodesStore.getState().create("h", { workspaceId: "w", kind: "terminal", payload: { ...payload, cwd: "C:/code/api", title: "Shell · api", name: "Batman" } });
+  terminalStatusStore.getState().set("h", { state: "running" });
+  // The user typed `claude` in it: dummyPlane saw the process (`agent-process`), nothing restarted.
+  expect(agentStartedInShell("h", { nodeId: "h", agent: "claude", pid: 42, sessionId: ran })).toBe(true);
+  expect(calls.filter((c) => c.cmd.startsWith("pty_"))).toEqual([]);
+  expect(sessionOf(nodesStore.getState().nodes.h)?.fromShell).toBe(true);
+  // "Relaunch" starts Claude with dummyPlane's own launch, resuming the conversation.
+  const stored = sessionOf(nodesStore.getState().nodes.h)!;
+  await relaunchSession("h", fakeTerm(), stored, relaunchMode(stored));
+  const spec = calls.find((c) => c.cmd === "pty_spawn")!.args.spec as { agent: string; cwd: string; claude: { sessionId: string; mode: string } };
+  expect(spec).toMatchObject({ agent: "claude", cwd: "C:/code/api", claude: { sessionId: ran, mode: "resume" } });
+  expect(sessionOf(nodesStore.getState().nodes.h)).toMatchObject({ agent: "claude", name: "Batman", claudeSessionId: ran });
+  expect(sessionOf(nodesStore.getState().nodes.h)?.fromShell).toBeUndefined();
+});
+
+it("turns a shell that reattaches with an agent running in it into that agent's terminal", async () => {
+  mockIPC((cmd) => {
+    if (cmd === "pty_attach") return true;
+    if (cmd === "agent_process_snapshot") return [{ nodeId: "a", agent: "codex", pid: 7 }];
+    return undefined;
+  });
+  await nodesStore.getState().create("a", { workspaceId: "w", kind: "terminal", payload: { ...payload } });
+  await attachSession("a", fakeTerm(), { replaying: false });
+  await vi.waitFor(() => expect(sessionOf(nodesStore.getState().nodes.a)).toMatchObject({ agent: "codex", fromShell: true }));
 });

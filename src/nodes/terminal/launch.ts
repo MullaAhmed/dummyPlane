@@ -87,9 +87,12 @@ export function canResume(payload: TerminalPayload): boolean {
 /** How "Relaunch" starts it: on its conversation when it has one, anew otherwise. */
 export const relaunchMode = (payload: TerminalPayload): LaunchMode => (canResume(payload) ? "resume" : "new");
 
-/** Another agent in the same terminal: the steps, the report and a one-shot mark go with the old one; Claude gets a conversation if it has none. */
+/**
+ * Another agent in the same terminal: the steps, the report and a one-shot mark go with the old one; Claude gets a
+ * conversation if it has none. The agent is the user's choice: what `fromShell` followed is over.
+ */
 export function switchedAgent(payload: TerminalPayload, agent: AgentId): Partial<TerminalPayload> {
-  const left = { agent, steps: undefined, lastReport: undefined, oneShot: undefined, codexSessionId: undefined };
+  const left = { agent, steps: undefined, lastReport: undefined, oneShot: undefined, codexSessionId: undefined, fromShell: undefined };
   return agent === "claude" && !payload.claudeSessionId ? { ...left, claudeSessionId: crypto.randomUUID() } : left;
 }
 

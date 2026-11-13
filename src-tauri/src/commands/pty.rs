@@ -8,9 +8,12 @@ use crate::db::{Db, scrollback};
 use crate::error::{AppError, AppResult};
 use crate::pty::session::OutputSink;
 use crate::pty::shell::{
-    Agent, ClaudeMode, ShellKind, SpawnSpec, build_plan, fleet_tools, which_locate,
+    Agent, ClaudeMode, ShellKind, SpawnSpec, build_plan, fleet_tools, interrupt_sequence,
+    which_locate,
 };
+use crate::pty::watch::{self, Change, Sighting, SystemProbe};
 use crate::pty::{PtyManager, pty_size};
+use crate::sync::lock;
 
 /// Forwards PTY output to the webview as raw bytes (an `ArrayBuffer` in JS).
 struct ChannelSink(Channel<Response>);
@@ -48,6 +51,83 @@ fn mode_label(spec: &SpawnSpec) -> &'static str {
         },
         _ => "plain",
     }
+}
+
+/// An agent the user started by hand in a Shell terminal: the interface turns the terminal into that agent's.
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentProcessEvent {
+    node_id: String,
+    #[serde(flatten)]
+    sighting: Sighting,
+}
+
+/// Looks, as long as the app runs, for the agents started by hand in the Shell terminals that run.
+pub fn watch_shells(app: &AppHandle) {
+    let app = app.clone();
+    std::thread::spawn(move || {
+        loop {
+            std::thread::sleep(watch::SCAN_EVERY);
+            // A scan that panics must not end the watch of every later one.
+            let scan = std::panic::AssertUnwindSafe(|| scan_shells(&app));
+            if std::panic::catch_unwind(scan).is_err() {
+                log::error!("agents in shells: a scan panicked");
+            }
+        }
+    });
+}
+
+/// One scan: nothing is listed while no Shell terminal runs.
+fn scan_shells(app: &AppHandle) {
+    let pty = app.state::<PtyManager>();
+    let roots = pty.watched_roots();
+    let procs = if roots.is_empty() {
+        Vec::new()
+    } else {
+        watch::processes()
+    };
+    let changes = lock(&pty.watch).scan(&roots, &procs, &SystemProbe);
+    for (node_id, change) in changes {
+        match change {
+            Change::Running(sighting) => {
+                log::info!(
+                    "terminal {node_id}: {:?} started by hand in its shell, process {}",
+                    sighting.agent,
+                    sighting.pid
+                );
+                pty.set_interrupt(&node_id, interrupt_sequence(sighting.agent));
+                agents::agent_back(app, &node_id);
+                let _ = app.emit("agent-process", AgentProcessEvent { node_id, sighting });
+            }
+            Change::Ended(pid) => {
+                log::info!(
+                    "terminal {node_id}: the agent started by hand in its shell ended, process {pid}"
+                );
+                pty.set_interrupt(&node_id, None);
+                agents::agent_left(app, &node_id);
+            }
+        }
+    }
+}
+
+/// The agents started by hand in their Shell terminals that still run: what a page that reloads missed.
+#[tauri::command]
+pub async fn agent_process_snapshot(
+    pty: State<'_, PtyManager>,
+) -> AppResult<Vec<AgentProcessEvent>> {
+    Ok(lock(&pty.watch)
+        .running()
+        .into_iter()
+        .map(|(node_id, sighting)| AgentProcessEvent { node_id, sighting })
+        .collect())
+}
+
+/// The user made the terminal a Shell again while its agent runs: that process is not reported again.
+#[tauri::command]
+pub async fn agent_process_dismiss(pty: State<'_, PtyManager>, node_id: String) -> AppResult<()> {
+    lock(&pty.watch).dismiss(&node_id);
+    pty.set_interrupt(&node_id, None);
+    Ok(())
 }
 
 /// A path or program name on one line: a control character in it must not

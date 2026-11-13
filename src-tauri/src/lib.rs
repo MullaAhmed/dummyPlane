@@ -99,6 +99,7 @@ pub fn run() {
             pty::env_path::refresh();
             spawn_scrollback_flusher(app.handle().clone());
             commands::agents::setup(app.handle())?;
+            commands::pty::watch_shells(app.handle());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -126,6 +127,8 @@ pub fn run() {
             commands::pty::list_ollama_models,
             commands::pty::npm_available,
             commands::pty::list_shells,
+            commands::pty::agent_process_snapshot,
+            commands::pty::agent_process_dismiss,
             commands::tokens::token_usage,
             commands::workspace::list_workspaces,
             commands::workspace::create_workspace,

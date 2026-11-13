@@ -23,6 +23,7 @@ import { subagentsStore } from "@/store/subagents";
 import { terminalStatusStore } from "@/store/terminalStatus";
 import { installUsage } from "@/usage/usageStore";
 import { installCodexSessions } from "@/nodes/terminal/codexSessions";
+import { installShellAgents } from "@/nodes/terminal/shellAgent";
 import { projectsStore, setForgetWorkspaces } from "@/store/projects";
 import { saveBeforeClose } from "./close";
 import { forgetWorkspaces } from "./forget";
@@ -75,6 +76,8 @@ export function boot(): Promise<void> {
     await installMcp();
     await installUsage();
     await installCodexSessions();
+    // An agent the user starts by hand in a Shell terminal makes it that agent's.
+    await installShellAgents();
     installMissionEvents();
     // A sub-task dummyPlane had not typed before it restarted goes once its agent's terminal runs again.
     installRedelivery();

@@ -4,6 +4,7 @@ pub mod paste;
 pub mod scrollback;
 pub mod session;
 pub mod shell;
+pub mod watch;
 
 use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -41,6 +42,8 @@ pub struct PtyManager {
     starting: Arc<Mutex<HashSet<String>>>,
     /// What the database holds of a terminal about to be relaunched; taken by its `spawn`.
     histories: Arc<Mutex<HashMap<String, Vec<u8>>>>,
+    /// The agents the user started by hand in the Shell terminals that run (`watch`).
+    pub watch: Arc<Mutex<watch::Watch>>,
 }
 
 /// The right to start one terminal; released when dropped.
@@ -232,6 +235,22 @@ impl PtyManager {
 
     pub fn is_running(&self, node_id: &str) -> bool {
         lock(&self.sessions).contains_key(node_id)
+    }
+
+    /// The running Shell terminals and their shells' processes: where an agent started by hand is looked for.
+    pub fn watched_roots(&self) -> Vec<(String, u32)> {
+        lock(&self.sessions)
+            .iter()
+            .filter(|(_, session)| session.watch_agents)
+            .filter_map(|(id, session)| Some((id.clone(), session.pid?)))
+            .collect()
+    }
+
+    /// The interrupt key of a running terminal: an agent started in its shell, or its end.
+    pub fn set_interrupt(&self, node_id: &str, key: Option<&'static [u8]>) {
+        if let Some(session) = self.get(node_id) {
+            session.set_interrupt(key);
+        }
     }
 
     pub fn list(&self) -> Vec<String> {
@@ -542,6 +561,7 @@ mod windows_tests {
             env_remove: vec![],
             initial_input: initial_input.map(str::to_string),
             interrupt: None,
+            watch_agents: false,
         }
     }
 
@@ -862,6 +882,45 @@ mod windows_tests {
         );
         mgr.kill_all();
         wait_exit(&agent);
+        wait_exit(&shell);
+    }
+
+    #[test]
+    fn only_the_shell_terminals_that_run_are_watched_for_an_agent_started_by_hand() {
+        let mgr = PtyManager::default();
+        let mut shell_plan = cmd_plan(&[], None);
+        shell_plan.watch_agents = true;
+        let shell = spawn_answering(&mgr, "s", shell_plan, VecSink::default());
+        let agent = spawn_answering(&mgr, "a", cmd_plan(&[], None), VecSink::default());
+        let roots = mgr.watched_roots();
+        assert_eq!(roots.len(), 1, "{roots:?}");
+        assert_eq!(roots[0].0, "s");
+        assert!(
+            roots[0].1 > 0,
+            "the shell's process is the root of the search"
+        );
+        mgr.kill_all();
+        wait_exit(&shell);
+        wait_exit(&agent);
+        wait_until("the stopped terminal is no longer watched", || {
+            mgr.watched_roots().is_empty()
+        });
+    }
+
+    #[test]
+    fn an_agent_started_in_a_shell_gives_it_the_agents_interrupt_key_until_it_leaves() {
+        let mgr = PtyManager::default();
+        let mut plan = cmd_plan(&[], None);
+        plan.watch_agents = true;
+        let shell = spawn_answering(&mgr, "s", plan, VecSink::default());
+        assert_eq!(mgr.interrupt("s").unwrap(), None);
+        mgr.set_interrupt("s", Some(b""));
+        assert_eq!(mgr.interrupt("s").unwrap(), Some(&b""[..]));
+        mgr.set_interrupt("s", None);
+        assert_eq!(mgr.interrupt("s").unwrap(), None);
+        // A terminal that is not there is not an error: its agent may outlive it by a scan.
+        mgr.set_interrupt("nope", Some(b""));
+        mgr.kill_all();
         wait_exit(&shell);
     }
 
