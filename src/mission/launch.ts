@@ -21,7 +21,7 @@ import { addTaskCards, linkedBoards, reassignMissionCard, startMissionCards } fr
 import { agentMessages } from "@/mcp/messages";
 import { outReport } from "@/mcp/protocol";
 import { nodeNameOf, nodesStore, sessionOf, terminalOf } from "@/store/nodes";
-import { isRunning } from "@/store/terminalStatus";
+import { isRunning, waitForExit } from "@/store/terminalStatus";
 import { markLaunching } from "@/agents/spawnFamily";
 import { wakeable, wakeFinished, wakingUp } from "@/agents/finishedStop";
 import { activeCount, freeSeat, handingOver, hasSeat, holdSeat, oneAtATime } from "./active";
@@ -475,7 +475,9 @@ async function cleanMissionNow(fleetId: string): Promise<Cleanup | string> {
  * A new agent made for `mission` (a reassign's, the queue's) that ended while it was created: stopped and off the
  * canvas, as the end took the agents made for it, never a member, its sub-task never typed, so no longer launching
  * (it would count as at work). Its worktree goes with the mission's cleanup, as a member's; a mission cleaned up
- * meanwhile, or whose cleanup is under way (its list made), takes it back now, never forced.
+ * meanwhile, or whose cleanup is under way (its list made), takes it back itself, never forced: once its terminal
+ * exited (`waitForExit`, bounded), as its process tree holds the worktree as its folder until then and git would keep
+ * it. What the discard leaves in place, or why it failed, goes to the log.
  */
 export function leftBehind(fleetId: string, mission: Mission, made: Member) {
   stopTerminal(made.nodeId);
@@ -487,7 +489,14 @@ export function leftBehind(fleetId: string, mission: Mission, made: Member) {
     setMission(fleetId, { strays: [...(ended.strays ?? []), made.name] });
     return;
   }
-  if (mission.project) void missionDiscard(mission.project, [{ slug: made.name, branch: made.branch, path: made.worktree }]).catch(() => undefined);
+  const project = mission.project;
+  if (!project) return;
+  void waitForExit(made.nodeId)
+    .then(() => missionDiscard(project, [{ slug: made.name, branch: made.branch, path: made.worktree }]))
+    .then(({ kept }) => {
+      if (kept.length > 0) console.warn(`worktree of ${made.name}, left behind by the mission's end, not discarded`, kept);
+    })
+    .catch((error: unknown) => console.warn(`worktree of ${made.name}, left behind by the mission's end, not discarded`, error));
 }
 
 /**
