@@ -342,6 +342,26 @@ fn kept_worktree(name: &str, git_error: &str) -> String {
     format!("{name} ({cause})")
 }
 
+/// Whether the worktree at `path` stands on a commit no branch, remote branch or tag holds: its HEAD left its branch
+/// (`git checkout --detach`, a rebase's) and went on. `git worktree remove` takes the folder, with the only HEAD that
+/// holds those commits: they would be held by nothing (git does not ask). An error is read as a worktree to keep.
+fn on_no_branch(path: &Path) -> Result<bool, String> {
+    let holders = git(
+        path,
+        &[
+            "for-each-ref",
+            "--contains",
+            "HEAD",
+            "--count=1",
+            "--format=%(refname)",
+            "refs/heads",
+            "refs/remotes",
+            "refs/tags",
+        ],
+    )?;
+    Ok(holders.is_empty())
+}
+
 /// Undoes a launch that failed (final review H2): its fresh worktrees and
 /// branches go, newest first, so the plan can be launched again. Never
 /// forced: a worktree with changes or a branch with commits stays.
@@ -427,6 +447,10 @@ pub fn remove_agent(project: &Path, mission: &str, agent: &AgentBranch) -> Resul
             done.kept.push(format!("{name} (uncommitted changes)"));
             return Ok(done);
         }
+        if on_no_branch(&path)? {
+            done.kept.push(format!("{name} (commits on no branch)"));
+            return Ok(done);
+        }
         remove_worktree(&root, name.clone(), &path, &mut done);
         // Its branch is checked out there while the worktree stays.
         if !done.kept.is_empty() {
@@ -482,6 +506,10 @@ pub fn cleanup(project: &Path, mission: &str, agents: &[AgentBranch]) -> Result<
             &merged,
             &squashed,
         ) {
+            if on_no_branch(&path).unwrap_or(true) {
+                done.kept.push(format!("{name} (commits on no branch)"));
+                continue;
+            }
             remove_worktree(&root, name, &path, &mut done);
         } else {
             done.kept.push(format!("{name} (branch not merged)"));
@@ -529,6 +557,9 @@ pub fn cleanup_unsaved(
         }
         if !git(&path, &["status", "--porcelain"])?.is_empty() {
             reasons.push("uncommitted changes");
+        }
+        if on_no_branch(&path).unwrap_or(true) {
+            reasons.push("commits on no branch");
         }
         if !reasons.is_empty() {
             unsaved.push(format!("{name} ({})", reasons.join(", ")));
@@ -1309,5 +1340,125 @@ mod tests {
         );
         assert!(Path::new(&thor.path).join("draft.txt").exists());
         assert!(branch_exists(&proj, &thor.branch));
+    }
+
+    /// Whether a branch, a remote branch or a tag holds `commit`.
+    fn held(proj: &Path, commit: &str) -> bool {
+        !run(
+            proj,
+            &[
+                "for-each-ref",
+                "--contains",
+                commit,
+                "refs/heads",
+                "refs/remotes",
+                "refs/tags",
+            ],
+        )
+        .is_empty()
+    }
+
+    /// An agent squashed in, whose HEAD then left its branch (`git checkout --detach`) and committed there: the
+    /// branch holds only what was squashed, and the commit is held by nothing but the worktree's own HEAD.
+    fn detached_after_its_merge() -> (
+        tempfile::TempDir,
+        PathBuf,
+        Worktree,
+        Worktree,
+        MergeReport,
+        String,
+    ) {
+        let (parent, proj) = project().expect("git");
+        let mission = prepare(&proj, "auth").unwrap();
+        let hulk = add_agent(&proj, &mission.slug, "Hulk").unwrap();
+        let h = Path::new(&hulk.path);
+        commit(h, "login.txt", "login\n", "login");
+        let hulk_in = squash(Path::new(&mission.path), &hulk);
+        run(h, &["checkout", "-q", "--detach"]);
+        commit(h, "late.txt", "late\n", "after the merge, on no branch");
+        let late = run(h, &["rev-parse", "HEAD"]);
+        (parent, proj, mission, hulk, hulk_in, late)
+    }
+
+    #[test]
+    fn an_agent_cleaning_up_keeps_a_worktree_standing_on_commits_no_branch_holds() {
+        if project().is_none() {
+            return;
+        }
+        let (_parent, proj, mission, hulk, hulk_in, late) = detached_after_its_merge();
+        assert!(!held(&proj, &late));
+        let done = remove_agent(&proj, &mission.slug, &agent("Hulk", Some(&hulk_in.head))).unwrap();
+        // Removed, the worktree would take its only HEAD with it: the commit would be held by nothing.
+        assert!(done.removed.is_empty(), "{done:?}");
+        assert_eq!(
+            done.kept,
+            vec![format!("{} (commits on no branch)", hulk.slug)]
+        );
+        assert!(Path::new(&hulk.path).exists());
+        assert!(branch_exists(&proj, &hulk.branch));
+        // Put on a branch, its commits are held: it goes as it would have, its branch with them kept.
+        let h = Path::new(&hulk.path);
+        run(h, &["checkout", "-q", "-b", "side"]);
+        let done = remove_agent(&proj, &mission.slug, &agent("Hulk", Some(&hulk_in.head))).unwrap();
+        assert_eq!(done.removed, vec![hulk.slug.clone(), hulk.branch.clone()]);
+        assert!(held(&proj, &late));
+    }
+
+    #[test]
+    fn a_worktree_detached_inside_its_branch_or_on_another_one_goes_as_before() {
+        let Some((_parent, proj)) = project() else {
+            return;
+        };
+        let mission = prepare(&proj, "auth").unwrap();
+        let m = Path::new(&mission.path);
+        let hulk = add_agent(&proj, &mission.slug, "Hulk").unwrap();
+        let thor = add_agent(&proj, &mission.slug, "Thor").unwrap();
+        commit(Path::new(&hulk.path), "login.txt", "login\n", "login");
+        commit(Path::new(&thor.path), "api.txt", "api\n", "api");
+        let hulk_in = squash(m, &hulk);
+        let thor_in = squash(m, &thor);
+        // Hulk looks at an older commit of its own branch (detached, nothing new); Thor works on a branch of its own.
+        run(
+            Path::new(&hulk.path),
+            &["checkout", "-q", "--detach", "HEAD~1"],
+        );
+        run(Path::new(&thor.path), &["checkout", "-q", "-b", "side"]);
+        commit(
+            Path::new(&thor.path),
+            "late.txt",
+            "late\n",
+            "after the merge",
+        );
+        let late = run(Path::new(&thor.path), &["rev-parse", "HEAD"]);
+        for (who, squashed, tree) in [("Hulk", &hulk_in, &hulk), ("Thor", &thor_in, &thor)] {
+            let done =
+                remove_agent(&proj, &mission.slug, &agent(who, Some(&squashed.head))).unwrap();
+            assert_eq!(done.removed.first(), Some(&tree.slug), "{who}: {done:?}");
+            assert!(!Path::new(&tree.path).exists(), "{who}");
+        }
+        assert!(held(&proj, &late));
+    }
+
+    #[test]
+    fn the_mission_cleanup_keeps_a_worktree_on_commits_no_branch_holds_and_says_so_before() {
+        if project().is_none() {
+            return;
+        }
+        let (parent, proj, mission, hulk, hulk_in, late) = detached_after_its_merge();
+        let agents = vec![agent("Hulk", Some(&hulk_in.head))];
+        // What the cleanup would leave, found without touching anything, and what it leaves, agree.
+        assert_eq!(
+            cleanup_unsaved(&proj, &mission.slug, &agents).unwrap(),
+            vec![format!("{} (commits on no branch)", hulk.slug)]
+        );
+        let done = cleanup(&proj, &mission.slug, &agents).unwrap();
+        assert!(done.removed.is_empty(), "{done:?}");
+        assert_eq!(
+            done.kept,
+            vec![format!("{} (commits on no branch)", hulk.slug)]
+        );
+        assert!(Path::new(&hulk.path).exists());
+        assert!(parent.path().join("proj.worktrees").join("auth").exists());
+        assert!(!held(&proj, &late));
     }
 }
