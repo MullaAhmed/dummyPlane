@@ -301,15 +301,25 @@ pub fn merge_agent(
             .lines()
             .map(str::to_string)
             .collect();
-        undo_squash(mission);
+        let undone = undo_squash(mission);
         if files.is_empty() {
-            return Err(format!("Merging {branch} failed and was cancelled: {err}"));
+            return Err(cancelled(branch, &err, undone));
+        }
+        if let Err(left) = undone {
+            return Err(format!(
+                "Merging {branch} conflicted in {}, and the squash could not be taken back: {left}",
+                files.join(", ")
+            ));
         }
         return Ok(report(Merge::Conflict { files }));
     }
     // Everything it brings is in already.
     if git(mission, &["diff", "--cached", "--quiet"]).is_ok() {
-        undo_squash(mission);
+        if let Err(left) = undo_squash(mission) {
+            return Err(format!(
+                "Merging {branch} brought nothing new, but the squash could not be taken back: {left}"
+            ));
+        }
         return Ok(report(Merge::Empty));
     }
     // Signed as the user's own commits are, unless the signing program is the repository's alone (`git::unsigned`).
@@ -324,8 +334,7 @@ pub fn merge_agent(
     ];
     if let Err(err) = squash_git(mission, &commit, Some(message)) {
         // A commit refused (a signing that failed) leaves the squash staged: the next merges would take it in.
-        undo_squash(mission);
-        return Err(format!("Merging {branch} failed and was cancelled: {err}"));
+        return Err(cancelled(branch, &err, undo_squash(mission)));
     }
     Ok(MergeReport {
         unsigned,
@@ -333,9 +342,38 @@ pub fn merge_agent(
     })
 }
 
+/// What a merge that failed says: that it was cancelled, or that it could not be, and what may be left of it.
+fn cancelled(branch: &str, err: &str, undone: Result<(), String>) -> String {
+    match undone {
+        Ok(()) => format!("Merging {branch} failed and was cancelled: {err}"),
+        Err(left) => format!("Merging {branch} failed: {err}\nIt could not be taken back: {left}"),
+    }
+}
+
 /// Takes a squash back: the index and the files it changed as they were, a conflict's included, other local changes kept.
-fn undo_squash(mission: &Path) {
-    let _ = squash_git(mission, &["reset", "--merge"], None);
+///
+/// An error when git could not: it names what the squash may have left staged or unmerged in the mission's worktree
+/// (at most three, then how many more), as the refusal of a worktree with staged changes does.
+fn undo_squash(mission: &Path) -> Result<(), String> {
+    let Err(err) = squash_git(mission, &["reset", "--merge"], None) else {
+        return Ok(());
+    };
+    let cause = err.lines().next().unwrap_or_default().trim().to_string();
+    let left = git(mission, &["diff", "--cached", "--name-only"]).unwrap_or_default();
+    let names: Vec<&str> = left.lines().collect();
+    if names.is_empty() {
+        return Err(cause);
+    }
+    let more = names.len().saturating_sub(3);
+    let shown = names[..names.len() - more].join(", ");
+    let more = if more > 0 {
+        format!(", +{more} more")
+    } else {
+        String::new()
+    };
+    Err(format!(
+        "the mission's worktree may hold leftovers ({shown}{more}): {cause}"
+    ))
 }
 
 /// Never forced: a worktree with uncommitted changes stays.
@@ -1803,5 +1841,55 @@ mod tests {
             assert_eq!(run(m, &["status", "--porcelain"]), "", "{label}");
             assert_eq!(run(m, &["rev-parse", "HEAD"]), head, "{label}");
         }
+    }
+
+    /// A lock on the mission worktree's index (a git of the user's running there): neither the squash nor its undo can write.
+    fn lock_index(m: &Path) -> PathBuf {
+        let lock = Path::new(&run(m, &["rev-parse", "--absolute-git-dir"])).join("index.lock");
+        std::fs::write(&lock, "").unwrap();
+        lock
+    }
+
+    #[test]
+    fn a_squash_that_cannot_be_taken_back_says_so_instead_of_that_it_was_cancelled() {
+        let Some((_parent, proj)) = project() else {
+            return;
+        };
+        let mission = prepare(&proj, "auth").unwrap();
+        let m = Path::new(&mission.path);
+        let hulk = add_agent(&proj, &mission.slug, "Hulk").unwrap();
+        commit(Path::new(&hulk.path), "login.txt", "login\n", "login");
+        let lock = lock_index(m);
+        let err = merge_agent(m, Path::new(&hulk.path), &hulk.branch, "Login", None).unwrap_err();
+        assert!(err.contains("could not be taken back"), "{err}");
+        assert!(!err.contains("was cancelled"), "{err}");
+        // Once the lock is gone, nothing was left behind: the merge goes through.
+        std::fs::remove_file(lock).unwrap();
+        assert_eq!(squash(m, &hulk).merge, Merge::Merged);
+    }
+
+    #[test]
+    fn an_undo_that_fails_names_what_may_be_left_in_the_mission_worktree() {
+        let Some((_parent, proj)) = project() else {
+            return;
+        };
+        let mission = prepare(&proj, "auth").unwrap();
+        let m = Path::new(&mission.path);
+        for name in ["one.txt", "two.txt", "three.txt", "four.txt"] {
+            std::fs::write(m.join(name), "x\n").unwrap();
+            run(m, &["add", name]);
+        }
+        let lock = lock_index(m);
+        let left = undo_squash(m).unwrap_err();
+        for name in ["four.txt", "one.txt", "three.txt"] {
+            assert!(left.contains(name), "{left}");
+        }
+        assert!(
+            left.contains("leftovers") && left.contains("+1 more"),
+            "{left}"
+        );
+        std::fs::remove_file(lock).unwrap();
+        assert!(undo_squash(m).is_ok());
+        assert_eq!(run(m, &["status", "--porcelain"]), "");
     }
 }
