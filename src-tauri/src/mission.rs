@@ -1528,4 +1528,127 @@ mod tests {
         assert!(parent.path().join("proj.worktrees").join("auth").exists());
         assert!(!held(&proj, &late));
     }
+
+    /// A squash that conflicts, of whatever kind, is undone: the mission's worktree and branch are as they were.
+    fn conflict_leaves_the_mission_as_it_was(
+        label: &str,
+        on_the_mission: impl Fn(&Path),
+        on_the_agent: impl Fn(&Path),
+    ) {
+        let Some((_parent, proj)) = project() else {
+            return;
+        };
+        let mission = prepare(&proj, "auth").unwrap();
+        let m = Path::new(&mission.path);
+        let hulk = add_agent(&proj, &mission.slug, "Hulk").unwrap();
+        let h = Path::new(&hulk.path);
+        on_the_agent(h);
+        on_the_mission(m);
+        let head = run(m, &["rev-parse", "HEAD"]);
+        // A conflict, or a refusal git words its own way (a path Windows cannot name): never a half-done squash.
+        let report = merge_agent(m, h, &hulk.branch, "Hulk", None);
+        assert_eq!(
+            run(m, &["status", "--porcelain"]),
+            "",
+            "{label}: {report:?}"
+        );
+        assert_eq!(run(m, &["rev-parse", "HEAD"]), head, "{label}");
+    }
+
+    #[test]
+    fn a_conflict_of_any_kind_leaves_the_missions_worktree_as_it_was() {
+        conflict_leaves_the_mission_as_it_was(
+            "modify/delete",
+            |m| {
+                run(m, &["rm", "-q", "a.txt"]);
+                run(m, &["commit", "-q", "-m", "mission deletes a.txt"]);
+            },
+            |h| commit(h, "a.txt", "changed by the agent\n", "agent edits a.txt"),
+        );
+        conflict_leaves_the_mission_as_it_was(
+            "rename/rename",
+            |m| {
+                run(m, &["mv", "a.txt", "renamed.txt"]);
+                run(m, &["commit", "-q", "-m", "mission renames a.txt"]);
+            },
+            |h| {
+                run(h, &["mv", "a.txt", "other.txt"]);
+                run(h, &["commit", "-q", "-m", "agent renames a.txt elsewhere"]);
+            },
+        );
+        conflict_leaves_the_mission_as_it_was(
+            "file/directory",
+            |m| commit(m, "x", "a file\n", "mission: x is a file"),
+            |h| {
+                std::fs::create_dir(h.join("x")).unwrap();
+                commit(h, "x/inner.txt", "inner\n", "agent: x is a directory");
+            },
+        );
+        conflict_leaves_the_mission_as_it_was(
+            "directory/file",
+            |m| {
+                std::fs::create_dir(m.join("x")).unwrap();
+                commit(m, "x/inner.txt", "inner\n", "mission: x is a directory");
+            },
+            |h| commit(h, "x", "a file\n", "agent: x is a file"),
+        );
+    }
+
+    #[test]
+    fn an_untracked_file_in_the_way_stops_the_squash_and_stays() {
+        let Some((_parent, proj)) = project() else {
+            return;
+        };
+        let mission = prepare(&proj, "auth").unwrap();
+        let m = Path::new(&mission.path);
+        let hulk = add_agent(&proj, &mission.slug, "Hulk").unwrap();
+        let h = Path::new(&hulk.path);
+        commit(h, "new.txt", "agent\n", "agent adds new.txt");
+        std::fs::write(m.join("new.txt"), "somebody's own file\n").unwrap();
+        let head = run(m, &["rev-parse", "HEAD"]);
+        let err = merge_agent(m, h, &hulk.branch, "Hulk", None).unwrap_err();
+        assert!(err.contains("was cancelled"), "{err}");
+        assert_eq!(read(m, "new.txt"), "somebody's own file\n");
+        assert_eq!(run(m, &["rev-parse", "HEAD"]), head);
+        assert_eq!(run(m, &["status", "--porcelain"]), "?? new.txt");
+    }
+
+    /// An agent merged twice, with another agent's squash landing between and touching the same file elsewhere: the
+    /// second takes exactly what came after the first (its new file, its rewritten line), neither again nor less.
+    #[test]
+    fn a_second_merge_takes_exactly_what_came_after_when_the_mission_moved_in_between() {
+        let Some((_parent, proj)) = project() else {
+            return;
+        };
+        let mission = prepare(&proj, "auth").unwrap();
+        let m = Path::new(&mission.path);
+        let hulk = add_agent(&proj, &mission.slug, "Hulk").unwrap();
+        let thor = add_agent(&proj, &mission.slug, "Thor").unwrap();
+        let (h, t) = (Path::new(&hulk.path), Path::new(&thor.path));
+        commit(h, "a.txt", "a\nh1\n", "hulk 1");
+        let first = squash(m, &hulk);
+        commit(t, "a.txt", "t0\na\n", "thor edits the top of a.txt");
+        commit(t, "t.txt", "t\n", "thor adds t.txt");
+        let thor_in = squash(m, &thor);
+        commit(h, "a.txt", "a\nh2\n", "hulk 2 rewrites its line");
+        commit(h, "b.txt", "b\n", "hulk 2 adds b.txt");
+        let before: usize = run(m, &["rev-list", "--count", "HEAD"]).parse().unwrap();
+        let again = merge_agent(m, h, &hulk.branch, "Hulk again", Some(&first.head)).unwrap();
+        assert_eq!(again.merge, Merge::Merged);
+        assert_eq!(
+            run(m, &["rev-list", "--count", "HEAD"]),
+            (before + 1).to_string()
+        );
+        assert_eq!(read(m, "a.txt"), "t0\na\nh2\n");
+        assert_eq!(read(m, "t.txt"), "t\n");
+        assert_eq!(read(m, "b.txt"), "b\n");
+        // Nothing new for either since: nothing taken.
+        let head = run(m, &["rev-parse", "HEAD"]);
+        for (who, tree, since) in [(&hulk, h, &again.head), (&thor, t, &thor_in.head)] {
+            let none = merge_agent(m, tree, &who.branch, "Again", Some(since)).unwrap();
+            assert_eq!(none.merge, Merge::Empty);
+        }
+        assert_eq!(run(m, &["rev-parse", "HEAD"]), head);
+        assert_eq!(run(m, &["status", "--porcelain"]), "");
+    }
 }
