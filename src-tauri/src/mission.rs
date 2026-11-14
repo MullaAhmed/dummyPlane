@@ -442,6 +442,26 @@ fn same_work(root: &Path, a: &str, b: &str) -> bool {
     a == b || tree(a).is_some_and(|tree_a| tree(b) == Some(tree_a))
 }
 
+/// Deletes `branch` only while it still holds `oid`, what was checked, so that a commit landing after the check, and
+/// before the delete, keeps it (`git branch -D` takes whatever it holds then). Never one a worktree has checked out:
+/// `update-ref` would leave that worktree's HEAD on a branch that is gone, where `branch -D` refuses.
+fn delete_branch_at(root: &Path, branch: &str, oid: &str) -> Result<(), String> {
+    let worktrees = git(root, &["worktree", "list", "--porcelain"])?;
+    let mut at = "";
+    for line in worktrees.lines() {
+        if let Some(path) = line.strip_prefix("worktree ") {
+            at = path;
+        } else if line.strip_prefix("branch refs/heads/") == Some(branch) {
+            return Err(format!("checked out at {at}"));
+        }
+    }
+    git(
+        root,
+        &["update-ref", "-d", &format!("refs/heads/{branch}"), oid],
+    )
+    .map(|_| ())
+}
+
 /// An agent cleans up after itself once its work is squashed into the mission's: its worktree goes, never forced
 /// (uncommitted changes, or a folder a process still holds, keep it), then its branch, only while its head is still
 /// the one its squash took in (`agent.squashed`) or holds the same files: a commit made after the merge keeps it. A
@@ -476,10 +496,20 @@ pub fn remove_agent(project: &Path, mission: &str, agent: &AgentBranch) -> Resul
     };
     match agent.squashed.as_deref() {
         Some(squashed) if same_work(&root, squashed, &head) => {
-            match git(&root, &["branch", "-D", &branch]) {
-                Ok(_) => done.removed.push(branch),
+            match delete_branch_at(&root, &branch, &head) {
+                Ok(()) => done.removed.push(branch),
                 Err(err) => {
-                    let cause = err.lines().next().unwrap_or_default().trim().to_string();
+                    // A commit landed since it was read: that, not git's lock error, is why it stays.
+                    let moved = git(
+                        &root,
+                        &["rev-parse", "--verify", &format!("{branch}^{{commit}}")],
+                    )
+                    .is_ok_and(|now| now != head);
+                    let cause = if moved {
+                        "commits after its merge".to_string()
+                    } else {
+                        err.lines().next().unwrap_or_default().trim().to_string()
+                    };
                     done.kept.push(format!("{branch} ({cause})"));
                 }
             }
@@ -1527,6 +1557,35 @@ mod tests {
         assert!(Path::new(&hulk.path).exists());
         assert!(parent.path().join("proj.worktrees").join("auth").exists());
         assert!(!held(&proj, &late));
+    }
+
+    /// A branch is deleted only while it is where it was checked: what lands on it after, and before the delete, keeps it.
+    #[test]
+    fn a_branch_is_deleted_only_while_it_is_where_it_was_checked_and_never_while_a_worktree_has_it()
+    {
+        let Some((_parent, proj)) = project() else {
+            return;
+        };
+        let mission = prepare(&proj, "auth").unwrap();
+        let m = Path::new(&mission.path);
+        let hulk = add_agent(&proj, &mission.slug, "Hulk").unwrap();
+        commit(Path::new(&hulk.path), "login.txt", "login\n", "login");
+        let squashed = squash(m, &hulk).head;
+        // A worktree has it checked out: left alone, whatever oid is given.
+        assert!(delete_branch_at(&proj, &hulk.branch, &squashed).is_err());
+        assert!(branch_exists(&proj, &hulk.branch));
+        run(&proj, &["worktree", "remove", &hulk.path]);
+        // A commit lands after the check (the branch moves on to the mission's head): the delete finds it so and stays.
+        let moved = run(m, &["rev-parse", "HEAD"]);
+        run(
+            &proj,
+            &["update-ref", &format!("refs/heads/{}", hulk.branch), &moved],
+        );
+        assert!(delete_branch_at(&proj, &hulk.branch, &squashed).is_err());
+        assert_eq!(run(&proj, &["rev-parse", &hulk.branch]), moved);
+        // Where it was checked, it goes.
+        delete_branch_at(&proj, &hulk.branch, &moved).unwrap();
+        assert!(!branch_exists(&proj, &hulk.branch));
     }
 
     /// A squash that conflicts, of whatever kind, is undone: the mission's worktree and branch are as they were.
