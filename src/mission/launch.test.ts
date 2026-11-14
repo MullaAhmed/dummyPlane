@@ -33,6 +33,7 @@ import { isLaunching, markLaunching } from "@/agents/spawnFamily";
 import { modelRouterStore } from "@/app/modelRouterSetting";
 import { subagentSettingsStore } from "@/app/subagentSettings";
 import { takenOver } from "@/agents/finishedStop";
+import { agentActivityStore } from "@/store/agentActivity";
 
 vi.mock("@excalidraw/excalidraw", () => ({}));
 vi.mock("@/ipc/mission", () => ({
@@ -1644,6 +1645,21 @@ describe("an agent made for the mission, once its work is merged (Stop finished 
       if (nodesStore.getState().nodes["n1-busy"]) void nodesStore.getState().update("n1-busy", { lastReport: { status: "done", summary: "ok" } });
       terminalStatusStore.getState().set("n1-busy", { state: "exited", code: 0 });
       vi.mocked(takenOver).mockReturnValue(false);
+    }
+  });
+
+  it("stays open while it is itself at work again, or waiting for an answer: stopped, it would lose what it is doing", async () => {
+    for (const activity of ["working", "waiting"] as const) {
+      vi.mocked(notify).mockClear();
+      vi.mocked(stopTerminal).mockClear();
+      await team();
+      agentActivityStore.getState().apply({ nodeId: "n1", activity, since: Date.now() });
+      await mergeMission("chef");
+      await vi.waitFor(() => expect(toldChef()).toEqual(["Aquaman stays open after its merge: it is at work again. Its worktree goes with the mission's cleanup."]));
+      expect(stopTerminal).not.toHaveBeenCalled();
+      expect(missionRemoveAgent).not.toHaveBeenCalled();
+      expect(missionNow().members[1].cleanedUp).toBeUndefined();
+      agentActivityStore.getState().remove("n1");
     }
   });
 

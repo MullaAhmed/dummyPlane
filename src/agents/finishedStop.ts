@@ -93,16 +93,20 @@ function handedWork(nodeId: string): boolean {
   });
 }
 
+/** Whether the agent itself is at work or waits for an answer: stopped, it would lose what it is doing. */
+export function atWork(nodeId: string): boolean {
+  const activity = agentActivityStore.getState().activities[nodeId]?.activity;
+  return activity === "working" || activity === "waiting";
+}
+
 /** Something under way that its stop would cut: it waits one more minute. */
 function busy(nodeId: string): boolean {
-  const activity = agentActivityStore.getState().activities[nodeId]?.activity;
   return (
     isRestarting(nodeId) ||
     wakes.has(nodeId) ||
     isLaunching(nodeId) ||
     pendingEvents(nodeId).length > 0 ||
-    activity === "working" ||
-    activity === "waiting" ||
+    atWork(nodeId) ||
     // Its own sub-agents' reports are typed into it: stopped, it would never hear them.
     hasSpawnedAtWork(nodeId) ||
     handedWork(nodeId)

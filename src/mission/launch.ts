@@ -23,7 +23,7 @@ import { outReport } from "@/mcp/protocol";
 import { nodeNameOf, nodesStore, sessionOf, terminalOf } from "@/store/nodes";
 import { isRunning, waitForExit } from "@/store/terminalStatus";
 import { hasSpawnedAtWork, markLaunching } from "@/agents/spawnFamily";
-import { takenOver, wakeable, wakeFinished, wakingUp } from "@/agents/finishedStop";
+import { atWork, takenOver, wakeable, wakeFinished, wakingUp } from "@/agents/finishedStop";
 import { subagentSettingsStore } from "@/app/subagentSettings";
 import { activeCount, freeSeat, handingOver, hasSeat, holdSeat, moving, oneAtATime } from "./active";
 import { notify } from "./events";
@@ -472,7 +472,8 @@ async function cleanUpAfterMerge(fleetId: string, nodeId: string, head: string) 
   const m = t().merge;
   const runner = missionRunner(fleetId);
   const handed = moving.has(nodeId) || handingOver.has(nodeId) || member.brief !== undefined;
-  const why = handed ? "handed" : hasSpawnedAtWork(nodeId) ? "subAgents" : takenOver(nodeId) ? "user" : null;
+  // Nor while it is at work again (a message reached it since its report) or waiting for an answer: closed, it would lose what it is doing.
+  const why = handed ? "handed" : hasSpawnedAtWork(nodeId) ? "subAgents" : takenOver(nodeId) ? "user" : atWork(nodeId) ? "atWork" : null;
   if (why) {
     notify(runner, m.staysOpen(member.name, why));
     return;

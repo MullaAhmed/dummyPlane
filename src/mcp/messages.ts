@@ -633,9 +633,15 @@ export const agentMessages = defineMessages({
       failed: (name: string, error: string) => `${name}: failed — ${error}`,
       header: (branch: string) => `Branch ${branch}:`,
       /** Why a merged agent stays open: its worktree goes with the mission's cleanup instead. */
-      staysOpen: (name: string, why: "handed" | "subAgents" | "user") =>
+      staysOpen: (name: string, why: "handed" | "subAgents" | "user" | "atWork") =>
         `${name} stays open after its merge: ${
-          why === "handed" ? "a sub-task was handed to it" : why === "subAgents" ? "one of its own sub-agents is still at work" : "the user is at its terminal"
+          why === "handed"
+            ? "a sub-task was handed to it"
+            : why === "subAgents"
+              ? "one of its own sub-agents is still at work"
+              : why === "user"
+                ? "the user is at its terminal"
+                : "it is at work again"
         }. Its worktree goes with the mission's cleanup.`,
       /** What git refused to remove of a merged agent: nothing was forced. */
       kept: (name: string, kept: readonly string[]) =>
