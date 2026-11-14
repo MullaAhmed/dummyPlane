@@ -2,7 +2,8 @@
 //! dummyPlane works beside the user's folder, never in their branch: no push,
 //! no force.
 
-use std::io::Write;
+use std::fs::File;
+use std::io::{BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 
@@ -376,8 +377,168 @@ fn undo_squash(mission: &Path) -> Result<(), String> {
     ))
 }
 
-/// Never forced: a worktree with uncommitted changes stays.
+/// Folders whose contents a build or a tool makes again: an ignored entry under one of them, at any depth, is no loss.
+const DISPOSABLE_FOLDERS: [&str; 23] = [
+    "node_modules",
+    "target",
+    "dist",
+    "build",
+    "out",
+    ".next",
+    ".nuxt",
+    ".svelte-kit",
+    ".turbo",
+    ".vite",
+    ".parcel-cache",
+    ".cache",
+    "coverage",
+    ".nyc_output",
+    "__pycache__",
+    ".pytest_cache",
+    ".mypy_cache",
+    ".ruff_cache",
+    ".tox",
+    ".venv",
+    "venv",
+    ".gradle",
+    "obj",
+];
+
+/// Whether an ignored entry git printed (a wholly ignored folder ends in `/`) is one a build or a tool makes again, or
+/// the system's litter: a segment of its path is one of `DISPOSABLE_FOLDERS`, or it is one of a few files, whatever the
+/// case. Not `bin`, `vendor`, `.idea`, `.vscode`, a log or an `.env`: those can hold what nothing makes again.
+fn disposable_path(entry: &str) -> bool {
+    let lower = entry.trim_end_matches('/').to_ascii_lowercase();
+    if lower
+        .split('/')
+        .any(|part| DISPOSABLE_FOLDERS.contains(&part))
+    {
+        return true;
+    }
+    let name = lower.rsplit('/').next().unwrap_or_default();
+    matches!(
+        name,
+        ".ds_store" | "thumbs.db" | "desktop.ini" | ".eslintcache"
+    ) || name.ends_with(".pyc")
+        || name.ends_with(".tsbuildinfo")
+}
+
+/// Whether two files hold the same bytes.
+fn same_bytes(a: &Path, b: &Path) -> bool {
+    let (Ok(meta_a), Ok(meta_b)) = (std::fs::metadata(a), std::fs::metadata(b)) else {
+        return false;
+    };
+    if !meta_a.is_file() || !meta_b.is_file() || meta_a.len() != meta_b.len() {
+        return false;
+    }
+    let (Ok(file_a), Ok(file_b)) = (File::open(a), File::open(b)) else {
+        return false;
+    };
+    let (mut a, mut b) = (BufReader::new(file_a), BufReader::new(file_b));
+    let (mut left, mut right) = ([0u8; 64 * 1024], [0u8; 64 * 1024]);
+    // Read to the end of each buffer, or of its file: a read may stop short.
+    fn fill(from: &mut impl Read, into: &mut [u8]) -> Option<usize> {
+        let mut filled = 0;
+        while filled < into.len() {
+            match from.read(&mut into[filled..]) {
+                Ok(0) => break,
+                Ok(n) => filled += n,
+                Err(_) => return None,
+            }
+        }
+        Some(filled)
+    }
+    loop {
+        let (Some(n), Some(m)) = (fill(&mut a, &mut left), fill(&mut b, &mut right)) else {
+            return false;
+        };
+        if n != m || left[..n] != right[..m] {
+            return false;
+        }
+        if n == 0 {
+            return true;
+        }
+    }
+}
+
+/// Whether everything under the wholly ignored folder `dir` (relative to the worktree, ending in `/`) is what a build makes
+/// again or a copy of the user's own: git prints such a folder as one entry (`a/`) whatever it holds, a `node_modules`
+/// deep inside included. A symbolic link or a file it cannot read is not.
+fn only_disposable_under(worktree: &Path, root: &Path, dir: &str) -> bool {
+    let Ok(entries) = std::fs::read_dir(worktree.join(dir)) else {
+        return false;
+    };
+    for entry in entries {
+        let Ok(entry) = entry else {
+            return false;
+        };
+        let child = format!("{dir}{}", entry.file_name().to_string_lossy());
+        if disposable_path(&child) {
+            continue;
+        }
+        let Ok(kind) = entry.file_type() else {
+            return false;
+        };
+        let held = if kind.is_dir() {
+            only_disposable_under(worktree, root, &format!("{child}/"))
+        } else {
+            same_bytes(&entry.path(), &root.join(&child))
+        };
+        if !held {
+            return false;
+        }
+    }
+    true
+}
+
+/// Why the ignored files of the worktree at `path` keep it, as "ignored files: .env, notes.md, +3 more" (at most five
+/// named); none when it holds none, or only those a build makes again (`disposable_path`) and copies of the user's own
+/// files, the same bytes at the same place in their checkout `root`. `git worktree remove` takes ignored files without
+/// a word, and a `.env` or a notes file an agent kept there goes with it.
+fn ignored_files_reason(root: &Path, path: &Path) -> Result<Option<String>, String> {
+    // A wholly ignored folder is one entry (`dir/`); `-z` leaves the names unquoted.
+    let status = git(path, &["status", "--porcelain", "-z", "--ignored"])?;
+    let kept: Vec<&str> = status
+        .split('\0')
+        .filter_map(|entry| entry.strip_prefix("!! "))
+        .filter(|entry| !disposable_path(entry))
+        .filter(|entry| {
+            if entry.ends_with('/') {
+                !only_disposable_under(path, root, entry)
+            } else {
+                !same_bytes(&path.join(entry), &root.join(entry))
+            }
+        })
+        .collect();
+    if kept.is_empty() {
+        return Ok(None);
+    }
+    let more = kept.len().saturating_sub(5);
+    let more = if more > 0 {
+        format!(", +{more} more")
+    } else {
+        String::new()
+    };
+    Ok(Some(format!(
+        "ignored files: {}{more}",
+        kept.iter().take(5).copied().collect::<Vec<_>>().join(", ")
+    )))
+}
+
+/// Never forced: a worktree with uncommitted changes, or with ignored files nothing makes again, stays.
 fn remove_worktree(root: &Path, name: String, path: &Path, done: &mut Cleanup) {
+    // Ignored files git would take with it, and nothing makes again: it stays, and says which.
+    match ignored_files_reason(root, path) {
+        Ok(None) => {}
+        Ok(Some(reason)) => {
+            done.kept.push(format!("{name} ({reason})"));
+            return;
+        }
+        Err(err) => {
+            done.kept.push(kept_worktree(&name, &err));
+            return;
+        }
+    }
     match git(root, &["worktree", "remove", &path.to_string_lossy()]) {
         Ok(_) => done.removed.push(name),
         Err(err) => done.kept.push(kept_worktree(&name, &err)),
@@ -421,11 +582,22 @@ pub fn discard(project: &Path, trees: &[Worktree]) -> Result<Cleanup, String> {
     let (root, _) = locate(project)?;
     let mut done = Cleanup::default();
     for tree in trees.iter().rev() {
-        if Path::new(&tree.path).exists()
-            && let Err(err) = git(&root, &["worktree", "remove", &tree.path])
-        {
-            done.kept.push(kept_worktree(&tree.slug, &err));
-            continue;
+        if Path::new(&tree.path).exists() {
+            match ignored_files_reason(&root, Path::new(&tree.path)) {
+                Ok(None) => {}
+                Ok(Some(reason)) => {
+                    done.kept.push(format!("{} ({reason})", tree.slug));
+                    continue;
+                }
+                Err(err) => {
+                    done.kept.push(kept_worktree(&tree.slug, &err));
+                    continue;
+                }
+            }
+            if let Err(err) = git(&root, &["worktree", "remove", &tree.path]) {
+                done.kept.push(kept_worktree(&tree.slug, &err));
+                continue;
+            }
         }
         match git(&root, &["branch", "-d", &tree.branch]) {
             Ok(_) => done.removed.push(tree.slug.clone()),
@@ -626,7 +798,7 @@ pub fn cleanup_unsaved(
         if !path.exists() {
             continue;
         }
-        let mut reasons = Vec::new();
+        let mut reasons: Vec<String> = Vec::new();
         let branch = format!("dummyplane/{name}");
         if !branch_in(
             &root,
@@ -635,21 +807,33 @@ pub fn cleanup_unsaved(
             &merged,
             &squashed,
         ) {
-            reasons.push("branch not merged");
+            reasons.push("branch not merged".to_string());
         }
         if !git(&path, &["status", "--porcelain"])?.is_empty() {
-            reasons.push("uncommitted changes");
+            reasons.push("uncommitted changes".to_string());
         }
         if on_no_branch(&path).unwrap_or(true) {
-            reasons.push("commits on no branch");
+            reasons.push("commits on no branch".to_string());
+        }
+        if let Some(reason) = ignored_files_reason(&root, &path)? {
+            reasons.push(reason);
         }
         if !reasons.is_empty() {
             unsaved.push(format!("{name} ({})", reasons.join(", ")));
         }
     }
     let path = dir.join(mission);
-    if unsaved.is_empty() && path.exists() && !git(&path, &["status", "--porcelain"])?.is_empty() {
-        unsaved.push(format!("{mission} (uncommitted changes)"));
+    if unsaved.is_empty() && path.exists() {
+        let mut reasons: Vec<String> = Vec::new();
+        if !git(&path, &["status", "--porcelain"])?.is_empty() {
+            reasons.push("uncommitted changes".to_string());
+        }
+        if let Some(reason) = ignored_files_reason(&root, &path)? {
+            reasons.push(reason);
+        }
+        if !reasons.is_empty() {
+            unsaved.push(format!("{mission} ({})", reasons.join(", ")));
+        }
     }
     Ok(unsaved)
 }
@@ -1891,5 +2075,280 @@ mod tests {
         std::fs::remove_file(lock).unwrap();
         assert!(undo_squash(m).is_ok());
         assert_eq!(run(m, &["status", "--porcelain"]), "");
+    }
+
+    // ---- ignored files: a worktree holding any a build does not make again is kept, and says which ----
+
+    /// A project whose .gitignore names what the tests below put in an agent's worktree, a mission and a squashed Hulk.
+    fn ignoring() -> Option<(tempfile::TempDir, PathBuf, Worktree, Worktree, MergeReport)> {
+        let (parent, proj) = project()?;
+        commit(
+            &proj,
+            ".gitignore",
+            "node_modules/\ntarget/\n.DS_Store\nThumbs.db\n*.pyc\n*.tsbuildinfo\n.eslintcache\n.env\nnotes.md\nkeep-*.txt\nbin/\n*.log\n",
+            "ignore what is not source",
+        );
+        let mission = prepare(&proj, "auth").unwrap();
+        let hulk = add_agent(&proj, &mission.slug, "Hulk").unwrap();
+        commit(Path::new(&hulk.path), "login.txt", "login\n", "login");
+        let squashed = squash(Path::new(&mission.path), &hulk);
+        Some((parent, proj, mission, hulk, squashed))
+    }
+
+    fn write_in(dir: &Path, file: &str, content: &str) {
+        let path = dir.join(file);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, content).unwrap();
+    }
+
+    #[test]
+    fn what_a_build_or_a_tool_makes_again_is_told_from_what_is_not() {
+        for gone in [
+            "node_modules/",
+            "a/b/c/node_modules/pkg/index.js",
+            "NODE_MODULES/",
+            "web/Dist/app.js",
+            "target/debug/app.exe",
+            ".venv/",
+            "src/__pycache__/",
+            ".next/cache/x",
+            ".DS_Store",
+            "docs/thumbs.db",
+            "Desktop.ini",
+            "src/x.pyc",
+            "tsconfig.tsbuildinfo",
+            ".eslintcache",
+            "coverage/lcov.info",
+            "pkg/obj/Debug/x.dll",
+        ] {
+            assert!(disposable_path(gone), "{gone}");
+        }
+        for kept in [
+            ".env",
+            ".env.local",
+            "notes.md",
+            "bin/",
+            "vendor/",
+            ".idea/",
+            ".vscode/settings.json",
+            "run.log",
+            "deep/dir/secrets.txt",
+            "nodemodules/",
+            "mytarget/",
+        ] {
+            assert!(!disposable_path(kept), "{kept}");
+        }
+    }
+
+    #[test]
+    fn a_worktree_holding_only_what_a_build_makes_again_goes_with_its_branch() {
+        let Some((_parent, proj, mission, hulk, squashed)) = ignoring() else {
+            return;
+        };
+        let h = Path::new(&hulk.path);
+        for file in [
+            "node_modules/pkg/index.js",
+            "a/b/c/node_modules/pkg/index.js",
+            "target/debug/app",
+            ".DS_Store",
+            "Thumbs.db",
+            "x.pyc",
+            "tsconfig.tsbuildinfo",
+            ".eslintcache",
+        ] {
+            write_in(h, file, "made again\n");
+        }
+        let done =
+            remove_agent(&proj, &mission.slug, &agent("Hulk", Some(&squashed.head))).unwrap();
+        assert_eq!(
+            done.removed,
+            vec![hulk.slug.clone(), hulk.branch.clone()],
+            "{done:?}"
+        );
+        assert!(done.kept.is_empty());
+        assert!(!h.exists());
+    }
+
+    #[test]
+    fn a_worktree_with_an_ignored_notes_file_or_a_changed_env_stays_and_names_them() {
+        let Some((_parent, proj, mission, hulk, squashed)) = ignoring() else {
+            return;
+        };
+        let h = Path::new(&hulk.path);
+        write_in(h, "node_modules/pkg/index.js", "made again\n");
+        write_in(h, "notes.md", "my notes\n");
+        // The user's own checkout holds another .env: this one is the agent's.
+        write_in(h, ".env", "TOKEN=agent\n");
+        write_in(&proj, ".env", "TOKEN=mine\n");
+        let done =
+            remove_agent(&proj, &mission.slug, &agent("Hulk", Some(&squashed.head))).unwrap();
+        assert!(done.removed.is_empty(), "{done:?}");
+        assert_eq!(
+            done.kept,
+            vec![format!("{} (ignored files: .env, notes.md)", hulk.slug)]
+        );
+        assert!(h.join("notes.md").exists() && h.join(".env").exists());
+        // Its branch stays with it.
+        assert!(branch_exists(&proj, &hulk.branch));
+        // An .env with no counterpart in the user's checkout is the agent's too.
+        std::fs::remove_file(h.join("notes.md")).unwrap();
+        std::fs::remove_file(proj.join(".env")).unwrap();
+        let done =
+            remove_agent(&proj, &mission.slug, &agent("Hulk", Some(&squashed.head))).unwrap();
+        assert_eq!(
+            done.kept,
+            vec![format!("{} (ignored files: .env)", hulk.slug)]
+        );
+    }
+
+    #[test]
+    fn an_ignored_file_that_is_a_copy_of_the_users_own_does_not_keep_a_worktree() {
+        let Some((_parent, proj, mission, hulk, squashed)) = ignoring() else {
+            return;
+        };
+        let h = Path::new(&hulk.path);
+        write_in(&proj, ".env", "TOKEN=mine\n");
+        write_in(h, ".env", "TOKEN=mine\n");
+        let done =
+            remove_agent(&proj, &mission.slug, &agent("Hulk", Some(&squashed.head))).unwrap();
+        assert_eq!(
+            done.removed,
+            vec![hulk.slug.clone(), hulk.branch.clone()],
+            "{done:?}"
+        );
+        assert!(!h.exists());
+    }
+
+    #[test]
+    fn bin_logs_and_the_rest_are_not_taken_for_what_a_build_makes_again_and_at_most_five_are_named()
+    {
+        let Some((_parent, proj, mission, hulk, squashed)) = ignoring() else {
+            return;
+        };
+        let h = Path::new(&hulk.path);
+        write_in(h, "bin/tool.exe", "x");
+        write_in(h, "run.log", "x");
+        for n in 1..=5 {
+            write_in(h, &format!("keep-{n}.txt"), "x");
+        }
+        let done =
+            remove_agent(&proj, &mission.slug, &agent("Hulk", Some(&squashed.head))).unwrap();
+        assert_eq!(
+            done.kept,
+            vec![format!(
+                "{} (ignored files: bin/, keep-1.txt, keep-2.txt, keep-3.txt, keep-4.txt, +2 more)",
+                hulk.slug
+            )]
+        );
+        assert!(h.exists());
+    }
+
+    #[test]
+    fn the_mission_cleanup_and_what_it_would_leave_agree_on_ignored_files() {
+        let Some((_parent, proj, mission, hulk, squashed)) = ignoring() else {
+            return;
+        };
+        let h = Path::new(&hulk.path);
+        let agents = vec![agent("Hulk", Some(&squashed.head))];
+        write_in(h, "node_modules/pkg/index.js", "made again\n");
+        write_in(h, "notes.md", "my notes\n");
+        let reason = format!("{} (ignored files: notes.md)", hulk.slug);
+        assert_eq!(
+            cleanup_unsaved(&proj, &mission.slug, &agents).unwrap(),
+            vec![reason.clone()]
+        );
+        let done = cleanup(&proj, &mission.slug, &agents).unwrap();
+        assert!(done.removed.is_empty(), "{done:?}");
+        assert_eq!(done.kept, vec![reason]);
+        // The mission's own worktree stays while one is kept, as for any other reason.
+        assert!(Path::new(&mission.path).exists() && h.exists());
+        std::fs::remove_file(h.join("notes.md")).unwrap();
+        assert!(
+            cleanup_unsaved(&proj, &mission.slug, &agents)
+                .unwrap()
+                .is_empty()
+        );
+        let done = cleanup(&proj, &mission.slug, &agents).unwrap();
+        assert_eq!(done.removed, vec![hulk.slug.clone(), mission.slug.clone()]);
+        assert!(done.kept.is_empty());
+    }
+
+    #[test]
+    fn a_launch_taken_back_keeps_a_worktree_with_an_ignored_file_too() {
+        let Some((_parent, proj)) = project() else {
+            return;
+        };
+        commit(
+            &proj,
+            ".gitignore",
+            "notes.md
+",
+            "ignore notes",
+        );
+        let mission = prepare(&proj, "auth").unwrap();
+        let hulk = add_agent(&proj, &mission.slug, "Hulk").unwrap();
+        write_in(
+            Path::new(&hulk.path),
+            "notes.md",
+            "my notes
+",
+        );
+        let done = discard(&proj, &[mission.clone(), hulk.clone()]).unwrap();
+        assert_eq!(
+            done.kept,
+            vec![format!("{} (ignored files: notes.md)", hulk.slug)],
+            "{done:?}"
+        );
+        assert_eq!(done.removed, vec![mission.slug.clone()]);
+        assert!(Path::new(&hulk.path).exists());
+        assert!(branch_exists(&proj, &hulk.branch));
+        // Without it, the launch goes back as before.
+        std::fs::remove_file(Path::new(&hulk.path).join("notes.md")).unwrap();
+        let done = discard(&proj, std::slice::from_ref(&hulk)).unwrap();
+        assert_eq!(done.removed, vec![hulk.slug.clone()]);
+        assert!(!branch_exists(&proj, &hulk.branch));
+    }
+
+    /// Git prints a folder holding nothing but ignored files as one entry: one file among build output is not lost in it.
+    #[test]
+    fn a_folder_that_hides_one_ignored_file_among_build_output_keeps_the_worktree_unless_it_is_a_copy()
+     {
+        let Some((_parent, proj, mission, hulk, squashed)) = ignoring() else {
+            return;
+        };
+        let h = Path::new(&hulk.path);
+        write_in(
+            h,
+            "deep/node_modules/pkg/index.js",
+            "made again
+",
+        );
+        write_in(
+            h,
+            "deep/sub/notes.md",
+            "my notes
+",
+        );
+        let gone = agent("Hulk", Some(&squashed.head));
+        let done = remove_agent(&proj, &mission.slug, &gone).unwrap();
+        assert_eq!(
+            done.kept,
+            vec![format!("{} (ignored files: deep/)", hulk.slug)],
+            "{done:?}"
+        );
+        assert!(h.join("deep/sub/notes.md").exists());
+        // The same file in the user's own checkout: the agent's is a copy, and the worktree goes.
+        write_in(
+            &proj,
+            "deep/sub/notes.md",
+            "my notes
+",
+        );
+        let done = remove_agent(&proj, &mission.slug, &gone).unwrap();
+        assert_eq!(
+            done.removed,
+            vec![hulk.slug.clone(), hulk.branch.clone()],
+            "{done:?}"
+        );
     }
 }
