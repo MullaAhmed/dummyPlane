@@ -265,6 +265,16 @@ pub fn merge_agent(
     if tree(&base)? == tree(&head)? {
         return Ok(report(Merge::Empty));
     }
+    // Staged there, a change is not the squash's: its commit would take it in, and the undo of a squash that fails
+    // (`reset --merge`) would take it out of the folder. Refused before anything is written.
+    let staged = git(mission, &["diff", "--cached", "--name-only"])?;
+    if !staged.is_empty() {
+        let names: Vec<&str> = staged.lines().take(3).collect();
+        return Err(format!(
+            "The mission's worktree has changes staged ({}): commit or unstage them there, then merge again.",
+            names.join(", ")
+        ));
+    }
     // Whether its commit goes unsigned where the user signs, read before anything is written: an error here leaves
     // the mission as it was, never a commit made and said to have failed.
     let unsigned = crate::git::unsigned(mission)?;
@@ -1070,6 +1080,63 @@ mod tests {
         run(&proj, &["config", "commit.gpgsign", "false"]);
         assert_eq!(squash(m, &hulk).merge, Merge::Merged);
         assert_eq!(read(m, "login.txt"), "login\n");
+    }
+
+    /// What somebody staged in the mission's worktree (the user in a terminal, or what an interrupted merge left)
+    /// is theirs: the squash's commit would take it in under an agent's sub-task, and the undo of a squash that fails
+    /// would take it out of the folder. A merge refuses it, writing nothing, and goes on once it is committed or unstaged.
+    #[test]
+    fn a_squash_refuses_a_mission_worktree_with_staged_changes_and_writes_nothing() {
+        let Some((_parent, proj)) = project() else {
+            return;
+        };
+        let mission = prepare(&proj, "auth").unwrap();
+        let hulk = add_agent(&proj, &mission.slug, "Hulk").unwrap();
+        let thor = add_agent(&proj, &mission.slug, "Thor").unwrap();
+        let m = Path::new(&mission.path);
+        commit(Path::new(&hulk.path), "login.txt", "login\n", "login");
+        commit(Path::new(&thor.path), "a.txt", "thor\n", "thor edits a.txt");
+        commit(m, "a.txt", "mission\n", "mission edits a.txt");
+        std::fs::write(m.join("mine.txt"), "staged by somebody\n").unwrap();
+        run(m, &["add", "mine.txt"]);
+        let head = run(m, &["rev-parse", "HEAD"]);
+        // A squash that would go through, and one that would conflict: neither takes the file in, nor out.
+        for agent in [&hulk, &thor] {
+            let err =
+                merge_agent(m, Path::new(&agent.path), &agent.branch, "Task", None).unwrap_err();
+            assert!(err.contains("staged") && err.contains("mine.txt"), "{err}");
+            assert_eq!(run(m, &["rev-parse", "HEAD"]), head);
+            assert_eq!(run(m, &["status", "--porcelain"]), "A  mine.txt");
+            assert_eq!(read(m, "mine.txt"), "staged by somebody\n");
+            assert!(!m.join("login.txt").exists());
+        }
+        // Unstaged, the file is its owner's still, and the merge goes through without it.
+        run(m, &["reset", "-q"]);
+        assert_eq!(squash(m, &hulk).merge, Merge::Merged);
+        let files = run(m, &["show", "--name-only", "--format=", "HEAD"]);
+        assert_eq!(files, "login.txt");
+        assert_eq!(read(m, "mine.txt"), "staged by somebody\n");
+    }
+
+    #[test]
+    fn a_squash_goes_on_past_changes_that_are_not_staged() {
+        let Some((_parent, proj)) = project() else {
+            return;
+        };
+        let mission = prepare(&proj, "auth").unwrap();
+        let hulk = add_agent(&proj, &mission.slug, "Hulk").unwrap();
+        let m = Path::new(&mission.path);
+        commit(Path::new(&hulk.path), "login.txt", "login\n", "login");
+        // An edit of a tracked file the squash does not touch, and a file not tracked: not the squash's, and kept.
+        std::fs::write(m.join("a.txt"), "edited by somebody\n").unwrap();
+        std::fs::write(m.join("notes.txt"), "notes\n").unwrap();
+        assert_eq!(squash(m, &hulk).merge, Merge::Merged);
+        assert_eq!(
+            run(m, &["show", "--name-only", "--format=", "HEAD"]),
+            "login.txt"
+        );
+        assert_eq!(read(m, "a.txt"), "edited by somebody\n");
+        assert_eq!(read(m, "notes.txt"), "notes\n");
     }
 
     #[test]
