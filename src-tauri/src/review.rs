@@ -50,9 +50,18 @@ pub struct FileText {
     pub truncated: bool,
 }
 
-/// `git::command`: nothing the repository's own config names runs.
+/// `git::command`, unasked: nothing the repository's own config names runs.
 pub(crate) fn command(dir: &Path, args: &[&str]) -> Result<Command, String> {
-    let mut command = crate::git::command(dir)?;
+    command_as(dir, args, crate::git::Asked::Unasked)
+}
+
+/// `command`, for a call the user clicked or not (`git::Asked`).
+pub(crate) fn command_as(
+    dir: &Path,
+    args: &[&str],
+    asked: crate::git::Asked,
+) -> Result<Command, String> {
+    let mut command = crate::git::command(dir, asked)?;
     command
         .arg("--no-optional-locks")
         .args(["-c", "core.quotePath=false"])

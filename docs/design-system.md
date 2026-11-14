@@ -192,7 +192,7 @@ Toasts (Sonner: `src/components/ui/sonner.tsx`, placed by `AppToaster`):
 - Motion: `--dp-dur` on `--dp-ease-out`, with no `box-shadow` in the transition list. Under reduced motion, toasts only fade.
 - Sonner injects its own style unlayered, later than `index.css`, so it beats every utility. `index.css` rolls each property it sets on the title, the description and the buttons back to the utilities' layer (`revert-layer`), with a selector that out-ranks its strongest rule. Opacity stays Sonner's, since it hides the toasts stacked behind. It also puts the app's font back. `src/theme/alerts.test.ts` checks all this against Sonner's stylesheet.
 - A custom toast (`toast.custom`) draws the same: `dp-glass-strong`, `rounded-lg`, the same type steps.
-- Every toast is also recorded in the notification panel (the bell of the right rail, `src/notifications/`): `vite.config.ts` sends each import of `sonner` to `src/notifications/sonner.ts`, which wraps `toast` and records what it shows. A toast that is about a node, not the workspace on screen, is shown inside `withPlane({ nodeId }, () => toast(...))` so its entry is filed under that node's workspace; a `toast.custom` passes the sentence it stands for as `text`.
+- A toast is not kept. The notification panel (the bell of the right rail, `src/notifications/`) keeps three kinds of news, each recorded where it happens with `recordNotification`, its node named so its entry is filed under that node's workspace: an agent that finished (`src/shell/finishAlert.ts`), a question an agent asks (`src/shell/waitingAlert.ts`) and a board whose cards are all done (`src/shell/boardDoneAlert.ts`).
 
 Errors:
 

@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { MAX_DESCRIPTION, MAX_TITLE, onRecord, recordNotification, withPlane, type NewNotification, type Recorded } from "./capture";
+import { MAX_DESCRIPTION, MAX_TITLE, onRecord, recordNotification, type NewNotification, type Recorded } from "./capture";
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -79,16 +79,5 @@ describe("recordNotification", () => {
     expect(seen).toHaveLength(50);
     expect(seen[0]).toBe("n30");
     expect(seen[49]).toBe("n79");
-  });
-});
-
-describe("withPlane", () => {
-  it("runs what it is given and gives back its result, recording nothing", () => {
-    expect(received(() => expect(withPlane({ nodeId: "n1" }, () => 42)).toBe(42))).toEqual([]);
-    expect(() =>
-      withPlane({ nodeId: "n1" }, () => {
-        throw new Error("boom");
-      }),
-    ).toThrow("boom");
   });
 });

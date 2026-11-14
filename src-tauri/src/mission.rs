@@ -35,6 +35,9 @@ pub struct MergeReport {
     pub merge: Merge,
     /// The agent left changes uncommitted in its worktree: they are not merged.
     pub uncommitted: bool,
+    /// The merge's commit went unsigned where the user signs: the signing program is set in this repository only,
+    /// and dummyPlane's own git runs none it names (`git::unsigned`).
+    pub unsigned: bool,
     /// The agent's branch head the merge looked at: what its squash took in, kept by the mission so that the next
     /// merge takes only what came after it, and so that the cleanups know the branch is in.
     pub head: String,
@@ -49,22 +52,6 @@ pub struct AgentBranch {
     #[serde(default)]
     pub squashed: Option<String>,
 }
-
-/// Whether the repository's hooks run when an agent's work is squashed into the mission branch. They are programs
-/// the repository names, which an agent can write, run on dummyPlane's own commit: off, none runs (the decision of
-/// 13 Nov). The user's own merge of the mission branch runs them as any of their commits does.
-const SQUASH_RUNS_HOOKS: bool = false;
-
-/// A hooks folder no hook can be in: with it, git finds none to run, `post-commit` included (`--no-verify` only skips
-/// the checks).
-const NO_HOOKS: [&str; 2] = [
-    "-c",
-    if cfg!(windows) {
-        "core.hooksPath=NUL"
-    } else {
-        "core.hooksPath=/dev/null"
-    },
-];
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -117,7 +104,7 @@ pub fn slug(name: &str) -> String {
 
 fn git(dir: &Path, args: &[&str]) -> Result<String, String> {
     // A merge reads the worktrees' status and runs merge drivers: never a program the repository names (`git::command`).
-    let output = crate::git::command(dir)?
+    let output = crate::git::command(dir, crate::git::Asked::Unasked)?
         .args(args)
         .output()
         .map_err(|err| format!("git not found: {err}"))?;
@@ -128,15 +115,12 @@ fn git(dir: &Path, args: &[&str]) -> Result<String, String> {
     }
 }
 
-/// `git` for the squash of an agent's work, as `git` (`git::command`), with no hook of the repository either
-/// (`SQUASH_RUNS_HOOKS`): `git::command` switches off a hooks folder the repository's config names, not its own
-/// `.git/hooks`. `input`, when given, is what git reads on its standard input: a commit's message is never an
-/// argument, nor a shell's.
+/// `git` for the squash of an agent's work, as `git`: dummyPlane's own, unasked (`git::command`), so no hook of the
+/// repository runs on it, neither from `.git/hooks` nor from a folder its config names, nor a filter, merge driver
+/// or signing program only it names. `input`, when given, is what git reads on its standard input: a commit's
+/// message is never an argument, nor a shell's.
 fn squash_git(dir: &Path, args: &[&str], input: Option<&str>) -> Result<String, String> {
-    let mut command = crate::git::command(dir)?;
-    if !SQUASH_RUNS_HOOKS {
-        command.args(NO_HOOKS);
-    }
+    let mut command = crate::git::command(dir, crate::git::Asked::Unasked)?;
     command
         .args(args)
         .stdin(if input.is_some() {
@@ -241,8 +225,8 @@ pub fn add_agent(project: &Path, mission: &str, agent: &str) -> Result<Worktree,
 }
 
 /// Squashes an agent's branch into the mission's, in the mission's worktree: one commit, whose message is `message`
-/// (the sub-task, then what the agent reported; never a branch's name), with the user's git identity and no hook of
-/// the repository (`SQUASH_RUNS_HOOKS`). `since` is the head its last merge took in: only what came after it is
+/// (the sub-task, then what the agent reported; never a branch's name), with the user's git identity and signing and
+/// no hook of the repository (`squash_git`). `since` is the head its last merge took in: only what came after it is
 /// taken, with it as the merge's base, as a squashed branch is no ancestor of the mission's. A conflict, or a commit
 /// git refuses, is undone: the mission's worktree is left as it was.
 pub fn merge_agent(
@@ -263,6 +247,7 @@ pub fn merge_agent(
     let report = |merge| MergeReport {
         merge,
         uncommitted,
+        unsigned: false,
         head: head.clone(),
     };
     let base = match since {
@@ -280,6 +265,9 @@ pub fn merge_agent(
     if tree(&base)? == tree(&head)? {
         return Ok(report(Merge::Empty));
     }
+    // Whether its commit goes unsigned where the user signs, read before anything is written: an error here leaves
+    // the mission as it was, never a commit made and said to have failed.
+    let unsigned = crate::git::unsigned(mission)?;
     // One commit from `base` to the agent's work: cherry-pick takes `base`, its parent, as the merge's base. Never
     // kept, never signed.
     let step = squash_git(
@@ -310,16 +298,25 @@ pub fn merge_agent(
         undo_squash(mission);
         return Ok(report(Merge::Empty));
     }
-    let mut commit = vec!["commit", "-q", "--cleanup=whitespace", "-F", "-"];
-    if !SQUASH_RUNS_HOOKS {
-        commit.push("--no-verify");
-    }
+    // Signed as the user's own commits are, unless the signing program is the repository's alone (`git::unsigned`).
+    // `--no-verify` as well as no hooks folder: the checks stay skipped whatever the hooks' folder.
+    let commit = [
+        "commit",
+        "-q",
+        "--no-verify",
+        "--cleanup=whitespace",
+        "-F",
+        "-",
+    ];
     if let Err(err) = squash_git(mission, &commit, Some(message)) {
-        // A commit refused (a hook, a signing that failed) leaves the squash staged: the next merges would take it in.
+        // A commit refused (a signing that failed) leaves the squash staged: the next merges would take it in.
         undo_squash(mission);
         return Err(format!("Merging {branch} failed and was cancelled: {err}"));
     }
-    Ok(report(Merge::Merged))
+    Ok(MergeReport {
+        unsigned,
+        ..report(Merge::Merged)
+    })
 }
 
 /// Takes a squash back: the index and the files it changed as they were, a conflict's included, other local changes kept.
@@ -708,8 +705,6 @@ mod tests {
         assert!(Path::new(&agent.path).join("m.txt").exists());
     }
 
-    /// A mission's worktrees share the repository's config: a program it names for git to run as it reads a status
-    /// (`core.fsmonitor`) never runs when a Manager merges an agent's work.
     /// A mission checks its worktrees out and merges them: in a repository whose own config defines a filter, which
     /// dummyPlane's git does not run, it would write what the filter would have changed (git-crypt's cipher, LFS
     /// pointers). It does not start.
@@ -761,6 +756,8 @@ mod tests {
         );
     }
 
+    /// A mission's worktrees share the repository's config: a program it names for git to run as it reads a status
+    /// (`core.fsmonitor`) never runs when a Manager merges an agent's work.
     #[test]
     fn merging_runs_no_program_the_repository_names() {
         let Some((_parent, proj)) = project() else {
@@ -827,6 +824,7 @@ mod tests {
             MergeReport {
                 merge: Merge::Merged,
                 uncommitted: false,
+                unsigned: false,
                 head: run(h, &["rev-parse", "HEAD"]),
             }
         );
@@ -900,19 +898,23 @@ mod tests {
         assert_eq!(run(m, &["rev-parse", "HEAD"]), head);
     }
 
-    /// A merge's commit is dummyPlane's: no hook the repository names runs on it (`SQUASH_RUNS_HOOKS`), not even
-    /// those `--no-verify` leaves.
+    /// A Manager merges unasked, through the night: no hook of the repository runs on a squash, neither from
+    /// `.git/hooks` nor from a folder its config names, not even those `--no-verify` leaves, though the user's own
+    /// commits run them.
     #[test]
-    fn a_squash_runs_no_hook_the_repository_names() {
+    fn a_squash_runs_no_hook_of_the_repository() {
         let Some((parent, proj)) = project() else {
             return;
         };
         let mission = prepare(&proj, "auth").unwrap();
+        // The agents' work is committed first: the hooks refuse, the test's own commits included.
         let hulk = add_agent(&proj, &mission.slug, "Hulk").unwrap();
+        commit(Path::new(&hulk.path), "login.txt", "login\n", "login");
         let thor = add_agent(&proj, &mission.slug, "Thor").unwrap();
         commit(Path::new(&thor.path), "api.txt", "api\n", "api");
-        // Each hook would leave a mark, and refuse. Worktrees share the repository's hooks: those of its own folder
-        // (`.git/hooks`, which `git::command` leaves), then those of a folder its config names (which it switches off).
+        // Each hook would leave a mark, and refuse: those a squash's commit would run, and a merge's, should the squash
+        // ever become one. Worktrees share the repository's hooks: those of its own folder (`.git/hooks`), then those
+        // of a folder its config names.
         let marks = parent.path().join("marks");
         std::fs::create_dir(&marks).unwrap();
         let at = marks.to_string_lossy().replace('\\', "/");
@@ -921,6 +923,8 @@ mod tests {
             "prepare-commit-msg",
             "commit-msg",
             "post-commit",
+            "pre-merge-commit",
+            "post-merge",
             "reference-transaction",
             "post-rewrite",
         ];
@@ -958,19 +962,67 @@ mod tests {
                 "the {name} hook ran"
             );
         }
+        assert_eq!(read(m, "login.txt"), "login\n");
+        assert_eq!(read(m, "api.txt"), "api\n");
     }
 
+    /// A signing program that leaves `gpg-ran` in the folder git runs it in, then fails: what a repository may name.
+    fn signer(dir: &Path) -> String {
+        let script = dir.join("sign.sh");
+        std::fs::write(&script, "#!/bin/sh\necho ran > gpg-ran\nexit 1\n").unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = std::fs::Permissions::from_mode(0o755);
+            std::fs::set_permissions(&script, mode).unwrap();
+        }
+        script.to_string_lossy().replace('\\', "/")
+    }
+
+    /// A mission's squash commit is signed with the user's own signing program, never one the repository alone names:
+    /// then it goes unsigned, and its report says so for the Manager.
     #[test]
-    fn a_squash_whose_commit_git_refuses_is_undone() {
+    fn a_merge_is_not_signed_by_a_program_the_repository_alone_names() {
+        let Some((parent, proj)) = project() else {
+            return;
+        };
+        let mission = prepare(&proj, "auth").unwrap();
+        let hulk = add_agent(&proj, &mission.slug, "Hulk").unwrap();
+        commit(Path::new(&hulk.path), "login.txt", "login\n", "login");
+        run(&proj, &["config", "commit.gpgsign", "true"]);
+        // `gpg.program` is OpenPGP's, whatever the developer's own config picks.
+        run(&proj, &["config", "gpg.format", "openpgp"]);
+        run(&proj, &["config", "gpg.program", &signer(parent.path())]);
+        let m = Path::new(&mission.path);
+        let report = squash(m, &hulk);
+        assert_eq!(report.merge, Merge::Merged);
+        assert!(
+            report.unsigned,
+            "the report does not say the merge went unsigned"
+        );
+        assert!(
+            !m.join("gpg-ran").exists(),
+            "the repository's signing program ran on a mission's merge"
+        );
+        assert!(!run(m, &["cat-file", "-p", "HEAD"]).contains("gpgsig"));
+        assert_eq!(run(m, &["log", "-1", "--format=%s"]), "An agent's sub-task");
+    }
+
+    /// A squash whose commit fails once it is staged (here, signed with a key nobody has, by the user's own signing
+    /// program) leaves nothing half done: no commit, nothing staged, no file of the agent's, and the next merge works.
+    #[test]
+    fn a_merge_whose_commit_fails_is_undone() {
         let Some((_parent, proj)) = project() else {
             return;
         };
         let mission = prepare(&proj, "auth").unwrap();
         let hulk = add_agent(&proj, &mission.slug, "Hulk").unwrap();
         commit(Path::new(&hulk.path), "login.txt", "login\n", "login");
-        // A signing that cannot run refuses the commit.
         run(&proj, &["config", "commit.gpgsign", "true"]);
-        run(&proj, &["config", "gpg.program", "dummyplane-no-such-gpg"]);
+        run(
+            &proj,
+            &["config", "user.signingkey", "dummyplane-test-no-such-key"],
+        );
         let m = Path::new(&mission.path);
         let head = run(m, &["rev-parse", "HEAD"]);
         let err = merge_agent(m, Path::new(&hulk.path), &hulk.branch, "Login", None).unwrap_err();
@@ -978,8 +1030,15 @@ mod tests {
         assert_eq!(run(m, &["status", "--porcelain"]), "");
         assert_eq!(run(m, &["rev-parse", "HEAD"]), head);
         assert!(!m.join("login.txt").exists());
+        for state in ["MERGE_HEAD", "CHERRY_PICK_HEAD"] {
+            assert!(
+                git(m, &["rev-parse", "-q", "--verify", state]).is_err(),
+                "{state} was left behind"
+            );
+        }
         run(&proj, &["config", "commit.gpgsign", "false"]);
         assert_eq!(squash(m, &hulk).merge, Merge::Merged);
+        assert_eq!(read(m, "login.txt"), "login\n");
     }
 
     #[test]

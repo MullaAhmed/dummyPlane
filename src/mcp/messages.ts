@@ -622,6 +622,7 @@ export const agentMessages = defineMessages({
       noBranch: "The mission has no branch.",
       nothing: "Nothing to merge: no agent has reported \"done\".",
       uncommitted: " (uncommitted changes in its worktree are not merged)",
+      unsigned: " (not signed: the signing program is set in this repository only)",
       conflict: (name: string, files: string, note: string) => `${name}: conflict, merge undone — ${files}${note}`,
       merged: "merged",
       already: "already merged, nothing new",

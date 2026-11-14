@@ -414,8 +414,8 @@ export function mergeMember(fleetId: string, worktree: string, member: Member): 
     try {
       const before = current();
       const since = before?.branch === member.branch ? before.squashed : undefined;
-      const { merge, uncommitted, head } = await missionMerge(worktree, member.worktree, member.branch, squashMessage(member), since);
-      const note = uncommitted ? m.uncommitted : "";
+      const { merge, uncommitted, unsigned, head } = await missionMerge(worktree, member.worktree, member.branch, squashMessage(member), since);
+      const note = (uncommitted ? m.uncommitted : "") + (unsigned ? m.unsigned : "");
       if (merge.kind === "conflict") return { line: m.conflict(member.name, merge.files.join(", "), note), merged: false, uncommitted };
       const said = merge.kind === "merged" ? m.merged : member.merged ? m.already : m.empty;
       // What its branch holds up to `head` is in, whatever task it is on now; it may have taken another meanwhile,

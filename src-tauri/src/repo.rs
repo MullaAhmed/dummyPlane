@@ -10,6 +10,7 @@ use std::time::UNIX_EPOCH;
 use serde::Serialize;
 
 use crate::git;
+use crate::git::Asked;
 use crate::review::{self, ChangedFile};
 
 /// The commits the history shows at most.
@@ -65,9 +66,10 @@ pub struct LogRef {
 }
 
 /// `review::command`, where a path is never a pattern
-/// and git never waits for an answer nobody can type.
-fn command(root: &Path, args: &[&str]) -> Result<Command, String> {
-    let mut command = review::command(root, &["--literal-pathspecs"])?;
+/// and git never waits for an answer nobody can type. `asked`: a button the user clicked runs as their terminal
+/// would, the repository's hooks included (`git::Asked`).
+fn command(root: &Path, args: &[&str], asked: Asked) -> Result<Command, String> {
+    let mut command = review::command_as(root, &["--literal-pathspecs"], asked)?;
     command.args(args).env("GIT_TERMINAL_PROMPT", "0");
     command.stdin(Stdio::null());
     Ok(command)
@@ -84,8 +86,19 @@ fn failure(output: &std::process::Output) -> String {
     text.trim().to_string()
 }
 
+/// A git the window runs on its own, to show the repository: no hook runs.
 fn run(root: &Path, args: &[&str]) -> Result<String, String> {
-    let output = command(root, args)?
+    run_as(root, args, Asked::Unasked)
+}
+
+/// A git of a button the user clicked (Commit, Push, Switch, Discard): the repository's hooks run, and one that
+/// refuses is the action's error, with what it said.
+fn run_clicked(root: &Path, args: &[&str]) -> Result<String, String> {
+    run_as(root, args, Asked::Clicked)
+}
+
+fn run_as(root: &Path, args: &[&str], asked: Asked) -> Result<String, String> {
+    let output = command(root, args, asked)?
         .output()
         .map_err(|err| format!("git not found: {err}"))?;
     if output.status.success() {
@@ -95,9 +108,10 @@ fn run(root: &Path, args: &[&str]) -> Result<String, String> {
     }
 }
 
-/// `args` with the paths on stdin: Windows limits a command line to 32 000 characters.
+/// `args` with the paths on stdin: Windows limits a command line to 32 000 characters. Only the buttons the user
+/// clicks (Commit, Discard) give git paths: their hooks run (`run_clicked`).
 fn run_on_paths(root: &Path, args: &[&str], paths: &[&str]) -> Result<(), String> {
-    let mut child = command(root, args)?
+    let mut child = command(root, args, Asked::Clicked)?
         .args(["--pathspec-from-file=-", "--pathspec-file-nul"])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -434,8 +448,10 @@ pub fn discard(dir: &Path, file: &ChangedFile, confirmed: &str) -> Result<(), St
     }
     refuse_what_git_would_replace(&root, file)?;
     match file.status.as_str() {
-        "untracked" => run(&root, &["clean", "--force", "--quiet", "--", &file.path]).map(|_| ()),
-        "added" => run(&root, &["rm", "--force", "--quiet", "--", &file.path]).map(|_| ()),
+        "untracked" => {
+            run_clicked(&root, &["clean", "--force", "--quiet", "--", &file.path]).map(|_| ())
+        }
+        "added" => run_clicked(&root, &["rm", "--force", "--quiet", "--", &file.path]).map(|_| ()),
         _ => run_on_paths(
             &root,
             &["restore", "--source=HEAD", "--staged", "--worktree"],
@@ -562,7 +578,7 @@ pub fn push(dir: &Path, branch: &str, target: &str, head: &str) -> Result<(), St
         args.push("--set-upstream");
     }
     args.extend(["--", resolved.remote.as_str(), refspec.as_str()]);
-    run(&root, &args).map(|_| ())
+    run_clicked(&root, &args).map(|_| ())
 }
 
 /// The local branches of the project, by name, as git lists them.
@@ -594,7 +610,7 @@ pub fn switch(dir: &Path, branch: &str) -> Result<(), String> {
     if current == branch {
         return Ok(());
     }
-    run(&root, &["switch", "--quiet", branch]).map(|_| ())
+    run_clicked(&root, &["switch", "--quiet", branch]).map(|_| ())
 }
 
 #[cfg(test)]
@@ -719,23 +735,75 @@ mod tests {
         assert_eq!(raw(&root, &["branch", "--show-current"]).trim(), "main");
     }
 
-    /// The git window's Commit runs no hook from a folder the repository's own config points to (`core.hooksPath`).
+    /// A signing program that leaves `gpg-ran` in the folder git runs it in, then fails: what a repository may name.
+    fn signer(dir: &Path) -> String {
+        let script = dir.join("sign.sh");
+        std::fs::write(&script, "#!/bin/sh\necho ran > gpg-ran\nexit 1\n").unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = std::fs::Permissions::from_mode(0o755);
+            std::fs::set_permissions(&script, mode).unwrap();
+        }
+        script.to_string_lossy().replace('\\', "/")
+    }
+
+    /// The git window's Commit signs as the user's terminal would, with the signing program the repository names
+    /// (a per-repository identity): here one that fails, whose failure is the commit's.
     #[test]
-    fn committing_runs_no_hook_the_repository_s_config_points_to() {
+    fn a_commit_signs_with_the_repository_s_own_program() {
+        let (dir, root) = repo();
+        let program = signer(dir.path());
+        raw(&root, &["config", "commit.gpgsign", "true"]);
+        // `gpg.program` is OpenPGP's, whatever the developer's own config picks.
+        raw(&root, &["config", "gpg.format", "openpgp"]);
+        raw(&root, &["config", "gpg.program", &program]);
+        fs::write(root.join("a.txt"), "two\n").unwrap();
+        let err = commit(&root, &[file(&root, "a.txt")], "two").unwrap_err();
+        assert!(
+            root.join("gpg-ran").exists(),
+            "the repository's signing program did not run"
+        );
+        assert!(err.contains("gpg"), "{err}");
+    }
+
+    /// The git window's Commit is the user's: it runs the repository's hooks as their terminal would, those of
+    /// `.git/hooks` and those of a folder its config names (Husky's `core.hooksPath`), and a hook that refuses the
+    /// commit is the commit's error, with what the hook said.
+    #[test]
+    fn a_commit_runs_the_repository_s_hooks_as_the_terminal_would() {
         let (_dir, root) = repo();
-        fs::create_dir(root.join("hooks")).unwrap();
-        fs::write(
-            root.join("hooks").join("pre-commit"),
-            "#!/bin/sh\necho ran > hook-ran\n",
-        )
-        .unwrap();
-        raw(&root, &["config", "core.hooksPath", "hooks"]);
+        let hook = |dir: &Path, text: &str| {
+            fs::create_dir_all(dir).unwrap();
+            fs::write(dir.join("pre-commit"), format!("#!/bin/sh\n{text}\n")).unwrap();
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                // Git runs a hook only when it is executable.
+                let mode = fs::Permissions::from_mode(0o755);
+                fs::set_permissions(dir.join("pre-commit"), mode).unwrap();
+            }
+        };
+        hook(&root.join(".git").join("hooks"), "echo ran > git-hook-ran");
         fs::write(root.join("a.txt"), "two\n").unwrap();
         commit(&root, &[file(&root, "a.txt")], "two").unwrap();
         assert!(
-            !root.join("hook-ran").exists(),
-            "the commit ran a hook of the folder the repository's own config names"
+            root.join("git-hook-ran").exists(),
+            "the .git/hooks hook did not run"
         );
+        hook(&root.join(".husky"), "echo ran > husky-ran");
+        raw(&root, &["config", "core.hooksPath", ".husky"]);
+        fs::write(root.join("a.txt"), "three\n").unwrap();
+        commit(&root, &[file(&root, "a.txt")], "three").unwrap();
+        assert!(root.join("husky-ran").exists(), "Husky's hook did not run");
+        hook(
+            &root.join(".husky"),
+            "echo 'lint: a.txt has no semicolon' >&2; exit 1",
+        );
+        fs::write(root.join("a.txt"), "four\n").unwrap();
+        let err = commit(&root, &[file(&root, "a.txt")], "four").unwrap_err();
+        assert!(err.contains("lint: a.txt has no semicolon"), "{err}");
+        assert_eq!(raw(&root, &["show", "HEAD:a.txt"]), "three\n");
     }
 
     #[test]
