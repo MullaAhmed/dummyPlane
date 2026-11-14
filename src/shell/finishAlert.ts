@@ -18,7 +18,7 @@ import { isManagerRecord, nodesStore } from "@/store/nodes";
 import { projectsStore } from "@/store/projects";
 import { workspacesStore } from "@/store/workspaces";
 import { shellMessages } from "./messages";
-import { withPlane } from "@/notifications/capture";
+import { recordNotification, type ToastKind } from "@/notifications/capture";
 
 /**
  * A turn alerts when the agent worked this long in it, waits for the user left
@@ -122,12 +122,16 @@ function lookingAt(agent: OpenAgent): boolean {
   return activeTerminalStore.getState().id === agent.id || keyboardIn() === agent.id || nodeInSight(agent.id);
 }
 
+/** The tone a finish shows in, in the panel: a report's own, a turn or a mission over as done. */
+const FINISH_KINDS: Record<State, ToastKind> = { done: "success", finished: "success", blocked: "warning", failed: "error" };
+
 /**
  * Tells that a main agent finished. Window not focused: a Windows notification
  * (the question alert's rule, and its "Windows notifications" setting), whose
  * click comes back to the agent (`./waitingAlert`). Window focused: a notice
  * with Show, unless the user is looking at the agent. The view never moves on
- * its own: a finish asks nothing of the user.
+ * its own: a finish asks nothing of the user. Whichever way it goes, the panel
+ * keeps it, with the toast's words, read already when the user was looking at the agent.
  */
 async function alert(nodeId: string, state: State, summary: string) {
   if (!finishAlertsStore.getState().enabled || !isMainAgent(nodeId)) return;
@@ -136,18 +140,19 @@ async function alert(nodeId: string, state: State, summary: string) {
   const t = messages(shellMessages).finishAlert;
   const title = messages(shellMessages).notification.title(agent.name, t.states[state]);
   const body = summaryLine(summary) || (agent.kind === "fleet" && state !== "finished" ? t.missionOver : t.turnOver);
-  if (!(await getCurrentWindow().isFocused())) {
+  const focused = await getCurrentWindow().isFocused();
+  const looking = focused && lookingAt(agent);
+  recordNotification({ type: "finished", kind: FINISH_KINDS[state], title, description: body, context: { nodeId: agent.id, workspaceId: agent.workspaceId }, read: looking });
+  if (!focused) {
     if (nativeNotificationsStore.getState().enabled) sendNotification({ title, body, extra: { nodeId, finished: true } });
     return;
   }
-  if (lookingAt(agent)) return;
+  if (looking) return;
   const canShow = projectsStore.getState().view === "project";
-  withPlane({ nodeId: agent.id, workspaceId: agent.workspaceId }, () =>
-    toast(title, {
-      description: body,
-      ...(canShow ? { action: { label: t.show, onClick: () => projectsStore.getState().view === "project" && goToAgent(agent) } } : {}),
-    }),
-  );
+  toast(title, {
+    description: body,
+    ...(canShow ? { action: { label: t.show, onClick: () => projectsStore.getState().view === "project" && goToAgent(agent) } } : {}),
+  });
 }
 
 function drop(nodeId: string) {

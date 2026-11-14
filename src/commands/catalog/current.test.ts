@@ -102,6 +102,7 @@ describe("Terminal · <prénom> and Groupe · <nom>", () => {
       "Add an agent…",
       "Link a fleet",
       "Arrange the group",
+      "Arrange the group as…",
       "Arrange the group as a tree",
       "Fold the group",
       "Ungroup",
@@ -132,6 +133,7 @@ describe("Terminal · <prénom> and Groupe · <nom>", () => {
       "group.addAgent",
       "group.linkFleet",
       "group.arrange",
+      "group.arrangeAs",
       "group.arrangeTree",
       "group.fold",
       "group.ungroup",
@@ -212,6 +214,14 @@ describe("Terminal · <prénom> and Groupe · <nom>", () => {
     // Arrange inside the group alone: scene.arrange of its frame, one undo.
     await find("group.arrange").run(ctx("batman"));
     expect(arrangeWorkspace).toHaveBeenLastCalledWith("w1", { only: ["g1"], undoable: true });
+    // As…: the list of layouts, for the group, at the middle of the canvas, from the palette; nothing arranged yet.
+    vi.mocked(arrangeWorkspace).mockClear();
+    await find("group.arrangeAs").run(ctx("batman"));
+    expect(pendingUiRequest()).toEqual({ kind: "arrangeMenu", workspaceId: "w1", target: { kind: "group", id: "g1" }, at: { x: 0, y: 0 } });
+    // From the group's ring, at the point of the press.
+    await find("group.arrangeAs").run({ ...ctx("batman"), groupId: "g1", at: { x: 10, y: 20 } });
+    expect(pendingUiRequest()).toMatchObject({ kind: "arrangeMenu", target: { kind: "group", id: "g1" } });
+    expect(arrangeWorkspace).not.toHaveBeenCalled();
     // As a tree, whatever the setting holds: who opened whom, downward, inside the frame; one undo.
     await find("group.arrangeTree").run(ctx("batman"));
     expect(arrangeWorkspace).toHaveBeenLastCalledWith("w1", { only: ["g1"], layout: "tree", undoable: true });
@@ -260,7 +270,7 @@ it("opens the review of the terminal of the moment", async () => {
 describe("a target that went between the palette and Entrée", () => {
   it("does nothing, without a TypeError: the group is gone", async () => {
     canvasStore.setState({ frames: [] });
-    for (const id of ["group.rename", "group.addAgent", "group.linkFleet", "group.arrange", "group.arrangeTree", "group.fold", "group.ungroup", "group.close", "group.pause", "group.resume", "group.frame"]) {
+    for (const id of ["group.rename", "group.addAgent", "group.linkFleet", "group.arrange", "group.arrangeAs", "group.arrangeTree", "group.fold", "group.ungroup", "group.close", "group.pause", "group.resume", "group.frame"]) {
       await expect(Promise.resolve(find(id).run(ctx("batman")))).resolves.toBeUndefined();
     }
     expect(ungroup).not.toHaveBeenCalled();

@@ -10,7 +10,7 @@ import { shellMessages } from "@/shell/messages";
 import { messages } from "./index";
 
 it("names one action with one word across the menus and the palette (final review R5a)", () => {
-  expect(messages(shellMessages).toolRail.launchAgent).toBe("Launch an agent");
+  expect(messages(shellMessages).toolRail.launchAgent).toBe("Add to canvas");
   const labels = messages(catalogMessages).commands;
   expect(labels["group.linkFleet"].label).toBe("Link a fleet");
   expect(labels["fleet.link"].label).toBe("Link");

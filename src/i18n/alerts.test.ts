@@ -38,6 +38,20 @@ const TITLES: [string, string][] = [
   [agents.remote.failedFor("Batman", true), "Could not turn on Remote Control for Batman"],
   [app.settingNotSaved, "Could not save the setting"],
   [app.updateCheckFailed, "Could not check for updates"],
+  [app.resetList.loops, "Your loops could not be read and start empty"],
+  [app.resetList.presets, "Your team presets could not be read and start empty"],
+  [app.resetList.history, "A project's command history could not be read and starts empty"],
+  [app.resetList.folders, "A project's recent folders could not be read and start empty"],
+  [app.resetList.notifications, "Your notification history could not be read and starts empty"],
+  [app.resetList.order, "A project's workspace order could not be read and starts again"],
+  [app.resetList.levels, "Your model router levels could not be read and start again"],
+  [app.resetList.other("ui.theme"), "The setting ui.theme could not be read and starts again"],
+  [app.resetList.some.loops, "Some of your loops could not be read and were left out"],
+  [app.resetList.some.presets, "Some of your team presets could not be read and were left out"],
+  [app.resetList.some.history, "Part of a project's command history could not be read and was left out"],
+  [app.resetList.some.folders, "Some of a project's recent folders could not be read and were left out"],
+  [app.resetList.some.levels, "Some of your model router levels could not be read and were left out"],
+  [app.resetList.some.order, "Part of a project's workspace order could not be read and was left out"],
   [app.startFailed, "dummyPlane could not start"],
   [messages(canvasMessages).saveFailed, "Could not save the canvas"],
   [messages(canvasMessages).imagesNotSaved, "Could not save the images of the canvas"],
@@ -92,6 +106,7 @@ const NEXT: [string, string][] = [
   [agents.settingForNow, "It applies for now; dummyPlane will not remember it after a restart"],
   [app.settingForNow, "It applies for now; dummyPlane will not remember it after a restart"],
   [app.updateCheckNext, "Check your connection, then try again"],
+  [app.resetList.kept("loops.list.unreadable"), "The old text is kept in the settings as loops.list.unreadable"],
   [messages(fleetMessages).agent.forNow, "It applies for now; dummyPlane will not remember it after a restart"],
   [messages(studioMessages).saveNext, "Your changes stay in the tab: save again"],
 ];
@@ -118,5 +133,11 @@ describe("error toasts in the app's voice (docs/design-system.md, Alerts)", () =
     expect(shell.notification.question).toBe("Has a question for you");
     // The notice in the window keeps its own line, which names the agent.
     expect(shell.waitingNotice.question("Batman")).toBe("Batman has a question");
+  });
+
+  it("tells a board done with its count of cards, one card in words of one, and Show to go to it", () => {
+    expect(shell.boardDoneAlert.title(4)).toBe("Board done: all 4 cards finished");
+    expect(shell.boardDoneAlert.title(1)).toBe("Board done: its one card finished");
+    expect(shell.boardDoneAlert.show).toBe("Show");
   });
 });

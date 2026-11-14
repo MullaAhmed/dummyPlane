@@ -2,7 +2,7 @@ import { createStore } from "zustand";
 import { messages } from "@/i18n";
 import { createLoopEngine, TICK_MS, type EngineDeps, type LoopRuntime } from "./engine";
 import { loopsMessages } from "./messages";
-import { LOOPS_VERSION, placeLoops, projectFull, readLoops, readUnplacedLoops, validateLoop, withLoop, withoutLoop, type LoopDef } from "./model";
+import { LOOPS_VERSION, loopsLeftOut, placeLoops, projectFull, readLoops, readUnplacedLoops, validateLoop, withLoop, withoutLoop, type LoopDef } from "./model";
 
 /** The setting that holds the loops: their definitions only, never that one is on. */
 export const LOOPS_KEY = "loops.list";
@@ -14,6 +14,11 @@ export interface LoopsIo {
   projectsOf: (nodeIds: string[]) => Promise<Record<string, string>>;
   /** The project open now. */
   activeProject: () => string | null;
+  /**
+   * Has the saved text kept aside before a save can replace it, when a read left some of it out (`some`) or all of it
+   * (a newer version, another shape): what is left out is lost at the next save otherwise.
+   */
+  keepAside?: (some: boolean) => Promise<void>;
 }
 
 export interface Timers {
@@ -80,6 +85,9 @@ export function createLoopsStore(
         reading ??= io
           .read()
           .then(async (raw) => {
+            // Before anything is read into the list, or saved: a failed keep stops the read, as a failed read does.
+            const leftOut = loopsLeftOut(raw);
+            if (leftOut !== "none") await io.keepAside?.(leftOut === "some");
             const unplaced = readUnplacedLoops(raw);
             if (!unplaced) return set({ loops: readLoops(raw), loaded: true });
             // Saved before loops belonged to a project: each is placed once, and saved so. A failed look stops the

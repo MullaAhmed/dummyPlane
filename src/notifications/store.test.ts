@@ -6,7 +6,7 @@ import { flushAll } from "@/lib/flush";
 import { nodesStore } from "@/store/nodes";
 import { projectsStore } from "@/store/projects";
 import { workspacesStore } from "@/store/workspaces";
-import { capture, type Captured } from "./capture";
+import { recordNotification, type Recorded } from "./capture";
 import {
   connectNotifications,
   loadNotifications,
@@ -33,19 +33,20 @@ function showProject(active = "w1") {
 }
 
 let counter = 0;
-/** A popup as the shim hands it over. */
-const popup = (over: Partial<Captured> = {}): Captured => ({
-  toastId: undefined,
-  kind: "plain",
-  title: `popup ${counter}`,
+/** A notification as `recordNotification` hands it over. */
+const note = (over: Partial<Recorded> = {}): Recorded => ({
+  type: "finished",
+  kind: "success",
+  title: `note ${counter}`,
   description: undefined,
-  action: undefined,
   context: null,
+  read: false,
   at: 1_000 + counter++,
   ...over,
 });
-const add = (over: Partial<Captured> = {}) => notificationsStore.getState().add(popup(over));
+const add = (over: Partial<Recorded> = {}) => notificationsStore.getState().add(note(over));
 const entries = () => notificationsStore.getState().entries;
+const plane = { projectId: "p1", workspaceId: "w1", nodeId: null, projectName: "Alpha", workspaceName: "Main" };
 
 let writes: { key: string; value: unknown }[];
 let stored: Map<string, unknown>;
@@ -70,31 +71,26 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("what a popup is about", () => {
-  it("is the workspace on screen, with its project, for a plain popup", () => {
-    add({ title: "Link copied" });
+describe("what a notification is about", () => {
+  it("is the workspace on screen, with its project, when it names nothing", () => {
+    add({ type: "board", title: "Board done: all 3 cards finished" });
     expect(entries()[0]).toMatchObject({
-      kind: "plain",
-      title: "Link copied",
+      type: "board",
+      kind: "success",
+      title: "Board done: all 3 cards finished",
       read: false,
       plane: { projectId: "p1", workspaceId: "w1", nodeId: null, projectName: "Alpha", workspaceName: "Main" },
     });
   });
 
-  it("is the workspace on screen when an error popup shows, whichever one that is", () => {
-    showProject("w2");
-    add({ kind: "error", title: "Could not push", description: "rejected" });
-    expect(entries()[0]).toMatchObject({ kind: "error", description: "rejected", plane: { workspaceId: "w2", workspaceName: "Second" } });
-  });
-
-  it("is the node's workspace when the popup names a node, even with another canvas on screen", () => {
+  it("is the node's workspace when it names a node, even with another canvas on screen", () => {
     nodesStore.setState({ nodes: { alan: { workspaceId: "w2", kind: "terminal", payload: { name: "Alan" } } } as never });
-    add({ title: "Alan finished", context: { nodeId: "alan" } });
+    add({ title: "Alan · Done", context: { nodeId: "alan" } });
     expect(entries()[0].plane).toEqual({ projectId: "p1", workspaceId: "w2", nodeId: "alan", projectName: "Alpha", workspaceName: "Second" });
   });
 
-  it("is the workspace a popup names, when it names no node", () => {
-    add({ title: "Resume all conversations?", context: { workspaceId: "w2" } });
+  it("is the workspace it names, when it names no node", () => {
+    add({ title: "x", context: { workspaceId: "w2" } });
     expect(entries()[0].plane).toMatchObject({ workspaceId: "w2", nodeId: null, workspaceName: "Second" });
   });
 
@@ -105,7 +101,7 @@ describe("what a popup is about", () => {
     // Another project is opened: its list replaces the first one's.
     projectsStore.setState({ activeId: "p2" });
     workspacesStore.setState({ projectId: "p2", activeId: "x1", workspaces: [workspace("x1", "p2", "Other")] });
-    add({ title: "Old finished", context: { nodeId: "old" } });
+    add({ title: "Old · Done", context: { nodeId: "old" } });
     expect(entries()[0].plane).toEqual({ projectId: "p1", workspaceId: "w1", nodeId: "old", projectName: "Alpha", workspaceName: "Main" });
   });
 
@@ -121,12 +117,16 @@ describe("what a popup is about", () => {
   });
 });
 
-describe("the history", () => {
-  it("lists the newest popup first", () => {
-    add({ title: "one" });
-    add({ title: "two" });
-    add({ title: "three" });
-    expect(entries().map((e) => e.title)).toEqual(["three", "two", "one"]);
+describe("the list", () => {
+  it("lists the newest first, each with its type, its tone and the read mark it came with", () => {
+    add({ type: "question", kind: "info", title: "one" });
+    add({ type: "finished", kind: "error", title: "two", read: true });
+    add({ type: "board", kind: "success", title: "three" });
+    expect(entries().map((e) => [e.title, e.type, e.kind, e.read])).toEqual([
+      ["three", "board", "success", false],
+      ["two", "finished", "error", true],
+      ["one", "question", "info", false],
+    ]);
   });
 
   it("keeps the last 200, dropping the oldest", () => {
@@ -136,41 +136,15 @@ describe("the history", () => {
     expect(entries()[entries().length - 1].title).toBe("n5");
   });
 
-  it("shows a popup again under the id it has as that popup, updated and unread, not a second entry", () => {
-    add({ title: "Moving to web", toastId: "folder-move:n1" });
-    notificationsStore.getState().markRead(entries()[0].id);
-    add({ title: "Moving to api", toastId: "folder-move:n1" });
-    expect(entries()).toHaveLength(1);
-    expect(entries()[0]).toMatchObject({ title: "Moving to api", read: false });
-  });
-
-  it("keeps an entry read when the same popup is shown again with the same words: an offer that returns with each visit", () => {
-    add({ title: "Resume all conversations?", toastId: "resume-all-w1" });
-    notificationsStore.getState().markRead(entries()[0].id);
-    add({ title: "Resume all conversations?", toastId: "resume-all-w1" });
-    expect(entries()).toHaveLength(1);
-    expect(entries()[0].read).toBe(true);
-    // A new description is news again.
-    add({ title: "Resume all conversations?", description: "2 consoles", toastId: "resume-all-w1" });
-    expect(entries()[0].read).toBe(false);
-  });
-
-  it("keeps popups with different ids, and those with none, apart", () => {
-    add({ title: "a", toastId: 1 });
-    add({ title: "b", toastId: 2 });
-    add({ title: "c" });
-    add({ title: "d" });
-    expect(entries()).toHaveLength(4);
-  });
-
-  it("records an action's label", () => {
-    add({ title: "Column removed", action: "Undo" });
-    expect(entries()[0].action).toBe("Undo");
+  it("keeps two notifications with the same words apart: each is news of its own", () => {
+    add({ title: "Batman · Done" });
+    add({ title: "Batman · Done" });
+    expect(entries()).toHaveLength(2);
   });
 });
 
 describe("unread", () => {
-  it("counts the popups not read yet, and a click reads one", () => {
+  it("counts those not read yet, and a click reads one", () => {
     add({ title: "a" });
     add({ title: "b" });
     add({ title: "c" });
@@ -178,6 +152,22 @@ describe("unread", () => {
     notificationsStore.getState().markRead(entries()[1].id);
     expect(unreadCount(entries())).toBe(2);
     expect(entries().find((e) => e.title === "b")?.read).toBe(true);
+  });
+
+  it("reads an agent's questions once it no longer waits, and nothing else", () => {
+    nodesStore.setState({ nodes: { batman: { workspaceId: "w1", kind: "terminal", payload: { name: "Batman" } }, robin: { workspaceId: "w1", kind: "terminal", payload: { name: "Robin" } } } as never });
+    add({ type: "question", kind: "info", title: "Batman · Waiting", context: { nodeId: "batman" } });
+    add({ type: "question", kind: "info", title: "Robin · Waiting", context: { nodeId: "robin" } });
+    add({ type: "finished", title: "Batman · Done", context: { nodeId: "batman" } });
+    notificationsStore.getState().markQuestionsRead("batman");
+    expect(entries().map((e) => [e.title, e.read])).toEqual([
+      ["Batman · Done", false],
+      ["Robin · Waiting", false],
+      ["Batman · Waiting", true],
+    ]);
+    const before = entries();
+    notificationsStore.getState().markQuestionsRead("batman");
+    expect(entries()).toBe(before);
   });
 
   it("marks all read, leaving the entries", () => {
@@ -203,9 +193,10 @@ describe("unread", () => {
 });
 
 describe("what is saved", () => {
+  const row = (i: number, extra: Record<string, unknown> = {}) => ({ id: `id${i}`, at: i, type: "finished", kind: "success", title: `t${i}`, read: i % 2 === 0, plane, ...extra });
+
   it("reads back the entries it can, newest first, at most 200, and drops the rest", () => {
-    const good = (i: number) => ({ id: `id${i}`, at: i, kind: "info", title: `t${i}`, read: i % 2 === 0, plane: { projectId: "p1", workspaceId: "w1", nodeId: null, projectName: "Alpha", workspaceName: "Main" } });
-    const rows = [...Array.from({ length: 250 }, (_, i) => good(i)), null, 3, { id: "x" }, { ...good(999), kind: "bogus" }, { ...good(998), title: "" }, good(5)];
+    const rows = [...Array.from({ length: 250 }, (_, i) => row(i)), null, 3, { id: "x" }, row(999, { kind: "bogus" }), row(998, { title: "" }), row(997, { type: "error" }), row(5)];
     const read = readNotifications(rows);
     expect(read).toHaveLength(MAX_NOTIFICATIONS);
     expect(read[0].id).toBe("id249");
@@ -213,33 +204,37 @@ describe("what is saved", () => {
     expect(readNotifications(null)).toEqual([]);
   });
 
-  it("reads a row saved twice as one", () => {
-    const row = { id: "a", at: 1, kind: "info", title: "t", read: false, plane: {} };
-    expect(readNotifications([row, { ...row }])).toHaveLength(1);
+  it("drops the popups of the old history, saved with no type: the panel keeps three kinds of news now", () => {
+    const old = { id: "old", at: 9, kind: "error", title: "Could not push", description: "rejected", action: "Retry", read: false, plane };
+    expect(readNotifications([old, row(1)]).map((e) => e.id)).toEqual(["id1"]);
   });
 
-  it("reads an entry with its plane, its read mark, its description and its action", () => {
+  it("reads a row saved twice as one", () => {
+    expect(readNotifications([row(1), { ...row(1) }])).toHaveLength(1);
+  });
+
+  it("reads an entry with its type, its tone, its plane, its read mark and its description", () => {
     const [entry] = readNotifications([
-      { id: "a", at: 5, kind: "warning", title: "Past Max agents", description: "5 of 4", action: "Show", read: true, plane: { projectId: "p1", workspaceId: "w1", nodeId: "n1", projectName: "Alpha", workspaceName: "Main" } },
+      { id: "a", at: 5, type: "question", kind: "info", title: "Batman · Waiting", description: "Has a question for you", read: true, plane: { ...plane, nodeId: "batman" } },
     ]);
     expect(entry).toEqual({
       id: "a",
       at: 5,
-      kind: "warning",
-      title: "Past Max agents",
-      description: "5 of 4",
-      action: "Show",
+      type: "question",
+      kind: "info",
+      title: "Batman · Waiting",
+      description: "Has a question for you",
       read: true,
-      plane: { projectId: "p1", workspaceId: "w1", nodeId: "n1", projectName: "Alpha", workspaceName: "Main" },
+      plane: { ...plane, nodeId: "batman" },
     });
   });
 
-  it("writes the history a second after the last change, as one write, without the ids sonner showed them under", async () => {
+  it("writes the list a second after the last change, as one write", async () => {
     vi.useFakeTimers();
     await loadNotifications();
     await vi.advanceTimersByTimeAsync(1100);
     writes.length = 0;
-    add({ title: "a", toastId: 7 });
+    add({ title: "a" });
     add({ title: "b" });
     add({ title: "c" });
     await vi.advanceTimersByTimeAsync(900);
@@ -247,9 +242,11 @@ describe("what is saved", () => {
     await vi.advanceTimersByTimeAsync(200);
     expect(writes).toHaveLength(1);
     expect(writes[0].key).toBe(NOTIFICATIONS_KEY);
-    const value = writes[0].value as Record<string, unknown>[];
-    expect(value.map((e) => e.title)).toEqual(["c", "b", "a"]);
-    expect(value.some((e) => "toastId" in e)).toBe(false);
+    expect((writes[0].value as Record<string, unknown>[]).map((e) => [e.title, e.type])).toEqual([
+      ["c", "finished"],
+      ["b", "finished"],
+      ["a", "finished"],
+    ]);
   });
 
   it("writes at once when the app is asked to save everything (closing, switching project)", async () => {
@@ -262,31 +259,38 @@ describe("what is saved", () => {
     expect(writes).toHaveLength(1);
   });
 
-  it("loads the saved history at boot, newest first", async () => {
-    stored.set(NOTIFICATIONS_KEY, [
-      { id: "a", at: 10, kind: "success", title: "older", read: true, plane: {} },
-      { id: "b", at: 20, kind: "error", title: "newer", read: false, plane: { projectId: "p1", workspaceId: "w1", workspaceName: "Main", projectName: "Alpha" } },
-    ]);
+  it("loads the saved list at boot, newest first", async () => {
+    stored.set(NOTIFICATIONS_KEY, [row(10, { title: "older", read: true }), row(20, { title: "newer", type: "question", kind: "info", read: false })]);
     await loadNotifications();
     expect(entries().map((e) => e.title)).toEqual(["newer", "older"]);
-    expect(entries()[0]).toMatchObject({ read: false, plane: { workspaceId: "w1", workspaceName: "Main" } });
+    expect(entries()[0]).toMatchObject({ type: "question", read: false, plane: { workspaceId: "w1", workspaceName: "Main" } });
     expect(notificationsStore.getState().loaded).toBe(true);
   });
 
-  it("puts what popped during boot above the saved history, and writes both", async () => {
+  it("writes over the old popup history at the first save, once: what it could read stays", async () => {
     vi.useFakeTimers();
-    stored.set(NOTIFICATIONS_KEY, [{ id: "a", at: 10, kind: "info", title: "from last run", read: true, plane: {} }]);
-    connectNotifications();
-    // The hooks warning of boot, shown before the history was read.
-    capture({ kind: "warning", title: "Hooks are down" });
-    expect(entries().map((e) => e.title)).toEqual(["Hooks are down"]);
+    const oldPopup = { id: "old", at: 9, kind: "warning", title: "Past Max agents", read: false, plane };
+    stored.set(NOTIFICATIONS_KEY, [oldPopup, row(1, { title: "kept" })]);
     await loadNotifications();
-    expect(entries().map((e) => e.title)).toEqual(["Hooks are down", "from last run"]);
+    expect(entries().map((e) => e.title)).toEqual(["kept"]);
     await vi.advanceTimersByTimeAsync(1100);
-    expect((writes[writes.length - 1].value as { title: string }[]).map((e) => e.title)).toEqual(["Hooks are down", "from last run"]);
+    expect((writes[writes.length - 1].value as { id: string }[]).map((e) => e.id)).toEqual(["id1"]);
   });
 
-  it("writes nothing before the saved history was read: it is the only copy", async () => {
+  it("puts what was recorded during boot above the saved list, and writes both", async () => {
+    vi.useFakeTimers();
+    stored.set(NOTIFICATIONS_KEY, [row(10, { title: "from last run", read: true })]);
+    connectNotifications();
+    // A question asked before the list was read.
+    recordNotification({ type: "question", kind: "info", title: "Batman · Waiting" });
+    expect(entries().map((e) => e.title)).toEqual(["Batman · Waiting"]);
+    await loadNotifications();
+    expect(entries().map((e) => e.title)).toEqual(["Batman · Waiting", "from last run"]);
+    await vi.advanceTimersByTimeAsync(1100);
+    expect((writes[writes.length - 1].value as { title: string }[]).map((e) => e.title)).toEqual(["Batman · Waiting", "from last run"]);
+  });
+
+  it("writes nothing before the saved list was read: it is the only copy", async () => {
     vi.useFakeTimers();
     connectNotifications();
     add({ title: "too early" });
@@ -294,7 +298,7 @@ describe("what is saved", () => {
     expect(writes).toEqual([]);
   });
 
-  it("leaves a history it could not read on disk: nothing is written this run, and no popup says so", async () => {
+  it("leaves a list it could not read on disk: nothing is written this run, and no popup says so", async () => {
     vi.useFakeTimers();
     vi.spyOn(console, "warn").mockImplementation(() => undefined);
     mockIPC((cmd, raw) => {

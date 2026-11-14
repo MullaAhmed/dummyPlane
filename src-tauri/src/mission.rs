@@ -4,11 +4,9 @@
 
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 
 use serde::{Deserialize, Serialize};
-
-use crate::process::hide_window;
 
 /// A worktree dummyPlane made, on a branch of its own.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -118,16 +116,11 @@ pub fn slug(name: &str) -> String {
 }
 
 fn git(dir: &Path, args: &[&str]) -> Result<String, String> {
-    // A merge reads the worktrees' status: never with a program the repository names (`review::NO_FSMONITOR`).
-    let output = hide_window(
-        Command::new("git")
-            .args(crate::review::NO_FSMONITOR)
-            .arg("-C")
-            .arg(dir)
-            .args(args),
-    )
-    .output()
-    .map_err(|err| format!("git not found: {err}"))?;
+    // A merge reads the worktrees' status and runs merge drivers: never a program the repository names (`git::command`).
+    let output = crate::git::command(dir)?
+        .args(args)
+        .output()
+        .map_err(|err| format!("git not found: {err}"))?;
     if output.status.success() {
         Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
     } else {
@@ -135,17 +128,16 @@ fn git(dir: &Path, args: &[&str]) -> Result<String, String> {
     }
 }
 
-/// `git` for the squash of an agent's work: no hook the repository names runs (`SQUASH_RUNS_HOOKS`), and `input`,
-/// when given, is what git reads on its standard input: a commit's message is never an argument, nor a shell's.
+/// `git` for the squash of an agent's work, as `git` (`git::command`), with no hook of the repository either
+/// (`SQUASH_RUNS_HOOKS`): `git::command` switches off a hooks folder the repository's config names, not its own
+/// `.git/hooks`. `input`, when given, is what git reads on its standard input: a commit's message is never an
+/// argument, nor a shell's.
 fn squash_git(dir: &Path, args: &[&str], input: Option<&str>) -> Result<String, String> {
-    let mut command = Command::new("git");
-    command.args(crate::review::NO_FSMONITOR);
+    let mut command = crate::git::command(dir)?;
     if !SQUASH_RUNS_HOOKS {
         command.args(NO_HOOKS);
     }
     command
-        .arg("-C")
-        .arg(dir)
         .args(args)
         .stdin(if input.is_some() {
             Stdio::piped()
@@ -154,7 +146,7 @@ fn squash_git(dir: &Path, args: &[&str], input: Option<&str>) -> Result<String, 
         })
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
-    let mut child = hide_window(&mut command)
+    let mut child = command
         .spawn()
         .map_err(|err| format!("git not found: {err}"))?;
     if let (Some(input), Some(mut stdin)) = (input, child.stdin.take()) {
@@ -232,6 +224,7 @@ fn no_commit() -> String {
 /// The mission's branch, from the project's current commit, and its worktree (where merges happen).
 pub fn prepare(project: &Path, name: &str) -> Result<Worktree, String> {
     let (root, dir) = locate(project)?;
+    crate::git::writable(&root)?;
     // Without a commit, git only says « invalid reference: HEAD » (final review H2).
     if git(&root, &["rev-parse", "--verify", "--quiet", "HEAD"]).is_err() {
         return Err(no_commit());
@@ -242,6 +235,7 @@ pub fn prepare(project: &Path, name: &str) -> Result<Worktree, String> {
 /// An agent's branch, from the mission's, and its worktree. `mission` is the mission's slug.
 pub fn add_agent(project: &Path, mission: &str, agent: &str) -> Result<Worktree, String> {
     let (root, dir) = locate(project)?;
+    crate::git::writable(&root)?;
     let name = format!("{mission}-{}", slug(agent));
     add_worktree(&root, &dir, &name, &format!("dummyplane/{mission}"))
 }
@@ -258,6 +252,7 @@ pub fn merge_agent(
     message: &str,
     since: Option<&str>,
 ) -> Result<MergeReport, String> {
+    crate::git::writable(mission)?;
     let uncommitted = !git(agent, &["status", "--porcelain"])
         .unwrap_or_default()
         .is_empty();
@@ -715,6 +710,57 @@ mod tests {
 
     /// A mission's worktrees share the repository's config: a program it names for git to run as it reads a status
     /// (`core.fsmonitor`) never runs when a Manager merges an agent's work.
+    /// A mission checks its worktrees out and merges them: in a repository whose own config defines a filter, which
+    /// dummyPlane's git does not run, it would write what the filter would have changed (git-crypt's cipher, LFS
+    /// pointers). It does not start.
+    #[test]
+    fn refuses_a_mission_in_a_repository_with_a_filter_of_its_own() {
+        let Some((_parent, proj)) = project() else {
+            return;
+        };
+        run(
+            &proj,
+            &["config", "filter.crypt.clean", "sed s/plain/CIPHER/"],
+        );
+        let err = prepare(&proj, "auth").unwrap_err();
+        assert!(err.contains("crypt"), "{err}");
+        assert_eq!(run(&proj, &["branch", "--list", "dummyplane/*"]), "");
+    }
+
+    /// A Manager merges its agents' work through the night: a merge driver the repository's own config defines,
+    /// given to a file by `.gitattributes`, never runs (the file is left as a conflict instead).
+    #[test]
+    fn merging_runs_no_merge_driver_the_repository_defines() {
+        let Some((_parent, proj)) = project() else {
+            return;
+        };
+        let mission = prepare(&proj, "auth").unwrap();
+        let hulk = add_agent(&proj, &mission.slug, "Hulk").unwrap();
+        commit(Path::new(&hulk.path), "a.txt", "a\nhulk\n", "hulk");
+        let m = Path::new(&mission.path);
+        commit(m, "a.txt", "mission\na\n", "mission");
+        run(
+            &proj,
+            &[
+                "config",
+                "merge.z.driver",
+                "sh -c 'echo ran > merge-ran; exit 0'",
+            ],
+        );
+        std::fs::write(m.join(".gitattributes"), "a.txt merge=z\n").unwrap();
+        let _ = merge_agent(
+            m,
+            Path::new(&hulk.path),
+            &hulk.branch,
+            "Hulk's sub-task",
+            None,
+        );
+        assert!(
+            !m.join("merge-ran").exists(),
+            "the merge ran the driver the repository's own config defines"
+        );
+    }
+
     #[test]
     fn merging_runs_no_program_the_repository_names() {
         let Some((_parent, proj)) = project() else {
@@ -863,11 +909,13 @@ mod tests {
         };
         let mission = prepare(&proj, "auth").unwrap();
         let hulk = add_agent(&proj, &mission.slug, "Hulk").unwrap();
-        commit(Path::new(&hulk.path), "login.txt", "login\n", "login");
-        // Worktrees share the repository's config, so its hooks: each one would leave a mark, and refuse.
-        let hooks = parent.path().join("hooks");
-        std::fs::create_dir(&hooks).unwrap();
-        let marks = hooks.to_string_lossy().replace('\\', "/");
+        let thor = add_agent(&proj, &mission.slug, "Thor").unwrap();
+        commit(Path::new(&thor.path), "api.txt", "api\n", "api");
+        // Each hook would leave a mark, and refuse. Worktrees share the repository's hooks: those of its own folder
+        // (`.git/hooks`, which `git::command` leaves), then those of a folder its config names (which it switches off).
+        let marks = parent.path().join("marks");
+        std::fs::create_dir(&marks).unwrap();
+        let at = marks.to_string_lossy().replace('\\', "/");
         let names = [
             "pre-commit",
             "prepare-commit-msg",
@@ -876,29 +924,37 @@ mod tests {
             "reference-transaction",
             "post-rewrite",
         ];
-        for name in names {
-            let hook = hooks.join(name);
-            std::fs::write(
-                &hook,
-                format!("#!/bin/sh\necho ran > '{marks}/ran-{name}'\nexit 1\n"),
-            )
-            .unwrap();
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::PermissionsExt;
-                // Git runs a hook only when it is executable.
-                std::fs::set_permissions(&hook, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let plant = |folder: &Path| {
+            std::fs::create_dir_all(folder).unwrap();
+            for name in names {
+                let hook = folder.join(name);
+                std::fs::write(
+                    &hook,
+                    format!("#!/bin/sh\necho ran > '{at}/ran-{name}'\nexit 1\n"),
+                )
+                .unwrap();
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::PermissionsExt;
+                    // Git runs a hook only when it is executable.
+                    std::fs::set_permissions(&hook, std::fs::Permissions::from_mode(0o755))
+                        .unwrap();
+                }
             }
-        }
+        };
+        let m = Path::new(&mission.path);
+        plant(&proj.join(".git").join("hooks"));
+        assert_eq!(squash(m, &hulk).merge, Merge::Merged);
+        let named = parent.path().join("hooks");
+        plant(&named);
         run(
             &proj,
-            &["config", "core.hooksPath", &hooks.to_string_lossy()],
+            &["config", "core.hooksPath", &named.to_string_lossy()],
         );
-        let m = Path::new(&mission.path);
-        assert_eq!(squash(m, &hulk).merge, Merge::Merged);
+        assert_eq!(squash(m, &thor).merge, Merge::Merged);
         for name in names {
             assert!(
-                !hooks.join(format!("ran-{name}")).exists(),
+                !marks.join(format!("ran-{name}")).exists(),
                 "the {name} hook ran"
             );
         }

@@ -2,7 +2,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { toastError } from "@/lib/errorToast";
 import { createStore, useStore } from "zustand";
 import { messages } from "@/i18n";
-import { getSetting, setSetting } from "@/ipc/db";
+import { getSetting, keepSettingAside, setSetting } from "@/ipc/db";
 import { projectsStore, useProjects } from "@/store/projects";
 import { ownFolder, useActiveFolder } from "@/store/workspaceFolder";
 import { isCanvas, workspacesStore } from "@/store/workspaces";
@@ -44,6 +44,21 @@ export function readSaved(raw: unknown): Saved & { folder: string | null } {
     folder: typeof folder === "string" && folder.trim() !== "" ? folder : null,
     recent: folders.reduceRight<string[]>((kept, entry) => pushRecent(kept, entry), []).slice(0, MAX_RECENT_FOLDERS),
   };
+}
+
+/**
+ * How much of what was saved for a project `readSaved` leaves out: nothing, some (a recent folder that is no folder,
+ * blank, twice, or past the five kept; a legacy folder that is no text), or all of it (not what a project saves). What
+ * it leaves out is lost at the next save, unless its text is kept.
+ */
+export function savedLeftOut(raw: unknown): "none" | "some" | "all" {
+  if (raw === null || raw === undefined) return "none";
+  if (typeof raw !== "object" || Array.isArray(raw)) return "all";
+  const { folder, recent } = raw as { folder?: unknown; recent?: unknown };
+  if (recent !== undefined && !Array.isArray(recent)) return "all";
+  const droppedRecent = Array.isArray(recent) && recent.length !== readSaved(raw).recent.length;
+  const droppedFolder = folder !== undefined && folder !== null && !(typeof folder === "string" && folder.trim() !== "");
+  return droppedRecent || droppedFolder ? "some" : "none";
 }
 
 const projectPathOf = (projectId: string | null) => projectsStore.getState().projects.find((p) => p.id === projectId)?.path ?? "";
@@ -121,8 +136,11 @@ export const launchFolderStore = createStore<LaunchFolderState>()((set, get) => 
     let saved: unknown;
     try {
       saved = await getSetting<unknown>(launchFolderKey(projectId));
+      // Before the list is read into the store, or saved: what is left out is lost at the next save.
+      const leftOut = savedLeftOut(saved);
+      if (leftOut !== "none") await keepSettingAside(launchFolderKey(projectId), leftOut === "some");
     } catch (error) {
-      // Left unloaded: this session's list stays in memory, nothing is saved over the unread one.
+      // Left unloaded (the list was not read, or its text could not be kept): this session's list stays in memory, nothing is saved over it.
       console.warn("recent folders not read", error);
       return;
     }

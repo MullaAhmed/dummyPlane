@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { readTerminalPayload } from "@/nodes/types";
+import { readTerminalPayload, type TerminalPayload } from "@/nodes/types";
 import { STORED_FLEET_ROLE } from "@/ipc/pty";
-import { buildSpawnSpec, canResume, defaultTitle, newConversation, newTerminalPayload, fleetSession, relaunchMode, switchedAgent } from "./launch";
+import { buildSpawnSpec, canResume, defaultTitle, launchSettingsOf, newConversation, newTerminalPayload, fleetSession, relaunchMode, switchedAgent } from "./launch";
 
 const base = { title: "", cwd: "C:\\code\\dummyplane", agent: "shell" as const, command: "", shell: "default" as const };
 
@@ -46,6 +46,14 @@ describe("a Codex terminal", () => {
     expect(buildSpawnSpec(codex, "new").claude).toBeUndefined();
     expect(canResume(codex)).toBe(false);
     expect(relaunchMode(codex)).toBe("new");
+  });
+
+  it("launches a manager sub-agent as any sub-agent: its marker changes neither its launch nor its settings", () => {
+    for (const agent of ["claude", "codex"] as const) {
+      const robin: TerminalPayload = { ...codex, agent, claudeSessionId: agent === "claude" ? THREAD : undefined, spawnedBy: "batman", task: "Run the release" };
+      for (const mode of ["new", "resume"] as const) expect(buildSpawnSpec({ ...robin, coordinator: true }, mode)).toEqual(buildSpawnSpec(robin, mode));
+      expect(launchSettingsOf({ ...robin, coordinator: true })).toEqual(launchSettingsOf(robin));
+    }
   });
 
   it("passes a sub-agent's pick to every launch, Claude's or Codex's, and nothing without one", () => {

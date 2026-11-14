@@ -56,7 +56,7 @@ it("floats under the tabs, down to the command bar at most, with the chips' acti
   const panel = host.firstElementChild as HTMLElement;
   expect(panel.style.top).toBe(`${TOP_ROW_HEIGHT + 14}px`);
   expect(panel.style.maxHeight).toBe(`calc(100% - ${TOP_ROW_HEIGHT + 14 + BOTTOM_BAR_HEIGHT + 14}px)`);
-  for (const label of ["Launch an agent", "New console", "Compose a group", "Pause all", "Resume all", "More actions", "Close the panel"]) {
+  for (const label of ["Add to canvas", "New console", "Compose a group", "Pause all", "Resume all", "More actions", "Close the panel"]) {
     expect(byLabel(label), label).not.toBeNull();
   }
 });

@@ -35,7 +35,12 @@ export const githubKey = (repo: string, number: number) => `${repo.trim().toLowe
 
 /** Column titled like "Done" / "Terminé" / "Fait", else the last column; undefined on an empty board. */
 export function doneColumn(board: Board): Column | undefined {
-  return board.columns.find((c) => DONE_TITLES.includes(normalize(c.title))) ?? board.columns[board.columns.length - 1];
+  return namedDoneColumn(board) ?? board.columns[board.columns.length - 1];
+}
+
+/** The column titled like "Done" / "Terminé" / "Fait", with no fallback: undefined when no column is. */
+export function namedDoneColumn(board: Board): Column | undefined {
+  return board.columns.find((c) => DONE_TITLES.includes(normalize(c.title)));
 }
 
 export function issueToCard(issue: GithubIssue, repo: string, id: string): Card {

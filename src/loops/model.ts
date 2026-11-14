@@ -130,6 +130,19 @@ export function readLoops(raw: unknown): LoopDef[] {
   return loops.filter((loop, i) => loops.slice(0, i).filter((l) => l.projectId === loop.projectId).length < MAX_LOOPS);
 }
 
+/**
+ * How much of a saved setting the readers leave out: nothing, some of its loops (a damaged one, or past the limit of
+ * a project), or all of it (another version, another shape). The setting of a loop without a project is read for its
+ * migration (`readUnplacedLoops`). What is left out is lost at the next save, unless its text is kept.
+ */
+export function loopsLeftOut(raw: unknown): "none" | "some" | "all" {
+  if (raw === null || raw === undefined) return "none";
+  const unplaced = readUnplacedLoops(raw);
+  if (unplaced) return (raw as { loops: unknown[] }).loops.length === unplaced.length ? "none" : "some";
+  if (!isObject(raw) || raw.version !== LOOPS_VERSION || !Array.isArray(raw.loops)) return "all";
+  return raw.loops.length === readLoops(raw).length ? "none" : "some";
+}
+
 /** The loops of a setting saved before loops belonged to a project; null when it is not one (`placeLoops`). */
 export function readUnplacedLoops(raw: unknown): UnplacedLoop[] | null {
   if (!isObject(raw) || raw.version !== UNPLACED_VERSION || !Array.isArray(raw.loops)) return null;

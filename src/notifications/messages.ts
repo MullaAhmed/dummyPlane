@@ -1,6 +1,6 @@
 import { defineMessages } from "@/i18n";
 
-/** The notification panel's texts: the bell, the list of popups the app has shown, its filters and actions. */
+/** The notification panel's texts: the bell, the list of what agents and boards told, its filters and actions. */
 export const notificationsMessages = defineMessages({
   title: "Notifications",
   /** The bell's name; with unread ones it says its number first, as the pip shows it (WCAG 2.5.3 label in name). */
@@ -8,20 +8,18 @@ export const notificationsMessages = defineMessages({
   bellUnread: (count: number) => `Notifications, ${count} unread`,
   close: "Close notifications",
   filters: "Show",
-  filter: { all: "All", workspace: "This workspace", errors: "Errors" },
+  filter: { all: "All", workspace: "This workspace", question: "Questions", finished: "Finished", board: "Boards" },
   list: "Notifications, newest first",
   markAllRead: "Mark all read",
   clear: "Clear",
-  empty: "Nothing has popped up yet. Popups the app shows are kept here.",
+  empty: "Nothing yet. An agent that finishes or asks you something, and a board whose cards are all done, are kept here.",
   noneInFilter: "Nothing here.",
-  /** The kind of a popup, for a screen reader and the icon's name. */
-  kinds: { success: "Success", error: "Error", warning: "Warning", info: "Info", plain: "Notice" },
+  /** What a notification tells, shown on its row. */
+  types: { finished: "Finished", board: "Board", question: "Question" },
   unread: "Unread",
-  /** Where a popup was about when its workspace or project is gone. */
+  /** Where a notification was about when its workspace or project is gone. */
   closed: "(closed)",
-  /** A popup shown with no project open (the home screen). */
+  /** A notification that came with no project open (the home screen). */
   noProject: "No project open",
-  /** A popup with an action button: what the button said. */
-  action: (label: string) => `Offered: ${label}`,
   openFailed: (project: string) => `Could not open ${project}`,
 });

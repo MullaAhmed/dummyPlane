@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import type { Workspace } from "@/ipc/db";
-import { canRemove, createWorkspacesStore, nextDefaultName, rebaseWorkspaceFolders, workspacesStore } from "./workspaces";
+import { canRemove, createWorkspacesStore, nextDefaultName, orderLeftOut, rebaseWorkspaceFolders, workspacesStore } from "./workspaces";
 
 /** In-memory stand-in for the Rust workspace commands of project "p1". */
 function fakeBackend(initial: string[] = [], activeSetting: string | null = null) {
@@ -21,6 +21,9 @@ function fakeBackend(initial: string[] = [], activeSetting: string | null = null
     settings: new Map<string, unknown>(activeSetting ? [["ui.activeWorkspaceId.p1", activeSetting]] : []),
     /** The next saves of a folder are refused. */
     folderFails: false,
+    /** The settings whose text was asked to be kept aside, and whether that is refused. */
+    kept: [] as string[],
+    keepFails: false,
   };
   mockIPC((cmd, raw) => {
     const args = raw as Record<string, string>;
@@ -50,6 +53,10 @@ function fakeBackend(initial: string[] = [], activeSetting: string | null = null
         return;
       case "get_setting":
         return db.settings.get(args.key) ?? null;
+      case "keep_setting":
+        if (db.keepFails) throw { kind: "db", message: "database is locked" };
+        db.kept.push(args.key);
+        return `${args.key}.unreadable`;
       case "set_setting":
         db.settings.set(args.key, (raw as { value: unknown }).value);
         return;
@@ -67,6 +74,15 @@ beforeEach(() => {
   store = createWorkspacesStore();
 });
 afterEach(() => clearMocks());
+
+describe("orderLeftOut", () => {
+  it("says how much of a saved order is not read: nothing, some entries, or all of it", () => {
+    // An id of a tab since deleted is no loss: it is no tab any more.
+    for (const whole of [null, undefined, [], ["w1", "w2"], ["w1", "gone"]]) expect(orderLeftOut(whole), JSON.stringify(whole)).toBe("none");
+    expect(orderLeftOut(["w1", 7, "w2"])).toBe("some");
+    for (const other of ["w1", 4, { a: 1 }, true]) expect(orderLeftOut(other), JSON.stringify(other)).toBe("all");
+  });
+});
 
 describe("nextDefaultName", () => {
   it("uses the smallest free number", () => {
@@ -127,6 +143,35 @@ describe("workspaces store", () => {
     expect(db.workspaces[0].name).toBe("A");
     await state().rename("w2", "FRONT");
     expect(names()).toEqual(["A", "FRONT"]);
+  });
+
+  it("has the saved order's text kept aside before a move saves over it, when it reads only in part", async () => {
+    const db = fakeBackend(["A", "B", "C"]);
+    db.settings.set("ui.workspaceOrder.p1", ["w3", 7, "w1"]);
+    await state().load("p1");
+    // What can be read still orders the tabs; the rest is kept, once, before any save.
+    expect(names()).toEqual(["C", "A", "B"]);
+    expect(db.kept).toEqual(["ui.workspaceOrder.p1"]);
+    db.settings.set("ui.workspaceOrder.p1", { not: "a list" });
+    store = createWorkspacesStore();
+    await state().load("p1");
+    expect(names()).toEqual(["A", "B", "C"]);
+    expect(db.kept).toEqual(["ui.workspaceOrder.p1", "ui.workspaceOrder.p1"]);
+    // A saved order that reads whole, with an id gone (a deleted tab), is nothing to keep.
+    db.kept.length = 0;
+    db.settings.set("ui.workspaceOrder.p1", ["w3", "gone", "w1"]);
+    store = createWorkspacesStore();
+    await state().load("p1");
+    expect(db.kept).toEqual([]);
+  });
+
+  it("opens the project all the same when the order's text cannot be kept, in the order the tabs had before it was saved", async () => {
+    const db = fakeBackend(["A", "B", "C"]);
+    db.keepFails = true;
+    db.settings.set("ui.workspaceOrder.p1", ["w3", 7, "w1"]);
+    await state().load("p1");
+    expect(state().status).toBe("ready");
+    expect(names()).toEqual(["A", "B", "C"]);
   });
 
   it("moves a tab to a place, and remembers the order for the next start", async () => {

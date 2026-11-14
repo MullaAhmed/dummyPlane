@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
-import { arrangedElements, columnOrder, readingOrder, type ArrangeInput } from "./arrange";
+import { arrangedElements, arrangesWholeCanvas, columnOrder, readingOrder, type ArrangeInput } from "./arrange";
 import { ARRANGE_LAYOUTS, columnHeightsOf, type ArrangeLayout } from "./arrangeLayout";
 import { anchorsOf } from "./attachments";
 import { COLUMN_GAP, GROUP_GAP, MAX_ROWS, NODE_GAP, overlap, PADDING, PADDING_BOTTOM, PADDING_TOP, ROW_GAP } from "./groupLayout";
@@ -612,5 +612,38 @@ describe("Arrange of a selection makes room", () => {
     expect(at(result, "b")).toMatchObject({ x: W + NODE_GAP, y: 0 });
     same(result, "u", elements);
     same(result, "far", elements);
+  });
+});
+
+describe("arrangesWholeCanvas", () => {
+  const loose = () => [node("a", 0, 0), node("b", 2000, 0), node("c", 0, 1500)];
+  const group = () => [frame("g", 0, 3000, 2000, 1000), node("m1", 100, 3100, { frameId: "g" }), node("m2", 900, 3100, { frameId: "g" })];
+
+  it("takes the whole canvas with nothing selected, or one block alone, or the whole canvas asked for", () => {
+    expect(arrangesWholeCanvas(input(loose()))).toBe(true);
+    expect(arrangesWholeCanvas(input(loose(), { only: [] }))).toBe(true);
+    expect(arrangesWholeCanvas(input(loose(), { only: ["a"] }))).toBe(true);
+    expect(arrangesWholeCanvas(input(loose(), { only: ["a", "b"], scope: "canvas" }))).toBe(true);
+  });
+
+  it("takes the selection, not the canvas, from two blocks, or one group, or the selection alone asked for", () => {
+    expect(arrangesWholeCanvas(input(loose(), { only: ["a", "b"] }))).toBe(false);
+    expect(arrangesWholeCanvas(input([...loose(), ...group()], { only: ["g"] }))).toBe(false);
+    expect(arrangesWholeCanvas(input([...loose(), ...group()], { only: ["m1", "m2"] }))).toBe(false);
+    expect(arrangesWholeCanvas(input(loose(), { only: ["a"], scope: "selection" }))).toBe(false);
+  });
+
+  it("counts blocks, not elements: a spawn tree's two terminals are one block, so selecting both is the whole canvas", () => {
+    const elements = loose();
+    expect(arrangesWholeCanvas(input(elements, { only: ["a", "b"], parentOf: (id) => (id === "b" ? "a" : null) }))).toBe(true);
+    expect(arrangesWholeCanvas(input(elements, { only: ["a", "c"], parentOf: (id) => (id === "b" ? "a" : null) }))).toBe(false);
+  });
+
+  it("reads the same whether or not anything would move", () => {
+    const tidy = arrangedElements(input(loose()))!.elements;
+    expect(arrangedElements(input(tidy))).toBeNull();
+    expect(arrangesWholeCanvas(input(tidy))).toBe(true);
+    expect(arrangedElements(input(tidy, { only: ["a", "b"] }))).toBeNull();
+    expect(arrangesWholeCanvas(input(tidy, { only: ["a", "b"] }))).toBe(false);
   });
 });

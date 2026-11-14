@@ -9,6 +9,8 @@ import { terminalStatusStore } from "@/store/terminalStatus";
 import { workspacesStore } from "@/store/workspaces";
 import { readSource } from "@/theme/cssBlocks";
 import { messages } from "@/i18n";
+import { onRecord } from "@/notifications/capture";
+import { notificationsStore, type NotificationEntry } from "@/notifications/store";
 import { shellMessages } from "./messages";
 import { installWaitingAlerts } from "./waitingAlert";
 
@@ -25,6 +27,9 @@ const apply = (nodeId: string, activity: "waiting" | "working") => agentActivity
 const settled = () => new Promise((resolve) => setTimeout(resolve));
 const unregister = vi.fn();
 let uninstall: () => void;
+// The notification panel, as boot connects it: a question is kept there, and read once its agent no longer waits.
+let stopRecording: () => void = () => undefined;
+const questions = () => notificationsStore.getState().entries.map(({ type, kind, title, description, read, plane }) => ({ type, kind, title, description, read, nodeId: plane.nodeId }));
 
 /** What the plugin reports for a click on the notification of `nodeId`: its question, or its finish. */
 async function click(nodeId: unknown, actionId = "tap", finished = false) {
@@ -47,11 +52,76 @@ beforeEach(() => {
   });
   terminalStatusStore.setState({ statuses: { batman: { state: "running" } } });
   agentActivityStore.setState({ activities: {} });
+  notificationsStore.setState({ entries: [] });
+  stopRecording = onRecord((n) => notificationsStore.getState().add(n));
   uninstall = installWaitingAlerts();
 });
 
 afterEach(() => {
   uninstall();
+  stopRecording();
+});
+
+describe("the notification panel", () => {
+  const asked = { type: "question", kind: "info", title: "Batman · Waiting", description: "Has a question for you", nodeId: "batman" };
+
+  it("keeps a question as it is asked, unread, with the Windows notification's words and the agent as its plane", async () => {
+    apply("batman", "waiting");
+    await settled();
+    expect(questions()).toEqual([{ ...asked, read: false }]);
+  });
+
+  it("keeps it whatever the window and the Windows notifications setting: focused, with the setting off", async () => {
+    win.isFocused.mockResolvedValue(true);
+    nativeNotificationsStore.setState({ enabled: false });
+    apply("batman", "waiting");
+    await settled();
+    expect(sendNotification).not.toHaveBeenCalled();
+    expect(questions()).toEqual([{ ...asked, read: false }]);
+  });
+
+  it("keeps one per wait, and reads it once the agent no longer waits", async () => {
+    apply("batman", "waiting");
+    agentActivityStore.getState().apply({ nodeId: "batman", activity: "waiting", since: 2 });
+    expect(questions()).toHaveLength(1);
+    apply("batman", "working");
+    expect(questions()).toEqual([{ ...asked, read: true }]);
+    // Asked again: news again.
+    apply("batman", "waiting");
+    expect(questions().map((q) => q.read)).toEqual([false, true]);
+  });
+
+  it("reads it when the agent's process ends while it waits: it leaves the list", async () => {
+    apply("batman", "waiting");
+    agentActivityStore.getState().remove("batman");
+    expect(questions()).toEqual([{ ...asked, read: true }]);
+  });
+
+  it("keeps nothing for an agent not waiting in the open project", async () => {
+    apply("closed", "waiting");
+    await settled();
+    expect(questions()).toEqual([]);
+  });
+
+  it("reads a question kept from before whose agent no longer waits, and leaves one whose agent still does", async () => {
+    uninstall();
+    const kept = (id: string, nodeId: string): NotificationEntry => ({
+      id,
+      at: 1,
+      type: "question",
+      kind: "info",
+      title: `${nodeId} · Waiting`,
+      read: false,
+      plane: { projectId: "p1", workspaceId: "w1", nodeId, projectName: null, workspaceName: null },
+    });
+    notificationsStore.setState({ entries: [kept("a", "batman"), kept("b", "robin")] });
+    agentActivityStore.getState().load([{ nodeId: "batman", activity: "waiting", since: 1 }]);
+    uninstall = installWaitingAlerts();
+    expect(notificationsStore.getState().entries.map((e) => [e.plane.nodeId, e.read])).toEqual([
+      ["batman", false],
+      ["robin", true],
+    ]);
+  });
 });
 
 describe("the Windows notification", () => {

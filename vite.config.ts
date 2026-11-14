@@ -10,7 +10,7 @@ const host = process.env.TAURI_DEV_HOST;
 
 // https://vite.dev/config/
 export default defineConfig(() => ({
-  // Every popup is recorded in the notification history: "sonner" is the shim's, see scripts/route-sonner.mjs.
+  // "sonner" is the shim's, a pass-through now that no popup is recorded: see scripts/route-sonner.mjs.
   plugins: [routeSonner(), react(), tailwindcss(), excalidrawThinSelection()],
   // In dev, Excalidraw is pre-bundled apart from the app's plugins: the same rewrite runs there.
   optimizeDeps: { rolldownOptions: { plugins: [excalidrawThinSelection()] } },

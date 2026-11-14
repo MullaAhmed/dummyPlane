@@ -42,6 +42,13 @@ export const shellMessages = defineMessages(
       missionOver: "Mission finished",
       show: "Show",
     },
+    /** A Kanban board whose cards are all in its Done column (`@/shell/boardDoneAlert`). */
+    boardDoneAlert: {
+      title: (count: number) => (count === 1 ? "Board done: its one card finished" : `Board done: all ${count} cards finished`),
+      show: "Show",
+      /** The board's name in a "gone" message, when it has none of its own. */
+      board: "the board",
+    },
     closeAgent: {
       fallbackName: "this agent",
       several: (names: string[]) => `These agents are still running; closing them ends their session: ${names.join(", ")}.`,
@@ -178,7 +185,7 @@ export const shellMessages = defineMessages(
       text: "Text (T)",
       eraser: "Eraser (E)",
       image: "Image",
-      launchAgent: "Launch an agent",
+      launchAgent: "Add to canvas",
       fitView: "Fit the view",
     },
     pen: {
