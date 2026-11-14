@@ -1663,6 +1663,26 @@ describe("an agent made for the mission, once its work is merged (Stop finished 
     }
   });
 
+  // The wait for its processes to exit may be long: the mission it was read from may be another by then, and its project's
+  // worktrees and branches, by the same names, another mission's.
+  for (const [what, change] of [
+    ["the mission ended", () => endMission("chef", "Done.")],
+    ["the mission was cleaned up", async () => (endMission("chef", "Done."), await cleanMission("chef"))],
+    ["the mission's slug is another", () => setMission("chef", { slug: "auth-2" })],
+    ["the mission's project is another", () => setMission("chef", { project: "C:/code/other" })],
+  ] as const) {
+    it(`removes no worktree nor branch when ${what} while it waited for its processes to exit`, async () => {
+      await team();
+      await mergeMission("chef");
+      await vi.waitFor(() => expect(stopTerminal).toHaveBeenCalledWith("n1"));
+      await change();
+      exit("n1");
+      await new Promise((resolve) => setTimeout(resolve, 60));
+      expect(missionRemoveAgent).not.toHaveBeenCalled();
+      expect(removeNodes).not.toHaveBeenCalled();
+    });
+  }
+
   it("closes nothing when its merge left changes uncommitted, nor with Stop finished agents off", async () => {
     await team();
     vi.mocked(missionMerge).mockResolvedValueOnce({ merge: { kind: "merged" }, uncommitted: false, head: "h1" }).mockResolvedValueOnce({ merge: { kind: "merged" }, uncommitted: true, head: "h1" });

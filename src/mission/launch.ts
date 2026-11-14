@@ -485,6 +485,10 @@ async function cleanUpAfterMerge(fleetId: string, nodeId: string, head: string) 
   nodesStore.getState().update(nodeId, { stoppedFinished: true });
   for (const id of family) stopTerminal(id);
   await Promise.all(family.map((id) => waitForExit(id)));
+  // Read again: the wait may have been long. A mission ended, cleaned up or another since (its slug and project, which
+  // name the worktree and branch) leaves them to its own cleanup: this one's names may be another mission's by now.
+  const now = missionOf(nodesStore.getState().nodes[fleetId]);
+  if (now?.state !== "en_cours" || now.slug !== mission.slug || now.project !== mission.project) return;
   try {
     const { kept } = await missionRemoveAgent(mission.project, mission.slug, { name: member.name, squashed: head });
     // A branch's name starts with `dummyplane/`: anything else kept is its worktree, which its nodes stand for.
