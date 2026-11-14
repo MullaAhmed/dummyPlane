@@ -62,6 +62,10 @@ pub struct Cleanup {
 
 const MAX_SLUG: usize = 40;
 
+/// The subject of the temporary commit a squash cherry-picks. Never kept, but git names a file against a directory
+/// after it (`x~<sha> (an agent's work)`): nothing in it may be a character a Windows path cannot hold (`:` was one).
+const SQUASH_SUBJECT: &str = "an agent's work";
+
 /// Latin letters with accents or macrons, as plain ASCII: "Zoë" → "zoe", "Fūjin" → "fujin".
 fn fold(c: char) -> Option<&'static str> {
     Some(match c {
@@ -289,7 +293,7 @@ pub fn merge_agent(
             &base,
             &format!("{head}^{{tree}}"),
         ],
-        Some("dummyPlane: an agent's work, from its base"),
+        Some(SQUASH_SUBJECT),
     )?;
     if let Err(err) = squash_git(mission, &["cherry-pick", "--no-commit", &step], None) {
         let files: Vec<String> = git(mission, &["diff", "--name-only", "--diff-filter=U"])
@@ -1709,5 +1713,95 @@ mod tests {
         }
         assert_eq!(run(m, &["rev-parse", "HEAD"]), head);
         assert_eq!(run(m, &["status", "--porcelain"]), "");
+    }
+
+    /// Git names the leftover of a file against a directory after the commit it cherry-picks (`x~<sha> (<subject>`): a
+    /// subject with a character Windows cannot have in a path makes that conflict a failure, not a conflict list.
+    #[test]
+    fn the_subject_of_the_temporary_commit_has_no_character_a_windows_path_cannot_hold() {
+        for forbidden in ['<', '>', ':', '"', '/', '\\', '|', '?', '*'] {
+            assert!(
+                !SQUASH_SUBJECT.contains(forbidden),
+                "{SQUASH_SUBJECT:?} holds {forbidden:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_file_against_a_directory_comes_back_as_a_conflict_list_both_ways_and_is_undone() {
+        /// What a case does to a worktree before the merge.
+        type Setup = fn(&Path);
+        let cases: [(&str, Setup, Setup); 2] = [
+            (
+                "file/directory",
+                |m| {
+                    commit(
+                        m,
+                        "x",
+                        "a file
+",
+                        "mission: x is a file",
+                    )
+                },
+                |h| {
+                    std::fs::create_dir(h.join("x")).unwrap();
+                    commit(
+                        h,
+                        "x/inner.txt",
+                        "inner
+",
+                        "agent: x is a directory",
+                    );
+                },
+            ),
+            (
+                "directory/file",
+                |m| {
+                    std::fs::create_dir(m.join("x")).unwrap();
+                    commit(
+                        m,
+                        "x/inner.txt",
+                        "inner
+",
+                        "mission: x is a directory",
+                    );
+                },
+                |h| {
+                    commit(
+                        h,
+                        "x",
+                        "a file
+",
+                        "agent: x is a file",
+                    )
+                },
+            ),
+        ];
+        for (label, on_the_mission, on_the_agent) in cases {
+            let Some((_parent, proj)) = project() else {
+                return;
+            };
+            let mission = prepare(&proj, "auth").unwrap();
+            let m = Path::new(&mission.path);
+            let hulk = add_agent(&proj, &mission.slug, "Hulk").unwrap();
+            let h = Path::new(&hulk.path);
+            on_the_agent(h);
+            on_the_mission(m);
+            let head = run(m, &["rev-parse", "HEAD"]);
+            let report = merge_agent(m, h, &hulk.branch, "Hulk", None);
+            let Ok(MergeReport {
+                merge: Merge::Conflict { files },
+                ..
+            }) = &report
+            else {
+                panic!("{label}: not a conflict list: {report:?}");
+            };
+            assert!(
+                files.iter().any(|file| file.starts_with('x')),
+                "{label}: {files:?}"
+            );
+            assert_eq!(run(m, &["status", "--porcelain"]), "", "{label}");
+            assert_eq!(run(m, &["rev-parse", "HEAD"]), head, "{label}");
+        }
     }
 }
