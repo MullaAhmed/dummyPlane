@@ -11,7 +11,8 @@ type Element = { type: "element"; typeName: string; props: Record<string, unknow
 const isElement = (value: unknown): value is Element => typeof value === "object" && value !== null && (value as { type?: unknown }).type === "element";
 const str = (value: unknown) => (value == null ? "" : typeof value === "string" ? value : typeof value === "number" || typeof value === "boolean" ? String(value) : "");
 const list = (value: unknown): unknown[] => (Array.isArray(value) ? value : []);
-const cell = (value: unknown) => str(value).replace(/\|/g, "\\|").replace(/\n/g, " ");
+/** A table cell on one line: a component in it (a Badge) as its words. */
+const cell = (value: unknown) => (isElement(value) ? toText(value) : str(value)).replace(/\|/g, "\\|").replace(/\n/g, " ");
 
 function table(columns: unknown[], rows: unknown[][]): string {
   const width = Math.max(columns.length, ...rows.map((row) => row.length), 0);
@@ -33,6 +34,10 @@ function toText(value: unknown): string {
       return blocks(p.children);
     case "Card":
       return [str(p.title) && `### ${str(p.title)}`, blocks(p.children)].filter(Boolean).join("\n\n");
+    case "Tabs":
+      return blocks(p.tabs);
+    case "Tab":
+      return [`### ${str(p.label)}${str(p.count) ? ` (${str(p.count)})` : ""}`, blocks(p.children)].join("\n\n");
     case "Heading":
       return `${"#".repeat(p.level === 2 || p.level === 3 ? p.level : 1)} ${str(p.text)}`;
     case "Text":
@@ -48,6 +53,12 @@ function toText(value: unknown): string {
       return `${str(p.label)}: ${str(p.value)}${str(p.delta) ? ` (${str(p.delta)})` : ""}`;
     case "Badge":
       return `[${str(p.text)}]`;
+    case "Breakdown": {
+      const parts = list(p.items).map((item) => (typeof item === "object" && item !== null ? (item as Record<string, unknown>) : {}));
+      const total = parts.reduce((sum, part) => sum + (typeof part.value === "number" && part.value > 0 ? part.value : 0), 0);
+      const share = (value: unknown) => (total > 0 && typeof value === "number" && value > 0 ? ` (${Math.round((value / total) * 100)}%)` : "");
+      return [str(p.title), parts.map((part) => `- ${str(part.label)}: ${str(part.value)}${share(part.value)}`).join("\n")].filter(Boolean).join("\n\n");
+    }
     case "Callout":
       return `> ${str(p.title) ? `**${str(p.title)}** ` : ""}${str(p.text)}`;
     case "Code": {

@@ -62,5 +62,51 @@ export function checkOpenUI(text: string): OpenUICheck {
   if (Object.keys(result.stateDeclarations).length) errors.push("$variables are not supported: output is static.");
   if (!result.root && errors.length === 0) errors.push("Nothing to show: root does not resolve to a component.");
   if (result.meta.orphaned.length) warnings.push(`Defined but not reachable from root, so not shown: ${result.meta.orphaned.join(", ")}.`);
+  if (errors.length === 0) warnings.push(...readability(result.root));
   return { errors, warnings };
+}
+
+/** Past these, an output reads like the terminal it should beat: show_output says so, and shows it anyway. */
+export const LONG_TEXT = 320;
+export const LONG_ITEM = 140;
+export const MANY_ITEMS = 8;
+export const MANY_CARDS = 3;
+const MAX_READABILITY_WARNINGS = 5;
+
+type Element = { type: "element"; typeName: string; props: Record<string, unknown> };
+const isElement = (value: unknown): value is Element => typeof value === "object" && value !== null && (value as { type?: unknown }).type === "element";
+
+/** The first words of a text, to name it in a warning. */
+const opening = (text: string) => {
+  const line = text.replace(/\s+/g, " ").trim();
+  return line.length > 40 ? `${line.slice(0, 40)}…` : line;
+};
+
+/** What will read badly in an output that parses: long prose, lists of sentences, a column of open Cards. */
+function readability(root: unknown): string[] {
+  const warnings: string[] = [];
+  const visit = (node: unknown): void => {
+    if (Array.isArray(node)) return node.forEach(visit);
+    if (!isElement(node)) return;
+    const p = node.props;
+    const text = typeof p.text === "string" ? p.text : "";
+    if ((node.typeName === "Text" || node.typeName === "Markdown") && text.length > LONG_TEXT)
+      warnings.push(
+        `The ${node.typeName} "${opening(text)}" runs ${text.length} characters: an output is looked at, not read. Cut it to a sentence or two, or fold it in a Card with collapsed true.`,
+      );
+    if (node.typeName === "List" && Array.isArray(p.items)) {
+      const long = p.items.filter((item) => typeof item === "string" && item.length > LONG_ITEM).length;
+      if (p.items.length > MANY_ITEMS || long)
+        warnings.push(
+          `The List "${opening(String(p.items[0] ?? ""))}" has ${p.items.length} items${long ? `, ${long} over ${LONG_ITEM} characters` : ""}: make it a Table, one row per item, its status a Badge cell.`,
+        );
+    }
+    if (node.typeName === "Stack" && Array.isArray(p.children)) {
+      const open = p.children.filter((child) => isElement(child) && child.typeName === "Card" && child.props.collapsed !== true).length;
+      if (open > MANY_CARDS) warnings.push(`${open} open Cards one under another: put them in Tabs, one Tab each with its count, or fold the details with collapsed true.`);
+    }
+    for (const value of Object.values(p)) if (typeof value === "object" && value !== null) visit(value);
+  };
+  visit(root);
+  return warnings.slice(0, MAX_READABILITY_WARNINGS);
 }

@@ -11,4 +11,7 @@ export const openuiMessages = defineMessages({
   openLink: (url: string) => `Open ${url}`,
   copied: "Copied",
   copyCode: "Copy code",
+  sortBy: (column: string) => (column ? `Sort by ${column}` : "Sort by this column"),
+  allRows: (count: number) => `Show all ${count.toLocaleString("en-US")} rows`,
+  fewerRows: "Show fewer rows",
 });

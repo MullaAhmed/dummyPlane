@@ -6,7 +6,7 @@ import { blend, contrast, oklabDistance } from "./colorMath";
 import { cssBlock, readSource, sourceFiles } from "./cssBlocks";
 import { displayColorFor } from "./sceneColors";
 import { PALETTES as SCHEMES, type ThemeChoice } from "@/app/theme";
-import { BAR_TOKEN, GROUND_TOKENS, PROGRESS_TOKEN, SERIES_HUES, TEXT_TOKENS, TONES, TONE_BORDER, TONE_RULE, TONE_TEXT, TONE_TOKEN } from "@/openui/tones";
+import { BAR_TOKEN, GROUND_TOKENS, PROGRESS_TOKEN, SERIES_HUES, TEXT_TOKENS, TONES, TONE_SOFT, TONE_SOFT_ALPHA, TONE_TEXT, TONE_TOKEN } from "@/openui/tones";
 import { SYNTAX_HUES } from "@/studio/syntaxHues";
 import { TOAST_CLASSES, TOAST_TONES } from "@/components/ui/sonner";
 
@@ -296,10 +296,24 @@ describe("an agent's generated output (src/openui) reads in every palette", () =
     }
   });
 
-  it("draws each tone's text, border and rule in that very token", () => {
+  it("draws each tone's text and tint in that very token, the tint at its measured alpha", () => {
     for (const tone of TONES) {
       const name = TONE_TOKEN[tone].slice(2);
-      expect([TONE_TEXT[tone], TONE_BORDER[tone], TONE_RULE[tone]]).toEqual([`text-${name}`, `border-${name}`, `border-l-${name}`]);
+      expect([TONE_TEXT[tone], TONE_SOFT[tone]]).toEqual([`text-${name}`, `bg-${name}/${Math.round(TONE_SOFT_ALPHA * 100)}`]);
+    }
+  });
+
+  it("writes text and the tone's own ink at 4.5:1 on a callout's or a badge's tint, over each of its grounds", () => {
+    for (const [palette, selector] of Object.entries(PALETTES)) {
+      const t = cssBlock(tokens, selector);
+      for (const tone of TONES) {
+        for (const ground of GROUND_TOKENS) {
+          const tint = blend(t[ground], t[TONE_TOKEN[tone]], TONE_SOFT_ALPHA);
+          for (const ink of ["--dp-text", TONE_TOKEN[tone]]) {
+            expect(contrast(t[ink], tint), `${palette} ${ink} on ${tone}'s tint over ${ground}`).toBeGreaterThanOrEqual(4.5);
+          }
+        }
+      }
     }
   });
 

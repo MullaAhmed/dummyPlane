@@ -26,22 +26,16 @@ export const TONE_TEXT: Record<Tone, string> = {
   danger: "text-dp-danger",
 };
 
-/** And as borders: a callout's rule, a badge's outline. */
-export const TONE_BORDER: Record<Tone, string> = {
-  neutral: "border-dp-text-2",
-  info: "border-dp-accent-ink",
-  success: "border-dp-ok",
-  warning: "border-dp-wait",
-  danger: "border-dp-danger",
-};
+/** How much of a tone's ink tints the ground under a callout or a badge, as the danger button does (`bg-dp-danger/10`). */
+export const TONE_SOFT_ALPHA = 0.1;
 
-/** And as a callout's left rule. */
-export const TONE_RULE: Record<Tone, string> = {
-  neutral: "border-l-dp-text-2",
-  info: "border-l-dp-accent-ink",
-  success: "border-l-dp-ok",
-  warning: "border-l-dp-wait",
-  danger: "border-l-dp-danger",
+/** The same inks as that tint, over whatever ground the part sits on: a callout's and a badge's ground. */
+export const TONE_SOFT: Record<Tone, string> = {
+  neutral: "bg-dp-text-2/10",
+  info: "bg-dp-accent-ink/10",
+  success: "bg-dp-ok/10",
+  warning: "bg-dp-wait/10",
+  danger: "bg-dp-danger/10",
 };
 
 /** The text roles the library writes in. */
