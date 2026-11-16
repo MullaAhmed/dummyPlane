@@ -4,7 +4,7 @@ import { useMessages } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { SYNTAX_HUES } from "@/studio/syntaxHues";
 import { openuiMessages } from "./messages";
-import { SERIES_HUES } from "./tones";
+import { isTone, SERIES_HUES, TONES, TONE_TOKEN, type Tone } from "./tones";
 
 /**
  * Two small charts in SVG. The marks are SVG, stretched to the box; every word
@@ -61,6 +61,69 @@ export function BarChart(props: { labels: readonly string[]; values: readonly un
           </div>
         ))}
       </div>
+    </Figure>
+  );
+}
+
+export interface Part {
+  label: string;
+  value: unknown;
+  tone?: unknown;
+}
+
+/**
+ * A toned part's fill: the tone's ink, but neutral, the rest of the whole,
+ * a light step back, where the calm palette's neutral ink is one more dark green.
+ */
+export const PART_COLOR: Record<Tone, string> = {
+  ...(Object.fromEntries(TONES.map((tone) => [tone, `var(${TONE_TOKEN[tone]})`])) as Record<Tone, string>),
+  neutral: "color-mix(in srgb, var(--dp-text-3) 45%, transparent)",
+};
+
+const percentOf = (value: number, total: number) => {
+  const percent = (value / total) * 100;
+  return percent > 0 && percent < 1 ? "<1%" : `${Math.round(percent)}%`;
+};
+
+/**
+ * Parts of a whole, at a glance: one bar split in proportion, then a key
+ * that carries each part's figure and share. A part's tone inks it (success,
+ * warning, danger…); untoned parts take the line series' hues in order.
+ */
+export function Breakdown(props: { items: readonly unknown[]; title?: string }) {
+  const palette = usePalette();
+  let hue = 0;
+  const parts = props.items
+    .filter((item): item is Part => typeof item === "object" && item !== null)
+    .map((item) => {
+      const value = typeof item.value === "number" && Number.isFinite(item.value) && item.value > 0 ? item.value : 0;
+      const color = isTone(item.tone) ? PART_COLOR[item.tone] : SYNTAX_HUES[palette][SERIES_HUES[hue++ % SERIES_HUES.length]];
+      return { label: String(item.label ?? ""), value, color };
+    });
+  const total = parts.reduce((sum, part) => sum + part.value, 0);
+  if (total === 0) return <Figure title={props.title}><Empty /></Figure>;
+  const summary = parts.map((part) => `${part.label}: ${formatNumber(part.value)} (${percentOf(part.value, total)})`).join(", ");
+  return (
+    <Figure title={props.title}>
+      <div role="img" aria-label={summary} className="flex h-2.5 w-full gap-0.5 overflow-hidden rounded-sm">
+        {parts.map((part, i) =>
+          part.value > 0 ? <div key={i} title={`${part.label}: ${formatNumber(part.value)}`} className="h-full min-w-1" style={{ flex: `${part.value} 1 0`, background: part.color }} /> : null,
+        )}
+      </div>
+      <ul className="flex min-w-0 flex-wrap gap-x-5 gap-y-2">
+        {parts.map((part, i) => (
+          <li key={i} className="flex max-w-full min-w-0 flex-col">
+            <span className="flex min-w-0 items-center gap-1.5 text-xs text-dp-text-2">
+              <span aria-hidden className="size-2 shrink-0 rounded-sm" style={{ background: part.color }} />
+              <span className="truncate" title={part.label}>{part.label}</span>
+            </span>
+            <span className="flex items-baseline gap-1.5 pl-3.5">
+              <span className="text-lg leading-7 font-medium tabular-nums text-dp-text">{formatNumber(part.value)}</span>
+              <span className="text-xs tabular-nums text-dp-text-2">{percentOf(part.value, total)}</span>
+            </span>
+          </li>
+        ))}
+      </ul>
     </Figure>
   );
 }

@@ -104,10 +104,11 @@ export const agentMessages = defineMessages({
       openBoardColumns: (defaults: string) => `The columns' titles, in order; by default ${defaults}.`,
       openBoardCards: "Cards to put in the first column at once, in order: each with its title, and optionally notes and priority.",
       showOutput: (components: string) =>
-        "Show the user a result (report, summary, comparison, table, figures, chart) in an output node beside your terminal, instead of a wall of text. " +
+        "Show the user a result in an output node beside your terminal, instead of a wall of text: " +
+        "the verdict or figures first, statuses as Badges in a Table, detail in Tabs or a collapsed Card, little prose. " +
         "A call without output updates your latest output in place; output: <id> updates that one; new: true shows another one beside it. " +
-        `Written in OpenUI Lang: root = Stack([...]), then one name = Component(args) per line. Components: ${components}. ` +
-        "Call output_guide once for their arguments and an example. Answers the output's id and link, or the errors to fix.",
+        `OpenUI Lang: root = Stack([...]), then one name = Component(args) per line. Components: ${components}. ` +
+        "See output_guide for their arguments and an example. Answers the output's id and link, or the errors to fix.",
       showTitle: "A short title for the output's header.",
       showUi: "The OpenUI Lang program, whole.",
       showOutputId: "The output to update: its id (or link), as show_output gave it. Without it, your latest output is updated.",

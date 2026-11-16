@@ -1,6 +1,6 @@
 import { createLibrary, defineComponent } from "@openuidev/react-lang";
 import { z } from "zod/v4";
-import { BarChart, LineChart } from "./charts";
+import { BarChart, Breakdown, LineChart } from "./charts";
 import * as P from "./parts";
 import { TONES } from "./tones";
 
@@ -17,7 +17,8 @@ let child: z.ZodType = z.unknown();
 const children = () => z.array(z.lazy(() => child));
 const gap = z.enum(["sm", "md", "lg"]);
 const tone = z.enum(TONES);
-const cell = z.union([z.string(), z.number(), z.null()]);
+/** A table cell: words, a number, a blank, or a component (a Badge for a status). */
+const cell = z.union([z.string(), z.number(), z.null(), z.lazy(() => child)]);
 
 const Stack = defineComponent({
   name: "Stack",
@@ -35,9 +36,23 @@ const Row = defineComponent({
 
 const Card = defineComponent({
   name: "Card",
-  description: "A titled, bordered group of children. Use \"\" for no title.",
-  props: z.object({ title: z.string(), children: children() }),
+  description: "A titled, bordered group of children. Use \"\" for no title. collapsed true: folded under its title until the user opens it, for details the answer does not need.",
+  props: z.object({ title: z.string(), children: children(), collapsed: z.boolean().optional() }),
   component: ({ props, renderNode }) => <P.Card {...props} renderNode={renderNode} />,
+});
+
+const Tab = defineComponent({
+  name: "Tab",
+  description: "One tab of Tabs: its label, its children, and an optional count shown beside the label.",
+  props: z.object({ label: z.string(), children: children(), count: z.union([z.string(), z.number()]).optional() }),
+  component: ({ props, renderNode }) => <P.Tab {...props} renderNode={renderNode} />,
+});
+
+const Tabs = defineComponent({
+  name: "Tabs",
+  description: "Groups the user switches between, one shown at a time: Tabs([Tab(\"Failing\", [table], 3), Tab(\"Passing\", [other], 409)]). For categories of one report, instead of Cards one under another.",
+  props: z.object({ tabs: z.array(Tab.ref) }),
+  component: ({ props, renderNode }) => <P.Tabs {...props} renderNode={renderNode} />,
 });
 
 const Heading = defineComponent({
@@ -70,9 +85,9 @@ const List = defineComponent({
 
 const Table = defineComponent({
   name: "Table",
-  description: "A table: column headers, then rows of cells (strings or numbers; numbers align right).",
+  description: "A table: column headers, then rows of cells: strings (inline Markdown), numbers (aligned right) or a Badge for a status. The user sorts it by a click on a header; past 8 rows it folds behind \"Show all\".",
   props: z.object({ columns: z.array(z.string()), rows: z.array(z.array(cell)) }),
-  component: ({ props }) => <P.Table {...props} />,
+  component: ({ props, renderNode }) => <P.Table {...props} renderNode={renderNode} />,
 });
 
 const KeyValue = defineComponent({
@@ -84,21 +99,21 @@ const KeyValue = defineComponent({
 
 const Stat = defineComponent({
   name: "Stat",
-  description: "A figure with its label, and an optional change line (delta) in a tone: success, danger…",
+  description: "A figure with its label, and an optional change line (delta); a tone (success, warning, danger…) inks both. Several side by side in a Row.",
   props: z.object({ label: z.string(), value: z.union([z.string(), z.number()]), delta: z.string().optional(), tone: tone.optional() }),
   component: ({ props }) => <P.Stat {...props} />,
 });
 
 const Badge = defineComponent({
   name: "Badge",
-  description: "A short status word in a tone: neutral, info, success, warning or danger.",
+  description: "A short status word on its tone's tint: neutral, info, success, warning or danger. Put one in a Table cell for each row's status.",
   props: z.object({ text: z.string(), tone: tone.optional() }),
   component: ({ props }) => <P.Badge {...props} />,
 });
 
 const Callout = defineComponent({
   name: "Callout",
-  description: "A note that stands out, in a tone (info, success, warning, danger), with an optional title last.",
+  description: "A note that stands out on its tone's tint (info, success, warning, danger), with an optional title last: the verdict, or what needs the user. One or two per output.",
   props: z.object({ tone, text: z.string(), title: z.string().optional() }),
   component: ({ props }) => <P.Callout {...props} />,
 });
@@ -138,6 +153,13 @@ const Bars = defineComponent({
   component: ({ props }) => <BarChart {...props} />,
 });
 
+const Parts = defineComponent({
+  name: "Breakdown",
+  description: "Parts of a whole in one split bar, each with its figure and share: Breakdown([{label: \"Done\", value: 9, tone: \"success\"}, {label: \"Open\", value: 28, tone: \"warning\"}], \"Title\"). Instead of a Row of Stats that add up to a total.",
+  props: z.object({ items: z.array(z.object({ label: z.string(), value: z.number(), tone: tone.optional() })), title: z.string().optional() }),
+  component: ({ props }) => <Breakdown {...props} />,
+});
+
 const Lines = defineComponent({
   name: "LineChart",
   description: "Lines over labels (x axis), one per series: LineChart([\"Mon\", \"Tue\"], [{name: \"p95 ms\", values: [120, 98]}], \"Title\").",
@@ -152,7 +174,7 @@ const Button = defineComponent({
   component: ({ props }) => <P.ActionButton {...props} />,
 });
 
-const COMPONENTS = [Stack, Row, Card, Heading, Text, Markdown, List, Table, KeyValue, Stat, Badge, Callout, Code, Progress, Link, Divider, Bars, Lines, Button];
+const COMPONENTS = [Stack, Row, Card, Tabs, Tab, Heading, Text, Markdown, List, Table, KeyValue, Stat, Parts, Badge, Callout, Code, Progress, Link, Divider, Bars, Lines, Button];
 
 child = z.union(COMPONENTS.map((c) => c.ref) as unknown as [z.ZodType, z.ZodType, ...z.ZodType[]]);
 
@@ -161,24 +183,28 @@ export const LIBRARY_COMPONENT_NAMES: readonly string[] = COMPONENTS.map((c) => 
 
 export const outputLibrary = createLibrary({ components: COMPONENTS, root: "Stack" });
 
-const EXAMPLE = `root = Stack([title, stats, details, next])
-title = Heading("Test run")
-stats = Row([Stat("Passed", 412, "+12", "success"), Stat("Failed", 3, "-2", "danger"), Stat("Duration", "41 s")])
-details = Card("Failures", [failures, note])
-failures = Table(["Test", "File", "Reason"], [["saves a node", "store/nodes.test.ts", "timeout"], ["reads a link", "mcp/nodeTools.test.ts", "expected 2, got 1"]])
-note = Callout("warning", "Two of the three fail on Windows only.", "Flaky")
-next = Button("Fix the failures", "Fix the three failing tests")`;
+const EXAMPLE = `root = Stack([verdict, split, groups, next])
+verdict = Callout("danger", "Two tickets break a commitment in code: fix them before the release.", "Six tickets checked")
+split = Breakdown([{label: "Done", value: 2, tone: "success"}, {label: "Partial", value: 2, tone: "warning"}, {label: "Not started", value: 2, tone: "danger"}])
+groups = Tabs([Tab("Fix first", [fix], 2), Tab("Partial", [partial], 2), Tab("Done", [done], 2)])
+fix = Table(["Ticket", "Problem"], [["OPE-12", "Scans files up to 2 GiB, not 4 GB"], ["OPE-31", "Imports reach the AI search"]])
+partial = Table(["Ticket", "Status", "Missing"], [["OPE-40", Badge("In progress", "info"), "A test that a deleted file stops serving"], ["OPE-44", Badge("Todo", "neutral"), "The 30-day log window"]])
+done = Table(["Ticket", "Proof"], [["OPE-7", Badge("Tested", "success")], ["OPE-9", Badge("Needs prod check", "warning")]])
+next = Button("Fix the two tickets", "Fix OPE-12 and OPE-31")`;
 
-/** What an agent reads to write an output (output_guide): the syntax, every component's signature, an example. */
 export function outputGuide(): string {
   return outputLibrary.prompt({
     preamble:
-      "You show results to the user in dummyPlane with show_output, written in OpenUI Lang: one statement per line, `name = Component(args…)`, arguments by position. dummyPlane draws it in an output node beside your terminal, in the app's own style.",
+      "You show results to the user in dummyPlane with show_output, written in OpenUI Lang: one statement per line, `name = Component(args…)`, arguments by position. dummyPlane draws it in an output node beside your terminal, in the app's own style, about 560 by 520 pixels before it scrolls. An output is looked at, not read: it has to beat the same words in your terminal.",
     additionalRules: [
-      "Pick the component that fits: Table to compare, Stat and Row for figures, KeyValue for facts, Callout for what needs attention, Code for code, Markdown for prose.",
+      "The first screen answers: open with the verdict (a Callout), or the figures (a Breakdown for parts of a whole, Stats in a Row), then the detail. The node's header shows your title: do not repeat it as a Heading.",
+      "Few words: a Text is a sentence or two, never a paragraph. Items that each have a status or a reason are a Table, one row each, the status a Badge cell; never a List of long sentences.",
+      "Detail goes behind a click: the categories of one report in Tabs, each Tab with its count; supporting detail in a Card with collapsed true. Never a long column of Cards.",
+      "Tones carry meaning: success, warning and danger on Stats, Badges, Breakdown parts and Callouts. One or two Callouts at most, or none stands out.",
+      "Pick the component that fits: Table to compare, Breakdown for shares, Stat for a lone figure, KeyValue for facts, Code for code, Markdown only for prose that must stay prose.",
       "Strings are double-quoted; write \\n for a line break inside Markdown or Code text.",
       "Do not use Query(), Mutation(), $variables or @actions: output is static.",
-      "show_output answers with the errors to fix, if any; call it again with the whole program. A call without output updates your latest output in place; pass output (the id it gave) to update that one, or new: true to show another one beside it.",
+      "show_output answers with the errors to fix, if any, and with warnings on what will read badly; call it again with the whole program. A call without output updates your latest output in place; pass output (the id it gave) to update that one, or new: true to show another one beside it.",
     ],
     examples: [EXAMPLE],
   });
