@@ -215,6 +215,10 @@ const isNumeric = (value: unknown) => typeof value === "number";
 const cellText = (value: unknown): string =>
   value == null ? "" : typeof value === "number" ? value.toLocaleString("en-US") : isElement(value) ? cellText(value.props.text ?? value.props.label ?? value.props.value) : String(value);
 
+/** A short cell of one word (an id, a file, a version) stays on one line: OPE-2396 would break at its hyphen beside a long column. */
+const MAX_WORD = 24;
+const isWord = (value: unknown) => typeof value === "string" && value.length <= MAX_WORD && !/\s/.test(value);
+
 /** Past this many rows, a table shows this many and a button for the rest; a row or two more show whole. */
 export const FOLD_ROWS = 8;
 const FOLD_SLACK = 2;
@@ -308,7 +312,7 @@ export function Table(props: { columns: unknown; rows: unknown; renderNode?: Ren
             {shown.map((row, r) => (
               <tr key={r} className="border-b border-dp-line last:border-b-0 hover:bg-dp-hover">
                 {indexes.map((i) => (
-                  <td key={i} className={cn("px-2 py-1.5 align-top text-dp-text", numeric[i] && "text-right tabular-nums")}>
+                  <td key={i} className={cn("px-2 py-1.5 align-top text-dp-text", numeric[i] && "text-right tabular-nums", isWord(row[i]) && "whitespace-nowrap")}>
                     {cell(row[i])}
                   </td>
                 ))}

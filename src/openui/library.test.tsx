@@ -173,6 +173,8 @@ describe("what makes an output better than the same words in a terminal", () => 
     const host = await show(program('a = Table(["Ticket", "Status"], [["OPE-2", Badge("Todo", "neutral")], ["OPE-1", Badge("Done", "success")]])'));
     const badge = [...host.querySelectorAll("td span")].find((span) => span.textContent === "Done")!;
     expect(badge.className).toContain("bg-dp-ok/10");
+    // An id stays whole beside a long column; words wrap.
+    expect(host.querySelector("td")?.className).toContain("whitespace-nowrap");
     await click(header(host, "Status").querySelector("button"));
     expect(rowsOf(host)).toEqual([["OPE-1", "Done"], ["OPE-2", "Todo"]]);
   });
