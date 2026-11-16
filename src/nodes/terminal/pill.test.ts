@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DOT_OF_TONE } from "./StatusDot";
-import { isTypingKey, pillActivity, pillOf, resumeOfferOf, startsNewConversation, startsOnKeystroke } from "./pill";
+import { isTypingKey, pillActivity, pillOf, resumeOfferOf, startsOnKeystroke } from "./pill";
 
 describe("pillOf", () => {
   it("labels each process state", () => {
@@ -58,14 +58,6 @@ describe("isTypingKey", () => {
     expect(isTypingKey(key("z", { ctrlKey: true }))).toBe(false);
     expect(isTypingKey(key("x", { altKey: true }))).toBe(false);
     expect(isTypingKey(key("v", { metaKey: true }))).toBe(false);
-  });
-});
-
-describe("startsNewConversation", () => {
-  it("keeps the conversation id when the previous launch failed", () => {
-    expect(startsNewConversation({ state: "stopped" })).toBe(true);
-    expect(startsNewConversation({ state: "exited", code: 0 })).toBe(true);
-    expect(startsNewConversation({ state: "error", message: "folder not found" })).toBe(false);
   });
 });
 

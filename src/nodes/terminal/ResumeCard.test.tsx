@@ -31,9 +31,9 @@ afterEach(async () => {
 const render = (terminal: TerminalPayload) =>
   act(async () => root.render(<ResumeCard nodeId="n" payload={terminal} status={{ state: "exited", code: 0 }} />));
 
-it("promises that typing starts afresh on an ordinary terminal", async () => {
+it("says that typing restarts an ordinary terminal as the click does", async () => {
   await render(payload);
-  expect(host.textContent).toContain("typing starts fresh");
+  expect(host.textContent).toContain("Click or type to restart");
 });
 
 it("does not promise it on a one-shot command, which only the click runs again", async () => {
@@ -49,7 +49,7 @@ it("over a shell whose Claude exited, offers the conversation back and says typi
   await act(async () => root.render(<ResumeCard nodeId="n" payload={claude} status={{ state: "running" }} left />));
   expect(host.textContent).toContain("Claude exited");
   expect(host.textContent).toContain("type claude in the shell");
-  expect(host.textContent).not.toContain("typing starts fresh");
+  expect(host.textContent).not.toContain("Click or type");
   await act(async () => host.querySelector("button")!.click());
   expect(relaunchTerminal).toHaveBeenCalledWith("n", claude, "resume");
   // Claude back in the shell: no card.

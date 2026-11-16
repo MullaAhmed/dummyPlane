@@ -131,7 +131,40 @@ it("starts a stopped terminal again on a keystroke, but not while it is being st
   try {
     press();
     await vi.waitFor(() => expect(relaunchSession).toHaveBeenCalledTimes(1));
-    expect(sessionOf(nodesStore.getState().nodes[node])?.claudeSessionId).not.toBe("s-old");
+  } finally {
+    clearMocks();
+  }
+});
+
+it("resumes a stopped agent's conversation when the user types in it, as its card's click does (bug 16 Nov)", async () => {
+  mockIPC(() => undefined);
+  const conversation = "0b9c4b5e-6f1a-4c39-9d2e-8f6c2d1a7e10";
+  await nodesStore.getState().create(node, { workspaceId: "w1", kind: "terminal", payload: { ...payload, claudeSessionId: conversation } });
+  mountTerminal(node, host(), payload, 1);
+  // Restored stopped after the app restarted, its old conversation on screen.
+  terminalStatusStore.getState().set(node, { state: "stopped" });
+  try {
+    keyListeners.get(xtermOf(node)!)!({ key: "c", domEvent: new KeyboardEvent("keydown", { key: "c" }) });
+    await vi.waitFor(() => expect(relaunchSession).toHaveBeenCalledTimes(1));
+    const [, , launched, mode] = vi.mocked(relaunchSession).mock.calls[0];
+    expect(mode).toBe("resume");
+    expect(launched.claudeSessionId).toBe(conversation);
+    expect(sessionOf(nodesStore.getState().nodes[node])?.claudeSessionId).toBe(conversation);
+  } finally {
+    clearMocks();
+  }
+});
+
+it("starts a plain shell again from a keystroke as it was", async () => {
+  mockIPC(() => undefined);
+  const shell: TerminalPayload = { ...payload, agent: "shell" };
+  await nodesStore.getState().create(node, { workspaceId: "w1", kind: "terminal", payload: shell });
+  mountTerminal(node, host(), shell, 1);
+  terminalStatusStore.getState().set(node, { state: "exited", code: 0 });
+  try {
+    keyListeners.get(xtermOf(node)!)!({ key: "Enter", domEvent: new KeyboardEvent("keydown", { key: "Enter" }) });
+    await vi.waitFor(() => expect(relaunchSession).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(relaunchSession).mock.calls[0][3]).toBe("new");
   } finally {
     clearMocks();
   }

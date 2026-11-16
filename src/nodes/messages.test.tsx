@@ -66,7 +66,7 @@ it("shows the header's menus and tooltips in English", async () => {
 it("offers to resume or restart in English", async () => {
   const resume = await mount(<ResumeCard nodeId="batman" payload={payload} status={{ state: "stopped" }} />);
   expect(resume.host.textContent).toContain("Resume the last conversation?");
-  expect(resume.host.textContent).toContain("Click to resume · typing starts fresh");
+  expect(resume.host.textContent).toContain("Click or type to resume");
   expect(resume.host.querySelector('[aria-label="Hide"]')).not.toBeNull();
   await act(async () => resume.root.unmount());
   const plain = await mount(<ResumeCard nodeId="batman" payload={{ ...payload, agent: "shell" }} status={{ state: "stopped" }} />);

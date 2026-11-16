@@ -5,7 +5,7 @@ import { WebglAddon } from "@xterm/addon-webgl";
 import "@xterm/xterm/css/xterm.css";
 import { ptyKill, ptyResize, ptyWrite } from "@/ipc/pty";
 import type { TerminalPayload } from "@/nodes/types";
-import { nodesStore, sessionOf, updateSession } from "@/store/nodes";
+import { nodesStore, sessionOf } from "@/store/nodes";
 import { isRestarting, isRunning, statusOf, terminalStatusStore } from "@/store/terminalStatus";
 import { createAutostart } from "./autostart";
 import { currentPalette, themeStore } from "@/app/theme";
@@ -17,9 +17,9 @@ import { freshScreen, textSince } from "./freshScreen";
 import { pasteImage, pastedImage, takeOverPaste } from "./imagePaste";
 import { keyAction, NEWLINE_SEQUENCE } from "./keys";
 import { openTerminalLink, terminalLinkHandler } from "./links";
-import { newConversation, relaunchMode, type LaunchMode } from "./launch";
+import { relaunchMode, type LaunchMode } from "./launch";
 import { onNewWork } from "./minimize";
-import { isTypingKey, startsNewConversation, startsOnKeystroke } from "./pill";
+import { isTypingKey, startsOnKeystroke } from "./pill";
 import { acceptsInput, reattachSession, relaunchSession, restoreSession, startSession, type SessionState } from "./session";
 import { createWebglPool } from "./webglPool";
 
@@ -156,7 +156,7 @@ function create(nodeId: string): Entry {
     if (!entry.session.replaying && isTypingKey(domEvent)) onNewWork(nodeId);
     const oneShot = sessionOf(nodesStore.getState().nodes[nodeId])?.oneShot;
     if (!entry.session.replaying && isTypingKey(domEvent) && startsOnKeystroke(statusOf(nodeId), oneShot)) {
-      void startFresh(nodeId, entry);
+      void startFromKeystroke(nodeId, entry);
     }
   });
   term.onResize(({ cols, rows }) => {
@@ -318,25 +318,21 @@ async function freshen(entry: Entry) {
 }
 
 /**
- * Starts a terminal again from a keystroke: a new conversation for Claude. Not while it is being started already
- * (its menu, its resume card, a mission's relaunch): its old process's exit makes it look stopped, and a key typed
- * then would start a second one, its new conversation's id written for nothing.
+ * Starts a terminal again from a keystroke, as its resume card does: Claude, or Codex, takes its conversation up
+ * again (`relaunchMode`). A user who types into a stopped agent's screen means to go on with what it shows; a new
+ * conversation is the "New session" of its menu. Not while it is being started already (its menu, its resume card,
+ * a mission's relaunch): its old process's exit makes it look stopped, and a key typed then would start a second one.
  */
-async function startFresh(nodeId: string, entry: Entry) {
+async function startFromKeystroke(nodeId: string, entry: Entry) {
   if (isRestarting(nodeId)) return;
-  let payload = sessionOf(nodesStore.getState().nodes[nodeId]);
+  const payload = sessionOf(nodesStore.getState().nodes[nodeId]);
   if (!payload) return;
-  if ((payload.agent === "claude" || payload.agent === "codex") && startsNewConversation(statusOf(nodeId))) {
-    const fresh = newConversation();
-    updateSession(nodeId, fresh);
-    payload = { ...payload, ...fresh };
-  }
   autostart.cancel(nodeId);
   // Set before the first await: xterm sends the triggering key to onData right
   // after onKey, and it would reach the shell before the agent starts.
   entry.session.restarting = true;
   try {
-    await relaunchSession(nodeId, entry.term, payload, "new", () => freshen(entry));
+    await relaunchSession(nodeId, entry.term, payload, relaunchMode(payload), () => freshen(entry));
   } finally {
     entry.session.restarting = false;
   }
