@@ -10,7 +10,7 @@ import { ROLES } from "./roles";
 
 /**
  * What the agents panel tells about an agent.
- * `active`: the process starts, or runs and its activity is not known (the pill says Active).
+ * `active`: the process starts, or runs and its activity is not known (the pill says Starting).
  */
 export type PanelState = "working" | "waiting" | "active" | "idle" | "stopped";
 

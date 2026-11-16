@@ -4,7 +4,7 @@ import { isTypingKey, pillActivity, pillOf, resumeOfferOf, startsOnKeystroke } f
 
 describe("pillOf", () => {
   it("labels each process state", () => {
-    expect(pillOf({ state: "running" })).toEqual({ label: "Active", tone: "live" });
+    expect(pillOf({ state: "running" })).toEqual({ label: "Starting", tone: "live" });
     expect(pillOf({ state: "stopped" })).toEqual({ label: "Stopped", tone: "stopped" });
     expect(pillOf({ state: "exited", code: 0 })).toEqual({ label: "Exited · 0", tone: "done" });
     expect(pillOf({ state: "exited", code: 2 })).toEqual({ label: "Exited · 2", tone: "failed" });
@@ -90,8 +90,8 @@ describe("a running agent's activity", () => {
     expect(pillOf(running, "working", true)).toEqual({ label: "Working", tone: "workingIndigo" });
   });
 
-  it("reads Active while its activity is unknown, and ignores the activity of a stopped process", () => {
-    expect(pillOf(running)).toEqual({ label: "Active", tone: "live" });
+  it("reads Starting, never Active (it reads like Working), while its activity is unknown, and ignores the activity of a stopped process", () => {
+    expect(pillOf(running)).toEqual({ label: "Starting", tone: "live" });
     expect(pillOf({ state: "stopped" }, "working")).toEqual({ label: "Stopped", tone: "stopped" });
   });
 });

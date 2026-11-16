@@ -26,7 +26,7 @@ export type PillActivity = Activity | "left" | "console";
 /**
  * What the pill reads of a terminal's activity: nothing unless its process runs. A plain shell (`shell`)
  * runs no agent: its output is no work and it never waits, so it reads Running while it runs and Ready once
- * quiet, never Working nor Active, the words of the counts that never count it (src/agents/agentState.ts).
+ * quiet, never Working nor Waiting, the words of the counts that never count it (src/agents/agentState.ts).
  */
 export function pillActivity(status: TerminalStatus, activity?: AgentActivity, shell = false): PillActivity | undefined {
   if (status.state !== "running") return undefined;
@@ -57,7 +57,8 @@ export function pillOf(status: TerminalStatus, activity?: PillActivity, indigo =
       if (activity === "waiting") return { label: t.waiting, tone: "waiting" };
       if (report) return { label: t[report], tone: REPORT_TONES[report], report };
       if (activity === "idle") return { label: t.ready, tone: "ready" };
-      return { label: t.active, tone: "live" };
+      // Its process runs and its agent has not reported yet: "Active" read like "Working", so it says Starting.
+      return { label: t.starting, tone: "live" };
     case "stopped":
       return { label: t.stopped, tone: "stopped" };
     case "exited":
