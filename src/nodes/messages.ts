@@ -36,8 +36,9 @@ export const nodesMessages = defineMessages(
     resumeCard: {
       resumeTitle: "Resume the last conversation?",
       relaunchTitle: "Restart?",
-      resumeHint: "Click to resume · typing starts fresh",
-      relaunchHint: "Click to restart · typing starts fresh",
+      // Typing in the stopped terminal does what the click does: a new conversation is the menu's "New session".
+      resumeHint: "Click or type to resume",
+      relaunchHint: "Click or type to restart",
       oneShotHint: "Click to run the command again",
       // Over a shell whose Claude exited: typing goes to the shell, where `claude` starts it again with its tools.
       leftHint: "Claude exited · click, or type claude in the shell",

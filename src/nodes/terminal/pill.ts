@@ -91,18 +91,13 @@ export function startsOnKeystroke(status: TerminalStatus, oneShot = false): bool
 }
 
 /**
- * "Typing" in "typing starts fresh": a character or Enter. Escape, arrows,
+ * "Typing" in "click or type to resume": a character or Enter. Escape, arrows,
  * function keys and shortcuts (Ctrl+C, Ctrl+Z…) are reflexes, not typing, and
- * must not throw away the conversation the card offers to resume. AltGr
- * characters (Ctrl+Alt on Windows) count as typing.
+ * must not start the terminal again. AltGr characters (Ctrl+Alt on Windows)
+ * count as typing.
  */
 export function isTypingKey(e: Pick<KeyboardEvent, "key" | "ctrlKey" | "altKey" | "metaKey">): boolean {
   const altGr = e.ctrlKey && e.altKey;
   const shortcut = e.metaKey || (!altGr && (e.ctrlKey || e.altKey));
   return !shortcut && ([...e.key].length === 1 || e.key === "Enter");
-}
-
-/** A failed launch created no conversation: retrying keeps the same Claude session id. */
-export function startsNewConversation(status: TerminalStatus): boolean {
-  return status.state !== "error";
 }
