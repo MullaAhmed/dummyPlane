@@ -65,7 +65,7 @@ function followingTitle(payload: TerminalPayload, cwd: string): Partial<Terminal
 }
 
 /** What `--session-id` and `--resume` take: the PTY refuses any other conversation id (`shell.rs`). */
-const CONVERSATION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export const CONVERSATION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * What making `cwd` a running terminal's folder changes, when the `claude` started by hand in its shell (after a

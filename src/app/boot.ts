@@ -26,6 +26,7 @@ import { terminalStatusStore } from "@/store/terminalStatus";
 import { installUsage } from "@/usage/usageStore";
 import { installCodexSessions } from "@/nodes/terminal/codexSessions";
 import { installShellAgents } from "@/nodes/terminal/shellAgent";
+import { installClaudeConversations } from "@/nodes/terminal/claudeSessions";
 import { projectsStore, setForgetWorkspaces } from "@/store/projects";
 import { saveBeforeClose } from "./close";
 import { forgetWorkspaces } from "./forget";
@@ -83,6 +84,8 @@ export function boot(): Promise<void> {
     if (!activity.hooksAvailable) toast.warning(messages(appMessages).hooksDown);
     await installMcp();
     await installUsage();
+    // A `/clear` or a `/resume` in a terminal's Claude: its next Resume takes up the conversation it shows.
+    installClaudeConversations();
     await installCodexSessions();
     // An agent the user starts by hand in a Shell terminal makes it that agent's.
     await installShellAgents();
