@@ -73,12 +73,16 @@ export interface Part {
 
 /**
  * A toned part's fill: the tone's ink, but neutral, the rest of the whole,
- * a light step back, where the calm palette's neutral ink is one more dark green.
+ * a light step back, where the calm palette's neutral ink is one more dark
+ * green. That light fill is under a graphic's 3:1, so its edge is drawn in
+ * NEUTRAL_EDGE, which is not.
  */
+export const NEUTRAL_EDGE = "--dp-text-3";
 export const PART_COLOR: Record<Tone, string> = {
   ...(Object.fromEntries(TONES.map((tone) => [tone, `var(${TONE_TOKEN[tone]})`])) as Record<Tone, string>),
-  neutral: "color-mix(in srgb, var(--dp-text-3) 45%, transparent)",
+  neutral: `color-mix(in srgb, var(${NEUTRAL_EDGE}) 45%, transparent)`,
 };
+const EDGE = { boxShadow: `inset 0 0 0 1px var(${NEUTRAL_EDGE})` };
 
 const percentOf = (value: number, total: number) => {
   const percent = (value / total) * 100;
@@ -98,7 +102,7 @@ export function Breakdown(props: { items: readonly unknown[]; title?: string }) 
     .map((item) => {
       const value = typeof item.value === "number" && Number.isFinite(item.value) && item.value > 0 ? item.value : 0;
       const color = isTone(item.tone) ? PART_COLOR[item.tone] : SYNTAX_HUES[palette][SERIES_HUES[hue++ % SERIES_HUES.length]];
-      return { label: String(item.label ?? ""), value, color };
+      return { label: String(item.label ?? ""), value, color, edge: item.tone === "neutral" ? EDGE : undefined };
     });
   const total = parts.reduce((sum, part) => sum + part.value, 0);
   if (total === 0) return <Figure title={props.title}><Empty /></Figure>;
@@ -107,14 +111,14 @@ export function Breakdown(props: { items: readonly unknown[]; title?: string }) 
     <Figure title={props.title}>
       <div role="img" aria-label={summary} className="flex h-2.5 w-full gap-0.5 overflow-hidden rounded-sm">
         {parts.map((part, i) =>
-          part.value > 0 ? <div key={i} title={`${part.label}: ${formatNumber(part.value)}`} className="h-full min-w-1" style={{ flex: `${part.value} 1 0`, background: part.color }} /> : null,
+          part.value > 0 ? <div key={i} title={`${part.label}: ${formatNumber(part.value)}`} className="h-full min-w-1" style={{ flex: `${part.value} 1 0`, background: part.color, ...part.edge }} /> : null,
         )}
       </div>
       <ul className="flex min-w-0 flex-wrap gap-x-5 gap-y-2">
         {parts.map((part, i) => (
           <li key={i} className="flex max-w-full min-w-0 flex-col">
             <span className="flex min-w-0 items-center gap-1.5 text-xs text-dp-text-2">
-              <span aria-hidden className="size-2 shrink-0 rounded-sm" style={{ background: part.color }} />
+              <span aria-hidden className="size-2 shrink-0 rounded-sm" style={{ background: part.color, ...part.edge }} />
               <span className="truncate" title={part.label}>{part.label}</span>
             </span>
             <span className="flex items-baseline gap-1.5 pl-3.5">

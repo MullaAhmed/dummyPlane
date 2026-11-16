@@ -9,6 +9,7 @@ import { PALETTES as SCHEMES, type ThemeChoice } from "@/app/theme";
 import { BAR_TOKEN, GROUND_TOKENS, PROGRESS_TOKEN, SERIES_HUES, TEXT_TOKENS, TONES, TONE_SOFT, TONE_SOFT_ALPHA, TONE_TEXT, TONE_TOKEN } from "@/openui/tones";
 import { SYNTAX_HUES } from "@/studio/syntaxHues";
 import { TOAST_CLASSES, TOAST_TONES } from "@/components/ui/sonner";
+import { NEUTRAL_EDGE, PART_COLOR } from "@/openui/charts";
 
 const tokens = readSource("theme/tokens.css");
 
@@ -327,6 +328,16 @@ describe("an agent's generated output (src/openui) reads in every palette", () =
         for (const hue of SERIES_HUES) expect(contrast(hues[hue], t[ground]), `${palette} ${hue} series on ${ground}`).toBeGreaterThanOrEqual(3);
       }
     }
+  });
+
+  it("draws a Breakdown's toned parts in the tones' inks, and edges its light neutral part at 3:1", () => {
+    for (const tone of TONES.filter((tone) => tone !== "neutral")) expect(PART_COLOR[tone]).toBe(`var(${TONE_TOKEN[tone]})`);
+    expect(PART_COLOR.neutral).toContain(`var(${NEUTRAL_EDGE})`);
+    for (const [palette, selector] of Object.entries(PALETTES)) {
+      const t = cssBlock(tokens, selector);
+      for (const ground of GROUND_TOKENS) expect(contrast(t[NEUTRAL_EDGE], t[ground]), `${palette} neutral edge on ${ground}`).toBeGreaterThanOrEqual(3);
+    }
+    expect(sourceFiles()["openui/charts.tsx"]).toContain("boxShadow: `inset 0 0 0 1px var(${NEUTRAL_EDGE})`");
   });
 
   it("draws with exactly those tokens: the charts' bars and the progress fill name them", () => {
