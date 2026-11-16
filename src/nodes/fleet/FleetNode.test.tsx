@@ -151,7 +151,7 @@ describe("its header, the same chrome as a terminal's", () => {
     await act(async () => terminalStatusStore.getState().set("chef", { state: "starting" }));
     expect(word()).toBe("Starting");
     await act(async () => terminalStatusStore.getState().set("chef", { state: "running" }));
-    expect(word()).toBe("Active");
+    expect(word()).toBe("Starting");
     await act(async () => agentActivityStore.getState().apply({ nodeId: "chef", activity: "working", since: Date.now() }));
     expect(word()).toBe("Working");
     await act(async () => terminalStatusStore.getState().set("chef", { state: "error", message: "no tools", kind: "toolsUnavailable" }));

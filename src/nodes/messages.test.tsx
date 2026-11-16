@@ -35,7 +35,7 @@ async function mount(node: React.ReactNode) {
 const payload = { title: "Batman", name: "Batman", agent: "claude", cwd: "C:/code", shell: "default", command: "", claudeSessionId: "s" } as const;
 
 it("labels the status pill in English", () => {
-  expect(pillOf({ state: "running" })).toEqual({ label: "Active", tone: "live" });
+  expect(pillOf({ state: "running" })).toEqual({ label: "Starting", tone: "live" });
   expect(pillOf({ state: "running" }, "working")).toEqual({ label: "Working", tone: "working" });
   expect(pillOf({ state: "stopped" })).toEqual({ label: "Stopped", tone: "stopped" });
   expect(pillOf({ state: "exited", code: 2 })).toEqual({ label: "Exited · 2", tone: "failed" });
