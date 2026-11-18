@@ -8,6 +8,8 @@ dummyPlane's first release will be 0.1.0; until then, its changes are listed und
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-16
+
 ### Added
 - **More ways to arrange:**
   - **Arrange layout:** a new submenu under *Auto-arrange* in Settings. Pick *Grid* (the tidy grid, still the default), *One row*, *One column*, or *2*, *3* or *4 columns*. Arrange, a group's Arrange and Auto-arrange all use it, and inside a group its terminals take the same shape. With Auto-arrange on, picking a layout re-arranges the canvas at once, and one undo takes it back.
