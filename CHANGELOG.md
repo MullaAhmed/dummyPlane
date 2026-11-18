@@ -8,6 +8,25 @@ dummyPlane's first release will be 0.1.0; until then, its changes are listed und
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-18
+
+### Added
+
+- **output:** an output is something to look at, not a wall of text: Tabs for a report's categories, a Breakdown bar for parts of a whole, Badge cells in tables that sort on a header's click and fold past eight rows, Cards that fold, Stats inked in their tone and four to a row, callouts and badges on their tone's tint; show_output warns about long prose, lists of sentences and columns of open Cards, and the guide, the tool and the prompt ask for the verdict first and the detail behind a click
+- **output:** an output is something to look at, not a wall of text: Tabs for a report's categories, a Breakdown bar for parts of a whole, Badge cells in tables that sort on a header's click and fold past eight rows, Cards that fold, Stats inked in their tone and four to a row, callouts and badges on their tone's tint; show_output warns about long prose, lists of sentences and columns of open Cards, and the guide, the tool and the prompt ask for the verdict first and the detail behind a click
+
+### Fixed
+
+- **output:** a Breakdown's light neutral part gets a 1px edge in the third text ink, a graphic's 3:1 on every ground, and a short one-word table cell (a ticket id) stays on one line instead of breaking at its hyphen beside a long column
+- **pill:** a running agent that has not reported yet reads Starting, not Active, which read like Working beside it; the counts' and the Active filter's word stay
+- **output:** a Breakdown's light neutral part gets a 1px edge in the third text ink, a graphic's 3:1 on every ground, and a short one-word table cell (a ticket id) stays on one line instead of breaking at its hyphen beside a long column
+- **terminal:** a /resume or /clear in a running Claude is what its terminal resumes next: the terminal follows the conversation its status line names, while it runs in the terminal's folder and profile and no restart is under way, where it kept the id it was launched on, often an empty conversation
+- **terminal:** typing in a stopped Claude or Codex terminal resumes its conversation, as the resume card's click does, where a keystroke stored a new conversation id and started an empty one; the card says Click or type to resume, and a new conversation stays the menu's New session
+
+### Documentation
+
+- **changelog:** typing in a stopped agent resumes its conversation, and a /resume or /clear inside Claude is what the terminal resumes next
+
 ## [0.2.0] - 2026-11-16
 
 ### Added

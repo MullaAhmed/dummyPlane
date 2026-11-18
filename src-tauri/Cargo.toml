@@ -1,6 +1,6 @@
 [package]
 name = "dummyplane"
-version = "0.2.0"
+version = "0.3.0"
 description = "dummyPlane: a local-first canvas of real terminals for AI coding agents"
 authors = ["Mathieu Kerbel"]
 license = "MIT"
